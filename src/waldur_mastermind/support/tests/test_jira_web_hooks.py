@@ -21,10 +21,14 @@ from waldur_mastermind.support.backend.atlassian import (
 from waldur_mastermind.support.tests import factories
 
 
+JIRA_WEBHOOK_TEST_SECRET = "jira-test-secret"  # noqa: S105
+
+
 @mock.patch("waldur_mastermind.support.serializers.ServiceDeskBackend")
 @override_constance_config(
     WALDUR_SUPPORT_ENABLED=True,
     WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
+    JIRA_WEBHOOK_SHARED_SECRET=JIRA_WEBHOOK_TEST_SECRET,
 )
 @override_settings(task_always_eager=True)
 class TestJiraWebHooks(APITestCase):
@@ -46,40 +50,46 @@ class TestJiraWebHooks(APITestCase):
         )
         [create_request(self, *r) for r in jira_requests]
 
+    def _post(self, body):
+        # Inbound webhooks now require the X-Webhook-Secret header — see SEC-C7.
+        return self.client.post(
+            self.url, body, HTTP_X_WEBHOOK_SECRET=JIRA_WEBHOOK_TEST_SECRET
+        )
+
     def test_issue_update(self, mock_jira):
         self.request_data_issue_updated["issue_event_type_name"] = "issue_updated"
-        self.client.post(self.url, self.request_data_issue_updated)
+        self._post(self.request_data_issue_updated)
         self.assertTrue(self._call_update_issue(mock_jira))
 
     def test_generic_update(self, mock_jira):
         self.request_data_issue_updated["issue_event_type_name"] = "issue_generic"
-        self.client.post(self.url, self.request_data_issue_updated)
+        self._post(self.request_data_issue_updated)
         self.assertTrue(self._call_update_issue(mock_jira))
 
     def test_comment_create(self, mock_jira):
-        self.client.post(self.url, self.request_data_comment_create)
+        self._post(self.request_data_comment_create)
         self.assertTrue(self._call_create_comment(mock_jira))
 
     def test_comment_update(self, mock_jira):
         comment = factories.CommentFactory(issue=self.issue)
         self.request_data_comment_update["comment"]["id"] = comment.backend_id
-        self.client.post(self.url, self.request_data_comment_update)
+        self._post(self.request_data_comment_update)
         self.assertTrue(self._call_update_comment(mock_jira))
 
     def test_comment_delete(self, mock_jira):
         comment = factories.CommentFactory(issue=self.issue)
         self.request_data_comment_delete["comment"]["id"] = comment.backend_id
-        self.client.post(self.url, self.request_data_comment_delete)
+        self._post(self.request_data_comment_delete)
         self.assertTrue(self._call_delete_comment(mock_jira))
 
     def test_add_attachment(self, mock_jira):
         self.request_data_issue_updated["issue_event_type_name"] = "issue_updated"
-        self.client.post(self.url, self.request_data_issue_updated)
+        self._post(self.request_data_issue_updated)
         self.assertTrue(self._call_update_attachment(mock_jira))
 
     def test_delete_attachment(self, mock_jira):
         self.request_data_issue_updated["issue_event_type_name"] = "issue_updated"
-        self.client.post(self.url, self.request_data_issue_updated)
+        self._post(self.request_data_issue_updated)
         self.assertTrue(self._call_update_attachment(mock_jira))
 
     def _call_update_attachment(self, mock_jira):

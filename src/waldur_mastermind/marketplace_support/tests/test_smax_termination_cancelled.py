@@ -2,6 +2,7 @@
 
 from unittest import mock
 
+from constance.test.unittest import override_config as override_constance_config
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -12,7 +13,10 @@ from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 
+_SMAX_WEBHOOK_SECRET = "smax-test-secret"  # noqa: S105
 
+
+@override_constance_config(SMAX_WEBHOOK_SHARED_SECRET=_SMAX_WEBHOOK_SECRET)
 class SmaxTerminationCancellationTest(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -72,9 +76,12 @@ class SmaxTerminationCancellationTest(TestCase):
             "Description": "Termination request has been cancelled due to business requirements",
         }
 
-        # Call the webhook endpoint
+        # Call the webhook endpoint with the shared secret header (SEC-C7).
         response = self.client.post(
-            "/api/support-smax-webhook/", data=webhook_data, format="json"
+            "/api/support-smax-webhook/",
+            data=webhook_data,
+            format="json",
+            HTTP_X_WEBHOOK_SECRET=_SMAX_WEBHOOK_SECRET,
         )
 
         self.assertEqual(response.status_code, 200)

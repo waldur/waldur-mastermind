@@ -677,6 +677,15 @@ CONSTANCE_CONFIG = {
         "customfield_10200",
         "Waldur backend ID custom field ID (fallback when field lookup by name fails)",
     ),
+    "JIRA_WEBHOOK_SHARED_SECRET": (
+        "",
+        "Shared secret expected in the X-Webhook-Secret header of inbound "
+        "JIRA webhook deliveries. If empty, authentication is not enforced "
+        "and the receiver accepts unauthenticated requests (legacy "
+        "behaviour). Configure your JIRA automation/webhook to send the "
+        "same value to enable authentication.",
+        "secret_field",
+    ),
     # Zammad settings
     "ZAMMAD_API_URL": (
         "",
@@ -708,6 +717,14 @@ CONSTANCE_CONFIG = {
         "<https://github.com/zammad/zammad/issues/2687/>, "
         "<https://github.com/zammad/zammad/issues/3086/>",
     ),
+    "ZAMMAD_WEBHOOK_SHARED_SECRET": (
+        "",
+        "Shared secret expected in the X-Webhook-Secret header of inbound "
+        "Zammad webhook deliveries. If empty, authentication is not "
+        "enforced and the receiver accepts unauthenticated requests "
+        "(legacy behaviour).",
+        "secret_field",
+    ),
     # SMAX settings
     "SMAX_API_URL": (
         "",
@@ -731,6 +748,14 @@ CONSTANCE_CONFIG = {
     "SMAX_CREATION_SOURCE_NAME": ("", "Creation source name."),
     "SMAX_REQUESTS_OFFERING": ("", "Requests offering code for all issues."),
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
+    "SMAX_WEBHOOK_SHARED_SECRET": (
+        "",
+        "Shared secret expected in the X-Webhook-Secret header of inbound "
+        "SMAX webhook deliveries. If empty, authentication is not enforced "
+        "and the receiver accepts unauthenticated requests (legacy "
+        "behaviour).",
+        "secret_field",
+    ),
     # Service accounts
     "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND": (
         False,
@@ -1609,6 +1634,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ATLASSIAN_VERIFY_SSL",
         "ATLASSIAN_USE_OLD_API",
         "ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS",
+        "JIRA_WEBHOOK_SHARED_SECRET",
     ),
     "Zammad settings": (
         "ZAMMAD_API_URL",
@@ -1618,6 +1644,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ZAMMAD_COMMENT_MARKER",
         "ZAMMAD_COMMENT_PREFIX",
         "ZAMMAD_COMMENT_COOLDOWN_DURATION",
+        "ZAMMAD_WEBHOOK_SHARED_SECRET",
     ),
     "SMAX settings": (
         "SMAX_API_URL",
@@ -1632,6 +1659,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_TIMES_TO_PULL",
         "SMAX_CREATION_SOURCE_NAME",
         "SMAX_VERIFY_SSL",
+        "SMAX_WEBHOOK_SHARED_SECRET",
     ),
     "Proposal settings": (
         "PROPOSAL_REVIEW_DURATION",
