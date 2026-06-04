@@ -836,15 +836,14 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         return queryset.filter(versions__metadata__toolchain__name=value).distinct()
 
     def filter_has_gpu(self, queryset, name, value):
-        """Filter packages that have GPU-enabled builds."""
-        gpu_pks = (
-            queryset.exclude(versions__targets__gpu_architectures=[])
-            .values_list("pk", flat=True)
-            .distinct()
-        )
+        """Filter packages that have at least one GPU-enabled target."""
+        # Exists: at least one non-empty gpu_architectures target (not "all targets").
+        has_gpu_target = models.SoftwareTarget.objects.filter(
+            version__package_id=OuterRef("pk"),
+        ).exclude(gpu_architectures=[])
         if value:
-            return queryset.filter(pk__in=gpu_pks)
-        return queryset.exclude(pk__in=gpu_pks)
+            return queryset.filter(Exists(has_gpu_target)).distinct()
+        return queryset.exclude(Exists(has_gpu_target)).distinct()
 
     def filter_gpu_arch(self, queryset, name, value):
         """Filter packages by specific GPU architecture (e.g., nvidia/cc90)."""
@@ -968,15 +967,13 @@ class SoftwareVersionFilter(django_filters.FilterSet):
         return queryset.filter(metadata__toolchain__version=value)
 
     def filter_has_gpu(self, queryset, name, value):
-        """Filter versions that have GPU-enabled builds."""
-        gpu_pks = (
-            queryset.exclude(targets__gpu_architectures=[])
-            .values_list("pk", flat=True)
-            .distinct()
-        )
+        """Filter versions that have at least one GPU-enabled target."""
+        has_gpu_target = models.SoftwareTarget.objects.filter(
+            version_id=OuterRef("pk"),
+        ).exclude(gpu_architectures=[])
         if value:
-            return queryset.filter(pk__in=gpu_pks)
-        return queryset.exclude(pk__in=gpu_pks)
+            return queryset.filter(Exists(has_gpu_target)).distinct()
+        return queryset.exclude(Exists(has_gpu_target)).distinct()
 
     def filter_gpu_arch(self, queryset, name, value):
         """Filter versions by specific GPU architecture (e.g., nvidia/cc90)."""

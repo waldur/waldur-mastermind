@@ -1884,3 +1884,62 @@ class SoftwarePackageGPUFilterTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+
+
+class SoftwarePackageMixedGPUFilterTest(test.APITestCase):
+    """Regression tests for has_gpu filter with mixed CPU and CUDA builds.
+
+    EESSI packages like GROMACS expose multiple module_version rows per package:
+    several CPU-only versions (empty gpu_architectures) and one CUDA build.
+    has_gpu=true must match when *any* target has GPU, not only when *all* do.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+        self.pkg_url = factories.SoftwarePackageFactory.get_list_url()
+        self.ver_url = factories.SoftwareVersionFactory.get_list_url()
+
+        self.mixed_package = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="GROMACS"
+        )
+        cpu_version = factories.SoftwareVersionFactory(
+            package=self.mixed_package,
+            version="2024.4",
+            module_version="2024.4-foss-2023b",
+        )
+        factories.SoftwareTargetFactory(
+            version=cpu_version,
+            target_name="x86_64",
+            target_subtype="generic",
+            gpu_architectures=[],
+        )
+        cuda_version = factories.SoftwareVersionFactory(
+            package=self.mixed_package,
+            version="2024.4",
+            module_version="2024.4-foss-2023b-CUDA-12.4.0",
+        )
+        factories.SoftwareTargetFactory(
+            version=cuda_version,
+            target_name="x86_64",
+            target_subtype="generic",
+            gpu_architectures=["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"],
+        )
+
+    def test_filter_packages_has_gpu_true_includes_mixed_cpu_and_cuda_builds(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.pkg_url + "?has_gpu=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertIn("GROMACS", names)
+
+    def test_filter_versions_has_gpu_true_includes_only_cuda_build(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.ver_url + f"?package_uuid={self.mixed_package.uuid.hex}&has_gpu=true"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        module_versions = {v["module_version"] for v in response.data}
+        self.assertEqual(module_versions, {"2024.4-foss-2023b-CUDA-12.4.0"})
