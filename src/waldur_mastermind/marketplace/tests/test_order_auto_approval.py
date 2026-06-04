@@ -123,6 +123,29 @@ class EligibilityHelperTest(test.APITestCase):
         order = self._make_order(plan=expensive, type=OrderTypes.TERMINATE)
         self.assertEqual(order_approval.evaluate_auto_approval(order), rule)
 
+    def test_terminate_order_exempt_from_purchase_order_requirement(self):
+        self.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.offering.save()
+        rule = self._make_rule(limit="9999")
+        order = self._make_order(type=OrderTypes.TERMINATE)
+        self.assertEqual(order_approval.evaluate_auto_approval(order), rule)
+
+    def test_require_purchase_order_blocks_auto_approval(self):
+        self.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.offering.save()
+        self._make_rule(limit="9999")
+        order = self._make_order()
+        self.assertIsNone(order_approval.evaluate_auto_approval(order))
+
+    def test_require_purchase_order_with_attachment_allows_auto_approval(self):
+        self.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.offering.save()
+        rule = self._make_rule(limit="9999")
+        order = self._make_order()
+        order.attachment = "marketplace_order_attachments/po.pdf"
+        order.save(update_fields=["attachment"])
+        self.assertEqual(order_approval.evaluate_auto_approval(order), rule)
+
 
 class EstimatedMonthlyCostTest(test.APITestCase):
     def setUp(self):

@@ -199,6 +199,25 @@ class OrderApproveByConsumerTest(test.APITestCase):
         order.refresh_from_db()
         self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
 
+    def test_update_order_requires_purchase_order_when_configured(self):
+        self.order.type = OrderTypes.UPDATE
+        self.order.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.order.offering.save()
+        self.order.save(update_fields=["type"])
+        response = self.approve_order(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_order_with_attachment_is_approved_when_purchase_order_required(
+        self,
+    ):
+        self.order.type = OrderTypes.UPDATE
+        self.order.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.order.offering.save()
+        self.order.attachment = "marketplace_order_attachments/po.pdf"
+        self.order.save(update_fields=["type", "attachment"])
+        response = self.approve_order(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def approve_order(self, user, order=None):
         order = order or self.order
         self.client.force_authenticate(user)
