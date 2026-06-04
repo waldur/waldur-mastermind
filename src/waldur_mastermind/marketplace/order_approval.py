@@ -54,6 +54,12 @@ def evaluate_auto_approval(
         return None
     if order.plan is None and order.type != OrderTypes.TERMINATE:
         return None
+    if (
+        order.type != OrderTypes.TERMINATE
+        and order.offering.plugin_options.get("require_purchase_order_upload", False)
+        and not order.attachment
+    ):
+        return None
 
     rule = models.ProjectOrderAutoApproval.objects.filter(
         project=order.project, enabled=True
