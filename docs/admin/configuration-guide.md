@@ -1922,6 +1922,12 @@ Toggler for legacy API usage.
 
 Toggler for mapping between waldur user and service desk agents.
 
+#### JIRA_WEBHOOK_SHARED_SECRET
+
+**Type:** secret_field
+
+Shared secret expected in the X-Webhook-Secret header of inbound JIRA webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behaviour). Configure your JIRA automation/webhook to send the same value to enable authentication.
+
 ### Zammad settings
 
 #### ZAMMAD_API_URL
@@ -1973,6 +1979,12 @@ Comment prefix with user info.
 **Default value:** 5
 
 Time in minutes. Time in minutes while comment deletion is available <https://github.com/zammad/zammad/issues/2687/>, <https://github.com/zammad/zammad/issues/3086/>
+
+#### ZAMMAD_WEBHOOK_SHARED_SECRET
+
+**Type:** secret_field
+
+Shared secret expected in the X-Webhook-Secret header of inbound Zammad webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behaviour).
 
 ### SMAX settings
 
@@ -2053,6 +2065,12 @@ Creation source name.
 **Default value:** True
 
 Toggler for SSL verification
+
+#### SMAX_WEBHOOK_SHARED_SECRET
+
+**Type:** secret_field
+
+Shared secret expected in the X-Webhook-Secret header of inbound SMAX webhook deliveries. If empty, authentication is not enforced and the receiver accepts unauthenticated requests (legacy behaviour).
 
 ### Proposal settings
 
