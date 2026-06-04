@@ -2888,6 +2888,18 @@ Enable storing system logs (API, Worker, Beat) in the database for staff viewing
 
 Maximum number of log rows to keep per source (api, worker, beat). Oldest rows are deleted when exceeded.
 
+#### OPENSTACK_LOG_CALLS_ENABLED
+
+**Type:** bool
+
+Emit one log line per OpenStack HTTP call on logger `waldur_openstack.calls` (method, host+path, status, elapsed ms, originating backend action). Useful for diagnosing slow tenant operations; off by default because chatty under steady-state load.
+
+#### OPENSTACK_LOG_CALLS_THRESHOLD_MS
+
+**Type:** int
+
+When OPENSTACK_LOG_CALLS_ENABLED is on, only emit lines for calls slower than this many milliseconds. 0 logs every call. Errors are always logged regardless of this threshold.
+
 ### Table Growth Monitoring
 
 #### TABLE_GROWTH_MONITORING_ENABLED
