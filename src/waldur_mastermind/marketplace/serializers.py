@@ -483,6 +483,12 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Label used by UI for showing value of the backend_id",
     )
+    require_effective_id_for_highlighted_display = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="If set to True, highlighted backend ID display is only shown "
+        "when the resource has an effective_id.",
+    )
     expose_inference_playground = serializers.BooleanField(
         required=False,
         default=False,

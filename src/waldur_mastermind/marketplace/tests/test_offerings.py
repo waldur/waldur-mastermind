@@ -1068,6 +1068,7 @@ class OfferingCreateTest(test.APITestCase):
             "enable_display_of_order_actions_for_service_provider": True,
             "expose_inference_playground": False,
             "highlight_backend_id_display": False,
+            "require_effective_id_for_highlighted_display": False,
             "homedir_prefix": "/home/",
             "initial_primarygroup_number": 5000,
             "initial_uidnumber": 5000,
