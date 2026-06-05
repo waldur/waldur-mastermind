@@ -28,12 +28,17 @@ class OfferingResourceDisplayOptionsSerializerTest(test.APITestCase):
         self.assertEqual(
             validated_data.get("expose_inference_playground", False), False
         )
+        self.assertEqual(
+            validated_data.get("require_effective_id_for_highlighted_display", False),
+            False,
+        )
 
     def test_serializer_custom_values(self):
         """Test that the serializer accepts custom values"""
         data = {
             "highlight_backend_id_display": True,
             "backend_id_display_label": "Custom Backend Identifier",
+            "require_effective_id_for_highlighted_display": True,
             "expose_inference_playground": True,
         }
 
@@ -45,6 +50,9 @@ class OfferingResourceDisplayOptionsSerializerTest(test.APITestCase):
         self.assertEqual(validated_data["highlight_backend_id_display"], True)
         self.assertEqual(
             validated_data["backend_id_display_label"], "Custom Backend Identifier"
+        )
+        self.assertEqual(
+            validated_data["require_effective_id_for_highlighted_display"], True
         )
         self.assertEqual(validated_data["expose_inference_playground"], True)
 
@@ -80,6 +88,7 @@ class OfferingResourceDisplayOptionsSerializerTest(test.APITestCase):
         data = {
             "highlight_backend_id_display": True,
             "backend_id_display_label": "System ID",
+            "require_effective_id_for_highlighted_display": True,
             # Include other plugin options to ensure compatibility
             "auto_approve_remote_orders": False,
         }
@@ -91,6 +100,9 @@ class OfferingResourceDisplayOptionsSerializerTest(test.APITestCase):
         validated_data = serializer.validated_data
         self.assertEqual(validated_data["highlight_backend_id_display"], True)
         self.assertEqual(validated_data["backend_id_display_label"], "System ID")
+        self.assertEqual(
+            validated_data["require_effective_id_for_highlighted_display"], True
+        )
         self.assertEqual(validated_data["auto_approve_remote_orders"], False)
 
 
