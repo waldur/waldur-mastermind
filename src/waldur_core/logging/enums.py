@@ -284,6 +284,9 @@ class EventType(StrEnum):
     RESOURCE_PULL_FAILED = "resource_pull_failed"
     RESOURCE_PULL_SCHEDULED = "resource_pull_scheduled"
     RESOURCE_PULL_SUCCEEDED = "resource_pull_succeeded"
+    RESOURCE_RESCUE_FAILED = "resource_rescue_failed"
+    RESOURCE_RESCUE_SCHEDULED = "resource_rescue_scheduled"
+    RESOURCE_RESCUE_SUCCEEDED = "resource_rescue_succeeded"
     RESOURCE_RESTART_FAILED = "resource_restart_failed"
     RESOURCE_RESTART_SCHEDULED = "resource_restart_scheduled"
     RESOURCE_RESTART_SUCCEEDED = "resource_restart_succeeded"
@@ -303,6 +306,9 @@ class EventType(StrEnum):
     RESOURCE_UNASSIGN_FLOATING_IP_FAILED = "resource_unassign_floating_ip_failed"
     RESOURCE_UNASSIGN_FLOATING_IP_SCHEDULED = "resource_unassign_floating_ip_scheduled"
     RESOURCE_UNASSIGN_FLOATING_IP_SUCCEEDED = "resource_unassign_floating_ip_succeeded"
+    RESOURCE_UNRESCUE_FAILED = "resource_unrescue_failed"
+    RESOURCE_UNRESCUE_SCHEDULED = "resource_unrescue_scheduled"
+    RESOURCE_UNRESCUE_SUCCEEDED = "resource_unrescue_succeeded"
     RESOURCE_UPDATE_ALLOWED_ADDRESS_PAIRS_FAILED = (
         "resource_update_allowed_address_pairs_failed"
     )
@@ -686,6 +692,9 @@ EVENT_GROUP_MAPPING = {
         EventType.RESOURCE_PULL_FAILED,
         EventType.RESOURCE_PULL_SCHEDULED,
         EventType.RESOURCE_PULL_SUCCEEDED,
+        EventType.RESOURCE_RESCUE_FAILED,
+        EventType.RESOURCE_RESCUE_SCHEDULED,
+        EventType.RESOURCE_RESCUE_SUCCEEDED,
         EventType.RESOURCE_RESTART_FAILED,
         EventType.RESOURCE_RESTART_SCHEDULED,
         EventType.RESOURCE_RESTART_SUCCEEDED,
@@ -705,6 +714,9 @@ EVENT_GROUP_MAPPING = {
         EventType.RESOURCE_UNASSIGN_FLOATING_IP_FAILED,
         EventType.RESOURCE_UNASSIGN_FLOATING_IP_SCHEDULED,
         EventType.RESOURCE_UNASSIGN_FLOATING_IP_SUCCEEDED,
+        EventType.RESOURCE_UNRESCUE_FAILED,
+        EventType.RESOURCE_UNRESCUE_SCHEDULED,
+        EventType.RESOURCE_UNRESCUE_SUCCEEDED,
         EventType.RESOURCE_UPDATE_ALLOWED_ADDRESS_PAIRS_FAILED,
         EventType.RESOURCE_UPDATE_ALLOWED_ADDRESS_PAIRS_SCHEDULED,
         EventType.RESOURCE_UPDATE_ALLOWED_ADDRESS_PAIRS_SUCCEEDED,
