@@ -92,6 +92,11 @@ class ProjectSection(FeatureSection):
 
     show_kind_in_create_dialog = Feature("Show kind field in project create dialog.")
 
+    show_matrix_chat = Feature(
+        "Render the project Matrix chat UI. Backend access is gated "
+        "separately on the MATRIX_ENABLED Constance setting."
+    )
+
 
 class UserSection(FeatureSection):
     class Meta:

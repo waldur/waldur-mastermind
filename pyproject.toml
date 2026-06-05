@@ -84,6 +84,8 @@ dependencies = [
   "httpx[socks]>=0.28.1",
   "django-cors-headers>=4.5.0,<5.0.0",
   "openai>=2.26.0",
+  "matrix-nio>=0.25.2,<1.0.0",
+  "markdown-it-py>=3.0.0,<5.0.0",
   "openstacksdk>=4.7.1",
   "scim2-models>=0.4.0",
 ]
@@ -121,6 +123,7 @@ waldur_marketplace_vmware = "waldur_mastermind.marketplace_vmware.extension:Mark
 waldur_marketplace_remote = "waldur_mastermind.marketplace_remote.extension:MarketplaceRemoteExtension"
 waldur_marketplace_promotions = "waldur_mastermind.promotions.extension:MarketplacePromotionsExtension"
 waldur_marketplace_chat = "waldur_mastermind.chat.extension:MarketplaceChatExtension"
+waldur_matrix_chat = "waldur_mastermind.matrix_chat.extension:MatrixChatExtension"
 waldur_openportal = "waldur_openportal.extension:OpenPortalExtension"
 waldur_openstack = "waldur_openstack.extension:OpenStackExtension"
 waldur_openstack_tenant = "waldur_openstack_tenant.extension:OpenStackTenantExtension"

@@ -30,3 +30,6 @@ __pycache__/
 
 .vscode/
 pyrightconfig.json
+
+# Local Matrix appservice registration (contains dev tokens)
+docker/matrix-dev/appservices/
