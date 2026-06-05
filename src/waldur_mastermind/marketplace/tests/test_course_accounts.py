@@ -13,7 +13,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, utils
 from waldur_mastermind.marketplace.enums import CourseAccountState
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -271,6 +271,33 @@ class CourseAccountPermissionTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         account.refresh_from_db()
         self.assertEqual(account.state, CourseAccountState.CLOSED)
+
+    def test_close_already_closed_course_account_is_noop(self):
+        """Regression for CSCS-4K1: closing a CLOSED account must not raise.
+
+        The project pre_delete handler iterates every CourseAccount on the
+        project, including ones already in CLOSED, and re-closes them. The
+        FSM rejects CLOSED→CLOSED, so without idempotency this surfaces as a
+        500 on the order callback that triggered the cascade.
+        """
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.CLOSED,
+        )
+        utils.close_course_account(account)
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.CLOSED)
+
+    def test_project_deletion_with_closed_course_account_does_not_crash(self):
+        """Regression for CSCS-4K1: deleting a project that has a CLOSED
+        course account must not raise TransitionNotAllowed."""
+        factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.CLOSED,
+        )
+        self.course_project.delete()
 
     def test_update_operations_are_disabled(self):
         """Test that update operations are disabled"""
