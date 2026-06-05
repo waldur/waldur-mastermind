@@ -18,8 +18,9 @@ from waldur_core.checklist.models import (
     QuestionDependency,
     QuestionOption,
 )
+from waldur_core.core.features import FEATURES
 from waldur_core.core.middleware import skip_side_effects
-from waldur_core.core.models import SshPublicKey, User
+from waldur_core.core.models import Feature, SshPublicKey, User
 from waldur_core.core.serializers import ConstanceSettingsSerializer
 from waldur_core.logging.models import Event
 from waldur_core.permissions.models import Role, RolePermission, UserRole
@@ -138,6 +139,7 @@ class Command(BaseCommand):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.stats = {
+            "features": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "auth_tokens": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "customers": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -570,6 +572,12 @@ class Command(BaseCommand):
         """Perform the actual import operations."""
         # Import in dependency order, each operation in its own transaction
         # to prevent one failed import from affecting others
+
+        # Features have no entity dependencies; import first so that the
+        # rest of the load (and the running API) sees the right flags.
+        self._safe_import(
+            "features", lambda: self.import_features(data.get("features", []))
+        )
 
         if not skip_users:
             self._safe_import("users", lambda: self.import_users(data.get("users", [])))
@@ -1096,6 +1104,59 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.WARNING(f"Import of {import_type} failed: {e}")
                 )
+
+    def import_features(self, features_data):
+        """Import feature flag values into the Feature model.
+
+        Each entry is ``{"key": "<section>.<feature>", "value": <bool>}``.
+        Unknown keys are reported and skipped. After writes, the cached
+        ``/api/configuration/`` payload is invalidated so a running API
+        picks up the new values immediately.
+        """
+        if not features_data:
+            return
+
+        self.stdout.write("Importing features...")
+
+        valid_keys = {
+            f"{section['key']}.{feature['key']}"
+            for section in FEATURES
+            for feature in section["items"]
+        }
+        touched = False
+        for entry in features_data:
+            key = entry.get("key")
+            if key is None or "value" not in entry:
+                self.stdout.write(
+                    self.style.WARNING("Skipping feature without key/value")
+                )
+                self.stats["features"]["errors"] += 1
+                continue
+            if key not in valid_keys:
+                self.stdout.write(self.style.WARNING(f"Unknown feature key: {key}"))
+                self.stats["features"]["errors"] += 1
+                continue
+            value = bool(entry["value"])
+            obj, created = Feature.objects.get_or_create(
+                key=key, defaults={"value": value}
+            )
+            if created:
+                self.stats["features"]["created"] += 1
+                touched = True
+            elif obj.value != value:
+                obj.value = value
+                obj.save(update_fields=["value"])
+                self.stats["features"]["updated"] += 1
+                touched = True
+            else:
+                self.stats["features"]["skipped"] += 1
+
+        if touched:
+            # Drop the cached public configuration so consumers see the new
+            # flag values without a backend restart.
+            from django.core.cache import cache
+
+            cache.delete("API_CONFIGURATION")
 
     def import_users(self, users_data):
         """Import user data including system_robot."""

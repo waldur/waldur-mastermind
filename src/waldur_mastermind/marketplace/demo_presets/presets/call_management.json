@@ -21,6 +21,12 @@
       "Algorithm-generated assignments with deployment workflow"
     ]
   },
+  "features": [
+    {
+      "key": "marketplace.show_call_management_functionality",
+      "value": true
+    }
+  ],
   "users": [
     {
       "uuid": "00000000000000000000000000000001",
