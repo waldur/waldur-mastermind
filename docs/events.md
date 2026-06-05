@@ -362,6 +362,9 @@
 - resource_pull_failed
 - resource_pull_scheduled
 - resource_pull_succeeded
+- resource_rescue_failed
+- resource_rescue_scheduled
+- resource_rescue_succeeded
 - resource_restart_failed
 - resource_restart_scheduled
 - resource_restart_succeeded
@@ -381,6 +384,9 @@
 - resource_unassign_floating_ip_failed
 - resource_unassign_floating_ip_scheduled
 - resource_unassign_floating_ip_succeeded
+- resource_unrescue_failed
+- resource_unrescue_scheduled
+- resource_unrescue_succeeded
 - resource_update_allowed_address_pairs_failed
 - resource_update_allowed_address_pairs_scheduled
 - resource_update_allowed_address_pairs_succeeded

@@ -652,6 +652,10 @@ td:nth-child(4) {
 | `offering_component_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Log offering component creation and updates. |
 | `offering_component_has_been_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingComponent` | Log offering component deletion. |
 | `offering_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Offering` | Log offering creation and updates. |
+| `on_order_state_changed` | `Django Signal (post_save)` | `marketplace.Order` | Notify the project's Matrix room when an order is approved, completed, or rejected. |
+| `on_project_pre_delete` | `Django Signal (pre_delete)` | `structure.Project` | When a project is about to be deleted, disable room (kick members, export, archive). |
+| `on_role_granted` | `Custom Signal (role_granted)` | `—` | When a role is granted, invite the user to the project's Matrix room. |
+| `on_role_revoked` | `Custom Signal (role_revoked)` | `—` | When a role is revoked, kick the user from the project's Matrix room if they have no remaining roles. |
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
 | `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
@@ -864,14 +868,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 785
+Total unique handlers found: 789
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 315 handlers
+- **waldur_mastermind**: 319 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

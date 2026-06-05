@@ -520,6 +520,23 @@ options:
 
 ```
 
+## generate_appservice_registration
+
+Generate a Matrix Application Service registration YAML for the homeserver.
+
+```bash
+
+usage: waldur generate_appservice_registration [--url URL]
+                                               [--as-token AS_TOKEN]
+                                               [--hs-token HS_TOKEN]
+
+options:
+  --url URL            Base URL of the Waldur instance.
+  --as-token AS_TOKEN  Override as_token (default: read from constance).
+  --hs-token HS_TOKEN  Override hs_token (default: read from constance).
+
+```
+
 ## generate_mermaid
 
 Generate a Mermaid Class Diagram for specified Django apps and models.

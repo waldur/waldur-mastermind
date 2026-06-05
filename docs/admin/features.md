@@ -176,6 +176,10 @@ Show industry flag.
 
 Show kind field in project create dialog.
 
+## project.show_matrix_chat
+
+Render the project Matrix chat UI. Backend access is gated separately on the MATRIX_ENABLED Constance setting.
+
 ## project.show_permission_reviews
 
 Allows to show permission reviews tab and popups for projects.
@@ -199,10 +203,6 @@ Allow to select mount point for data volume when Rancher cluster is provisioned.
 ## reseller.arrow
 
 Enable Arrow integration menu in administration.
-
-## slurm.jobs
-
-Render list of SLURM jobs as a separate tab in allocation details page.
 
 ## support.conceal_change_request
 

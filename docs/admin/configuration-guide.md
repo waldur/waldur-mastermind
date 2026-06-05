@@ -3132,6 +3132,86 @@ If true, a support ticket is created when a user adds or removes an SSH public k
 
 Select which reporting screens should be visible to users. Uncheck to disable specific reports.
 
+### Matrix chat
+
+#### MATRIX_ENABLED
+
+**Type:** bool
+
+Enable Matrix chat integration.
+
+#### MATRIX_HOMESERVER_URL
+
+**Type:** url_field
+
+Matrix homeserver base URL, e.g. https://matrix.example.com
+
+#### MATRIX_HOMESERVER_DOMAIN
+
+**Type:** str
+
+Matrix homeserver domain name, e.g. matrix.example.com
+
+#### MATRIX_APPSERVICE_AS_TOKEN
+
+**Type:** secret_field
+
+Application service token for authenticating to the homeserver.
+
+#### MATRIX_APPSERVICE_HS_TOKEN
+
+**Type:** secret_field
+
+Homeserver token for authenticating webhook requests.
+
+#### MATRIX_APPSERVICE_SENDER_LOCALPART
+
+**Type:** str
+
+**Default value:** waldur-bot
+
+Localpart for the appservice bot user.
+
+#### MATRIX_HISTORY_EXPORT_ENABLED
+
+**Type:** bool
+
+Enable periodic history export of Matrix rooms.
+
+#### MATRIX_EXPORT_MEDIA
+
+**Type:** bool
+
+Include media files when exporting Matrix room history.
+
+#### MATRIX_USER_REGISTRATION_SECRET
+
+**Type:** secret_field
+
+Shared secret for Matrix user registration.
+
+#### MATRIX_USER_ID_FORMAT
+
+**Type:** str
+
+**Default value:** username
+
+Format for generating Matrix user IDs: username, uuid, or email_local.
+
+#### MATRIX_LOGIN_METHOD
+
+**Type:** str
+
+**Default value:** token
+
+Login method for Matrix credentials: password, token, or oidc.
+
+#### MATRIX_OIDC_PROVIDER_URL
+
+**Type:** url_field
+
+OIDC provider URL for Matrix SSO login.
+
 ### Personal Access Tokens
 
 #### PAT_ENABLED
