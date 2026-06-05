@@ -79,6 +79,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
+    CourseAccountState,
     LimitPeriods,
     OfferingUserStates,
     OrderStates,
@@ -3624,6 +3625,12 @@ def create_multiple_course_accounts(
 def close_course_account(
     course_account: models.CourseAccount, api_access_token: str | None = None
 ):
+    # Already closed — nothing to do. CLOSED is terminal and the FSM forbids
+    # CLOSED→CLOSED, so re-entry (e.g. via project pre_delete signal after a
+    # prior manual close) would raise TransitionNotAllowed and bubble up as 500.
+    if course_account.state == CourseAccountState.CLOSED:
+        return
+
     # No backend account was ever created — nothing to close remotely.
     if course_account.user is None:
         course_account.set_state_closed()
