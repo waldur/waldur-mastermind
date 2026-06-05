@@ -252,16 +252,6 @@ class RancherSection(FeatureSection):
     apps = Feature("Render Rancher apps as a separate tab in resource details page.")
 
 
-class SlurmSection(FeatureSection):
-    class Meta:
-        key = "slurm"
-        description = "SLURM resources provisioning"
-
-    jobs = Feature(
-        "Render list of SLURM jobs as a separate tab in allocation details page."
-    )
-
-
 class OpenstackSection(FeatureSection):
     class Meta:
         key = "openstack"
