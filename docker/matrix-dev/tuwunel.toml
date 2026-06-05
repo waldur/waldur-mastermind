@@ -1,0 +1,46 @@
+[global]
+
+# Matrix server name — used in user IDs (@user:localhost)
+server_name = "localhost"
+
+# Database location inside the container volume
+database_path = "/var/lib/tuwunel"
+
+# Listen on all interfaces inside the container
+address = ["0.0.0.0"]
+port = [6167]
+
+# Allow open registration for dev
+allow_registration = true
+yes_i_am_very_very_sure_i_want_an_open_registration_server_prone_to_abuse = true
+
+# Registration token (used by Waldur for user provisioning)
+registration_token = "devregistrationsecret"
+
+# Synapse-compatible shared-secret register endpoint (Tuwunel 1.7.0+).
+# Lets Waldur (and operators) provision users via POST
+# /_synapse/admin/v1/register with an HMAC-SHA1 of the returned nonce
+# keyed by this secret. The endpoint 400s with "not enabled" when this
+# key is empty.
+registration_shared_secret = "devregistrationsecret"
+
+# Max upload size (100 MB for dev)
+max_request_size = 104857600
+
+# Federation must be ON: lk-jwt-service verifies the user's Matrix OpenID token
+# via the federation endpoint /_matrix/federation/v1/openid/userinfo before
+# issuing a LiveKit JWT. With federation off, Element Call token exchange fails.
+allow_federation = true
+
+# Well-known for client discovery
+[global.well_known]
+client = "http://localhost:6167"
+server = "localhost:6167"
+
+# LiveKit SFU endpoint for Element Call / Matrix RTC (MSC4143).
+# tuwunel 1.5.0 uses the explicit rtc_transports array; the lk-jwt-service runs
+# in tuwunel's network namespace on port 8080, exposed on the host as 8090.
+# (The frontend rewrites this URL to the Vite /lk-jwt proxy in dev anyway.)
+[[global.well_known.rtc_transports]]
+type = "livekit"
+livekit_service_url = "http://localhost:8090"

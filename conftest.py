@@ -12,6 +12,11 @@ def pytest_configure(config):
         "markers",
         "lab: requires access to the OpenStack lab (skipped without .secrets/lab-tenant-creds.env)",
     )
+    config.addinivalue_line(
+        "markers",
+        "matrix_integration: requires a running Matrix homeserver (Tuwunel). "
+        "Opt-in via -m matrix_integration; CI skips by default.",
+    )
 
 
 @pytest.fixture(autouse=True)

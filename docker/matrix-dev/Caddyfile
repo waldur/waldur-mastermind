@@ -1,0 +1,12 @@
+{
+    admin off
+    # Bind both IPv4 and IPv6 — Go's federation dialer (used by
+    # lk-jwt-service inside the shared network namespace) prefers
+    # IPv6 [::1] and otherwise gets ECONNREFUSED.
+    default_bind 0.0.0.0 ::
+}
+
+localhost:8448 {
+    tls internal
+    reverse_proxy 127.0.0.1:6167
+}

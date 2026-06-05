@@ -1,0 +1,71 @@
+services:
+  tuwunel:
+    image: ghcr.io/matrix-construct/tuwunel:latest
+    restart: unless-stopped
+    ports:
+      - "6167:6167"
+      - "8090:8080"   # lk-jwt-service (shared network namespace)
+    volumes:
+      - tuwunel-data:/var/lib/tuwunel
+      - ./tuwunel.toml:/etc/tuwunel.toml:ro
+    environment:
+      TUWUNEL_CONFIG: /etc/tuwunel.toml
+    # Disable IPv6 inside the shared network namespace. lk-jwt-service uses
+    # Go's net.Dial which honours RFC 6724 address sorting and prefers
+    # [::1]:8448; Docker's default network has IPv6 off, so the connect
+    # would refuse. Forcing IPv4 makes the Go dialer return 127.0.0.1.
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+
+  # TLS reverse proxy for Matrix federation on port 8448.
+  # lk-jwt-service uses the Go federation client which requires HTTPS.
+  # Caddy terminates TLS with a self-signed cert and proxies to Tuwunel.
+  # `--from :8448` (no host) binds both IPv4 and IPv6 — Go's federation
+  # dialer prefers IPv6 [::1] inside the shared network namespace.
+  federation-tls:
+    image: caddy:alpine
+    network_mode: "service:tuwunel"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - tuwunel
+
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    ports:
+      - "7880:7880/tcp"
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses: [""]
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+          node_ip: 127.0.0.1
+        keys:
+          devkey: devsecret
+
+  # Shares tuwunel's network namespace so that "localhost" resolves to
+  # Tuwunel. Federation discovery falls back to https://localhost:8448
+  # which hits the Caddy TLS proxy above.
+  lk-jwt-service:
+    image: ghcr.io/element-hq/lk-jwt-service:latest
+    restart: unless-stopped
+    network_mode: "service:tuwunel"
+    depends_on:
+      - tuwunel
+      - federation-tls
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_KEY: devkey
+      LIVEKIT_SECRET: devsecret
+      LIVEKIT_FULL_ACCESS_HOMESERVERS: localhost
+      # Accept Caddy's self-signed certificate
+      LIVEKIT_INSECURE_SKIP_VERIFY_TLS: YES_I_KNOW_WHAT_I_AM_DOING
+
+volumes:
+  tuwunel-data:

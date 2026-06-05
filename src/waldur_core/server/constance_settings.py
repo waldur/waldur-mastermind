@@ -1469,6 +1469,57 @@ CONSTANCE_CONFIG = {
         "Select which reporting screens should be visible to users. Uncheck to disable specific reports.",
         "multiple_choice_field",
     ),
+    # Matrix chat settings
+    "MATRIX_ENABLED": (False, "Enable Matrix chat integration."),
+    "MATRIX_HOMESERVER_URL": (
+        "",
+        "Matrix homeserver base URL, e.g. https://matrix.example.com",
+        "url_field",
+    ),
+    "MATRIX_HOMESERVER_DOMAIN": (
+        "",
+        "Matrix homeserver domain name, e.g. matrix.example.com",
+    ),
+    "MATRIX_APPSERVICE_AS_TOKEN": (
+        "",
+        "Application service token for authenticating to the homeserver.",
+        "secret_field",
+    ),
+    "MATRIX_APPSERVICE_HS_TOKEN": (
+        "",
+        "Homeserver token for authenticating webhook requests.",
+        "secret_field",
+    ),
+    "MATRIX_APPSERVICE_SENDER_LOCALPART": (
+        "waldur-bot",
+        "Localpart for the appservice bot user.",
+    ),
+    "MATRIX_HISTORY_EXPORT_ENABLED": (
+        False,
+        "Enable periodic history export of Matrix rooms.",
+    ),
+    "MATRIX_EXPORT_MEDIA": (
+        False,
+        "Include media files when exporting Matrix room history.",
+    ),
+    "MATRIX_USER_REGISTRATION_SECRET": (
+        "",
+        "Shared secret for Matrix user registration.",
+        "secret_field",
+    ),
+    "MATRIX_USER_ID_FORMAT": (
+        "username",
+        "Format for generating Matrix user IDs: username, uuid, or email_local.",
+    ),
+    "MATRIX_LOGIN_METHOD": (
+        "token",
+        "Login method for Matrix credentials: password, token, or oidc.",
+    ),
+    "MATRIX_OIDC_PROVIDER_URL": (
+        "",
+        "OIDC provider URL for Matrix SSO login.",
+        "url_field",
+    ),
     # Site Agent Logs
     "SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY": (
         10000,
@@ -1846,6 +1897,20 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES",
     ),
     "Reporting": ("ENABLED_REPORTING_SCREENS",),
+    "Matrix chat": (
+        "MATRIX_ENABLED",
+        "MATRIX_HOMESERVER_URL",
+        "MATRIX_HOMESERVER_DOMAIN",
+        "MATRIX_APPSERVICE_AS_TOKEN",
+        "MATRIX_APPSERVICE_HS_TOKEN",
+        "MATRIX_APPSERVICE_SENDER_LOCALPART",
+        "MATRIX_HISTORY_EXPORT_ENABLED",
+        "MATRIX_EXPORT_MEDIA",
+        "MATRIX_USER_REGISTRATION_SECRET",
+        "MATRIX_USER_ID_FORMAT",
+        "MATRIX_LOGIN_METHOD",
+        "MATRIX_OIDC_PROVIDER_URL",
+    ),
     "Personal Access Tokens": (
         "PAT_ENABLED",
         "PAT_MAX_LIFETIME_DAYS",
