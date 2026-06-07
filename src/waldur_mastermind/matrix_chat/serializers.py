@@ -271,6 +271,17 @@ class MatrixAppserviceSetupSerializer(serializers.Serializer):
             "is not already configured."
         ),
     )
+    homeserver_public_url = serializers.URLField(
+        required=False,
+        allow_blank=True,
+        help_text=(
+            "Optional. Matrix homeserver URL used by browser clients. Leave "
+            "blank when the homeserver URL above is reachable from both "
+            "servers and browsers. Set this for deployments where the two "
+            "differ (e.g. Docker-internal vs. Caddy-proxied). Only persisted "
+            "if MATRIX_HOMESERVER_PUBLIC_URL is not already configured."
+        ),
+    )
     homeserver_domain = serializers.CharField(
         required=False,
         allow_blank=True,

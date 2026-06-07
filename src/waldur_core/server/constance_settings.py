@@ -1476,6 +1476,14 @@ CONSTANCE_CONFIG = {
         "Matrix homeserver base URL, e.g. https://matrix.example.com",
         "url_field",
     ),
+    "MATRIX_HOMESERVER_PUBLIC_URL": (
+        "",
+        "Matrix homeserver URL used by browser clients. Falls back to "
+        "MATRIX_HOMESERVER_URL when blank. Set this when the homeserver is "
+        "reachable from servers and browsers at different addresses (e.g. a "
+        "Docker-internal name vs. a public Caddy-proxied URL).",
+        "url_field",
+    ),
     "MATRIX_HOMESERVER_DOMAIN": (
         "",
         "Matrix homeserver domain name, e.g. matrix.example.com",
@@ -1900,6 +1908,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Matrix chat": (
         "MATRIX_ENABLED",
         "MATRIX_HOMESERVER_URL",
+        "MATRIX_HOMESERVER_PUBLIC_URL",
         "MATRIX_HOMESERVER_DOMAIN",
         "MATRIX_APPSERVICE_AS_TOKEN",
         "MATRIX_APPSERVICE_HS_TOKEN",

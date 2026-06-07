@@ -569,18 +569,30 @@ class MatrixAppserviceSetupView(views.APIView):
         # Constance does not participate in Django transactions, so a
         # ValidationError after a write left the admin locked into a
         # half-configured state until they could correct it via the admin panel.
-        constance_keys = {
+        # Keys that MUST resolve to a non-empty value before tokens are
+        # generated.
+        required_constance_keys = {
             "homeserver_url": "MATRIX_HOMESERVER_URL",
             "homeserver_domain": "MATRIX_HOMESERVER_DOMAIN",
             "user_registration_secret": "MATRIX_USER_REGISTRATION_SECRET",
         }
+        # Optional keys that can be persisted from this endpoint but never
+        # gate setup completion.
+        optional_constance_keys = {
+            "homeserver_public_url": "MATRIX_HOMESERVER_PUBLIC_URL",
+        }
+        constance_keys = {**required_constance_keys, **optional_constance_keys}
         effective = {
             constance_key: serializer.validated_data.get(request_key)
             or getattr(config, constance_key)
             for request_key, constance_key in constance_keys.items()
         }
 
-        missing = [key for key, value in effective.items() if not value]
+        missing = [
+            key
+            for key, value in effective.items()
+            if not value and key in required_constance_keys.values()
+        ]
         if missing:
             raise ValidationError(
                 {
@@ -712,7 +724,7 @@ class MatrixAppserviceStatusView(views.APIView):
             "sender_localpart": sender_localpart,
             "bot_user_id": bot_user_id,
             "webhook_path": webhook_path,
-            "homeserver_url": config.MATRIX_HOMESERVER_URL,
+            "homeserver_url": matrix_client.get_public_homeserver_url(),
             "homeserver_domain": homeserver_domain,
             "transaction_count": transaction_count,
         }
@@ -788,6 +800,59 @@ class MatrixDiagnosticsView(views.APIView):
                 "name": "homeserver_reachable",
                 "label": "Homeserver reachable",
                 "ok": server_reachable,
+                "detail": detail,
+            }
+        )
+
+        # Check 3b/c: public homeserver URL. The browser uses this URL — when
+        # it's a Docker-internal name or otherwise unreachable from outside
+        # the backend, the chat drawer fails silently. We surface that here.
+        public_url = matrix_client.get_public_homeserver_url()
+        public_distinct = (
+            bool(config.MATRIX_HOMESERVER_PUBLIC_URL) and public_url != homeserver_url
+        )
+        checks.append(
+            {
+                "name": "public_homeserver_configured",
+                "label": "Public homeserver URL configured",
+                "ok": bool(public_url),
+                "detail": (
+                    public_url + (" (overrides internal)" if public_distinct else "")
+                    if public_url
+                    else "Not set"
+                ),
+            }
+        )
+
+        if public_distinct:
+            public_reachable = False
+            try:
+                resp = httpx.get(
+                    f"{public_url}/_matrix/client/versions",
+                    timeout=DIAGNOSTICS_TIMEOUT,
+                )
+                public_reachable = resp.status_code == 200
+                if public_reachable:
+                    detail = f"OK — HTTP {resp.status_code}"
+                else:
+                    detail = f"HTTP {resp.status_code}"
+            except httpx.ConnectError:
+                detail = (
+                    f"Connection refused — is the homeserver reachable at {public_url}?"
+                )
+            except httpx.TimeoutException:
+                detail = "Connection timed out"
+            except Exception as e:
+                detail = str(e)
+        else:
+            public_reachable = server_reachable
+            detail = "Same as internal — no separate check"
+
+        checks.append(
+            {
+                "name": "public_homeserver_reachable",
+                "label": "Public homeserver reachable (browser path)",
+                "ok": public_reachable,
                 "detail": detail,
             }
         )
