@@ -198,9 +198,17 @@ def cleanup_orphaned_k8s_resources():
         )
         return
 
-    k8s_backend = kubernetes_backend.KubernetesBackend(
-        kubeconfig_file_path=config.K8S_CONFIG_PATH
-    )
+    try:
+        k8s_backend = kubernetes_backend.KubernetesBackend(
+            kubeconfig_file_path=config.K8S_CONFIG_PATH
+        )
+    except KubernetesException:
+        logger.warning(
+            "Failed to initialize Kubernetes backend, skipping orphaned K8s resource cleanup",
+            exc_info=True,
+        )
+        return
+
     namespace = config.K8S_NAMESPACE
     cutoff = timezone.now() - timezone.timedelta(hours=1)
 

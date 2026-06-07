@@ -168,6 +168,21 @@ class CleanupOrphanedK8sResourcesTest(TestCase):
     @patch(
         "waldur_mastermind.marketplace_script.tasks.kubernetes_backend.KubernetesBackend"
     )
+    def test_skips_when_backend_init_fails(self, mock_backend_cls, mock_config):
+        mock_config.SCRIPT_RUN_MODE = DeploymentOptions.KUBERNETES.value
+        mock_config.K8S_CONFIG_PATH = "/fake/kubeconfig"
+        mock_config.K8S_NAMESPACE = "test-namespace"
+        mock_backend_cls.side_effect = KubernetesException("kubeconfig unavailable")
+
+        # Should not raise; task exits early without touching the backend
+        cleanup_orphaned_k8s_resources()
+
+        mock_backend_cls.assert_called_once()
+
+    @patch("waldur_mastermind.marketplace_script.tasks.config")
+    @patch(
+        "waldur_mastermind.marketplace_script.tasks.kubernetes_backend.KubernetesBackend"
+    )
     def test_continues_to_config_maps_if_job_list_fails(
         self, mock_backend_cls, mock_config
     ):

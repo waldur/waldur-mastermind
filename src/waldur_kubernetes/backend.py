@@ -30,7 +30,13 @@ class KubernetesBackend:
                     "Failed to load kubeconfig from %s, trying in-cluster config",
                     kubeconfig_file_path,
                 )
-                k8s.config.load_incluster_config()
+                try:
+                    k8s.config.load_incluster_config()
+                except k8s.config.config_exception.ConfigException as e:
+                    raise KubernetesException(
+                        f"Failed to load Kubernetes config from {kubeconfig_file_path} "
+                        f"and in-cluster config: {e}"
+                    )
         self.core_api = k8s.client.CoreV1Api()
         self.batch_v1_api = k8s.client.BatchV1Api()
 
