@@ -1,5 +1,7 @@
 from constance.test.unittest import override_config
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions import tasks
@@ -434,3 +436,45 @@ class DeactivationReasonTest(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.is_active)
         self.assertEqual(user.deactivation_reason, "")
+
+
+class SyncUserDeactivationQueryCountTest(TestCase):
+    """Regression test: the periodic task must not scale linearly with the
+    number of users. Previously it issued one ``UserRole.exists()`` and one
+    ``CourseAccount.exists()`` per user, which dominated runtime on
+    production-sized tables (see Sentry transaction
+    ``waldur_core.permissions.sync_user_deactivation_status``)."""
+
+    def _make_noop_users(self, n: int) -> None:
+        """Create N users that already match the desired state, so the task
+        has no work to do regardless of the user count."""
+        customer = structure_factories.CustomerFactory()
+        for _ in range(n):
+            # Active user with an active role — neither deactivation nor
+            # reactivation should fire for this user.
+            user = structure_factories.UserFactory(is_active=True)
+            customer.add_user(user, CustomerRole.OWNER)
+
+    def _count_queries(self) -> int:
+        with CaptureQueriesContext(connection) as ctx:
+            tasks.sync_user_deactivation_status()
+        return len(ctx.captured_queries)
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_query_count_is_bounded_for_noop_users(self):
+        self._make_noop_users(5)
+        small_count = self._count_queries()
+
+        self._make_noop_users(45)  # 50 total
+        large_count = self._count_queries()
+
+        # Bulk Exists() filtering pushes role/course-account checks into
+        # SQL, so query count must stay flat as the user table grows.
+        # Allow a small slack for chunk pagination and Constance lookups,
+        # but reject anything that scales with N.
+        self.assertLess(
+            large_count,
+            small_count + 10,
+            f"Query count grew from {small_count} to {large_count} when user "
+            f"count went from 5 to 50 — likely a per-user N+1 regression.",
+        )
