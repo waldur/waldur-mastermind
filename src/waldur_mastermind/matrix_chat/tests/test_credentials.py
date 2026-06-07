@@ -59,6 +59,9 @@ class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
     def test_password_method_returns_credentials(self, mock_config):
         mock_config.MATRIX_LOGIN_METHOD = "password"
         mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
+        # Empty public URL exercises the fallback path used by deployments
+        # where the same URL works server-side and browser-side.
+        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
         mock_config.MATRIX_USER_REGISTRATION_SECRET = "test-secret"
 
         profile = self.fixture.matrix_user_profile
@@ -72,6 +75,22 @@ class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
         self.assertIn("password", response.data)
         self.assertNotIn("login_token", response.data)
         self.assertNotIn("oidc_provider_url", response.data)
+
+    def test_public_url_overrides_internal_in_credentials(self, mock_config):
+        # When the public URL is set distinctly, the credentials response
+        # returns that — backend bot code continues to call the internal
+        # URL but the browser is told the Caddy-proxied address.
+        mock_config.MATRIX_LOGIN_METHOD = "password"
+        mock_config.MATRIX_HOMESERVER_URL = "http://tuwunel.internal:6167"
+        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = "https://waldur.example.com"
+        mock_config.MATRIX_USER_REGISTRATION_SECRET = "test-secret"
+
+        self.fixture.matrix_user_profile
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["homeserver_url"], "https://waldur.example.com")
 
     def test_password_method_without_secret_returns_error(self, mock_config):
         mock_config.MATRIX_LOGIN_METHOD = "password"
@@ -94,6 +113,7 @@ class MatrixCredentialsTokenTest(MatrixCredentialsBaseTest):
     def test_token_method_returns_access_token(self, mock_run_async, mock_config):
         mock_config.MATRIX_LOGIN_METHOD = "token"
         mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
+        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
         mock_config.MATRIX_APPSERVICE_AS_TOKEN = "as_token_123"
 
         profile = self.fixture.matrix_user_profile
@@ -118,6 +138,7 @@ class MatrixCredentialsTokenTest(MatrixCredentialsBaseTest):
         mock_config.MATRIX_APPSERVICE_AS_TOKEN = ""
         mock_config.MATRIX_ENABLED = True
         mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
+        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
 
         self.fixture.matrix_user_profile
         self.client.force_authenticate(self.fixture.admin)
@@ -138,6 +159,7 @@ class MatrixCredentialsOidcTest(MatrixCredentialsBaseTest):
     def test_oidc_method_returns_provider_url(self, mock_idp_model, mock_config):
         mock_config.MATRIX_LOGIN_METHOD = "oidc"
         mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
+        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
         mock_config.MATRIX_OIDC_PROVIDER_URL = (
             "https://keycloak.example.com/realms/main"
         )

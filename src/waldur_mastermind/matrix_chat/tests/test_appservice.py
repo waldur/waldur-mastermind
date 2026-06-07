@@ -597,6 +597,30 @@ class AppserviceSetupFirstRunTest(test.APITestCase):
                 "https://pre-existing.example.com",
             )
 
+    def test_setup_persists_optional_public_url(self, mock_ensure):
+        """The optional homeserver_public_url is persisted without gating setup."""
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            SETUP_URL,
+            data={
+                "homeserver_url": "http://tuwunel.internal:6167",
+                "homeserver_public_url": "https://waldur.example.com",
+                "homeserver_domain": "waldur.example.com",
+                "user_registration_secret": "supersecret",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        from constance import config as live_config
+
+        self.assertEqual(
+            live_config.MATRIX_HOMESERVER_URL, "http://tuwunel.internal:6167"
+        )
+        self.assertEqual(
+            live_config.MATRIX_HOMESERVER_PUBLIC_URL, "https://waldur.example.com"
+        )
+
 
 @override_config(
     MATRIX_ENABLED=True,
@@ -661,3 +685,73 @@ class AppserviceStatusTest(test.APITestCase):
         self.assertFalse(response.data["enabled"])
         self.assertFalse(response.data["as_token_configured"])
         self.assertFalse(response.data["hs_token_configured"])
+
+    @override_config(
+        MATRIX_HOMESERVER_PUBLIC_URL="https://public.example.com",
+    )
+    def test_status_returns_public_url_when_set(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(STATUS_URL)
+        # Public URL overrides the internal one in browser-facing responses.
+        self.assertEqual(response.data["homeserver_url"], "https://public.example.com")
+
+
+DIAGNOSTICS_URL = "/api/admin/matrix/diagnostics/"
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="http://tuwunel.internal:6167",
+    MATRIX_HOMESERVER_DOMAIN="waldur.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_USER_REGISTRATION_SECRET="reg-secret",
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class AppserviceDiagnosticsTest(test.APITestCase):
+    def setUp(self):
+        from waldur_core.structure.tests.factories import UserFactory
+
+        self.staff = UserFactory(is_staff=True)
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_diagnostics_includes_public_url_checks(self, mock_httpx_get):
+        # Both probes return OK so we can isolate the new check entries.
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"versions": ["v1.16"], "server": {}}
+        mock_httpx_get.return_value = mock_resp
+
+        with override_config(MATRIX_HOMESERVER_PUBLIC_URL="https://waldur.example.com"):
+            self.client.force_authenticate(self.staff)
+            response = self.client.get(DIAGNOSTICS_URL)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            names = {c["name"] for c in response.data["checks"]}
+            self.assertIn("public_homeserver_configured", names)
+            self.assertIn("public_homeserver_reachable", names)
+
+            by_name = {c["name"]: c for c in response.data["checks"]}
+            self.assertTrue(by_name["public_homeserver_configured"]["ok"])
+            self.assertIn(
+                "https://waldur.example.com",
+                by_name["public_homeserver_configured"]["detail"],
+            )
+            self.assertTrue(by_name["public_homeserver_reachable"]["ok"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_diagnostics_skips_public_probe_when_same_as_internal(self, mock_httpx_get):
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"versions": ["v1.16"], "server": {}}
+        mock_httpx_get.return_value = mock_resp
+
+        # No MATRIX_HOMESERVER_PUBLIC_URL override — falls back to internal.
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(DIAGNOSTICS_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        by_name = {c["name"]: c for c in response.data["checks"]}
+        self.assertIn(
+            "Same as internal", by_name["public_homeserver_reachable"]["detail"]
+        )

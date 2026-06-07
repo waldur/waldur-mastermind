@@ -88,6 +88,19 @@ def _get_client_params():
     return config.MATRIX_HOMESERVER_URL, get_bot_user_id(), _get_access_token()
 
 
+def get_public_homeserver_url():
+    """URL browser clients should use to reach the homeserver.
+
+    Falls back to MATRIX_HOMESERVER_URL when the public override is unset —
+    preserves behavior for deployments where the same URL works from both
+    the backend (server-to-server HTTP) and the browser (server-to-client).
+    Set MATRIX_HOMESERVER_PUBLIC_URL when the two differ, e.g. a
+    Docker-internal name (`http://tuwunel.internal:6167`) on the backend vs
+    a Caddy-proxied public URL (`https://waldur.example.com`) in the browser.
+    """
+    return config.MATRIX_HOMESERVER_PUBLIC_URL or config.MATRIX_HOMESERVER_URL
+
+
 def ensure_bot_user_exists():
     """Register the appservice bot user on the homeserver if it doesn't exist."""
     homeserver_url = config.MATRIX_HOMESERVER_URL
@@ -1206,7 +1219,7 @@ def get_user_matrix_credentials(waldur_user):
         password = _derive_password(secret, waldur_user.uuid)
         return {
             "method": "password",
-            "homeserver_url": config.MATRIX_HOMESERVER_URL,
+            "homeserver_url": get_public_homeserver_url(),
             "matrix_user_id": profile.matrix_user_id,
             "password": password,
         }
@@ -1214,7 +1227,7 @@ def get_user_matrix_credentials(waldur_user):
         token = _generate_login_token(profile.matrix_user_id)
         return {
             "method": "token",
-            "homeserver_url": config.MATRIX_HOMESERVER_URL,
+            "homeserver_url": get_public_homeserver_url(),
             "matrix_user_id": profile.matrix_user_id,
             "login_token": token,
         }
@@ -1234,7 +1247,7 @@ def get_user_matrix_credentials(waldur_user):
                 )
         return {
             "method": "oidc",
-            "homeserver_url": config.MATRIX_HOMESERVER_URL,
+            "homeserver_url": get_public_homeserver_url(),
             "matrix_user_id": profile.matrix_user_id,
             "oidc_provider_url": oidc_provider_url,
         }
