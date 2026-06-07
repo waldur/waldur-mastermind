@@ -3146,6 +3146,12 @@ Enable Matrix chat integration.
 
 Matrix homeserver base URL, e.g. https://matrix.example.com
 
+#### MATRIX_HOMESERVER_PUBLIC_URL
+
+**Type:** url_field
+
+Matrix homeserver URL used by browser clients. Falls back to MATRIX_HOMESERVER_URL when blank. Set this when the homeserver is reachable from servers and browsers at different addresses (e.g. a Docker-internal name vs. a public Caddy-proxied URL).
+
 #### MATRIX_HOMESERVER_DOMAIN
 
 **Type:** str
