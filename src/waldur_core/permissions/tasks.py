@@ -3,6 +3,7 @@ import logging
 from celery import shared_task
 from constance import config
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from waldur_core.core.middleware import get_skip_side_effects
@@ -12,9 +13,7 @@ from waldur_core.core.utils import chunked_queryset
 from . import models
 from .handlers import (
     deactivate_user_with_logging,
-    get_deactivation_reason,
     reactivate_user_with_logging,
-    should_reactivate_user,
 )
 from .utils import get_scope_ancestors
 
@@ -52,23 +51,62 @@ def sync_user_deactivation_status():
         )
         return
 
-    deactivated_count = 0
-    reactivated_count = 0
+    # Local import: marketplace depends on waldur_core, so a top-level
+    # import here would form a circular dependency at app-load time.
+    from waldur_mastermind.marketplace.enums import CourseAccountState
+    from waldur_mastermind.marketplace.models import CourseAccount
 
-    # Process all non-staff/non-support users in client-side chunks.
-    # Use all_objects to include inactive users (needed for reactivation checks).
-    for user in chunked_queryset(
-        User.all_objects.filter(is_staff=False, is_support=False),
-        chunk_size=100,
-        max_records=200_000,
-    ):
-        reason = get_deactivation_reason(user)
-        if reason:
-            deactivate_user_with_logging(user, reason)
-            deactivated_count += 1
-        elif should_reactivate_user(user):
-            reactivate_user_with_logging(user, "Periodic sync - has active roles")
-            reactivated_count += 1
+    has_active_role = Exists(
+        models.UserRole.objects.filter(user=OuterRef("pk"), is_active=True)
+    )
+    has_ok_course_account = Exists(
+        CourseAccount.objects.filter(
+            user=OuterRef("pk"),
+            state=CourseAccountState.OK,
+            project__is_removed=False,
+        )
+    )
+
+    # Push the per-user role/course-account checks into SQL via Exists()
+    # subqueries so the DB returns only the (usually tiny) set of users
+    # that actually need a state flip. The previous loop did N user-level
+    # round-trips against UserRole and CourseAccount on every run.
+    candidates = User.all_objects.filter(is_staff=False, is_support=False).annotate(
+        has_active_role=has_active_role,
+        has_ok_course_account=has_ok_course_account,
+    )
+    to_deactivate = candidates.filter(
+        is_active=True, has_active_role=False, has_ok_course_account=False
+    )
+    to_reactivate = candidates.filter(is_active=False).filter(
+        Q(has_active_role=True) | Q(has_ok_course_account=True)
+    )
+
+    deactivated_count = 0
+    for user in chunked_queryset(to_deactivate, chunk_size=100, max_records=200_000):
+        # Build the descriptive reason used by audit consumers. For users
+        # that have at least one CourseAccount row (just not an OK one in
+        # an active project), include the breakdown to make support
+        # tickets easier to triage.
+        ca_details = list(
+            CourseAccount.objects.filter(user=user).values_list(
+                "uuid", "state", "project__uuid", "project__is_removed"
+            )
+        )
+        if ca_details:
+            reason = (
+                f"No active roles, {len(ca_details)} course account(s) "
+                f"but none in OK state with active project. Details: {ca_details}"
+            )
+        else:
+            reason = "No active roles and no course accounts"
+        deactivate_user_with_logging(user, reason)
+        deactivated_count += 1
+
+    reactivated_count = 0
+    for user in chunked_queryset(to_reactivate, chunk_size=100, max_records=200_000):
+        reactivate_user_with_logging(user, "Periodic sync - has active roles")
+        reactivated_count += 1
 
     logger.info(
         f"User deactivation sync completed. Deactivated: {deactivated_count}, Reactivated: {reactivated_count}"
