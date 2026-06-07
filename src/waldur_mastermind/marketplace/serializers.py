@@ -7970,20 +7970,22 @@ class UserChecklistCompletionSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.FloatField(min_value=0, max_value=100))
     def get_completion_percentage(self, obj):
-        """Calculate the completion percentage of the checklist."""
-        total = getattr(obj, "total_answers", None)
-        if total is None:
-            # Fallback for single object views or if annotations are missing
-            total = obj.answers.count()
-            if total == 0:
-                return 0
-            answered = obj.answers.filter(answer_data__isnull=False).count()
-            return round((answered / total) * 100, 2)
+        """Percentage of checklist questions that have a recorded answer.
 
+        The denominator is the number of questions in the checklist, NOT the
+        number of existing Answer rows — those only exist for questions the
+        user has touched.
+        """
+        total = getattr(obj, "total_questions", None)
+        if total is None:
+            # Single-object retrieve or no annotations — delegate to the model
+            # method so the formula stays in one place. Matches the canonical
+            # path used by the proposal-side compliance summary.
+            return obj.get_completion_percentage()
         if total == 0:
-            return 0
+            return 100  # An empty checklist is "100% done" — matches the model.
         answered = getattr(obj, "answered_answers", 0)
-        return round((answered / total) * 100, 2)
+        return round((answered / total) * 100, 1)
 
     @extend_schema_field(serializers.IntegerField(min_value=0))
     def get_unanswered_required_questions(self, obj):

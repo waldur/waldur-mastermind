@@ -10671,6 +10671,9 @@ class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet)
         # plain Count(distinct=True) over multiple multi-valued joins
         # (answers + checklist__questions) produces.
         answers_qs = checklist_models.Answer.objects.filter(completion=OuterRef("pk"))
+        questions_qs = checklist_models.Question.objects.filter(
+            checklist=OuterRef("checklist_id")
+        )
         required_questions_qs = checklist_models.Question.objects.filter(
             checklist=OuterRef("checklist_id"), required=True
         )
@@ -10682,7 +10685,10 @@ class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet)
             )
             .select_related("checklist")
             .annotate(
-                total_answers=SubqueryCount(answers_qs),
+                # Denominator for completion_percentage — must count questions
+                # in the checklist, not Answer rows (which only exist for
+                # questions the user has touched).
+                total_questions=SubqueryCount(questions_qs),
                 answered_answers=SubqueryCount(
                     answers_qs.filter(answer_data__isnull=False)
                 ),
