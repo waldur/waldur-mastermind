@@ -106,6 +106,10 @@ WALDUR_CORE.update(
 # See also: https://docs.sentry.io/platforms/python/guides/django/
 sentry_dsn = env.get("SENTRY_DSN")
 sentry_traces_sample_rate = float(env.get("SENTRY_TRACES_SAMPLE_RATE", 0.01))
+sentry_tasks_sample_rate = float(
+    env.get("SENTRY_TASKS_SAMPLE_RATE", sentry_traces_sample_rate)
+)
+sentry_profiles_sample_rate = float(env.get("SENTRY_PROFILES_SAMPLE_RATE", 0))
 
 if sentry_dsn:
     import importlib
@@ -114,11 +118,31 @@ if sentry_dsn:
     from sentry_sdk.integrations.celery import CeleryIntegration
     from sentry_sdk.integrations.django import DjangoIntegration
 
+    def _traces_sampler(sampling_context):
+        # Celery beat tasks run orders of magnitude less often than web
+        # requests; sample them on a separate dial so they remain visible
+        # without inflating overall trace volume.
+        op = sampling_context.get("transaction_context", {}).get("op", "")
+        if op == "queue.task.celery":
+            return sentry_tasks_sample_rate
+        return sentry_traces_sample_rate
+
     sentry_sdk.init(
         dsn=sentry_dsn,
-        integrations=[DjangoIntegration(), CeleryIntegration()],
+        integrations=[
+            DjangoIntegration(middleware_spans=False),
+            # monitor_beat_tasks emits Sentry Crons check-ins for every
+            # celery-beat-scheduled task so silently skipped or stuck
+            # background jobs surface as missed check-ins.
+            CeleryIntegration(monitor_beat_tasks=True),
+        ],
         # https://docs.sentry.io/platforms/python/guides/django/performance/
-        traces_sample_rate=sentry_traces_sample_rate,
+        traces_sampler=_traces_sampler,
+        # Profiles fill the gap between instrumented spans and wall-clock
+        # task duration; required to see where time is spent inside Python
+        # code that has no explicit Sentry span (e.g. signal cascades).
+        profiles_sample_rate=sentry_profiles_sample_rate,
+        environment=env.get("SENTRY_ENVIRONMENT") or env.get("WALDUR_ENVIRONMENT"),
         release="waldur-mastermind@" + importlib.metadata.version("waldur-mastermind"),
     )
 
