@@ -17,6 +17,7 @@ from waldur_core.structure.managers import (
 from waldur_core.users import models as user_models
 from waldur_core.users import tasks as user_tasks
 from waldur_core.users.enums import InvitationState
+from waldur_core.users.utils import get_invitation_duplicates
 from waldur_mastermind.invoices import models as invoice_models
 
 from . import models, utils
@@ -598,6 +599,18 @@ def invite_user_to_project(project, email, role, send_email: bool = True):
     logger.info(
         f"Inviting user with email {email} to project {project} with role {role} - NEEDS IMPLEMENTING"
     )
+
+    duplicates = get_invitation_duplicates(project, [{"email": email, "role": role}])
+    if duplicates:
+        logger.info(
+            "Skipping invitation for %s to project %s with role %s: "
+            "pending invitation %s already exists.",
+            email,
+            project,
+            role,
+            duplicates[0]["existing_invitation_uuid"],
+        )
+        return
 
     invitation = user_models.Invitation.objects.create(
         scope=project,
