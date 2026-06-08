@@ -1333,3 +1333,44 @@ class CreditAuditOnSilentSavesTest(test.APITestCase):
                 event_type="update_of_project_credit_by_staff"
             ).exists()
         )
+
+
+class CreditEndDateValidationScopeTest(test.APITestCase):
+    """The end_date day=1 validator must only fire when end_date is written.
+
+    Legacy rows created before WAL-8788 may have an end_date that is not the
+    first of the month. Unrelated partial saves (e.g. update_fields=['value']
+    from set_to_zero_overdue_credits) must not raise on those rows.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+
+    def _set_legacy_end_date(self, credit, end_date):
+        type(credit).objects.filter(pk=credit.pk).update(end_date=end_date)
+        credit.refresh_from_db()
+
+    def test_partial_save_without_end_date_skips_validation(self):
+        pc = self.fixture.project_credit
+        self._set_legacy_end_date(pc, datetime.date(2025, 9, 15))
+        pc.value = Decimal("10.00")
+        pc.save(update_fields=["value"])
+        pc.refresh_from_db()
+        self.assertEqual(pc.value, Decimal("10.00"))
+        self.assertEqual(pc.end_date, datetime.date(2025, 9, 15))
+
+    def test_save_touching_end_date_still_validates(self):
+        from rest_framework import exceptions as rf_exceptions
+
+        pc = self.fixture.project_credit
+        pc.end_date = datetime.date(2025, 9, 15)
+        with self.assertRaises(rf_exceptions.ValidationError):
+            pc.save(update_fields=["end_date"])
+
+    def test_set_to_zero_overdue_credits_handles_legacy_end_date(self):
+        with freeze_time("2026-03-17"):
+            cc = factories.CustomerCreditFactory(value=500)
+            self._set_legacy_end_date(cc, datetime.date(2025, 9, 15))
+            tasks.set_to_zero_overdue_credits()
+            cc.refresh_from_db()
+            self.assertEqual(cc.value, 0)

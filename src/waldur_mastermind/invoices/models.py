@@ -633,7 +633,9 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     )
 
     def save(self, *args, **kwargs):
-        if self.end_date and self.end_date.day != 1:
+        update_fields = kwargs.get("update_fields")
+        end_date_being_written = update_fields is None or "end_date" in update_fields
+        if end_date_being_written and self.end_date and self.end_date.day != 1:
             raise rf_exceptions.ValidationError(
                 {"end_date": "End date must be the first day of the month."}
             )
