@@ -1,10 +1,13 @@
 # OfferingUser States and Management
 
-OfferingUser represents a user account created for a specific marketplace offering. It supports a finite state machine (FSM) that tracks the lifecycle of user account creation, validation, and management.
+OfferingUser represents a user account created for a specific marketplace offering. It tracks two independent state dimensions:
 
-## States
+- **Lifecycle state** (`state`): A finite state machine (FSM) tracking where the account is in the provisioning/deletion workflow.
+- **Runtime state** (`runtime_state`): An operational flag the service provider can set freely to signal whether the user currently has access to the service (e.g. TOU accepted, account linked). This is independent of lifecycle and can be updated at any time except when the account is `DELETED`.
 
-OfferingUser has the following states:
+## Lifecycle States
+
+OfferingUser has the following lifecycle states:
 
 | State | Description |
 |-------|-------------|
@@ -200,13 +203,60 @@ Content-Type: application/json
 
 Both fields are optional - you can update just the comment, just the URL, or both.
 
+#### Update Runtime State
+
+```http
+POST /api/marketplace-offering-users/{uuid}/update_runtime_state/
+Content-Type: application/json
+
+{
+  "runtime_state": 1
+}
+```
+
+Where `runtime_state` is one of:
+
+| Value | Integer | Meaning |
+|-------|---------|---------|
+| `Active` | `1` | User can access the service normally |
+| `Pending account linking` | `2` | User must link an external account (e.g. MyAccessID) before access is granted |
+| `Pending additional validation` | `3` | User must complete additional validation (e.g. accept new Terms of Use) |
+
+**Valid transitions:** Any → Any (no FSM). Can be set regardless of lifecycle `state`, except when lifecycle is `DELETED`.
+
+**Permissions:** Requires `UPDATE_OFFERING_USER` permission on the offering's customer.
+
+**Key use case — backfill sync:** When a service provider syncs an external system (e.g. Puhuri), they can update `runtime_state` on users already in lifecycle `OK` without touching the provisioning FSM.
+
 ### OfferingUser Fields
 
 When retrieving or updating OfferingUser objects, the following state-related fields are available:
 
-- `state` (string, read-only): Current state of the user account
+- `state` (string, read-only): Current lifecycle state of the user account (provisioning/deletion)
+- `runtime_state` (string, read-only): Current operational/access state of the user account
 - `service_provider_comment` (string, read-only): Comment from service provider for pending states
 - `service_provider_comment_url` (string, read-only): Optional URL link for additional information or actions related to the service provider comment
+
+## Runtime States
+
+| State | Integer | Description |
+|-------|---------|-------------|
+| `Active` | `1` | User has full access to the service |
+| `Pending account linking` | `2` | Access blocked; user must link an external account |
+| `Pending additional validation` | `3` | Access blocked; user must complete additional validation (e.g. TOU) |
+
+### Lifecycle vs Runtime State
+
+These two fields are independent:
+
+| `state` (lifecycle) | `runtime_state` | Meaning |
+|---------------------|-----------------|---------|
+| `OK` | `Active` | Account provisioned and fully accessible |
+| `OK` | `Pending account linking` | Provisioned in Waldur, but blocked in backend (e.g. MyAccessID not linked yet) |
+| `OK` | `Pending additional validation` | Provisioned in Waldur, but blocked pending TOU acceptance |
+| `Creating` | `Active` | Account being created; default runtime state |
+
+The lifecycle FSM (`state`) tracks Waldur-side provisioning. The `runtime_state` tracks operational access status as reported by the service provider. Service providers should update `runtime_state` via `update_runtime_state`, and upstream consumers should read both fields from STOMP messages.
 
 ## Backward Compatibility
 

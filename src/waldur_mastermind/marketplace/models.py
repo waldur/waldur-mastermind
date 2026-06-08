@@ -51,6 +51,7 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceState,
     MaintenanceType,
     OfferingStates,
+    OfferingUserRuntimeStates,
     OfferingUserStates,
     OrderStates,
     OrderTypes,
@@ -2844,6 +2845,15 @@ class OfferingUser(
         default=OfferingUserStates.CREATION_REQUESTED,
         choices=OfferingUserStates.CHOICES,
     )
+    runtime_state = models.CharField(
+        max_length=50,
+        default=OfferingUserRuntimeStates.ACTIVE,
+        choices=OfferingUserRuntimeStates.CHOICES,
+        help_text=_(
+            "Operational/access state of the user account. "
+            "Separate from lifecycle state; can be set by the service provider at any time."
+        ),
+    )
     service_provider_comment = models.TextField(
         blank=True,
         help_text=_(
@@ -2862,6 +2872,7 @@ class OfferingUser(
             fields=[
                 "username",
                 "state",
+                "runtime_state",
                 "is_restricted",
                 "service_provider_comment",
                 "service_provider_comment_url",
@@ -3038,6 +3049,7 @@ class OfferingUser(
             "username",
             "is_restricted",
             "get_state_display",
+            "runtime_state",
             "service_provider_comment",
             "service_provider_comment_url",
         )

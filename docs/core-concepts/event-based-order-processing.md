@@ -84,6 +84,7 @@ Offering user events are published when offering users are created, updated, or 
   "user_uuid": "user-uuid-hex-string",
   "username": "generated-username",
   "state": "OK|Requested|Creating|...",
+  "runtime_state": "Active|Pending account linking|Pending additional validation",
   "action": "create|update|delete",
   "attributes": {"email": "user@example.com", "first_name": "Alice"},  // create only
   "changed_fields": ["field1", "field2"]  // update only
@@ -110,9 +111,11 @@ changed fields are included.
 **Event Triggers:**
 
 - **Create**: When a new offering user account is created for a user in an offering
-- **Update**: When any field of an existing offering user is modified (username, state, etc.)
+- **Update**: When any field of an existing offering user is modified (username, state, runtime_state, etc.)
 - **Delete**: When an offering user account is removed from an offering
 - **Attribute Update**: When a User's profile fields change, filtered through each offering's `OfferingUserAttributeConfig`
+
+**`runtime_state` field:** Both `create` and `update` messages include `runtime_state` alongside `state`. Consumers should use `runtime_state` to determine operational access status (e.g. TOU accepted, account linked) independently of the lifecycle `state`. See [OfferingUser States and Management](offering-users.md#runtime-states) for details.
 
 ### Resource Periodic Limits Event Messages
 

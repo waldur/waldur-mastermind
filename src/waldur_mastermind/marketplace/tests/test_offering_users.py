@@ -19,14 +19,18 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    OfferingUserRuntimeStates,
+    OfferingUserStates,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.models import OfferingUser
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
     OfferingUserFactory,
     ServiceProviderFactory,
 )
-
+import json
 from . import factories, fixtures
 
 
@@ -2509,7 +2513,6 @@ class OfferingUserSignalTest(test.APITestCase):
         mock_publish_messages.assert_called_once()
 
         message = mock_publish_messages.call_args[0][0][0]
-        import json
 
         payload = json.loads(message["payload"])
 
@@ -2536,7 +2539,6 @@ class OfferingUserSignalTest(test.APITestCase):
         mock_publish_messages.assert_called_once()
 
         message = mock_publish_messages.call_args[0][0][0]
-        import json
 
         payload = json.loads(message["payload"])
         self.assertEqual(payload["offering_user_uuid"], new_offering_user.uuid.hex)
@@ -2568,7 +2570,6 @@ class OfferingUserSignalTest(test.APITestCase):
         mock_publish_messages.assert_called_once()
 
         message = mock_publish_messages.call_args[0][0][0]
-        import json
 
         payload = json.loads(message["payload"])
 
@@ -2587,7 +2588,6 @@ class OfferingUserSignalTest(test.APITestCase):
         mock_publish_messages.assert_called_once()
 
         message = mock_publish_messages.call_args[0][0][0]
-        import json
 
         payload = json.loads(message["payload"])
 
@@ -2609,7 +2609,6 @@ class OfferingUserSignalTest(test.APITestCase):
         mock_publish_messages.assert_called_once()
 
         message = mock_publish_messages.call_args[0][0][0]
-        import json
 
         payload = json.loads(message["payload"])
 
@@ -2627,7 +2626,6 @@ class OfferingUserSignalTest(test.APITestCase):
         mock_publish_messages.assert_called_once()
 
         message = mock_publish_messages.call_args[0][0][0]
-        import json
 
         payload = json.loads(message["payload"])
 
@@ -3262,3 +3260,291 @@ class OfferingUserPartialUpdatePermissionTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.username, "mgr-updated")
+
+
+@ddt
+class OfferingUserUpdateRuntimeStateTest(test.APITestCase):
+    """Tests for the update_runtime_state action on OfferingUsersViewSet."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        user = UserFactory()
+
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=user, username="user"
+        )
+        models.UserOfferingConsent.objects.create(
+            user=user,
+            offering=self.offering,
+            version="1.0",
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def get_url(self, offering_user):
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        return url + "update_runtime_state/"
+
+    def test_new_offering_user_has_active_runtime_state_by_default(self):
+        """New OfferingUser defaults to ACTIVE runtime state."""
+        user = UserFactory()
+        offering_user = OfferingUser.objects.create(offering=self.offering, user=user)
+        self.assertEqual(offering_user.runtime_state, OfferingUserRuntimeStates.ACTIVE)
+
+    def test_runtime_state_exposed_in_serializer(self):
+        """runtime_state field is present in the API response."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": self.offering_user.uuid.hex},
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("runtime_state", response.data)
+        self.assertEqual(response.data["runtime_state"], "Active")
+
+    @data("staff", "owner", "service_manager")
+    def test_authorized_user_can_update_runtime_state(self, user):
+        """Owner/manager can set runtime_state to pending account linking."""
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state,
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+        )
+
+    def test_unauthorized_user_cannot_update_runtime_state(self):
+        """Support user (no UPDATE_OFFERING_USER) is denied."""
+        self.client.force_authenticate(user=self.fixture.user)
+        self.fixture.customer.add_user(self.fixture.user, CustomerRole.SUPPORT)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING},
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+
+    def test_can_set_pending_additional_validation(self):
+        """Runtime state can be set to PENDING_ADDITIONAL_VALIDATION (TOU not accepted)."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.PENDING_ADDITIONAL_VALIDATION},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state,
+            OfferingUserRuntimeStates.PENDING_ADDITIONAL_VALIDATION,
+        )
+
+    def test_can_update_ok_lifecycle_user_runtime_state(self):
+        """Runtime state can be set even when lifecycle state is OK (the backfill case)."""
+        self.offering_user.state = OfferingUserStates.OK
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state,
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+        )
+
+    def test_can_set_runtime_state_back_to_active(self):
+        """Runtime state can be reset to ACTIVE after a blocker is resolved."""
+        self.offering_user.runtime_state = (
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING
+        )
+        self.offering_user.save(update_fields=["runtime_state"])
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.ACTIVE},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state, OfferingUserRuntimeStates.ACTIVE
+        )
+
+    def test_cannot_update_runtime_state_for_deleted_offering_user(self):
+        """Updating runtime_state is rejected when lifecycle state is DELETED."""
+        self.offering_user.state = OfferingUserStates.DELETED
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING},
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state, OfferingUserRuntimeStates.ACTIVE
+        )
+
+    def test_invalid_runtime_state_value_returns_400(self):
+        """Passing an unknown runtime_state value returns HTTP 400."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": 999},
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_event_logged_on_runtime_state_update(self):
+        """An event is emitted when runtime state is updated."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING},
+        )
+        self.assertTrue(
+            Event.objects.filter(
+                event_type="marketplace_offering_user_updated"
+            ).exists()
+        )
+
+
+@ddt
+class OfferingUserRuntimeStateFilterTest(test.APITestCase):
+    """Tests for filtering OfferingUsers by runtime_state."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        user_active = UserFactory()
+        user_pending = UserFactory()
+
+        self.offering_user_active = OfferingUser.objects.create(
+            offering=self.offering,
+            user=user_active,
+            username="active_user",
+            runtime_state=OfferingUserRuntimeStates.ACTIVE,
+        )
+        self.offering_user_pending = OfferingUser.objects.create(
+            offering=self.offering,
+            user=user_pending,
+            username="pending_user",
+            runtime_state=OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+        )
+
+    def test_filter_by_runtime_state_active(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            OfferingUserFactory.get_list_url(),
+            {"runtime_state": "Active"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        usernames = [r["username"] for r in response.data]
+        self.assertIn("active_user", usernames)
+        self.assertNotIn("pending_user", usernames)
+
+    def test_filter_by_runtime_state_pending_account_linking(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            OfferingUserFactory.get_list_url(),
+            {"runtime_state": "Pending account linking"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        usernames = [r["username"] for r in response.data]
+        self.assertIn("pending_user", usernames)
+        self.assertNotIn("active_user", usernames)
+
+    def test_filter_by_multiple_runtime_states(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            OfferingUserFactory.get_list_url(),
+            {"runtime_state": ["Active", "Pending account linking"]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+
+class OfferingUserRuntimeStateStompTest(test.APITestCase):
+    """Tests that STOMP messages include runtime_state."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = OfferingFactory()
+        self.offering.project = self.fixture.project
+        self.offering.save()
+        self.user = self.fixture.user
+        self.offering_user = OfferingUserFactory(
+            offering=self.offering,
+            user=self.user,
+            username="testuser",
+        )
+        self.offering.project.add_user(self.user, ProjectRole.ADMIN)
+
+        from waldur_core.logging import enums as logging_enums
+        from waldur_core.logging.tests import factories as logging_factories
+
+        self.event_subscription = logging_factories.EventSubscriptionFactory(
+            user=self.user,
+            observable_objects=[
+                {"object_type": logging_enums.ObservableObjectType.OFFERING_USER.value}
+            ],
+        )
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type=logging_enums.ObservableObjectType.OFFERING_USER.value,
+        )
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_create_message_includes_runtime_state(self, mock_publish):
+        """Creation STOMP message includes runtime_state field."""
+
+        new_offering_user = OfferingUserFactory(
+            offering=self.offering,
+            user=self.fixture.admin,
+            username="newuser",
+        )
+        mock_publish.assert_called_once()
+        payload = json.loads(mock_publish.call_args[0][0][0]["payload"])
+        self.assertIn("runtime_state", payload)
+        self.assertEqual(
+            payload["runtime_state"], new_offering_user.get_runtime_state_display()
+        )
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_update_message_includes_runtime_state(self, mock_publish):
+        """Update STOMP message includes runtime_state and lists it in changed_fields."""
+
+        self.offering_user.runtime_state = (
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING
+        )
+        self.offering_user.save(update_fields=["runtime_state"])
+
+        mock_publish.assert_called_once()
+        payload = json.loads(mock_publish.call_args[0][0][0]["payload"])
+        self.assertIn("runtime_state", payload)
+        self.assertEqual(payload["runtime_state"], "Pending account linking")
+        self.assertIn("runtime_state", payload["changed_fields"])
