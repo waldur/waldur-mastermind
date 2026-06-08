@@ -1822,6 +1822,24 @@ class OfferingDeleteTest(test.APITestCase):
             models.Offering.objects.filter(customer=self.customer).exists()
         )
 
+    def test_draft_offering_without_a_plan_can_be_deleted(self):
+        # Regression: validate_offering_has_plans previously leaked into
+        # destroy_validators via list aliasing, so a plan-less offering could
+        # not be deleted ("Offering does not have any billing plans").
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            project=self.fixture.project,
+            shared=True,
+            state=OfferingStates.DRAFT,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(offering)
+        response = self.client.delete(url)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+        self.assertFalse(models.Offering.objects.filter(id=offering.id).exists())
+
     @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     def test_owner_can_delete_offering_when_management_enabled(self):
         response = self.delete_offering("owner")
