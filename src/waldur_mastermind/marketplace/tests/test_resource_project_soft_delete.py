@@ -14,6 +14,8 @@ from rest_framework.reverse import reverse
 
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.users.enums import InvitationState
+from waldur_core.users.models import Invitation
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
@@ -366,3 +368,67 @@ class RecoverTest(_RecoverBase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class RecoverInvitationDuplicateTest(_RecoverBase):
+    """send_invitations_to_previous_members must not mint duplicate PENDING
+    invitations for the same (scope, email, role).
+    """
+
+    def _pending_invitations(self, rp, email, role):
+        rp_ct = ContentType.objects.get_for_model(rp)
+        return Invitation.objects.filter(
+            email__iexact=email,
+            role=role,
+            content_type=rp_ct,
+            object_id=rp.id,
+            state=InvitationState.PENDING,
+        )
+
+    def test_recover_send_invitations_creates_when_no_existing(self):
+        rp = self._create_rp()
+        role = self._grant_member(rp)
+        self.client.delete(_detail_url(rp))
+
+        response = self.client.post(
+            _recover_url(rp),
+            {"send_invitations_to_previous_members": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["recovery_info"]["sent_invitations_count"], 1)
+        self.assertEqual(
+            self._pending_invitations(rp, self.user.email, role).count(), 1
+        )
+
+    def test_recover_send_invitations_skips_existing_pending(self):
+        rp = self._create_rp()
+        role = self._grant_member(rp)
+        self.client.delete(_detail_url(rp))
+
+        existing = Invitation.objects.create(
+            email=self.user.email,
+            role=role,
+            scope=rp,
+            customer=rp.customer,
+            created_by=self.staff,
+            state=InvitationState.PENDING,
+        )
+
+        response = self.client.post(
+            _recover_url(rp),
+            {"send_invitations_to_previous_members": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["recovery_info"]["sent_invitations_count"], 1)
+
+        pending = self._pending_invitations(rp, self.user.email, role)
+        self.assertEqual(pending.count(), 1)
+        self.assertEqual(pending.first().uuid, existing.uuid)
+
+        rp.refresh_from_db()
+        snapshot = rp.termination_metadata["user_roles"][0]
+        self.assertTrue(snapshot["invitation_sent"])
+        self.assertEqual(snapshot["existing_invitation_uuid"], str(existing.uuid))
+        self.assertNotIn("invitation_uuid", snapshot)

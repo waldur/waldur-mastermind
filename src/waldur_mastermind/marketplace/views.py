@@ -130,6 +130,7 @@ from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.users.affiliations import parse_affiliation
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
+from waldur_core.users.utils import get_invitation_duplicates
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
@@ -5734,6 +5735,19 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
                         continue
                     email = role_data.get("user_email")
                     if not email:
+                        continue
+                    duplicates = get_invitation_duplicates(
+                        rp, [{"email": email, "role": role}]
+                    )
+                    if duplicates:
+                        existing_uuid = duplicates[0]["existing_invitation_uuid"]
+                        role_data["invitation_sent"] = True
+                        role_data["invitation_sent_at"] = timezone.now().isoformat()
+                        role_data["invitation_sent_by"] = request.user.username
+                        role_data["existing_invitation_uuid"] = str(existing_uuid)
+                        existing = Invitation.objects.filter(uuid=existing_uuid).first()
+                        if existing is not None:
+                            sent_invitations.append(existing)
                         continue
                     invitation = Invitation.objects.create(
                         email=email,
