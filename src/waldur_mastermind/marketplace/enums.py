@@ -140,6 +140,38 @@ OfferingUserStatesType = Literal[
 ]
 
 
+class OfferingUserRuntimeStates:
+    """Runtime/operational state of an offering user account.
+
+    Separate from the lifecycle state, this tracks whether the user can
+    actually access the service (e.g. TOU accepted, account linked).
+    Can be set freely by the service provider at any lifecycle state
+    except Deleted.
+
+    String values are stored in the DB and used directly in the API,
+    matching the RuntimeStateMixin pattern used by VMs.
+    """
+
+    ACTIVE = "Active"
+    PENDING_ACCOUNT_LINKING = "Pending account linking"
+    PENDING_ADDITIONAL_VALIDATION = "Pending additional validation"
+
+    CHOICES = (
+        (ACTIVE, ACTIVE),
+        (PENDING_ACCOUNT_LINKING, PENDING_ACCOUNT_LINKING),
+        (PENDING_ADDITIONAL_VALIDATION, PENDING_ADDITIONAL_VALIDATION),
+    )
+
+    VALUES = [val for (val, _) in CHOICES]
+
+
+OfferingUserRuntimeStatesType = Literal[
+    "Active",
+    "Pending account linking",
+    "Pending additional validation",
+]
+
+
 class OrderTypes:
     CREATE = 1
     UPDATE = 2

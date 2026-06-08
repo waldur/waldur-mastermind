@@ -42,6 +42,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CourseAccountState,
     OfferingStates,
+    OfferingUserRuntimeStates,
     OfferingUserStates,
     OrderStates,
     OrderTypes,
@@ -2124,6 +2125,9 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     )
     state = core_filters.MappedMultipleChoiceFilter(
         OfferingUserStates.CHOICES, label="Offering user state"
+    )
+    runtime_state = core_filters.MappedMultipleChoiceFilter(
+        OfferingUserRuntimeStates.CHOICES, label="Offering user runtime state"
     )
     has_consent = django_filters.BooleanFilter(
         method="filter_has_consent",

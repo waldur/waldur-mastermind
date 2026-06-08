@@ -82,6 +82,8 @@ from waldur_mastermind.marketplace.enums import (
     CourseAccountState,
     LimitPeriods,
     OfferingStates,
+    OfferingUserRuntimeStates,
+    OfferingUserRuntimeStatesType,
     OfferingUserStates,
     OfferingUserStatesType,
     OrderStates,
@@ -7286,6 +7288,9 @@ class OfferingUserSerializer(
     customer_name = serializers.ReadOnlyField(source="offering.customer.name")
     is_restricted = serializers.ReadOnlyField()
     state = serializers.SerializerMethodField()
+    runtime_state = serializers.ChoiceField(
+        choices=OfferingUserRuntimeStates.VALUES, read_only=True
+    )
     service_provider_comment = serializers.ReadOnlyField()
     service_provider_comment_url = serializers.ReadOnlyField()
     has_consent = serializers.SerializerMethodField()
@@ -7374,6 +7379,7 @@ class OfferingUserSerializer(
             "customer_name",
             "is_restricted",
             "state",
+            "runtime_state",
             "service_provider_comment",
             "service_provider_comment_url",
             "has_consent",
@@ -7776,6 +7782,29 @@ class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
             request, PermissionEnum.UPDATE_OFFERING_USER, offering
         ):
             raise rf_exceptions.PermissionDenied()
+        return attrs
+
+
+class OfferingUserUpdateRuntimeStateSerializer(serializers.Serializer):
+    runtime_state = serializers.ChoiceField(
+        choices=OfferingUserRuntimeStates.VALUES,
+        help_text="Operational/access state of the user account.",
+    )
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        offering_user = self.instance
+        offering = offering_user.offering
+        if not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
+        ) and not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering
+        ):
+            raise rf_exceptions.PermissionDenied()
+        if offering_user.state == OfferingUserStates.DELETED:
+            raise serializers.ValidationError(
+                "Cannot update runtime state for a deleted offering user."
+            )
         return attrs
 
 

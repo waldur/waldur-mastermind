@@ -10574,6 +10574,48 @@ class OfferingUsersViewSet(
     update_comments_permissions = [_check_update_comments_state]
 
     @extend_schema(
+        summary="Update runtime state",
+        description=(
+            "Allows a service provider to set the operational/access state of an offering user. "
+            "Unlike the lifecycle state, this can be updated at any time (except when the account is Deleted). "
+            "Use this to signal access blockers such as pending Terms of Use acceptance or "
+            "pending account linking (e.g. MyAccessID)."
+        ),
+        request=serializers.OfferingUserUpdateRuntimeStateSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_runtime_state(self, request, uuid=None):
+        """Action for service providers to update the runtime/operational state."""
+        offering_user: models.OfferingUser = self.get_object()
+        serializer = serializers.OfferingUserUpdateRuntimeStateSerializer(
+            data=request.data, context={"request": request}, instance=offering_user
+        )
+        serializer.is_valid(raise_exception=True)
+        offering_user.runtime_state = serializer.validated_data["runtime_state"]
+        offering_user.save(update_fields=["runtime_state"])
+
+        event_logger.emit(
+            f"Runtime state for user {offering_user.user} in offering {offering_user.offering.name} "
+            f"set to {offering_user.runtime_state}.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+            event_context={"offering_user": offering_user},
+        )
+        logger.info(
+            f"Runtime state for user {offering_user.user.username} in offering "
+            f"{offering_user.offering.name} set to {offering_user.runtime_state} "
+            f"by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    update_runtime_state_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer", "offering"],
+        )
+    ]
+
+    @extend_schema(
         summary="Get profile field warnings",
         description=(
             "Returns a mapping of user profile field names to offerings that expose "
