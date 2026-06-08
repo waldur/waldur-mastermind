@@ -42,7 +42,7 @@ def deactivate_orphaned_offering_roles(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0238_alter_softwareversion_options_and_more"),
+        ("marketplace", "0239_offeringuser_runtime_state"),
         ("permissions", "0021_alter_role_name_roleavailability"),
     ]
 
