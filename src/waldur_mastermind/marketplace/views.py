@@ -2366,13 +2366,21 @@ class ProviderOfferingViewSet(
         ),
     ]
 
-    activate_validators = pause_validators = archive_validators = destroy_validators = [
-        structure_utils.check_customer_blocked_or_archived
+    # Each validator list is built independently on purpose. Previously these
+    # were created via chained assignment and `activate_validators += [...]`,
+    # whose in-place mutation leaked validate_offering_has_plans into the
+    # pause/archive/destroy/make_unavailable lists too — so e.g. deleting a
+    # plan-less draft offering wrongly failed with "Offering does not have any
+    # billing plans". Only activate and unpause require plans.
+    activate_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+        validate_offering_has_plans,
     ]
-    make_unavailable_validators = pause_validators
-
-    activate_validators += [validate_offering_has_plans]
     unpause_validators = [validate_offering_has_plans]
+    pause_validators = [structure_utils.check_customer_blocked_or_archived]
+    archive_validators = [structure_utils.check_customer_blocked_or_archived]
+    destroy_validators = [structure_utils.check_customer_blocked_or_archived]
+    make_unavailable_validators = [structure_utils.check_customer_blocked_or_archived]
 
     update_permissions = [can_update_offering]
 
