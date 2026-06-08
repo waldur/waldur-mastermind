@@ -24,6 +24,7 @@ from waldur_core.core.enums import ReviewStates
 from waldur_core.logging import event_logger
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.enums import EventType, ObservableObjectType
+from waldur_core.permissions import models as permission_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users import models as users_models
@@ -464,6 +465,24 @@ def update_category_quota_when_offering_is_deleted(
     """Update category quota when an offering is deleted."""
     if instance.state == OfferingStates.ACTIVE:
         instance.category.add_quota_usage("offering_count", -1)
+
+
+def revoke_roles_on_offering_deletion(sender, instance: Offering, **kwargs):
+    """Revoke active user roles bound to an offering before it is deleted.
+
+    Offering-scoped roles (e.g. Offering Manager) reference the offering through
+    a GenericForeignKey, which has no database-level cascade. Without this
+    handler, deleting an offering leaves behind active ``UserRole`` rows whose
+    scope can no longer be resolved: they appear with an empty scope in the UI
+    and cannot be revoked via the scope-based ``delete_user`` endpoint.
+
+    Running on ``pre_delete`` means the offering still exists, so the scope
+    resolves and the revocation is logged normally.
+    """
+    for permission in permission_models.UserRole.objects.filter(
+        scope=instance, is_active=True
+    ):
+        permission.revoke(reason="Offering deletion")
 
 
 def update_category_offerings_count(sender, **kwargs):

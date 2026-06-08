@@ -164,6 +164,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.close_customer_service_accounts_on_customer_deletion",
         )
 
+        signals.pre_delete.connect(
+            handlers.revoke_roles_on_offering_deletion,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.revoke_roles_on_offering_deletion",
+        )
+
         signals.post_delete.connect(
             handlers.update_category_quota_when_offering_is_deleted,
             sender=models.Offering,
