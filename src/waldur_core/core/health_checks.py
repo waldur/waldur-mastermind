@@ -16,16 +16,18 @@ logger = logging.getLogger(__name__)
 
 class CeleryWorkersHealthCheck(BaseHealthCheckBackend):
     """
-    Fast Celery health check using connection pooling and targeted pings.
+    Fast Celery health check using targeted pings.
 
     This is an optimized replacement for health_check.contrib.celery_ping that:
-    1. Uses connection pooling to avoid creating new AMQP connections per check
-    2. Uses targeted pings instead of broadcast to avoid waiting for timeout
-    3. Returns as soon as workers respond instead of waiting for full timeout
+    1. Uses targeted pings instead of broadcast to avoid waiting for timeout
+    2. Returns as soon as workers respond instead of waiting for full timeout
+    3. Uses a fresh, non-pooled broker connection per check so stale pooled
+       sockets cannot produce false-positive outage alerts (CSCS-5B3)
 
     Performance comparison:
     - Default celery_ping (broadcast): 1000-5000ms per check
-    - This implementation (targeted): 17-40ms per check
+    - This implementation (targeted): ~50-90ms per check (includes TCP+AMQP
+      handshake; was 17-40ms when pooling was used)
 
     The default broadcast ping always waits for the full timeout duration to
     collect responses from any possible workers. This causes issues when:
@@ -47,7 +49,22 @@ class CeleryWorkersHealthCheck(BaseHealthCheckBackend):
         discovery_timeout = 0.2
 
         try:
-            with current_app.connection_or_acquire() as conn:
+            # Use a fresh, non-pooled broker connection for each check.
+            #
+            # The broker connection pool (connection_or_acquire) does not
+            # liveness-check on borrow, so it can hand back sockets that the
+            # broker or kernel TCP keepalive closed while the connection sat
+            # idle in the pool between checks. In a sync gunicorn worker
+            # there is no event loop running heartbeat_check(), so an idle
+            # pooled connection is reliably killed after ~60s with the
+            # current BROKER_HEARTBEAT=30s. The first publish on the stale
+            # socket then raises BrokenPipeError / ConnectionResetError and
+            # we report a false-positive broker outage (CSCS-5B3).
+            #
+            # ensure_connection(max_retries=1) retries once if the initial
+            # connect races with a broker restart.
+            with current_app.connection() as conn:
+                conn.ensure_connection(max_retries=1)
                 # Quick discovery: which workers are available?
                 # Use short timeout since we just need to find responsive workers
                 discovery_result = current_app.control.ping(

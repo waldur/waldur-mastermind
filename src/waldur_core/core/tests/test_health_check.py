@@ -10,17 +10,22 @@ from django.test import TestCase
 from waldur_core.core.health_checks import CeleryWorkersHealthCheck
 
 
+def _mock_connection(mock_app):
+    """Wire mock_app.connection() to return a MagicMock context-manager conn."""
+    mock_conn = MagicMock()
+    mock_context = MagicMock()
+    mock_context.__enter__ = MagicMock(return_value=mock_conn)
+    mock_context.__exit__ = MagicMock(return_value=False)
+    mock_app.connection.return_value = mock_context
+    return mock_conn
+
+
 class CeleryWorkersHealthCheckTest(TestCase):
     """Test the optimized Celery workers health check."""
 
     def test_successful_health_check(self):
         """Test health check passes when workers respond correctly."""
         backend = CeleryWorkersHealthCheck()
-
-        mock_conn = MagicMock()
-        mock_context = MagicMock()
-        mock_context.__enter__ = MagicMock(return_value=mock_conn)
-        mock_context.__exit__ = MagicMock(return_value=False)
 
         # Mock discovery ping - returns list of workers
         discovery_response = [
@@ -35,7 +40,7 @@ class CeleryWorkersHealthCheckTest(TestCase):
         ]
 
         with patch("waldur_core.core.health_checks.current_app") as mock_app:
-            mock_app.connection_or_acquire.return_value = mock_context
+            _mock_connection(mock_app)
             mock_app.control.ping.side_effect = [
                 discovery_response
             ] + targeted_responses
@@ -48,13 +53,8 @@ class CeleryWorkersHealthCheckTest(TestCase):
         """Test health check fails when no workers respond."""
         backend = CeleryWorkersHealthCheck()
 
-        mock_conn = MagicMock()
-        mock_context = MagicMock()
-        mock_context.__enter__ = MagicMock(return_value=mock_conn)
-        mock_context.__exit__ = MagicMock(return_value=False)
-
         with patch("waldur_core.core.health_checks.current_app") as mock_app:
-            mock_app.connection_or_acquire.return_value = mock_context
+            _mock_connection(mock_app)
             # Empty response means no workers
             mock_app.control.ping.return_value = []
 
@@ -67,18 +67,13 @@ class CeleryWorkersHealthCheckTest(TestCase):
         """Test health check fails when a discovered worker stops responding."""
         backend = CeleryWorkersHealthCheck()
 
-        mock_conn = MagicMock()
-        mock_context = MagicMock()
-        mock_context.__enter__ = MagicMock(return_value=mock_conn)
-        mock_context.__exit__ = MagicMock(return_value=False)
-
         # Discovery finds workers
         discovery_response = [
             {"celery@worker1": {"ok": "pong"}},
         ]
 
         with patch("waldur_core.core.health_checks.current_app") as mock_app:
-            mock_app.connection_or_acquire.return_value = mock_context
+            _mock_connection(mock_app)
             # Discovery succeeds, but targeted ping fails
             mock_app.control.ping.side_effect = [discovery_response, []]
 
@@ -92,17 +87,12 @@ class CeleryWorkersHealthCheckTest(TestCase):
         """Test health check fails when worker responds incorrectly."""
         backend = CeleryWorkersHealthCheck()
 
-        mock_conn = MagicMock()
-        mock_context = MagicMock()
-        mock_context.__enter__ = MagicMock(return_value=mock_conn)
-        mock_context.__exit__ = MagicMock(return_value=False)
-
         discovery_response = [{"celery@worker1": {"ok": "pong"}}]
         # Worker responds but with wrong content
         targeted_response = [{"celery@worker1": {"error": "something wrong"}}]
 
         with patch("waldur_core.core.health_checks.current_app") as mock_app:
-            mock_app.connection_or_acquire.return_value = mock_context
+            _mock_connection(mock_app)
             mock_app.control.ping.side_effect = [discovery_response, targeted_response]
 
             backend.check_status()
@@ -115,12 +105,36 @@ class CeleryWorkersHealthCheckTest(TestCase):
         backend = CeleryWorkersHealthCheck()
 
         with patch("waldur_core.core.health_checks.current_app") as mock_app:
-            mock_app.connection_or_acquire.side_effect = OSError("Connection refused")
+            mock_app.connection.side_effect = OSError("Connection refused")
 
             backend.check_status()
 
         self.assertEqual(len(backend.errors), 1)
         self.assertIn("Broker connection error", str(backend.errors[0]))
+
+    def test_uses_fresh_non_pooled_connection(self):
+        """Regression for CSCS-5B3.
+
+        The check must use ``current_app.connection()`` (fresh, non-pooled)
+        and must call ``ensure_connection`` to verify liveness before any
+        publish. Using the broker connection pool can hand back sockets that
+        the broker closed while sitting idle in the pool, producing
+        BrokenPipe/ConnectionReset on the first publish.
+        """
+        backend = CeleryWorkersHealthCheck()
+
+        with patch("waldur_core.core.health_checks.current_app") as mock_app:
+            mock_conn = _mock_connection(mock_app)
+            mock_app.control.ping.return_value = []
+
+            backend.check_status()
+
+            # Must NOT borrow from the pool
+            self.assertFalse(mock_app.connection_or_acquire.called)
+            # Must create a fresh connection
+            mock_app.connection.assert_called_once()
+            # Must validate liveness before publishing
+            mock_conn.ensure_connection.assert_called_once_with(max_retries=1)
 
     def test_identifier(self):
         """Test health check identifier is correct."""
