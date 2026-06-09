@@ -127,7 +127,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "oauth": "10/s",
         "token_exchange": "60/min",
-        "matrix_credentials": "30/hour",
+        "matrix_credentials": "1000/hour",
         "matrix_webhook": "10000/hour",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
