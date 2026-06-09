@@ -989,6 +989,62 @@ class OfferingCreateTest(test.APITestCase):
             offering.plugin_options["required_team_role_for_provisioning"], ""
         )
 
+    def test_update_offering_plugin_options_required_team_role_allows_null(self):
+        """Clearing required_team_role_for_provisioning must accept null."""
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            plugin_options={"required_team_role_for_provisioning": "PROJECT.MANAGER"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        response = self.client.post(
+            url,
+            {"plugin_options": {"required_team_role_for_provisioning": None}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertIsNone(
+            offering.plugin_options["required_team_role_for_provisioning"]
+        )
+
+    def test_update_offering_plugin_options_resource_name_pattern_allows_blank(self):
+        """Clearing resource_name_pattern must accept empty string."""
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            plugin_options={"resource_name_pattern": "{project_slug}-{counter}"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        response = self.client.post(
+            url,
+            {"plugin_options": {"resource_name_pattern": ""}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertEqual(offering.plugin_options["resource_name_pattern"], "")
+
+    def test_update_offering_plugin_options_resource_name_pattern_allows_null(self):
+        """Clearing resource_name_pattern must accept null."""
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            plugin_options={"resource_name_pattern": "{project_slug}-{counter}"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        response = self.client.post(
+            url,
+            {"plugin_options": {"resource_name_pattern": None}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertIsNone(offering.plugin_options["resource_name_pattern"])
+
     def test_create_offering_with_minimal_information_in_draft_state(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)

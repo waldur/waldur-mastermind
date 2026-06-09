@@ -196,6 +196,7 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     required_team_role_for_provisioning = serializers.CharField(
         required=False,
         allow_blank=True,
+        allow_null=True,
         help_text="Required user role in a project for provisioning of resources",
     )
     enable_purchase_order_upload = serializers.BooleanField(
@@ -259,6 +260,8 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     )
     resource_name_pattern = serializers.CharField(
         required=False,
+        allow_blank=True,
+        allow_null=True,
         help_text="Python format string for generating resource names. "
         "Available variables: {customer_name}, {customer_slug}, {project_name}, {project_slug}, "
         "{offering_name}, {offering_slug}, {plan_name}, {counter}, {attributes[KEY]}.",
