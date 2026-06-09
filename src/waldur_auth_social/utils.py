@@ -1,4 +1,6 @@
+import ipaddress
 import logging
+import socket
 import uuid
 from datetime import UTC
 from typing import cast
@@ -14,6 +16,7 @@ from django.db.models import DateField
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
+from rest_framework.exceptions import ValidationError as RestValidationError
 
 from waldur_auth_social.const import (
     PROVIDER_DEFAULTS,
@@ -999,3 +1002,67 @@ def validate_and_get_redirect_url(
 
     # Return the base URL without trailing slash (consistent with allowlist normalization)
     return url_base
+
+
+def validate_safe_remote_url(url: str, field: str = "discovery_url") -> None:
+    """
+    Guard server-side fetches (e.g. OIDC discovery) against SSRF.
+
+    Resolves the URL host and rejects any URL whose host resolves to a
+    loopback, link-local, reserved, multicast or unspecified address. Only
+    http/https URLs with an explicit host are allowed.
+
+    Note that RFC-1918 private addresses are intentionally *allowed*: the OIDC
+    IdP (e.g. Keycloak) is commonly an in-cluster service reached via a
+    ClusterIP (10.x / 192.168.x), and that is a legitimate configuration on the
+    same trust boundary as the mastermind pod. What we block is what crosses a
+    trust boundary even for staff: link-local (this covers the 169.254.169.254
+    cloud metadata endpoint, which would leak the pod's cloud IAM credentials)
+    and loopback (services bound to localhost on the pod itself).
+
+    Raises rest_framework ValidationError keyed on ``field`` so callers can
+    surface a clean 400 instead of leaking the fetch result.
+
+    Residual risk: this resolves the host once, so a hostile DNS server could
+    still rebind to a blocked address between this check and the actual request
+    (TOCTOU). Full protection would require pinning the connection to the
+    validated address. For the staff-only admin surface this guards, the
+    resolve-and-block check is the pragmatic mitigation.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise RestValidationError({field: "Only http and https URLs are allowed."})
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise RestValidationError({field: "URL must include a host."})
+
+    port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+    try:
+        addrinfos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        raise RestValidationError({field: f"Unable to resolve host {hostname!r}."})
+
+    for info in addrinfos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            raise RestValidationError(
+                {field: f"Unable to parse resolved address for host {hostname!r}."}
+            )
+        # Unwrap IPv4-mapped IPv6 (e.g. ::ffff:169.254.169.254) before classifying.
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        # NB: is_private is deliberately omitted — in-cluster IdPs live on
+        # RFC-1918 addresses. Block only what crosses a trust boundary.
+        if (
+            ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise RestValidationError(
+                {field: f"URL host resolves to a disallowed address ({ip})."}
+            )
