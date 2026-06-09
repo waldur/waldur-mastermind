@@ -1,5 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
 import base64
 import copy
 import datetime
@@ -58,11 +56,13 @@ from rest_framework import (
     generics,
     mixins,
     response,
-    serializers as drf_serializers,
     status,
     views,
 )
 from rest_framework import permissions as rf_permissions
+from rest_framework import (
+    serializers as drf_serializers,
+)
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -127,10 +127,6 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
-from waldur_core.users.affiliations import parse_affiliation
-from waldur_core.users.enums import InvitationState
-from waldur_core.users.models import Invitation
-from waldur_core.users.utils import get_invitation_duplicates
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
@@ -139,13 +135,16 @@ from waldur_core.structure.managers import (
     get_connected_projects,
     get_connected_projects_by_permission,
     get_organization_groups,
-    get_project_users,
     get_visible_users,
 )
 from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.signals import resource_imported
 from waldur_core.structure.utils import get_identity_provider_name
 from waldur_core.structure.utils_data_access import bulk_log_user_data_access
+from waldur_core.users.affiliations import parse_affiliation
+from waldur_core.users.enums import InvitationState
+from waldur_core.users.models import Invitation
+from waldur_core.users.utils import get_invitation_duplicates
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
@@ -309,6 +308,70 @@ def get_allowed_offering_users_for_user(
         queryset = queryset.exclude(~Q(user=request_user) & incomplete_q)
 
     return queryset
+
+
+def _stamp_glauth_integration_status(offering, request):
+    """Mark this offering's GLAUTH_SYNC integration as active and timestamped."""
+    integration_status, _ = models.IntegrationStatus.objects.get_or_create(
+        offering=offering,
+        agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+    )
+    integration_status.set_last_request_timestamp()
+    integration_status.service_name = request.headers.get("User-Agent", "")
+    integration_status.set_backend_active()
+    integration_status.save()
+
+
+def _strip_internal(tree: dict) -> dict:
+    """Drop the private keys that `build_glauth_tree` carries for the TOML emitter."""
+    return {k: v for k, v in tree.items() if not k.startswith("_")}
+
+
+def _render_glauth_toml(offering, *, resource_filter=None) -> str:
+    """Render the glauth TOML config for an offering or single resource.
+
+    Builds the structured tree, then derives the TOML output from it so
+    the role-aware ``[[groups]]`` blocks and per-user ``otherGroups``
+    additions stay aligned with what `glauth_tree` returns.
+    """
+    tree = utils.build_glauth_tree(offering, resource_filter=resource_filter)
+
+    user_records = utils.generate_glauth_records_for_offering_users(
+        offering,
+        tree["_offering_users"],
+        extra_user_gids=tree["_user_role_gids"],
+    )
+
+    robot_qs = models.RobotAccount.objects.filter(resource__offering=offering)
+    if resource_filter is not None:
+        robot_qs = robot_qs.filter(resource=resource_filter)
+    robot_account_records = utils.generate_glauth_records_for_robot_accounts(
+        offering, robot_qs
+    )
+
+    project_group_records = []
+    role_group_records = []
+    for group in tree["groups"]:
+        gid = group["gid"]
+        name = group["name"]
+        record = textwrap.dedent(
+            f"""
+            [[groups]]
+              name = "{utils.escape_toml_string(name)}"
+              gidnumber = {gid}
+        """
+        )
+        if group["kind"] == "project":
+            project_group_records.append(record)
+        else:
+            role_group_records.append(record)
+
+    return "\n".join(
+        user_records
+        + robot_account_records
+        + project_group_records
+        + role_group_records
+    )
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -3365,53 +3428,44 @@ class ProviderOfferingViewSet(
                 % offering,
             )
 
-        integration_status, _ = models.IntegrationStatus.objects.get_or_create(
-            offering=offering,
-            agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
-        )
-        integration_status.set_last_request_timestamp()
-        integration_status.service_name = request.headers.get("User-Agent", "")
-        integration_status.set_backend_active()
-        integration_status.save()
+        _stamp_glauth_integration_status(offering, request)
 
-        offering_users = (
-            models.OfferingUser.objects.filter(offering=offering)
-            .exclude(username="")
-            .select_related("user")
-            .prefetch_related("user__sshpublickey_set")
-        )
-
-        offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
-
-        user_records = utils.generate_glauth_records_for_offering_users(
-            offering, offering_users
-        )
-
-        robot_accounts = models.RobotAccount.objects.filter(resource__offering=offering)
-
-        robot_account_records = utils.generate_glauth_records_for_robot_accounts(
-            offering, robot_accounts
-        )
-
-        other_group_records = []
-        for group in offering_groups:
-            gid = group.backend_metadata["gid"]
-            record = textwrap.dedent(
-                f"""
-                [[groups]]
-                  name = "{gid}"
-                  gidnumber = {gid}
-            """
-            )
-            other_group_records.append(record)
-
-        response_text = "\n".join(
-            user_records + robot_account_records + other_group_records
-        )
-
+        response_text = _render_glauth_toml(offering, resource_filter=None)
         return Response(response_text)
 
     glauth_users_config_permissions = [structure_permissions.is_offering_manager]
+
+    @extend_schema(
+        summary="Get structured GLauth tree for an offering",
+        description=(
+            "Returns the same set of users, groups and robot accounts as "
+            "`glauth_users_config`, but as a structured JSON tree suitable "
+            "for navigation in admin UIs. Source of truth for the TOML "
+            "endpoint."
+        ),
+        request=None,
+        responses={status.HTTP_200_OK: serializers.GlauthTreeSerializer},
+        parameters=[],
+    )
+    @action(detail=True, methods=["GET"])
+    def glauth_tree(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        if not offering.plugin_options.get(
+            "service_provider_can_create_offering_user", False
+        ):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data=(
+                    "Offering %s doesn't have feature "
+                    "service_provider_can_create_offering_user enabled" % offering
+                ),
+            )
+        _stamp_glauth_integration_status(offering, request)
+        tree = utils.build_glauth_tree(offering)
+        serializer = serializers.GlauthTreeSerializer(_strip_internal(tree))
+        return Response(serializer.data)
+
+    glauth_tree_permissions = [structure_permissions.is_offering_manager]
 
     @extend_schema(
         summary="Check user access to offering resources",
@@ -8022,7 +8076,6 @@ class BaseResourceViewSet(
     )
     def glauth_users_config(self, request, uuid=None):
         resource: models.Resource = self.get_object()
-        project = resource.project
         offering = resource.offering
 
         if not offering.plugin_options.get(
@@ -8038,56 +8091,39 @@ class BaseResourceViewSet(
                 % offering,
             )
 
-        integration_status, _ = models.IntegrationStatus.objects.get_or_create(
-            offering=offering,
-            agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
-        )
-        integration_status.set_last_request_timestamp()
-        integration_status.service_name = request.headers.get("User-Agent", "")
-        integration_status.set_backend_active()
-        integration_status.save()
-
-        user_ids = get_project_users(project.id)
-
-        offering_users = (
-            models.OfferingUser.objects.filter(
-                offering=offering,
-                user__id__in=user_ids,
-            )
-            .exclude(username="")
-            .select_related("user")
-            .prefetch_related("user__sshpublickey_set")
-        )
-
-        offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
-
-        user_records = utils.generate_glauth_records_for_offering_users(
-            offering, offering_users
-        )
-
-        robot_accounts = models.RobotAccount.objects.filter(resource__offering=offering)
-
-        robot_account_records = utils.generate_glauth_records_for_robot_accounts(
-            offering, robot_accounts
-        )
-
-        other_group_records = []
-        for group in offering_groups:
-            gid = group.backend_metadata["gid"]
-            record = textwrap.dedent(
-                f"""
-                    [[groups]]
-                      name = "{gid}"
-                      gidnumber = {gid}
-                """
-            )
-            other_group_records.append(record)
-
-        response_text = "\n".join(
-            user_records + robot_account_records + other_group_records
-        )
-
+        _stamp_glauth_integration_status(offering, request)
+        response_text = _render_glauth_toml(offering, resource_filter=resource)
         return Response(response_text)
+
+    @extend_schema(
+        summary="Get structured GLauth tree for a resource",
+        description=(
+            "Structured JSON tree (offering, groups, users, robot accounts) "
+            "scoped to one resource's project. Source of truth for the "
+            "`glauth_users_config` TOML on this viewset."
+        ),
+        request=None,
+        responses={status.HTTP_200_OK: serializers.GlauthTreeSerializer},
+        parameters=[],
+    )
+    @action(detail=True, methods=["get"])
+    def glauth_tree(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        offering = resource.offering
+        if not offering.plugin_options.get(
+            "service_provider_can_create_offering_user", False
+        ):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data=(
+                    "Offering %s doesn't have feature "
+                    "service_provider_can_create_offering_user enabled" % offering
+                ),
+            )
+        _stamp_glauth_integration_status(offering, request)
+        tree = utils.build_glauth_tree(offering, resource_filter=resource)
+        serializer = serializers.GlauthTreeSerializer(_strip_internal(tree))
+        return Response(serializer.data)
 
     @extend_schema(
         summary="List offerings for sub-resources",

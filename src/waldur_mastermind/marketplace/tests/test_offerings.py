@@ -1127,10 +1127,17 @@ class OfferingCreateTest(test.APITestCase):
             "require_effective_id_for_highlighted_display": False,
             "homedir_prefix": "/home/",
             "initial_primarygroup_number": 5000,
+            "initial_rolegroup_number": 60000,
             "initial_uidnumber": 5000,
             "initial_usergroup_number": 6000,
             "offering_user_auto_deletion": False,
             "resource_expiration_threshold": 30,
+            "resource_project_role_group_template": (
+                "${resource_slug}_${rp_uuid_short}_${role_name}"
+            ),
+            "resource_project_role_map": {},
+            "resource_role_group_template": "${resource_slug}_${role_name}",
+            "resource_role_map": {},
             "slurm_periodic_policy_enabled": False,
             "username_anonymized_prefix": "waldur_",
             "username_generation_policy": "service_provider",

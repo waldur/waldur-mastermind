@@ -83,7 +83,6 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     OfferingStates,
     OfferingUserRuntimeStates,
-    OfferingUserRuntimeStatesType,
     OfferingUserStates,
     OfferingUserStatesType,
     OrderStates,
@@ -365,6 +364,54 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
         help_text="GLAuth initial usergroup number",
         min_value=0,
     )
+    initial_rolegroup_number = serializers.IntegerField(
+        required=False,
+        default=60000,
+        help_text=(
+            "GLAuth initial gid for role-aware groups (one per "
+            "(resource|resource-project, role) tuple). Must leave at "
+            "least 50000 gids of headroom above initial_usergroup_number "
+            "to avoid collisions."
+        ),
+        min_value=0,
+    )
+    resource_role_map = serializers.DictField(
+        child=serializers.CharField(),
+        required=False,
+        default=dict,
+        help_text=(
+            "Mapping of Waldur role names (on Resource scope) to "
+            "emitted role tokens used in group name rendering. Roles "
+            "outside the map are skipped. Example: "
+            '{"PI": "admin", "Member": "member"}.'
+        ),
+    )
+    resource_project_role_map = serializers.DictField(
+        child=serializers.CharField(),
+        required=False,
+        default=dict,
+        help_text=(
+            "Mapping of Waldur role names (on ResourceProject scope) to "
+            "emitted role tokens. Same semantics as resource_role_map."
+        ),
+    )
+    resource_role_group_template = serializers.CharField(
+        required=False,
+        default="${resource_slug}_${role_name}",
+        help_text=(
+            "string.Template for resource-scope role group names. "
+            "Variables: ${role_name}, ${resource_slug}, ${customer_slug}, ${project_slug}."
+        ),
+    )
+    resource_project_role_group_template = serializers.CharField(
+        required=False,
+        default="${resource_slug}_${rp_uuid_short}_${role_name}",
+        help_text=(
+            "string.Template for resource-project-scope role group "
+            "names. Adds ${rp_uuid}, ${rp_uuid_short}, ${project_name} "
+            "to the variables available for resource-scope templates."
+        ),
+    )
     username_anonymized_prefix = serializers.CharField(
         required=False,
         default="waldur_",
@@ -376,6 +423,20 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
         help_text="GLAuth username generation policy",
         default=UsernameGenerationPolicy.SERVICE_PROVIDER.value,
     )
+
+    def validate(self, attrs):
+        usergroup_base = attrs.get("initial_usergroup_number", 6000)
+        rolegroup_base = attrs.get("initial_rolegroup_number", 60000)
+        if rolegroup_base < usergroup_base + 50000:
+            raise serializers.ValidationError(
+                {
+                    "initial_rolegroup_number": (
+                        "Must be at least 50000 above initial_usergroup_number "
+                        "to avoid gid collisions with project-mapped groups."
+                    )
+                }
+            )
+        return attrs
 
 
 class RancherPluginOptionsSerializer(serializers.Serializer):
@@ -12912,3 +12973,80 @@ class ProjectOrderAutoApprovalSerializer(serializers.HyperlinkedModelSerializer)
 
 class UserHasResourceAccessSerializer(serializers.Serializer):
     has_access = serializers.BooleanField(read_only=True)
+
+
+class GlauthTreeScopeSerializer(serializers.Serializer):
+    """Scope reference inside a glauth tree group entry."""
+
+    type = serializers.ChoiceField(choices=["resource", "resource_project", "project"])
+    uuid = serializers.CharField()
+    name = serializers.CharField(allow_blank=True, allow_null=True)
+    slug = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    resource_uuid = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+
+
+GLAUTH_GROUP_KIND_CHOICES = (
+    ("project", "project"),
+    ("resource_role", "resource_role"),
+    ("resource_project_role", "resource_project_role"),
+)
+
+
+class GlauthTreeGroupSerializer(serializers.Serializer):
+    gid = serializers.IntegerField()
+    name = serializers.CharField()
+    kind = serializers.ChoiceField(choices=GLAUTH_GROUP_KIND_CHOICES)
+    scope = GlauthTreeScopeSerializer()
+    role = serializers.CharField(allow_null=True)
+    members = serializers.ListField(child=serializers.CharField())
+
+
+class GlauthTreeMembershipSerializer(serializers.Serializer):
+    gid = serializers.IntegerField()
+    group_name = serializers.CharField()
+    kind = serializers.ChoiceField(choices=GLAUTH_GROUP_KIND_CHOICES)
+    role = serializers.CharField(allow_null=True)
+
+
+class GlauthTreeUserSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    uidnumber = serializers.IntegerField(allow_null=True)
+    disabled = serializers.BooleanField()
+    personal_group = serializers.IntegerField(allow_null=True)
+    mail = serializers.CharField(allow_blank=True, allow_null=True)
+    givenname = serializers.CharField(allow_blank=True, allow_null=True)
+    sn = serializers.CharField(allow_blank=True, allow_null=True)
+    login_shell = serializers.CharField(allow_blank=True, allow_null=True)
+    home_dir = serializers.CharField(allow_blank=True, allow_null=True)
+    ssh_keys = serializers.ListField(child=serializers.CharField())
+    memberships = GlauthTreeMembershipSerializer(many=True)
+
+
+class GlauthTreeRobotAccountSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    uidnumber = serializers.IntegerField(allow_null=True)
+    personal_group = serializers.IntegerField(allow_null=True)
+    login_shell = serializers.CharField(allow_blank=True, allow_null=True)
+    home_dir = serializers.CharField(allow_blank=True, allow_null=True)
+    ssh_keys = serializers.ListField(child=serializers.CharField())
+
+
+class GlauthTreeOfferingSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    name = serializers.CharField()
+    slug = serializers.CharField(allow_null=True, allow_blank=True)
+
+
+class GlauthTreeSerializer(serializers.Serializer):
+    """Structured glauth view returned by `glauth_tree` actions.
+
+    Shared shape consumed by the JSON endpoint and (internally) by the
+    TOML emitter so the two stay in sync.
+    """
+
+    offering = GlauthTreeOfferingSerializer()
+    groups = GlauthTreeGroupSerializer(many=True)
+    users = GlauthTreeUserSerializer(many=True)
+    robot_accounts = GlauthTreeRobotAccountSerializer(many=True)

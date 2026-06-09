@@ -18,9 +18,9 @@ from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
-from waldur_core.core.enums import ReviewStates
 from waldur_core.logging import event_logger
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.enums import EventType, ObservableObjectType
@@ -2765,6 +2765,23 @@ def handle_user_role_revoked(
     )
 
 
+def purge_offering_role_groups_on_scope_delete(sender, instance, **kwargs):
+    """Drop OfferingRoleGroup rows that pointed at a now-deleted scope.
+
+    The scope is a Resource or ResourceProject; both are referenced via
+    a GenericForeignKey on OfferingRoleGroup, so cascade-delete from
+    Django ORM does NOT fire automatically. Without this handler the
+    rows would dangle and the gid allocator would skip those numbers
+    forever.
+    """
+    from waldur_mastermind.marketplace import models as marketplace_models
+
+    ct = ContentType.objects.get_for_model(sender)
+    marketplace_models.OfferingRoleGroup.objects.filter(
+        content_type=ct, object_id=instance.pk
+    ).delete()
+
+
 def trigger_user_action_recalculation_on_order_state_change(
     sender, instance: Order, created=False, **kwargs
 ):
@@ -2853,8 +2870,10 @@ def log_resource_limit_change_request_events(sender, instance, created=False, **
 
     if instance.state == ReviewStates.APPROVED:
         transaction.on_commit(
-            lambda: tasks.send_resource_limit_change_request_approved_notification.delay(
-                instance.uuid.hex
+            lambda: (
+                tasks.send_resource_limit_change_request_approved_notification.delay(
+                    instance.uuid.hex
+                )
             )
         )
         event_logger.emit(
@@ -2865,8 +2884,10 @@ def log_resource_limit_change_request_events(sender, instance, created=False, **
         )
     elif instance.state == ReviewStates.REJECTED:
         transaction.on_commit(
-            lambda: tasks.send_resource_limit_change_request_rejected_notification.delay(
-                instance.uuid.hex
+            lambda: (
+                tasks.send_resource_limit_change_request_rejected_notification.delay(
+                    instance.uuid.hex
+                )
             )
         )
         event_logger.emit(
