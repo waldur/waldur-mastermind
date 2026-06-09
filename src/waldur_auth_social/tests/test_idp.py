@@ -1,3 +1,6 @@
+import socket
+from unittest import mock
+
 import responses
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -5,6 +8,12 @@ from rest_framework.reverse import reverse
 from waldur_auth_social import models
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_core.structure.tests.fixtures import UserFixture
+
+
+def _addrinfo(ip):
+    """Build a socket.getaddrinfo-style result resolving to a single IP."""
+    family = socket.AF_INET6 if ":" in ip else socket.AF_INET
+    return [(family, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (ip, 443))]
 
 
 class IdentityProvidersViewSetTest(test.APITestCase):
@@ -16,6 +25,14 @@ class IdentityProvidersViewSetTest(test.APITestCase):
         self.identity_provider = models.IdentityProvider.objects.create(
             provider="test_provider", is_active=True
         )
+        # The SSRF guard resolves the discovery host; pin it to a public IP so
+        # tests stay deterministic and offline. Negative tests override this.
+        resolve_patcher = mock.patch(
+            "waldur_auth_social.utils.socket.getaddrinfo",
+            return_value=_addrinfo("93.184.216.34"),
+        )
+        self.mock_getaddrinfo = resolve_patcher.start()
+        self.addCleanup(resolve_patcher.stop)
 
     def get_list_url(self):
         return reverse("identity-providers-list")
@@ -371,3 +388,85 @@ class IdentityProvidersViewSetTest(test.APITestCase):
         self.assertIn("extra_scope", response.data)
         self.assertIn("profile", response.data["extra_scope"])
         self.assertIn("email", response.data["extra_scope"])
+
+    # --- SSRF guard on the discovery URL fetch ---
+
+    def _assert_discovery_blocked(self, url, resolved_ip):
+        self.mock_getaddrinfo.return_value = _addrinfo(resolved_ip)
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            self.get_discover_metadata_url(),
+            {"discovery_url": url},
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("discovery_url", response.data)
+
+    def test_discover_metadata_blocks_cloud_metadata_endpoint(self):
+        # 169.254.169.254 is link-local — the classic SSRF target.
+        self._assert_discovery_blocked(
+            "https://metadata.attacker.example/.well-known/openid-configuration",
+            "169.254.169.254",
+        )
+
+    @responses.activate
+    def test_discover_metadata_allows_in_cluster_private_idp(self):
+        # An in-cluster Keycloak on a ClusterIP (RFC-1918) is a legitimate IdP
+        # location and must NOT be blocked.
+        self.mock_getaddrinfo.return_value = _addrinfo("10.96.0.10")
+        discovery_url = (
+            "https://keycloak.auth.svc.cluster.local/.well-known/openid-configuration"
+        )
+        self._mock_openid_configuration_with_claims(discovery_url)
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            self.get_discover_metadata_url(),
+            {"discovery_url": discovery_url},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_discover_metadata_blocks_loopback(self):
+        self._assert_discovery_blocked(
+            "https://localhost.attacker.example/.well-known/openid-configuration",
+            "127.0.0.1",
+        )
+
+    def test_discover_metadata_blocks_ipv4_mapped_ipv6_metadata(self):
+        # ::ffff:169.254.169.254 must be unwrapped and rejected too.
+        self._assert_discovery_blocked(
+            "https://sneaky.example/.well-known/openid-configuration",
+            "::ffff:169.254.169.254",
+        )
+
+    def test_generate_mapping_blocks_cloud_metadata_endpoint(self):
+        # Covers the generate_mapping fetch sink with a genuinely blocked
+        # (link-local metadata) address.
+        self.mock_getaddrinfo.return_value = _addrinfo("169.254.169.254")
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            self.get_generate_mapping_url(),
+            {
+                "discovery_url": "https://metadata.attacker.example/.well-known/openid-configuration"
+            },
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_create_provider_blocks_metadata_discovery_url(self):
+        self.mock_getaddrinfo.return_value = _addrinfo("169.254.169.254")
+        self.client.force_authenticate(self.staff)
+        payload = self._get_base_provider_payload(
+            provider_type=ProviderChoices.KEYCLOAK,
+            discovery_url="https://idp.internal.example/.well-known/openid-configuration",
+        )
+        response = self.client.post(self.get_list_url(), payload)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertFalse(
+            models.IdentityProvider.objects.filter(
+                provider=ProviderChoices.KEYCLOAK
+            ).exists()
+        )

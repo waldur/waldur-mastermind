@@ -11,6 +11,7 @@ from waldur_auth_social.const import (
     WRITABLE_USER_FIELDS,
     ProviderChoices,
 )
+from waldur_auth_social.utils import validate_safe_remote_url
 from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
 
@@ -164,6 +165,7 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         return fields
 
     def discover_urls(self, discovery_url, verify_ssl=True):
+        validate_safe_remote_url(discovery_url)
         try:
             response = requests.get(discovery_url, verify=verify_ssl)
             response.raise_for_status()
@@ -227,6 +229,12 @@ class DiscoverMetadataRequestSerializer(serializers.Serializer):
     verify_ssl = serializers.BooleanField(
         default=True, help_text="Whether to verify SSL certificate"
     )
+
+    def validate_discovery_url(self, value):
+        # SSRF guard: both discover_metadata and generate_mapping fetch this URL
+        # server-side, so block hosts resolving to internal/metadata addresses.
+        validate_safe_remote_url(value)
+        return value
 
 
 class WaldurFieldSuggestionSerializer(serializers.Serializer):
