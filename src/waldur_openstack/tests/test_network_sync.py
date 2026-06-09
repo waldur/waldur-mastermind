@@ -154,3 +154,50 @@ class NetworkSyncTest(test.APITestCase):
             "FIX FAILED: Tenant association was not corrected.",
         )
         self.assertEqual(self.shared_network.name, "Updated Name")
+
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.list_networks")
+    def test_pulling_persists_port_security_enabled_false_from_backend(
+        self, mock_list_networks
+    ):
+        # Arrange
+        mock_list_networks.return_value = [
+            {
+                "id": self.shared_network.backend_id,
+                "name": self.shared_network.name,
+                "tenant_id": self.owner_tenant.backend_id,
+                "description": "",
+                "router:external": False,
+                "status": "ACTIVE",
+                "port_security_enabled": False,
+            }
+        ]
+
+        # Act
+        self.backend.pull_tenant_networks(self.owner_tenant)
+
+        # Assert
+        self.shared_network.refresh_from_db()
+        self.assertFalse(self.shared_network.port_security_enabled)
+
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.list_networks")
+    def test_pulling_defaults_port_security_enabled_to_true_when_absent(
+        self, mock_list_networks
+    ):
+        # Arrange: backend payload omits port_security_enabled (older Neutron).
+        mock_list_networks.return_value = [
+            {
+                "id": "fresh-network-id",
+                "name": "Fresh Network",
+                "tenant_id": self.owner_tenant.backend_id,
+                "description": "",
+                "router:external": False,
+                "status": "ACTIVE",
+            }
+        ]
+
+        # Act
+        self.backend.pull_tenant_networks(self.owner_tenant)
+
+        # Assert: newly imported network defaults to True.
+        new_network = Network.objects.get(backend_id="fresh-network-id")
+        self.assertTrue(new_network.port_security_enabled)

@@ -1668,6 +1668,7 @@ class OpenStackBackend(ServiceBackend):
             is_external=backend_network["router:external"],
             runtime_state=backend_network["status"],
             mtu=backend_network.get("mtu"),
+            port_security_enabled=backend_network.get("port_security_enabled", True),
             backend_id=backend_network["id"],
             state=CoreStates.OK,
         )

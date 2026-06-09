@@ -237,6 +237,32 @@ class NetworkFieldsFilterTest(BaseNetworkTest):
         self.assertFalse("segmentation_id" in response.data)
 
 
+class NetworkPortSecurityFieldTest(BaseNetworkTest):
+    def setUp(self):
+        super().setUp()
+        self.network = self.fixture.network
+        self.subnet = self.fixture.subnet
+
+    def test_network_detail_exposes_port_security_enabled(self):
+        self.network.port_security_enabled = False
+        self.network.save(update_fields=["port_security_enabled"])
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.get(factories.NetworkFactory.get_url(self.network))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["port_security_enabled"])
+
+    def test_nested_subnet_projects_port_security_enabled_from_network(self):
+        self.network.port_security_enabled = False
+        self.network.save(update_fields=["port_security_enabled"])
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.get(factories.NetworkFactory.get_url(self.network))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        subnet_uuid = self.subnet.uuid.hex
+        matching = [s for s in response.data["subnets"] if s["uuid"] == subnet_uuid]
+        self.assertEqual(len(matching), 1)
+        self.assertFalse(matching[0]["port_security_enabled"])
+
+
 @ddt
 class NetworkRBACTest(test.APITestCase):
     def setUp(self):
