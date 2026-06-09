@@ -1300,6 +1300,31 @@ options:
 
 Synchronize SAML2 identity providers.
 
+## validate_openstack_billing
+
+Audit OpenStack instance flavor-derived billing against Placement allocations. Read-only: reports drift, changes nothing.
+
+```bash
+
+usage: waldur validate_openstack_billing [--month MONTH]
+                                         [--service-settings SERVICE_SETTINGS]
+                                         [--flag-untracked] [--quiet]
+
+options:
+  --month MONTH         Reporting period as YYYY-MM. Defaults to the current
+                        month. Instances created after the end of the month
+                        are excluded.
+  --service-settings SERVICE_SETTINGS
+                        Limit the audit to a single OpenStack ServiceSettings
+                        UUID.
+  --flag-untracked      Also report Placement resource classes (e.g. VGPU)
+                        that have no matching OfferingComponent on the plan —
+                        i.e. silent under-billing.
+  --quiet               Only print drift rows and the summary, suppress
+                        progress output.
+
+```
+
 ## validate_openstack_services
 
 Validate access to all OpenStack services used in Waldur for configured offerings
