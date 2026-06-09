@@ -873,3 +873,169 @@ def delete_volume(volume, attributes=None, is_async=True):
             is_async=is_async,
         )
     )
+
+
+# --- Placement billing reconciliation (WAL-9900) -------------------------------
+#
+# Read-only audit comparing the flavor-derived billing of an OpenStack instance
+# (cores/ram/disk, which feed the tenant ComponentUsage via quota) against what
+# Placement actually allocated to the same consumer. Surfaces drift — in
+# particular specialty resource classes (VGPU, PCI_DEVICE, custom) that Placement
+# reports but no OfferingComponent bills for, i.e. silent under-billing.
+
+
+class DriftSeverity:
+    # Billed amount differs from actual usage and the customer is under-billed,
+    # or a resource in use has no OfferingComponent at all.
+    HIGH = "HIGH"
+    # Billed amount exceeds actual usage: customer over-billed. Not revenue loss.
+    MEDIUM = "MEDIUM"
+
+
+# Placement resource class -> marketplace component type. Both VCPU and
+# MEMORY_MB come straight from the flavor, which is exactly what drives the
+# tenant ComponentUsage, so they reconcile 1:1 (RAM is MiB on both sides).
+PLACEMENT_CLASS_TO_COMPONENT = {
+    "VCPU": CORES_TYPE,
+    "MEMORY_MB": RAM_TYPE,
+}
+
+# Placement resource classes that are deliberately not reconciled. DISK_GB is
+# the hypervisor-local/ephemeral disk Nova reserves; instance storage in Waldur
+# is the sum of attached Cinder volumes (see backend._import_instance), a
+# different subsystem Placement knows nothing about. Boot-from-volume instances
+# report DISK_GB=0 against a multi-GB volume, so a quantity comparison here only
+# produces false drift. Cinder storage under-billing is detected separately by
+# ``detect_untracked_volume_types``.
+PLACEMENT_CLASSES_IGNORED = {"DISK_GB"}
+
+
+def aggregate_placement_allocations(allocations: dict | None) -> dict:
+    """Sum Placement resources across all resource providers for one consumer.
+
+    ``allocations`` is the raw shape returned by ``PlacementClient.get_allocations``::
+
+        {"<rp_uuid>": {"resources": {"VCPU": 2, ...}, "generation": N}, ...}
+
+    Returns a flat ``{resource_class: total}`` dict.
+    """
+    totals: dict[str, int] = {}
+    for record in (allocations or {}).values():
+        for resource_class, amount in (record or {}).get("resources", {}).items():
+            totals[resource_class] = totals.get(resource_class, 0) + amount
+    return totals
+
+
+def placement_to_component_values(placement_resources: dict) -> tuple[dict, dict]:
+    """Split aggregated Placement resources into mapped and unmapped buckets.
+
+    ``mapped`` maps a marketplace component type to a value in that component's
+    stored unit. ``unmapped`` keeps the raw resource classes Placement reports
+    that have no component mapping at all (VGPU, PCI_DEVICE, custom). Ignored
+    classes (see ``PLACEMENT_CLASSES_IGNORED``) appear in neither bucket.
+    """
+    mapped: dict[str, int] = {}
+    unmapped: dict[str, int] = {}
+    for resource_class, amount in placement_resources.items():
+        if resource_class in PLACEMENT_CLASSES_IGNORED:
+            continue
+        component_type = PLACEMENT_CLASS_TO_COMPONENT.get(resource_class)
+        if component_type is None:
+            unmapped[resource_class] = unmapped.get(resource_class, 0) + amount
+            continue
+        mapped[component_type] = mapped.get(component_type, 0) + amount
+    return mapped, unmapped
+
+
+def reconcile_instance_allocation(
+    flavor_values: dict,
+    placement_resources: dict,
+    tracked_types: set,
+    flag_untracked: bool,
+) -> list[dict]:
+    """Compare one instance's flavor-derived billing against Placement.
+
+    :param flavor_values: ``{component_type: value}`` in component units
+        (cores/ram only — storage is reconciled against Cinder, not Placement).
+    :param placement_resources: aggregated ``{resource_class: amount}`` from
+        ``aggregate_placement_allocations``.
+    :param tracked_types: component types the plan bills for.
+    :param flag_untracked: also report Placement resource classes with no
+        matching OfferingComponent (the VGPU under-billing case).
+    :return: list of drift dicts ``{resource_class, billed, actual, severity, tag}``.
+    """
+    drifts: list[dict] = []
+    mapped, unmapped = placement_to_component_values(placement_resources)
+
+    # Drift on components the plan tracks: billed vs Placement.
+    for component_type in sorted(tracked_types):
+        billed = flavor_values.get(component_type, 0)
+        allocated = mapped.get(component_type, 0)
+        if billed == allocated:
+            continue
+        under_billed = billed < allocated
+        drifts.append(
+            {
+                "resource_class": component_type,
+                "billed": billed,
+                "actual": allocated,
+                "severity": DriftSeverity.HIGH
+                if under_billed
+                else DriftSeverity.MEDIUM,
+                "tag": "under-billed" if under_billed else "over-billed",
+            }
+        )
+
+    # Placement resources the plan does not bill for at all.
+    if flag_untracked:
+        untracked = dict(unmapped)
+        for component_type, amount in mapped.items():
+            if component_type not in tracked_types:
+                untracked[component_type] = amount
+        for resource_class, amount in sorted(untracked.items()):
+            if amount <= 0:
+                continue
+            drifts.append(
+                {
+                    "resource_class": resource_class,
+                    "billed": 0,
+                    "actual": amount,
+                    "severity": DriftSeverity.HIGH,
+                    "tag": "no matching OfferingComponent",
+                }
+            )
+
+    return drifts
+
+
+def detect_untracked_volume_types(
+    volume_type_usages: dict,
+    tracked_types: set,
+) -> list[dict]:
+    """Flag Cinder volume types in use that have no matching ``gigabytes_<type>``
+    OfferingComponent — the storage twin of the VGPU under-billing case.
+
+    Only meaningful in dynamic storage mode; in fixed mode every volume type
+    rolls into the single ``storage`` component, so there is no per-type gap and
+    the caller should not invoke this.
+
+    :param volume_type_usages: ``{quota_name: gigabytes_in_use}``, typically the
+        ``gigabytes_*`` entries of ``tenant.quota_usages``.
+    :param tracked_types: component types the plan bills for.
+    """
+    drifts: list[dict] = []
+    for quota_name, amount in sorted(volume_type_usages.items()):
+        if not is_valid_volume_type_name(quota_name):
+            continue
+        if amount <= 0 or quota_name in tracked_types:
+            continue
+        drifts.append(
+            {
+                "resource_class": quota_name,
+                "billed": 0,
+                "actual": amount,
+                "severity": DriftSeverity.HIGH,
+                "tag": "no matching OfferingComponent",
+            }
+        )
+    return drifts
