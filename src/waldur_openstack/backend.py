@@ -1347,8 +1347,19 @@ class OpenStackBackend(ServiceBackend):
                 "external_fixed_ips": ext_fixed_ips,
                 "service_settings": tenant.service_settings,
                 "project": tenant.project,
-                "state": CoreStates.OK,
             }
+            # Only assign state when the row is new or recovering from ERRED;
+            # never overwrite a transitional state (DELETION_SCHEDULED,
+            # DELETING, UPDATE_SCHEDULED, UPDATING, CREATION_SCHEDULED,
+            # CREATING) because the worker that issued the transition is
+            # racing with this pull and a stale OK write breaks the FSM.
+            existing_state = (
+                models.Router.objects.filter(tenant=tenant, backend_id=backend_id)
+                .values_list("state", flat=True)
+                .first()
+            )
+            if existing_state in (None, CoreStates.ERRED):
+                defaults["state"] = CoreStates.OK
             try:
                 router_obj, _ = models.Router.objects.update_or_create(
                     tenant=tenant, backend_id=backend_id, defaults=defaults

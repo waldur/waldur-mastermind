@@ -11,6 +11,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
+from waldur_openstack.backend import OpenStackBackend
 
 from . import factories, fixtures
 
@@ -926,8 +927,6 @@ class PullTenantRoutersGatewayTest(test.APITestCase):
         }
         neutron.list_ports.return_value = {"ports": []}
 
-        from waldur_openstack.backend import OpenStackBackend
-
         backend = OpenStackBackend(self.fixture.settings)
         backend.pull_tenant_routers(self.tenant)
 
@@ -966,8 +965,6 @@ class PullTenantRoutersGatewayTest(test.APITestCase):
         }
         neutron.list_ports.return_value = {"ports": []}
 
-        from waldur_openstack.backend import OpenStackBackend
-
         backend = OpenStackBackend(self.fixture.settings)
         backend.pull_tenant_routers(self.tenant, "router-backend-2")
 
@@ -975,3 +972,122 @@ class PullTenantRoutersGatewayTest(test.APITestCase):
         self.assertEqual(router.external_network_id, "")
         self.assertIsNone(router.external_network_ref)
         self.assertIsNone(router.enable_snat)
+
+
+class PullTenantRoutersStateTest(test.APITestCase):
+    """Pull must not overwrite a transitional FSM state with OK.
+
+    Regression test: a user-initiated DELETE moves the router from OK to
+    DELETION_SCHEDULED via schedule_deleting() before the delete task is
+    queued. If pull_tenant_routers runs in the gap before the worker fires
+    begin_deleting (DELETION_SCHEDULED -> DELETING), an unconditional
+    state=OK overwrite in update_or_create defaults reverts the state and
+    causes TransitionNotAllowed when the worker finally runs.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+
+    def _mock_neutron(self, mock_neutron_client, backend_id):
+        neutron = mock_neutron_client.return_value
+        neutron.show_router.return_value = {
+            "router": {
+                "id": backend_id,
+                "name": "test-router",
+                "description": "",
+                "routes": [],
+                "external_gateway_info": None,
+            }
+        }
+        neutron.list_routers.return_value = {
+            "routers": [neutron.show_router.return_value["router"]]
+        }
+        neutron.list_ports.return_value = {"ports": []}
+        return neutron
+
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    def test_pull_preserves_deletion_scheduled_state(
+        self, mock_session, mock_neutron_client
+    ):
+        router = factories.RouterFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="router-to-delete",
+            state=CoreStates.DELETION_SCHEDULED,
+        )
+        self._mock_neutron(mock_neutron_client, "router-to-delete")
+
+        OpenStackBackend(self.fixture.settings).pull_tenant_routers(
+            self.tenant, "router-to-delete"
+        )
+
+        router.refresh_from_db()
+        self.assertEqual(router.state, CoreStates.DELETION_SCHEDULED)
+
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    def test_pull_preserves_deleting_state(self, mock_session, mock_neutron_client):
+        router = factories.RouterFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="router-deleting",
+            state=CoreStates.DELETING,
+        )
+        self._mock_neutron(mock_neutron_client, "router-deleting")
+
+        OpenStackBackend(self.fixture.settings).pull_tenant_routers(self.tenant)
+
+        router.refresh_from_db()
+        self.assertEqual(router.state, CoreStates.DELETING)
+
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    def test_pull_preserves_update_scheduled_state(
+        self, mock_session, mock_neutron_client
+    ):
+        router = factories.RouterFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="router-updating",
+            state=CoreStates.UPDATE_SCHEDULED,
+        )
+        self._mock_neutron(mock_neutron_client, "router-updating")
+
+        OpenStackBackend(self.fixture.settings).pull_tenant_routers(self.tenant)
+
+        router.refresh_from_db()
+        self.assertEqual(router.state, CoreStates.UPDATE_SCHEDULED)
+
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    def test_pull_recovers_erred_router_to_ok(self, mock_session, mock_neutron_client):
+        router = factories.RouterFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="router-erred",
+            state=CoreStates.ERRED,
+        )
+        self._mock_neutron(mock_neutron_client, "router-erred")
+
+        OpenStackBackend(self.fixture.settings).pull_tenant_routers(self.tenant)
+
+        router.refresh_from_db()
+        self.assertEqual(router.state, CoreStates.OK)
+
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    def test_pull_creates_new_router_in_ok_state(
+        self, mock_session, mock_neutron_client
+    ):
+        self._mock_neutron(mock_neutron_client, "router-new")
+
+        OpenStackBackend(self.fixture.settings).pull_tenant_routers(self.tenant)
+
+        router = models.Router.objects.get(tenant=self.tenant, backend_id="router-new")
+        self.assertEqual(router.state, CoreStates.OK)
