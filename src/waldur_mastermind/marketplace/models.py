@@ -2635,6 +2635,10 @@ class ComponentUsage(
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
+    class Permissions:
+        customer_path = ["resource__project__customer", "resource__offering__customer"]
+        project_path = "resource__project"
+
     class Meta:
         constraints = [
             UniqueConstraint(
@@ -2730,6 +2734,13 @@ class ComponentUserUsage(
     username = models.CharField(max_length=100)
     component_usage = models.ForeignKey(ComponentUsage, on_delete=models.CASCADE)
     usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
+
+    class Permissions:
+        customer_path = [
+            "component_usage__resource__project__customer",
+            "component_usage__resource__offering__customer",
+        ]
+        project_path = "component_usage__resource__project"
 
     class Meta:
         unique_together = ("username", "component_usage")

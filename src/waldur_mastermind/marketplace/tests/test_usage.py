@@ -445,7 +445,10 @@ class SubmitUsageTest(test.APITestCase):
             f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
             payload,
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        expected_status = (
+            status.HTTP_404_NOT_FOUND if role == "user" else status.HTTP_403_FORBIDDEN
+        )
+        self.assertEqual(response.status_code, expected_status)
 
     def test_total_amount_exceeds_month_limit(self):
         self.offering_component.limit_period = LimitPeriods.MONTH
@@ -1988,7 +1991,10 @@ class BulkSetUserUsageTest(test.APITestCase):
             ]
         }
         response = self.client.post(self.get_url(), payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        expected_status = (
+            status.HTTP_404_NOT_FOUND if role == "user" else status.HTTP_403_FORBIDDEN
+        )
+        self.assertEqual(response.status_code, expected_status)
 
     def test_usage_limit_validation_works_per_item(self):
         self.client.force_authenticate(self.fixture.staff)
