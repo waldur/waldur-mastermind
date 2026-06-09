@@ -1215,6 +1215,14 @@ class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
             validators.MaxValueValidator(9000),
         ],
     )
+    port_security_enabled = models.BooleanField(
+        default=True,
+        help_text=_(
+            "Default port_security_enabled for ports on this network. "
+            "When False, ports created on this network inherit disabled "
+            "port security unless explicitly overridden."
+        ),
+    )
 
     def get_backend(self):
         return self.tenant.get_backend()
@@ -1239,6 +1247,7 @@ class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
             "segmentation_id",
             "runtime_state",
             "mtu",
+            "port_security_enabled",
         )
 
 

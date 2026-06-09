@@ -1630,6 +1630,10 @@ class OpenStackSubNetAllocationPoolField(serializers.JSONField):
 
 class OpenStackNestedSubNetSerializer(serializers.ModelSerializer):
     allocation_pools = OpenStackSubNetAllocationPoolField(read_only=True)
+    # Projected from the parent Network; Neutron owns this flag at the network level.
+    port_security_enabled = serializers.BooleanField(
+        source="network.port_security_enabled", read_only=True
+    )
 
     class Meta:
         model = models.SubNet
@@ -1642,6 +1646,7 @@ class OpenStackNestedSubNetSerializer(serializers.ModelSerializer):
             "allocation_pools",
             "ip_version",
             "enable_dhcp",
+            "port_security_enabled",
         )
 
 
@@ -2353,6 +2358,7 @@ class OpenStackNetworkSerializer(
             "subnets",
             "mtu",
             "rbac_policies",
+            "port_security_enabled",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -2365,6 +2371,7 @@ class OpenStackNetworkSerializer(
                 "service_settings",
                 "project",
                 "rbac_policies",
+                "port_security_enabled",
             )
         )
         extra_kwargs = dict(
@@ -2424,6 +2431,10 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
     tenant_name = serializers.CharField(source="network.tenant.name", read_only=True)
     dns_nameservers = DnsNameserversField(required=False)
     host_routes = OpenStackStaticRouteSerializer(many=True, required=False)
+    # Projected from the parent Network; Neutron owns this flag at the network level.
+    port_security_enabled = serializers.BooleanField(
+        source="network.port_security_enabled", read_only=True
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.SubNet
@@ -2441,6 +2452,7 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             "dns_nameservers",
             "host_routes",
             "is_connected",
+            "port_security_enabled",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
