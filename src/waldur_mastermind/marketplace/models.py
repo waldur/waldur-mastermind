@@ -7,6 +7,8 @@ from typing import Any, Literal, cast
 
 from constance import config as constance_config
 from dateutil.relativedelta import relativedelta
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
@@ -29,8 +31,8 @@ from waldur_core.core import fields as core_fields
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import ReviewStates
 from waldur_core.core import validators as core_validators
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.models import User, generate_slug
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import get_upload_path
@@ -3083,6 +3085,41 @@ class OfferingUserGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
 
     def __str__(self):
         return "Offering user group for %s" % self.offering
+
+
+class OfferingRoleGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
+    """
+    Per-(offering, scope, role) groups materialised in glauth output.
+
+    Each row corresponds to one LDAP group exposed by the offering's
+    glauth integration. The scope is a Resource or a ResourceProject;
+    the role is an offering-custom Role. ``backend_metadata`` carries
+    the allocated ``gid`` and the cached rendered ``name`` so renames
+    of role/resource don't break already-published TOML.
+
+    Rows are created lazily on first matching UserRole assignment and
+    purged when the scope is deleted. Distinct from OfferingUserGroup
+    (project-mapped, gid-only naming) — the two coexist.
+    """
+
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="role_groups"
+    )
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name="+"
+    )
+    object_id = models.PositiveIntegerField()
+    scope = GenericForeignKey("content_type", "object_id")
+    role = models.ForeignKey(
+        "permissions.Role", on_delete=models.CASCADE, related_name="+"
+    )
+
+    class Meta:
+        unique_together = ("offering", "content_type", "object_id", "role")
+        indexes = [models.Index(fields=["content_type", "object_id"])]
+
+    def __str__(self):
+        return f"Offering role group {self.role.name} on {self.scope} ({self.offering})"
 
 
 class CategoryHelpArticle(models.Model):

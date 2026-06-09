@@ -425,6 +425,17 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_core.marketplace.handlers.log_service_account_deleted",
         )
 
+        signals.post_delete.connect(
+            handlers.purge_offering_role_groups_on_scope_delete,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.purge_role_groups_on_resource_delete",
+        )
+        signals.post_delete.connect(
+            handlers.purge_offering_role_groups_on_scope_delete,
+            sender=models.ResourceProject,
+            dispatch_uid="waldur_mastermind.marketplace.purge_role_groups_on_rp_delete",
+        )
+
         permission_signals.role_granted.connect(
             handlers.create_offering_users_when_project_role_granted,
             dispatch_uid="waldur_mastermind.marketplace.create_offering_user_when_project_role_created",

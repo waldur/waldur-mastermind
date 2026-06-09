@@ -107,6 +107,11 @@ SPECTACULAR_SETTINGS = {
         "AssignmentSource": AssignmentSources.CHOICES,
         "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
         "ObservableObjectTypeEnum": ObservableObjectType.choices(),
+        "GlauthGroupKind": [
+            "project",
+            "resource_role",
+            "resource_project_role",
+        ],
         "GenderEnum": GENDER_CHOICES,
         "InjectionSeverityEnum": SeverityLevel.choices(),
         "FeedbackCategoryEnum": FeedbackCategory.choices,

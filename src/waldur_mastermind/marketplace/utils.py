@@ -16,6 +16,7 @@ from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
 from io import BytesIO
+from string import Template
 from typing import cast
 
 import httpx
@@ -72,12 +73,8 @@ from waldur_mastermind.invoices.structures import InvoiceResourceLimitPeriodDict
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
-from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
-from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
 from waldur_mastermind.marketplace.enums import (
-    SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
-)
-from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
@@ -85,10 +82,14 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     ResourceStates,
     RobotAccountStates,
-    OPENSTACK_TENANT_OFFERING,
 )
-
+from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
+)
 from waldur_mastermind.marketplace_openstack import get_mb_component_types
+
 from . import models, plugins
 from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 from .enums import OrderTypes
@@ -1876,9 +1877,16 @@ def get_plans_available_for_user(
     return qs
 
 
-def generate_glauth_records_for_offering_users(offering, offering_users):
+def generate_glauth_records_for_offering_users(
+    offering, offering_users, extra_user_gids=None
+):
     """
     Generate GLauth config records for offering users.
+
+    ``extra_user_gids`` (optional): mapping of ``user_id -> set[int gids]``
+    of role-aware group gids to merge into each user's ``otherGroups``
+    on top of the project-mapped ones derived here. See
+    ``build_glauth_tree`` for the source.
 
     This function is optimized to minimize database queries by:
     - Expecting offering_users to have user and sshpublickey_set prefetched
@@ -1886,6 +1894,7 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
     - Batch querying project-to-group-gid mappings
     - Batch querying users with active resources
     """
+    extra_user_gids = extra_user_gids or {}
     # Convert to list to allow multiple iterations
     offering_users_list = list(offering_users)
     if not offering_users_list:
@@ -1966,7 +1975,10 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
         group_ids = set()
         for project_id in user_project_ids:
             group_ids.update(project_gid_mappings.get(project_id, set()))
-        other_groups = ", ".join(sorted(group_ids))
+        # Merge in role-aware gids supplied by build_glauth_tree.
+        for gid in extra_user_gids.get(user.id, ()):
+            group_ids.add(str(gid))
+        other_groups = ", ".join(sorted(group_ids, key=lambda s: (len(s), s)))
 
         # Use pre-computed access check
         user_disabled_status = "false" if user.id in users_with_access else "true"
@@ -2057,6 +2069,436 @@ def escape_toml_string(value):
     Backslashes and double quotes must be escaped to produce valid TOML.
     """
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+# --------------------------------------------------------------------------
+# Role-aware glauth groups + structured tree builder
+# --------------------------------------------------------------------------
+
+
+def _render_role_group_name(template_str, **variables):
+    """Render an LDAP/glauth group name from a string.Template.
+
+    Missing variables substitute to the empty string (``safe_substitute``)
+    so an operator's template that mentions ``${project_name}`` still
+    renders when the scope is a Resource and not a ResourceProject.
+    """
+    return Template(template_str).safe_substitute(**variables)
+
+
+def _allocate_role_group_gid(offering):
+    """Pick the next gid for a new OfferingRoleGroup on this offering.
+
+    The caller MUST hold an outer ``transaction.atomic`` + a
+    ``SELECT FOR UPDATE`` on the offering row, so concurrent role
+    assignments don't collide on the same gid.
+    """
+    plugin_options = offering.plugin_options or {}
+    base = plugin_options.get("initial_rolegroup_number", 60000)
+    existing = [
+        int(rg.backend_metadata["gid"])
+        for rg in models.OfferingRoleGroup.objects.filter(offering=offering)
+        if "gid" in (rg.backend_metadata or {})
+    ]
+    return max(existing + [base - 1]) + 1
+
+
+def _ensure_role_group(offering, scope, role):
+    """Get-or-create an OfferingRoleGroup row, allocating a gid if new.
+
+    Returns the row. Safe under concurrent role assignments — the
+    offering row is locked while we allocate.
+    """
+    with transaction.atomic():
+        models.Offering.objects.select_for_update().get(pk=offering.pk)
+        ct = ContentType.objects.get_for_model(scope.__class__)
+        rg, created = models.OfferingRoleGroup.objects.get_or_create(
+            offering=offering,
+            content_type=ct,
+            object_id=scope.pk,
+            role=role,
+        )
+        if created or "gid" not in (rg.backend_metadata or {}):
+            gid = _allocate_role_group_gid(offering)
+            rg.backend_metadata = {**(rg.backend_metadata or {}), "gid": gid}
+            rg.save(update_fields=["backend_metadata"])
+        return rg
+
+
+def _glauth_scope_dict(scope):
+    """Serialise a Resource / ResourceProject scope for the JSON tree."""
+    if isinstance(scope, models.Resource):
+        return {
+            "type": "resource",
+            "uuid": scope.uuid.hex,
+            "name": scope.name,
+            "slug": scope.slug or "",
+            "resource_uuid": None,
+        }
+    if isinstance(scope, models.ResourceProject):
+        return {
+            "type": "resource_project",
+            "uuid": scope.uuid.hex,
+            "name": scope.name,
+            "slug": None,
+            "resource_uuid": scope.resource.uuid.hex,
+        }
+    raise TypeError(f"Unsupported glauth scope: {type(scope)!r}")
+
+
+def _compute_role_groups(offering, *, resource_filter=None):
+    """Walk Resources + ResourceProjects + UserRoles and emit role groups.
+
+    ``resource_filter``: ``None`` for offering-wide, or a ``Resource``
+    instance to restrict the walk to one resource + its RPs.
+
+    Returns a list of dicts: ``{gid, name, kind, scope, role,
+    member_user_ids}`` where ``scope`` is the dict from
+    ``_glauth_scope_dict``. The set of emitted groups depends on
+    ``plugin_options['resource_role_map']`` and
+    ``plugin_options['resource_project_role_map']`` — roles outside
+    the maps are skipped (mirrors MR 433's translator).
+    """
+    plugin_options = offering.plugin_options or {}
+    resource_role_map = plugin_options.get("resource_role_map") or {}
+    rp_role_map = plugin_options.get("resource_project_role_map") or {}
+    if not resource_role_map and not rp_role_map:
+        return []
+
+    resource_template = plugin_options.get(
+        "resource_role_group_template", "${resource_slug}_${role_name}"
+    )
+    rp_template = plugin_options.get(
+        "resource_project_role_group_template",
+        "${resource_slug}_${rp_uuid_short}_${role_name}",
+    )
+
+    if resource_filter is not None:
+        resources_qs = models.Resource.objects.filter(pk=resource_filter.pk)
+    else:
+        resources_qs = models.Resource.objects.filter(offering=offering).exclude(
+            state=ResourceStates.TERMINATED
+        )
+    resources_qs = resources_qs.select_related("project", "project__customer")
+    resources = list(resources_qs)
+    if not resources:
+        return []
+
+    resource_ct = ContentType.objects.get_for_model(models.Resource)
+    rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
+
+    rps_by_resource = defaultdict(list)
+    if rp_role_map:
+        rp_qs = models.ResourceProject.available_objects.filter(
+            resource__in=resources
+        ).select_related("resource")
+        for rp in rp_qs:
+            rps_by_resource[rp.resource_id].append(rp)
+
+    # Batch-fetch UserRoles for all scopes in two queries (one per ct).
+    resource_user_roles = defaultdict(list)
+    if resource_role_map:
+        resource_ids = [r.pk for r in resources]
+        for ur in UserRole.objects.filter(
+            is_active=True,
+            content_type=resource_ct,
+            object_id__in=resource_ids,
+            role__is_system_role=False,
+        ).select_related("user", "role"):
+            resource_user_roles[ur.object_id].append(ur)
+
+    rp_user_roles = defaultdict(list)
+    if rp_role_map:
+        all_rp_ids = [rp.pk for rps in rps_by_resource.values() for rp in rps]
+        if all_rp_ids:
+            for ur in UserRole.objects.filter(
+                is_active=True,
+                content_type=rp_ct,
+                object_id__in=all_rp_ids,
+                role__is_system_role=False,
+            ).select_related("user", "role"):
+                rp_user_roles[ur.object_id].append(ur)
+
+    out = []
+    for resource in resources:
+        resource_slug = resource.slug or ""
+        customer = resource.project.customer if resource.project else None
+        customer_slug = customer.slug if customer else ""
+        project_slug = resource.project.slug if resource.project else ""
+
+        if resource_role_map:
+            out.extend(
+                _emit_groups_for_scope(
+                    offering=offering,
+                    scope=resource,
+                    user_roles=resource_user_roles.get(resource.pk, []),
+                    role_map=resource_role_map,
+                    template_str=resource_template,
+                    template_vars=dict(
+                        resource_slug=resource_slug,
+                        customer_slug=customer_slug,
+                        project_slug=project_slug,
+                    ),
+                    kind="resource_role",
+                )
+            )
+
+        if rp_role_map:
+            for rp in rps_by_resource.get(resource.pk, []):
+                rp_uuid = rp.uuid.hex
+                out.extend(
+                    _emit_groups_for_scope(
+                        offering=offering,
+                        scope=rp,
+                        user_roles=rp_user_roles.get(rp.pk, []),
+                        role_map=rp_role_map,
+                        template_str=rp_template,
+                        template_vars=dict(
+                            resource_slug=resource_slug,
+                            customer_slug=customer_slug,
+                            project_slug=project_slug,
+                            rp_uuid=rp_uuid,
+                            rp_uuid_short=rp_uuid[:8],
+                            project_name=rp.name or "",
+                        ),
+                        kind="resource_project_role",
+                    )
+                )
+
+    return out
+
+
+def _emit_groups_for_scope(
+    *, offering, scope, user_roles, role_map, template_str, template_vars, kind
+):
+    """Group UserRoles by role, render group name, ensure persistence."""
+    by_role = defaultdict(list)
+    for ur in user_roles:
+        if ur.role.name not in role_map:
+            continue
+        by_role[ur.role].append(ur)
+
+    emitted = []
+    for role, urs in by_role.items():
+        member_user_ids = {ur.user_id for ur in urs}
+        member_usernames = sorted({ur.user.username for ur in urs if ur.user.username})
+        if not member_user_ids:
+            continue
+        rg = _ensure_role_group(offering, scope, role)
+        gid = int(rg.backend_metadata["gid"])
+        name = _render_role_group_name(
+            template_str, role_name=role_map[role.name], **template_vars
+        )
+        emitted.append(
+            {
+                "gid": gid,
+                "name": name,
+                "kind": kind,
+                "scope": _glauth_scope_dict(scope),
+                "role": role.name,
+                "member_user_ids": member_user_ids,
+                "members": member_usernames,
+            }
+        )
+    return emitted
+
+
+def build_glauth_tree(offering, *, resource_filter=None):
+    """Build the structured glauth view for an offering (or one resource).
+
+    Single source of truth shared by the TOML emitters and the JSON
+    ``glauth_tree`` endpoints.
+
+    ``resource_filter``: ``None`` for offering-wide; or a ``Resource``
+    instance to scope users to ``resource.project`` and groups to one
+    resource and its ResourceProjects.
+    """
+    # Offering users: queryset same as the existing endpoints.
+    offering_users_qs = (
+        models.OfferingUser.objects.filter(offering=offering)
+        .exclude(username="")
+        .select_related("user")
+        .prefetch_related("user__sshpublickey_set")
+    )
+    if resource_filter is not None:
+        # Mirror Resource.glauth_users_config which scopes to project users.
+        user_ids = get_project_users(resource_filter.project_id)
+        offering_users_qs = offering_users_qs.filter(user__id__in=user_ids)
+
+    offering_users = list(offering_users_qs)
+
+    # Project-mapped (existing) groups.
+    project_groups = []
+    project_user_membership = defaultdict(set)
+    user_project_mappings = _user_project_mappings(
+        [ou.user_id for ou in offering_users]
+    )
+    project_groups_qs = models.OfferingUserGroup.objects.filter(
+        offering=offering
+    ).prefetch_related("projects")
+    for oug in project_groups_qs:
+        gid = (oug.backend_metadata or {}).get("gid")
+        if gid is None:
+            continue
+        projects = list(oug.projects.all())
+        if resource_filter is not None and not any(
+            p.id == resource_filter.project_id for p in projects
+        ):
+            continue
+        scope_project = projects[0] if projects else None
+        member_user_ids = set()
+        for uid, pids in user_project_mappings.items():
+            if any(p.id in pids for p in projects):
+                member_user_ids.add(uid)
+                project_user_membership[uid].add(int(gid))
+        member_usernames = sorted(
+            {ou.user.username for ou in offering_users if ou.user_id in member_user_ids}
+        )
+        project_groups.append(
+            {
+                "gid": int(gid),
+                "name": str(gid),
+                "kind": "project",
+                "scope": {
+                    "type": "project",
+                    "uuid": scope_project.uuid.hex if scope_project else "",
+                    "name": scope_project.name if scope_project else "",
+                    "slug": getattr(scope_project, "slug", "") or "",
+                    "resource_uuid": None,
+                },
+                "role": None,
+                "members": member_usernames,
+            }
+        )
+
+    # Role-aware groups.
+    role_groups_raw = _compute_role_groups(offering, resource_filter=resource_filter)
+
+    # Stitch user -> gids and order groups deterministically.
+    role_user_membership = defaultdict(set)
+    role_groups = []
+    for g in sorted(
+        role_groups_raw,
+        key=lambda g: (g["scope"]["type"], g["scope"]["uuid"], g["role"] or ""),
+    ):
+        for uid in g["member_user_ids"]:
+            role_user_membership[uid].add(g["gid"])
+        # The internal _emit_groups_for_scope dict carries member_user_ids;
+        # strip it before exposing.
+        role_groups.append({k: v for k, v in g.items() if k != "member_user_ids"})
+
+    # Users with membership rollup.
+    users_with_active_resources = _users_with_active_resources(offering, offering_users)
+    users = []
+    for ou in offering_users:
+        if not ou.username:
+            continue
+        meta = ou.backend_metadata or {}
+        memberships = []
+        for g in project_groups:
+            if g["gid"] in project_user_membership.get(ou.user_id, ()):
+                memberships.append(
+                    {
+                        "gid": g["gid"],
+                        "group_name": g["name"],
+                        "kind": g["kind"],
+                        "role": g["role"],
+                    }
+                )
+        for g in role_groups:
+            if g["gid"] in role_user_membership.get(ou.user_id, ()):
+                memberships.append(
+                    {
+                        "gid": g["gid"],
+                        "group_name": g["name"],
+                        "kind": g["kind"],
+                        "role": g["role"],
+                    }
+                )
+        users.append(
+            {
+                "username": ou.username,
+                "uidnumber": meta.get("uidnumber"),
+                "disabled": ou.user_id not in users_with_active_resources,
+                "personal_group": meta.get("primarygroup"),
+                "mail": ou.user.email or "",
+                "givenname": ou.user.first_name or "",
+                "sn": ou.user.last_name or "",
+                "login_shell": meta.get("loginShell") or "",
+                "home_dir": meta.get("homeDir") or "",
+                "ssh_keys": [k.public_key for k in ou.user.sshpublickey_set.all()],
+                "memberships": memberships,
+            }
+        )
+
+    # Robot accounts (no group memberships in current model — surfaced flat).
+    robot_qs = models.RobotAccount.objects.filter(resource__offering=offering).filter(
+        state__in=[RobotAccountStates.OK, RobotAccountStates.REQUESTED_DELETION]
+    )
+    if resource_filter is not None:
+        robot_qs = robot_qs.filter(resource=resource_filter)
+    robot_accounts = [
+        {
+            "username": ra.username,
+            "uidnumber": (ra.backend_metadata or {}).get("uidnumber"),
+            "personal_group": (ra.backend_metadata or {}).get("primarygroup"),
+            "login_shell": (ra.backend_metadata or {}).get("loginShell") or "",
+            "home_dir": (ra.backend_metadata or {}).get("homeDir") or "",
+            "ssh_keys": list(ra.keys) if ra.keys else [],
+        }
+        for ra in robot_qs
+    ]
+
+    return {
+        "offering": {
+            "uuid": offering.uuid.hex,
+            "name": offering.name,
+            "slug": offering.slug or "",
+        },
+        "groups": project_groups + role_groups,
+        "users": users,
+        "robot_accounts": robot_accounts,
+        # Internal: pre-computed user_id -> set[gid] for the TOML emitter.
+        # Stripped before serialisation by the view layer.
+        "_user_role_gids": {
+            uid: gids for uid, gids in role_user_membership.items() if gids
+        },
+        # Materialised list (not queryset) — keeps prefetch cache hot and
+        # avoids a second SQL round-trip when the TOML emitter iterates.
+        "_offering_users": offering_users,
+    }
+
+
+def _user_project_mappings(user_ids):
+    """user_id -> set(project_id) for active project-scope user roles."""
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    mapping = defaultdict(set)
+    if not user_ids:
+        return mapping
+    for ur in UserRole.objects.filter(
+        is_active=True, user_id__in=user_ids, content_type=project_ct
+    ).values("user_id", "object_id"):
+        mapping[ur["user_id"]].add(ur["object_id"])
+    return mapping
+
+
+def _users_with_active_resources(offering, offering_users):
+    """Return the set of user_ids that have access to a non-terminated resource."""
+    user_ids = [ou.user_id for ou in offering_users]
+    user_project_mappings = _user_project_mappings(user_ids)
+    all_project_ids = {pid for pids in user_project_mappings.values() for pid in pids}
+    if not all_project_ids:
+        return set()
+    active_project_ids = set(
+        models.Resource.objects.filter(
+            offering=offering, project_id__in=all_project_ids
+        )
+        .exclude(state=ResourceStates.TERMINATED)
+        .values_list("project_id", flat=True)
+    )
+    return {
+        uid for uid, pids in user_project_mappings.items() if pids & active_project_ids
+    }
 
 
 def sanitize_name(name):
