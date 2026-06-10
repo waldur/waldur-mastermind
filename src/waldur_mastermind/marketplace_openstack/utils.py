@@ -442,13 +442,36 @@ def self_heal_tenant_offerings(tenant: openstack_models.Tenant) -> dict:
     return result
 
 
-def self_heal_tenant_orphan_resources(tenant: openstack_models.Tenant) -> dict:
+_BROKEN_OFFERING_ACTIONS = frozenset(
+    {"skipped_multiple", "skipped_no_parent", "skipped_disabled"}
+)
+
+
+def self_heal_tenant_orphan_resources(
+    tenant: openstack_models.Tenant,
+    offering_actions: dict | None = None,
+) -> dict:
     """Backfill marketplace Resource rows for orphan Instance/Volume rows in tenant.
 
     Returns counters: healed (created) and skipped_no_offering (silent-skip case
     where create_marketplace_resource_for_imported_resources returned without
     creating because the per-tenant offering was still missing).
+
+    ``offering_actions`` is the output of :func:`self_heal_tenant_offerings`.
+    When the per-tenant offering for a resource class is in a known-broken
+    state (duplicates, no parent, auto-create disabled), the per-orphan loop
+    is collapsed into a single summary ERROR per class — the diagnosis is
+    tenant-level, not resource-level, and the per-resource lines dominated
+    the error log without adding information.
+
+    Note: when collapsing the ``skipped_multiple`` case, orphans that would
+    otherwise have hit ``MultipleObjectsReturned`` inside
+    ``create_marketplace_resource_for_imported_resources`` (counted via the
+    ``logger.exception`` branch) now flow into ``*_skipped_no_offering``.
+    The counter label is slightly imprecise but accurately reflects the
+    tenant-level diagnosis the operator must fix.
     """
+    offering_actions = offering_actions or {}
     counters = {
         "instances_healed": 0,
         "volumes_healed": 0,
@@ -456,13 +479,19 @@ def self_heal_tenant_orphan_resources(tenant: openstack_models.Tenant) -> dict:
         "volumes_skipped_no_offering": 0,
     }
 
-    for klass, healed_key, skipped_key in (
+    for klass, healed_key, skipped_key, offering_type in (
         (
             openstack_models.Instance,
             "instances_healed",
             "instances_skipped_no_offering",
+            OPENSTACK_INSTANCE_OFFERING,
         ),
-        (openstack_models.Volume, "volumes_healed", "volumes_skipped_no_offering"),
+        (
+            openstack_models.Volume,
+            "volumes_healed",
+            "volumes_skipped_no_offering",
+            OPENSTACK_VOLUME_OFFERING,
+        ),
     ):
         content_type = ContentType.objects.get_for_model(klass)
         linked_ids = set(
@@ -470,8 +499,25 @@ def self_heal_tenant_orphan_resources(tenant: openstack_models.Tenant) -> dict:
                 content_type=content_type
             ).values_list("object_id", flat=True)
         )
-        orphans = klass.objects.filter(tenant=tenant).exclude(id__in=linked_ids)
-        for orphan in orphans:
+        orphans_qs = klass.objects.filter(tenant=tenant).exclude(id__in=linked_ids)
+
+        action = offering_actions.get(offering_type)
+        if action in _BROKEN_OFFERING_ACTIONS:
+            orphan_count = orphans_qs.count()
+            counters[skipped_key] = orphan_count
+            if orphan_count:
+                logger.error(
+                    "Self-heal could not link %d %s orphan(s) to marketplace "
+                    "Resources: per-tenant offering is %s. Tenant: %s. "
+                    "Operator action required.",
+                    orphan_count,
+                    klass.__name__,
+                    action,
+                    tenant.id,
+                )
+            continue
+
+        for orphan in orphans_qs:
             try:
                 create_marketplace_resource_for_imported_resources(orphan)
             except (ObjectDoesNotExist, MultipleObjectsReturned):
@@ -513,7 +559,7 @@ def self_heal_tenant_marketplace_model(tenant: openstack_models.Tenant) -> dict:
     Order matters: offerings must be present before orphan creation can succeed.
     """
     offering_actions = self_heal_tenant_offerings(tenant)
-    orphan_counters = self_heal_tenant_orphan_resources(tenant)
+    orphan_counters = self_heal_tenant_orphan_resources(tenant, offering_actions)
     return {**offering_actions, **orphan_counters}
 
 

@@ -10,6 +10,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import tasks, utils
+from waldur_openstack.tests import factories as os_factories
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
 from .utils import BaseOpenStackTest, override_plugin_settings
@@ -216,6 +217,189 @@ class SelfHealTenantOrphanResourcesTest(BaseOpenStackTest):
         self.assertEqual(
             marketplace_models.Resource.objects.filter(scope=instance).count(), 1
         )
+
+
+class SelfHealLogNoiseTest(BaseOpenStackTest):
+    """When the per-tenant offering is broken (duplicates, no parent, disabled),
+    every orphan resource fired its own ERROR. With ~hundreds of orphans on a
+    single tenant this dominates the error log and obscures real failures.
+    The orphan pass must collapse those into a single summary ERROR per
+    resource class.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.fixture = OpenStackFixture()
+        self.tenant = self.fixture.tenant
+
+    def _seed_orphans(self, count):
+        for _ in range(count):
+            os_factories.InstanceFactory(
+                tenant=self.tenant,
+                project=self.fixture.project,
+                service_settings=self.fixture.settings,
+            )
+
+    def test_duplicate_offerings_log_once_per_class_not_per_orphan(self):
+        # Two per-tenant Instance offerings -> skipped_multiple.
+        for _ in range(2):
+            marketplace_factories.OfferingFactory(
+                type=OPENSTACK_INSTANCE_OFFERING,
+                scope=self.tenant,
+                customer=self.fixture.customer,
+                project=self.fixture.project,
+                state=OfferingStates.ACTIVE,
+            )
+        marketplace_factories.OfferingFactory(
+            type=OPENSTACK_VOLUME_OFFERING,
+            scope=self.tenant,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+            state=OfferingStates.ACTIVE,
+        )
+        self._seed_orphans(5)  # five orphan Instances
+
+        with self.assertLogs(
+            "waldur_mastermind.marketplace_openstack.utils", level="ERROR"
+        ) as cm:
+            result = utils.self_heal_tenant_marketplace_model(self.tenant)
+
+        # Only one ERROR line per resource class should mention "could not link"
+        # (the per-orphan loop must be collapsed). The tenant-level offering
+        # warning emitted by self_heal_tenant_offerings is allowed.
+        orphan_link_errors = [
+            line
+            for line in cm.output
+            if line.startswith("ERROR") and "could not link" in line
+        ]
+        self.assertEqual(
+            len(orphan_link_errors),
+            1,
+            "Expected exactly one orphan-link ERROR for the broken Instance "
+            f"offering; got {len(orphan_link_errors)}:\n{orphan_link_errors}",
+        )
+        # Counter still reflects the real count.
+        self.assertEqual(result["instances_skipped_no_offering"], 5)
+        # And the summary mentions the count and the failure reason.
+        self.assertIn("5", orphan_link_errors[0])
+        self.assertIn("skipped_multiple", orphan_link_errors[0])
+
+    def test_orphans_logged_individually_when_offering_is_healthy(self):
+        # Original behavior preserved when the broken-offering optimization
+        # doesn't apply: each true failure of
+        # create_marketplace_resource_for_imported_resources still surfaces.
+        # Here the offerings are healthy and orphans heal successfully — no
+        # ERROR lines at all.
+        marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING,
+            scope=self.tenant,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+            state=OfferingStates.ACTIVE,
+        )
+        marketplace_factories.OfferingFactory(
+            type=OPENSTACK_VOLUME_OFFERING,
+            scope=self.tenant,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+            state=OfferingStates.ACTIVE,
+        )
+        self._seed_orphans(3)
+
+        with self.assertNoLogs(
+            "waldur_mastermind.marketplace_openstack.utils", level="ERROR"
+        ):
+            result = utils.self_heal_tenant_orphan_resources(self.tenant)
+
+        self.assertEqual(result["instances_healed"], 3)
+
+    def test_skipped_no_parent_short_circuits_orphan_loop(self):
+        # Offering creation skipped because the tenant has no parent
+        # marketplace Resource. Orphans must surface as a single summary
+        # ERROR per class, same shape as skipped_multiple.
+        self._seed_orphans(4)
+        offering_actions = {
+            OPENSTACK_INSTANCE_OFFERING: "skipped_no_parent",
+            OPENSTACK_VOLUME_OFFERING: "skipped_no_parent",
+        }
+
+        with self.assertLogs(
+            "waldur_mastermind.marketplace_openstack.utils", level="ERROR"
+        ) as cm:
+            result = utils.self_heal_tenant_orphan_resources(
+                self.tenant, offering_actions
+            )
+
+        # InstanceFactory implicitly creates a system Volume per instance,
+        # so 4 orphan Instances also yield 4 orphan Volumes — both classes
+        # collapse to one ERROR each (2 total). The key invariant is that
+        # there is NOT one ERROR per resource.
+        orphan_link_errors = [
+            line
+            for line in cm.output
+            if line.startswith("ERROR") and "could not link" in line
+        ]
+        self.assertEqual(len(orphan_link_errors), 2)
+        joined = "\n".join(orphan_link_errors)
+        self.assertIn("Instance", joined)
+        self.assertIn("Volume", joined)
+        self.assertIn("skipped_no_parent", joined)
+        self.assertEqual(result["instances_skipped_no_offering"], 4)
+
+    def test_skipped_disabled_short_circuits_orphan_loop(self):
+        # AUTOMATICALLY_CREATE_PRIVATE_OFFERING flag is off; offering can't
+        # be recreated. Same collapse behavior — one ERROR per class.
+        self._seed_orphans(2)
+        offering_actions = {
+            OPENSTACK_INSTANCE_OFFERING: "skipped_disabled",
+            OPENSTACK_VOLUME_OFFERING: "skipped_disabled",
+        }
+
+        with self.assertLogs(
+            "waldur_mastermind.marketplace_openstack.utils", level="ERROR"
+        ) as cm:
+            result = utils.self_heal_tenant_orphan_resources(
+                self.tenant, offering_actions
+            )
+
+        orphan_link_errors = [
+            line
+            for line in cm.output
+            if line.startswith("ERROR") and "could not link" in line
+        ]
+        self.assertEqual(len(orphan_link_errors), 2)
+        joined = "\n".join(orphan_link_errors)
+        self.assertIn("skipped_disabled", joined)
+        self.assertEqual(result["instances_skipped_no_offering"], 2)
+
+    def test_recreated_does_not_short_circuit_orphan_loop(self):
+        # When self_heal_tenant_offerings successfully (re)creates the
+        # offering, the per-orphan loop MUST run so new marketplace
+        # Resources are created. A regression that adds "recreated" to
+        # the broken set would silently skip the heal.
+        marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING,
+            scope=self.tenant,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+            state=OfferingStates.ACTIVE,
+        )
+        marketplace_factories.OfferingFactory(
+            type=OPENSTACK_VOLUME_OFFERING,
+            scope=self.tenant,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+            state=OfferingStates.ACTIVE,
+        )
+        self._seed_orphans(3)
+        offering_actions = {
+            OPENSTACK_INSTANCE_OFFERING: "recreated",
+            OPENSTACK_VOLUME_OFFERING: "recreated",
+        }
+
+        result = utils.self_heal_tenant_orphan_resources(self.tenant, offering_actions)
+
+        self.assertEqual(result["instances_healed"], 3)
 
 
 class SelfHealTenantMarketplaceModelTest(BaseOpenStackTest):
