@@ -195,6 +195,32 @@ class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
         component.refresh_from_db()
         self.assertEqual(LimitPeriods.QUARTERLY, component.limit_period)
 
+    def test_update_with_null_limit_period_preserves_existing_value(self):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="node",
+            name="Compute",
+            measured_unit="node hours",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.QUARTERLY,
+        )
+
+        response = self.update_offering_component(
+            {
+                "type": "node",
+                "name": "Compute",
+                "measured_unit": "node hours",
+                "billing_type": BillingTypes.LIMIT,
+                "limit_period": None,
+                "uuid": component.uuid.hex,
+            },
+            "owner",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        component.refresh_from_db()
+        self.assertEqual(LimitPeriods.QUARTERLY, component.limit_period)
+
     def test_update_with_limit_period_changes_value(self):
         component = factories.OfferingComponentFactory(
             offering=self.offering,

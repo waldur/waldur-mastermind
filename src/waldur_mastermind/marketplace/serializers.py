@@ -2442,11 +2442,13 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, attrs):
-        if "limit_period" not in attrs:
-            if self.instance is None:
+        if "limit_period" not in attrs or not attrs["limit_period"]:
+            # On update, preserve the existing value when limit_period is
+            # omitted or sent empty/null; only default to MONTH on create.
+            if self.instance is not None:
+                attrs["limit_period"] = self.instance.limit_period
+            else:
                 attrs["limit_period"] = LimitPeriods.MONTH
-        elif not attrs["limit_period"]:
-            attrs["limit_period"] = LimitPeriods.MONTH
         if attrs.get("is_boolean"):
             attrs["min_value"] = 0
             attrs["max_value"] = 1
