@@ -1,12 +1,15 @@
 from unittest.mock import Mock
 
+from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import exceptions, test
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.permissions import models, utils
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -527,3 +530,62 @@ class PermissionFactoryValidationTest(TestCase):
             PermissionEnum.CREATE_OFFERING, sources=["customer"]
         )
         self.assertIsNotNone(result)
+
+
+class OnlyOneProjectManagerTest(TestCase):
+    def setUp(self):
+        self.project = factories.ProjectFactory()
+        self.manager = factories.UserFactory()
+        self.other_user = factories.UserFactory()
+
+    def test_disabled_by_default_allows_second_manager(self):
+        self.project.add_user(self.manager, ProjectRole.MANAGER)
+
+        utils.validate_role_grant(self.project, self.other_user, ProjectRole.MANAGER)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_enabled_blocks_second_manager(self):
+        self.project.add_user(self.manager, ProjectRole.MANAGER)
+
+        with self.assertRaisesMessage(
+            ValidationError, "Project already has an active project manager."
+        ):
+            utils.validate_role_grant(
+                self.project, self.other_user, ProjectRole.MANAGER
+            )
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_enabled_allows_first_manager(self):
+        utils.validate_role_grant(self.project, self.manager, ProjectRole.MANAGER)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_enabled_allows_admin_when_manager_exists(self):
+        self.project.add_user(self.manager, ProjectRole.MANAGER)
+
+        utils.validate_role_grant(self.project, self.other_user, ProjectRole.ADMIN)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_enabled_allows_manager_on_another_project(self):
+        self.project.add_user(self.manager, ProjectRole.MANAGER)
+        other_project = factories.ProjectFactory(customer=self.project.customer)
+
+        utils.validate_role_grant(other_project, self.other_user, ProjectRole.MANAGER)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_enabled_allows_manager_after_previous_is_revoked(self):
+        self.project.add_user(self.manager, ProjectRole.MANAGER)
+        utils.delete_user(self.project, self.manager, ProjectRole.MANAGER)
+
+        utils.validate_role_grant(self.project, self.other_user, ProjectRole.MANAGER)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_expired_manager_does_not_block_new_manager(self):
+        expired_manager = factories.UserFactory()
+        utils.add_user(
+            self.project,
+            expired_manager,
+            ProjectRole.MANAGER,
+            expiration_time=timezone.now() - timezone.timedelta(days=1),
+        )
+
+        utils.validate_role_grant(self.project, self.other_user, ProjectRole.MANAGER)

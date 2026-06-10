@@ -1,8 +1,10 @@
 from typing import TYPE_CHECKING
 
+from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.db.models.query import QuerySet
+from django.utils import timezone
 from rest_framework import exceptions
 from rest_framework.exceptions import ValidationError
 
@@ -398,6 +400,34 @@ def get_scope_ancestors(scope):
     return ancestors
 
 
+def count_active_project_managers(project):
+    now = timezone.now()
+    return (
+        models.UserRole.objects.filter(
+            scope=project,
+            role__name=enums.RoleEnum.PROJECT_MANAGER,
+            is_active=True,
+            user__is_active=True,
+        )
+        .filter(Q(expiration_time=None) | Q(expiration_time__gte=now))
+        .count()
+    )
+
+
+def validate_only_one_project_manager(scope, role):
+    if not config.ONLY_ONE_PROJECT_MANAGER:
+        return
+
+    if scope._meta.model_name != "project":
+        return
+
+    if role.name != enums.RoleEnum.PROJECT_MANAGER:
+        return
+
+    if count_active_project_managers(scope) >= 1:
+        raise ValidationError("Project already has an active project manager.")
+
+
 def validate_role_grant(scope, user, role, expiration_time=None):
     """Validate a role can be granted to a user on scope.
 
@@ -428,6 +458,7 @@ def validate_role_grant(scope, user, role, expiration_time=None):
         if not has_valid:
             raise ValidationError("Role is not available for this scope.")
 
+    validate_only_one_project_manager(scope, role)
     validate_user_restrictions(scope, user)
 
 

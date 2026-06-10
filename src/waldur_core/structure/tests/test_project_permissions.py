@@ -1,5 +1,6 @@
 import datetime
 
+from constance.test import override_config
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -265,6 +266,23 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             ProjectRole.ADMIN,
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_customer_owner_cannot_grant_second_project_manager(self):
+        self.project.add_user(factories.UserFactory(), ProjectRole.MANAGER)
+
+        response = client_add_user(
+            self.client,
+            self.owner,
+            factories.UserFactory(),
+            self.project,
+            ProjectRole.MANAGER,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["non_field_errors"][0],
+            "Project already has an active project manager.",
+        )
 
 
 class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):

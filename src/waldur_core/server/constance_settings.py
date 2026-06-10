@@ -441,6 +441,10 @@ CONSTANCE_CONFIG = {
         False,
         "Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.",
     ),
+    "ONLY_ONE_PROJECT_MANAGER": (
+        False,
+        "If true, a project may have at most one active project manager (PROJECT.MANAGER).",
+    ),
     "DEFAULT_IDP": (
         "",
         "Triggers authentication flow at once.",
@@ -1757,6 +1761,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Invitation settings": (
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
         "INVITATION_DISABLE_MULTIPLE_ROLES",
+        "ONLY_ONE_PROJECT_MANAGER",
         "INVITATION_ALLOWED_FIELDS",
     ),
     "User profile settings": (
