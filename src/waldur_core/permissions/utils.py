@@ -337,6 +337,41 @@ def get_permissions(scope, user=None):
     return qs
 
 
+def exclude_removed_project_roles(queryset):
+    """Drop roles whose scope is a soft-deleted (terminated) project.
+
+    A ``UserRole`` keeps ``is_active=True`` even after its scope project is
+    terminated when the role belonged to an already-inactive user at
+    termination time (project termination only revokes the roles of active
+    users) or when the row predates the termination handler. Such roles grant
+    no real access, so the auto-deactivation policy must not count them — the
+    same way course accounts are guarded by ``project__is_removed=False``.
+
+    The scope is a generic relation, so the Project model is resolved via its
+    ContentType to avoid importing ``structure`` into this core app.
+    """
+    project_ct = ContentType.objects.filter(
+        app_label="structure", model="project"
+    ).first()
+    if project_ct is None:
+        return queryset
+    removed_project_ids = project_ct.model_class().objects.filter(is_removed=True)
+    return queryset.exclude(
+        content_type=project_ct, object_id__in=removed_project_ids.values("pk")
+    )
+
+
+def get_active_roles(user):
+    """Active roles that grant real access to a user.
+
+    Excludes roles attached to terminated projects (see
+    ``exclude_removed_project_roles``). Used by the auto-deactivation policy.
+    """
+    return exclude_removed_project_roles(
+        models.UserRole.objects.filter(user=user, is_active=True)
+    )
+
+
 def get_scope_ancestors(scope):
     """Walk parent links from scope upward for RoleAvailability checks.
 

@@ -366,6 +366,15 @@ class User(
             "Reason why the user was deactivated. Visible to staff and support."
         ),
     )
+    is_admin_deactivated = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text=_(
+            "Designates that the user was deactivated by an administrator and "
+            "must not be reactivated automatically by the role-sync task. "
+            "Visible to staff and support."
+        ),
+    )
     notifications_enabled = models.BooleanField(
         default=True,
         help_text=_(

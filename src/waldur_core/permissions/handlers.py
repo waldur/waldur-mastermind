@@ -9,6 +9,7 @@ from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.utils import get_active_roles
 from waldur_core.structure.permissions import _get_customer
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ def get_deactivation_reason(user: User) -> str | None:
         )
         return None
 
-    if UserRole.objects.filter(user=user, is_active=True).exists():
+    if get_active_roles(user).exists():
         logger.debug(
             "User %s (uuid=%s) skipped for deactivation: has active roles",
             user.username,
@@ -108,6 +109,7 @@ def should_reactivate_user(user: User) -> bool:
     - DEACTIVATE_USER_IF_NO_ROLES setting is enabled
     - User is currently inactive
     - User is not staff or support
+    - User was not administratively deactivated (staff override)
     - User has active roles OR has OK course accounts in active projects
     """
     if not config.DEACTIVATE_USER_IF_NO_ROLES:
@@ -116,7 +118,12 @@ def should_reactivate_user(user: User) -> bool:
     if user.is_active or user.is_staff or user.is_support:
         return False
 
-    if UserRole.objects.filter(user=user, is_active=True).exists():
+    # An administrative deactivation is an explicit staff override that must
+    # not be undone automatically, even if the user regains roles.
+    if user.is_admin_deactivated:
+        return False
+
+    if get_active_roles(user).exists():
         return True
 
     from waldur_mastermind.marketplace.enums import CourseAccountState

@@ -15,7 +15,7 @@ from .handlers import (
     deactivate_user_with_logging,
     reactivate_user_with_logging,
 )
-from .utils import get_scope_ancestors
+from .utils import exclude_removed_project_roles, get_scope_ancestors
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,9 @@ def sync_user_deactivation_status():
     from waldur_mastermind.marketplace.models import CourseAccount
 
     has_active_role = Exists(
-        models.UserRole.objects.filter(user=OuterRef("pk"), is_active=True)
+        exclude_removed_project_roles(
+            models.UserRole.objects.filter(user=OuterRef("pk"), is_active=True)
+        )
     )
     has_ok_course_account = Exists(
         CourseAccount.objects.filter(
@@ -78,9 +80,11 @@ def sync_user_deactivation_status():
     to_deactivate = candidates.filter(
         is_active=True, has_active_role=False, has_ok_course_account=False
     )
-    to_reactivate = candidates.filter(is_active=False).filter(
-        Q(has_active_role=True) | Q(has_ok_course_account=True)
-    )
+    # Administratively deactivated users are an explicit staff override and
+    # must never be revived by the automatic sync, regardless of roles.
+    to_reactivate = candidates.filter(
+        is_active=False, is_admin_deactivated=False
+    ).filter(Q(has_active_role=True) | Q(has_ok_course_account=True))
 
     deactivated_count = 0
     for user in chunked_queryset(to_deactivate, chunk_size=100, max_records=200_000):
