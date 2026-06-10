@@ -2276,6 +2276,12 @@ If true, user email in Waldur database and in invitatation must strictly match.
 
 Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.
 
+#### ONLY_ONE_PROJECT_MANAGER
+
+**Type:** bool
+
+If true, a project may have at most one active project manager (PROJECT.MANAGER).
+
 #### INVITATION_ALLOWED_FIELDS
 
 **Type:** multiple_choice_field
