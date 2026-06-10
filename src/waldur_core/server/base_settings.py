@@ -337,6 +337,12 @@ LOGGING = {
             "handlers": ["console"],
             "propagate": False,
         },
+        # python-neutronclient emits a deprecation notice on every client
+        # init ("deprecated in favor of OpenstackSDK"). We still depend on
+        # it, so suppress the per-call noise until the migration lands.
+        "neutronclient": {
+            "level": "ERROR",
+        },
     },
 }
 

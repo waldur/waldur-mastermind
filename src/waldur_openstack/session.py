@@ -260,7 +260,10 @@ def get_keystone_session(settings, tenant=None):
         else:
             return recovered_session
     except (AttributeError, IndexError, keystoneauth_exceptions.ClientException):
-        logger.warning("Unable to recover OpenStack session, deleting cache.")
+        # A cache miss / expired token is normal operation: we simply
+        # re-authenticate below. Log at debug to avoid flooding warnings on
+        # every session acquisition (one per tenant pull).
+        logger.debug("Unable to recover OpenStack session, deleting cache.")
         cache.delete(session_key)
         pass
 
