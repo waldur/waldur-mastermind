@@ -718,6 +718,60 @@ class UserUpdateTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertNotIn("deactivation_reason", response.data)
 
+    def test_staff_deactivation_sets_admin_override_flag(self):
+        self.user.agreement_date = timezone.now()
+        self.user.is_active = True
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(self.url, {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertTrue(self.user.is_admin_deactivated)
+
+    def test_staff_reactivation_clears_admin_override_flag(self):
+        self.user.is_active = False
+        self.user.is_admin_deactivated = True
+        self.user.deactivation_reason = "Manually deactivated by admin"
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(self.url, {"is_active": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertFalse(self.user.is_admin_deactivated)
+
+    def test_admin_deactivated_flag_visible_to_staff(self):
+        self.user.is_active = False
+        self.user.is_admin_deactivated = True
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_admin_deactivated"])
+
+    def test_admin_deactivated_flag_hidden_from_regular_users(self):
+        other_user = factories.UserFactory(agreement_date=timezone.now())
+        self.client.force_authenticate(other_user)
+        response = self.client.get(self.url)
+        self.assertNotIn("is_admin_deactivated", response.data)
+
+    def test_regular_user_cannot_set_admin_override_flag(self):
+        # is_admin_deactivated is read-only; a client cannot toggle it directly.
+        self.user.agreement_date = timezone.now()
+        self.user.is_active = True
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(self.url, {"is_admin_deactivated": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        # Flag only flips as a side effect of an is_active=False change.
+        self.assertFalse(self.user.is_admin_deactivated)
+
     @override_waldur_core_settings(LOCAL_IDP_PROTECTED_FIELDS=["full_name"])
     def test_user_can_update_only_allowed_fields(self):
         payload = {

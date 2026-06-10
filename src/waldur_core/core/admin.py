@@ -206,6 +206,7 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
         "last_name",
         "native_name",
         "is_active",
+        "is_admin_deactivated",
         "is_staff",
         "is_support",
         "is_identity_manager",
@@ -219,7 +220,13 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
         "email",
         "civil_number",
     )
-    list_filter = ("is_active", "is_staff", "is_support", "registration_method")
+    list_filter = (
+        "is_active",
+        "is_admin_deactivated",
+        "is_staff",
+        "is_support",
+        "registration_method",
+    )
     date_hierarchy = "date_joined"
     fieldsets = (
         (None, {"fields": ("username", "password", "registration_method", "uuid")}),
@@ -248,6 +255,8 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
             {
                 "fields": (
                     "is_active",
+                    "is_admin_deactivated",
+                    "deactivation_reason",
                     "is_staff",
                     "is_support",
                     "is_identity_manager",
@@ -300,7 +309,37 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
     format_details.allow_tags = True
     format_details.short_description = _("Details")
 
-    actions = ["pull_remote_user"]
+    actions = ["pull_remote_user", "administratively_deactivate", "reactivate"]
+
+    def administratively_deactivate(self, request, queryset):
+        reason = f"Administratively deactivated via admin by {request.user.username}"
+        count = queryset.filter(is_active=True).update(
+            is_active=False,
+            is_admin_deactivated=True,
+            deactivation_reason=reason,
+        )
+        messages.success(
+            request,
+            _("%(count)d user(s) have been administratively deactivated.")
+            % {"count": count},
+        )
+
+    administratively_deactivate.short_description = _(
+        "Deactivate selected users (block automatic reactivation)"
+    )
+
+    def reactivate(self, request, queryset):
+        count = queryset.filter(is_active=False).update(
+            is_active=True,
+            is_admin_deactivated=False,
+            deactivation_reason="",
+        )
+        messages.success(
+            request,
+            _("%(count)d user(s) have been reactivated.") % {"count": count},
+        )
+
+    reactivate.short_description = _("Reactivate selected users")
 
     def pull_remote_user(self, request, queryset):
         if not settings.WALDUR_AUTH_SOCIAL["REMOTE_EDUTEAMS_ENABLED"]:

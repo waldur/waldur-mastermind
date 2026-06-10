@@ -2046,6 +2046,7 @@ class UserSerializer(
             "managed_isds",
             "active_isds",
             "deactivation_reason",
+            "is_admin_deactivated",
         )
         read_only_fields = (
             "uuid",
@@ -2060,6 +2061,7 @@ class UserSerializer(
             "has_usable_password",
             "attribute_sources",
             "active_isds",
+            "is_admin_deactivated",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -2091,6 +2093,7 @@ class UserSerializer(
                 "description",
                 "has_active_session",
                 "deactivation_reason",
+                "is_admin_deactivated",
             )
             # Identity Bridge fields visible to staff and to the user themselves
             self_visible_fields = (
@@ -2228,8 +2231,12 @@ class UserSerializer(
                 if not attrs.get("deactivation_reason"):
                     actor = request_user.username if request_user else "unknown"
                     attrs["deactivation_reason"] = f"Manually deactivated by {actor}"
+                # Mark as an administrative override so the role-sync task does
+                # not automatically revive the user.
+                attrs["is_admin_deactivated"] = True
             elif attrs["is_active"] and not self.instance.is_active:
                 attrs["deactivation_reason"] = ""
+                attrs["is_admin_deactivated"] = False
 
         if "full_name" in attrs and "first_name" in attrs:
             raise serializers.ValidationError(
