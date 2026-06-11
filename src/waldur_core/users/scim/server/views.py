@@ -15,15 +15,21 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from scim2_models import (
+    Attribute,
     AuthenticationScheme,
     Bulk,
     ChangePassword,
+    EnterpriseUser,
     ETag,
     Filter,
+    Group,
+    Mutability,
     Patch,
     ResourceType,
+    SchemaExtension,
     ServiceProviderConfig,
     Sort,
+    User,
 )
 from scim2_models import (
     Schema as ScimSchema,
@@ -134,6 +140,17 @@ class SchemaDetailView(_ScimDiscoveryView):
         raise ScimError(404, f"Schema {urn!r} not found")
 
 
+@extend_schema(exclude=True)
+class ScimNotFoundView(_ScimDiscoveryView):
+    """Catch-all for unknown paths under /scim/v2/ — emits a SCIM-shaped 404
+    instead of the site-wide HTML error page (RFC 7644 §3.12)."""
+
+    def _not_found(self, request, *args, **kwargs):
+        raise ScimError(404, f"Unknown SCIM endpoint {request.path!r}.")
+
+    get = post = put = patch = delete = _not_found
+
+
 def _build_resource_types() -> list[ResourceType]:
     user_rt = ResourceType(
         id="User",
@@ -141,6 +158,15 @@ def _build_resource_types() -> list[ResourceType]:
         endpoint="/Users",
         description="User Account",
         schema="urn:ietf:params:scim:schemas:core:2.0:User",
+        # Clients read schemaExtensions to know which extension URNs may
+        # appear in resources — omitting them breaks response validation.
+        schema_extensions=[
+            SchemaExtension(
+                schema_="urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
+                required=False,
+            ),
+            SchemaExtension(schema_=WALDUR_USER_EXTENSION_URN, required=False),
+        ],
     )
     group_rt = ResourceType(
         id="Group",
@@ -155,39 +181,84 @@ def _build_resource_types() -> list[ResourceType]:
 def _build_schemas() -> list[ScimSchema]:
     """Return the schemas this service provider advertises.
 
-    scim2-models exposes the canonical RFC 7643 schemas; we additionally publish a
-    minimal Waldur extension referencing fields specific to research / federated
-    deployments (civil_number, affiliations, eduperson_assurance).
+    SCIM clients use the published attribute definitions (required/mutability
+    flags) to build payloads, so publishing stubs breaks schema-driven
+    provisioning. We start from the canonical RFC 7643 definitions generated
+    by scim2-models, trimmed to the attributes Waldur actually persists and
+    with mutability adjusted to Waldur semantics (RFC 7643 allows service
+    providers to define a subset). The Waldur extension covers fields specific
+    to research / federated deployments.
     """
-    schemas: list[ScimSchema] = []
-    user_schema = ScimSchema(
-        id="urn:ietf:params:scim:schemas:core:2.0:User",
-        name="User",
-        description="User Account",
-        attributes=[],
-    )
-    group_schema = ScimSchema(
-        id="urn:ietf:params:scim:schemas:core:2.0:Group",
-        name="Group",
-        description="Group",
-        attributes=[],
-    )
-    enterprise_schema = ScimSchema(
-        id="urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
-        name="EnterpriseUser",
-        description="Enterprise User",
-        attributes=[],
-    )
     waldur_schema = ScimSchema(
         id=WALDUR_USER_EXTENSION_URN,
         name="WaldurUserExtension",
         description=(
             "Waldur-specific user attributes for federated research deployments."
         ),
-        attributes=[],
+        attributes=[
+            Attribute(
+                name="civilNumber",
+                type="string",
+                multi_valued=False,
+                required=False,
+                case_exact=True,
+                description="National identity number.",
+            ),
+            Attribute(
+                name="affiliations",
+                type="string",
+                multi_valued=True,
+                required=False,
+                description="eduPerson affiliations.",
+            ),
+            Attribute(
+                name="edupersonAssurance",
+                type="string",
+                multi_valued=True,
+                required=False,
+                description="eduPersonAssurance identity assurance values.",
+            ),
+        ],
     )
-    schemas.extend([user_schema, group_schema, enterprise_schema, waldur_schema])
-    return schemas
+    return [
+        _trimmed_user_schema(),
+        Group.to_schema(),
+        _trimmed_enterprise_schema(),
+        waldur_schema,
+    ]
+
+
+_SUPPORTED_USER_ATTRIBUTES = {
+    "userName",
+    "name",
+    "displayName",
+    "emails",
+    "phoneNumbers",
+    "active",
+}
+
+
+def _trimmed_user_schema() -> ScimSchema:
+    schema = User.to_schema()
+    schema.attributes = [
+        attr for attr in schema.attributes if attr.name in _SUPPORTED_USER_ATTRIBUTES
+    ]
+    for attr in schema.attributes:
+        if attr.name == "userName":
+            # Immutable post-creation; changes are rejected with 400 mutability.
+            attr.mutability = Mutability.immutable
+        elif attr.name == "displayName":
+            # Derived from name/userName, never written directly.
+            attr.mutability = Mutability.read_only
+    return schema
+
+
+def _trimmed_enterprise_schema() -> ScimSchema:
+    schema = EnterpriseUser.to_schema()
+    schema.attributes = [
+        attr for attr in schema.attributes if attr.name == "organization"
+    ]
+    return schema
 
 
 _RESOURCE_TYPES = _build_resource_types()

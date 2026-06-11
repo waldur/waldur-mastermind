@@ -134,6 +134,117 @@ class UsersEndpointTest(test.APITestCase):
         user.refresh_from_db()
         self.assertEqual(user.first_name, "Newish")
 
+    def test_patch_replace_whole_name(self):
+        user = structure_factories.UserFactory(username="bob", first_name="Old")
+        body = {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [
+                {
+                    "op": "replace",
+                    "path": "name",
+                    "value": {"givenName": "Whole", "familyName": "Name"},
+                }
+            ],
+        }
+        response = self.client.patch(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "Whole")
+        self.assertEqual(user.last_name, "Name")
+
+    def test_patch_remove_whole_name(self):
+        user = structure_factories.UserFactory(
+            username="bob", first_name="Old", last_name="Name"
+        )
+        body = {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [{"op": "remove", "path": "name"}],
+        }
+        response = self.client.patch(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "")
+        self.assertEqual(user.last_name, "")
+
+    def test_patch_enterprise_extension_urn_path(self):
+        """Entra ID addresses extension fields with URN-prefixed paths."""
+        user = structure_factories.UserFactory(username="bob")
+        urn = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+        body = {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [
+                {
+                    "op": "replace",
+                    "path": f"{urn}:organization",
+                    "value": "Example Lab",
+                }
+            ],
+        }
+        response = self.client.patch(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.organization, "Example Lab")
+
+    def test_patch_whole_extension_object(self):
+        user = structure_factories.UserFactory(username="bob")
+        urn = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+        body = {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [
+                {"op": "add", "path": urn, "value": {"organization": "Whole Org"}}
+            ],
+        }
+        response = self.client.patch(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.organization, "Whole Org")
+
+    @override_config(
+        SCIM_INBOUND_ALLOWED_ATTRIBUTES=["first_name", "email", "civil_number"]
+    )
+    def test_patch_remove_civil_number_clears_to_null(self):
+        """civil_number has a unique constraint and must clear to NULL, not ''."""
+        urn = "urn:waldur:params:scim:schemas:extension:User:1.0"
+        for name, number in (("bob", "39001010001"), ("carol", "39001010002")):
+            user = structure_factories.UserFactory(username=name, civil_number=number)
+            body = {
+                "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                "Operations": [{"op": "remove", "path": f"{urn}:civilNumber"}],
+            }
+            response = self.client.patch(
+                f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            user.refresh_from_db()
+            self.assertIsNone(user.civil_number)
+
+    def test_delete_two_users_with_civil_numbers(self):
+        """Source-owned attribute clearing on deactivation must not collide on
+        the civil_number unique constraint."""
+        for name, number in (("bob", "39001010003"), ("carol", "39001010004")):
+            user = structure_factories.UserFactory(username=name, civil_number=number)
+            user.active_isds = ["scim:default"]
+            user.attribute_sources = {
+                "civil_number": {
+                    "source": "scim:default",
+                    "timestamp": "2024-01-01T00:00:00+00:00",
+                }
+            }
+            user.save()
+            response = self.client.delete(f"/scim/v2/Users/{user.uuid.hex}")
+            self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+            user.refresh_from_db()
+            self.assertIsNone(user.civil_number)
+            self.assertFalse(user.is_active)
+
     def test_patch_deactivate(self):
         user = structure_factories.UserFactory(username="bob", is_active=True)
         # Bind user to scim source so removal triggers deactivation.
@@ -164,6 +275,60 @@ class UsersEndpointTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         user.refresh_from_db()
         self.assertFalse(user.is_active)
+
+    def test_deactivated_user_is_still_readable(self):
+        user = structure_factories.UserFactory(username="bob", is_active=False)
+        response = self.client.get(f"/scim/v2/Users/{user.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["active"])
+
+    def test_patch_reactivate_deactivated_user(self):
+        user = structure_factories.UserFactory(username="bob", is_active=False)
+        body = {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [{"op": "replace", "path": "active", "value": True}],
+        }
+        response = self.client.patch(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.deactivation_reason, "")
+
+    def test_create_with_username_of_deactivated_user_returns_409(self):
+        structure_factories.UserFactory(username="alice", is_active=False)
+        response = self.client.post(
+            "/scim/v2/Users", data=self._scim_user_body(), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data["scimType"], "uniqueness")
+
+    def test_filter_active_false_returns_deactivated_users(self):
+        structure_factories.UserFactory(username="alice", is_active=True)
+        structure_factories.UserFactory(username="bob", is_active=False)
+        response = self.client.get("/scim/v2/Users?filter=active eq false")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        usernames = {r["userName"] for r in response.data["Resources"]}
+        self.assertIn("bob", usernames)
+        self.assertNotIn("alice", usernames)
+
+    def test_filter_active_quoted_boolean_is_accepted(self):
+        structure_factories.UserFactory(username="bob", is_active=False)
+        response = self.client.get('/scim/v2/Users?filter=active eq "False"')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        usernames = {r["userName"] for r in response.data["Resources"]}
+        self.assertIn("bob", usernames)
+
+    def test_filter_active_with_string_operator_returns_400(self):
+        response = self.client.get("/scim/v2/Users?filter=active co true")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["scimType"], "invalidFilter")
+
+    def test_filter_active_with_garbage_value_returns_400(self):
+        response = self.client.get('/scim/v2/Users?filter=active eq "maybe"')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["scimType"], "invalidFilter")
 
 
 @override_config(SCIM_INBOUND_ENABLED=True)

@@ -777,16 +777,27 @@ def remove_user_from_isd(user: User, source: str) -> bool:
 
     # Clear attribute_sources and values owned by this source
     attribute_sources = dict(user.attribute_sources or {})
+    model_fields = {f.name for f in User._meta.concrete_fields}
+    cleared_fields = []
     for field, source_info in list(attribute_sources.items()):
         owner = (
             source_info.get("source") if isinstance(source_info, dict) else source_info
         )
         if owner == source:
             del attribute_sources[field]
-            # Clear the actual field value
+            # Clear the actual field value. civil_number must clear to None:
+            # it has a unique constraint and relies on NULL for absent values,
+            # so "" would collide as soon as two users are cleared.
             if hasattr(user, field):
-                default = [] if isinstance(getattr(user, field), list) else ""
+                if isinstance(getattr(user, field), list):
+                    default = []
+                elif field == "civil_number":
+                    default = None
+                else:
+                    default = ""
                 setattr(user, field, default)
+                if field in model_fields:
+                    cleared_fields.append(field)
 
     user.attribute_sources = attribute_sources
 
@@ -814,6 +825,8 @@ def remove_user_from_isd(user: User, source: str) -> bool:
             "is_active",
             "deactivation_reason",
             "last_sync",
+            # Without these the cleared values above never reach the DB.
+            *cleared_fields,
         ]
     )
 

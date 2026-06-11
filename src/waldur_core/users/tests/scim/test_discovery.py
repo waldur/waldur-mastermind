@@ -53,6 +53,29 @@ class ScimDiscoveryTest(test.APITestCase):
         )
 
     @override_config(SCIM_INBOUND_ENABLED=True)
+    def test_user_schema_publishes_attribute_definitions(self):
+        """SCIM clients build payloads from the published schema — it must
+        carry real attribute definitions, not an empty stub."""
+        response = self.client.get(
+            "/scim/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        attributes = {a["name"]: a for a in response.json()["attributes"]}
+        self.assertIn("userName", attributes)
+        self.assertTrue(attributes["userName"]["required"])
+        self.assertIn("emails", attributes)
+
+    @override_config(SCIM_INBOUND_ENABLED=True)
+    def test_unknown_path_returns_scim_404(self):
+        response = self.client.get("/scim/v2/Bogus/Endpoint")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response["content-type"], "application/scim+json")
+        body = response.json()
+        self.assertEqual(
+            body["schemas"], ["urn:ietf:params:scim:api:messages:2.0:Error"]
+        )
+
+    @override_config(SCIM_INBOUND_ENABLED=True)
     def test_schemas_list_includes_waldur_extension(self):
         response = self.client.get("/scim/v2/Schemas")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

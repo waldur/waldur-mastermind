@@ -33,6 +33,30 @@ _MEMBER_FILTER_RE = re.compile(
     r'^members\[\s*value\s+eq\s+"([^"]+)"\s*\]$', re.IGNORECASE
 )
 
+_ENTERPRISE_URN = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user"
+_WALDUR_URN = "urn:waldur:params:scim:schemas:extension:user:1.0"
+
+# URN-prefixed attribute paths (Entra ID sends these for extension fields):
+# path → (waldur field, empty value used by 'remove').
+# civil_number clears to None, not "" — it carries a unique constraint and
+# relies on NULL for absent values.
+_EXTENSION_ATTRIBUTE_PATHS = {
+    f"{_ENTERPRISE_URN}:organization": ("organization", ""),
+    f"{_WALDUR_URN}:civilnumber": ("civil_number", None),
+    f"{_WALDUR_URN}:affiliations": ("affiliations", []),
+    f"{_WALDUR_URN}:edupersonassurance": ("eduperson_assurance", []),
+}
+
+# Whole-extension paths: value is the extension object.
+_EXTENSION_OBJECT_PATHS = {
+    _ENTERPRISE_URN: {"organization": ("organization", "")},
+    _WALDUR_URN: {
+        "civilnumber": ("civil_number", None),
+        "affiliations": ("affiliations", []),
+        "edupersonassurance": ("eduperson_assurance", []),
+    },
+}
+
 
 @dataclass
 class UserPatchResult:
@@ -189,6 +213,24 @@ def _apply_user_path(result: UserPatchResult, verb: str, path: str, value) -> No
             scim_type="mutability",
         )
 
+    if lc == "name":
+        # Whole-name ops: value is a SCIM name object.
+        if verb == "remove":
+            result.attributes["first_name"] = ""
+            result.attributes["last_name"] = ""
+            return
+        if not isinstance(value, dict):
+            raise ScimError(
+                400,
+                "PATCH on 'name' requires an object value.",
+                scim_type="invalidValue",
+            )
+        if "givenName" in value:
+            result.attributes["first_name"] = value.get("givenName") or ""
+        if "familyName" in value:
+            result.attributes["last_name"] = value.get("familyName") or ""
+        return
+
     mapping = {
         "name.givenname": "first_name",
         "name.familyname": "last_name",
@@ -219,6 +261,33 @@ def _apply_user_path(result: UserPatchResult, verb: str, path: str, value) -> No
             phone = _first_email_value(value)  # same shape (value/primary)
             if phone is not None:
                 result.attributes["phone_number"] = phone
+        return
+
+    if lc in _EXTENSION_ATTRIBUTE_PATHS:
+        target, empty = _EXTENSION_ATTRIBUTE_PATHS[lc]
+        if verb == "remove" or value is None or value == "":
+            result.attributes[target] = empty
+        else:
+            result.attributes[target] = value
+        return
+
+    if lc in _EXTENSION_OBJECT_PATHS:
+        fields = _EXTENSION_OBJECT_PATHS[lc]
+        if verb == "remove":
+            for target, empty in fields.values():
+                result.attributes[target] = empty
+            return
+        if not isinstance(value, dict):
+            raise ScimError(
+                400,
+                "PATCH on an extension schema requires an object value.",
+                scim_type="invalidValue",
+            )
+        for key, item in value.items():
+            entry = fields.get(key.lower())
+            if entry:
+                target, empty = entry
+                result.attributes[target] = item if item is not None else empty
         return
 
     raise ScimError(400, f"Unsupported PATCH path {path!r}.", scim_type="invalidPath")
