@@ -3315,3 +3315,32 @@ class ImportStructureCommandTest(TestCase):
             [p.uuid for p in restored_group.projects.all()],
             [project.uuid],
         )
+
+    def test_import_auth_tokens_replaces_auto_created_token(self):
+        """Importing a declared token must replace the user's existing token.
+
+        Importing users auto-creates a token per user, so without replacement
+        a preset could never pin a deterministic token value.
+        """
+        from rest_framework.authtoken.models import Token
+
+        user = structure_factories.UserFactory()
+        Token.objects.filter(user=user).delete()
+        Token.objects.create(user=user, key="0" * 40)
+
+        declared_key = "e2e0abababababababababababababababababab"
+        data = {
+            "auth_tokens": [
+                {
+                    "key": declared_key,
+                    "user_uuid": user.uuid.hex,
+                    "created": "2026-01-01T00:00:00Z",
+                }
+            ]
+        }
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path)
+
+        token = Token.objects.get(user=user)
+        self.assertEqual(token.key, declared_key)

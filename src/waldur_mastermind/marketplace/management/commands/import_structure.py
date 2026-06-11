@@ -1502,31 +1502,26 @@ class Command(BaseCommand):
                         else:
                             self.stats["auth_tokens"]["skipped"] += 1
                     else:
-                        # Check if user already has a token
+                        # Check if user already has a token. Importing users
+                        # auto-creates a token for each of them, so a token
+                        # explicitly declared in the input is authoritative
+                        # and replaces the auto-generated one even without
+                        # the update flag.
                         user_token = token_by_user_id.get(user.id)
                         if user_token:
-                            if self.update_existing:
-                                # Replace existing token
-                                with transaction.atomic():
-                                    user_token.delete()
-                                    # Remove old token from maps
-                                    token_by_key.pop(user_token.key, None)
-                                    token_by_user_id.pop(user.id, None)
-                                    token = Token(key=key, user=user)
-                                    if created:
-                                        token.created = created
-                                    token.save()
-                                # Update maps
-                                token_by_key[key] = token
-                                token_by_user_id[user.id] = token
-                                self.stats["auth_tokens"]["updated"] += 1
-                            else:
-                                self.stdout.write(
-                                    self.style.WARNING(
-                                        f"Skipping token {key}: user already has token {user_token.key}"
-                                    )
-                                )
-                                self.stats["auth_tokens"]["skipped"] += 1
+                            with transaction.atomic():
+                                user_token.delete()
+                                # Remove old token from maps
+                                token_by_key.pop(user_token.key, None)
+                                token_by_user_id.pop(user.id, None)
+                                token = Token(key=key, user=user)
+                                if created:
+                                    token.created = created
+                                token.save()
+                            # Update maps
+                            token_by_key[key] = token
+                            token_by_user_id[user.id] = token
+                            self.stats["auth_tokens"]["updated"] += 1
                         else:
                             # Create new token
                             token = Token(key=key, user=user)
@@ -1547,13 +1542,11 @@ class Command(BaseCommand):
                         else:
                             self.stats["auth_tokens"]["skipped"] += 1
                     else:
-                        # Check for user token conflict
+                        # Check for user token conflict; explicitly declared
+                        # tokens replace the user's existing token
                         user_has_token = user.id in token_by_user_id
                         if user_has_token:
-                            if self.update_existing:
-                                self.stats["auth_tokens"]["updated"] += 1
-                            else:
-                                self.stats["auth_tokens"]["skipped"] += 1
+                            self.stats["auth_tokens"]["updated"] += 1
                         else:
                             self.stats["auth_tokens"]["created"] += 1
 
