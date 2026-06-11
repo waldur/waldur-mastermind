@@ -19,6 +19,7 @@ from waldur_mastermind.invoices.models import (
     ProjectCredit,
 )
 from waldur_mastermind.invoices.tests import factories as invoices_factories
+from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.models import (
     Category,
     ComponentUsage,
@@ -27,10 +28,12 @@ from waldur_mastermind.marketplace.models import (
     OfferingPartition,
     OfferingSoftwareCatalog,
     OfferingUser,
+    OfferingUserGroup,
     Order,
     Plan,
     PlanComponent,
     Resource,
+    RobotAccount,
     SoftwareCatalog,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -3117,3 +3120,198 @@ class ImportStructureCommandTest(TestCase):
         imported_customer_policy = CustomerEstimatedCostPolicy.objects.first()
         self.assertEqual(str(imported_customer_policy.uuid), str(customer_policy.uuid))
         self.assertEqual(imported_customer_policy.limit_cost, 1000)
+
+    def test_import_offering_users_with_backend_metadata(self):
+        """Test that importing offering users preserves backend_metadata."""
+        offering = marketplace_factories.OfferingFactory()
+        user = structure_factories.UserFactory()
+        backend_metadata = {
+            "uidnumber": 7001,
+            "primarygroup": 8001,
+            "loginShell": "/bin/bash",
+            "homeDir": "/home/e2e/alice",
+        }
+
+        data = {
+            "offering_users": [
+                {
+                    "uuid": "abcdabcd-1111-2222-3333-444444444444",
+                    "offering_uuid": offering.uuid.hex,
+                    "user_uuid": user.uuid.hex,
+                    "username": "alice",
+                    "state": 5,
+                    "backend_metadata": backend_metadata,
+                }
+            ]
+        }
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path)
+
+        offering_user = OfferingUser.objects.get(
+            uuid="abcdabcd-1111-2222-3333-444444444444"
+        )
+        self.assertEqual(offering_user.username, "alice")
+        self.assertEqual(offering_user.backend_metadata, backend_metadata)
+
+    def test_import_robot_accounts_creates_new_accounts(self):
+        """Test that importing robot accounts creates new robot account objects."""
+        resource = marketplace_factories.ResourceFactory()
+        user = structure_factories.UserFactory()
+
+        data = {
+            "robot_accounts": [
+                {
+                    "uuid": "abcdabcd-aaaa-bbbb-cccc-111111111111",
+                    "resource_uuid": resource.uuid.hex,
+                    "username": "robot1",
+                    "type": "cicd",
+                    "keys": ["ssh-rsa AAAA robot1@example.com"],
+                    "state": RobotAccountStates.OK,
+                    "backend_metadata": {"uidnumber": 7100, "primarygroup": 8100},
+                    "backend_id": "robot-backend-1",
+                    "user_uuids": [user.uuid.hex],
+                },
+                {
+                    "uuid": "abcdabcd-aaaa-bbbb-cccc-222222222222",
+                    "resource_uuid": resource.uuid.hex,
+                    "username": "robot2",
+                    "type": "cli",
+                    "keys": [],
+                    "state": RobotAccountStates.ERROR,
+                    "backend_metadata": {},
+                    "user_uuids": [],
+                },
+            ]
+        }
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(RobotAccount.objects.count(), 2)
+
+        robot1 = RobotAccount.objects.get(uuid="abcdabcd-aaaa-bbbb-cccc-111111111111")
+        self.assertEqual(robot1.username, "robot1")
+        self.assertEqual(robot1.type, "cicd")
+        self.assertEqual(robot1.resource.uuid, resource.uuid)
+        self.assertEqual(robot1.keys, ["ssh-rsa AAAA robot1@example.com"])
+        self.assertEqual(robot1.state, RobotAccountStates.OK)
+        self.assertEqual(
+            robot1.backend_metadata, {"uidnumber": 7100, "primarygroup": 8100}
+        )
+        self.assertEqual(robot1.backend_id, "robot-backend-1")
+        self.assertEqual(list(robot1.users.all()), [user])
+
+        robot2 = RobotAccount.objects.get(uuid="abcdabcd-aaaa-bbbb-cccc-222222222222")
+        self.assertEqual(robot2.state, RobotAccountStates.ERROR)
+        self.assertEqual(robot2.users.count(), 0)
+
+    def test_import_robot_accounts_skips_missing_resource(self):
+        """Test that robot accounts referencing unknown resources are skipped."""
+        data = {
+            "robot_accounts": [
+                {
+                    "uuid": "abcdabcd-aaaa-bbbb-cccc-333333333333",
+                    "resource_uuid": "00000000-0000-0000-0000-000000000000",
+                    "username": "orphan",
+                    "type": "cli",
+                }
+            ]
+        }
+        self._create_test_json(data)
+
+        output = self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(RobotAccount.objects.count(), 0)
+        self.assertIn("not found", output)
+
+    def test_import_offering_user_groups_creates_new_groups(self):
+        """Test that importing offering user groups creates groups with projects."""
+        offering = marketplace_factories.OfferingFactory()
+        project = structure_factories.ProjectFactory()
+
+        data = {
+            "offering_user_groups": [
+                {
+                    "offering_uuid": offering.uuid.hex,
+                    "backend_metadata": {"gid": 8501},
+                    "project_uuids": [project.uuid.hex],
+                }
+            ]
+        }
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path)
+
+        group = OfferingUserGroup.objects.get(
+            offering=offering, backend_metadata__gid=8501
+        )
+        self.assertEqual(group.backend_metadata, {"gid": 8501})
+        self.assertEqual(list(group.projects.all()), [project])
+
+        # Re-importing must not create a duplicate (matched by offering + gid)
+        self._call_import_command("-i", self.test_file_path)
+        self.assertEqual(OfferingUserGroup.objects.count(), 1)
+
+    def test_export_import_roundtrip_glauth_entities(self):
+        """Test that glauth-related entities survive export -> cleanup -> import."""
+        offering = marketplace_factories.OfferingFactory()
+        user = structure_factories.UserFactory()
+        project = structure_factories.ProjectFactory()
+        resource = marketplace_factories.ResourceFactory(offering=offering)
+
+        offering_user = marketplace_factories.OfferingUserFactory(
+            offering=offering,
+            user=user,
+            username="roundtrip-user",
+        )
+        offering_user.backend_metadata = {"uidnumber": 7001, "primarygroup": 8001}
+        offering_user.save(update_fields=["backend_metadata"])
+
+        robot_account = marketplace_factories.RobotAccountFactory(
+            resource=resource,
+            username="roundtrip-robot",
+            type="cicd",
+            keys=["ssh-rsa AAAA robot@example.com"],
+            backend_metadata={"uidnumber": 7100},
+        )
+        robot_account.users.add(user)
+
+        group = OfferingUserGroup.objects.create(
+            offering=offering, backend_metadata={"gid": 8501}
+        )
+        group.projects.add(project)
+
+        # Export
+        export_path = os.path.join(self.temp_dir, "export.json")
+        call_command("export_structure", "-o", export_path, stdout=StringIO())
+
+        # Cleanup
+        call_command("cleanup_structure", stdout=StringIO())
+        self.assertEqual(OfferingUser.objects.count(), 0)
+        self.assertEqual(RobotAccount.objects.count(), 0)
+        self.assertEqual(OfferingUserGroup.objects.count(), 0)
+
+        # Import
+        call_command("import_structure", "-i", export_path, stdout=StringIO())
+
+        restored_offering_user = OfferingUser.objects.get(uuid=offering_user.uuid)
+        self.assertEqual(
+            restored_offering_user.backend_metadata,
+            {"uidnumber": 7001, "primarygroup": 8001},
+        )
+
+        restored_robot = RobotAccount.objects.get(uuid=robot_account.uuid)
+        self.assertEqual(restored_robot.username, "roundtrip-robot")
+        self.assertEqual(restored_robot.backend_metadata, {"uidnumber": 7100})
+        self.assertEqual(
+            [u.uuid for u in restored_robot.users.all()],
+            [user.uuid],
+        )
+
+        restored_group = OfferingUserGroup.objects.get(backend_metadata__gid=8501)
+        self.assertEqual(restored_group.offering.uuid, offering.uuid)
+        self.assertEqual(
+            [p.uuid for p in restored_group.projects.all()],
+            [project.uuid],
+        )

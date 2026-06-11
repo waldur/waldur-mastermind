@@ -44,12 +44,14 @@ from waldur_mastermind.marketplace.models import (
     OfferingPartition,
     OfferingSoftwareCatalog,
     OfferingUser,
+    OfferingUserGroup,
     Order,
     Plan,
     PlanComponent,
     ProjectServiceAccount,
     Resource,
     ResourcePlanPeriod,
+    RobotAccount,
     ServiceProvider,
     SoftwareCatalog,
 )
@@ -218,6 +220,12 @@ class Command(BaseCommand):
             ),
             "offering_users": self.log_export_step(
                 "offering_users", self.export_offering_users
+            ),
+            "robot_accounts": self.log_export_step(
+                "robot_accounts", self.export_robot_accounts
+            ),
+            "offering_user_groups": self.log_export_step(
+                "offering_user_groups", self.export_offering_user_groups
             ),
             # Checklist exports
             "checklists": self.log_export_step("checklists", self.export_checklists),
@@ -1245,6 +1253,7 @@ class Command(BaseCommand):
                     "username": offering_user.username,
                     "is_restricted": offering_user.is_restricted,
                     "state": offering_user.state,
+                    "backend_metadata": offering_user.backend_metadata,
                     "service_provider_comment": offering_user.service_provider_comment,
                     "service_provider_comment_url": offering_user.service_provider_comment_url,
                     "created": offering_user.created.isoformat()
@@ -1256,6 +1265,66 @@ class Command(BaseCommand):
                 }
             )
         return offering_users
+
+    def export_robot_accounts(self):
+        """Export robot account data."""
+        robot_accounts = []
+        for robot_account in (
+            RobotAccount.objects.select_related("resource", "responsible_user")
+            .prefetch_related("users")
+            .order_by("created")
+        ):
+            robot_accounts.append(
+                {
+                    "uuid": robot_account.uuid.hex,
+                    "resource_uuid": robot_account.resource.uuid.hex,
+                    "resource_name": robot_account.resource.name,
+                    "username": robot_account.username,
+                    "description": robot_account.description,
+                    "type": robot_account.type,
+                    "keys": robot_account.keys,
+                    "state": robot_account.state,
+                    "backend_metadata": robot_account.backend_metadata,
+                    "backend_id": robot_account.backend_id,
+                    "responsible_user_uuid": robot_account.responsible_user.uuid.hex
+                    if robot_account.responsible_user
+                    else None,
+                    "user_uuids": [user.uuid.hex for user in robot_account.users.all()],
+                    "created": robot_account.created.isoformat()
+                    if robot_account.created
+                    else None,
+                    "modified": robot_account.modified.isoformat()
+                    if robot_account.modified
+                    else None,
+                }
+            )
+        return robot_accounts
+
+    def export_offering_user_groups(self):
+        """Export offering user group data.
+
+        OfferingUserGroup has no UUID field; the import side matches groups
+        by the natural key (offering, backend_metadata.gid).
+        """
+        offering_user_groups = []
+        for group in (
+            OfferingUserGroup.objects.select_related("offering")
+            .prefetch_related("projects")
+            .order_by("created")
+        ):
+            offering_user_groups.append(
+                {
+                    "offering_uuid": group.offering.uuid.hex,
+                    "offering_name": group.offering.name,
+                    "backend_metadata": group.backend_metadata,
+                    "project_uuids": [
+                        project.uuid.hex for project in group.projects.all()
+                    ],
+                    "created": group.created.isoformat() if group.created else None,
+                    "modified": group.modified.isoformat() if group.modified else None,
+                }
+            )
+        return offering_user_groups
 
     def export_checklists(self):
         """Export checklist data."""

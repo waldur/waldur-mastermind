@@ -38,7 +38,7 @@ from waldur_mastermind.invoices.models import (
     InvoiceItem,
     ProjectCredit,
 )
-from waldur_mastermind.marketplace.enums import LimitPeriods
+from waldur_mastermind.marketplace.enums import LimitPeriods, RobotAccountStates
 from waldur_mastermind.marketplace.models import (
     Category,
     CategoryGroup,
@@ -54,12 +54,14 @@ from waldur_mastermind.marketplace.models import (
     OfferingPartition,
     OfferingSoftwareCatalog,
     OfferingUser,
+    OfferingUserGroup,
     Order,
     Plan,
     PlanComponent,
     ProjectServiceAccount,
     Resource,
     ResourcePlanPeriod,
+    RobotAccount,
     ServiceProvider,
     SoftwareCatalog,
 )
@@ -224,6 +226,13 @@ class Command(BaseCommand):
             "invoices": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoice_items": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offering_users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "robot_accounts": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "offering_user_groups": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "checklists": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "questions": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "question_options": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -971,6 +980,20 @@ class Command(BaseCommand):
         self._safe_import(
             "offering_users",
             lambda: self.import_offering_users(data.get("offering_users", [])),
+        )
+
+        # Import robot accounts (depends on resources and users)
+        self._safe_import(
+            "robot_accounts",
+            lambda: self.import_robot_accounts(data.get("robot_accounts", [])),
+        )
+
+        # Import offering user groups (depends on offerings and projects)
+        self._safe_import(
+            "offering_user_groups",
+            lambda: self.import_offering_user_groups(
+                data.get("offering_user_groups", [])
+            ),
         )
 
         # Import checklist data (dependency order: checklists -> questions -> completions -> answers)
@@ -5065,6 +5088,7 @@ class Command(BaseCommand):
                     "username": offering_user_data.get("username", ""),
                     "is_restricted": offering_user_data.get("is_restricted", False),
                     "state": offering_user_data.get("state", 1),
+                    "backend_metadata": offering_user_data.get("backend_metadata", {}),
                     "service_provider_comment": offering_user_data.get(
                         "service_provider_comment", ""
                     ),
@@ -5124,6 +5148,187 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["offering_users"]["errors"] += 1
+
+    def import_robot_accounts(self, robot_accounts_data):
+        """Import robot account data."""
+        self.stdout.write("Importing robot accounts...")
+
+        # Pre-fetch lookup maps to avoid N+1 queries
+        resource_map = {str(r.uuid): r for r in Resource.objects.all()}
+        user_map = {str(u.uuid): u for u in User.all_objects.all()}
+        existing_map = {str(ra.uuid): ra for ra in RobotAccount.objects.all()}
+
+        for robot_account_data in robot_accounts_data:
+            try:
+                uuid = robot_account_data.get("uuid")
+                resource_uuid = robot_account_data.get("resource_uuid")
+
+                if not uuid or not resource_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping robot account without UUID or resource_uuid"
+                        )
+                    )
+                    self.stats["robot_accounts"]["errors"] += 1
+                    continue
+
+                # Find resource
+                resource = resource_map.get(self._normalize_uuid(resource_uuid))
+                if not resource:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping robot account {uuid}: resource {resource_uuid} not found"
+                        )
+                    )
+                    self.stats["robot_accounts"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "resource": resource,
+                    "username": robot_account_data.get("username", ""),
+                    "description": robot_account_data.get("description", ""),
+                    "type": robot_account_data.get("type", ""),
+                    "keys": robot_account_data.get("keys", []),
+                    "state": robot_account_data.get(
+                        "state", RobotAccountStates.REQUESTED
+                    ),
+                    "backend_metadata": robot_account_data.get("backend_metadata", {}),
+                    "backend_id": robot_account_data.get("backend_id", ""),
+                }
+
+                responsible_user_uuid = robot_account_data.get("responsible_user_uuid")
+                if responsible_user_uuid:
+                    defaults["responsible_user"] = user_map.get(
+                        self._normalize_uuid(responsible_user_uuid)
+                    )
+
+                users = [
+                    user_map[self._normalize_uuid(user_uuid)]
+                    for user_uuid in robot_account_data.get("user_uuids", [])
+                    if self._normalize_uuid(user_uuid) in user_map
+                ]
+
+                if not self.dry_run:
+                    normalized_uuid = self._normalize_uuid(uuid)
+                    existing_robot_account = existing_map.get(normalized_uuid)
+
+                    if existing_robot_account:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                RobotAccount.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
+                                existing_robot_account.users.set(users)
+                            self.stats["robot_accounts"]["updated"] += 1
+                        else:
+                            self.stats["robot_accounts"]["skipped"] += 1
+                    else:
+                        with transaction.atomic():
+                            obj = RobotAccount.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
+                            obj.users.set(users)
+                        existing_map[normalized_uuid] = obj
+                        self.stats["robot_accounts"]["created"] += 1
+                else:
+                    existing = self._normalize_uuid(uuid) in existing_map
+                    if existing:
+                        if self.update_existing:
+                            self.stats["robot_accounts"]["updated"] += 1
+                        else:
+                            self.stats["robot_accounts"]["skipped"] += 1
+                    else:
+                        self.stats["robot_accounts"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import robot account {robot_account_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["robot_accounts"]["errors"] += 1
+
+    def import_offering_user_groups(self, offering_user_groups_data):
+        """Import offering user group data.
+
+        OfferingUserGroup has no UUID field, so groups are matched by the
+        natural key (offering, backend_metadata.gid).
+        """
+        self.stdout.write("Importing offering user groups...")
+
+        # Pre-fetch lookup maps to avoid N+1 queries
+        offering_map = {str(o.uuid): o for o in Offering.objects.all()}
+        project_map = {str(p.uuid): p for p in Project.objects.all()}
+
+        for group_data in offering_user_groups_data:
+            try:
+                offering_uuid = group_data.get("offering_uuid")
+                backend_metadata = group_data.get("backend_metadata", {})
+                gid = backend_metadata.get("gid")
+
+                if not offering_uuid or gid is None:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping offering user group without offering_uuid or backend_metadata.gid"
+                        )
+                    )
+                    self.stats["offering_user_groups"]["errors"] += 1
+                    continue
+
+                # Find offering
+                offering = offering_map.get(self._normalize_uuid(offering_uuid))
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping offering user group with gid {gid}: offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["offering_user_groups"]["errors"] += 1
+                    continue
+
+                projects = [
+                    project_map[self._normalize_uuid(project_uuid)]
+                    for project_uuid in group_data.get("project_uuids", [])
+                    if self._normalize_uuid(project_uuid) in project_map
+                ]
+
+                existing_group = OfferingUserGroup.objects.filter(
+                    offering=offering, backend_metadata__gid=gid
+                ).first()
+
+                if not self.dry_run:
+                    if existing_group:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                existing_group.backend_metadata = backend_metadata
+                                existing_group.save(update_fields=["backend_metadata"])
+                                existing_group.projects.set(projects)
+                            self.stats["offering_user_groups"]["updated"] += 1
+                        else:
+                            self.stats["offering_user_groups"]["skipped"] += 1
+                    else:
+                        with transaction.atomic():
+                            group = OfferingUserGroup.objects.create(
+                                offering=offering, backend_metadata=backend_metadata
+                            )
+                            group.projects.set(projects)
+                        self.stats["offering_user_groups"]["created"] += 1
+                else:
+                    if existing_group:
+                        if self.update_existing:
+                            self.stats["offering_user_groups"]["updated"] += 1
+                        else:
+                            self.stats["offering_user_groups"]["skipped"] += 1
+                    else:
+                        self.stats["offering_user_groups"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import offering user group for offering {group_data.get('offering_uuid')}: {e}"
+                    )
+                )
+                self.stats["offering_user_groups"]["errors"] += 1
 
     def import_checklists(self, checklists_data):
         """Import checklist data."""
