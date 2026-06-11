@@ -49,11 +49,13 @@ from waldur_mastermind.marketplace.models import (
     OfferingPartition,
     OfferingSoftwareCatalog,
     OfferingUser,
+    OfferingUserGroup,
     Order,
     Plan,
     PlanComponent,
     ProjectServiceAccount,
     Resource,
+    RobotAccount,
     ServiceProvider,
     SoftwareCatalog,
     SoftwarePackage,
@@ -114,6 +116,8 @@ class Command(BaseCommand):
             "questions": {"deleted": 0, "errors": 0},
             "checklists": {"deleted": 0, "errors": 0},
             "offering_users": {"deleted": 0, "errors": 0},
+            "robot_accounts": {"deleted": 0, "errors": 0},
+            "offering_user_groups": {"deleted": 0, "errors": 0},
             "invoice_items": {"deleted": 0, "errors": 0},
             "invoices": {"deleted": 0, "errors": 0},
             "customer_credits": {"deleted": 0, "errors": 0},
@@ -280,8 +284,10 @@ class Command(BaseCommand):
             self._safe_cleanup(self.cleanup_feeds)
             self._safe_cleanup(self.cleanup_events)
 
-            # Delete offering users
+            # Delete offering users, robot accounts and offering user groups
             self._safe_cleanup(self.cleanup_offering_users)
+            self._safe_cleanup(self.cleanup_robot_accounts)
+            self._safe_cleanup(self.cleanup_offering_user_groups)
 
             # Delete checklist data (answers -> completions -> questions -> checklists)
             self._safe_cleanup(self.cleanup_answers)
@@ -401,6 +407,8 @@ class Command(BaseCommand):
             ("events", "logging_event"),
             # Offering users
             ("offering_users", "marketplace_offeringuser"),
+            ("robot_accounts", "marketplace_robotaccount"),
+            ("offering_user_groups", "marketplace_offeringusergroup"),
             # Checklists
             ("answers", "checklist_answer"),
             ("checklist_completions", "checklist_checklistcompletion"),
@@ -1060,6 +1068,40 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete offering users: {e}")
             )
             self.stats["offering_users"]["errors"] += 1
+
+    def cleanup_robot_accounts(self):
+        """Delete all robot account data."""
+        self.stdout.write("Deleting robot accounts...")
+        try:
+            if not self.dry_run:
+                count = RobotAccount.objects.count()
+                RobotAccount.objects.all().delete()
+                self.stats["robot_accounts"]["deleted"] = count
+            else:
+                self.stats["robot_accounts"]["deleted"] = RobotAccount.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete robot accounts: {e}")
+            )
+            self.stats["robot_accounts"]["errors"] += 1
+
+    def cleanup_offering_user_groups(self):
+        """Delete all offering user group data."""
+        self.stdout.write("Deleting offering user groups...")
+        try:
+            if not self.dry_run:
+                count = OfferingUserGroup.objects.count()
+                OfferingUserGroup.objects.all().delete()
+                self.stats["offering_user_groups"]["deleted"] = count
+            else:
+                self.stats["offering_user_groups"]["deleted"] = (
+                    OfferingUserGroup.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete offering user groups: {e}")
+            )
+            self.stats["offering_user_groups"]["errors"] += 1
 
     def cleanup_answers(self):
         """Delete all answer data."""
