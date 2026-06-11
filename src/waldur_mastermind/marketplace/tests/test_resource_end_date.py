@@ -644,3 +644,48 @@ class PrepaidResourceEndDateRestrictionTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.consumer_url, {"end_date": "2020-06-01"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@freeze_time("2020-01-01")
+class ResourceEndDateUpdatedAtTest(test.APITestCase):
+    """end_date_updated_at is stamped whenever a resource's end_date changes."""
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+    def test_end_date_updated_at_is_none_initially(self):
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date_updated_at)
+
+    def test_end_date_updated_at_is_set_when_end_date_changes(self):
+        self.resource.end_date = datetime.date(2021, 1, 1)
+        self.resource.save()
+        self.resource.refresh_from_db()
+        self.assertIsNotNone(self.resource.end_date_updated_at)
+
+    def test_end_date_updated_at_not_changed_when_other_fields_change(self):
+        self.resource.name = "new name"
+        self.resource.save()
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date_updated_at)
+
+    def test_end_date_updated_at_is_set_via_set_end_date_action(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        url = factories.ResourceFactory.get_url(self.resource, "set_end_date")
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(url, {"end_date": "2020-02-01"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertIsNotNone(self.resource.end_date_updated_at)
+
+    def test_end_date_updated_at_in_api_response(self):
+        self.resource.end_date = datetime.date(2021, 1, 1)
+        self.resource.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.ResourceFactory.get_url(self.resource))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("end_date_updated_at", response.data)
+        self.assertIsNotNone(response.data["end_date_updated_at"])
