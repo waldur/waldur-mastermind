@@ -232,6 +232,40 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_cannot_create_project_manager_group_invitation_when_limit_reached(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=self.customer_owner)
+        payload = self._get_valid_project_invitation_payload(
+            self.project_group_invitation,
+            role=ProjectRole.MANAGER,
+        )
+
+        response = self.client.post(
+            factories.GroupInvitationBaseFactory.get_list_url(), data=payload
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["non_field_errors"][0],
+            "Project already has an active project manager.",
+        )
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_can_create_project_admin_group_invitation_when_limit_reached(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=self.customer_owner)
+        payload = self._get_valid_project_invitation_payload(
+            self.project_group_invitation,
+            role=ProjectRole.ADMIN,
+        )
+
+        response = self.client.post(
+            factories.GroupInvitationBaseFactory.get_list_url(), data=payload
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_project_admin_cannot_create_project_invitation(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=self.project_admin)
