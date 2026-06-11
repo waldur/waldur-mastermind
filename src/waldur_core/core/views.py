@@ -2275,10 +2275,34 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     )
     @action(detail=False, methods=["get"])
     def available_scopes(self, request):
-        """Return permissions the current user can delegate to a PAT."""
-        result = []
-        for perm in PermissionEnum:
-            result.append({"permission": perm.value, "description": perm.value})
+        """Return permissions the current user can delegate to a PAT.
+
+        Staff users can delegate any permission (they bypass UserRole checks).
+        For other users only the permissions granted by their active roles are
+        offered, plus SUPPORT.ACCESS for support users — mirroring what the
+        create serializer would accept.
+        """
+        user = request.user
+        if user.is_staff:
+            allowed = {perm.value for perm in PermissionEnum}
+        else:
+            allowed = set(
+                UserRole.objects.filter(user=user, is_active=True)
+                .values_list("role__permissions__permission", flat=True)
+                .distinct()
+            )
+            allowed.discard(None)
+            allowed.discard("")
+            # Global scopes are gated on user flags, not roles.
+            allowed.discard(PermissionEnum.STAFF_ACCESS.value)
+            allowed.discard(PermissionEnum.SUPPORT_ACCESS.value)
+            if user.is_support:
+                allowed.add(PermissionEnum.SUPPORT_ACCESS.value)
+        result = [
+            {"permission": perm.value, "description": perm.value}
+            for perm in PermissionEnum
+            if perm.value in allowed
+        ]
         return Response(AvailableScopeSerializer(result, many=True).data)
 
     @extend_schema(

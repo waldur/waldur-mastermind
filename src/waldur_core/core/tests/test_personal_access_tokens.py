@@ -579,12 +579,39 @@ class BannedPermissionClassUsageTest(test.APITestCase):
 class PersonalAccessTokenAvailableScopesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
-        self.user = self.fixture.owner
-        self.user.can_use_personal_access_tokens = True
-        self.user.save(update_fields=["can_use_personal_access_tokens"])
-        self.client.force_authenticate(user=self.user)
 
-    def test_available_scopes_returns_permissions(self):
+    def _get_permissions(self):
+        response = self.client.get(f"{PAT_URL}available_scopes/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row["permission"] for row in response.data}
+
+    def test_owner_sees_only_role_derived_permissions(self):
+        # The CustomerFixture's `owner` cached_property attaches LIST_PROJECTS
+        # (among others) to the CUSTOMER.OWNER role.
+        self.client.force_authenticate(user=self.fixture.owner)
+        permissions = self._get_permissions()
+        self.assertIn(PermissionEnum.LIST_PROJECTS.value, permissions)
+        self.assertNotIn(PermissionEnum.STAFF_ACCESS.value, permissions)
+        self.assertNotIn(PermissionEnum.SUPPORT_ACCESS.value, permissions)
+        self.assertLess(len(permissions), len(PermissionEnum))
+
+    def test_staff_sees_all_permissions(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        permissions = self._get_permissions()
+        self.assertEqual(permissions, {perm.value for perm in PermissionEnum})
+
+    def test_support_sees_support_access(self):
+        self.client.force_authenticate(user=self.fixture.global_support)
+        permissions = self._get_permissions()
+        self.assertIn(PermissionEnum.SUPPORT_ACCESS.value, permissions)
+        self.assertNotIn(PermissionEnum.STAFF_ACCESS.value, permissions)
+
+    def test_user_without_roles_sees_no_permissions(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        self.assertEqual(self._get_permissions(), set())
+
+    def test_response_shape(self):
+        self.client.force_authenticate(user=self.fixture.owner)
         response = self.client.get(f"{PAT_URL}available_scopes/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.data) > 0)
