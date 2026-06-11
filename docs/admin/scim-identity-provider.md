@@ -222,7 +222,8 @@ Key consequences:
 
 - **Empty values from non-owners are preserved.** A SCIM `PUT` that omits an email previously set by Identity Bridge will not clear that email.
 - **Per-attribute timestamps** are refreshed on every write, even when the value is unchanged — useful for freshness-based reporting.
-- **Deactivation** routes through `remove_user_from_isd` and honours `FEDERATED_IDENTITY_DEACTIVATION_POLICY`: with the default `all_isds_removed` a user is only deactivated when no active sources remain; with `any_isd_removed` any removal deactivates.
+- **Deactivation** routes through `remove_user_from_isd` and honours `FEDERATED_IDENTITY_DEACTIVATION_POLICY`: with the default `any_isd_removed` any removal deactivates the user; with `all_isds_removed` a user is only deactivated when no active sources remain.
+- **Deactivated users stay visible to SCIM.** `GET /Users/{id}` returns them with `active: false`, they match `filter=active eq false`, and the IdP can reactivate them with `PATCH {op: replace, path: active, value: true}`.
 
 ## SCIM-to-Waldur attribute mapping
 
@@ -250,8 +251,10 @@ The handler accepts the subset that Okta, Microsoft Entra ID, and Keycloak emit:
 | `replace` | _omitted_ (value is a User dict) | Replace multiple top-level attributes at once (Okta style). |
 | `replace` | `active` | Toggle `is_active`; `false` runs the deactivation flow. |
 | `replace` | `name.givenName` / `name.familyName` | Update first / last name. |
+| `replace` / `add` / `remove` | `name` | Whole name object (`givenName`/`familyName`). |
 | `replace` / `add` / `remove` | `emails` / `phoneNumbers` | First primary entry wins. |
 | `replace` | `externalId` | Update; `remove` clears it. |
+| `replace` / `add` / `remove` | `urn:...:enterprise:2.0:User:organization` | URN-prefixed extension path (Entra ID style); also accepted for the Waldur extension fields and whole extension objects. |
 | `replace` | `userName` | Rejected — 400 `mutability`. |
 | `add` / `remove` / `replace` | `members` | Group membership delta. |
 | `add` / `remove` | `members[value eq "<uuid>"]` | Filter form used by Entra ID and Keycloak. |

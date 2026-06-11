@@ -83,10 +83,14 @@ def _serialize(user: User, request) -> dict:
 
 
 def _find_user(body: dict) -> User | None:
-    """Lookup priority: externalId → userName → primary email."""
+    """Lookup priority: externalId → userName → primary email.
+
+    Uses ``all_objects`` — deactivated users must stay addressable so the IdM
+    gets a 409 instead of a crash on re-create, and can reactivate them.
+    """
     external_id = body.get("externalId")
     if external_id:
-        candidate = User.objects.filter(
+        candidate = User.all_objects.filter(
             attribute_sources__externalId__value=external_id
         ).first()
         if candidate:
@@ -94,14 +98,14 @@ def _find_user(body: dict) -> User | None:
 
     user_name = body.get("userName")
     if user_name:
-        candidate = User.objects.filter(username__iexact=user_name).first()
+        candidate = User.all_objects.filter(username__iexact=user_name).first()
         if candidate:
             return candidate
 
     if getattr(config, "OIDC_MATCHMAKING_BY_EMAIL", False):
         primary_email = _primary_email(body.get("emails"))
         if primary_email:
-            matches = User.objects.filter(email__iexact=primary_email)
+            matches = User.all_objects.filter(email__iexact=primary_email)
             if matches.count() == 1:
                 return matches.first()
     return None
@@ -142,7 +146,7 @@ def _create_user(body: dict, request) -> User:
         raise ScimError(400, "userName is required.", scim_type="invalidValue")
     username = _normalize_username(raw_username)
 
-    if User.objects.filter(username=username).exists():
+    if User.all_objects.filter(username=username).exists():
         raise ScimError(
             409,
             f"User with userName {username!r} already exists.",
@@ -221,7 +225,9 @@ class UsersListView(_UsersBaseView):
     """``/scim/v2/Users`` — list + create."""
 
     def get(self, request):
-        qs = User.objects.all().order_by("id")
+        # all_objects: deactivated users must remain visible to the IdM
+        # (active=false filtering, reactivation) — see RFC 7644 §3.4.2.
+        qs = User.all_objects.all().order_by("id")
         filter_expr = request.query_params.get("filter")
         if filter_expr:
             qs = qs.filter(parse_filter(filter_expr, USER_FILTER_FIELDS))
@@ -257,7 +263,9 @@ class UsersListView(_UsersBaseView):
 
 def _get_user_or_404(uuid_hex: str) -> User:
     try:
-        return User.objects.get(uuid=uuid_hex)
+        # all_objects: a deactivated user is still a SCIM resource — the IdM
+        # reads it as active=false and may PATCH it back to active=true.
+        return User.all_objects.get(uuid=uuid_hex)
     except (User.DoesNotExist, ValueError):
         raise ScimError(404, f"User {uuid_hex!r} not found.")
 

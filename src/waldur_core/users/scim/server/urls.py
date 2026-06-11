@@ -5,7 +5,7 @@ intentionally outside ``/api/`` so they're excluded from the main OpenAPI schema
 (``SCHEMA_PATH_PREFIX="/api/"``) and follow RFC 7644 conventions.
 """
 
-from django.urls import path
+from django.urls import path, re_path
 
 from waldur_core.users.scim.server import groups_view, users_view, views
 
@@ -19,4 +19,6 @@ urlpatterns = [
     path("Users/<str:uuid_hex>", users_view.UserDetailView.as_view()),
     path("Groups", groups_view.GroupsListView.as_view()),
     path("Groups/<path:group_id>", groups_view.GroupDetailView.as_view()),
+    # Unknown paths under /scim/v2/ get a SCIM-shaped 404, not the HTML page.
+    re_path(r"^.*$", views.ScimNotFoundView.as_view()),
 ]

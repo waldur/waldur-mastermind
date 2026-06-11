@@ -54,6 +54,7 @@ class FilterField:
 
     orm_field: str
     case_insensitive: bool = True
+    boolean: bool = False
 
 
 def parse(expression: str, fields: dict[str, FilterField]) -> Q:
@@ -200,6 +201,8 @@ class _Parser:
     def _build_comparison(self, attr_path: str, op: str, value_token: str) -> Q:
         field = self._resolve(attr_path)
         value = _unquote(value_token)
+        if field.boolean:
+            return self._build_boolean(attr_path, op, value, field)
         lookup_base = field.orm_field
         i = "i" if field.case_insensitive else ""
         if op == "eq":
@@ -215,6 +218,27 @@ class _Parser:
         raise ScimError(  # pragma: no cover — guarded by caller
             400, f"Unhandled operator {op!r}.", scim_type="invalidFilter"
         )
+
+    def _build_boolean(
+        self, attr_path: str, op: str, value: str, field: FilterField
+    ) -> Q:
+        """Booleans must reach the ORM as real bools, never strings; Entra ID
+        is also known to quote them (``active eq "False"``), so accept both."""
+        if op not in {"eq", "ne"}:
+            raise ScimError(
+                400,
+                f"Operator {op!r} is not supported for boolean attribute {attr_path!r}.",
+                scim_type="invalidFilter",
+            )
+        normalized = value.lower() if isinstance(value, str) else value
+        if normalized not in {"true", "false"}:
+            raise ScimError(
+                400,
+                f"Boolean attribute {attr_path!r} requires a true/false value.",
+                scim_type="invalidFilter",
+            )
+        q = Q(**{field.orm_field: normalized == "true"})
+        return ~q if op == "ne" else q
 
 
 def _is_string(token: str) -> bool:
@@ -247,7 +271,7 @@ USER_FILTER_FIELDS: dict[str, FilterField] = {
     "name.familyname": FilterField("last_name"),
     "emails": FilterField("email"),
     "emails.value": FilterField("email"),
-    "active": FilterField("is_active", case_insensitive=False),
+    "active": FilterField("is_active", case_insensitive=False, boolean=True),
     "displayname": FilterField("username"),
 }
 
