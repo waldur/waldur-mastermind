@@ -1714,6 +1714,11 @@ class ResourceDetailsMixin(
         null=True,
         related_name="+",
     )
+    end_date_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Timestamp of the last end_date change."),
+    )
 
 
 class Resource(
@@ -1811,6 +1816,16 @@ class Resource(
         "error_traceback",
         "current_usages",
     )
+
+    def save(self, *args, **kwargs):
+        end_date_changed = not self._state.adding and self.tracker.has_changed(
+            "end_date"
+        )
+        super().save(*args, **kwargs)
+        if end_date_changed:
+            Resource.objects.filter(pk=self.pk).update(
+                end_date_updated_at=timezone.now()
+            )
 
     @property
     def customer(self) -> structure_models.Customer:
