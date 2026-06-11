@@ -569,6 +569,54 @@ class InvitationCreateTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_cannot_create_project_manager_invitation_when_limit_reached(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=self.customer_owner)
+        payload = self._get_valid_project_invitation_payload(
+            self.project_invitation, role=ProjectRole.MANAGER
+        )
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["non_field_errors"][0],
+            "Project already has an active project manager.",
+        )
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_can_create_project_admin_invitation_when_limit_reached(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=self.customer_owner)
+        payload = self._get_valid_project_invitation_payload(
+            self.project_invitation, role=ProjectRole.ADMIN
+        )
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_can_create_project_manager_invitation_when_project_has_no_manager(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        project = structure_factories.ProjectFactory(customer=self.customer)
+        self.client.force_authenticate(user=self.customer_owner)
+        payload = self._get_valid_project_invitation_payload(
+            factories.ProjectInvitationFactory.build(scope=project),
+            role=ProjectRole.MANAGER,
+        )
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_project_admin_cannot_create_project_invitation(self):
         self.client.force_authenticate(user=self.project_admin)
         payload = self._get_valid_project_invitation_payload(self.project_invitation)
@@ -2378,6 +2426,19 @@ class InvitationUpdateTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
             "Role and scope should belong to the same content type", str(response.data)
+        )
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_cannot_update_invitation_role_to_manager_when_limit_reached(self):
+        self.client.force_authenticate(user=self.customer_owner)
+
+        url = factories.ProjectInvitationFactory.get_url(self.project_invitation)
+        response = self.client.patch(url, {"role": ProjectRole.MANAGER.uuid.hex})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["non_field_errors"][0],
+            "Project already has an active project manager.",
         )
 
     def test_cannot_update_accepted_invitation(self):

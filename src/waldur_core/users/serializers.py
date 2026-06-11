@@ -10,8 +10,11 @@ from waldur_core.core.models import UserDetailsMatchMixin
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
-from waldur_core.permissions.utils import get_valid_models
-from waldur_core.structure.models import Customer
+from waldur_core.permissions.utils import (
+    get_valid_models,
+    validate_only_one_project_manager,
+)
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
 from waldur_core.users.enums import InvitationState
@@ -144,6 +147,8 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
             raise serializers.ValidationError(
                 "Role and scope should belong to the same content type."
             )
+
+        validate_only_one_project_manager(scope, role)
         return attrs
 
     def create(self, validated_data):
@@ -264,8 +269,6 @@ class GroupInvitationSerializer(
 
         if model_class and not isinstance(scope, model_class):
             # Allow PROJECT roles with Customer scopes when auto_create_project is True
-            from waldur_core.structure.models import Customer, Project
-
             if not (
                 attrs.get("auto_create_project", False)
                 and model_class == Project
@@ -301,6 +304,9 @@ class GroupInvitationSerializer(
                         )
                     }
                 )
+
+        if isinstance(scope, Project):
+            validate_only_one_project_manager(scope, role)
 
         return attrs
 
@@ -415,8 +421,6 @@ class GroupInvitationUpdateSerializer(
 
         # Role/scope compatibility
         if role:
-            from waldur_core.structure.models import Customer, Project
-
             model_class = role.content_type.model_class()
             if model_class and not isinstance(scope, model_class):
                 if not (
@@ -435,6 +439,9 @@ class GroupInvitationUpdateSerializer(
                 raise serializers.ValidationError(
                     "project_role must be a project-level role"
                 )
+
+        if (attrs.get("role") or attrs.get("scope")) and isinstance(scope, Project):
+            validate_only_one_project_manager(scope, role)
 
         return attrs
 
@@ -599,6 +606,11 @@ class InvitationUpdateSerializer(serializers.ModelSerializer):
             InvitationState.PENDING_PROJECT,
         ]:
             raise serializers.ValidationError("Only pending invitations can be edited.")
+
+        new_role = attrs.get("role")
+        if new_role:
+            validate_only_one_project_manager(invitation.scope, new_role)
+
         return attrs
 
 
