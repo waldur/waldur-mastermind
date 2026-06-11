@@ -436,6 +436,8 @@ class PersonalAccessTokenStaffScopeEnforcementTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.staff_user = self.fixture.staff
+        self.staff_user.can_use_personal_access_tokens = True
+        self.staff_user.save(update_fields=["can_use_personal_access_tokens"])
         self.regular_user = self.fixture.owner
         self.regular_user.can_use_personal_access_tokens = True
         self.regular_user.save(update_fields=["can_use_personal_access_tokens"])
@@ -627,6 +629,8 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.staff = self.fixture.staff
+        self.staff.can_use_personal_access_tokens = True
+        self.staff.save(update_fields=["can_use_personal_access_tokens"])
         self.client.force_authenticate(user=self.staff)
 
     def _payload(self, **overrides):
@@ -1017,7 +1021,7 @@ class PersonalAccessTokenAvailableBindingTargetsTest(test.APITestCase):
 
 @override_config(PAT_ENABLED=True)
 class PersonalAccessTokenPerUserGateTest(test.APITestCase):
-    """Per-user enablement: only staff or users with the flag may create/use PATs."""
+    """Per-user enablement: only users with the flag may create/use PATs."""
 
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
@@ -1044,12 +1048,12 @@ class PersonalAccessTokenPerUserGateTest(test.APITestCase):
         response = self.client.post(PAT_URL, self._create_payload(), format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_staff_can_create_without_flag(self):
+    def test_staff_cannot_create_without_flag(self):
         staff = self.fixture.staff
         self.assertFalse(staff.can_use_personal_access_tokens)
         self.client.force_authenticate(user=staff)
         response = self.client.post(PAT_URL, self._create_payload(), format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_revoking_flag_disables_existing_token(self):
         user = self.fixture.owner
@@ -1066,9 +1070,9 @@ class PersonalAccessTokenPerUserGateTest(test.APITestCase):
         response = self.client.get("/api/customers/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_staff_token_works_without_flag(self):
+    def test_staff_token_rejected_without_flag(self):
         staff = self.fixture.staff
         pat = _create_pat(staff)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
         response = self.client.get("/api/customers/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

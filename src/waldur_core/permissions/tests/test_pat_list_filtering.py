@@ -57,7 +57,9 @@ def _auth_header(pat):
 @override_config(PAT_ENABLED=True)
 class PATListFilterCustomerTest(test.APITestCase):
     def setUp(self):
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff = structure_factories.UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
         Token.objects.get_or_create(user=self.staff)
         self.bound = structure_factories.CustomerFactory(name="bound")
         self.unbound = structure_factories.CustomerFactory(name="unbound")
@@ -113,7 +115,9 @@ class PATListFilterDescendantTest(test.APITestCase):
     """Project bound to Customer must reach descendant Projects, not siblings."""
 
     def setUp(self):
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff = structure_factories.UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
         Token.objects.get_or_create(user=self.staff)
         self.bound_customer = structure_factories.CustomerFactory()
         self.other_customer = structure_factories.CustomerFactory()
@@ -156,7 +160,9 @@ class PATListFilterDescendantTest(test.APITestCase):
 @override_config(PAT_ENABLED=True)
 class PATListFilterMarketplaceTest(test.APITestCase):
     def setUp(self):
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff = structure_factories.UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
         Token.objects.get_or_create(user=self.staff)
         self.bound_customer = structure_factories.CustomerFactory()
         self.other_customer = structure_factories.CustomerFactory()
@@ -188,7 +194,9 @@ class PATListFilterCallTest(test.APITestCase):
     def setUp(self):
         from waldur_mastermind.proposal.enums import CallStates
 
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff = structure_factories.UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
         Token.objects.get_or_create(user=self.staff)
         self.cmo = proposal_factories.CallManagingOrganisationFactory()
         # PublicCallViewSet only lists ACTIVE/ARCHIVED calls.
@@ -229,7 +237,9 @@ class PATListFilterUnregisteredModelTest(test.APITestCase):
     """Endpoints whose model has no registered rule fall through unchanged."""
 
     def setUp(self):
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff = structure_factories.UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
         Token.objects.get_or_create(user=self.staff)
         self.bound_customer = structure_factories.CustomerFactory()
 
@@ -262,7 +272,9 @@ class PATListFilterResourceProviderCustomerLeakTest(test.APITestCase):
     def setUp(self):
         from waldur_mastermind.marketplace import models as marketplace_models
 
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff = structure_factories.UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
         Token.objects.get_or_create(user=self.staff)
 
         # Provider side: customer + offering they sell.
@@ -350,7 +362,9 @@ class PATMalformedBindingsTest(test.APITestCase):
     a buggy migration) must not 500 every PAT-auth'd request."""
 
     def setUp(self):
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff = structure_factories.UserFactory(
+            is_staff=True, can_use_personal_access_tokens=True
+        )
         Token.objects.get_or_create(user=self.staff)
 
     def test_missing_keys_are_skipped(self):
