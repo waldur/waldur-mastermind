@@ -3,7 +3,10 @@ export default {
   output: 'waldur-typescript-sdk',
   plugins: [
     "@hey-api/sdk",
-    "@hey-api/client-fetch",
+    {
+      name: "@hey-api/client-fetch",
+      throwOnError: true
+    },
     "@hey-api/typescript",
   ],
   parser: {
