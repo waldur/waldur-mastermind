@@ -76,3 +76,10 @@ class IPAddressFieldExtension(OpenApiSerializerFieldExtension):
 
         if field.protocol == "ipv6":
             return {"type": "string", "format": "ipv6"}
+
+
+class JSONFieldExtension(OpenApiSerializerFieldExtension):
+    target_class = "rest_framework.fields.JSONField"
+
+    def map_serializer_field(self, auto_schema, direction):
+        return {"type": "object"}

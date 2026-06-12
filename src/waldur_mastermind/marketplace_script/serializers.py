@@ -7,8 +7,8 @@ from waldur_mastermind.marketplace_script import models as marketplace_script_mo
 
 
 class CommonSerializer(serializers.Serializer):
-    attributes = serializers.ReadOnlyField()
-    limits = serializers.ReadOnlyField()
+    attributes = serializers.JSONField(read_only=True)
+    limits = serializers.JSONField(read_only=True)
     customer_uuid = serializers.UUIDField(
         read_only=True, source="project.customer.uuid"
     )
@@ -46,7 +46,9 @@ class OrderSerializer(CommonSerializer):
     resource_backend_metadata = serializers.ReadOnlyField(
         source="resource.backend_metadata"
     )
-    resource_attributes = serializers.ReadOnlyField(source="resource.attributes")
+    resource_attributes = serializers.JSONField(
+        read_only=True, source="resource.attributes"
+    )
 
 
 class ResourceSerializer(CommonSerializer):

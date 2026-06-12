@@ -4273,7 +4273,10 @@ class BaseItemSerializer(
         method = self.context["view"].request.method
 
         if method == "GET" and "attributes" in fields:
-            fields["attributes"] = serializers.ReadOnlyField(source="safe_attributes")
+            fields["attributes"] = serializers.JSONField(
+                read_only=True, source="safe_attributes"
+            )
+
         return fields
 
 
