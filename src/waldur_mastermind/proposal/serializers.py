@@ -635,6 +635,7 @@ class CallResourceTemplateSerializer(
         view_name="proposal-call-offering-detail",
         lookup_field="uuid",
     )
+    limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
     class Meta:
         model = models.CallResourceTemplate
@@ -3023,6 +3024,18 @@ class EmailInvitationSerializer(serializers.Serializer):
     max_assignments = serializers.IntegerField(default=5, min_value=1)
 
 
+class ReviewerSuggestionTopMatchingProposalSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField(required=False)
+    slug = serializers.CharField(required=False)
+    affinity = serializers.FloatField()
+    keyword_score = serializers.FloatField(required=False, allow_null=True)
+    text_score = serializers.FloatField(required=False, allow_null=True)
+    has_coi = serializers.BooleanField(required=False, allow_null=True)
+    coi_type = serializers.CharField(required=False, allow_null=True)
+    coi_severity = serializers.CharField(required=False, allow_null=True)
+
+
 class ReviewerSuggestionSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -3040,6 +3053,12 @@ class ReviewerSuggestionSerializer(
 
     source_type_display = serializers.CharField(
         source="get_source_type_display", read_only=True
+    )
+    matched_keywords = serializers.ListField(
+        child=serializers.CharField(), read_only=True
+    )
+    top_matching_proposals = ReviewerSuggestionTopMatchingProposalSerializer(
+        many=True, read_only=True
     )
 
     class Meta:

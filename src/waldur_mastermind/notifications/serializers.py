@@ -12,8 +12,8 @@ from . import models, utils
 
 
 class IdNamePairSerializer(serializers.Serializer):
-    name = serializers.CharField()
-    uuid = serializers.UUIDField()
+    name = serializers.CharField(required=True)
+    uuid = serializers.UUIDField(required=True)
 
 
 class QueryOutputSerializer(serializers.Serializer):

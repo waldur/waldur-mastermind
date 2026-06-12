@@ -384,6 +384,11 @@ class RancherNestedPublicIPSerializer(serializers.HyperlinkedModelSerializer):
         )
 
 
+@extend_schema_field(serializers.DictField(child=serializers.IntegerField()))
+class RancherClusterRequestedField(serializers.JSONField):
+    pass
+
+
 class RancherClusterSerializer(
     structure_serializers.SshPublicKeySerializerMixin,
     structure_serializers.BaseResourceSerializer,
@@ -424,6 +429,9 @@ class RancherClusterSerializer(
     public_ips = RancherNestedPublicIPSerializer(many=True, read_only=True)
 
     router_ips = serializers.SerializerMethodField()
+
+    requested = RancherClusterRequestedField(read_only=True)
+    capacity = RancherClusterRequestedField(read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
@@ -1004,6 +1012,18 @@ class RancherWorkloadSerializer(serializers.HyperlinkedModelSerializer):
         return super().create(validated_data)
 
 
+class RancherHPAMetricTargetSerializer(serializers.Serializer):
+    type = serializers.CharField()
+    utilization = serializers.IntegerField(required=False, allow_null=True)
+    averageValue = serializers.CharField(required=False, allow_null=True)
+
+
+class RancherHPAMetricSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    type = serializers.CharField()
+    target = RancherHPAMetricTargetSerializer()
+
+
 class RancherHPASerializer(serializers.HyperlinkedModelSerializer):
     cluster_uuid = serializers.UUIDField(read_only=True, source="cluster.uuid")
     cluster_name = serializers.ReadOnlyField(source="cluster.name")
@@ -1013,6 +1033,7 @@ class RancherHPASerializer(serializers.HyperlinkedModelSerializer):
     namespace_name = serializers.ReadOnlyField(source="namespace.name")
     workload_uuid = serializers.UUIDField(read_only=True, source="workload.uuid")
     workload_name = serializers.ReadOnlyField(source="workload.name")
+    metrics = RancherHPAMetricSerializer(many=True)
 
     class Meta:
         model = models.HPA

@@ -82,4 +82,17 @@ class JSONFieldExtension(OpenApiSerializerFieldExtension):
     target_class = "rest_framework.fields.JSONField"
 
     def map_serializer_field(self, auto_schema, direction):
-        return {"type": "object"}
+        return {"type": "object", "additionalProperties": True}
+
+
+from drf_spectacular.utils import extend_schema_field
+from rest_framework import serializers
+
+
+@extend_schema_field(OpenApiTypes.ANY)
+class AnyJSONField(serializers.Field):
+    def to_representation(self, value):
+        return value
+
+    def to_internal_value(self, data):
+        return data
