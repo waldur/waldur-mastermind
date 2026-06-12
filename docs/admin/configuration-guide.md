@@ -2066,6 +2066,12 @@ Creation source name.
 
 Toggler for SSL verification
 
+#### SMAX_CERTIFICATE
+
+**Type:** text_field
+
+Custom CA certificate (PEM format) used to verify the TLS connection to the SMAX server. When set, it overrides the default CA bundle. Ignored if SSL verification is disabled.
+
 #### SMAX_WEBHOOK_SHARED_SECRET
 
 **Type:** secret_field
