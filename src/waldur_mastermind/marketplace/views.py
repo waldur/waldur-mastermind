@@ -10637,7 +10637,9 @@ class OfferingUsersViewSet(
             "Allows a service provider to set the operational/access state of an offering user. "
             "Unlike the lifecycle state, this can be updated at any time (except when the account is Deleted). "
             "Use this to signal access blockers such as pending Terms of Use acceptance or "
-            "pending account linking (e.g. MyAccessID)."
+            "pending account linking (e.g. MyAccessID). "
+            "Optionally include service_provider_comment and service_provider_comment_url "
+            "to explain the change to the user in the same request."
         ),
         request=serializers.OfferingUserUpdateRuntimeStateSerializer,
         responses={200: None},
@@ -10651,7 +10653,18 @@ class OfferingUsersViewSet(
         )
         serializer.is_valid(raise_exception=True)
         offering_user.runtime_state = serializer.validated_data["runtime_state"]
-        offering_user.save(update_fields=["runtime_state"])
+        update_fields = ["runtime_state"]
+        if "service_provider_comment" in serializer.validated_data:
+            offering_user.service_provider_comment = serializer.validated_data[
+                "service_provider_comment"
+            ]
+            update_fields.append("service_provider_comment")
+        if "service_provider_comment_url" in serializer.validated_data:
+            offering_user.service_provider_comment_url = serializer.validated_data[
+                "service_provider_comment_url"
+            ]
+            update_fields.append("service_provider_comment_url")
+        offering_user.save(update_fields=update_fields)
 
         event_logger.emit(
             f"Runtime state for user {offering_user.user} in offering {offering_user.offering.name} "

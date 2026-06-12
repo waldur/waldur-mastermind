@@ -7858,6 +7858,16 @@ class OfferingUserUpdateRuntimeStateSerializer(serializers.Serializer):
         choices=OfferingUserRuntimeStates.VALUES,
         help_text="Operational/access state of the user account.",
     )
+    service_provider_comment = core_serializers.HTMLCleanField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional comment explaining the runtime state change.",
+    )
+    service_provider_comment_url = serializers.URLField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional URL with additional information for the user.",
+    )
 
     def validate(self, attrs):
         request = self.context["request"]
