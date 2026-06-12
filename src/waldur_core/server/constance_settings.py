@@ -752,6 +752,13 @@ CONSTANCE_CONFIG = {
     "SMAX_CREATION_SOURCE_NAME": ("", "Creation source name."),
     "SMAX_REQUESTS_OFFERING": ("", "Requests offering code for all issues."),
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
+    "SMAX_CERTIFICATE": (
+        "",
+        "Custom CA certificate (PEM format) used to verify the TLS connection "
+        "to the SMAX server. When set, it overrides the default CA bundle. "
+        "Ignored if SSL verification is disabled.",
+        "text_field",
+    ),
     "SMAX_WEBHOOK_SHARED_SECRET": (
         "",
         "Shared secret expected in the X-Webhook-Secret header of inbound "
@@ -1722,6 +1729,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_TIMES_TO_PULL",
         "SMAX_CREATION_SOURCE_NAME",
         "SMAX_VERIFY_SSL",
+        "SMAX_CERTIFICATE",
         "SMAX_WEBHOOK_SHARED_SECRET",
     ),
     "Proposal settings": (

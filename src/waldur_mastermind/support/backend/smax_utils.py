@@ -1,7 +1,9 @@
 import functools
+import hashlib
 import json
 import logging
 import os
+import tempfile
 import time
 from dataclasses import dataclass, field
 from html import unescape
@@ -18,6 +20,29 @@ logger = logging.getLogger(__name__)
 
 class SmaxBackendError(ServiceBackendError):
     pass
+
+
+def get_smax_verify_ssl():
+    """Return the value for the requests `verify` argument.
+
+    If a custom CA certificate is configured, write it to a temp file and
+    return its path; otherwise fall back to the SMAX_VERIFY_SSL boolean.
+    """
+    if not config.SMAX_VERIFY_SSL:
+        return False
+
+    certificate = config.SMAX_CERTIFICATE
+    if certificate:
+        cert_hash = hashlib.sha256(certificate.encode("utf-8")).hexdigest()
+        file_path = os.path.join(
+            tempfile.gettempdir(), f"waldur-smax-certificate-{cert_hash}.pem"
+        )
+        if not os.path.isfile(file_path):
+            with open(file_path, "w") as fh:
+                fh.write(certificate)
+        return file_path
+
+    return True
 
 
 def reraise_exceptions(func):
@@ -273,6 +298,7 @@ class SmaxBackend:
             f"{self.api_url}auth/authentication-endpoint/"
             f"authenticate/login?TENANTID={config.SMAX_TENANT_ID}",
             json={"login": config.SMAX_LOGIN, "password": config.SMAX_PASSWORD},
+            verify=get_smax_verify_ssl(),
         )
 
         if response.status_code != status.HTTP_200_OK:
@@ -298,6 +324,7 @@ class SmaxBackend:
         return requests.get(
             url=url,
             headers=headers,
+            verify=get_smax_verify_ssl(),
         )
 
     def get(
@@ -335,7 +362,7 @@ class SmaxBackend:
             headers=headers,
             data=data,
             json=json,
-            verify=config.SMAX_VERIFY_SSL,
+            verify=get_smax_verify_ssl(),
             **kwargs,
         )
 
