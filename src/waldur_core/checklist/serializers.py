@@ -153,6 +153,12 @@ class QuestionDependencySerializer(
 class QuestionSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    allowed_file_types = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    allowed_mime_types = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
     question_options = QuestionOptionsSerializer(many=True, read_only=True)
 
     class Meta:
