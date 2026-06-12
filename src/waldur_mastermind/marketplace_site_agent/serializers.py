@@ -144,6 +144,11 @@ class AgentServiceStatisticsSerializer(serializers.Serializer):
     )
 
 
+class AgentDependencySerializer(serializers.Serializer):
+    package = serializers.CharField()
+    version = serializers.CharField()
+
+
 class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     offering = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -165,6 +170,7 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     services = NestedAgentServiceSerializer(
         many=True, read_only=True, source="agentservice_set"
     )
+    dependencies = AgentDependencySerializer(many=True, read_only=True)
 
     class Meta:
         model = models.AgentIdentity

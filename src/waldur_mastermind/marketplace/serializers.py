@@ -646,12 +646,17 @@ class SupportSecretOptionsSerializer(serializers.Serializer):
     )
 
 
+class ScriptEnvVarSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    value = serializers.CharField()
+
+
 class ScriptSecretOptionsSerializer(serializers.Serializer):
     language = serializers.CharField(
         required=False, help_text="Script language: Python or Bash"
     )
-    environ = serializers.JSONField(
-        required=False, help_text="Script environment variables"
+    environ = ScriptEnvVarSerializer(
+        many=True, required=False, help_text="Script environment variables"
     )
     create = serializers.CharField(
         required=False, help_text="Script for resource creation"
@@ -11514,6 +11519,9 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
     versions = NestedSoftwareVersionSerializer(many=True, read_only=True)
     parent_softwares = NestedParentSoftwareSerializer(many=True, read_only=True)
     extensions = NestedParentSoftwareSerializer(many=True, read_only=True)
+    categories = serializers.ListField(child=serializers.CharField(), read_only=True)
+    licenses = serializers.ListField(child=serializers.CharField(), read_only=True)
+    maintainers = serializers.ListField(child=serializers.CharField(), read_only=True)
 
     class Meta:
         model = models.SoftwarePackage

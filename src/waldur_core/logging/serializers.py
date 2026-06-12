@@ -3,6 +3,7 @@ import uuid
 
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
@@ -137,8 +138,19 @@ class EmailHookSerializer(BaseHookSerializer):
         return "email"
 
 
+class EventSubscriptionObservableObjectSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(required=False)
+    object_type = serializers.CharField()
+    object_id = serializers.IntegerField(required=False)
+
+
+@extend_schema_field(EventSubscriptionObservableObjectSerializer(many=True))
+class ObservableObjectsField(serializers.JSONField):
+    pass
+
+
 class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
-    observable_objects = serializers.JSONField(
+    observable_objects = ObservableObjectsField(
         default=list,
         help_text="List of objects to observe. Each item must have 'object_type' "
         "(one of: order, user_role, resource, offering_user, importable_resources, "

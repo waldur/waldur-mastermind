@@ -799,6 +799,7 @@ class SlurmPolicyEvaluationLogSerializer(serializers.ModelSerializer):
 
     resource_name = serializers.CharField(source="resource.name", read_only=True)
     resource_uuid = serializers.UUIDField(source="resource.uuid", read_only=True)
+    actions_taken = serializers.ListField(child=serializers.CharField(), read_only=True)
 
     class Meta:
         model = models.SlurmPolicyEvaluationLog

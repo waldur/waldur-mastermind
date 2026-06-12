@@ -625,6 +625,14 @@ class ProjectAttachSerializer(rf_serializers.Serializer):
             )
 
 
+class ManagedProjectDetailsSerializer(rf_serializers.Serializer):
+    name = rf_serializers.CharField(required=False, allow_null=True)
+    description = rf_serializers.CharField(required=False, allow_null=True)
+    allocation = rf_serializers.CharField(required=False, allow_null=True)
+    start_date = rf_serializers.CharField(required=False, allow_null=True)
+    end_date = rf_serializers.CharField(required=False, allow_null=True)
+
+
 class ManagedProjectSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     rf_serializers.ModelSerializer,
@@ -648,10 +656,7 @@ class ManagedProjectSerializer(
         source="project", read_only=True
     )
 
-    details = rf_serializers.JSONField(
-        read_only=True,
-        help_text=_("Details of the project as provided by the remote OpenPortal."),
-    )
+    details = ManagedProjectDetailsSerializer(read_only=True)
 
     project_template = rf_serializers.HyperlinkedRelatedField(
         queryset=models.ProjectTemplate.objects.all(),

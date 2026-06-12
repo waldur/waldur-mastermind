@@ -2,6 +2,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.openapi_extensions import AnyJSONField
 
 from . import enums, models, utils
 
@@ -85,6 +86,7 @@ class QuestionOptionsAdminSerializer(QuestionOptionsSerializer):
 class QuestionDependencySerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    required_answer_value = AnyJSONField(required=False)
     question = serializers.HyperlinkedRelatedField(
         queryset=models.Question.objects.all(),
         required=True,
@@ -153,6 +155,7 @@ class QuestionDependencySerializer(
 class QuestionSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    review_answer_value = AnyJSONField(required=False)
     allowed_file_types = serializers.ListField(
         child=serializers.CharField(), required=False
     )
@@ -395,6 +398,8 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
 
 class QuestionWithAnswerReviewerSerializer(QuestionWithAnswerSerializer):
     """Extended serializer for questions with review logic (reviewer view)."""
+
+    review_answer_value = AnyJSONField(required=False)
 
     class Meta(QuestionWithAnswerSerializer.Meta):
         fields = QuestionWithAnswerSerializer.Meta.fields + (
@@ -650,7 +655,7 @@ class AnswerSubmitSerializer(serializers.Serializer):
     """Generic serializer for submitting checklist answers."""
 
     question_uuid = serializers.UUIDField()
-    answer_data = serializers.JSONField(allow_null=True)
+    answer_data = AnyJSONField(allow_null=True)
 
     def validate(self, attrs):
         """Validate answer data using the same logic as model's clean method"""
