@@ -501,6 +501,16 @@ def format_homeport_link(format_str="", **kwargs):
     return link.format(**kwargs)
 
 
+# Usernames of special accounts acting on behalf of the system rather than
+# a real person. Their email is SITE_EMAIL, so user-facing notifications
+# addressed to them must be skipped.
+ROBOT_USERNAMES = ("system_robot", "openportal_robot")
+
+
+def is_robot_user(user) -> bool:
+    return user.username in ROBOT_USERNAMES
+
+
 def get_system_robot():
     from waldur_core.core import models
 

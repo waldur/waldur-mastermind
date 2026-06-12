@@ -14,7 +14,12 @@ from django.utils import timezone
 from python_freeipa import exceptions as freeipa_exceptions
 
 from waldur_core.core import models as core_models
-from waldur_core.core.utils import broadcast_mail, format_homeport_link, pwgen
+from waldur_core.core.utils import (
+    broadcast_mail,
+    format_homeport_link,
+    is_robot_user,
+    pwgen,
+)
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models, utils
 from waldur_core.users.enums import InvitationState
@@ -64,6 +69,17 @@ def cancel_expired_invitations(invitations=None):
             logger.warning(
                 "Skipping expired invitation notification for %s: scope was deleted",
                 invitation.uuid,
+            )
+            continue
+
+        # Robot-created invitations would notify SITE_EMAIL,
+        # producing a helpdesk ticket per expired invitation
+        if is_robot_user(invitation.created_by):
+            logger.info(
+                "Skipping expired invitation notification for %s: "
+                "created by robot account %s",
+                invitation.uuid,
+                invitation.created_by.username,
             )
             continue
 
