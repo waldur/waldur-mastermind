@@ -213,6 +213,11 @@ def make_fields_optional(result, generator, **kwargs):
     Modifies an OpenAPI schema to make all fields optional in responses for
     endpoints that have a "field" query parameter.
     """
+    import os
+
+    if os.environ.get("SKIP_MAKE_FIELDS_OPTIONAL") == "true":
+        return result
+
     for path in result["paths"].values():
         for operation in path.values():
             has_field_param = any(
@@ -227,6 +232,43 @@ def make_fields_optional(result, generator, **kwargs):
                 for content in response.get("content").values():
                     if "schema" in content:
                         _make_fields_optional(content["schema"], result)
+
+    return result
+
+
+def make_readonly_fields_required(result, generator, **kwargs):
+    """
+    OpenAPI 3.0 specifies that readOnly fields should not be in the 'required' list.
+    However, for strict TypeScript generation, we want readOnly fields to be required
+    in response models (they are always returned by the server).
+    Because COMPONENT_SPLIT_REQUEST is True, request and response schemas are split.
+    We add all readOnly fields to the required list for schemas that do not end in 'Request'.
+    """
+    import os
+
+    if os.environ.get("SKIP_MAKE_FIELDS_OPTIONAL") != "true":
+        return result
+
+    schemas = result.get("components", {}).get("schemas", {})
+    for schema_name, schema in schemas.items():
+        if schema_name.endswith("Request"):
+            continue
+
+        properties = schema.get("properties", {})
+        if not isinstance(properties, dict):
+            continue
+
+        read_only_fields = [
+            prop_name
+            for prop_name, prop_data in properties.items()
+            if isinstance(prop_data, dict) and prop_data.get("readOnly") is True
+        ]
+
+        if read_only_fields:
+            required = schema.setdefault("required", [])
+            for field in read_only_fields:
+                if field not in required:
+                    required.append(field)
 
     return result
 

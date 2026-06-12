@@ -56,6 +56,7 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.refactor_pagination_parameters",
         "waldur_core.core.schema_hooks.transform_paginated_arrays",
         "waldur_core.core.schema_hooks.make_fields_optional",
+        "waldur_core.core.schema_hooks.make_readonly_fields_required",
         "waldur_core.core.schema_hooks.relax_conditionally_optional_fields",
         "waldur_core.core.schema_hooks.remove_waldur_cookie_auth",
         "waldur_core.core.schema_hooks.mark_optional_request_bodies",

@@ -673,10 +673,12 @@ Generate OpenAPI schema:
 
     # Generate the schema, injecting the dynamic version
     - uv run waldur spectacular --api-version "$RELEASE_VERSION" --file waldur-openapi-schema.yaml --fail-on-warn
+    - SKIP_MAKE_FIELDS_OPTIONAL=true uv run waldur spectacular --api-version "$RELEASE_VERSION" --file waldur-typescript-schema.yaml --fail-on-warn
     - echo "Successfully generated OpenAPI schema with version $RELEASE_VERSION"
   artifacts:
     paths:
       - waldur-openapi-schema.yaml
+      - waldur-typescript-schema.yaml
     expire_in: 1 day
 
 Generate TypeScript SDK:
@@ -691,17 +693,8 @@ Generate TypeScript SDK:
   needs:
     - Generate OpenAPI schema
   script: |
-    npx --yes @hey-api/openapi-ts@0.97.3
-    # drop querySerializer because it is producing explode: false for multiple choice filter.
-    # The generator emits it as a single line, or wrapped across lines when an operation has
-    # several array params, so a line-range sed over-deletes; strip the whole property instead.
-    awk '
-    /querySerializer: \{ parameters:/ { if ($0 ~ /\} \},[[:space:]]*$/) { next } skip=1; next }
-    skip==1 { if ($0 ~ /^[[:space:]]*\} \},[[:space:]]*$/) skip=0; next }
-    { print }
-    ' waldur-typescript-sdk/sdk.gen.ts > waldur-typescript-sdk/sdk.gen.ts.tmp
-    mv waldur-typescript-sdk/sdk.gen.ts.tmp waldur-typescript-sdk/sdk.gen.ts
-    sed -i '1i export { formDataBodySerializer, RequestResult } from "./client";' waldur-typescript-sdk/index.ts
+    apk add --no-cache bash
+    bash scripts/generate-ts-sdk.sh
   artifacts:
     paths:
       - waldur-typescript-sdk/
