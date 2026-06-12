@@ -160,6 +160,15 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
 class GroupInvitationSerializer(
     core_serializers.UserEmailPatternsValidatorMixin, BaseInvitationSerializer
 ):
+    user_affiliations = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_email_patterns = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_identity_sources = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
     project_role = serializers.SlugRelatedField(
         queryset=Role.objects.filter(is_active=True, name__startswith="PROJECT."),
         slug_field="uuid",
@@ -329,6 +338,15 @@ class GroupInvitationSerializer(
 class GroupInvitationUpdateSerializer(
     core_serializers.UserEmailPatternsValidatorMixin, serializers.ModelSerializer
 ):
+    user_affiliations = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_email_patterns = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_identity_sources = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
     role = serializers.SlugRelatedField(
         queryset=Role.objects.filter(is_active=True),
         slug_field="uuid",

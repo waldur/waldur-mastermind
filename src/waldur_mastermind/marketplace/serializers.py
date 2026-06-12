@@ -9786,6 +9786,7 @@ class CustomerServiceAccountSerializer(BaseScopedServiceAccountSerializer):
 
 
 class RobotAccountSerializer(BaseServiceAccountSerializer):
+    keys = serializers.ListField(child=serializers.CharField(), required=False)
     url = serializers.HyperlinkedIdentityField(
         view_name="marketplace-robot-account-detail", lookup_field="uuid"
     )

@@ -11,7 +11,18 @@ from waldur_mastermind.marketplace.models import Offering
 from . import models, utils
 
 
-class QuerySerializer(serializers.Serializer):
+class IdNamePairSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    uuid = serializers.UUIDField()
+
+
+class QueryOutputSerializer(serializers.Serializer):
+    customers = IdNamePairSerializer(many=True, required=False)
+    offerings = IdNamePairSerializer(many=True, required=False)
+    all_users = serializers.BooleanField(required=False)
+
+
+class BroadcastMessageQuerySerializer(serializers.Serializer):
     customers = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=Customer.objects.all(),
@@ -44,6 +55,7 @@ def serialize_query(query):
 class BroadcastMessageSerializer(
     RestrictedSerializerMixin, serializers.ModelSerializer
 ):
+    query = QueryOutputSerializer(read_only=True)
     author_full_name = serializers.ReadOnlyField(source="author.full_name")
     state = serializers.ReadOnlyField()
     emails = serializers.ReadOnlyField()
@@ -62,25 +74,35 @@ class BroadcastMessageSerializer(
             "send_at",
         )
 
-    def validate_query(self, query):
-        serializer = QuerySerializer(data=query)
-        serializer.is_valid()
-        return serializer.validated_data
+
+class BroadcastMessageCreateSerializer(
+    RestrictedSerializerMixin, serializers.ModelSerializer
+):
+    query = BroadcastMessageQuerySerializer(write_only=True)
+
+    class Meta:
+        model = models.BroadcastMessage
+        fields = (
+            "uuid",
+            "created",
+            "subject",
+            "body",
+            "query",
+            "send_at",
+        )
 
     def create(self, validated_data):
         current_user = self.context["request"].user
         validated_data["author"] = current_user
-        validated_data["emails"] = utils.get_user_emails_for_query(
-            validated_data["query"]
-        )
-        validated_data["query"] = serialize_query(validated_data["query"])
+        query = validated_data.get("query", {})
+        validated_data["emails"] = utils.get_user_emails_for_query(query)
+        validated_data["query"] = serialize_query(query)
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        validated_data["emails"] = utils.get_user_emails_for_query(
-            validated_data["query"]
-        )
-        validated_data["query"] = serialize_query(validated_data["query"])
+        query = validated_data.get("query", {})
+        validated_data["emails"] = utils.get_user_emails_for_query(query)
+        validated_data["query"] = serialize_query(query)
         return super().update(instance, validated_data)
 
 

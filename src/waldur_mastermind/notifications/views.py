@@ -15,6 +15,8 @@ from . import filters, models, serializers, tasks, utils
 class BroadcastMessageViewSet(ActionsViewSet):
     queryset = models.BroadcastMessage.objects.all().order_by("-created")
     serializer_class = serializers.BroadcastMessageSerializer
+    create_serializer_class = serializers.BroadcastMessageCreateSerializer
+    update_serializer_class = serializers.BroadcastMessageCreateSerializer
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.BroadcastMessageFilterSet
@@ -25,6 +27,38 @@ class BroadcastMessageViewSet(ActionsViewSet):
         )
     ]
     lookup_field = "uuid"
+
+    @extend_schema(
+        request=serializers.BroadcastMessageCreateSerializer,
+        responses={
+            status.HTTP_201_CREATED: serializers.BroadcastMessageSerializer,
+        },
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        broadcast_message = serializer.save()
+        read_serializer = serializers.BroadcastMessageSerializer(
+            broadcast_message, context=self.get_serializer_context()
+        )
+        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        request=serializers.BroadcastMessageCreateSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.BroadcastMessageSerializer,
+        },
+    )
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        broadcast_message = serializer.save()
+        read_serializer = serializers.BroadcastMessageSerializer(
+            broadcast_message, context=self.get_serializer_context()
+        )
+        return Response(read_serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(request=None, responses=None)
     @decorators.action(detail=True, methods=["post"])
@@ -43,11 +77,11 @@ class BroadcastMessageViewSet(ActionsViewSet):
 
     @extend_schema(
         responses={status.HTTP_200_OK: serializers.NotificationRecipientSerializer},
-        request=serializers.QuerySerializer,
+        request=serializers.BroadcastMessageQuerySerializer,
     )
     @decorators.action(detail=False)
     def recipients(self, request, *args, **kwargs):
-        serializer = serializers.QuerySerializer(
+        serializer = serializers.BroadcastMessageQuerySerializer(
             context=self.get_serializer_context(), data=request.query_params
         )
         serializer.is_valid(raise_exception=True)

@@ -1889,6 +1889,13 @@ class UserSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
+    nationalities = serializers.ListField(child=serializers.CharField(), required=False)
+    managed_isds = serializers.ListField(child=serializers.CharField(), required=False)
+    active_isds = serializers.ListField(child=serializers.CharField(), required=False)
+    eduperson_assurance = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    affiliations = serializers.ListField(child=serializers.CharField(), required=False)
     email = serializers.EmailField()
     agree_with_policy = serializers.BooleanField(
         write_only=True,

@@ -29,6 +29,13 @@ class RemoteEduteamsRequestSerializer(serializers.Serializer):
 
 
 class IdentityProviderSerializer(serializers.ModelSerializer):
+    protected_fields = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    allowed_redirects = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+
     class Meta:
         model = models.IdentityProvider
         exclude = ("id",)
