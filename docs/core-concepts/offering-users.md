@@ -210,17 +210,21 @@ POST /api/marketplace-offering-users/{uuid}/update_runtime_state/
 Content-Type: application/json
 
 {
-  "runtime_state": 1
+  "runtime_state": "Pending account linking",
+  "service_provider_comment": "Please link your MyAccessID account",
+  "service_provider_comment_url": "https://help.example.com/linking"
 }
 ```
 
+`service_provider_comment` and `service_provider_comment_url` are optional. Omit them to leave existing comments unchanged, or pass empty strings to clear them.
+
 Where `runtime_state` is one of:
 
-| Value | Integer | Meaning |
-|-------|---------|---------|
-| `Active` | `1` | User can access the service normally |
-| `Pending account linking` | `2` | User must link an external account (e.g. MyAccessID) before access is granted |
-| `Pending additional validation` | `3` | User must complete additional validation (e.g. accept new Terms of Use) |
+| Value | Meaning |
+|-------|---------|
+| `Active` | User can access the service normally |
+| `Pending account linking` | User must link an external account (e.g. MyAccessID) before access is granted |
+| `Pending additional validation` | User must complete additional validation (e.g. accept new Terms of Use) |
 
 **Valid transitions:** Any → Any (no FSM). Can be set regardless of lifecycle `state`, except when lifecycle is `DELETED`.
 
@@ -239,11 +243,11 @@ When retrieving or updating OfferingUser objects, the following state-related fi
 
 ## Runtime States
 
-| State | Integer | Description |
-|-------|---------|-------------|
-| `Active` | `1` | User has full access to the service |
-| `Pending account linking` | `2` | Access blocked; user must link an external account |
-| `Pending additional validation` | `3` | Access blocked; user must complete additional validation (e.g. TOU) |
+| State | Description |
+|-------|-------------|
+| `Active` | User has full access to the service |
+| `Pending account linking` | Access blocked; user must link an external account |
+| `Pending additional validation` | Access blocked; user must complete additional validation (e.g. TOU) |
 
 ### Lifecycle vs Runtime State
 

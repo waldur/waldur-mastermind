@@ -3429,6 +3429,84 @@ class OfferingUserUpdateRuntimeStateTest(test.APITestCase):
             ).exists()
         )
 
+    def test_can_update_runtime_state_with_comments(self):
+        """Runtime state and service provider comments can be set in one request."""
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {
+                "runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+                "service_provider_comment": "Please link your MyAccessID account",
+                "service_provider_comment_url": "https://help.example.com/linking",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state,
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment,
+            "Please link your MyAccessID account",
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment_url,
+            "https://help.example.com/linking",
+        )
+
+    def test_runtime_state_update_without_comments_leaves_existing_comments(self):
+        """Omitting comment fields does not clear existing service provider comments."""
+        self.offering_user.service_provider_comment = "Existing comment"
+        self.offering_user.service_provider_comment_url = "https://example.com/existing"
+        self.offering_user.save(
+            update_fields=["service_provider_comment", "service_provider_comment_url"]
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {"runtime_state": OfferingUserRuntimeStates.PENDING_ADDITIONAL_VALIDATION},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state,
+            OfferingUserRuntimeStates.PENDING_ADDITIONAL_VALIDATION,
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment, "Existing comment"
+        )
+        self.assertEqual(
+            self.offering_user.service_provider_comment_url,
+            "https://example.com/existing",
+        )
+
+    def test_can_clear_comments_when_updating_runtime_state(self):
+        """Blank comment fields clear existing service provider comments."""
+        self.offering_user.service_provider_comment = "Old comment"
+        self.offering_user.service_provider_comment_url = "https://example.com/old"
+        self.offering_user.save(
+            update_fields=["service_provider_comment", "service_provider_comment_url"]
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user),
+            {
+                "runtime_state": OfferingUserRuntimeStates.ACTIVE,
+                "service_provider_comment": "",
+                "service_provider_comment_url": "",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.runtime_state, OfferingUserRuntimeStates.ACTIVE
+        )
+        self.assertEqual(self.offering_user.service_provider_comment, "")
+        self.assertEqual(self.offering_user.service_provider_comment_url, "")
+
 
 @ddt
 class OfferingUserRuntimeStateFilterTest(test.APITestCase):
