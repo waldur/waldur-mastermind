@@ -1134,6 +1134,29 @@ class InvitationCancelTest(BaseInvitationTest):
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue("expired" in mail.outbox[0].subject)
 
+    @data("system_robot", "openportal_robot")
+    def test_expiration_mail_is_not_sent_when_invitation_created_by_robot(
+        self, username
+    ):
+        # Robot accounts use SITE_EMAIL, so notifying them about expired
+        # invitations floods the helpdesk with a ticket per expiration.
+        event_type = "invitation_expired"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)
+        robot = structure_factories.UserFactory(username=username, is_staff=True)
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            invitation = factories.ProjectInvitationFactory(
+                created=timezone.now() - timedelta(weeks=1),
+                created_by=robot,
+            )
+            tasks.cancel_expired_invitations(models.Invitation.objects.all())
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.EXPIRED)
+        self.assertEqual(len(mail.outbox), 0)
+
     @freeze_time("2025-01-10")
     def test_invitation_with_future_project_start_does_not_expire_early(self):
         event_type = "invitation_expired"
