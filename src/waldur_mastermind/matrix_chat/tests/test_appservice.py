@@ -1,5 +1,6 @@
 from unittest import mock
 
+import httpx
 from constance.test import override_config
 from rest_framework import status, test
 
@@ -755,3 +756,50 @@ class AppserviceDiagnosticsTest(test.APITestCase):
         self.assertIn(
             "Same as internal", by_name["public_homeserver_reachable"]["detail"]
         )
+
+    @staticmethod
+    def _well_known_with_livekit(url, **kwargs):
+        # Drives httpx.get per URL: the .well-known returns an MSC4143 LiveKit
+        # focus; every other probe (versions, whoami, joined_rooms, the SFU
+        # itself) answers 200 so we can isolate the LiveKit check entries.
+        resp = mock.MagicMock()
+        resp.status_code = 200
+        if url.endswith("/.well-known/matrix/client"):
+            resp.json.return_value = {
+                "org.matrix.msc4143.rtc_foci": [
+                    {
+                        "type": "livekit",
+                        "livekit_service_url": "https://lk.example.com",
+                    }
+                ]
+            }
+        else:
+            resp.json.return_value = {"versions": ["v1.16"], "server": {}}
+        return resp
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_diagnostics_discovers_livekit_from_well_known(self, mock_httpx_get):
+        mock_httpx_get.side_effect = self._well_known_with_livekit
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(DIAGNOSTICS_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        by_name = {c["name"]: c for c in response.data["checks"]}
+        self.assertTrue(by_name["livekit_configured"]["ok"])
+        self.assertIn("https://lk.example.com", by_name["livekit_configured"]["detail"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_diagnostics_flags_missing_livekit_focus(self, mock_httpx_get):
+        # .well-known has no rtc_foci at all.
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"versions": ["v1.16"], "server": {}}
+        mock_httpx_get.return_value = mock_resp
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(DIAGNOSTICS_URL)
+
+        by_name = {c["name"]: c for c in response.data["checks"]}
+        self.assertFalse(by_name["livekit_configured"]["ok"])
+        self.assertIn("No LiveKit focus", by_name["livekit_configured"]["detail"])

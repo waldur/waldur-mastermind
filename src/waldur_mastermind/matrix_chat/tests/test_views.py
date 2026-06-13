@@ -9,6 +9,13 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import models
 from waldur_mastermind.matrix_chat.tests import fixtures
 
+# is_enabled() requires all three; the write guard rejects mutations otherwise.
+MATRIX_ENABLED_CONFIG = dict(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="as-token",
+)
+
 
 class MatrixRoomListTest(test.APITestCase):
     def setUp(self):
@@ -36,6 +43,7 @@ class MatrixRoomListTest(test.APITestCase):
         self.assertEqual(members[0]["user_full_name"], member.user.full_name)
 
 
+@override_config(**MATRIX_ENABLED_CONFIG)
 class MatrixRoomCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MatrixChatFixture()
@@ -94,6 +102,7 @@ class MatrixRoomCreateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+@override_config(**MATRIX_ENABLED_CONFIG)
 class MatrixRoomActionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MatrixChatFixture()
@@ -428,6 +437,7 @@ class CurrentUserMembershipStateTest(test.APITestCase):
         self.assertIsNone(response.data["current_user_membership_state"])
 
 
+@override_config(**MATRIX_ENABLED_CONFIG)
 class MatrixRoomJoinLeaveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MatrixChatFixture()
@@ -473,6 +483,7 @@ class MatrixRoomJoinLeaveTest(test.APITestCase):
         )
 
 
+@override_config(**MATRIX_ENABLED_CONFIG)
 class MatrixRoomTeardownPermissionTest(test.APITestCase):
     """Demo policy: owners manage rooms but only staff/support tear them down."""
 
@@ -516,6 +527,7 @@ class MatrixRoomTeardownPermissionTest(test.APITestCase):
         self.assertFalse(models.MatrixRoom.objects.filter(uuid=self.room.uuid).exists())
 
 
+@override_config(**MATRIX_ENABLED_CONFIG)
 class MatrixRoomFsmEdgeTest(test.APITestCase):
     """The state-mutating actions wrap django_fsm transitions in try/except —
     an invalid transition must surface as a clean 400, not a 500."""
@@ -612,3 +624,40 @@ class MatrixHistoryExportDownloadTest(test.APITestCase):
             response.status_code,
             (status.HTTP_404_NOT_FOUND, status.HTTP_400_BAD_REQUEST),
         )
+
+
+class MatrixWriteGuardTest(test.APITestCase):
+    """With Matrix disabled, writes that would only strand rooms in a transient
+    state (their tasks no-op against no homeserver) are rejected, while reads
+    stay available so the admin rooms list remains viewable. Default constance
+    leaves Matrix disabled, so no override is needed here."""
+
+    def setUp(self):
+        self.fixture = fixtures.MatrixChatFixture()
+        self.room = self.fixture.matrix_room
+
+    def test_disabled_blocks_room_creation(self):
+        project = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            "/api/matrix/rooms/",
+            {"project": project.uuid.hex, "room_name": "My Room"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_disabled_blocks_room_action(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            f"/api/matrix/rooms/{self.room.uuid.hex}/sync_members/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_disabled_blocks_reprovision(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post("/api/admin/matrix/reprovision/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_disabled_still_allows_listing(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get("/api/matrix/rooms/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

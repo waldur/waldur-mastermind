@@ -68,7 +68,25 @@ def _get_accessible_room_ids(user):
     ).values_list("id", flat=True)
 
 
-class MatrixRoomViewSet(ActionsViewSet):
+class MatrixEnabledWriteGuardMixin:
+    """Reject mutating requests while the Matrix integration is disabled.
+
+    Reads stay open so the rooms list remains viewable, but a write would only
+    enqueue a Celery task against a non-existent homeserver: the row is left
+    stranded in a transient state (creating/disabling) that never resolves. The
+    frontend hides these actions; this is the backstop for direct or stale calls.
+    """
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if (
+            request.method not in permissions.SAFE_METHODS
+            and not matrix_client.is_enabled()
+        ):
+            raise ValidationError("Matrix chat is disabled.")
+
+
+class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
     queryset = models.MatrixRoom.objects.all().order_by("-created")
     serializer_class = serializers.MatrixRoomSerializer
     filter_backends = [DjangoFilterBackend]
@@ -963,6 +981,55 @@ class MatrixDiagnosticsView(views.APIView):
             }
         )
 
+        # Check 8b: LiveKit (RTC) configured. The video-call SFU is advertised
+        # by the homeserver's .well-known under org.matrix.msc4143.rtc_foci —
+        # the exact source the browser reads. Waldur holds no LiveKit config, so
+        # we discover it the same way rather than inventing a parallel setting.
+        livekit_service_url = ""
+        if homeserver_url:
+            try:
+                resp = httpx.get(
+                    f"{homeserver_url}/.well-known/matrix/client",
+                    timeout=DIAGNOSTICS_TIMEOUT,
+                )
+                if resp.status_code == 200:
+                    well_known = resp.json()
+                    foci = (
+                        well_known.get("org.matrix.msc4143.rtc_foci")
+                        or well_known.get("org.matrix.msc4143.rtc_transports")
+                        or []
+                    )
+                    lk_focus = next(
+                        (f for f in foci if f.get("type") == "livekit"), None
+                    )
+                    if lk_focus:
+                        livekit_service_url = lk_focus.get("livekit_service_url", "")
+                    if livekit_service_url:
+                        detail = livekit_service_url
+                    elif lk_focus:
+                        detail = "LiveKit focus present but no livekit_service_url"
+                    else:
+                        detail = "No LiveKit focus advertised in .well-known"
+                else:
+                    detail = f"HTTP {resp.status_code} fetching .well-known"
+            except httpx.ConnectError:
+                detail = "Connection refused fetching .well-known"
+            except httpx.TimeoutException:
+                detail = "Timed out fetching .well-known"
+            except Exception as e:
+                detail = str(e)
+        else:
+            detail = "Skipped — no homeserver URL"
+
+        checks.append(
+            {
+                "name": "livekit_configured",
+                "label": "LiveKit (RTC) configured",
+                "ok": bool(livekit_service_url),
+                "detail": detail,
+            }
+        )
+
         # Check 9: Room stats
         total_rooms = models.MatrixRoom.objects.count()
         active_rooms = models.MatrixRoom.objects.filter(
@@ -1016,6 +1083,11 @@ class MatrixReprovisionView(views.APIView):
         "for provisioning. Also resets all user profiles. Staff only.",
     )
     def post(self, request):
+        # Reprovisioning resets every active room to 'creating' and re-queues
+        # provisioning; with no homeserver attached the tasks no-op and strand
+        # all rooms in a state that never resolves.
+        if not matrix_client.is_enabled():
+            raise ValidationError("Matrix chat is disabled.")
         room_count = 0
         with transaction.atomic():
             # Lock the rows up front so concurrent disable/retry calls can't
