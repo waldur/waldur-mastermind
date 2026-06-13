@@ -4038,6 +4038,44 @@ class ProviderOfferingViewSet(
     ]
 
     @extend_schema(
+        summary="Synchronize offering resources",
+        description="Requests connected site agents to run a full reconciliation "
+        "of all resources belonging to this offering: recreate missing backend "
+        "accounts, restore user associations and re-apply resource limits. "
+        "Useful when the provider backend has lost state, e.g. a wiped SLURM database.",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def sync_resources(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        if offering.type != SITE_AGENT_OFFERING:
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data="Only site-agent based offerings support resource synchronization.",
+            )
+        if not utils.publish_offering_resources_sync_request(offering, request.user):
+            return Response(
+                status=status.HTTP_409_CONFLICT,
+                data="No site agent is subscribed to resource synchronization "
+                "events for this offering.",
+            )
+        return Response(
+            status=status.HTTP_202_ACCEPTED,
+            data={"status": _("Resource synchronization has been requested.")},
+        )
+
+    sync_resources_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    sync_resources_validators = [
+        core_validators.StateValidator(OfferingStates.ACTIVE, OfferingStates.PAUSED),
+    ]
+
+    @extend_schema(
         summary="List customer service accounts for an offering",
         description="Returns a paginated list of customer-level service accounts for customers who have resources of this offering.",
         responses=serializers.CustomerServiceAccountSerializer(many=True),

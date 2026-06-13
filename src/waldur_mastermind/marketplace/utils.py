@@ -3913,6 +3913,34 @@ def prepare_messages(
     return messages_to_send
 
 
+def publish_offering_resources_sync_request(offering: models.Offering, user) -> bool:
+    """
+    Send a message to RabbitMQ requesting a full reconciliation of all offering
+    resources by the connected site agents (e.g. to restore backend accounts
+    after the provider backend has lost state).
+
+    Returns True if at least one agent subscription received the request.
+    """
+    logger.info(
+        "Requesting synchronization of all resources for offering %s by user %s",
+        offering,
+        user,
+    )
+
+    payload = {
+        "requested_by_user_uuid": user.uuid.hex,
+    }
+    messages = prepare_messages(
+        offering,
+        payload,
+        ObservableObjectType.OFFERING_RESOURCES_SYNC,
+    )
+    if not messages:
+        return False
+    logging_tasks.publish_messages.delay(messages)
+    return True
+
+
 def publish_backend_resource_request(request: models.BackendResourceRequest):
     """
     Send a message to RabbitMQ requesting a list of resources for the offering.

@@ -870,6 +870,7 @@ class ObservableObjectType(Enum):
     SERVICE_ACCOUNT = "service_account"
     COURSE_ACCOUNT = "course_account"
     RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
+    OFFERING_RESOURCES_SYNC = "offering_resources_sync"
 
     @classmethod
     def choices(cls):
