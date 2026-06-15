@@ -1,5 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import OpenApiExample, extend_schema
@@ -8,10 +6,10 @@ from rest_framework import decorators, response, status
 from waldur_core.core import executors as core_executors
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import views as structure_views
-from waldur_core.core.serializers import StatusSerializer
 
 from . import executors, filters, models, serializers
 

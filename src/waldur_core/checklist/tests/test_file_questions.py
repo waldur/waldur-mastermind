@@ -1,8 +1,8 @@
 import base64
 import os
 
-from django.contrib.contenttypes.models import ContentType
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
 from waldur_core.checklist import models, utils

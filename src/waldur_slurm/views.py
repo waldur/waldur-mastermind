@@ -5,10 +5,10 @@ from rest_framework import permissions, response, status, viewsets
 from rest_framework.decorators import action
 
 from waldur_core.core import executors as core_executors
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
-from waldur_core.core.serializers import StatusSerializer
 
 from . import executors, filters, models, serializers
 

@@ -20,7 +20,6 @@ from waldur_mastermind.support.backend.atlassian import (
 )
 from waldur_mastermind.support.tests import factories
 
-
 JIRA_WEBHOOK_TEST_SECRET = "jira-test-secret"  # noqa: S105
 
 

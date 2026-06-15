@@ -1,6 +1,3 @@
-from waldur_core.core.serializers import DetailSerializer
-from drf_spectacular.utils import extend_schema
-from drf_spectacular.types import OpenApiTypes
 import datetime
 import decimal
 import uuid
@@ -18,10 +15,9 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.serializers import DetailSerializer, StatusSerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import event_logger
-from waldur_core.core.serializers import StatusSerializer
-from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models

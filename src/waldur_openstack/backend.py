@@ -2497,12 +2497,6 @@ class OpenStackBackend(ServiceBackend):
                     "Security group rule with id %s successfully deleted in backend",
                     backend_rule_id,
                 )
-                backend_rule = backend_rules[backend_rule_id]
-                security_group_rule = models.SecurityGroupRule(
-                    security_group=security_group,
-                    backend_id=backend_rule_id,
-                    **self._import_security_group_rule(backend_rule),
-                )
                 # Per-rule events intentionally omitted — the aggregate
                 # openstack_security_group_rules_changed event (emitted at
                 # the API or pull layer) covers the change.

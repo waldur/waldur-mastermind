@@ -1,5 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
 import logging
 
 from django.http import Http404

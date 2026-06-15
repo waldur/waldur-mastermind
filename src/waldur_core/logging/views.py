@@ -1,5 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
 import fnmatch
 import logging
 
@@ -27,12 +25,12 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.logging import backend, filters, models, serializers, utils
 from waldur_core.logging.event_logger import get_event_groups
 from waldur_core.structure.serializers_data_access import (
     GlobalUserDataAccessLogSerializer,
 )
-from waldur_core.core.serializers import StatusSerializer
 
 logger = logging.getLogger(__name__)
 

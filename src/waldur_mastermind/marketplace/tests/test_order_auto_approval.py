@@ -8,7 +8,7 @@ from rest_framework import test
 
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models, order_approval
 from waldur_mastermind.marketplace.enums import (
@@ -219,7 +219,7 @@ class StaleCreatorTest(test.APITestCase):
             monthly_cost_limit=Decimal("100"),
             created_by=staff,
         )
-        order = self._make_order()
+        self._make_order()
         self.assertTrue(order_approval._rule_creator_can_still_approve(rule))
 
 

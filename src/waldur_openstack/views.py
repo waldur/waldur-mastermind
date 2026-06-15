@@ -1,6 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
-from drf_spectacular.types import OpenApiTypes
 import logging
 
 from django.contrib.contenttypes.models import ContentType
@@ -11,24 +8,23 @@ from django.db.models import (
 )
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
-    OpenApiTypes,
     extend_schema,
     extend_schema_view,
 )
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
-from rest_framework import serializers as rf_serializers
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.serializers import StatusSerializer, DetailSerializer
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.serializers import DetailSerializer, StatusSerializer
 from waldur_core.logging import event_logger
 from waldur_core.logging.diff import compute_collection_diff
 from waldur_core.logging.enums import EventType

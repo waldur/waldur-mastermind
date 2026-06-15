@@ -25,6 +25,8 @@ from waldur_core.checklist import enums as checklist_enums
 from waldur_core.core import utils as core_utils
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import load_json_resource
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_core.media.models import File
 from waldur_core.media.utils import dummy_image, dummy_svg
 from waldur_core.permissions.enums import PermissionEnum
@@ -34,8 +36,6 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
-from waldur_core.logging.enums import EventType
-from waldur_core.logging.models import Event
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory

@@ -17,8 +17,8 @@ broker, see ``probe_broker_latency``.
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable
 
 from django.core.management.base import BaseCommand
 

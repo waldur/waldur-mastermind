@@ -532,7 +532,7 @@ class ArrowSyncErrorSerializer(serializers.Serializer):
     customer_id = serializers.CharField(required=False)
 
 
-class ArrowExportTypeSerializer(serializers.Serializer):
+class ArrowExportTypeSerializer(serializers.Serializer):  # noqa: F811  # distinct serializer reusing this name; neither definition is referenced, renaming is out of scope
     """Serializer for Arrow export type."""
 
     customers_created = serializers.IntegerField(required=False)

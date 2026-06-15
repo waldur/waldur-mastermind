@@ -7,7 +7,6 @@ from rest_framework import status, test
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
-from waldur_openstack import models
 
 from . import factories, fixtures
 

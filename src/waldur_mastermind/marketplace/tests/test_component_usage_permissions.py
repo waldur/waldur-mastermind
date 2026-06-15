@@ -2,12 +2,12 @@ from ddt import data, ddt
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import (
     CustomerFactory,
     ProjectFactory,
     UserFactory,
 )
-from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture

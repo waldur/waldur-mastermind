@@ -4,8 +4,8 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status, viewsets
 
 from waldur_core.core import validators as core_validators
-from waldur_core.core.serializers import StatusSerializer
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.structure import views as structure_views
 
 from . import executors, filters, models, serializers

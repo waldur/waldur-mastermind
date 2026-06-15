@@ -1,5 +1,5 @@
 from constance.test import override_config
-from ddt import data, ddt
+from ddt import ddt
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
