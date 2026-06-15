@@ -2,6 +2,7 @@ import datetime
 import threading
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+from unittest import mock
 
 from ddt import data, ddt
 from django.db.models.aggregates import Sum
@@ -450,6 +451,68 @@ class CustomerCreditTest(test.APITestCase):
         self.assertEqual(pc_no_end.value, 200)
         # Customer credit should not be affected
         self.assertEqual(customer_credit.value, old_customer_value)
+
+    def test_set_to_zero_continues_after_failing_customer_credit(self):
+        """One credit failing to save must not block zeroing of the rest."""
+        bad_credit = factories.CustomerCreditFactory(
+            end_date=datetime.date.today() - datetime.timedelta(days=31)
+        )
+        good_credit = factories.CustomerCreditFactory(
+            end_date=datetime.date.today() - datetime.timedelta(days=31)
+        )
+        project = structure_factories.ProjectFactory(customer=good_credit.customer)
+        project_credit = factories.ProjectCreditFactory(
+            project=project,
+            value=100,
+            end_date=datetime.date.today() - datetime.timedelta(days=31),
+        )
+
+        original_save = models.CustomerCredit.save
+
+        def failing_save(credit, *args, **kwargs):
+            if credit.pk == bad_credit.pk:
+                raise ValueError("Simulated save failure.")
+            return original_save(credit, *args, **kwargs)
+
+        with mock.patch.object(models.CustomerCredit, "save", failing_save):
+            tasks.set_to_zero_overdue_credits()
+
+        bad_credit.refresh_from_db()
+        good_credit.refresh_from_db()
+        project_credit.refresh_from_db()
+        self.assertTrue(bad_credit.value)
+        self.assertFalse(good_credit.value)
+        self.assertFalse(project_credit.value)
+
+    def test_set_to_zero_continues_after_failing_project_credit(self):
+        """One project credit failing to save must not block zeroing of the rest."""
+        customer = structure_factories.CustomerFactory()
+        factories.CustomerCreditFactory(customer=customer, value=1000)
+        bad_project_credit = factories.ProjectCreditFactory(
+            project=structure_factories.ProjectFactory(customer=customer),
+            value=100,
+            end_date=datetime.date.today() - datetime.timedelta(days=31),
+        )
+        good_project_credit = factories.ProjectCreditFactory(
+            project=structure_factories.ProjectFactory(customer=customer),
+            value=200,
+            end_date=datetime.date.today() - datetime.timedelta(days=31),
+        )
+
+        original_save = models.ProjectCredit.save
+
+        def failing_save(credit, *args, **kwargs):
+            if credit.pk == bad_project_credit.pk:
+                raise ValueError("Simulated save failure.")
+            return original_save(credit, *args, **kwargs)
+
+        with mock.patch.object(models.ProjectCredit, "save", failing_save):
+            tasks.set_to_zero_overdue_credits()
+
+        bad_project_credit.refresh_from_db()
+        good_project_credit.refresh_from_db()
+        self.assertTrue(bad_project_credit.value)
+        self.assertFalse(good_project_credit.value)
 
     def test_set_to_zero_includes_system_robot_in_event_context(self):
         """Events from set_to_zero_overdue_credits should have system robot user context."""

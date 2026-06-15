@@ -392,38 +392,55 @@ def set_to_zero_overdue_credits(effective_date=None):
             .filter(end_date__lt=effective_date)
             .exclude(value=0)
         ):
-            old_value = int(credit.value)
-            credit.value = 0
-            credit.save(update_fields=["value"])
-            event_logger.emit(
-                "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
-                event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
-                event_context={
-                    "customer": credit.customer,
-                    "credit_end_date": credit.end_date,
-                    "old_value": old_value,
-                    "new_value": 0,
-                },
-            )
+            # A savepoint per credit so that one broken row does not abort
+            # zeroing of the remaining credits or the calling invoice task.
+            try:
+                with transaction.atomic():
+                    old_value = int(credit.value)
+                    credit.value = 0
+                    credit.save(update_fields=["value"])
+                    event_logger.emit(
+                        "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
+                        event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+                        event_context={
+                            "customer": credit.customer,
+                            "credit_end_date": credit.end_date,
+                            "old_value": old_value,
+                            "new_value": 0,
+                        },
+                    )
+            except Exception:
+                logger.exception(
+                    "Unable to set overdue customer credit %s to zero", credit.uuid
+                )
+                continue
         for project_credit in (
             models.ProjectCredit.objects.select_for_update()
             .filter(end_date__lt=effective_date)
             .exclude(value=0)
         ):
-            old_value = int(project_credit.value)
-            project_credit.value = 0
-            project_credit.save(update_fields=["value"])
-            event_logger.emit(
-                "Project credit has been set to zero as the end date {credit_end_date} has arrived.",
-                event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
-                event_context={
-                    "customer": project_credit.project.customer,
-                    "project": project_credit.project,
-                    "credit_end_date": project_credit.end_date,
-                    "old_value": old_value,
-                    "new_value": 0,
-                },
-            )
+            try:
+                with transaction.atomic():
+                    old_value = int(project_credit.value)
+                    project_credit.value = 0
+                    project_credit.save(update_fields=["value"])
+                    event_logger.emit(
+                        "Project credit has been set to zero as the end date {credit_end_date} has arrived.",
+                        event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+                        event_context={
+                            "customer": project_credit.project.customer,
+                            "project": project_credit.project,
+                            "credit_end_date": project_credit.end_date,
+                            "old_value": old_value,
+                            "new_value": 0,
+                        },
+                    )
+            except Exception:
+                logger.exception(
+                    "Unable to set overdue project credit %s to zero",
+                    project_credit.uuid,
+                )
+                continue
 
 
 def process_invoice_credits(invoice: models.Invoice):
