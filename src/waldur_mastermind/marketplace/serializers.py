@@ -81,7 +81,6 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
-    MaintenanceType,
     OfferingStates,
     OfferingUserRuntimeStates,
     OfferingUserStates,
@@ -10631,22 +10630,6 @@ class PublicMaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerial
     maintenance_type_display = serializers.CharField(
         read_only=True, source="get_maintenance_type_display"
     )
-    # Aliases matching the shape consumed by the homeport announcement details
-    # dialog, which is shared with AdminAnnouncement-backed announcements.
-    description = serializers.CharField(read_only=True, source="message")
-    type = serializers.SerializerMethodField()
-    maintenance_uuid = serializers.UUIDField(read_only=True, source="uuid")
-    maintenance_name = serializers.CharField(read_only=True, source="name")
-    maintenance_service_provider = serializers.CharField(
-        read_only=True, source="service_provider.customer.name"
-    )
-    maintenance_scheduled_start = serializers.DateTimeField(
-        read_only=True, source="scheduled_start"
-    )
-    maintenance_scheduled_end = serializers.DateTimeField(
-        read_only=True, source="scheduled_end"
-    )
-    maintenance_affected_offerings = serializers.SerializerMethodField()
 
     def get_state(
         self, obj: models.MaintenanceAnnouncement
@@ -10656,45 +10639,6 @@ class PublicMaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerial
         "Completed",
     ]:
         return obj.get_state_display()
-
-    def get_type(
-        self, obj: models.MaintenanceAnnouncement
-    ) -> Literal["danger", "warning"]:
-        return (
-            "danger"
-            if obj.maintenance_type
-            in (MaintenanceType.EMERGENCY, MaintenanceType.SECURITY)
-            else "warning"
-        )
-
-    @extend_schema_field(
-        {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "uuid": {"type": "string", "format": "uuid"},
-                    "name": {"type": "string"},
-                    "impact_level": {"type": "string"},
-                    "impact_level_display": {"type": "string"},
-                    "impact_description": {"type": "string"},
-                },
-            },
-        }
-    )
-    def get_maintenance_affected_offerings(
-        self, obj: models.MaintenanceAnnouncement
-    ) -> list[dict]:
-        return [
-            {
-                "uuid": str(affected_offering.offering.uuid),
-                "name": affected_offering.offering.name,
-                "impact_level": affected_offering.impact_level,
-                "impact_level_display": affected_offering.get_impact_level_display(),
-                "impact_description": affected_offering.impact_description,
-            }
-            for affected_offering in obj.affected_offerings.all()
-        ]
 
     class Meta:
         model = models.MaintenanceAnnouncement
@@ -10713,14 +10657,6 @@ class PublicMaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerial
             "actual_end",
             "affected_offerings",
             "service_provider_name",
-            "description",
-            "type",
-            "maintenance_uuid",
-            "maintenance_name",
-            "maintenance_service_provider",
-            "maintenance_scheduled_start",
-            "maintenance_scheduled_end",
-            "maintenance_affected_offerings",
         ]
         read_only_fields = fields
         extra_kwargs = {
