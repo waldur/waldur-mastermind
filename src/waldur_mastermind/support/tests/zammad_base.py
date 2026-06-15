@@ -8,7 +8,6 @@ from waldur_mastermind.support.backend.zammad_utils import User
 
 from . import fixtures
 
-
 ZAMMAD_WEBHOOK_TEST_SECRET = "zammad-test-secret"  # noqa: S105
 
 

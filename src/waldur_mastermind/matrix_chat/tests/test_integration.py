@@ -14,6 +14,7 @@ To run:
 import logging
 from uuid import uuid4
 
+import httpx
 import pytest
 from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
@@ -243,7 +244,7 @@ class MatrixClientUserProvisioningTest(TestCase):
     def test_join_without_invite_raises(self):
         """Joining a room without an invite should fail (room is invite-only)."""
         user = self._make_waldur_user()
-        matrix_user_id = matrix_client.ensure_user_exists(user)
+        matrix_client.ensure_user_exists(user)
         # Create a fresh room to ensure user was never invited
         fresh_room_id, _ = matrix_client.create_room(_unique_name("noinvite"))
         access_token = matrix_client.get_access_token_for_user(user)

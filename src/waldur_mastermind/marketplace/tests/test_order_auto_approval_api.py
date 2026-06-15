@@ -7,8 +7,6 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests import factories
-
 
 LIST_URL = "http://testserver" + reverse("marketplace-project-order-auto-approval-list")
 

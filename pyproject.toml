@@ -199,6 +199,13 @@ target-version = "py313"
 "**/management/commands/**/*.py" = ["T201"]
 "src/waldur_core/permissions/print_permission_enums.py" = ["T201"]
 "scripts/**/*.py" = ["E402"]
+# Settings modules intentionally use star-imports to compose configuration and
+# perform conditional imports after computing values, so ignore the related codes.
+"src/waldur_core/server/settings.py" = ["F403", "F405", "E402"]
+"src/waldur_core/server/base_settings.py" = ["F403", "F405", "E402"]
+# Extension registration runs imports after a guard clause, so the import is not
+# at the top of the module by design.
+"src/waldur_core/core/openapi_extensions.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 section-order = [

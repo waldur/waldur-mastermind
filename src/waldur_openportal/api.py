@@ -14,7 +14,6 @@ from drf_spectacular.utils import (
     inline_serializer,
 )
 from rest_framework import status
-from rest_framework import serializers as rf_serializers
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import (
     api_view,

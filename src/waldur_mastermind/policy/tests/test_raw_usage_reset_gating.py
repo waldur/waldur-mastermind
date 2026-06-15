@@ -28,12 +28,12 @@ from django.core.cache import cache
 from django.test import TestCase
 from freezegun import freeze_time
 
+from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.policy import models as policy_models
 
 

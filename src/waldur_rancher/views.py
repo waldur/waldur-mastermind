@@ -1,4 +1,3 @@
-from waldur_core.core.serializers import DetailSerializer
 import functools
 import logging
 import operator
@@ -23,6 +22,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
+from waldur_core.core.serializers import DetailSerializer
 from waldur_core.structure import exceptions as structure_exceptions
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions

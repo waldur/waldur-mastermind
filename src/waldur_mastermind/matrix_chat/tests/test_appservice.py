@@ -1,6 +1,5 @@
 from unittest import mock
 
-import httpx
 from constance.test import override_config
 from rest_framework import status, test
 

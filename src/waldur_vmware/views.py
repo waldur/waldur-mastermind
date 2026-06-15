@@ -11,8 +11,8 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core import validators as core_validators
-from waldur_core.core.serializers import StatusSerializer
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.serializers import ConsoleUrlSerializer

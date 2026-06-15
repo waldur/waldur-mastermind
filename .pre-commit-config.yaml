@@ -17,7 +17,7 @@ repos:
           - --fix
           - --unsafe-fixes
           - --exit-non-zero-on-fix
-        files: ^src/,^scripts/
+        files: ^(src|scripts)/
         exclude: src/waldur_core/server/base_settings.py
 
   - repo: local

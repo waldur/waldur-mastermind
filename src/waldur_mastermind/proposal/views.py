@@ -1,5 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
 import logging
 import secrets
 from datetime import datetime, timedelta
@@ -25,8 +23,8 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone as timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import decorators, exceptions, mixins, response, status, viewsets
 from rest_framework import permissions as rf_permissions
 

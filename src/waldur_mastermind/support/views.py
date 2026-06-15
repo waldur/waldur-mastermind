@@ -1,8 +1,5 @@
 import hmac
 import logging
-
-from waldur_core.core.serializers import StatusSerializer
-from rest_framework import status
 from datetime import date, datetime
 
 from constance import config
@@ -14,7 +11,6 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
-from drf_spectacular.types import OpenApiTypes
 from rest_framework import (
     decorators,
     generics,
@@ -30,7 +26,7 @@ from rest_framework.exceptions import ValidationError
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
-from waldur_core.core.serializers import EmptySerializer
+from waldur_core.core.serializers import EmptySerializer, StatusSerializer
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import (
     exceptions as structure_exceptions,

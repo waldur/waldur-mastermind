@@ -12,8 +12,8 @@ from datetime import datetime
 from typing import Any
 
 import psutil
-from django.db.models import Q
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from waldur_mastermind.marketplace.models import (

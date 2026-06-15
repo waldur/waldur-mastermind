@@ -1,3 +1,4 @@
+import json
 import logging
 from unittest import mock
 
@@ -30,7 +31,7 @@ from waldur_mastermind.marketplace.tests.factories import (
     OfferingUserFactory,
     ServiceProviderFactory,
 )
-import json
+
 from . import factories, fixtures
 
 

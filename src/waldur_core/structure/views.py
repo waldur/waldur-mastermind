@@ -1,6 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
-from drf_spectacular.types import OpenApiTypes
 import logging
 from datetime import datetime
 
@@ -19,7 +16,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.plumbing import OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,

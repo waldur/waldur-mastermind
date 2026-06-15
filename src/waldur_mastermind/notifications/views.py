@@ -1,4 +1,3 @@
-from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, permissions, status
@@ -7,7 +6,6 @@ from rest_framework.response import Response
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet
-
 
 from . import filters, models, serializers, tasks, utils
 

@@ -99,7 +99,7 @@ class ActionRequestNoneTransformer(cst.CSTTransformer):
         )
 
     def _extract_methods(self, node):
-        if isinstance(node, (cst.List, cst.Tuple)):
+        if isinstance(node, cst.List | cst.Tuple):
             methods = []
             for el in node.elements:
                 if isinstance(el.value, cst.SimpleString):

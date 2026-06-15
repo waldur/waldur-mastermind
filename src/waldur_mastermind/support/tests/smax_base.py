@@ -9,7 +9,6 @@ from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 
 from . import fixtures
 
-
 SMAX_WEBHOOK_TEST_SECRET = "smax-test-secret"  # noqa: S105
 
 

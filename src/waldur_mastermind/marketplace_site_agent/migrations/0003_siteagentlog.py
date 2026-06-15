@@ -3,8 +3,9 @@
 import django.db.models.deletion
 import django.utils.timezone
 import model_utils.fields
-import waldur_core.core.fields
 from django.db import migrations, models
+
+import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):

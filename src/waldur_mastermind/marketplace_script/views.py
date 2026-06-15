@@ -1,6 +1,3 @@
-from rest_framework import status
-from drf_spectacular.utils import extend_schema
-from drf_spectacular.types import OpenApiTypes
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _

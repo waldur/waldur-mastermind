@@ -24,12 +24,12 @@ from reversion.admin import VersionAdmin
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
-from waldur_core.core import models
 
 # Importing constance.admin triggers its admin.site.register([Config], ConstanceAdmin)
 # call on the global admin.site BEFORE we clone it below, so Config ends up in the
 # cloned registry and can be re-registered with WaldurConstanceAdmin.
 from waldur_core.core import constance_admin as waldur_constance_admin  # noqa: F401
+from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
 
 

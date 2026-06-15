@@ -14,7 +14,6 @@ Run with::
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -25,7 +24,6 @@ from rest_framework import status, test
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
-from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend, get_tenant_session
 from waldur_openstack.session import get_neutron_client
 
