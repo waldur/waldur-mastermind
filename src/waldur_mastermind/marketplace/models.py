@@ -17,6 +17,7 @@ from django.db.models import signals as django_signals
 from django.db.models.constraints import UniqueConstraint
 from django.utils import timezone
 from django.utils.functional import cached_property
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, FSMIntegerField, transition
 from model_utils import FieldTracker
@@ -1721,6 +1722,12 @@ class ResourceDetailsMixin(
     )
 
 
+# Resource.slug is a SlugField (max_length 50). When slug generation is customized
+# on the offering (via a slug template or a custom length), the slug is bounded by
+# this value to leave room for a uniqueness suffix appended on collisions.
+RESOURCE_SLUG_MAX_LENGTH = 40
+
+
 class Resource(
     PermissionMixin,
     ResourceDetailsMixin,
@@ -1826,6 +1833,94 @@ class Resource(
             Resource.objects.filter(pk=self.pk).update(
                 end_date_updated_at=timezone.now()
             )
+
+    def generate_slug(self):
+        plugin_options = (
+            (self.offering.plugin_options or {}) if self.offering_id else {}
+        )
+        template = plugin_options.get("resource_slug_template")
+        if template:
+            return self._generate_template_slug(template)
+        max_length = plugin_options.get("resource_slug_max_length")
+        if max_length:
+            return self._generate_name_slug(max_length)
+        return super().generate_slug()
+
+    def _generate_name_slug(self, max_length):
+        try:
+            max_length = int(max_length)
+        except (TypeError, ValueError):
+            return super().generate_slug()
+        max_length = max(1, min(max_length, RESOURCE_SLUG_MAX_LENGTH))
+        base_slug = core_models.clean_slug_hyphens(
+            slugify(self.name)[:max_length]
+        ).strip("-")
+        if not base_slug:
+            return super().generate_slug()
+        return self._ensure_slug_unique(base_slug)
+
+    def _generate_template_slug(self, template):
+        context = self._get_slug_context()
+        try:
+            raw_slug = template.format(**context)
+        except (KeyError, ValueError) as e:
+            logger.error(
+                "Failed to format resource slug template '%s' for offering %s: %s. "
+                "Falling back to default slug generation.",
+                template,
+                self.offering_id,
+                e,
+            )
+            return super().generate_slug()
+
+        base_slug = core_models.clean_slug_hyphens(slugify(raw_slug))[
+            :RESOURCE_SLUG_MAX_LENGTH
+        ].strip("-")
+        if not base_slug:
+            return super().generate_slug()
+        return self._ensure_slug_unique(base_slug)
+
+    def _get_slug_context(self):
+        now = timezone.now()
+        counter = self._calculate_slug_counter()
+        return {
+            "customer_slug": self.project.customer.slug if self.project_id else "",
+            "project_slug": self.project.slug if self.project_id else "",
+            "project_name": slugify(self.project.name) if self.project_id else "",
+            "offering_slug": self.offering.slug if self.offering_id else "",
+            "year": now.strftime("%Y"),
+            "month": now.strftime("%m"),
+            "counter": str(counter),
+            "counter_padded": f"{counter:03d}",
+        }
+
+    def _calculate_slug_counter(self):
+        existing_count = (
+            Resource.objects.filter(project=self.project, offering=self.offering)
+            .exclude(pk=self.pk if self.pk else None)
+            .count()
+        )
+        return existing_count + 1
+
+    def _ensure_slug_unique(self, base_slug):
+        existing_slugs = Resource.objects.filter(
+            slug__startswith=base_slug
+        ).values_list("slug", flat=True)
+
+        if base_slug not in existing_slugs:
+            return base_slug
+
+        max_num = 1
+        for slug in existing_slugs:
+            if slug == base_slug:
+                continue
+            try:
+                num = int(slug.split("-")[-1])
+                if num > max_num:
+                    max_num = num
+            except ValueError:
+                pass
+        return f"{base_slug}-{max_num + 1}"
 
     @property
     def customer(self) -> structure_models.Customer:

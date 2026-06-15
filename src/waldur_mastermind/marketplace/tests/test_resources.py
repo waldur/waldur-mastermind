@@ -27,6 +27,7 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
+from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
@@ -2849,3 +2850,135 @@ class ProviderUpdateOptionsDirectTest(test.APITestCase):
 
         response = self.client.post(self.url, {"options": {"storage": 20}})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ResourceSlugTemplateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+        self.plan = factories.PlanFactory()
+        self.offering = self.plan.offering
+
+    def _set_template(self, template):
+        self.offering.plugin_options = {"resource_slug_template": template}
+        self.offering.save()
+
+    def _create_resource(self, name="My Resource"):
+        return models.Resource.objects.create(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            name=name,
+        )
+
+    def test_default_slug_is_truncated_to_ten_chars(self):
+        # Without a template the core SlugMixin behaviour applies: slugify(name)[:10].
+        resource = self._create_resource(name="A very long resource name")
+        self.assertEqual(resource.slug, "a-very-lon")
+
+    def test_template_slug_is_not_truncated_to_ten(self):
+        self._set_template("{customer_slug}-{project_slug}-{counter_padded}")
+        resource = self._create_resource()
+        expected = f"{self.project.customer.slug}-{self.project.slug}-001"
+        self.assertEqual(resource.slug, expected)
+        self.assertGreater(len(resource.slug), 10)
+
+    def test_template_slug_uniqueness(self):
+        self._set_template("{offering_slug}")
+        first = self._create_resource()
+        second = self._create_resource()
+        third = self._create_resource()
+        self.assertEqual(first.slug, self.offering.slug)
+        self.assertEqual(second.slug, f"{self.offering.slug}-2")
+        self.assertEqual(third.slug, f"{self.offering.slug}-3")
+
+    def test_invalid_template_falls_back_to_default(self):
+        # An unknown placeholder must not crash slug generation at save time.
+        self._set_template("{nonexistent}-suffix")
+        resource = self._create_resource(name="Fallback Name")
+        self.assertEqual(resource.slug, "fallback-n")
+
+    def test_existing_resource_slug_not_regenerated_on_save(self):
+        # Backward compatibility: an already-persisted slug is never rewritten,
+        # even after a template is added to the offering.
+        resource = self._create_resource(name="A very long resource name")
+        original_slug = resource.slug
+        self._set_template("{customer_slug}-{project_slug}-{counter_padded}")
+        resource.name = "A completely different name"
+        resource.save()
+        resource.refresh_from_db()
+        self.assertEqual(resource.slug, original_slug)
+
+    def test_max_length_extends_default_name_slug(self):
+        # The numeric knob lengthens the name-based slug beyond the 10-char default.
+        self.offering.plugin_options = {"resource_slug_max_length": 20}
+        self.offering.save()
+        resource = self._create_resource(name="A very long resource name")
+        self.assertEqual(resource.slug, "a-very-long-resource")
+        self.assertGreater(len(resource.slug), 10)
+
+    def test_max_length_clamped_to_ceiling(self):
+        # Values above the ceiling are clamped to RESOURCE_SLUG_MAX_LENGTH.
+        self.offering.plugin_options = {"resource_slug_max_length": 100}
+        self.offering.save()
+        resource = self._create_resource(
+            name="This is an extremely long resource name exceeding forty chars"
+        )
+        self.assertLessEqual(len(resource.slug), models.RESOURCE_SLUG_MAX_LENGTH)
+        self.assertGreater(len(resource.slug), 10)
+
+    def test_template_takes_precedence_over_max_length(self):
+        self.offering.plugin_options = {
+            "resource_slug_template": "{offering_slug}",
+            "resource_slug_max_length": 40,
+        }
+        self.offering.save()
+        resource = self._create_resource(name="A very long resource name")
+        self.assertEqual(resource.slug, self.offering.slug)
+
+
+class ResourceSlugTemplateValidatorTest(test.APITestCase):
+    def _validate(self, template):
+        serializer = marketplace_serializers.LifecyclePluginOptionsSerializer(
+            data={"resource_slug_template": template}
+        )
+        return serializer
+
+    def test_valid_template_is_accepted(self):
+        serializer = self._validate("{customer_slug}-{project_slug}-{counter_padded}")
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_unknown_placeholder_is_rejected(self):
+        serializer = self._validate("{bogus}-{counter}")
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("resource_slug_template", serializer.errors)
+
+    def test_too_long_template_is_rejected(self):
+        serializer = self._validate(
+            "{customer_slug}-{project_slug}-{offering_slug}-{year}-{month}-extra-padding"
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("resource_slug_template", serializer.errors)
+
+    def test_blank_template_is_accepted(self):
+        serializer = self._validate("")
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def _validate_max_length(self, value):
+        return marketplace_serializers.LifecyclePluginOptionsSerializer(
+            data={"resource_slug_max_length": value}
+        )
+
+    def test_max_length_valid_value_is_accepted(self):
+        serializer = self._validate_max_length(40)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_max_length_above_ceiling_is_rejected(self):
+        serializer = self._validate_max_length(100)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("resource_slug_max_length", serializer.errors)
+
+    def test_max_length_zero_is_rejected(self):
+        serializer = self._validate_max_length(0)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("resource_slug_max_length", serializer.errors)

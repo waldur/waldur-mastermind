@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 from decimal import Decimal
 from typing import Literal, cast
 
@@ -18,6 +19,7 @@ from django.core.validators import DomainNameValidator
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Sum
 from django.utils import timezone
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django_fsm import TransitionNotAllowed
 from drf_spectacular.drainage import set_override
@@ -265,6 +267,81 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         "Available variables: {customer_name}, {customer_slug}, {project_name}, {project_slug}, "
         "{offering_name}, {offering_slug}, {plan_name}, {counter}, {attributes[KEY]}.",
     )
+    resource_slug_template = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Template for resource slugs, overriding the default 10-character "
+        "slugified name. Available variables: {customer_slug}, {project_slug}, "
+        "{project_name}, {offering_slug}, {year}, {month}, {counter}, {counter_padded}. "
+        "Default: slugified resource name (max 10 characters).",
+    )
+    resource_slug_max_length = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=1,
+        max_value=models.RESOURCE_SLUG_MAX_LENGTH,
+        help_text="Maximum length of auto-generated resource slugs derived from the "
+        "resource name, overriding the default of 10 characters (up to "
+        f"{models.RESOURCE_SLUG_MAX_LENGTH}). Ignored when a resource slug template is set.",
+    )
+
+    def validate_resource_slug_template(self, value):
+        if not value:
+            return value
+
+        placeholders = re.findall(r"\{([^}:]+)", value)
+        allowed_placeholders = {
+            "customer_slug",
+            "project_slug",
+            "project_name",
+            "offering_slug",
+            "year",
+            "month",
+            "counter",
+            "counter_padded",
+        }
+        invalid_placeholders = set(placeholders) - allowed_placeholders
+        if invalid_placeholders:
+            raise rf_exceptions.ValidationError(
+                _("Invalid placeholders: %(invalid)s. Allowed: %(allowed)s")
+                % {
+                    "invalid": ", ".join(sorted(invalid_placeholders)),
+                    "allowed": ", ".join(sorted(allowed_placeholders)),
+                }
+            )
+
+        test_context = {
+            "customer_slug": "test-org",
+            "project_slug": "test-project",
+            "project_name": "test-project",
+            "offering_slug": "test-offering",
+            "year": "2026",
+            "month": "06",
+            "counter": "1",
+            "counter_padded": "001",
+        }
+        try:
+            rendered = value.format(**test_context)
+        except (KeyError, ValueError) as e:
+            raise rf_exceptions.ValidationError(
+                _("Invalid template format: %(error)s") % {"error": e}
+            )
+
+        # Resource.slug is a SlugField (max_length 50). Reject templates whose
+        # slugified output, plus headroom for a uniqueness suffix, would not fit.
+        if len(slugify(rendered)) > models.RESOURCE_SLUG_MAX_LENGTH:
+            raise rf_exceptions.ValidationError(
+                _(
+                    "Rendered slug is too long (%(length)s chars); keep it within "
+                    "%(max)s characters to leave room for a uniqueness suffix."
+                )
+                % {
+                    "length": len(slugify(rendered)),
+                    "max": models.RESOURCE_SLUG_MAX_LENGTH,
+                }
+            )
+        return value
 
     def validate_latest_date_for_resource_termination(self, value):
         try:
