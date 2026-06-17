@@ -952,6 +952,27 @@ class RequestApproveTest(BaseInvitationTest):
         permission_request.refresh_from_db()
         self.assertEqual(permission_request.state, ReviewStates.APPROVED)
 
+    def test_owner_with_only_project_create_can_approve_auto_create_request(self):
+        """Approving an auto_create_project invitation creates a project and grants a
+        PROJECT role, so a customer role holding PROJECT.CREATE_PERMISSION but not
+        CUSTOMER.CREATE_PERMISSION must be able to approve it (it is offered the action
+        in the UI)."""
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        # CREATE_PROJECT_PERMISSION stays granted on CustomerRole.OWNER (see setUp).
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_create_project=True,
+            project_role=ProjectRole.ADMIN,
+            project_name_template="{username}_project",
+        )
+        permission_request = factories.PermissionRequestFactory(invitation=invitation)
+        url = factories.PermissionRequestFactory.get_url(permission_request, "approve")
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        permission_request.refresh_from_db()
+        self.assertEqual(permission_request.state, ReviewStates.APPROVED)
+
     def test_approve_rejects_mismatched_role_availability(self):
         """A role limited by RoleAvailability to a different scope must not
         be granted via PermissionRequest.approve."""
@@ -1000,6 +1021,25 @@ class RequestRejectTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.REJECTED)
+
+    def test_owner_with_only_project_create_can_reject_auto_create_request(self):
+        """Mirror of the approve case: rejecting an auto_create_project request must be
+        available to a customer role with PROJECT.CREATE_PERMISSION but not
+        CUSTOMER.CREATE_PERMISSION."""
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_create_project=True,
+            project_role=ProjectRole.ADMIN,
+            project_name_template="{username}_project",
+        )
+        permission_request = factories.PermissionRequestFactory(invitation=invitation)
+        url = factories.PermissionRequestFactory.get_url(permission_request, "reject")
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        permission_request.refresh_from_db()
+        self.assertEqual(permission_request.state, ReviewStates.REJECTED)
 
     def test_customer_owner_can_reject_project_scoped_request(self):
         project_invitation = factories.ProjectGroupInvitationFactory(scope=self.project)

@@ -31,6 +31,7 @@ from waldur_core.users import filters, models, serializers, tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.utils import (
     can_manage_invitation_with,
+    can_manage_permission_request,
     get_invitation_duplicates,
     parse_invitation_token,
 )
@@ -721,8 +722,8 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     def perform_action(self, request, uuid, action_name):
         permission_request: models.PermissionRequest = self.get_object()
 
-        if not can_manage_invitation_with(
-            self.request, permission_request.invitation.scope
+        if not can_manage_permission_request(
+            self.request, permission_request.invitation
         ):
             # Raise NotFound instead of PermissionDenied to hide invitation existence
             raise NotFound()
