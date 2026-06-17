@@ -42,13 +42,13 @@ class AgentIdentityCreateTest(test.APITestCase):
                   resource_import_enabled: false
             """),
             "dependencies": [
-                "pyyaml=v6.0.1",
-                "requests=v2.32.3",
-                "sentry-sdk=v2.3.1",
-                "stomp-py=v8.2.0",
-                "types-pyyaml=v6.0.12.20250822",
-                "waldur-api-client=v7.8.0",
-                "ruff=v0.12.11",
+                {"package": "pyyaml", "version": "v6.0.1"},
+                {"package": "requests", "version": "v2.32.3"},
+                {"package": "sentry-sdk", "version": "v2.3.1"},
+                {"package": "stomp-py", "version": "v8.2.0"},
+                {"package": "types-pyyaml", "version": "v6.0.12.20250822"},
+                {"package": "waldur-api-client", "version": "v7.8.0"},
+                {"package": "ruff", "version": "v0.12.11"},
             ],
         }
 
@@ -64,11 +64,11 @@ class AgentIdentityCreateTest(test.APITestCase):
         response = self.client.post(url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
 
-        self.assertTrue(
-            models.AgentIdentity.objects.filter(
-                name="Agent Test 00", offering=self.offering
-            ).exists()
+        agent_identity = models.AgentIdentity.objects.get(
+            name="Agent Test 00", offering=self.offering
         )
+        self.assertEqual(agent_identity.dependencies, self.payload["dependencies"])
+        self.assertEqual(response.json()["dependencies"], self.payload["dependencies"])
 
     @data("offering_admin", "admin", "manager", "global_support")
     def test_agent_identity_create_forbidden(self, user_role):
