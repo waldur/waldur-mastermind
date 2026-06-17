@@ -13,6 +13,7 @@ from rest_framework import serializers
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import pwgen
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import (
     get_create_permission,
     get_customer,
@@ -216,6 +217,24 @@ def can_manage_invitation_with(request, scope):
             return True
 
     return False
+
+
+def can_manage_permission_request(request, invitation):
+    # Approving an auto_create_project invitation creates a project and grants a
+    # PROJECT role on it (see PermissionRequest.approve), so the relevant authority
+    # is project creation within the customer rather than customer membership
+    # management. Without this, a customer role that has CREATE_PROJECT_PERMISSION
+    # but not CREATE_CUSTOMER_PERMISSION is offered the approve action in the UI
+    # yet receives a 404 from the API.
+    if invitation.auto_create_project:
+        if request.user.is_staff:
+            return True
+        return has_permission(
+            request,
+            PermissionEnum.CREATE_PROJECT_PERMISSION,
+            invitation.customer,
+        )
+    return can_manage_invitation_with(request, invitation.scope)
 
 
 def get_invitation_duplicates(scope, invitations):
