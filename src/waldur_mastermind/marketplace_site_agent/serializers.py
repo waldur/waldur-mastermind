@@ -170,7 +170,7 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     services = NestedAgentServiceSerializer(
         many=True, read_only=True, source="agentservice_set"
     )
-    dependencies = AgentDependencySerializer(many=True, read_only=True)
+    dependencies = AgentDependencySerializer(many=True, required=False)
 
     class Meta:
         model = models.AgentIdentity
