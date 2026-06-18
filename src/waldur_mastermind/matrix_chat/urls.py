@@ -47,6 +47,16 @@ urlpatterns = [
         views.MatrixDiagnosticsView.as_view(),
         name="matrix-diagnostics",
     ),
+    path(
+        "api/admin/matrix/livekit/overview/",
+        views.LiveKitOverviewView.as_view(),
+        name="matrix-livekit-overview",
+    ),
+    path(
+        "api/admin/matrix/livekit/participants/",
+        views.LiveKitRoomParticipantsView.as_view(),
+        name="matrix-livekit-room-participants",
+    ),
     # `<str:uuid>` not `<uuid:uuid>`: Waldur's StringUUID.__str__ returns the
     # 32-char hex form (no hyphens), but Django's uuid converter requires the
     # canonical dashed form. The view's MatrixHistoryExport.objects.get()

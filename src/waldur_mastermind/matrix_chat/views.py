@@ -29,7 +29,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.models import Customer, Project
 
-from . import filters, matrix_client, models, serializers, tasks
+from . import filters, livekit_client, matrix_client, models, serializers, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -1182,3 +1182,101 @@ class MatrixHistoryExportDownloadView(views.APIView):
             as_attachment=True,
             content_type="application/octet-stream",
         )
+
+
+def _livekit_unreachable_response(exc):
+    """Map a LiveKitClientError to a 502, distinguishing rejected credentials.
+
+    A bad API key/secret comes back as an HTTP 401/403 from LiveKit's auth
+    layer; reporting that as "unreachable" sends operators chasing networking
+    when the fix is a Constance field.
+    """
+    logger.warning("LiveKit request failed: %s", exc)
+    if exc.status_code in (401, 403):
+        detail = "LiveKit rejected the admin credentials."
+    else:
+        detail = "LiveKit is unreachable."
+    return Response({"detail": detail}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class LiveKitOverviewView(views.APIView):
+    """GET /api/admin/matrix/livekit/overview/"""
+
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    @extend_schema(
+        summary="Get LiveKit calls overview",
+        responses={200: serializers.LiveKitOverviewResponseSerializer},
+        description="Point-in-time snapshot of active LiveKit rooms with "
+        "participant/publisher totals. Staff only. Returns 503 when LiveKit "
+        "credentials are not configured and 502 when LiveKit is unreachable "
+        "or rejects the configured credentials.",
+    )
+    def get(self, request):
+        if not livekit_client.is_configured():
+            return Response(
+                {"detail": "LiveKit is not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        try:
+            rooms = livekit_client.list_rooms()
+        except livekit_client.LiveKitClientError as exc:
+            return _livekit_unreachable_response(exc)
+
+        totals = {
+            "room_count": len(rooms),
+            "participant_count": sum(room["num_participants"] for room in rooms),
+            "publisher_count": sum(room["num_publishers"] for room in rooms),
+        }
+        response_data = {
+            "rooms": rooms,
+            "totals": totals,
+            "livekit_url": livekit_client.get_internal_url(),
+        }
+        serializer = serializers.LiveKitOverviewResponseSerializer(response_data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class LiveKitRoomParticipantsView(views.APIView):
+    """GET /api/admin/matrix/livekit/participants/?room=<name>"""
+
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    @extend_schema(
+        summary="List participants in a LiveKit room",
+        responses={200: serializers.LiveKitParticipantSerializer(many=True)},
+        parameters=[
+            OpenApiParameter(
+                "room",
+                str,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="LiveKit room name. A query parameter rather than a "
+                "path segment because Element Call room names are base64 and "
+                "routinely contain '/'.",
+            ),
+        ],
+        description="Participants and their tracks for a single LiveKit room. "
+        "Staff only. An unknown or empty room returns 200 with an empty list. "
+        "Returns 503 when LiveKit credentials are not configured and 502 when "
+        "LiveKit is unreachable or rejects the configured credentials.",
+    )
+    def get(self, request):
+        room_name = request.query_params.get("room")
+        if not room_name:
+            return Response(
+                {"detail": "The 'room' query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not livekit_client.is_configured():
+            return Response(
+                {"detail": "LiveKit is not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        try:
+            participants = livekit_client.list_participants(room_name)
+        except livekit_client.LiveKitClientError as exc:
+            return _livekit_unreachable_response(exc)
+
+        serializer = serializers.LiveKitParticipantSerializer(participants, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

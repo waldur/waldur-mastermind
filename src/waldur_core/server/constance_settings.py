@@ -1539,6 +1539,20 @@ CONSTANCE_CONFIG = {
         "OIDC provider URL for Matrix SSO login.",
         "url_field",
     ),
+    "MATRIX_LIVEKIT_KEY": (
+        "",
+        "LiveKit API key for the Element Call SFU (Calls observability tab).",
+    ),
+    "MATRIX_LIVEKIT_SECRET": (
+        "",
+        "LiveKit API secret used to mint the admin token.",
+        "secret_field",
+    ),
+    "MATRIX_LIVEKIT_URL": (
+        "",
+        "Internal LiveKit base URL. Falls back to http://livekit:7880 when blank.",
+        "url_field",
+    ),
     # Site Agent Logs
     "SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY": (
         10000,
@@ -1932,6 +1946,9 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MATRIX_USER_ID_FORMAT",
         "MATRIX_LOGIN_METHOD",
         "MATRIX_OIDC_PROVIDER_URL",
+        "MATRIX_LIVEKIT_KEY",
+        "MATRIX_LIVEKIT_SECRET",
+        "MATRIX_LIVEKIT_URL",
     ),
     "Personal Access Tokens": (
         "PAT_ENABLED",
