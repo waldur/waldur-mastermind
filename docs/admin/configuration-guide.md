@@ -3230,6 +3230,24 @@ Login method for Matrix credentials: password, token, or oidc.
 
 OIDC provider URL for Matrix SSO login.
 
+#### MATRIX_LIVEKIT_KEY
+
+**Type:** str
+
+LiveKit API key for the Element Call SFU (Calls observability tab).
+
+#### MATRIX_LIVEKIT_SECRET
+
+**Type:** secret_field
+
+LiveKit API secret used to mint the admin token.
+
+#### MATRIX_LIVEKIT_URL
+
+**Type:** url_field
+
+Internal LiveKit base URL. Falls back to http://livekit:7880 when blank.
+
 ### Personal Access Tokens
 
 #### PAT_ENABLED
