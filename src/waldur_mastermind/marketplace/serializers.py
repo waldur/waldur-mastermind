@@ -7404,7 +7404,12 @@ class OfferingUserSerializer(
     user_phone_number = serializers.ReadOnlyField(source="user.phone_number")
     user_organization = serializers.ReadOnlyField(source="user.organization")
     user_job_title = serializers.ReadOnlyField(source="user.job_title")
-    user_affiliations = serializers.ReadOnlyField(source="user.affiliations")
+    user_affiliations = serializers.ListField(
+        child=serializers.CharField(),
+        source="user.affiliations",
+        read_only=True,
+        help_text="Person's affiliation within organization such as student, faculty, staff.",
+    )
 
     # User profile attributes
     user_gender = serializers.ReadOnlyField(source="user.gender")
@@ -7415,7 +7420,12 @@ class OfferingUserSerializer(
         source="user.country_of_residence"
     )
     user_nationality = serializers.ReadOnlyField(source="user.nationality")
-    user_nationalities = serializers.ReadOnlyField(source="user.nationalities")
+    user_nationalities = serializers.ListField(
+        child=serializers.CharField(),
+        source="user.nationalities",
+        read_only=True,
+        help_text="List of all citizenships (ISO 3166-1 alpha-2 codes)",
+    )
     user_organization_country = serializers.ReadOnlyField(
         source="user.organization_country"
     )
@@ -7423,8 +7433,11 @@ class OfferingUserSerializer(
     user_organization_registry_code = serializers.ReadOnlyField(
         source="user.organization_registry_code"
     )
-    user_eduperson_assurance = serializers.ReadOnlyField(
-        source="user.eduperson_assurance"
+    user_eduperson_assurance = serializers.ListField(
+        child=serializers.CharField(),
+        source="user.eduperson_assurance",
+        read_only=True,
+        help_text="REFEDS assurance profile URIs from identity provider",
     )
 
     # Legal and identity attributes
@@ -7433,7 +7446,15 @@ class OfferingUserSerializer(
     user_identity_source = serializers.ReadOnlyField(source="user.identity_source")
 
     # Identity Bridge attributes
-    user_active_isds = serializers.ReadOnlyField(source="user.active_isds")
+    user_active_isds = serializers.ListField(
+        child=serializers.CharField(),
+        source="user.active_isds",
+        read_only=True,
+        help_text=(
+            "List of ISDs that have asserted this user exists. "
+            "User is deactivated when this becomes empty."
+        ),
+    )
 
     customer_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
