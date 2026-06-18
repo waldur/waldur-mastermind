@@ -348,3 +348,43 @@ class MatrixDiagnosticsResponseSerializer(serializers.Serializer):
 class MatrixReprovisionResponseSerializer(serializers.Serializer):
     rooms_reprovisioned = serializers.IntegerField()
     users_reset = serializers.IntegerField()
+
+
+class LiveKitTrackSerializer(serializers.Serializer):
+    sid = serializers.CharField()
+    name = serializers.CharField(allow_blank=True)
+    type = serializers.CharField()
+    muted = serializers.BooleanField()
+    width = serializers.IntegerField()
+    height = serializers.IntegerField()
+
+
+class LiveKitParticipantSerializer(serializers.Serializer):
+    sid = serializers.CharField()
+    identity = serializers.CharField()
+    state = serializers.CharField()
+    is_publisher = serializers.BooleanField()
+    joined_at = serializers.IntegerField()
+    tracks = LiveKitTrackSerializer(many=True)
+
+
+class LiveKitRoomSummarySerializer(serializers.Serializer):
+    sid = serializers.CharField()
+    name = serializers.CharField()
+    num_participants = serializers.IntegerField()
+    num_publishers = serializers.IntegerField()
+    creation_time = serializers.IntegerField()
+    max_participants = serializers.IntegerField()
+    metadata = serializers.CharField(allow_blank=True)
+
+
+class LiveKitTotalsSerializer(serializers.Serializer):
+    room_count = serializers.IntegerField()
+    participant_count = serializers.IntegerField()
+    publisher_count = serializers.IntegerField()
+
+
+class LiveKitOverviewResponseSerializer(serializers.Serializer):
+    rooms = LiveKitRoomSummarySerializer(many=True)
+    totals = LiveKitTotalsSerializer()
+    livekit_url = serializers.CharField()
