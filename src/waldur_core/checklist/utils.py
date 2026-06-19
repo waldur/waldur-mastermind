@@ -288,3 +288,25 @@ def apply_operator(user_answer: any, required_value: any, operator: str) -> bool
         return user_answer != required_value
 
     return False
+
+
+def serialize_completion_answers(completion) -> list[dict]:
+    """Render a checklist completion's answers as a list of read-only dicts.
+
+    Each entry is ``{question_uuid, question, question_type, answer}`` ordered by
+    question order. ``answer`` is the human-readable value: for select-type questions
+    the stored option UUIDs are resolved to labels via ``Question.get_answer_display``.
+
+    Pass a completion whose ``answers__question__question_options`` are prefetched to
+    avoid N+1 queries.
+    """
+    answers = sorted(completion.answers.all(), key=lambda answer: answer.question.order)
+    return [
+        {
+            "question_uuid": answer.question.uuid.hex,
+            "question": answer.question.description,
+            "question_type": answer.question.question_type,
+            "answer": answer.question.get_answer_display(answer.answer_data),
+        }
+        for answer in answers
+    ]

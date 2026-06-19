@@ -22,7 +22,8 @@ from rest_framework import exceptions, serializers
 from rest_framework.authtoken import models as authtoken_models
 
 from waldur_core.checklist.enums import ChecklistTypes
-from waldur_core.checklist.models import Checklist
+from waldur_core.checklist.models import Checklist, ChecklistCompletion
+from waldur_core.checklist.utils import serialize_completion_answers
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -391,6 +392,7 @@ class ProjectListSerializer(serializers.ListSerializer):
             "marketplace_resource_counts": {},
             "billing_estimates": {},
             "project_credits": {},
+            "project_metadata": {},
         }
 
         # 1. Bulk fetch resource counts
@@ -413,8 +415,21 @@ class ProjectListSerializer(serializers.ListSerializer):
         if not requested_fields or "project_credit" in requested_fields:
             bulk_data["project_credits"] = self._bulk_fetch_project_credits(project_ids)
 
+        # 5. Bulk fetch project metadata checklist answers
+        if not requested_fields or "project_metadata" in requested_fields:
+            bulk_data["project_metadata"] = self._bulk_fetch_project_metadata(
+                project_ids
+            )
+
         self.context["bulk_data"] = bulk_data
         return super().to_representation(data)
+
+    def _bulk_fetch_project_metadata(self, project_ids):
+        completions = fetch_project_metadata_completions(project_ids)
+        return {
+            project_id: serialize_completion_answers(completion)
+            for project_id, completion in completions.items()
+        }
 
     def _bulk_fetch_resources_count(self, project_ids):
         from waldur_mastermind.marketplace import models as marketplace_models
@@ -476,6 +491,37 @@ class ProjectListSerializer(serializers.ListSerializer):
         )
 
 
+class ProjectMetadataAnswerSerializer(serializers.Serializer):
+    """Shape of a single project-metadata checklist answer (read-only)."""
+
+    question_uuid = serializers.CharField()
+    question = serializers.CharField(help_text="Question description.")
+    question_type = serializers.CharField()
+    answer = serializers.JSONField(
+        help_text=(
+            "Human-readable answer value; select-type option UUIDs are resolved "
+            "to their labels."
+        ),
+    )
+
+
+def fetch_project_metadata_completions(project_ids):
+    """Map project id -> its PROJECT_METADATA ChecklistCompletion (answers prefetched).
+
+    A project has at most one metadata completion (its customer's metadata
+    checklist); stale completions are removed when the checklist changes.
+    """
+    if not project_ids:
+        return {}
+    content_type = ContentType.objects.get_for_model(models.Project)
+    completions = ChecklistCompletion.objects.filter(
+        scope_content_type=content_type,
+        scope_object_id__in=project_ids,
+        checklist__checklist_type=ChecklistTypes.PROJECT_METADATA,
+    ).prefetch_related("answers__question__question_options")
+    return {completion.scope_object_id: completion for completion in completions}
+
+
 class ProjectSerializer(
     core_serializers.UserEmailPatternsValidatorMixin,
     core_serializers.SlugSerializerMixin,
@@ -486,6 +532,9 @@ class ProjectSerializer(
 ):
     resources_count = serializers.SerializerMethodField(
         help_text="Number of active resources in this project"
+    )
+    project_metadata = serializers.SerializerMethodField(
+        help_text="Answers to the customer's project-metadata checklist (read-only)."
     )
     oecd_fos_2007_label = serializers.CharField(
         read_only=True,
@@ -595,6 +644,7 @@ class ProjectSerializer(
             "is_industry",
             "image",
             "resources_count",
+            "project_metadata",
             "max_service_accounts",
             "kind",
             "is_removed",
@@ -623,6 +673,7 @@ class ProjectSerializer(
             "end_date_updated_at",
             "is_removed",
             "termination_metadata",
+            "project_metadata",
             "effective_end_date",
             "is_in_grace_period",
         )
@@ -857,6 +908,16 @@ class ProjectSerializer(
             state__in=(ResourceStates.OK, ResourceStates.UPDATING),
             project=project,
         ).count()
+
+    @extend_schema_field(ProjectMetadataAnswerSerializer(many=True))
+    def get_project_metadata(self, project) -> list[dict]:
+        bulk_data = self.context.get("bulk_data", {})
+        if "project_metadata" in bulk_data:
+            return bulk_data["project_metadata"].get(project.id, [])
+
+        # Fallback for the detail view (no bulk pre-fetch).
+        completion = fetch_project_metadata_completions([project.id]).get(project.id)
+        return serialize_completion_answers(completion) if completion else []
 
 
 class CountrySerializerMixin(serializers.Serializer):
