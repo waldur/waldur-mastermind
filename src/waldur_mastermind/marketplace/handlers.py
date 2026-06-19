@@ -1938,6 +1938,8 @@ def manage_maintenance_admin_announcements(sender, instance, created, **kwargs):
     - Creation when DRAFT → SCHEDULED
     - Cleanup when SCHEDULED → DRAFT (unschedule)
     - Cleanup when → CANCELLED
+    - Refresh content/timing on SCHEDULED → IN_PROGRESS
+    - Collapse window on IN_PROGRESS → COMPLETED
     - Update content when maintenance or affected offerings change
     """
 
@@ -1964,20 +1966,64 @@ def manage_maintenance_admin_announcements(sender, instance, created, **kwargs):
         elif new_state == MaintenanceState.CANCELLED:
             _cleanup_maintenance_announcement(instance)
 
-    # Handle content updates for scheduled maintenance
+        # SCHEDULED → IN_PROGRESS: refresh content/window to use actual_start
+        elif (
+            old_state == MaintenanceState.SCHEDULED
+            and new_state == MaintenanceState.IN_PROGRESS
+            and _check_and_handle_missing_admin_announcement(instance)
+        ):
+            _update_maintenance_announcement_content(instance)
+
+        # IN_PROGRESS → COMPLETED: collapse window to actual_end + buffer
+        elif (
+            old_state == MaintenanceState.IN_PROGRESS
+            and new_state == MaintenanceState.COMPLETED
+            and _check_and_handle_missing_admin_announcement(instance)
+        ):
+            _collapse_announcement_on_completion(instance)
+
+    # Handle content/timing updates while maintenance is scheduled or in progress
     elif (
         not created
-        and instance.state == MaintenanceState.SCHEDULED
+        and instance.state in (MaintenanceState.SCHEDULED, MaintenanceState.IN_PROGRESS)
         and _has_content_changes(instance)
         and _check_and_handle_missing_admin_announcement(instance)
     ):
         _update_maintenance_announcement_content(instance)
 
 
+def _compute_announcement_window(maintenance):
+    """Compute (active_from, active_to) for the announcement.
+
+    Prefers actual_start/actual_end when set so an overrun or early finish is
+    reflected. Honours the trailing buffer Constance setting so the banner
+    stays visible briefly after completion.
+    """
+    notify_before_minutes = config.MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES
+    trailing_buffer_minutes = int(
+        config.MAINTENANCE_ANNOUNCEMENT_TRAILING_BUFFER_MINUTES
+    )
+
+    start_reference = maintenance.actual_start or maintenance.scheduled_start
+    active_from = start_reference - timezone.timedelta(minutes=notify_before_minutes)
+
+    effective_end = maintenance.actual_end or maintenance.scheduled_end
+    # During an overrun the scheduled_end may be in the past; keep the banner
+    # visible until now() + buffer so it doesn't disappear before the operator
+    # patches scheduled_end.
+    if (
+        maintenance.state == MaintenanceState.IN_PROGRESS
+        and not maintenance.actual_end
+        and timezone.now() > effective_end
+    ):
+        effective_end = max(effective_end, timezone.now())
+    active_to = effective_end + timezone.timedelta(minutes=trailing_buffer_minutes)
+
+    return active_from, active_to
+
+
 def _create_maintenance_announcement(maintenance):
     """Create AdminAnnouncement with rich markdown content."""
-
-    notify_before_minutes = config.MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES
 
     # Delete any existing announcement first (defensive)
     if maintenance.admin_announcement:
@@ -1989,14 +2035,14 @@ def _create_maintenance_announcement(maintenance):
         maintenance
     )
 
+    active_from, active_to = _compute_announcement_window(maintenance)
+
     # Create announcement
     admin_announcement = AdminAnnouncement.objects.create(
         description=content,
         type=announcement_type,
-        active_from=maintenance.scheduled_start
-        - timezone.timedelta(minutes=notify_before_minutes),
-        active_to=maintenance.scheduled_end
-        + timezone.timedelta(hours=1),  # Keep visible 1 hour after
+        active_from=active_from,
+        active_to=active_to,
     )
 
     _update_admin_announcement_reference(maintenance, admin_announcement)
@@ -2010,7 +2056,7 @@ def _cleanup_maintenance_announcement(maintenance):
 
 
 def _update_maintenance_announcement_content(maintenance):
-    """Update AdminAnnouncement content when maintenance details change."""
+    """Update AdminAnnouncement content and window from current maintenance state."""
 
     if not maintenance.admin_announcement:
         return
@@ -2024,25 +2070,12 @@ def _update_maintenance_announcement_content(maintenance):
             maintenance
         )
 
-        # Update announcement
+        active_from, active_to = _compute_announcement_window(maintenance)
+
         maintenance.admin_announcement.description = content
         maintenance.admin_announcement.type = announcement_type
-
-        # Update timing if changed
-        if maintenance.tracker.has_changed(
-            "scheduled_start"
-        ) or maintenance.tracker.has_changed("scheduled_end"):
-            notify_before_minutes = (
-                config.MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES
-            )
-            maintenance.admin_announcement.active_from = (
-                maintenance.scheduled_start
-                - timezone.timedelta(minutes=notify_before_minutes)
-            )
-            maintenance.admin_announcement.active_to = (
-                maintenance.scheduled_end + timezone.timedelta(hours=1)
-            )
-
+        maintenance.admin_announcement.active_from = active_from
+        maintenance.admin_announcement.active_to = active_to
         maintenance.admin_announcement.save()
 
     except AdminAnnouncement.DoesNotExist:
@@ -2050,13 +2083,20 @@ def _update_maintenance_announcement_content(maintenance):
         _clear_admin_announcement_reference(maintenance)
 
 
+def _collapse_announcement_on_completion(maintenance):
+    """Recompute window on completion so the banner clears after the buffer."""
+    _update_maintenance_announcement_content(maintenance)
+
+
 def _has_content_changes(maintenance):
-    """Check if maintenance has changes that affect announcement content."""
+    """Check if maintenance has changes that affect announcement content or window."""
     content_fields = [
         "name",
         "message",
         "scheduled_start",
         "scheduled_end",
+        "actual_start",
+        "actual_end",
         "maintenance_type",
     ]
     return any(maintenance.tracker.has_changed(field) for field in content_fields)
@@ -2127,10 +2167,10 @@ def update_maintenance_announcement_on_offering_change(sender, instance, **kwarg
     """Update AdminAnnouncement when affected offerings change."""
 
     maintenance = instance.maintenance
-    if (
-        maintenance.state == MaintenanceState.SCHEDULED
-        and _check_and_handle_missing_admin_announcement(maintenance, "offering_change")
-    ):
+    if maintenance.state in (
+        MaintenanceState.SCHEDULED,
+        MaintenanceState.IN_PROGRESS,
+    ) and _check_and_handle_missing_admin_announcement(maintenance, "offering_change"):
         _update_maintenance_announcement_content(maintenance)
 
 

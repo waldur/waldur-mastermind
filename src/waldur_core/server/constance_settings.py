@@ -1080,6 +1080,10 @@ CONSTANCE_CONFIG = {
         60,
         "How many minutes before scheduled maintenance users should be notified.",
     ),
+    "MAINTENANCE_ANNOUNCEMENT_TRAILING_BUFFER_MINUTES": (
+        60,
+        "Minutes the announcement banner stays visible after maintenance completes",
+    ),
     "MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM": (
         ["AdminAnnouncement"],
         "How maintenance notifications are delivered.",
@@ -1644,6 +1648,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "COMMON_FOOTER_TEXT",
         "COMMON_FOOTER_HTML",
         "MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES",
+        "MAINTENANCE_ANNOUNCEMENT_TRAILING_BUFFER_MINUTES",
         "MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM",
     ),
     "Links": (
