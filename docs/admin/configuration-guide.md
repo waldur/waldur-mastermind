@@ -1492,6 +1492,14 @@ Common footer in html format for all emails.
 
 How many minutes before scheduled maintenance users should be notified.
 
+#### MAINTENANCE_ANNOUNCEMENT_TRAILING_BUFFER_MINUTES
+
+**Type:** int
+
+**Default value:** 60
+
+Minutes the announcement banner stays visible after maintenance completes
+
 #### MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM
 
 **Type:** multiple_choice_field
