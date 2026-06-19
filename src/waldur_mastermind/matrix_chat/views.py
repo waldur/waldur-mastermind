@@ -194,7 +194,9 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
             "membership_state", "created"
         )
         page = self.paginate_queryset(queryset)
-        serializer = serializers.MatrixRoomMemberSerializer(page or queryset, many=True)
+        serializer = serializers.MatrixRoomMemberSerializer(
+            page or queryset, many=True, context=self.get_serializer_context()
+        )
         if page is not None:
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)

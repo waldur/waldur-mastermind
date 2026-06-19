@@ -339,6 +339,7 @@ class ProposalReviewSerializer(
     )
     reviewer_full_name = serializers.ReadOnlyField(source="reviewer.full_name")
     reviewer_uuid = serializers.UUIDField(read_only=True, source="reviewer.uuid")
+    reviewer_image = serializers.ImageField(source="reviewer.image", read_only=True)
     anonymous_reviewer_name = serializers.SerializerMethodField()
 
     proposal_name = serializers.ReadOnlyField(source="proposal.name")
@@ -357,6 +358,7 @@ class ProposalReviewSerializer(
             "reviewer",
             "reviewer_full_name",
             "reviewer_uuid",
+            "reviewer_image",
             "anonymous_reviewer_name",
             "state",
             "review_end_date",
@@ -464,6 +466,7 @@ class ProposalReviewSerializer(
             fields.pop("reviewer", None)
             fields.pop("reviewer_full_name", None)
             fields.pop("reviewer_uuid", None)
+            fields.pop("reviewer_image", None)
         else:
             # Show real reviewer info, hide anonymous identifier
             fields.pop("anonymous_reviewer_name", None)

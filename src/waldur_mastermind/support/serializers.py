@@ -547,6 +547,7 @@ class CommentSerializer(
 
     author_uuid = serializers.UUIDField(read_only=True, source="author.user.uuid")
     author_email = serializers.ReadOnlyField(source="author.user.email")
+    author_image = serializers.ImageField(source="author.user.image", read_only=True)
     update_is_available = serializers.SerializerMethodField()
     destroy_is_available = serializers.SerializerMethodField()
 
@@ -563,6 +564,7 @@ class CommentSerializer(
             "author_uuid",
             "author_user",
             "author_email",
+            "author_image",
             "backend_id",
             "remote_id",
             "created",
