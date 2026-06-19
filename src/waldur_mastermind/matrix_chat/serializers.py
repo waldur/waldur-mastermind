@@ -174,6 +174,7 @@ class MatrixRoomCreateSerializer(serializers.Serializer):
 class MatrixRoomMemberSerializer(serializers.HyperlinkedModelSerializer):
     user_uuid = serializers.ReadOnlyField(source="user.uuid")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_image = serializers.ImageField(source="user.image", read_only=True)
 
     class Meta:
         model = models.MatrixRoomMember
@@ -181,6 +182,7 @@ class MatrixRoomMemberSerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "user_uuid",
             "user_full_name",
+            "user_image",
             "matrix_user_id",
             "power_level",
             "membership_state",
