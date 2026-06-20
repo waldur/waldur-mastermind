@@ -328,6 +328,7 @@ def create_or_update_oauth_user(
                 raise OAuthException(
                     identity_provider.provider,
                     "User email is not provided. Account creation is blocked.",
+                    user_facing=True,
                 )
 
             if not Invitation.objects.filter(
@@ -345,6 +346,7 @@ def create_or_update_oauth_user(
                     raise OAuthException(
                         identity_provider.provider,
                         config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE,
+                        user_facing=True,
                     )
         created = True
 

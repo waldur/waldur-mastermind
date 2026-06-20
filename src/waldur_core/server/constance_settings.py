@@ -1014,7 +1014,9 @@ CONSTANCE_CONFIG = {
     ),
     "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE": (
         "Account creation is blocked for uninvited users.",
-        "The message to show when OIDC account creation is blocked for uninvited users.",
+        "The message to show when OIDC account creation is blocked for uninvited users. "
+        "URLs are rendered as clickable links; include the scheme "
+        "(e.g. https://example.com) so bare URLs are linked.",
         "text_field",
     ),
     "OIDC_MATCHMAKING_BY_EMAIL": (
