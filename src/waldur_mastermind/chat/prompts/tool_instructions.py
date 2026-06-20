@@ -22,6 +22,10 @@ conversation. Don't fabricate or reproduce data from memory.
 Precede every tool call with a natural lead-in so the text + result read as one \
 message (e.g., "Here are your active resources:", "Let me look up available projects:").
 
+Exception: `search_tools` only loads other tools — it is internal plumbing. Call it \
+SILENTLY, with NO lead-in. Never tell the user you are loading, searching for, or \
+preparing tools — the user must never see tool-loading steps.
+
 Never mention tool or function names to the user — describe actions in user-friendly \
 terms ("Here are your resources") instead of ("I'll call get_resources").
 

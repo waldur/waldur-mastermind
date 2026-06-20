@@ -1,0 +1,134 @@
+# Support-assistant validation scenarios — typical multi-part support sessions.
+#
+# These mirror how an operator actually phrases questions in chat: natural,
+# often multi-part, and answerable only by combining the credit / resource
+# tools. They exercise ANSWER CLARITY (structure, proportional urgency,
+# honest negatives, comparison) on top of correct tool selection.
+#
+# Loaded against the `credit_realistic` demo preset (seed 42). Anchors:
+#   Bluewave Glacier  — credit 3,853;  spend 13,318  → overdrawn ~3.46x (paused)
+#   Bluewave Gamma    — credit 11,396; spend 12,380  → over by 984    (paused)
+#   Bluewave Delta II — credit 9,861;  spend 10,431  → over by 570    (paused)
+#   Bluewave Vela     — credit 33,211; spend 25,924  → 78% used, NOT over
+#   Bluewave Elysium  — credit 19,909; spend 0       → unspent
+#   Acme customer credit 97,989; Bluewave 750,000; Crestford has none.
+
+- name: session_org_triage
+  description: Operator triages a whole org — wants every over-budget project + amounts.
+  inputs:
+    - "I'm reviewing Bluewave Genomics. Which of their projects are over budget, and by how much?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: list_overdrawn_projects
+        rationale: "One scan answers this — not per-project lookups."
+    - type: data_match
+      config:
+        expected_values:
+          - "Glacier"
+          - "Gamma"
+          - "Delta II"
+        rationale: "All three overdrawn projects must be named."
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "(?i)Bluewave Vela.*(over budget|overdrawn|exceeded)"
+          - "(?i)Bluewave Elysium.*(over budget|overdrawn|exceeded)"
+        rationale: "Vela (78% used) and Elysium (unspent) are NOT over budget."
+
+- name: session_combined_diagnosis
+  description: "Unavailable resource — needs BOTH paused-cause and credit status, clearly."
+  inputs:
+    - "Users say Bluewave Glacier VM 1 is unavailable. Why is it down, and what's the project's credit situation?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: explain_resource_paused_reason
+        rationale: "Primary cause needs the paused-reason tool."
+    - type: data_match
+      config:
+        expected_values:
+          - "Glacier"
+        rationale: "Answer must name the resource/project under inspection."
+    - type: pattern
+      config:
+        required_patterns:
+          - "(?i)(cost policy|credit|overdrawn|exceeded|limit)"
+        forbidden_patterns:
+          - "(?i)Glacier VM 1 is (not paused|available|running normally)"
+        rationale: "Must connect the pause to the credit overrun, not claim it's fine."
+
+- name: session_proportional_risk
+  description: "Calibration test — Vela is at 78%, getting close but NOT over. Don't over/under-alarm."
+  inputs:
+    - "Should I be worried about Bluewave Vela running out of credit?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: explain_project_credit_balance
+        rationale: "Needs the actual balance, not a guess."
+    - type: data_match
+      config:
+        expected_values:
+          - "Vela"
+        rationale: "Answer must name the project."
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "(?i)Vela.*(is overdrawn|has exceeded|ran out of credit|out of credit)"
+          - "(?i)Vela has [0-9].*(remaining|left).*0\\b"
+        rationale: "Vela is NOT overdrawn — claiming it ran out is wrong (over-alarm)."
+
+- name: session_comparison
+  description: "Comparison clarity — which of two overdrawn projects is worse, with reasoning."
+  inputs:
+    - "Between Bluewave Gamma and Bluewave Delta II, which one is in worse shape on credit?"
+  evaluations:
+    - type: data_match
+      config:
+        expected_values:
+          - "Gamma"
+          - "Delta II"
+        rationale: "Both projects compared must be named."
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "(?i)(both are fine|neither is over|within budget)"
+        rationale: "Both are overdrawn; a clear comparison must say so."
+
+- name: session_honest_negative
+  description: "Honest negative — Crestford has no customer credit. Don't fabricate one."
+  inputs:
+    - "Does Crestford Climate Centre have any organization-level credit allocated?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: get_customer_credit_overview
+        rationale: "Org-level credit question — one customer-overview call, not per-project lookups."
+    - type: pattern
+      config:
+        required_patterns:
+          - "(?i)(no|not|none|does not|doesn't|no customer credit|not allocated|not configured)"
+        forbidden_patterns:
+          - "(?i)Crestford.*(customer credit|organization credit) (of|is) [0-9]"
+        rationale: "Crestford has no customer credit — must say so, not invent a number."
+
+- name: session_exec_summary
+  description: "Executive summary — concise prioritized health overview of a whole org."
+  inputs:
+    - "Give me a short health summary of Bluewave Genomics' credit across its projects."
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: get_customer_credit_overview
+        rationale: "One customer-overview call — not a per-project fan-out."
+    - type: data_match
+      config:
+        expected_values:
+          - "Glacier"
+        rationale: "The most-overdrawn project must surface in any honest summary."
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "(?i)(all projects are (fine|healthy|within budget)|no projects? are overdrawn)"
+        rationale: "There ARE overdrawn projects; a clean bill of health is wrong."

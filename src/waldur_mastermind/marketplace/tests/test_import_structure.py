@@ -1106,6 +1106,51 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(resource2.name, "Test Resource 2")
         self.assertIsNone(resource2.plan)
 
+    def test_import_preserves_paused_flag_against_post_save(self):
+        """A resource imported as paused stays paused even when a post_save
+        handler clears it mid-import. The loader re-applies authored
+        paused/downscaled/restrict_member_access flags via a signal-free
+        update as its final step, so policy re-evaluation triggered by usage
+        or invoice import cannot leave the resource in the wrong state.
+        """
+        from django.db.models.signals import post_save
+
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        offering = marketplace_factories.OfferingFactory()
+        plan = marketplace_factories.PlanFactory(offering=offering)
+
+        # Stand in for the policy app: aggressively clear paused on every
+        # resource save during import. The end-of-import re-apply must win.
+        def _clear_paused(sender, instance, **kwargs):
+            if instance.paused:
+                Resource.objects.filter(pk=instance.pk).update(paused=False)
+
+        post_save.connect(
+            _clear_paused,
+            sender=Resource,
+            dispatch_uid="test_clear_paused",
+        )
+        try:
+            resources_data = [
+                {
+                    "uuid": "cccccccc-dddd-eeee-ffff-333333333333",
+                    "name": "Paused Resource",
+                    "state": 2,
+                    "offering_uuid": offering.uuid.hex,
+                    "plan_uuid": plan.uuid.hex,
+                    "project_uuid": project.uuid.hex,
+                    "paused": True,
+                }
+            ]
+            self._create_test_json({"resources": resources_data})
+            self._call_import_command("-i", self.test_file_path)
+        finally:
+            post_save.disconnect(sender=Resource, dispatch_uid="test_clear_paused")
+
+        resource = Resource.objects.get(uuid="cccccccc-dddd-eeee-ffff-333333333333")
+        self.assertTrue(resource.paused)
+
     def test_import_resources_with_created_date(self):
         """Test that importing resources with created field preserves the date."""
         # Create dependencies

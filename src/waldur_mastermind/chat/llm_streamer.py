@@ -13,7 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_mastermind.chat import models
-from waldur_mastermind.chat.block_schemas import blocks_to_text
+from waldur_mastermind.chat.block_schemas import blocks_to_text, clean_answer_blocks
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser
 from waldur_mastermind.chat.prompts.rejection import TITLE_GENERATION_PROMPT
@@ -1190,7 +1190,7 @@ class LLMStreamer:
             self.assistant_msg.delete()
             return None
 
-        self.assistant_msg.blocks = self.accumulated_blocks
+        self.assistant_msg.blocks = clean_answer_blocks(self.accumulated_blocks)
         self.assistant_msg.warning = self.accumulated_warning
         self.assistant_msg.input_tokens = self.input_tokens
         self.assistant_msg.output_tokens = self.output_tokens
@@ -1269,7 +1269,7 @@ class LLMStreamer:
             assistant_msg = models.Message.objects.create(
                 thread=locked_thread,
                 role=models.Message.Role.ASSISTANT,
-                blocks=self.accumulated_blocks,
+                blocks=clean_answer_blocks(self.accumulated_blocks),
                 warning=self.accumulated_warning,
                 sequence_index=user_msg.sequence_index + 1,
                 input_tokens=self.input_tokens,

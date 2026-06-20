@@ -967,7 +967,19 @@ class Command(BaseCommand):
             lambda: self.import_course_accounts(data.get("course_accounts", [])),
         )
 
-        # Import invoicing (depends on customers, resources, projects)
+        # Import invoicing (depends on customers, resources, projects).
+        # Credits are imported BEFORE invoice items so that compensation rows
+        # (InvoiceItem.credit_uuid → CustomerCredit) can resolve the FK during
+        # invoice-item creation. Without this order the credit FK ends up null,
+        # which makes the loader misclassify compensations as manual refunds.
+        self._safe_import(
+            "customer_credits",
+            lambda: self.import_customer_credits(data.get("customer_credits", [])),
+        )
+        self._safe_import(
+            "project_credits",
+            lambda: self.import_project_credits(data.get("project_credits", [])),
+        )
         self._safe_import(
             "invoices", lambda: self.import_invoices(data.get("invoices", []))
         )
@@ -1038,15 +1050,8 @@ class Command(BaseCommand):
             ),
         )
 
-        # Import credit data (after customers and projects are ready)
-        self._safe_import(
-            "customer_credits",
-            lambda: self.import_customer_credits(data.get("customer_credits", [])),
-        )
-        self._safe_import(
-            "project_credits",
-            lambda: self.import_project_credits(data.get("project_credits", [])),
-        )
+        # (customer_credits / project_credits already imported above so
+        # invoice_items can resolve the credit FK on compensation rows.)
 
         # Import events last (after all entities exist)
         self._safe_import(
@@ -1065,6 +1070,38 @@ class Command(BaseCommand):
             "user_agreements",
             lambda: self.import_user_agreements(data.get("user_agreements", [])),
         )
+
+        # Re-apply authored resource state flags LAST. Importing usages and
+        # invoices fires policy re-evaluation, which can clear a resource's
+        # paused/downscaled flag when the mid-import spend snapshot differs
+        # from the fully-loaded state the preset author intended. A signal-
+        # free update at the very end restores the authored values.
+        self._safe_import(
+            "resource_state_flags",
+            lambda: self._apply_resource_state_flags(data.get("resources", [])),
+        )
+
+    def _apply_resource_state_flags(self, resources_data):
+        """Force authored paused/downscaled/restrict_member_access onto resources.
+
+        Uses queryset ``.update()`` so no post_save signals fire (no policy
+        re-evaluation). Only touches resources whose preset entry actually
+        carries one of the flags.
+        """
+        if self.dry_run:
+            return
+        for resource_data in resources_data:
+            uuid = resource_data.get("uuid")
+            if not uuid:
+                continue
+            flags = {
+                key: resource_data[key]
+                for key in ("paused", "downscaled", "restrict_member_access")
+                if key in resource_data
+            }
+            if not flags:
+                continue
+            Resource.objects.filter(uuid=uuid).update(**flags)
 
     def _parse_datetime(self, value):
         """Parse a datetime string, supporting both ISO format and relative offsets.
@@ -4098,6 +4135,11 @@ class Command(BaseCommand):
                     "description": resource_data.get("description", ""),
                     "slug": resource_data.get("slug", ""),
                     "end_date": end_date,
+                    "paused": resource_data.get("paused", False),
+                    "downscaled": resource_data.get("downscaled", False),
+                    "restrict_member_access": resource_data.get(
+                        "restrict_member_access", False
+                    ),
                 }
 
                 if scope_content_type and scope_object_id:
@@ -4741,6 +4783,15 @@ class Command(BaseCommand):
                     except (ValueError, TypeError):
                         pass
 
+                # Find optional credit FK (set on credit-compensation rows;
+                # null on regular charges and manual cost adjustments).
+                credit = None
+                credit_uuid = item_data.get("credit_uuid")
+                if credit_uuid:
+                    credit = CustomerCredit.objects.filter(
+                        uuid=self._normalize_uuid(credit_uuid)
+                    ).first()
+
                 defaults = {
                     "invoice": invoice,
                     "resource": resource,
@@ -4753,6 +4804,7 @@ class Command(BaseCommand):
                     "backend_uuid": backend_uuid,
                     "details": item_data.get("details", {}),
                     "plan_component": plan_component,
+                    "credit": credit,
                 }
 
                 # Only set start/end if provided, otherwise let model use defaults

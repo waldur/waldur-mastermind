@@ -44,9 +44,18 @@ class ToolUsageEvaluator(Evaluator):
         rationale = config.get("rationale", "")
 
         # With native function calling, tool_calls come from the API response
-        # Callers pass tool_calls=[{"name": "tool_name"}] in config
+        # Callers pass tool_calls=[{"name": "tool_name"}] in config.
+        # Match against ALL calls in the turn, not just the first — the
+        # lazy-load architecture (search_tools → real tool) means the
+        # expected tool is rarely the first one in the chain.
         api_tool_calls = config.get("tool_calls") or []
-        actual_tool = api_tool_calls[0].get("name") if api_tool_calls else None
+        names = [c.get("name") for c in api_tool_calls if c.get("name")]
+        domain_names = [n for n in names if n != "search_tools"]
+        actual_tool = (
+            expected_tool
+            if expected_tool in names
+            else (domain_names[0] if domain_names else None)
+        )
         tool_call = {"name": actual_tool} if actual_tool else None
 
         # Check if expectation matches reality
@@ -379,12 +388,92 @@ class LanguageEvaluator(Evaluator):
         return "en"
 
 
+class DataMatchEvaluator(Evaluator):
+    """Asserts response text contains every value in ``expected_values``.
+
+    Used by the support-assistant harness to check the assistant cited the
+    real ORM value (e.g. credit balance, project name) and didn't fabricate
+    around it. Comparison is case-insensitive substring matching — works
+    for human numbers ("44,657.40"), names, and short identifiers without
+    coupling to LLM phrasing.
+    """
+
+    def evaluate(self, response_text: str, config: dict) -> EvaluationResult:
+        expected_values = config.get("expected_values") or []
+        rationale = config.get("rationale", "")
+        haystack = (response_text or "").lower()
+        missing = [v for v in expected_values if str(v).lower() not in haystack]
+        passed = not missing
+        if passed:
+            return EvaluationResult(
+                passed=True,
+                score=1.0,
+                message=f"Response cites all {len(expected_values)} expected values. {rationale}",
+                details={"expected": expected_values, "missing": []},
+            )
+        return EvaluationResult(
+            passed=False,
+            score=0.0,
+            message=f"Response is missing {len(missing)} of {len(expected_values)} expected values. {rationale}",
+            details={"expected": expected_values, "missing": missing},
+        )
+
+
+class ToolArgumentsEvaluator(Evaluator):
+    """Asserts that a specific tool was called with arguments containing
+    the expected substrings.
+
+    Catches the "right tool, wrong scope" failure (e.g. assistant calls
+    ``get_project_resources`` for project ``a235`` when user asked about
+    ``a117``). Tool calls are passed in via the runner as
+    ``tool_calls=[{"name": "...", "arguments": {...}}]``.
+    """
+
+    def evaluate(self, response_text: str, config: dict) -> EvaluationResult:
+        expected_tool = config.get("tool")
+        args_must_contain = config.get("args_must_contain") or {}
+        rationale = config.get("rationale", "")
+        tool_calls = config.get("tool_calls") or []
+
+        matching = [tc for tc in tool_calls if tc.get("name") == expected_tool]
+        if not matching:
+            return EvaluationResult(
+                passed=False,
+                score=0.0,
+                message=f"Tool '{expected_tool}' was not called. {rationale}",
+                details={"tool_calls": tool_calls},
+            )
+
+        # Pass if any invocation of the tool satisfies all expected args.
+        for call in matching:
+            args = call.get("arguments") or {}
+            if all(
+                str(v).lower() in str(args.get(k, "")).lower()
+                for k, v in args_must_contain.items()
+            ):
+                return EvaluationResult(
+                    passed=True,
+                    score=1.0,
+                    message=f"Tool '{expected_tool}' called with expected args. {rationale}",
+                    details={"matched_call": call},
+                )
+
+        return EvaluationResult(
+            passed=False,
+            score=0.0,
+            message=f"Tool '{expected_tool}' called but no invocation matched expected args. {rationale}",
+            details={"expected_args": args_must_contain, "actual_calls": matching},
+        )
+
+
 # Registry of available evaluators
 EVALUATORS = {
     "tool_usage": ToolUsageEvaluator(),
     "pattern": PatternEvaluator(),
     "code_block": CodeBlockEvaluator(),
     "language": LanguageEvaluator(),
+    "data_match": DataMatchEvaluator(),
+    "tool_arguments": ToolArgumentsEvaluator(),
 }
 
 
