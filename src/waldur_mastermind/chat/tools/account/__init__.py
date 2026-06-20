@@ -8,11 +8,16 @@ tool modules do not need to be listed there.
 
 from waldur_mastermind.chat.tools.account import (  # noqa: F401
     display_user_resources,
+    explain_invoice_compensations,
+    explain_project_credit_balance,
+    explain_resource_paused_reason,
+    get_customer_credit_overview,
     get_project_quota,
     get_project_resources,
     get_resource_usage,
     get_user_overview,
     helpers,
     list_organizations,
+    list_overdrawn_projects,
     list_projects,
 )

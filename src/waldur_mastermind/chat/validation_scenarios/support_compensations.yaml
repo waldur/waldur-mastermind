@@ -1,0 +1,60 @@
+# Support-assistant validation scenarios — invoice compensations & concealed
+# resources. Loaded against the `credit_realistic` preset (seed 42), where
+# project "Acme Sirius" has one TERMINATED VM (concealed from end users)
+# whose 6 months of charges (~233 CHF) are fully compensated from Acme's
+# CustomerCredit, leaving the user-visible invoice net of those rows.
+
+- name: invoice_compensation_concealed_resource
+  description: User asks why their invoice net is lower than gross — assistant must surface compensations + the concealed terminated resource.
+  inputs:
+    - "On Acme Sirius last month — what was the invoice gross vs net, and were any resources hidden from my view?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: explain_invoice_compensations
+        rationale: "Only this tool surfaces credit-compensation rows."
+    - type: tool_arguments
+      config:
+        tool: explain_invoice_compensations
+        args_must_contain:
+          project_name: Acme Sirius
+        rationale: "Must scope to Acme Sirius."
+    - type: data_match
+      config:
+        expected_values:
+          - "Acme Sirius"
+          - "terminated"
+        rationale: "Cite the project AND the terminated/concealed resource."
+    - type: pattern
+      config:
+        required_patterns:
+          - "(?i)(compensat|credit)"
+          - "(?i)(net|gross|charged)"
+        rationale: "Must mention compensation/credit AND the gross-vs-net story."
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "(?i)no compensation"
+          - "(?i)nothing was compensated"
+        rationale: "There IS a compensation; refusing it is wrong."
+
+- name: terminated_billed_visibility
+  description: User asks if a terminated resource is still being billed — assistant should explain visibility-vs-billing distinction.
+  inputs:
+    - "On project Acme Sirius, were any terminated resources still billed or compensated last month?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: explain_invoice_compensations
+        rationale: "This tool reveals concealed terminated resources still on the invoice."
+    - type: data_match
+      config:
+        expected_values:
+          - "Acme Sirius VM 1"
+        rationale: "Name the specific terminated resource present in the preset."
+    - type: pattern
+      config:
+        required_patterns:
+          - '(?i)(terminated|concealed|hidden|not visible)'
+          - '(?i)(compensat|credit|covered)'
+        rationale: "Explain BOTH that it's terminated AND that the cost was credit-compensated."

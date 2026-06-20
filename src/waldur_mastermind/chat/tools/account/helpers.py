@@ -6,6 +6,7 @@ place. Tools never touch ``filter_queryset_for_user`` directly.
 """
 
 import uuid as uuid_module
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
@@ -14,6 +15,19 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Customer, Project
+
+
+def sum_invoice_item_totals(items) -> Decimal:
+    """Sum ``InvoiceItem.total`` over an iterable.
+
+    ``total`` is a Python property (price + tax, with per-day quantization and
+    current-month quantity recomputation), so it cannot be aggregated in SQL —
+    callers must iterate. Kept here so the credit tools share one definition.
+    """
+    total = Decimal("0")
+    for item in items:
+        total += item.total
+    return total
 
 
 def validate_uuid(value: str) -> bool:

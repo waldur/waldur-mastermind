@@ -428,6 +428,11 @@ class ToolsByCategoryTest(TestCase):
                 ToolName.GET_PROJECT_QUOTA,
                 ToolName.GET_RESOURCE_USAGE,
                 ToolName.GET_USER_OVERVIEW,
+                ToolName.EXPLAIN_PROJECT_CREDIT_BALANCE,
+                ToolName.LIST_OVERDRAWN_PROJECTS,
+                ToolName.EXPLAIN_RESOURCE_PAUSED_REASON,
+                ToolName.EXPLAIN_INVOICE_COMPENSATIONS,
+                ToolName.GET_CUSTOMER_CREDIT_OVERVIEW,
             },
         )
 

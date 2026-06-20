@@ -16,7 +16,15 @@ class EvaluationCriteria:
 
     def __post_init__(self):
         """Validate evaluation criteria type."""
-        valid_types = {"tool_usage", "pattern", "length", "code_block", "language"}
+        valid_types = {
+            "tool_usage",
+            "pattern",
+            "length",
+            "code_block",
+            "language",
+            "data_match",
+            "tool_arguments",
+        }
         if self.type not in valid_types:
             raise ValueError(
                 f"Invalid evaluation type '{self.type}'. "

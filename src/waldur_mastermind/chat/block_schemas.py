@@ -5,6 +5,8 @@ before reaching the frontend. Every block has id/key/status; key-specific
 fields are validated by a per-kind serializer dispatched from BlockSerializer.
 """
 
+import re
+
 from rest_framework import serializers
 
 BLOCK_KINDS = (
@@ -177,3 +179,42 @@ def blocks_to_text(blocks: list[dict] | None) -> str:
         else:
             parts.append(content)
     return "".join(parts)
+
+
+# Some models emit a tool call as literal text (the older XML-ish syntax)
+# instead of using native function calling. When that text is not intercepted
+# as a real tool call it would otherwise render to the user verbatim. Strip
+# these fragments from the displayed answer.
+_TOOL_CALL_ARTIFACT_RE = re.compile(
+    r"<tool_call\b[^>]*>.*?</tool_call>"  # full <tool_call>…</tool_call>
+    r"|<function=[^>]*>.*?</function>"  # <function=…>…</function>
+    r"|</?(?:tool_call|function|parameter)\b[^>]*>",  # stray opening/closing tags
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def strip_tool_call_artifacts(text: str) -> str:
+    """Remove text-form tool-call XML a model may emit instead of using
+    native function calling, so it never reaches the user."""
+    if not text:
+        return text
+    return _TOOL_CALL_ARTIFACT_RE.sub("", text).strip()
+
+
+def clean_answer_blocks(blocks: list[dict] | None) -> list[dict]:
+    """Return the user-facing blocks for a finalized assistant message.
+
+    Strips text-form tool-call artifacts from markdown content, dropping the
+    block if nothing is left. Tool blocks and tool-result UI blocks are
+    preserved; ``code`` / ``mermaid`` content is left untouched (an angle
+    bracket inside a code block is intended).
+    """
+    cleaned: list[dict] = []
+    for b in blocks or []:
+        if b.get("key") == "markdown":
+            content = strip_tool_call_artifacts(b.get("content", ""))
+            if not content.strip():
+                continue
+            b = {**b, "content": content}
+        cleaned.append(b)
+    return cleaned

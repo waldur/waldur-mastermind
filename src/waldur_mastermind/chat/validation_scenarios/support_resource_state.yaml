@@ -1,0 +1,93 @@
+# Support-assistant validation scenarios — resource state (paused, etc.)
+#
+# Loaded against the `credit_realistic` demo preset. Concrete asserts
+# below correspond to the seed-42 generator output:
+#   Paused (cost-policy fired):
+#     Bluewave Glacier VM 1 — limit 3853, spent ~13318, over by ~9465
+#     Bluewave Gamma VM 1   — limit 11396, spent ~12380, over by ~984
+#     Bluewave Delta II VM 1/2 — limit 9861, spent ~10430, over by ~569
+#   NOT paused: every other resource (Acme/Crestford projects + non-overdrawn Bluewave).
+
+- name: paused_due_to_cost_policy
+  description: Severely-overdrawn project resource — explainer must cite cost policy + numbers.
+  inputs:
+    - "Why is Bluewave Glacier VM 1 paused?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: explain_resource_paused_reason
+        rationale: "Dedicated tool — not get_resource_usage / get_project_quota."
+    - type: tool_arguments
+      config:
+        tool: explain_resource_paused_reason
+        args_must_contain:
+          resource_name: Glacier
+        rationale: "Must scope to Glacier, not a sibling Bluewave resource."
+    - type: data_match
+      config:
+        expected_values:
+          - "Glacier"
+          - "3,853"
+        rationale: "Response must name the resource and cite the limit_cost driving the pause (LLM emits formatted '3,853')."
+    - type: pattern
+      config:
+        required_patterns:
+          - '(?i)(cost\s+policy|exceeded|over.*limit|ProjectEstimatedCostPolicy|paused)'
+        forbidden_patterns:
+          - "(?i)not paused"
+          - "(?i)Bluewave Vela"
+        rationale: "Cite the policy as cause; do not claim 'not paused' or leak sibling-resource data."
+
+- name: not_paused_resource_explainer
+  description: Asking why an OK resource is paused — must cleanly say it isn't.
+  inputs:
+    - "Is Acme Yarrow VM 1 currently paused?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: explain_resource_paused_reason
+        rationale: "Tool must be called even when the answer is 'no'."
+    - type: pattern
+      config:
+        required_patterns:
+          # Allow adverbs between "not" and "paused" ("not currently paused")
+          # and the "isn't paused" contraction — all are honest-no answers.
+          - "(?i)(not|isn'?t|is not)\\s+(\\w+\\s+)?paused"
+        forbidden_patterns:
+          - "(?i)cost policy.*triggered"
+          - "(?i)policy.*paused.*Yarrow"
+        rationale: "Honest-no answer; do not invent a policy cause."
+
+- name: paused_unknown_resource
+  description: Resource doesn't exist — refuse, do not fabricate.
+  inputs:
+    - "Why is the Phantom-9000 server paused?"
+  evaluations:
+    - type: pattern
+      config:
+        required_patterns:
+          - "(?i)(not\\s+found|no\\s+such|does\\s+not\\s+exist|cannot\\s+find|couldn't\\s+find)"
+        forbidden_patterns:
+          - "(?i)Phantom-9000.*(paused|cost policy|limit)"
+        rationale: "Refuse; do not hallucinate a paused-cause for a resource that does not exist."
+
+- name: paused_with_credit_context
+  description: Combined scenario — paused AND ask for credit context. Should call BOTH tools.
+  inputs:
+    - "Why is Bluewave Gamma VM 1 paused, and what's the project's credit situation?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: explain_resource_paused_reason
+        rationale: "Primary cause needs the paused-reason tool."
+    - type: data_match
+      config:
+        expected_values:
+          - "Gamma"
+          - "11,396"
+        rationale: "Cite the paused resource and the limit_cost driving the pause."
+    - type: pattern
+      config:
+        required_patterns:
+          - "(?i)(credit|spent|exceeded|limit)"
+        rationale: "A combined prompt should mention credit numbers, not just policy class."
