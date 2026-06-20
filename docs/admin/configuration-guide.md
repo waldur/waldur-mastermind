@@ -2256,7 +2256,7 @@ If true, block creation of an account on OIDC login if user email is not provide
 
 **Default value:** Account creation is blocked for uninvited users.
 
-The message to show when OIDC account creation is blocked for uninvited users.
+The message to show when OIDC account creation is blocked for uninvited users. URLs are rendered as clickable links; include the scheme (e.g. https://example.com) so bare URLs are linked.
 
 #### OIDC_MATCHMAKING_BY_EMAIL
 
