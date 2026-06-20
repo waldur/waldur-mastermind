@@ -38,6 +38,7 @@ from waldur_core.core.models import TokenExchangeCode, User
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
+from waldur_core.core.views import login_failed
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.serializers import IdentityBridgeStatsSerializer
@@ -161,7 +162,20 @@ class OAuthViewComplete(BaseOAuthView):
     )
     def get(self, request, provider, format=None):
         self.validate_config(provider)
+        try:
+            return self._complete_login(request, provider)
+        except OAuthException as e:
+            # The complete endpoint is reached via a top-level browser navigation
+            # (the IdP redirects here directly), so raising a DRF exception would
+            # render raw JSON in the browser. For user-facing messages (e.g. the
+            # configurable uninvited-user block message) redirect to the Homeport
+            # login-failed page so the message is shown consistently with the rest
+            # of the UI. Other errors keep their default rendering.
+            if getattr(e, "user_facing", False):
+                return login_failed(e.user_message)
+            raise
 
+    def _complete_login(self, request, provider):
         stored_state = self.request.session.get(OIDC_STATE_KEY)
         returned_state = request.query_params.get("state")
         if not stored_state or stored_state != returned_state:

@@ -24,6 +24,15 @@ from waldur_core.users.enums import InvitationState
 from waldur_core.users.tests import factories as user_factories
 
 
+def assert_login_failed_redirect(test_case, response, expected_message):
+    """Assert the response redirects to the Homeport login-failed page with the message."""
+    test_case.assertEqual(response.status_code, status.HTTP_302_FOUND)
+    parsed_url = urlparse(response.url)
+    test_case.assertEqual(parsed_url.path, "/login_failed/")
+    query_params = parse_qs(parsed_url.query)
+    test_case.assertEqual(query_params["message"], [expected_message])
+
+
 class OAuthViewInitTest(test.APITestCase):
     def setUp(self):
         super().setUp()
@@ -531,8 +540,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn("It is blocked", str(response.content))
+        assert_login_failed_redirect(self, response, "It is blocked")
         self.assertEqual(User.objects.count(), 0)
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -582,9 +590,8 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn(
-            "Account creation is blocked for uninvited users.", str(response.content)
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
         )
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
@@ -605,10 +612,8 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn(
-            "User email is not provided. Account creation is blocked.",
-            str(response.content),
+        assert_login_failed_redirect(
+            self, response, "User email is not provided. Account creation is blocked."
         )
         self.assertEqual(User.objects.count(), 0)
 
@@ -655,7 +660,9 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert: user should NOT be created
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -680,7 +687,9 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert: user should NOT be created
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
     @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
@@ -2062,9 +2071,8 @@ class OIDCEmailMatchmakingTest(test.APITransactionTestCase):
 
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn(
-            "Account creation is blocked for uninvited users.", str(response.content)
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
         )
 
     @override_config(OIDC_MATCHMAKING_BY_EMAIL=True)
