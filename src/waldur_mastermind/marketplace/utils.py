@@ -2767,12 +2767,20 @@ def refresh_integration_agent_status(request, agent_type):
 
     if offering is None:
         logger.warning(
-            "Offering with UUID %s doesn't exist, skipping integration status update"
+            "Offering with UUID %s doesn't exist, skipping integration status update",
+            offering_uuid,
         )
         return
 
     if not has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
-        logger.error("User doesn't have permission for offering management")
+        logger.warning(
+            "User %s lacks UPDATE_OFFERING permission on offering %s (%s); "
+            "skipping %s integration status update",
+            getattr(request.user, "username", request.user),
+            offering.name,
+            offering_uuid,
+            agent_type,
+        )
         return
 
     integration_status, _ = models.IntegrationStatus.objects.get_or_create(
