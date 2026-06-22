@@ -1,3 +1,4 @@
+import os
 import socket
 import warnings
 from datetime import timedelta
@@ -46,6 +47,13 @@ CELERY_DATABASE_ENGINE_OPTIONS = {"connect_args": {"prepare_threshold": None}}
 # Higher value reduces broker reconnect churn (each fork re-handshakes
 # connections); see broker-resilience block below.
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 2000
+
+# Hard per-child memory ceiling (KB): recycle a child once its resident memory
+# exceeds this, so a single heavy task cannot permanently inflate the worker's
+# high-watermark. 0 disables the limit (default); set via env, e.g. 400000 (~400 MB).
+CELERY_WORKER_MAX_MEMORY_PER_CHILD = int(
+    os.environ.get("CELERY_WORKER_MAX_MEMORY_PER_CHILD") or 0
+)
 
 # Time limits - prevent runaway tasks
 CELERY_TASK_SOFT_TIME_LIMIT = (

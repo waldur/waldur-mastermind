@@ -18,6 +18,8 @@ This is a Django-based cloud orchestration platform. When working on this codeba
 - Commit code that doesn't compile
 - Make assumptions - verify with existing code
 - Import modules inside functions - all imports must be at the top of the file
+  (narrow exception: lazy imports of heavy optional backend SDKs — see
+  "Lazy imports for heavy optional backends" below)
 
 **ALWAYS**:
 
@@ -27,6 +29,38 @@ This is a Django-based cloud orchestration platform. When working on this codeba
 - Run tests and linters before committing
 
 ## Key Waldur Patterns
+
+### Lazy imports for heavy optional backends
+
+The default rule is imports-at-top-of-file. The **only** sanctioned exception is
+the heavy SDK of an optional provider backend that most deployments never use.
+Such SDKs (e.g. `azure-mgmt-*` ≈ 37 MB, `apache-libcloud`, large cloud clients)
+get imported in **every** process at Django startup if referenced at module top —
+because the provider's `apps.py` `ready()` registers the backend, which imports
+`backend.py` → `client.py`. That permanently inflates the resident memory of API
+and Celery pods for a feature they don't exercise.
+
+When (and only when) **all** of these hold, defer the SDK import:
+
+- the dependency is large and belongs to an **optional** provider backend;
+- it is used only inside `client.py` / `backend.py` methods (never in
+  `models.py` / `serializers.py` / `views.py` / `urls.py` / `apps.py`);
+- deployments that don't use the provider should not pay for it.
+
+How to defer (keep it disciplined — this is not licence for ad-hoc local imports):
+
+- Put the `from azure... import X` **inside the method** that uses it.
+- For symbols used in many `except` clauses, add one module-level helper that
+  imports lazily, e.g. `def _azure_exceptions(): from azure.core.exceptions
+  import AzureError, HttpResponseError; return AzureError, HttpResponseError`,
+  then `except _azure_exceptions() as exc:`.
+- Add `from __future__ import annotations` so SDK types used only in annotations
+  stay lazy; put those imports under `if TYPE_CHECKING:` for the type checker.
+- Leave a comment at the top of the file pointing back to this section.
+
+Reference implementation: `src/waldur_azure/client.py` and `backend.py`. Measure
+the before/after with `scripts/measure_startup_memory.py` (the per-component
+heatmap shows whether the SDK still loads at startup).
 
 ### Permissions
 

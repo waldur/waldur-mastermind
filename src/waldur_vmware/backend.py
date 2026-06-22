@@ -2,11 +2,8 @@ import logging
 import ssl
 from urllib.parse import urlencode
 
-import pyVim.connect
-import pyVim.task
 from django.utils import timezone
 from django.utils.functional import cached_property
-from pyVmomi import vim
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend, log_backend_action
@@ -20,6 +17,11 @@ from waldur_vmware.utils import is_basic_mode
 from . import models, signals
 
 logger = logging.getLogger(__name__)
+
+# pyVmomi / pyVim (~13 MB resident at import) are imported lazily inside the
+# methods that use them, so they are not loaded at Django startup for deployments
+# that never use VMware. See CLAUDE.md, "Lazy imports for heavy optional
+# backends".
 
 
 class VMwareBackendError(ServiceBackendError):
@@ -55,6 +57,8 @@ class VMwareBackend(ServiceBackend):
         """
         Construct VMware SOAP API client using credentials specified in the service settings.
         """
+        import pyVim.connect
+
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         context.verify_mode = ssl.CERT_NONE
         return pyVim.connect.SmartConnect(
@@ -987,6 +991,8 @@ class VMwareBackend(ServiceBackend):
         :type disk: :class:`waldur_vmware.models.Disk`
         :param delete_vmdk: Delete backing VMDK file.
         """
+        import pyVim.task
+
         backend_disk = self.get_backend_disk(disk)
 
         try:
@@ -1014,6 +1020,9 @@ class VMwareBackend(ServiceBackend):
         :param disk: Virtual disk to be extended.
         :type disk: :class:`waldur_vmware.models.Disk`
         """
+        import pyVim.task
+        from pyVmomi import vim
+
         backend_vm = self.get_backend_vm(disk.vm)
         backend_disk = self.get_backend_disk(disk)
 
@@ -1094,6 +1103,8 @@ class VMwareBackend(ServiceBackend):
         return backend_vm.config.tools.toolsInstallType != "guestToolsTypeUnknown"
 
     def _get_backend_vm(self, backend_id):
+        from pyVmomi import vim
+
         return self.get_object(vim.VirtualMachine, backend_id)
 
     def get_backend_disk(self, disk):
@@ -1104,6 +1115,8 @@ class VMwareBackend(ServiceBackend):
         :type disk: :class:`waldur_vmware.models.Disk`
         :rtype: :class:`pyVmomi.VmomiSupport.vim.vm.device.VirtualDisk`
         """
+        from pyVmomi import vim
+
         backend_vm = self.get_backend_vm(disk.vm)
         for device in backend_vm.config.hardware.device:
             if (
@@ -1121,6 +1134,8 @@ class VMwareBackend(ServiceBackend):
         :return: VMware datacenter where disk is located.
         :rtype: :class:`pyVmomi.VmomiSupport.vim.Datacenter`
         """
+        from pyVmomi import vim
+
         parent = backend_disk.backing.datastore.parent
         while parent and not isinstance(parent, vim.Datacenter):
             parent = parent.parent

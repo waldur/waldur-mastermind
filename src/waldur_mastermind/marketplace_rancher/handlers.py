@@ -1,7 +1,6 @@
 import logging
 from typing import cast
 
-import kubernetes as k8s
 from model_utils.tracker import FieldInstanceTracker
 
 from waldur_kubernetes.backend import KubernetesBackend
@@ -89,6 +88,10 @@ def drop_offering_user_for_rancher_user(sender, instance: RancherUser, **kwargs)
 def update_argocd_secret_when_resource_options_changed(
     sender, instance: marketplace_models.Resource, **kwargs
 ):
+    # Lazy import: keep the kubernetes SDK out of Django startup.
+    # See CLAUDE.md, "Lazy imports for heavy optional backends".
+    import kubernetes as k8s
+
     resource = instance
     tracker = cast(FieldInstanceTracker, resource.tracker)
     if not tracker.has_changed("options"):

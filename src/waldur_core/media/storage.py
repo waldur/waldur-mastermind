@@ -1,6 +1,5 @@
 from io import BytesIO
 
-import magic
 from bs4 import BeautifulSoup
 from django.core import files
 from django.core.files.storage.base import Storage
@@ -41,6 +40,8 @@ class DatabaseStorage(Storage):
 
     def _save(self, name: str, content: files.File):
         content_data = content.read()
+
+        import magic
 
         mime_type = magic.from_buffer(content_data[:1024], mime=True)
         if mime_type in ("image/svg", "image/svg+xml"):

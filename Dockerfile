@@ -5,6 +5,12 @@ FROM ${DOCKER_REGISTRY}python:3.13-slim
 
 ENV LANG=C.UTF-8
 
+# Use jemalloc instead of the default glibc allocator to curb memory
+# fragmentation in long-running gunicorn/celery prefork workers. The bare soname
+# resolves via the linker search path on both amd64 and arm64. Set LD_PRELOAD to
+# an empty value to fall back to the system allocator.
+ENV LD_PRELOAD=libjemalloc.so.2
+
 # Install necessary system packages.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -33,6 +39,8 @@ RUN apt-get update && \
     gcc \
     python3-dev \
     procps \
+    # jemalloc reduces allocator fragmentation in long-running prefork workers.
+    libjemalloc2 \
     # Used by saml2-metadata-sync to fetch federation metadata.
     wget \
     && rm -rf /var/lib/apt/lists/*

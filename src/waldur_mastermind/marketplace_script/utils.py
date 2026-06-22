@@ -4,9 +4,7 @@ import os
 import tempfile
 from enum import Enum
 
-import kubernetes as k8s
 from constance import config
-from kubernetes.client.rest import ApiException
 from rest_framework import serializers as rf_serializers
 
 import docker
@@ -17,6 +15,11 @@ from . import serializers
 from .exceptions import JobFailedException
 
 logger = logging.getLogger(__name__)
+
+# The kubernetes client SDK is imported lazily inside the functions that use it
+# (construct_k8s_job_spec / ContainerExecutorMixin.send_request), so it does not
+# load at Django startup for deployments that never run scripts on Kubernetes.
+# See CLAUDE.md, "Lazy imports for heavy optional backends".
 
 
 class DeploymentOptions(Enum):
@@ -85,6 +88,8 @@ def execute_script_in_docker(image, command, src, **kwargs):
 
 
 def construct_k8s_job_spec(image, command, volume_name, config_map_name, environment):
+    import kubernetes as k8s
+
     script_volume = k8s.client.V1Volume(
         name=volume_name,
         config_map=k8s.client.V1ConfigMapVolumeSource(
@@ -193,6 +198,8 @@ class ContainerExecutorMixin:
     hook_type = NotImplemented
 
     def send_request(self, user, resource=None, dry_run=False):
+        from kubernetes.client.rest import ApiException
+
         options = self.order.offering.secret_options
 
         serializer = serializers.OrderSerializer(instance=self.order)
