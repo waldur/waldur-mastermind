@@ -1,38 +1,26 @@
-from dataclasses import dataclass
+from __future__ import annotations
 
-from azure.core.exceptions import AzureError, HttpResponseError
-from azure.identity import ClientSecretCredential
-from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import (
-    DiskCreateOption,
-    LinuxConfiguration,
-    OSProfile,
-    SshConfiguration,
-    SshPublicKey,
-    VirtualMachine,
-    VirtualMachineImage,
-)
-from azure.mgmt.consumption import ConsumptionManagementClient
-from azure.mgmt.network import NetworkManagementClient
-from azure.mgmt.network.models import (
-    NetworkInterface,
-    NetworkInterfaceIPConfiguration,
-    NetworkSecurityGroup,
-    SecurityRule,
-)
-from azure.mgmt.rdbms.postgresql import PostgreSQLManagementClient
-from azure.mgmt.rdbms.postgresql.models import (
-    ServerForCreate,
-    ServerPropertiesForDefaultCreate,
-    ServerVersion,
-    StorageProfile,
-)
-from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
-from azure.mgmt.storage import StorageManagementClient
-from azure.mgmt.storage.models import Kind, Sku, SkuName, StorageAccountCreateParameters
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 from django.utils.functional import cached_property
 
 from waldur_core.structure.exceptions import ServiceBackendError
+
+if TYPE_CHECKING:
+    from azure.mgmt.compute.models import VirtualMachine, VirtualMachineImage
+
+
+# The Azure SDK (azure-mgmt-*, azure-identity, azure-core) adds ~37 MB of
+# resident memory at import time, yet most deployments never provision Azure.
+# Every azure.* import is therefore deferred into the method that uses it, so the
+# SDK loads only on the first real Azure operation. This deliberately diverges
+# from the usual imports-at-top-of-file rule; see the "Lazy imports for heavy
+# optional backends" note in CLAUDE.md.
+def _azure_exceptions() -> tuple[type[Exception], ...]:
+    from azure.core.exceptions import AzureError, HttpResponseError
+
+    return AzureError, HttpResponseError
 
 
 class AzureBackendError(ServiceBackendError):
@@ -57,6 +45,8 @@ class AzureClient:
 
     @cached_property
     def credentials(self):
+        from azure.identity import ClientSecretCredential
+
         return ClientSecretCredential(
             tenant_id=self.tenant_id,
             client_id=self.client_id,
@@ -65,14 +55,20 @@ class AzureClient:
 
     @cached_property
     def subscription_client(self):
+        from azure.mgmt.resource import SubscriptionClient
+
         return SubscriptionClient(self.credentials)
 
     @cached_property
     def resource_client(self):
+        from azure.mgmt.resource import ResourceManagementClient
+
         return ResourceManagementClient(self.credentials, self.subscription_id)
 
     @cached_property
     def compute_client(self):
+        from azure.mgmt.compute import ComputeManagementClient
+
         return ComputeManagementClient(
             self.credentials,
             self.subscription_id,
@@ -80,18 +76,26 @@ class AzureClient:
 
     @cached_property
     def storage_client(self):
+        from azure.mgmt.storage import StorageManagementClient
+
         return StorageManagementClient(self.credentials, self.subscription_id)
 
     @cached_property
     def network_client(self):
+        from azure.mgmt.network import NetworkManagementClient
+
         return NetworkManagementClient(self.credentials, self.subscription_id)
 
     @cached_property
     def consumption_client(self):
+        from azure.mgmt.consumption import ConsumptionManagementClient
+
         return ConsumptionManagementClient(self.credentials, self.subscription_id)
 
     @cached_property
     def pgsql_client(self):
+        from azure.mgmt.rdbms.postgresql import PostgreSQLManagementClient
+
         return PostgreSQLManagementClient(self.credentials, self.subscription_id)
 
     def list_locations(self):
@@ -99,7 +103,7 @@ class AzureClient:
             return self.subscription_client.subscriptions.list_locations(
                 self.subscription_id
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_resource_group_locations(self):
@@ -113,7 +117,7 @@ class AzureClient:
         """
         try:
             provider = self.resource_client.providers.get("Microsoft.Resources")
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
         else:
             for resource in provider.resource_types:
@@ -123,7 +127,7 @@ class AzureClient:
     def list_resource_groups(self):
         try:
             return self.resource_client.resource_groups.list()
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_resource_group(self, location, resource_group_name):
@@ -131,7 +135,7 @@ class AzureClient:
             return self.resource_client.resource_groups.create_or_update(
                 resource_group_name, {"location": location}
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def delete_resource_group(self, resource_group_name):
@@ -139,13 +143,13 @@ class AzureClient:
             return self.resource_client.resource_groups.begin_delete(
                 resource_group_name
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_virtual_machine_sizes(self, location):
         try:
             return self.compute_client.virtual_machine_sizes.list(location)
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_virtual_machine_size_availability_zones(
@@ -155,7 +159,7 @@ class AzureClient:
             all_skus = self.compute_client.resource_skus.list(
                 filter=f"location eq '{location}'"
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
         vm_skus = [sku for sku in all_skus if sku.resource_type == "virtualMachines"]
         zones = dict()
@@ -216,19 +220,19 @@ class AzureClient:
                                 version.name,
                             )
 
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_all_virtual_machines(self):
         try:
             return self.compute_client.virtual_machines.list_all()
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_virtual_machines_in_group(self, resource_group_name):
         try:
             return self.compute_client.virtual_machines.list(resource_group_name)
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_virtual_machine(
@@ -238,7 +242,7 @@ class AzureClient:
             return self.compute_client.virtual_machines.get(
                 resource_group_name, vm_name, expand=expand
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_virtual_machine(
@@ -254,6 +258,13 @@ class AzureClient:
         custom_data=None,
         ssh_key=None,
     ):
+        from azure.mgmt.compute.models import (
+            LinuxConfiguration,
+            OSProfile,
+            SshConfiguration,
+            SshPublicKey,
+        )
+
         os_profile = OSProfile(
             computer_name=vm_name,
             admin_username=username,
@@ -295,7 +306,7 @@ class AzureClient:
                     },
                 },
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def delete_virtual_machine(self, resource_group_name, vm_name):
@@ -304,7 +315,7 @@ class AzureClient:
                 resource_group_name,
                 vm_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def start_virtual_machine(self, resource_group_name, vm_name):
@@ -313,7 +324,7 @@ class AzureClient:
                 resource_group_name,
                 vm_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def restart_virtual_machine(self, resource_group_name, vm_name):
@@ -322,7 +333,7 @@ class AzureClient:
                 resource_group_name,
                 vm_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def stop_virtual_machine(self, resource_group_name, vm_name):
@@ -331,10 +342,17 @@ class AzureClient:
                 resource_group_name,
                 vm_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_storage_account(self, location, resource_group_name, account_name):
+        from azure.mgmt.storage.models import (
+            Kind,
+            Sku,
+            SkuName,
+            StorageAccountCreateParameters,
+        )
+
         try:
             return self.storage_client.storage_accounts.begin_create(
                 resource_group_name,
@@ -346,10 +364,12 @@ class AzureClient:
                     enable_https_traffic_only=True,
                 ),
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_disk(self, location, resource_group_name, disk_name, disk_size_gb):
+        from azure.mgmt.compute.models import DiskCreateOption
+
         try:
             return self.compute_client.disks.begin_create_or_update(
                 resource_group_name,
@@ -360,7 +380,7 @@ class AzureClient:
                     "creation_data": {"create_option": DiskCreateOption.empty},
                 },
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_network(self, location, resource_group_name, network_name, cidr):
@@ -370,7 +390,7 @@ class AzureClient:
                 network_name,
                 {"location": location, "address_space": {"address_prefixes": [cidr]}},
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_subnet(self, resource_group_name, network_name, subnet_name, cidr):
@@ -383,7 +403,7 @@ class AzureClient:
                     "address_prefix": cidr,
                 },
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_subnet(self, resource_group_name, network_name, subnet_name):
@@ -393,7 +413,7 @@ class AzureClient:
                 network_name,
                 subnet_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_network(self, resource_group_name, network_name):
@@ -402,7 +422,7 @@ class AzureClient:
                 resource_group_name,
                 network_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_network_interface(self, resource_group_name, network_interface_name):
@@ -411,7 +431,7 @@ class AzureClient:
                 resource_group_name,
                 network_interface_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_network_interface(
@@ -424,6 +444,11 @@ class AzureClient:
         public_ip_id=None,
         security_group_id=None,
     ):
+        from azure.mgmt.network.models import (
+            NetworkInterface,
+            NetworkInterfaceIPConfiguration,
+        )
+
         ip_configuration = NetworkInterfaceIPConfiguration(
             name=config_name, subnet={"id": subnet_id}
         )
@@ -443,12 +468,14 @@ class AzureClient:
             return self.network_client.network_interfaces.begin_create_or_update(
                 resource_group_name, interface_name, interface_parameters
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_ssh_security_group(
         self, location, resource_group_name, network_security_group_name
     ):
+        from azure.mgmt.network.models import NetworkSecurityGroup, SecurityRule
+
         ssh_rule = SecurityRule(
             name="default-allow-ssh",
             protocol="Tcp",
@@ -471,7 +498,7 @@ class AzureClient:
                 network_security_group_name,
                 security_group,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_public_ip(self, resource_group_name: str, public_ip_address_name: str):
@@ -479,13 +506,13 @@ class AzureClient:
             return self.network_client.public_ip_addresses.get(
                 resource_group_name, public_ip_address_name
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_all_public_ips(self):
         try:
             return self.network_client.public_ip_addresses.list_all()
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_public_ip(self, location, resource_group_name, public_ip_address_name):
@@ -500,7 +527,7 @@ class AzureClient:
                     "public_ip_address_version": "IPv4",
                 },
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def delete_public_ip(self, resource_group_name, public_ip_address_name):
@@ -508,19 +535,19 @@ class AzureClient:
             return self.network_client.public_ip_addresses.begin_delete(
                 resource_group_name, public_ip_address_name
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_all_sql_servers(self):
         try:
             return self.pgsql_client.servers.list()
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_sql_servers_in_group(self, resource_group_name):
         try:
             return self.pgsql_client.servers.list_by_resource_group(resource_group_name)
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_sql_server(self, resource_group_name, server_name):
@@ -529,7 +556,7 @@ class AzureClient:
                 resource_group_name,
                 server_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_sql_server(
@@ -543,6 +570,13 @@ class AzureClient:
         storage_mb=None,
         ssl_enforcement=None,
     ):
+        from azure.mgmt.rdbms.postgresql.models import (
+            ServerForCreate,
+            ServerPropertiesForDefaultCreate,
+            ServerVersion,
+            StorageProfile,
+        )
+
         properties = ServerPropertiesForDefaultCreate(
             administrator_login=username,
             administrator_login_password=password,
@@ -562,7 +596,7 @@ class AzureClient:
                 ),
             )
             return poller.result()
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def delete_sql_server(self, resource_group_name, server_name):
@@ -570,7 +604,7 @@ class AzureClient:
             return self.pgsql_client.servers.begin_delete(
                 resource_group_name, server_name
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_sql_firewall_rule(
@@ -590,7 +624,7 @@ class AzureClient:
                 end_ip_address,
             )
             return poller.result()
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def get_sql_database(self, resource_group_name, server_name, database_name):
@@ -600,7 +634,7 @@ class AzureClient:
                 server_name,
                 database_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def create_sql_database(
@@ -619,7 +653,7 @@ class AzureClient:
                 charset,
                 collation,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def list_sql_databases_in_server(self, resource_group_name, server_name):
@@ -628,7 +662,7 @@ class AzureClient:
                 resource_group_name,
                 server_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)
 
     def delete_sql_database(self, resource_group_name, server_name, database_name):
@@ -638,5 +672,5 @@ class AzureClient:
                 server_name,
                 database_name,
             )
-        except (AzureError, HttpResponseError) as exc:
+        except _azure_exceptions() as exc:
             raise AzureBackendError(exc)

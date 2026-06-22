@@ -2,7 +2,6 @@ import base64
 import datetime
 import uuid
 
-import magic
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -343,6 +342,8 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
             raise ValueError("Empty file content after decoding")
 
         # Detect MIME type from actual content for security
+        import magic
+
         detected_mime_type = magic.from_buffer(file_content[:1024], mime=True)
 
         # Check file extension if restrictions are set

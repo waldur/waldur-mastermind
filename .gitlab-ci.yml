@@ -148,6 +148,34 @@ Run openapi export test:
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.base_settings
 
+# Profiles the import/startup memory footprint of `waldur check` under memray and
+# fails if peak memory exceeds MEMORY_BUDGET_MB. Manual and non-blocking for now
+# (allow_failure) so it surfaces the number and a flamegraph artifact without
+# gating merges; promote to automatic/blocking once the baseline is stable.
+Check startup memory budget:
+  extends: .Unit test runner
+  rules:
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: manual
+      allow_failure: true
+  script:
+    - uv run python scripts/measure_startup_memory.py --label ci
+  variables:
+    DJANGO_SETTINGS_MODULE: waldur_core.server.base_settings
+    MEMORY_BUDGET_MB: "550"
+  artifacts:
+    when: always
+    paths:
+      - scripts/memory_profiles/flamegraph-ci.html
+      - scripts/memory_profiles/startup_summary.csv
+      - scripts/memory_profiles/startup_components.csv
+    expire_in: 1 week
+
 Run migration tests:
   extends: .Unit test runner
   rules:

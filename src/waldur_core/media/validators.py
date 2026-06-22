@@ -1,6 +1,5 @@
 import os
 
-import magic
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils.deconstruct import deconstructible
@@ -42,6 +41,8 @@ class FileTypeValidator:
         self.allowed_exts = allowed_extensions
 
     def __call__(self, fileobj):
+        import magic
+
         detected_type = magic.from_buffer(fileobj.read(READ_SIZE), mime=True)
         root, extension = os.path.splitext(fileobj.name.lower())
 

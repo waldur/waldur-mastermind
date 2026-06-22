@@ -1,7 +1,6 @@
 import logging
 from itertools import islice
 
-from azure.core.exceptions import HttpResponseError
 from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_azure.client import AzureBackendError, AzureClient, AzureImage
@@ -143,6 +142,8 @@ class AzureBackend(ServiceBackend):
             self.pull_images(location)
 
     def pull_images(self, location):
+        from azure.core.exceptions import HttpResponseError
+
         cached_images = {
             image.backend_id: image
             for image in models.Image.objects.filter(
@@ -206,6 +207,8 @@ class AzureBackend(ServiceBackend):
             self.pull_sizes(location)
 
     def pull_sizes(self, location):
+        from azure.core.exceptions import HttpResponseError
+
         cached_sizes = {
             size.backend_id: size
             for size in models.Size.objects.filter(settings=self.settings)

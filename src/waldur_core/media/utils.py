@@ -4,7 +4,6 @@ import os
 import tempfile
 import uuid as uuid_module
 
-import magic
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
@@ -34,6 +33,8 @@ def dummy_svg():
 
 
 def guess_image_extension(content: bytes | str) -> str | None:
+    import magic
+
     mime_type = magic.from_buffer(content[:1024], mime=True)
     if not mime_type:
         return

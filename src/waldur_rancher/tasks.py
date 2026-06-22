@@ -4,7 +4,6 @@ import time
 import traceback
 from typing import cast
 
-import kubernetes
 import yaml
 from celery import shared_task
 from keycloak import exceptions as keycloak_exceptions
@@ -366,6 +365,11 @@ class CreateArgoCDClusterSecretTask(core_tasks.Task):
         return f"Create an ArgoCD cluster secret for cluster {cluster}"
 
     def execute(self, instance: models.Cluster, *args, **kwargs):
+        # Lazy import: keep the kubernetes SDK out of Django startup (autodiscover
+        # imports this tasks module). See CLAUDE.md, "Lazy imports for heavy
+        # optional backends".
+        import kubernetes
+
         install_longhorn = kwargs.get("install_longhorn", False)
         kubeconfig_str = instance.settings.get_option("argocd_k8s_kubeconfig")
         if not kubeconfig_str:
