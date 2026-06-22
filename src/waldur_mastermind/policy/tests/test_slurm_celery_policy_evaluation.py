@@ -414,6 +414,58 @@ class TestSlurmCeleryPolicyEvaluation(TestCase):
         self.assertTrue(self.resource_low_usage.downscaled)
         self.assertTrue(self.resource_low_usage.paused)
 
+    def test_stale_evaluation_does_not_clobber_newer_unpause(self):
+        """Regression: a stale high-usage evaluation must not re-pause a resource
+        after a newer low-usage evaluation has cleared it.
+
+        Reproduces the lost-update race: evaluation A is triggered by a high
+        ComponentUsage write and decides {pause, downscale}; before A commits, a
+        newer evaluation B (zero usage) un-pauses and un-downscales the resource.
+        The fix locks the resource row and recomputes usage *under the lock*, so
+        A's decision reflects the state B committed (usage 0%) rather than the
+        stale 150% snapshot it started with — A becomes a no-op instead of
+        clobbering the restore.
+
+        We model B's concurrent commit by dropping the usage to 0 at the moment
+        A acquires the row lock (select_for_update). Without the fix, usage is
+        read once before any lock and the resource stays stuck at (True, True).
+        """
+        # Resource is currently restricted (an earlier high-usage eval paused it).
+        self.resource_high_usage.paused = True
+        self.resource_high_usage.downscaled = True
+        self.resource_high_usage.save()
+
+        # High usage is present at task start — the trigger for this (now stale)
+        # evaluation A.
+        usage = self._create_component_usage(
+            self.resource_high_usage, self.component, 1500
+        )
+
+        real_select_for_update = marketplace_models.Resource.objects.select_for_update
+
+        def drop_usage_then_lock(*args, **kwargs):
+            # Simulate concurrent evaluation B committing usage=0 just before
+            # this evaluation acquires the row lock.
+            marketplace_models.ComponentUsage.objects.filter(pk=usage.pk).update(
+                usage=Decimal("0")
+            )
+            return real_select_for_update(*args, **kwargs)
+
+        with patch.object(
+            marketplace_models.Resource.objects,
+            "select_for_update",
+            side_effect=drop_usage_then_lock,
+        ):
+            tasks.evaluate_resource_against_policy(
+                str(self.resource_high_usage.uuid), str(self.policy.uuid)
+            )
+
+        self.resource_high_usage.refresh_from_db()
+
+        # Usage is 0% under the lock → the restore must stand, not be clobbered.
+        self.assertFalse(self.resource_high_usage.paused)
+        self.assertFalse(self.resource_high_usage.downscaled)
+
 
 class TestSlurmPolicySignalHandlers(TestCase):
     """Test signal handlers for SLURM policy evaluation."""
