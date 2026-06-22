@@ -2106,6 +2106,7 @@ class UserSerializer(
             "organization_country",
             "organization_type",
             "organization_registry_code",
+            "organization_vat_code",
             "eduperson_assurance",
             # Identity Bridge fields (staff-only, see get_fields)
             "is_identity_manager",
@@ -2315,6 +2316,15 @@ class UserSerializer(
                 {"last_name": _("Cannot specify last name with full name")}
             )
 
+        organization_vat_code = attrs.get("organization_vat_code")
+        if organization_vat_code:
+            from waldur_core.structure.models import VATMixin
+
+            if not VATMixin.validate_vat_format(organization_vat_code):
+                raise serializers.ValidationError(
+                    {"organization_vat_code": _("VAT number has invalid format.")}
+                )
+
         # Convert validation error from Django to DRF
         # https://github.com/tomchristie/django-rest-framework/issues/2145
         try:
@@ -2351,6 +2361,7 @@ class UserSerializer(
             "organization_country",
             "organization_type",
             "organization_registry_code",
+            "organization_vat_code",
             "eduperson_assurance",
         ]
     )

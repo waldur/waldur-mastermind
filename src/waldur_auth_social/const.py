@@ -27,6 +27,7 @@ WRITABLE_USER_FIELDS = (
     "organization_country",
     "organization_type",
     "organization_registry_code",
+    "organization_vat_code",
     "eduperson_assurance",
 )
 
@@ -94,6 +95,7 @@ PROVIDER_DEFAULTS = {
             "organization_country": "org_country",
             "organization_type": "schacHomeOrganizationType",
             "organization_registry_code": "organization_registry_code",
+            "organization_vat_code": "organization_vat_code",
             "eduperson_assurance": "eduperson_assurance",
             "phone_number": "phone_number",
         },

@@ -4566,7 +4566,9 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "created_by_civil_number",
             "created_by_email",
             "created_by_organization",
+            "created_by_organization_country",
             "created_by_organization_registry_code",
+            "created_by_organization_vat_code",
             "customer_name",
             "customer_uuid",
             "customer_slug",
@@ -4657,8 +4659,16 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         source="created_by.organization",
         allow_null=True,
     )
+    created_by_organization_country = serializers.ReadOnlyField(
+        source="created_by.organization_country",
+        allow_null=True,
+    )
     created_by_organization_registry_code = serializers.ReadOnlyField(
         source="created_by.organization_registry_code",
+        allow_null=True,
+    )
+    created_by_organization_vat_code = serializers.ReadOnlyField(
+        source="created_by.organization_vat_code",
         allow_null=True,
     )
 
@@ -7433,6 +7443,9 @@ class OfferingUserSerializer(
     user_organization_registry_code = serializers.ReadOnlyField(
         source="user.organization_registry_code"
     )
+    user_organization_vat_code = serializers.ReadOnlyField(
+        source="user.organization_vat_code"
+    )
     user_eduperson_assurance = serializers.ListField(
         child=serializers.CharField(),
         source="user.eduperson_assurance",
@@ -7499,6 +7512,7 @@ class OfferingUserSerializer(
         "organization_country": "user_organization_country",
         "organization_type": "user_organization_type",
         "organization_registry_code": "user_organization_registry_code",
+        "organization_vat_code": "user_organization_vat_code",
         "eduperson_assurance": "user_eduperson_assurance",
         "civil_number": "user_civil_number",
         "birth_date": "user_birth_date",
@@ -7539,6 +7553,7 @@ class OfferingUserSerializer(
             "user_organization_country",
             "user_organization_type",
             "user_organization_registry_code",
+            "user_organization_vat_code",
             "user_eduperson_assurance",
             # Legal and identity attributes
             "user_civil_number",
@@ -11176,6 +11191,7 @@ class UserAttributeConfigBaseSerializer(serializers.ModelSerializer):
             "expose_organization_country",
             "expose_organization_type",
             "expose_organization_registry_code",
+            "expose_organization_vat_code",
             "expose_affiliations",
             "expose_phone_number",
             "expose_job_title",

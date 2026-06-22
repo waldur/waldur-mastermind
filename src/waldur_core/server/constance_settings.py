@@ -180,6 +180,7 @@ USER_ATTRIBUTE_CHOICES = [
     ("organization_country", "Organization country"),
     ("organization_type", "Organization type"),
     ("organization_registry_code", "Organization registry code"),
+    ("organization_vat_code", "Organization VAT code"),
     ("eduperson_assurance", "Eduperson assurance"),
     ("civil_number", "Civil number"),
     ("identity_source", "Identity source"),
