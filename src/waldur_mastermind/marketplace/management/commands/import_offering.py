@@ -1,6 +1,7 @@
 import json
 import os
 
+from django.core.files import File
 from django.core.management.base import BaseCommand
 from django.db.transaction import atomic
 
@@ -16,9 +17,13 @@ def _create_or_update_offering(serializer, data):
 
     thumbnail = data.get("thumbnail")
 
-    if thumbnail:
-        offering.thumbnail = thumbnail
-        offering.save()
+    if thumbnail and os.path.exists(thumbnail):
+        # ``thumbnail`` is a filesystem path next to the export JSON. Store the
+        # file's content under its (short) basename instead of assigning the
+        # raw absolute path to the FileField — the column is varchar(100) and a
+        # deep export directory would otherwise overflow it.
+        with open(thumbnail, "rb") as f:
+            offering.thumbnail.save(os.path.basename(thumbnail), File(f), save=True)
 
     return offering
 

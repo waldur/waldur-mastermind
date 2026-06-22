@@ -2631,14 +2631,21 @@ class OfferingExportImportTest(test.APITestCase):
         self.assertEqual(offering.components.first().type, "new_type")
 
     def _get_data(self):
-        path = os.path.abspath(os.path.dirname(__file__))
         data = load_json_resource("offering.json", __name__)
         category = factories.CategoryFactory()
         data["category_id"] = category.id
 
         thumbnail = data.get("thumbnail")
         if thumbnail:
-            data["thumbnail"] = os.path.join(os.path.dirname(path), thumbnail)
+            # Materialize a real thumbnail in a short-path temp dir: the
+            # importer copies the file's content into storage, so the file must
+            # actually exist and its (basename-derived) stored name must stay
+            # within the field's varchar(100).
+            GIF = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+            thumbnail_path = os.path.join(self.temp_dir, thumbnail)
+            with open(thumbnail_path, "wb") as pic:
+                pic.write(base64.b64decode(GIF))
+            data["thumbnail"] = thumbnail_path
 
         return data
 
