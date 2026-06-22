@@ -109,65 +109,80 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
     as needed for individual resource management.
     """
     try:
-        resource = marketplace_models.Resource.objects.get(uuid=resource_uuid)
         policy = models.SlurmPeriodicUsagePolicy.objects.get(uuid=policy_uuid)
 
-        logger.info(f"Evaluating resource {resource.uuid} against policy {policy.uuid}")
-
-        # Calculate usage percentage for this specific resource
         current_period = policy._get_current_period()
-        usage_percentage = policy.get_resource_usage_percentage(
-            resource, current_period
-        )
 
-        logger.info(f"Resource {resource.uuid} usage: {usage_percentage:.1f}%")
-
-        # Capture state before evaluation for logging
-        previous_state = {
-            "paused": bool(resource.paused),
-            "downscaled": bool(resource.downscaled),
-        }
-
-        # Determine required actions based on usage percentage
-        actions_needed = []
-
-        grace_limit_percentage = (1 + policy.grace_ratio) * 100
-
-        # Check for pausing (highest threshold)
-        if (
-            usage_percentage >= grace_limit_percentage
-            and "request_slurm_resource_pausing" in policy.actions
-        ):
-            actions_needed.append("pause")
-
-        # Also pause if project is in grace period and offering supports pausing
-        if (
-            resource.project.is_in_grace_period
-            and resource.offering.plugin_options.get("supports_pausing")
-            and "pause" not in actions_needed
-        ):
-            actions_needed.append("pause")
-
-        # Check for downscaling (independent of pausing)
-        if (
-            usage_percentage >= 100
-            and "request_slurm_resource_downscaling" in policy.actions
-        ):
-            actions_needed.append("downscale")
-
-        # Check for notification (independent of other actions, once per billing period)
-        if usage_percentage >= 80 and "notify_organization_owners" in policy.actions:
-            already_notified = models.SlurmPolicyEvaluationLog.objects.filter(
-                policy=policy,
-                resource=resource,
-                billing_period=current_period,
-                actions_taken__contains="notify",
-            ).exists()
-            if not already_notified:
-                actions_needed.append("notify")
-
-        # Apply or remove actions based on current usage
+        # Lock the resource row for the whole read-modify-write so concurrent
+        # evaluations of the same resource serialize. Without the lock a slow
+        # high-usage evaluation could commit paused/downscaled flags after a
+        # newer low-usage evaluation already cleared them (lost update), leaving
+        # the resource stuck restricted while current usage is 0.
         with transaction.atomic():
+            resource = marketplace_models.Resource.objects.select_for_update().get(
+                uuid=resource_uuid
+            )
+
+            logger.info(
+                f"Evaluating resource {resource.uuid} against policy {policy.uuid}"
+            )
+
+            # Recompute usage under the lock from freshly-read state so the
+            # decision below reflects the latest ComponentUsage and flags.
+            usage_percentage = policy.get_resource_usage_percentage(
+                resource, current_period
+            )
+
+            logger.info(f"Resource {resource.uuid} usage: {usage_percentage:.1f}%")
+
+            # Capture state before evaluation for logging
+            previous_state = {
+                "paused": bool(resource.paused),
+                "downscaled": bool(resource.downscaled),
+            }
+
+            # Determine required actions based on usage percentage
+            actions_needed = []
+
+            grace_limit_percentage = (1 + policy.grace_ratio) * 100
+
+            # Check for pausing (highest threshold)
+            if (
+                usage_percentage >= grace_limit_percentage
+                and "request_slurm_resource_pausing" in policy.actions
+            ):
+                actions_needed.append("pause")
+
+            # Also pause if project is in grace period and offering supports pausing
+            if (
+                resource.project.is_in_grace_period
+                and resource.offering.plugin_options.get("supports_pausing")
+                and "pause" not in actions_needed
+            ):
+                actions_needed.append("pause")
+
+            # Check for downscaling (independent of pausing)
+            if (
+                usage_percentage >= 100
+                and "request_slurm_resource_downscaling" in policy.actions
+            ):
+                actions_needed.append("downscale")
+
+            # Check for notification (independent of other actions, once per billing period)
+            if (
+                usage_percentage >= 80
+                and "notify_organization_owners" in policy.actions
+            ):
+                already_notified = models.SlurmPolicyEvaluationLog.objects.filter(
+                    policy=policy,
+                    resource=resource,
+                    billing_period=current_period,
+                    actions_taken__contains="notify",
+                ).exists()
+                if not already_notified:
+                    actions_needed.append("notify")
+
+            # Apply or remove actions based on current usage
             # Handle pausing
             if "pause" in actions_needed:
                 if not resource.paused:

@@ -42,6 +42,38 @@ When actions are triggered:
 2. `request_slurm_resource_pausing` → Site agent applies `qos_paused` (e.g., "paused")
 3. Normal state → Site agent applies `qos_default` (e.g., "normal")
 
+### Evaluation Lifecycle and Concurrency
+
+Each new or updated `ComponentUsage` queues an asynchronous evaluation of the
+affected resource against every applicable policy. Staff-triggered
+`evaluate` / `force-period-reset` API calls and the daily period-boundary task
+queue evaluations too. As a result, **several evaluations of the same resource
+can run on different Celery workers at the same time** — for example, one fired
+by a high-usage report and another fired moments later by a corrected,
+lower-usage report.
+
+A single evaluation of one resource performs the following steps:
+
+1. Re-reads the resource's live usage for the current period (no value is cached
+   from when the task was queued).
+2. Decides the target `paused` / `downscaled` state from that usage and the
+   policy thresholds.
+3. Applies the change and, if the state actually changed, publishes a STOMP
+   message to the site agent.
+
+To keep concurrent evaluations from interfering, evaluations of the **same**
+resource are serialized: each one locks the resource row and recomputes usage
+under the lock before deciding. This guarantees that the **most recently
+committed usage wins** — a slow evaluation that started from an old, high usage
+reading cannot overwrite a newer evaluation that has already restored the
+resource based on lower usage. Evaluations of *different* resources still run
+fully in parallel.
+
+!!! note
+    Because the decision is always recomputed from live usage under the lock,
+    re-running an evaluation is safe and idempotent. If usage has not changed,
+    the re-run is a no-op and emits no STOMP message.
+
 ## Configuration Examples
 
 ### 1. Basic Notification Policy
@@ -210,6 +242,63 @@ policy = models.SlurmPeriodicUsagePolicy.objects.create(
 )
 policy.organization_groups.add(consortium_members)
 ```
+
+## Worked Examples
+
+The configuration snippets above define *policies*; the timelines below show how
+a policy behaves as real usage evolves. They assume a monthly policy with a
+1000 node-hour limit, `grace_ratio=0.2` (pause at 120%), and
+`actions="notify_organization_owners,request_slurm_resource_downscaling,request_slurm_resource_pausing"`.
+
+### Example A: A project that overshoots mid-month, then is topped up
+
+A research project burns through its monthly allocation early, gets throttled,
+and is restored after the owner buys more node-hours.
+
+| Day | Usage | % of limit | Evaluation result | Resource state | Site agent QoS |
+|-----|-------|-----------|-------------------|----------------|----------------|
+| 1   | 200   | 20%       | below thresholds  | normal         | `normal`       |
+| 8   | 820   | 82%       | notify owners     | normal         | `normal`       |
+| 14  | 1010  | 101%      | downscale         | downscaled     | `slowdown`     |
+| 18  | 1250  | 125%      | downscale + pause | downscaled + paused | `blocked` |
+| 20  | limit raised to 2000 → 1250/2000 = 63% | 63% | clear pause + downscale | normal | `normal` |
+
+Each row is the state after that day's usage report is evaluated. Note that
+raising the limit on day 20 drops the percentage below all thresholds, so the
+next evaluation restores the resource — no manual QoS change is needed.
+
+### Example B: A corrected usage report (concurrency-safe restore)
+
+Accounting first reports a usage spike, then immediately corrects it down. Two
+evaluations race, but the resource still ends in the correct, restored state.
+
+| Time      | Event                                  | Usage seen | Evaluation outcome              |
+|-----------|----------------------------------------|-----------|---------------------------------|
+| 10:00:00  | Usage reported as 1500 (150%)          | 150%      | evaluation A queued → pause + downscale |
+| 10:00:03  | Correction: usage overwritten to 0     | 0%        | evaluation B queued → clear all |
+| 10:00:04  | Evaluation B commits first             | 0%        | resource restored to normal     |
+| 10:00:07  | Evaluation A finally runs              | 0% (re-read under lock) | no-op — usage is now 0%, nothing to pause |
+
+Because evaluation A recomputes usage under the row lock, it sees the corrected
+0% rather than the stale 150% it was triggered with, and leaves the restored
+state untouched. The final state is `normal` / `qos_default`. See
+[Evaluation Lifecycle and Concurrency](#evaluation-lifecycle-and-concurrency).
+
+### Example C: Carryover across a period boundary
+
+A monthly policy with `carryover_enabled=True` and `carryover_factor=50`
+(limit 1000) lets an under-using month lift the next month's effective ceiling.
+
+| Period   | Base limit | Prev-period usage | Carryover | Effective limit | 700 node-hours used → % |
+|----------|-----------|-------------------|-----------|-----------------|--------------------------|
+| January  | 1000      | —                 | 0         | 1000            | 70% → normal             |
+| February | 1000      | 300 (Jan)         | min(700, 500) = 500 | 1500  | 700/1500 = 47% → normal  |
+| March    | 1000      | 1400 (Feb, over)  | 0         | 1000            | 700/1000 = 70% → normal  |
+
+January's unused 700 node-hours carries into February capped at 50% of the base
+(500), raising February's ceiling to 1500. February overshoots, so March starts
+fresh at the base limit with no carryover. See
+[Debug Carryover Calculations](#debug-carryover-calculations) for the formula.
 
 ## API Usage
 
