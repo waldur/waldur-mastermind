@@ -1336,6 +1336,9 @@ class Command(BaseCommand):
                         existing_user.organization_registry_code = user_data.get(
                             "organization_registry_code", ""
                         )
+                        existing_user.organization_vat_code = user_data.get(
+                            "organization_vat_code", ""
+                        )
                         existing_user.eduperson_assurance = user_data.get(
                             "eduperson_assurance", []
                         )
@@ -1442,6 +1445,9 @@ class Command(BaseCommand):
                         organization_type=user_data.get("organization_type", ""),
                         organization_registry_code=user_data.get(
                             "organization_registry_code", ""
+                        ),
+                        organization_vat_code=user_data.get(
+                            "organization_vat_code", ""
                         ),
                         eduperson_assurance=user_data.get("eduperson_assurance", []),
                     )

@@ -515,6 +515,12 @@ class User(
         blank=True,
         help_text=_("Company registration code of the user's organization, if known"),
     )
+    organization_vat_code = models.CharField(
+        _("organization VAT code"),
+        max_length=20,
+        blank=True,
+        help_text=_("VAT code of the user's organization"),
+    )
 
     # Identity assurance (from IdP only)
     eduperson_assurance = models.JSONField(
@@ -555,6 +561,7 @@ class User(
         "organization_country",
         "organization_type",
         "organization_registry_code",
+        "organization_vat_code",
         "eduperson_assurance",
         "managed_isds",
         "active_isds",

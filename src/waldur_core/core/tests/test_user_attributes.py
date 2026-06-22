@@ -39,6 +39,7 @@ class TestCoreUserAttributes(TestCase):
             "organization_country",
             "organization_type",
             "organization_registry_code",
+            "organization_vat_code",
             "eduperson_assurance",
             "civil_number",
             "identity_source",

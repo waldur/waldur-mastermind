@@ -1696,3 +1696,43 @@ class UserShouldProtectUserDetailsFieldTest(test.APITestCase):
         )
         target.refresh_from_db()
         self.assertFalse(target.should_protect_user_details)
+
+
+class UserOrganizationVatCodeTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.user.agreement_date = timezone.now()
+        self.user.save()
+        self.client.force_authenticate(self.user)
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def test_valid_vat_code_accepted(self):
+        response = self.client.patch(
+            self.url, {"organization_vat_code": "DE123456789"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.organization_vat_code, "DE123456789")
+
+    def test_invalid_vat_code_rejected(self):
+        response = self.client.patch(
+            self.url, {"organization_vat_code": "invalid"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("organization_vat_code", response.data)
+
+    def test_blank_vat_code_accepted(self):
+        response = self.client.patch(
+            self.url, {"organization_vat_code": ""}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.organization_vat_code, "")
+
+    def test_field_visible_in_user_detail(self):
+        self.user.organization_vat_code = "FI12345678"
+        self.user.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["organization_vat_code"], "FI12345678")
