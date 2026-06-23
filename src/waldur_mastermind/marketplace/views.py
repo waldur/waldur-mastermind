@@ -1998,20 +1998,26 @@ def can_update_offering(request, view, obj: models.Offering | None = None):
     if not offering:
         return
 
-    if offering.state == OfferingStates.DRAFT:
-        if any(
-            has_permission(request, PermissionEnum.UPDATE_OFFERING, scope)
-            for scope in (
-                offering,
-                offering.customer,
-                offering.customer.serviceprovider,
-            )
-        ):
+    if request.user.is_staff:
+        return
+
+    has_update_permission = any(
+        has_permission(request, PermissionEnum.UPDATE_OFFERING, scope)
+        for scope in (
+            offering,
+            offering.customer,
+            offering.customer.serviceprovider,
+        )
+    )
+
+    if config.ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT:
+        if has_update_permission:
             return
-        else:
-            raise rf_exceptions.PermissionDenied()
+        raise rf_exceptions.PermissionDenied()
     else:
-        structure_permissions.is_staff(request, view)
+        if has_update_permission and offering.state == OfferingStates.DRAFT:
+            return
+        raise rf_exceptions.PermissionDenied()
 
 
 def validate_offering_update(offering):

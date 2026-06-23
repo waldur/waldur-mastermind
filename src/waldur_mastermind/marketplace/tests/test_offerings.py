@@ -1219,6 +1219,45 @@ class OfferingUpdateOverviewTest(BaseOfferingUpdateTest):
         response = self.update_overview("owner")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    @data(OfferingStates.ACTIVE, OfferingStates.PAUSED)
+    def test_owner_can_update_offering_in_active_or_paused_state_when_management_allowed(
+        self, state
+    ):
+        # Arrange
+        self.offering.state = state
+        self.offering.save()
+
+        # Act
+        response = self.update_overview("owner")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.name, "new_offering")
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    def test_owner_can_not_update_offering_in_archived_state_when_management_allowed(
+        self,
+    ):
+        # Arrange
+        self.offering.state = OfferingStates.ARCHIVED
+        self.offering.save()
+
+        # Act
+        response = self.update_overview("owner")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    @data("customer_support", "admin", "manager")
+    def test_unauthorized_user_can_not_update_offering_when_management_allowed(
+        self, role
+    ):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+
+        response = self.update_overview(role)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     @data(OfferingStates.ACTIVE, OfferingStates.PAUSED)
     def test_staff_can_update_offering_in_active_or_paused_state(self, state):
         # Arrange
