@@ -245,6 +245,8 @@ run_unit_tests:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+    paths:
+      - coverage.xml
 
   coverage: "/TOTAL.+ ([0-9]{1,3}%)/"
 EOF
