@@ -44,6 +44,12 @@ MEDIA_ROOT = media_root
 ALLOWED_HOSTS = ["*"]
 
 # See also: https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+#
+# prepare_threshold=None disables psycopg3 server-side prepared statements.
+# psycopg3 caches prepared statements per backend connection; PgBouncer in
+# transaction pooling mode reassigns connections between transactions, so a
+# statement prepared on connection A is invisible on connection B — causing
+# "prepared statement _pg3_N does not exist" errors under load.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -52,6 +58,9 @@ DATABASES = {
         "PORT": env.get("POSTGRESQL_PORT", "5432"),
         "USER": env.get("POSTGRESQL_USER", "waldur"),
         "PASSWORD": env.get("POSTGRESQL_PASSWORD", "waldur"),
+        "OPTIONS": {
+            "prepare_threshold": None,
+        },
     },
 }
 
@@ -65,6 +74,7 @@ if env.get("POSTGRESQL_READONLY_USER"):
         "PASSWORD": env.get("POSTGRESQL_READONLY_PASSWORD"),
         "OPTIONS": {
             "target_session_attrs": "read-only",
+            "prepare_threshold": None,
         },
     }
 
