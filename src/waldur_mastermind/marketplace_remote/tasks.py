@@ -137,6 +137,12 @@ DEFAULT_TOVERSION = "1.0"
 
 class OfferingPullTask(BackgroundPullTask):
     def pull(self, local_offering: models.Offering):
+        if not local_offering.backend_id:
+            logger.warning(
+                "Skipping pull for offering %s because its backend_id is empty.",
+                local_offering,
+            )
+            return
         try:
             client = get_client_for_offering(local_offering)
             remote_offering = marketplace_public_offerings_retrieve.sync(
@@ -458,7 +464,7 @@ class OfferingListPullTask(BackgroundListPullTask):
     def get_pulled_objects(self):
         return models.Offering.objects.filter(
             type=REMOTE_OFFERING, secret_options__has_keys=["api_url", "token"]
-        )
+        ).exclude(backend_id="")
 
 
 class OfferingUserPullTask(BackgroundPullTask):

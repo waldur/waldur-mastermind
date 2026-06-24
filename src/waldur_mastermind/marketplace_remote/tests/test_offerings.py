@@ -317,6 +317,21 @@ class OfferingDetailsPullTest(test.APITestCase):
         self.assertEqual(1, self.offering.components.count())
 
     @override_settings(task_always_eager=True)
+    def test_pull_is_skipped_when_backend_id_is_empty(self):
+        # An unlinked remote offering has an empty backend_id. Pulling it would
+        # build a request to /api/marketplace-public-offerings// which collapses
+        # to the list endpoint and returns a JSON array the SDK cannot parse.
+        self.offering.backend_id = ""
+        self.offering.save()
+        route = respx.get(f"{self.api_url}/api/marketplace-public-offerings//").respond(
+            200, json=[self.remote_offering]
+        )
+
+        self.task.pull(self.offering)
+
+        self.assertFalse(route.called)
+
+    @override_settings(task_always_eager=True)
     def test_stale_and_new_components(self):
         new_type = "gpu"
         self.remote_offering["components"][0]["type"] = new_type
