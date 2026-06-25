@@ -75,6 +75,7 @@ APPLICANT_FIELD_MAP: dict[str, list[str]] = {
     "organization_type": ["applicant_organization_type"],
     "organization_registry_code": ["applicant_organization_registry_code"],
     "organization_vat_code": ["applicant_organization_vat_code"],
+    "organization_address": ["applicant_organization_address"],
     "job_title": ["applicant_job_title"],
     "affiliations": ["applicant_affiliations"],
     "gender": ["applicant_gender"],
@@ -1496,6 +1497,10 @@ class ProposalSerializer(
     applicant_organization_vat_code = serializers.ReadOnlyField(
         source="created_by.organization_vat_code"
     )
+    applicant_organization_address = serializers.ReadOnlyField(
+        source="created_by.organization_address",
+        allow_null=True,
+    )
     applicant_job_title = serializers.ReadOnlyField(source="created_by.job_title")
     applicant_affiliations = serializers.ReadOnlyField(source="created_by.affiliations")
     applicant_gender = serializers.ReadOnlyField(source="created_by.gender")
@@ -1559,6 +1564,7 @@ class ProposalSerializer(
             "applicant_organization_type",
             "applicant_organization_registry_code",
             "applicant_organization_vat_code",
+            "applicant_organization_address",
             "applicant_job_title",
             "applicant_affiliations",
             "applicant_gender",

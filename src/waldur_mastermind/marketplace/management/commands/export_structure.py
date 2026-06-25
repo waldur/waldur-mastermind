@@ -473,6 +473,7 @@ class Command(BaseCommand):
                     "organization_type": user.organization_type,
                     "organization_registry_code": user.organization_registry_code,
                     "organization_vat_code": user.organization_vat_code,
+                    "organization_address": user.organization_address,
                     "eduperson_assurance": user.eduperson_assurance,
                     "modified": user.modified.isoformat() if user.modified else None,
                     "slug": user.slug,

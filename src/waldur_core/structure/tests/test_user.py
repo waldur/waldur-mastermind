@@ -1736,3 +1736,38 @@ class UserOrganizationVatCodeTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["organization_vat_code"], "FI12345678")
+
+
+class UserOrganizationAddressTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.user.agreement_date = timezone.now()
+        self.user.save()
+        self.client.force_authenticate(self.user)
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def test_address_accepted(self):
+        response = self.client.patch(
+            self.url,
+            {"organization_address": "123 Main St, Helsinki"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.organization_address, "123 Main St, Helsinki")
+
+    def test_blank_address_accepted(self):
+        response = self.client.patch(
+            self.url, {"organization_address": ""}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.organization_address, "")
+
+    def test_field_visible_in_user_detail(self):
+        self.user.organization_address = "456 University Ave"
+        self.user.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["organization_address"], "456 University Ave")

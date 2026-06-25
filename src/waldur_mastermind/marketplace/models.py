@@ -1079,6 +1079,7 @@ class UserAttributeConfigBase(TimeStampedModel, core_models.UuidMixin):
     expose_address = models.BooleanField(default=False)
     expose_organization_registry_code = models.BooleanField(default=False)
     expose_organization_vat_code = models.BooleanField(default=False)
+    expose_organization_address = models.BooleanField(default=False)
     expose_civil_number = models.BooleanField(default=False)
     expose_birth_date = models.BooleanField(default=False)
     expose_active_isds = models.BooleanField(default=False)

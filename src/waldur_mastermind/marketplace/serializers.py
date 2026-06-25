@@ -4569,6 +4569,7 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "created_by_organization_country",
             "created_by_organization_registry_code",
             "created_by_organization_vat_code",
+            "created_by_organization_address",
             "customer_name",
             "customer_uuid",
             "customer_slug",
@@ -4669,6 +4670,10 @@ class OrderDetailsSerializer(BaseOrderSerializer):
     )
     created_by_organization_vat_code = serializers.ReadOnlyField(
         source="created_by.organization_vat_code",
+        allow_null=True,
+    )
+    created_by_organization_address = serializers.ReadOnlyField(
+        source="created_by.organization_address",
         allow_null=True,
     )
 
@@ -7446,6 +7451,9 @@ class OfferingUserSerializer(
     user_organization_vat_code = serializers.ReadOnlyField(
         source="user.organization_vat_code"
     )
+    user_organization_address = serializers.ReadOnlyField(
+        source="user.organization_address"
+    )
     user_eduperson_assurance = serializers.ListField(
         child=serializers.CharField(),
         source="user.eduperson_assurance",
@@ -7513,6 +7521,7 @@ class OfferingUserSerializer(
         "organization_type": "user_organization_type",
         "organization_registry_code": "user_organization_registry_code",
         "organization_vat_code": "user_organization_vat_code",
+        "organization_address": "user_organization_address",
         "eduperson_assurance": "user_eduperson_assurance",
         "civil_number": "user_civil_number",
         "birth_date": "user_birth_date",
@@ -7554,6 +7563,7 @@ class OfferingUserSerializer(
             "user_organization_type",
             "user_organization_registry_code",
             "user_organization_vat_code",
+            "user_organization_address",
             "user_eduperson_assurance",
             # Legal and identity attributes
             "user_civil_number",
@@ -9381,6 +9391,7 @@ class MarketplaceServiceProviderUserSerializer(
         "organization_type": "organization_type",
         "organization_registry_code": "organization_registry_code",
         "organization_vat_code": "organization_vat_code",
+        "organization_address": "organization_address",
         "eduperson_assurance": "eduperson_assurance",
         "civil_number": "civil_number",
         "birth_date": "birth_date",
@@ -9416,6 +9427,7 @@ class MarketplaceServiceProviderUserSerializer(
             "organization_type",
             "organization_registry_code",
             "organization_vat_code",
+            "organization_address",
             "eduperson_assurance",
             # Legal and identity attributes
             "civil_number",
@@ -11194,6 +11206,7 @@ class UserAttributeConfigBaseSerializer(serializers.ModelSerializer):
             "expose_organization_type",
             "expose_organization_registry_code",
             "expose_organization_vat_code",
+            "expose_organization_address",
             "expose_affiliations",
             "expose_phone_number",
             "expose_job_title",

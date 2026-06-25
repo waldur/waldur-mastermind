@@ -2107,6 +2107,7 @@ class UserSerializer(
             "organization_type",
             "organization_registry_code",
             "organization_vat_code",
+            "organization_address",
             "eduperson_assurance",
             # Identity Bridge fields (staff-only, see get_fields)
             "is_identity_manager",
@@ -2362,6 +2363,7 @@ class UserSerializer(
             "organization_type",
             "organization_registry_code",
             "organization_vat_code",
+            "organization_address",
             "eduperson_assurance",
         ]
     )
