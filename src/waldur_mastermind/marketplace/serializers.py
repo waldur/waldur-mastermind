@@ -9380,6 +9380,7 @@ class MarketplaceServiceProviderUserSerializer(
         "organization_country": "organization_country",
         "organization_type": "organization_type",
         "organization_registry_code": "organization_registry_code",
+        "organization_vat_code": "organization_vat_code",
         "eduperson_assurance": "eduperson_assurance",
         "civil_number": "civil_number",
         "birth_date": "birth_date",
@@ -9414,6 +9415,7 @@ class MarketplaceServiceProviderUserSerializer(
             "organization_country",
             "organization_type",
             "organization_registry_code",
+            "organization_vat_code",
             "eduperson_assurance",
             # Legal and identity attributes
             "civil_number",
