@@ -104,9 +104,9 @@ class CallApplicantVisibilityConfigAPITest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         config_data = response.data["applicant_visibility_config"]
-        # Same surface as the offering serializer — all 24 toggles plus computed.
+        # Same surface as the offering serializer — all 25 toggles plus computed.
         expose_keys = [k for k in config_data if k.startswith("expose_")]
-        self.assertEqual(len(expose_keys), 24)
+        self.assertEqual(len(expose_keys), 25)
         self.assertIn("exposed_fields", config_data)
         self.assertIn("is_default", config_data)
 
