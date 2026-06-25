@@ -686,10 +686,21 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         # accumulates between resets). The sync task records the synced
         # period on each successful send via _record_synced_period; we
         # gate on that here.
+        #
+        # Single-shot offerings (TOTAL limit_period → period "total") have no
+        # period boundary: the budget spans the whole active life of the
+        # resource. Resetting RawUsage there is never correct — it would
+        # discard the accumulated usage the limit is meant to cap. The
+        # period-boundary gate below would still emit one reset on the very
+        # first sync (last_synced_period is None) and again on any cache
+        # eviction, so we short-circuit single-shot resources to never reset.
         raw_usage_reset_configured = final_config.get("raw_usage_reset", True)
         last_synced_period = self._get_last_synced_period(resource)
+        is_single_shot = current_period == "total"
         reset_raw_usage = bool(
-            raw_usage_reset_configured and last_synced_period != current_period
+            raw_usage_reset_configured
+            and not is_single_shot
+            and last_synced_period != current_period
         )
 
         settings = {
