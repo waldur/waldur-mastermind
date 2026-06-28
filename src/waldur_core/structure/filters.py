@@ -261,6 +261,11 @@ class CustomerFilter(NameFilterSet):
         method="filter_current_user_has_project_create_permission",
         label="Return a list of customers where current user has project create permission.",
     )
+    current_user_has_role = core_filters.CharInFilter(
+        method="filter_current_user_has_role",
+        label="Filter organizations where the current user holds one of the given "
+        "roles (on the organization or any of its projects).",
+    )
 
     class Meta:
         model = models.Customer
@@ -318,6 +323,18 @@ class CustomerFilter(NameFilterSet):
             return queryset.filter(id__in=customer_ids_with_permission)
 
         return queryset
+
+    def filter_current_user_has_role(self, queryset, name, value):
+        user = self.request.user
+        if user.is_anonymous or not value:
+            return queryset
+        connected_customers = get_connected_customers(user, value)
+        project_customers = models.Project.objects.filter(
+            id__in=get_connected_projects(user, value)
+        ).values_list("customer_id", flat=True)
+        return queryset.filter(
+            Q(id__in=connected_customers) | Q(id__in=project_customers)
+        ).distinct()
 
 
 class ExternalCustomerFilterBackend(ExternalFilterBackend):
@@ -455,6 +472,12 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Filter projects where the given user has a role.",
     )
 
+    current_user_has_role = core_filters.CharInFilter(
+        method="filter_current_user_has_role",
+        label="Filter projects where the current user holds one of the given roles "
+        "(on the project or its organization).",
+    )
+
     affiliation_uuid = core_filters.ModelMultipleChoiceFilter(
         field_name="affiliation__uuid",
         label="Affiliation UUID",
@@ -527,6 +550,16 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
                 Q(customer__in=connected_customers) | Q(id__in=connected_projects)
             ).distinct()
         return queryset
+
+    def filter_current_user_has_role(self, queryset, name, value):
+        user = self.request.user
+        if user.is_anonymous or not value:
+            return queryset
+        connected_projects = get_connected_projects(user, value)
+        connected_customers = get_connected_customers(user, value)
+        return queryset.filter(
+            Q(id__in=connected_projects) | Q(customer__in=connected_customers)
+        ).distinct()
 
     def filter_can_admin(self, queryset, name, value):
         user = self.request.user

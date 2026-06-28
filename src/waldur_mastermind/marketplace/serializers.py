@@ -200,6 +200,16 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Required user role in a project for provisioning of resources",
     )
+    restricted_to_roles = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        help_text="List of project or organization role names (e.g. "
+        "'PROJECT.MANAGER') allowed to view and order this offering. When set, the "
+        "offering is hidden from the catalog for other users and they cannot create "
+        "orders for it. Whether their orders skip consumer review still depends on "
+        "the role having the order-approval permission.",
+    )
     enable_purchase_order_upload = serializers.BooleanField(
         required=False,
         help_text="If set to True, users will be able to upload purchase orders.",
@@ -340,6 +350,26 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
                     "length": len(slugify(rendered)),
                     "max": models.RESOURCE_SLUG_MAX_LENGTH,
                 }
+            )
+        return value
+
+    def validate_restricted_to_roles(self, value):
+        if not value:
+            return value
+        project_ct = ContentType.objects.get_for_model(structure_models.Project)
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        existing = set(
+            permission_models.Role.objects.filter(
+                name__in=value,
+                is_active=True,
+                content_type__in=[project_ct, customer_ct],
+            ).values_list("name", flat=True)
+        )
+        invalid = [name for name in value if name not in existing]
+        if invalid:
+            raise rf_exceptions.ValidationError(
+                _("The following are not valid project or organization roles: %s")
+                % ", ".join(invalid)
             )
         return value
 
@@ -3490,6 +3520,15 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
             return False
         if request.user.is_staff or request.user.is_support:
             return True
+        if permissions.offering_is_restricted(offering):
+            held = getattr(request, "_restricted_role_names", None)
+            if held is None:
+                held = permissions.user_active_role_names(request.user)
+                request._restricted_role_names = held
+            if not permissions.user_holds_restricted_role_anywhere(
+                request.user, offering, held_role_names=held
+            ):
+                return False
         # Check if user has accessible plans for this offering
         plans = utils.get_plans_available_for_user(request.user, offering)
         return plans.filter(archived=False).exists()

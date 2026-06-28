@@ -1,10 +1,14 @@
 from constance import config
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission, permission_factory
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
@@ -29,6 +33,60 @@ def has_project_permission(request, permission, project):
     return has_permission(request, permission, project) or has_permission(
         request, permission, project.customer
     )
+
+
+def restricted_offering_roles(offering) -> list:
+    """Role names an offering is restricted to (empty if unrestricted)."""
+    return offering.plugin_options.get("restricted_to_roles") or []
+
+
+def offering_is_restricted(offering) -> bool:
+    """True if the offering limits access to specific roles via
+    plugin_options['restricted_to_roles']."""
+    return bool(restricted_offering_roles(offering))
+
+
+def user_active_role_names(user) -> set:
+    """Names of all active roles held by the user, in any scope."""
+    if user.is_anonymous:
+        return set()
+    return set(
+        UserRole.objects.filter(is_active=True, user=user).values_list(
+            "role__name", flat=True
+        )
+    )
+
+
+def user_holds_restricted_role(user, project, offering) -> bool:
+    """True if the user holds one of the offering's restricted roles in the
+    given project or its customer. Used for per-project order authorization."""
+    role_names = restricted_offering_roles(offering)
+    if not role_names:
+        return True
+    if user.is_anonymous:
+        return False
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    return (
+        UserRole.objects.filter(is_active=True, user=user, role__name__in=role_names)
+        .filter(
+            Q(content_type=project_ct, object_id=project.id)
+            | Q(content_type=customer_ct, object_id=project.customer_id)
+        )
+        .exists()
+    )
+
+
+def user_holds_restricted_role_anywhere(user, offering, held_role_names=None) -> bool:
+    """True if the user holds one of the offering's restricted roles in any
+    scope. Used for the coarse catalog/is_accessible visibility check. Pass
+    held_role_names (from user_active_role_names) to avoid a per-offering query."""
+    role_names = restricted_offering_roles(offering)
+    if not role_names:
+        return True
+    if held_role_names is None:
+        held_role_names = user_active_role_names(user)
+    return bool(set(role_names) & held_role_names)
 
 
 def user_can_approve_order_as_consumer(user, order: models.Order) -> bool:

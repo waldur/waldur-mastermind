@@ -6771,6 +6771,18 @@ class OrderViewSet(
         serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         project = serializer.validated_data.get("project")
+        offering = serializer.validated_data.get("offering")
+        if (
+            project
+            and offering
+            and marketplace_permissions.offering_is_restricted(offering)
+            and not marketplace_permissions.user_holds_restricted_role(
+                user, project, offering
+            )
+        ):
+            raise rf_exceptions.PermissionDenied(
+                "This offering is restricted to designated project roles."
+            )
         if project and marketplace_permissions.has_project_permission(
             request, PermissionEnum.CREATE_ORDER, project
         ):

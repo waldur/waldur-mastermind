@@ -63,6 +63,19 @@ The `PublicOfferingDetailsSerializer` includes an `is_accessible` boolean field 
 - `true` if the user has at least one accessible, non-archived plan
 - `false` if all plans are restricted to organization groups the user doesn't belong to
 
+## Role-based restriction (`restricted_to_roles`)
+
+Independently of `RESTRICTED_OFFERING_VISIBILITY_MODE` (which governs organization-group/plan access), an individual offering can be restricted to specific **project or organization roles** via the `restricted_to_roles` plugin option — a list of role names, e.g. `["PROJECT.MANAGER", "PROJECT.ADMIN"]`. It is set per offering under **Integration → Operations → Orders & approval** in the UI, or via the `update_integration` API.
+
+When set:
+
+- The offering is **hidden from the catalog** for users who do not hold one of the listed roles in any scope. Users who already consume resources from the offering keep access.
+- Only users holding one of the listed roles **on the target project or its customer** can create an order; others are rejected with HTTP 403. Staff and support bypass the check.
+- `is_accessible` is `false` for users who lack the roles.
+- The order form's organization and project selectors are limited to scopes where the user holds one of the roles.
+
+Approval is unaffected: whether an order skips consumer review still depends on the role's `ORDER.APPROVE` permission, exactly as for any other offering. Role names must be valid project- or organization-scoped roles.
+
 ## Use Cases
 
 ### Public Marketplace (default)
