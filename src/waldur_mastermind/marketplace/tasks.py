@@ -8,6 +8,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from typing import cast
 
+import httpx
 import requests
 from celery import shared_task
 from constance import config
@@ -120,7 +121,11 @@ def create_course_account_task(course_account_uuid_hex: str, owner_username: str
         logger.error(
             "Failed to create course account %s: %s", course_account_uuid_hex, exc
         )
-        course_account.error_message = str(exc)
+        if isinstance(exc, httpx.HTTPStatusError):
+            error_message = str(utils.extract_error_details_from_httpx_error(exc))
+        else:
+            error_message = str(exc)
+        course_account.error_message = error_message
         course_account.set_state_erred()
         course_account.save(update_fields=["error_message", "state"])
 
