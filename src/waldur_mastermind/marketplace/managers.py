@@ -46,6 +46,42 @@ class OfferingQuerySet(django_models.QuerySet):
             | Q(id__in=connected_offerings)
         ).distinct()
 
+    def _exclude_restricted_offerings(self, queryset, user):
+        """Hide offerings that restrict access via
+        plugin_options['restricted_to_roles'] from users who do not hold one of
+        the listed roles, except offerings the user already consumes resources
+        from. Catalog visibility is coarse (role held in any scope); precise
+        per-project authorization happens at order creation."""
+        restricted = queryset.filter(
+            plugin_options__has_key="restricted_to_roles"
+        ).values_list("id", "plugin_options")
+
+        if user.is_anonymous:
+            user_role_names = set()
+        else:
+            user_role_names = set(
+                UserRole.objects.filter(is_active=True, user=user).values_list(
+                    "role__name", flat=True
+                )
+            )
+
+        forbidden_ids = {
+            offering_id
+            for offering_id, plugin_options in restricted
+            if plugin_options.get("restricted_to_roles")
+            and not set(plugin_options["restricted_to_roles"]) & user_role_names
+        }
+        if not forbidden_ids:
+            return queryset
+        if not user.is_anonymous:
+            # Keep offerings the user already consumes resources from.
+            connected = models.Resource.objects.filter(
+                project__in=get_connected_projects(user),
+                offering_id__in=forbidden_ids,
+            ).values_list("offering_id", flat=True)
+            forbidden_ids -= set(connected)
+        return queryset.exclude(id__in=forbidden_ids)
+
     def filter_by_ordering_availability_for_user(self, user):
         """Returns offerings available to the user to create an order"""
 
@@ -55,7 +91,9 @@ class OfferingQuerySet(django_models.QuerySet):
             if not config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS:
                 return self.none()
             else:
-                return queryset.filter(shared=True)
+                return self._exclude_restricted_offerings(
+                    queryset.filter(shared=True), user
+                )
 
         # Staff/support ALWAYS see all offerings regardless of visibility setting
         if user.is_staff or user.is_support:
@@ -108,24 +146,29 @@ class OfferingQuerySet(django_models.QuerySet):
                 | Q(id__in=connected_offerings)
             ) & (Q(plans__in=accessible_plans) | Q(parent__plans__in=accessible_plans))
 
-            return queryset.filter(shared_filter | private_filter).distinct()
+            return self._exclude_restricted_offerings(
+                queryset.filter(shared_filter | private_filter).distinct(), user
+            )
         else:
             # "show_all" or "show_restricted_disabled" - return all shared offerings
             # (show_restricted_disabled is handled by frontend marking)
-            return queryset.filter(
-                Q(shared=True)
-                | (
-                    (
-                        Q(customer__in=connected_customers)
-                        | Q(project__in=connected_projects)
-                        | Q(id__in=connected_offerings)
+            return self._exclude_restricted_offerings(
+                queryset.filter(
+                    Q(shared=True)
+                    | (
+                        (
+                            Q(customer__in=connected_customers)
+                            | Q(project__in=connected_projects)
+                            | Q(id__in=connected_offerings)
+                        )
+                        & (
+                            Q(plans__in=accessible_plans)
+                            | Q(parent__plans__in=accessible_plans)
+                        )
                     )
-                    & (
-                        Q(plans__in=accessible_plans)
-                        | Q(parent__plans__in=accessible_plans)
-                    )
-                )
-            ).distinct()
+                ).distinct(),
+                user,
+            )
 
     def filter_for_customer(self, value):
         if not is_uuid_like(value):
