@@ -252,14 +252,24 @@ class PermissionRequestFilter(django_filters.FilterSet):
         ]
 
 
-def filter_pending_invitations(user):
-    subquery = Q(state=InvitationState.PENDING) & (
+def filter_invitations_for_recipient(user, states):
+    subquery = Q(state__in=states) & (
         Q(civil_number="") | Q(civil_number=user.civil_number)
     )
     if settings.WALDUR_CORE["VALIDATE_INVITATION_EMAIL"]:
         subquery = subquery & Q(email=user.email)
 
     return subquery
+
+
+def filter_pending_invitations(user):
+    return filter_invitations_for_recipient(user, [InvitationState.PENDING])
+
+
+def filter_inactive_invitations_for_recipient(user):
+    return filter_invitations_for_recipient(
+        user, [InvitationState.EXPIRED, InvitationState.CANCELED]
+    )
 
 
 def filter_by_connected_scopes(user):
@@ -284,4 +294,5 @@ class VisibleInvitationFilter(BaseFilterBackend):
             return queryset
         subquery1 = filter_pending_invitations(request.user)
         subquery2 = filter_by_connected_scopes(request.user)
-        return queryset.filter(subquery1 | subquery2)
+        subquery3 = filter_inactive_invitations_for_recipient(request.user)
+        return queryset.filter(subquery1 | subquery2 | subquery3)
