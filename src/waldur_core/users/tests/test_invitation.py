@@ -412,6 +412,49 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
         response = self.get_details(self.user, invitation)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_user_can_fetch_expired_invitation_details_with_matching_email(self):
+        invitation = factories.CustomerInvitationFactory(
+            customer=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email,
+            state=InvitationState.EXPIRED,
+        )
+        response = self.get_details(self.user, invitation)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["state"], InvitationState.EXPIRED)
+
+    def test_user_can_fetch_canceled_invitation_details_with_matching_email(self):
+        invitation = factories.CustomerInvitationFactory(
+            customer=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email,
+            state=InvitationState.CANCELED,
+        )
+        response = self.get_details(self.user, invitation)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["state"], InvitationState.CANCELED)
+
+    def test_user_cannot_fetch_accepted_invitation_details(self):
+        invitation = factories.CustomerInvitationFactory(
+            customer=self.customer,
+            role=CustomerRole.OWNER,
+            email=self.user.email,
+            state=InvitationState.ACCEPTED,
+        )
+        response = self.get_details(self.user, invitation)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
+    def test_user_cannot_fetch_expired_invitation_with_non_matching_email(self):
+        invitation = factories.CustomerInvitationFactory(
+            customer=self.customer,
+            role=CustomerRole.OWNER,
+            email="different@example.com",
+            state=InvitationState.EXPIRED,
+        )
+        response = self.get_details(self.user, invitation)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
 
 class InvitationRetrieveByEmailTest(BaseInvitationTest):
     def get_list(self, user):
