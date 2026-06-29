@@ -1964,7 +1964,6 @@ class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
         default="192.168.42.0/24",
         initial="192.168.42.0/24",
-        write_only=True,
     )
     mac_address = serializers.CharField(required=False)
 
