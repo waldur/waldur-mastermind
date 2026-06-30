@@ -50,6 +50,7 @@ class RoleAvailabilityFilter(django_filters.FilterSet):
 
 
 class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
+    is_active = django_filters.BooleanFilter(widget=BooleanWidget)
     user = core_filters.RelatedUUIDFilter(
         view_name="user-detail", field_name="user__uuid"
     )
@@ -121,6 +122,7 @@ class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
     class Meta:
         model = models.UserRole
         fields = [
+            "is_active",
             "created",
             "modified",
             "expiration_time",

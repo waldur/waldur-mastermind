@@ -32,7 +32,10 @@ from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.utils import (
     add_user,
     delete_user,
+    get_create_permission,
+    get_delete_permission,
     get_permissions,
+    has_permission,
     update_user,
 )
 from waldur_core.structure import models as structure_models
@@ -718,7 +721,17 @@ def filter_user_permissions_by_ip_address(qs: QuerySet[models.UserRole], user_ip
 @extend_schema_view(
     list=extend_schema(
         summary="List user permissions",
-        description="Get a list of all permissions for the current user. Staff and support users can view all user permissions. The list can be filtered by user, scope, role, etc.",
+        description="Get a list of all permissions for the current user. Staff and support users can view all user permissions. The list can be filtered by user, scope, role, etc. By default only active grants are returned; staff and support can pass show_inactive=true to include revoked grants (the full history).",
+        parameters=[
+            OpenApiParameter(
+                "show_inactive",
+                OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="Staff/support only. Include revoked (inactive) "
+                "role grants in addition to active ones. Ignored for other "
+                "users, who only ever see their own active roles.",
+            ),
+        ],
         examples=[
             OpenApiExample(
                 "Example user permission list response",
@@ -774,7 +787,7 @@ def filter_user_permissions_by_ip_address(qs: QuerySet[models.UserRole], user_ip
     ),
 )
 class UserPermissionViewSet(ReadOnlyModelViewSet):
-    queryset = models.UserRole.objects.filter(is_active=True)
+    queryset = models.UserRole.objects.all()
     serializer_class = serializers.PermissionSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
@@ -784,9 +797,92 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         if user.is_staff or user.is_support:
+            # In the list, revoked (inactive) grants are hidden by default to
+            # preserve the historical behaviour of this endpoint; opt in to the
+            # full history (active + revoked) with show_inactive=true, and the
+            # is_active filterset param can narrow it further if needed. Detail
+            # lookups (retrieve plus the revoke/restore actions) always operate
+            # on the full set so a revoked grant can be fetched and restored.
+            show_inactive = self.request.query_params.get("show_inactive") == "true"
+            if self.action == "list" and not show_inactive:
+                qs = qs.filter(is_active=True)
             return qs
-        qs = qs.filter(user=user).distinct()
+        # Other users only ever see their own currently active roles.
+        qs = qs.filter(user=user, is_active=True).distinct()
         user_ip = get_ip_address(self.request)
         if not user_ip:
             return qs
         return filter_user_permissions_by_ip_address(qs, user_ip)
+
+    def _check_action_permission(self, user_role, permission_getter):
+        """Authorise revoke/restore of ``user_role`` mirroring the
+        scope-based team management checks: the caller must hold the relevant
+        permission on either the role's customer or the scope itself. Staff
+        bypass via :func:`has_permission`."""
+        scope = user_role.scope
+        if scope is None:
+            raise ValidationError("Role scope is not available.")
+        permission = permission_getter(scope)
+        customer = _get_customer(scope)
+        if customer is not None and has_permission(self.request, permission, customer):
+            return
+        if has_permission(self.request, permission, scope):
+            return
+        raise PermissionDenied()
+
+    @extend_schema(
+        summary="Revoke a user role",
+        description="Revokes a specific user role grant, deactivating the "
+        "associated permissions immediately.",
+        request=serializers.UserRolePermissionActionSerializer,
+        responses={200: OpenApiResponse(description="Role revoked successfully.")},
+    )
+    @action(detail=True, methods=["post"])
+    def revoke(self, request, uuid=None):
+        user_role = self.get_object()
+        serializer = serializers.UserRolePermissionActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self._check_action_permission(user_role, get_delete_permission)
+        if not user_role.is_active:
+            raise ValidationError("Role is already revoked.")
+        reason = (
+            serializer.validated_data.get("reason") or "Manual role removal via API"
+        )
+        user_role.revoke(current_user=request.user, reason=reason)
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Restore a revoked user role",
+        description="Restores a previously revoked user role grant, "
+        "reinstating the associated permissions immediately. Restoring a "
+        "role whose scope (e.g. a project) has been soft-deleted is not "
+        "allowed.",
+        request=serializers.UserRolePermissionActionSerializer,
+        responses={200: OpenApiResponse(description="Role restored successfully.")},
+    )
+    @action(detail=True, methods=["post"])
+    def restore(self, request, uuid=None):
+        user_role = self.get_object()
+        serializer = serializers.UserRolePermissionActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self._check_action_permission(user_role, get_create_permission)
+        validate_scope_not_soft_deleted(user_role.scope)
+        if user_role.is_active:
+            raise ValidationError("Role is already active.")
+        # A revoked grant may have been superseded by a fresh grant of the
+        # same role on the same scope (add_user always creates a new row).
+        # Restoring the old one would leave two active grants for the same
+        # (user, role, scope), so refuse when an equivalent is already active.
+        if models.UserRole.objects.filter(
+            user=user_role.user,
+            role=user_role.role,
+            content_type=user_role.content_type,
+            object_id=user_role.object_id,
+            is_active=True,
+        ).exists():
+            raise ValidationError("An active grant for this role already exists.")
+        reason = (
+            serializer.validated_data.get("reason") or "Manual role restore via API"
+        )
+        user_role.restore(current_user=request.user, reason=reason)
+        return Response(status=status.HTTP_200_OK)
