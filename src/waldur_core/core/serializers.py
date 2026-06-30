@@ -1064,11 +1064,15 @@ class HTMLCleanField(serializers.CharField):
     def to_internal_value(self, data):
         # First, let the parent CharField handle basic validation
         value = super().to_internal_value(data)
-
+        if not value:
+            return value
         # Then clean the HTML content if it's not empty
-        if value:
-            return clean_html(value.strip())
-
+        value = clean_html(value.strip())
+        if self.max_length is not None and len(value) > self.max_length:
+            raise serializers.ValidationError(
+                _("Value is too long (maximum %(max_length)s characters).")
+                % {"max_length": self.max_length}
+            )
         return value
 
 
