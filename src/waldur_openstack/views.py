@@ -2201,6 +2201,20 @@ class PortViewSet(structure_views.ResourceViewSet):
 
         return response.Response(status=status.HTTP_200_OK)
 
+    def no_allowed_address_pairs(port):
+        # Neutron rejects disabling port security while allowed address pairs
+        # are set (AddressPairAndPortSecurityRequired). Reject early with a
+        # clear message instead of letting the backend call fail.
+        if port.allowed_address_pairs:
+            raise exceptions.ValidationError(
+                _(
+                    "Allowed address pairs must be cleared before port security "
+                    "can be disabled."
+                )
+            )
+
+    disable_port_security_validators = [no_allowed_address_pairs]
+
     @extend_schema(
         summary="Enable port",
         description="Enable port.",
