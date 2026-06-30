@@ -2892,6 +2892,30 @@ class ResourceSlugTemplateTest(test.APITestCase):
         self.assertEqual(second.slug, f"{self.offering.slug}-2")
         self.assertEqual(third.slug, f"{self.offering.slug}-3")
 
+    def test_counter_template_sequential_is_clean(self):
+        # A {counter} template yields a single, clean, incrementing counter.
+        self._set_template("{project_slug}-{counter}")
+        first = self._create_resource()
+        second = self._create_resource()
+        third = self._create_resource()
+        self.assertEqual(first.slug, f"{self.project.slug}-1")
+        self.assertEqual(second.slug, f"{self.project.slug}-2")
+        self.assertEqual(third.slug, f"{self.project.slug}-3")
+
+    def test_counter_template_avoids_double_counter_after_churn(self):
+        # Regression for WAL-9925: deleting a lower-numbered resource drops the
+        # count-based counter onto a slug that still exists. The counter must be
+        # advanced (proj-3), NOT a second counter appended (proj-2-2).
+        self._set_template("{project_slug}-{counter}")
+        first = self._create_resource()
+        second = self._create_resource()
+        self.assertEqual(first.slug, f"{self.project.slug}-1")
+        self.assertEqual(second.slug, f"{self.project.slug}-2")
+        first.delete()  # count drops to 1, so the next counter re-renders proj-2
+        third = self._create_resource()
+        self.assertEqual(third.slug, f"{self.project.slug}-3")
+        self.assertNotIn(f"{self.project.slug}-2-", third.slug)
+
     def test_invalid_template_falls_back_to_default(self):
         # An unknown placeholder must not crash slug generation at save time.
         self._set_template("{nonexistent}-suffix")

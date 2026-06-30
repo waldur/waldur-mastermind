@@ -1729,6 +1729,11 @@ class ResourceDetailsMixin(
 # this value to leave room for a uniqueness suffix appended on collisions.
 RESOURCE_SLUG_MAX_LENGTH = 40
 
+# Upper bound on how far a {counter} slug template will advance its counter while
+# searching for a free slug. Bounded so a pathological offering cannot loop forever;
+# beyond it we fall back to suffix-based uniqueness.
+MAX_SLUG_COUNTER_ATTEMPTS = 10000
+
 
 class Resource(
     PermissionMixin,
@@ -1863,6 +1868,17 @@ class Resource(
 
     def _generate_template_slug(self, template):
         context = self._get_slug_context()
+
+        # Templates that embed a {counter}/{counter_padded} get their counter
+        # advanced until the rendered slug is unique. This keeps a single, clean
+        # counter (e.g. ``proj-32``) instead of letting _ensure_slug_unique append
+        # a second one (``proj-2-31``) when the count-based starting counter lands
+        # on a slug that already exists (e.g. after resource churn). For non-counter
+        # templates there is no counter to advance, so we fall back to the
+        # suffix-based uniqueness used elsewhere.
+        if "{counter}" in template or "{counter_padded}" in template:
+            return self._generate_counter_template_slug(template, context)
+
         try:
             raw_slug = template.format(**context)
         except (KeyError, ValueError) as e:
@@ -1875,12 +1891,48 @@ class Resource(
             )
             return super().generate_slug()
 
-        base_slug = core_models.clean_slug_hyphens(slugify(raw_slug))[
-            :RESOURCE_SLUG_MAX_LENGTH
-        ].strip("-")
+        base_slug = self._clean_template_slug(raw_slug)
         if not base_slug:
             return super().generate_slug()
         return self._ensure_slug_unique(base_slug)
+
+    def _generate_counter_template_slug(self, template, context):
+        counter = self._calculate_slug_counter()
+        last_slug = ""
+        for _attempt in range(MAX_SLUG_COUNTER_ATTEMPTS):
+            local_context = dict(context)
+            local_context["counter"] = str(counter)
+            local_context["counter_padded"] = f"{counter:03d}"
+            try:
+                raw_slug = template.format(**local_context)
+            except (KeyError, ValueError) as e:
+                logger.error(
+                    "Failed to format resource slug template '%s' for offering %s: %s. "
+                    "Falling back to default slug generation.",
+                    template,
+                    self.offering_id,
+                    e,
+                )
+                return super().generate_slug()
+            base_slug = self._clean_template_slug(raw_slug)
+            if not base_slug:
+                return super().generate_slug()
+            if (
+                not Resource.objects.filter(slug=base_slug)
+                .exclude(pk=self.pk if self.pk else None)
+                .exists()
+            ):
+                return base_slug
+            last_slug = base_slug
+            counter += 1
+        # Exhausted the counter window — fall back to suffix-based uniqueness so a
+        # slug is still produced (degenerate templates with no {counter} variation).
+        return self._ensure_slug_unique(last_slug)
+
+    def _clean_template_slug(self, raw_slug):
+        return core_models.clean_slug_hyphens(slugify(raw_slug))[
+            :RESOURCE_SLUG_MAX_LENGTH
+        ].strip("-")
 
     def _get_slug_context(self):
         now = timezone.now()
