@@ -50,6 +50,22 @@ class PortSecurityToggleAuditTest(test.APITestCase):
         self.assertEqual(ctx["port_uuid"], self.port.uuid.hex)
         self.assertEqual(ctx["user_uuid"], self.fixture.admin.uuid.hex)
 
+    def test_disable_port_security_rejected_when_pairs_set(self):
+        # Neutron forbids disabling port security while allowed address pairs
+        # exist, so the request must be rejected before reaching the backend.
+        self.port.allowed_address_pairs = [{"ip_address": "192.168.1.50"}]
+        self.port.save(update_fields=["allowed_address_pairs"])
+
+        url = factories.PortFactory.get_url(self.port, action="disable_port_security")
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.port.refresh_from_db()
+        self.assertTrue(self.port.port_security_enabled)
+        self.assertEqual(
+            self._events(EventType.OPENSTACK_PORT_SECURITY_DISABLED).count(), 0
+        )
+
     def test_enable_port_security_emits_event_only_when_state_flips(self):
         # Currently enabled — calling enable again should NOT emit (no-op).
         url = factories.PortFactory.get_url(self.port, action="enable_port_security")
