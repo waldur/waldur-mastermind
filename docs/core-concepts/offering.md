@@ -329,6 +329,11 @@ With attributes from the order form:
 
 Non-alphanumeric characters (except `-`, `_`, `.`) are replaced with hyphens; duplicate hyphens are collapsed; leading/trailing hyphens are stripped. If the pattern is malformed, the endpoint falls back to the default naming behavior.
 
+The related `resource_slug_template` option (e.g. `{project_slug}-{counter}`) generates a unique resource **slug**, which the Waldur Site Agent uses as the backend ID (e.g. the SLURM account name).
+
+!!! warning "Do not combine `resource_slug_template` with the `project_slug` account name policy"
+    For site-agent-managed offerings, the `account_name_generation_policy` plugin option (under [Offering Users](#offering-users-identity-management)) is an **alternative** way to make backend IDs unique. When it is set to `project_slug`, the agent **ignores the resource slug** and instead derives the backend ID from the project slug plus its own incrementing counter — producing IDs like `prefix-test-prj-01-2-31` even when the slug is already unique. If you configure a `resource_slug_template`, leave `account_name_generation_policy` **unset** so the unique slug is used directly.
+
 ### Display and UI
 
 | Option | Type | Default | Description |
@@ -343,6 +348,7 @@ Non-alphanumeric characters (except `-`, `_`, `.`) are replaced with hyphens; du
 |--------|------|---------|-------------|
 | `service_provider_can_create_offering_user` | boolean | `false` | Allow provider to create offering-specific user accounts |
 | `username_generation_policy` | string | `"waldur_username"` | How usernames are generated: `waldur_username`, `anonymized`, `service_provider`, `full_name`, `freeipa`, `eduteams` |
+| `account_name_generation_policy` | string | none | Site-agent backend ID (e.g. SLURM account name) generation. Unset = use the resource slug as-is; `project_slug` = derive from the project slug with an incrementing counter. Do not combine with `resource_slug_template` (see [Resource Naming](#resource-naming)) |
 | `initial_uidnumber` | integer | `5000` | Starting UID for generated users |
 | `initial_primarygroup_number` | integer | `5000` | Starting GID for primary groups |
 | `initial_usergroup_number` | integer | `6000` | Starting GID for user groups |
