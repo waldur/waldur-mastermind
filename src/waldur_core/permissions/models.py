@@ -125,6 +125,14 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
         blank=True,
         related_name="+",
     )
+    revoked_by = models.ForeignKey[User](
+        on_delete=models.SET_NULL,
+        to=settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    revoke_reason = models.CharField(max_length=255, blank=True, default="")
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(null=True, default=True, db_index=True)
     tracker = cast(
@@ -153,8 +161,40 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
             return
         self.is_active = False
         self.expiration_time = timezone.now()
-        self.save(update_fields=["is_active", "expiration_time"])
+        self.revoked_by = current_user
+        self.revoke_reason = reason or ""
+        self.save(
+            update_fields=[
+                "is_active",
+                "expiration_time",
+                "revoked_by",
+                "revoke_reason",
+            ]
+        )
         signals.role_revoked.send(
+            sender=self.__class__,
+            instance=self,
+            current_user=current_user,
+            reason=reason,
+        )
+
+    def restore(self, current_user=None, reason=None):
+        if self.is_active:
+            # user role is already active
+            return
+        self.is_active = True
+        self.expiration_time = None
+        self.revoked_by = None
+        self.revoke_reason = ""
+        self.save(
+            update_fields=[
+                "is_active",
+                "expiration_time",
+                "revoked_by",
+                "revoke_reason",
+            ]
+        )
+        signals.role_granted.send(
             sender=self.__class__,
             instance=self,
             current_user=current_user,

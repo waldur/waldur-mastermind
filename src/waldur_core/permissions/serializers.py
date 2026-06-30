@@ -235,6 +235,7 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
 
 
 class PermissionSerializer(serializers.ModelSerializer):
+    uuid = serializers.UUIDField(read_only=True)
     user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_name = serializers.CharField(read_only=True, source="user.full_name")
     user_slug = serializers.CharField(read_only=True, source="user.slug")
@@ -243,6 +244,12 @@ class PermissionSerializer(serializers.ModelSerializer):
     )
     created_by_username = serializers.CharField(
         read_only=True, source="created_by.username"
+    )
+    revoked_by_full_name = serializers.CharField(
+        read_only=True, source="revoked_by.full_name", allow_null=True
+    )
+    revoked_by_username = serializers.CharField(
+        read_only=True, source="revoked_by.username", allow_null=True
     )
     role_name = serializers.CharField(read_only=True, source="role.name")
     role_description = serializers.CharField(read_only=True, source="role.description")
@@ -254,28 +261,45 @@ class PermissionSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
     resource_uuid = serializers.SerializerMethodField()
     project_uuid = serializers.SerializerMethodField()
+    scope_is_removed = serializers.SerializerMethodField()
 
     class Meta:
         model = models.UserRole
         fields = (
+            "uuid",
             "user_uuid",
             "user_name",
             "user_slug",
             "created",
             "expiration_time",
+            "is_active",
             "created_by_full_name",
             "created_by_username",
+            "revoked_by_full_name",
+            "revoked_by_username",
+            "revoke_reason",
             "role_name",
             "role_description",
             "role_uuid",
             "scope_type",
             "scope_uuid",
             "scope_name",
+            "scope_is_removed",
             "customer_uuid",
             "customer_name",
             "resource_uuid",
             "project_uuid",
         )
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_scope_is_removed(self, obj) -> bool:
+        """Whether the role's scope has been soft-deleted (e.g. a removed
+        project). Used by the frontend to indicate historical memberships on
+        deleted scopes and to hide the restore action for them."""
+        scope = obj.scope
+        if scope is None:
+            return False
+        return bool(getattr(scope, "is_removed", False))
 
     def get_scope_type(self, obj) -> str | None:
         if obj.scope is None:
@@ -417,3 +441,9 @@ class UserRoleDeleteSerializer(UserRoleMutateSerializer):
 
 class UserRoleExpirationTimeSerializer(serializers.Serializer):
     expiration_time = serializers.DateTimeField(allow_null=True)
+
+
+class UserRolePermissionActionSerializer(serializers.Serializer):
+    """Input for revoke/restore actions on a specific user role grant."""
+
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=255)
