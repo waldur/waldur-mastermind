@@ -12,6 +12,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
@@ -267,7 +268,18 @@ class ProjectCreateTest(test.APITestCase):
         payload["name"] = "project_without_end_date_allowed"
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIsNone(response.data["end_date"])
+
+    def test_description_exceeds_limit_after_html_clean_returns_400(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "project_with_long_description"
+        payload["description"] = "&" * DESCRIPTION_LENGTH
+
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+        self.assertFalse(Project.objects.filter(name=payload["name"]).exists())
 
     @override_config(PROJECT_END_DATE_MANDATORY=True)
     def test_patch_does_not_require_end_date_when_field_is_not_being_changed(self):

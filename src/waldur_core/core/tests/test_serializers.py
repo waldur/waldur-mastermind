@@ -15,10 +15,12 @@ from rest_framework.views import APIView
 
 from waldur_core.core import utils
 from waldur_core.core.fields import TimestampField
+from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.serializers import (
     Base64Field,
     DictSerializerField,
     GenericRelatedField,
+    HTMLCleanField,
     RestrictedSerializerMixin,
 )
 from waldur_core.logging.utils import get_loggable_models
@@ -452,3 +454,35 @@ class SlugSerializerMixinTest(APITestCase):
         # So the slug should not be in validated_data
         serializer.is_valid()
         self.assertNotIn("slug", serializer.validated_data)
+
+
+class HTMLCleanFieldTestSerializer(serializers.Serializer):
+    content = HTMLCleanField(
+        required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
+    )
+
+
+class HTMLCleanFieldTest(unittest.TestCase):
+    def test_plain_text_within_limit_is_accepted(self):
+        field = HTMLCleanField(max_length=DESCRIPTION_LENGTH)
+        value = field.to_internal_value("plain text")
+        self.assertEqual(value, "plain text")
+
+    def test_value_expanded_by_html_clean_is_rejected_when_over_limit(self):
+        field = HTMLCleanField(max_length=DESCRIPTION_LENGTH)
+        # Exactly at pre-clean limit, but & -> &amp; expands past DESCRIPTION_LENGTH.
+        with self.assertRaises(serializers.ValidationError) as ctx:
+            field.to_internal_value("&" * DESCRIPTION_LENGTH)
+        self.assertIn("too long", str(ctx.exception).lower())
+
+    def test_value_without_max_length_does_not_crash_after_html_clean(self):
+        field = HTMLCleanField()
+        value = field.to_internal_value("&" * DESCRIPTION_LENGTH)
+        self.assertGreater(len(value), DESCRIPTION_LENGTH)
+
+    def test_serializer_returns_400_when_cleaned_description_exceeds_limit(self):
+        serializer = HTMLCleanFieldTestSerializer(
+            data={"content": "Norouzi, M., & Hinton, G. " * 220}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("content", serializer.errors)

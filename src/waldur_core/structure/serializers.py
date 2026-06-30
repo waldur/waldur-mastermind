@@ -29,6 +29,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
+from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
@@ -544,6 +545,7 @@ class ProjectSerializer(
     description = core_serializers.HTMLCleanField(
         required=False,
         allow_blank=True,
+        max_length=DESCRIPTION_LENGTH,
         help_text="Project description (HTML content will be sanitized)",
     )
     start_date = serializers.DateField(
@@ -564,6 +566,7 @@ class ProjectSerializer(
     staff_notes = core_serializers.HTMLCleanField(
         required=False,
         allow_blank=True,
+        max_length=DESCRIPTION_LENGTH,
         help_text="Internal notes visible only to staff and support users (HTML content will be sanitized)",
     )
     effective_end_date = serializers.DateField(
