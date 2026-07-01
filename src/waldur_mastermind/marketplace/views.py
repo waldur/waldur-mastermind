@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 import reversion
+import tomli_w
 import yaml
 from constance import config
 from dateutil.relativedelta import relativedelta
@@ -336,7 +337,7 @@ def _render_glauth_toml(offering, *, resource_filter=None) -> str:
     """
     tree = utils.build_glauth_tree(offering, resource_filter=resource_filter)
 
-    user_records = utils.generate_glauth_records_for_offering_users(
+    user_data = utils.generate_glauth_records_for_offering_users(
         offering,
         tree["_offering_users"],
         extra_user_gids=tree["_user_role_gids"],
@@ -345,33 +346,22 @@ def _render_glauth_toml(offering, *, resource_filter=None) -> str:
     robot_qs = models.RobotAccount.objects.filter(resource__offering=offering)
     if resource_filter is not None:
         robot_qs = robot_qs.filter(resource=resource_filter)
-    robot_account_records = utils.generate_glauth_records_for_robot_accounts(
-        offering, robot_qs
-    )
+    robot_data = utils.generate_glauth_records_for_robot_accounts(offering, robot_qs)
 
-    project_group_records = []
-    role_group_records = []
+    groups = user_data["groups"] + robot_data["groups"]
     for group in tree["groups"]:
-        gid = group["gid"]
-        name = group["name"]
-        record = textwrap.dedent(
-            f"""
-            [[groups]]
-              name = "{utils.escape_toml_string(name)}"
-              gidnumber = {gid}
-        """
+        groups.append(
+            {
+                "name": group["name"],
+                "gidnumber": int(group["gid"]),
+            }
         )
-        if group["kind"] == "project":
-            project_group_records.append(record)
-        else:
-            role_group_records.append(record)
 
-    return "\n".join(
-        user_records
-        + robot_account_records
-        + project_group_records
-        + role_group_records
-    )
+    toml_data = {
+        "users": user_data["users"] + robot_data["users"],
+        "groups": groups,
+    }
+    return tomli_w.dumps(toml_data)
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
