@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 
 import httpx
 import respx
@@ -13,7 +14,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models, utils
+from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.enums import CourseAccountState
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -1551,3 +1552,99 @@ class CourseAccountOrderingTest(test.APITestCase):
         self.assertEqual(response.data[1]["email"], "charlie@example.com")
         # Last should be from Beta Project
         self.assertEqual(response.data[2]["project_name"], "Beta Project")
+
+
+class ExtractErrorDetailsFromHttpxErrorTest(test.APITestCase):
+    """Unit tests for extract_error_details_from_httpx_error."""
+
+    def _make_status_error(self, status_code, *, json_body=None, text=""):
+        request = httpx.Request("POST", "http://example.com/api")
+        if json_body is not None:
+            response = httpx.Response(status_code, json=json_body, request=request)
+        else:
+            response = httpx.Response(status_code, text=text, request=request)
+        return httpx.HTTPStatusError(
+            f"Server error '{status_code}'", request=request, response=response
+        )
+
+    def test_status_error_with_json_body_returns_parsed_json(self):
+        exc = self._make_status_error(500, json_body={"detail": "DB connection failed"})
+        result = utils.extract_error_details_from_httpx_error(exc)
+        self.assertEqual(result, {"detail": "DB connection failed"})
+
+    def test_status_error_with_empty_body_returns_status_string(self):
+        exc = self._make_status_error(500, text="")
+        result = utils.extract_error_details_from_httpx_error(exc)
+        self.assertEqual(result, "Status code: 500, empty body")
+
+    def test_read_timeout_returns_string_without_attributeerror(self):
+        exc = httpx.ReadTimeout("The read operation timed out")
+        result = utils.extract_error_details_from_httpx_error(exc)
+        self.assertIn("timed out", result)
+
+    def test_connect_error_returns_string(self):
+        exc = httpx.ConnectError("Connection refused")
+        result = utils.extract_error_details_from_httpx_error(exc)
+        self.assertIn("Connection refused", result)
+
+
+class CreateCourseAccountTaskErrorHandlingTest(test.APITestCase):
+    """Test that create_course_account_task stores meaningful error messages on failure."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.course_project = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+            end_date=datetime.date.today() + datetime.timedelta(days=30),
+        )
+        self.course_account = factories.CourseAccountFactory(
+            project=self.course_project,
+            state=CourseAccountState.PENDING,
+        )
+
+    def _run_task(self):
+        tasks.create_course_account_task(self.course_account.uuid.hex, "owner")
+        self.course_account.refresh_from_db()
+
+    def _make_status_error(self, status_code, *, json_body=None, text=""):
+        request = httpx.Request("POST", COURSE_ACCOUNT_URL)
+        if json_body is not None:
+            response = httpx.Response(status_code, json=json_body, request=request)
+        else:
+            response = httpx.Response(status_code, text=text, request=request)
+        return httpx.HTTPStatusError(
+            f"Server error '{status_code}'", request=request, response=response
+        )
+
+    @patch("waldur_mastermind.marketplace.utils.create_course_account")
+    def test_http_500_with_json_body_stores_detail_in_error_message(self, mock_create):
+        mock_create.side_effect = self._make_status_error(
+            500, json_body={"detail": "Internal server error: DB connection failed"}
+        )
+        self._run_task()
+        self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
+        self.assertIn("DB connection failed", self.course_account.error_message)
+
+    @patch("waldur_mastermind.marketplace.utils.create_course_account")
+    def test_http_500_with_empty_body_stores_status_string(self, mock_create):
+        mock_create.side_effect = self._make_status_error(500, text="")
+        self._run_task()
+        self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
+        self.assertEqual(
+            self.course_account.error_message, "Status code: 500, empty body"
+        )
+
+    @patch("waldur_mastermind.marketplace.utils.create_course_account")
+    def test_read_timeout_stores_timeout_message(self, mock_create):
+        mock_create.side_effect = httpx.ReadTimeout("The read operation timed out")
+        self._run_task()
+        self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
+        self.assertIn("timed out", self.course_account.error_message)
+
+    @patch("waldur_mastermind.marketplace.utils.create_course_account")
+    def test_connect_error_stores_connection_message(self, mock_create):
+        mock_create.side_effect = httpx.ConnectError("Connection refused")
+        self._run_task()
+        self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
+        self.assertIn("Connection refused", self.course_account.error_message)
