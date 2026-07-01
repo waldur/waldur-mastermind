@@ -3425,11 +3425,11 @@ def post_service_account_to_url(
 
 def extract_error_details_from_httpx_error(exc: httpx.HTTPError):
     """Extract error details from an HTTPx error depending on the error type."""
-    return (
-        exc.response.json()
-        if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-        else f"Status code: {exc.response.status_code}, empty body"
-    )
+    if isinstance(exc, httpx.HTTPStatusError):
+        if exc.response.text:
+            return exc.response.json()
+        return f"Status code: {exc.response.status_code}, empty body"
+    return str(exc)
 
 
 def create_service_account(service_account: dict, owner_username: str, scope_type: str):
