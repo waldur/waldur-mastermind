@@ -1,4 +1,4 @@
-import textwrap
+import tomllib
 from unittest import mock
 
 from constance.test.unittest import override_config as override_constance_config
@@ -336,40 +336,33 @@ class OfferingUserGlauthConfigTest(test.APITestCase):
         response = self.client.get(self.fixture.url)
         self.assertEqual(200, response.status_code)
 
-        expected_config_file = textwrap.dedent(
-            f"""
-        [[users]]
-          name = "{self.fixture.manager.get_username()}"
-          givenname="{self.fixture.manager.first_name}"
-          sn="{self.fixture.manager.last_name}"
-          mail = "{self.fixture.manager.email}"
-          uidnumber = 1001
-          primarygroup = 2001
-          otherGroups = [6001]
-          sshkeys = ["{ssh_key.public_key}"]
-          loginShell = "/bin/bash"
-          homeDir = "/tmp/{self.fixture.offering_user.username}"
-          passsha256 = ""
-          disabled = false
-            [[users.customattributes]]
-            preferredUsername = ["{self.fixture.offering_user.username}"]
-
-        [[groups]]
-          name = "{self.fixture.offering_user.username}"
-          gidnumber = 2001
-
-
-        [[groups]]
-          name = "6001"
-          gidnumber = 6001
-
-
-        [[groups]]
-          name = "6002"
-          gidnumber = 6002
-        """
-        )
-        self.assertEqual(expected_config_file, response.data)
+        expected_data = {
+            "users": [
+                {
+                    "name": self.fixture.manager.get_username(),
+                    "givenname": self.fixture.manager.first_name,
+                    "sn": self.fixture.manager.last_name,
+                    "mail": self.fixture.manager.email,
+                    "uidnumber": 1001,
+                    "primarygroup": 2001,
+                    "otherGroups": [6001],
+                    "sshkeys": [ssh_key.public_key],
+                    "loginShell": "/bin/bash",
+                    "homeDir": f"/tmp/{self.fixture.offering_user.username}",
+                    "passsha256": "",
+                    "disabled": False,
+                    "customattributes": {
+                        "preferredUsername": [self.fixture.offering_user.username]
+                    },
+                }
+            ],
+            "groups": [
+                {"name": self.fixture.offering_user.username, "gidnumber": 2001},
+                {"name": "6001", "gidnumber": 6001},
+                {"name": "6002", "gidnumber": 6002},
+            ],
+        }
+        self.assertEqual(expected_data, tomllib.loads(response.data))
 
         self.assertEqual(
             1,
@@ -397,6 +390,29 @@ class OfferingUserGlauthConfigTest(test.APITestCase):
         self.assertEqual(200, response.status_code)
         self.assertIn(r"ul\\sd41041@LAP-113622", response.data)
         self.assertNotIn(r"ul\sd41041@LAP-113622", response.data)
+
+    def test_glauth_config_handles_special_characters_robustly(self):
+        """User attributes containing backslashes and double quotes must be successfully serialized and parsed."""
+        self.fixture.offering.plugin_options["emit_display_name"] = True
+        self.fixture.offering.save(update_fields=["plugin_options"])
+
+        manager = self.fixture.manager
+        manager.first_name = 'John "Johnny"'
+        manager.last_name = r"Doe\Smith"
+        manager.save()
+
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.get(self.fixture.url)
+        self.assertEqual(200, response.status_code)
+
+        # Parse TOML to ensure validity
+        parsed_config = tomllib.loads(response.data)
+        user_record = parsed_config["users"][0]
+        self.assertEqual(user_record["givenname"], 'John "Johnny"')
+        self.assertEqual(user_record["sn"], r"Doe\Smith")
+        self.assertEqual(
+            user_record["customattributes"]["displayName"], ['John "Johnny" Doe\\Smith']
+        )
 
 
 @ddt

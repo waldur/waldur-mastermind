@@ -8,7 +8,6 @@ import math
 import os
 import random
 import re
-import textwrap
 import traceback
 import unicodedata
 import uuid
@@ -1898,7 +1897,7 @@ def generate_glauth_records_for_offering_users(
     # Convert to list to allow multiple iterations
     offering_users_list = list(offering_users)
     if not offering_users_list:
-        return []
+        return {"users": [], "groups": []}
 
     # Collect all user IDs for batch queries
     user_ids = [ou.user_id for ou in offering_users_list]
@@ -1946,7 +1945,8 @@ def generate_glauth_records_for_offering_users(
             users_with_access.add(user_id)
 
     password_sha256 = generate_offering_password_hash(offering)
-    user_records = []
+    users = []
+    groups = []
 
     for offering_user in offering_users_list:
         user = offering_user.user
@@ -1963,13 +1963,6 @@ def generate_glauth_records_for_offering_users(
         login_shell = offering_user.backend_metadata["loginShell"]
         home_dir = offering_user.backend_metadata["homeDir"]
 
-        # Use prefetched SSH keys (no additional query)
-        ssh_keys = [
-            f'"{escape_toml_string(ssh_key.public_key)}"'
-            for ssh_key in user.sshpublickey_set.all()
-        ]
-        ssh_keys_line = ",\n    ".join(ssh_keys)
-
         # Use pre-computed user-to-project-to-gid mapping
         user_project_ids = user_project_mappings.get(user.id, set())
         group_ids = set()
@@ -1978,41 +1971,43 @@ def generate_glauth_records_for_offering_users(
         # Merge in role-aware gids supplied by build_glauth_tree.
         for gid in extra_user_gids.get(user.id, ()):
             group_ids.add(str(gid))
-        other_groups = ", ".join(sorted(group_ids, key=lambda s: (len(s), s)))
+        other_groups = sorted([int(gid) for gid in group_ids])
 
         # Use pre-computed access check
-        user_disabled_status = "false" if user.id in users_with_access else "true"
+        user_disabled_status = user.id not in users_with_access
 
-        record = textwrap.dedent(
-            f"""
-        [[users]]
-          name = "{escape_toml_string(user.get_username())}"
-          givenname="{escape_toml_string(user.first_name)}"
-          sn="{escape_toml_string(user.last_name)}"
-          mail = "{escape_toml_string(user.email)}"
-          uidnumber = {uidnumber}
-          primarygroup = {primarygroup}
-          otherGroups = [{other_groups}]
-          sshkeys = [{ssh_keys_line}]
-          loginShell = "{escape_toml_string(login_shell)}"
-          homeDir = "{escape_toml_string(home_dir)}"
-          passsha256 = "{password_sha256}"
-          disabled = {user_disabled_status}
-            [[users.customattributes]]
-            preferredUsername = ["{escape_toml_string(username)}"]
-        """
-        )
+        custom_attributes = {
+            "preferredUsername": [username],
+        }
+        if offering.plugin_options.get("emit_display_name"):
+            custom_attributes["displayName"] = [user.get_full_name()]
+        if offering.plugin_options.get("emit_waldur_username"):
+            custom_attributes["waldurUsername"] = [user.username]
 
-        record += textwrap.dedent(
-            f"""
-        [[groups]]
-          name = "{escape_toml_string(username)}"
-          gidnumber = {primarygroup}
-        """
-        )
-        user_records.append(record)
+        user_dict = {
+            "name": user.get_username(),
+            "givenname": user.first_name,
+            "sn": user.last_name,
+            "mail": user.email,
+            "uidnumber": int(uidnumber),
+            "primarygroup": int(primarygroup),
+            "otherGroups": other_groups,
+            "sshkeys": [ssh_key.public_key for ssh_key in user.sshpublickey_set.all()],
+            "loginShell": login_shell,
+            "homeDir": home_dir,
+            "passsha256": password_sha256,
+            "disabled": user_disabled_status,
+            "customattributes": custom_attributes,
+        }
 
-    return user_records
+        group_dict = {
+            "name": username,
+            "gidnumber": int(primarygroup),
+        }
+        users.append(user_dict)
+        groups.append(group_dict)
+
+    return {"users": users, "groups": groups}
 
 
 def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
@@ -2023,52 +2018,60 @@ def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
     ]
     robot_accounts = robot_accounts.filter(state__in=valid_states)
 
-    robot_account_records = []
+    users = []
+    groups = []
     for robot_account in robot_accounts:
-        ssh_keys = [f'"{escape_toml_string(key)}"' for key in robot_account.keys]
-        ssh_keys_line = ",\n    ".join(ssh_keys)
-
         username = robot_account.username
-        uidnumber = robot_account.backend_metadata["uidnumber"]
-        primarygroup = robot_account.backend_metadata["primarygroup"]
-        login_shell = robot_account.backend_metadata["loginShell"]
-        home_dir = robot_account.backend_metadata["homeDir"]
+        # Skip accounts without a username — an empty name yields a broken
+        # LDAP record.
+        if not username:
+            logger.warning(
+                "RobotAccount %s has no username, skipping generation of glauth record",
+                robot_account,
+            )
+            continue
+
+        metadata = robot_account.backend_metadata or {}
+        # Skip robot accounts without a full POSIX attribute set (e.g. created
+        # before any range was configured) rather than crash the whole sync.
+        required = ("uidnumber", "primarygroup", "loginShell", "homeDir")
+        if not all(key in metadata for key in required):
+            logger.warning(
+                "RobotAccount %s is missing POSIX attributes %s, skipping "
+                "generation of glauth record",
+                robot_account,
+                [key for key in required if key not in metadata],
+            )
+            continue
+
+        uidnumber = metadata["uidnumber"]
+        primarygroup = metadata["primarygroup"]
+        login_shell = metadata["loginShell"]
+        home_dir = metadata["homeDir"]
         password_sha256 = generate_offering_password_hash(offering)
 
-        record = textwrap.dedent(
-            f"""
-        [[users]]
-          name = "{escape_toml_string(username)}"
-          uidnumber = {uidnumber}
-          primarygroup = {primarygroup}
-          sshkeys = [{ssh_keys_line}]
-          loginShell = "{escape_toml_string(login_shell)}"
-          homeDir = "{escape_toml_string(home_dir)}"
-          passsha256 = "{password_sha256}"
-            [[users.customattributes]]
-            preferredUsername = ["{escape_toml_string(username)}"]
-        """
-        )
+        user_dict = {
+            "name": username,
+            "uidnumber": int(uidnumber),
+            "primarygroup": int(primarygroup),
+            "sshkeys": list(robot_account.keys),
+            "loginShell": login_shell,
+            "homeDir": home_dir,
+            "passsha256": password_sha256,
+            "customattributes": {
+                "preferredUsername": [username],
+            },
+        }
 
-        record += textwrap.dedent(
-            f"""
-        [[groups]]
-          name = "{escape_toml_string(username)}"
-          gidnumber = {primarygroup}
-        """
-        )
+        group_dict = {
+            "name": username,
+            "gidnumber": int(primarygroup),
+        }
 
-        robot_account_records.append(record)
+        users.append(user_dict)
+        groups.append(group_dict)
 
-    return robot_account_records
-
-
-def escape_toml_string(value):
-    """Escape a string for safe inclusion in a TOML double-quoted string.
-
-    Backslashes and double quotes must be escaped to produce valid TOML.
-    """
-    return value.replace("\\", "\\\\").replace('"', '\\"')
+    return {"users": users, "groups": groups}
 
 
 # --------------------------------------------------------------------------
