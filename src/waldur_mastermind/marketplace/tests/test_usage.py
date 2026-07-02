@@ -752,7 +752,7 @@ class UsageDateBackfillTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Service providers can only specify date for limit-based billing components when backfilling past billing periods",
+            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods",
             str(response.data),
         )
 
@@ -826,7 +826,7 @@ class UsageDateBackfillTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Service providers can only specify date for limit-based billing components when backfilling past billing periods",
+            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods",
             str(response.data),
         )
 
@@ -1509,6 +1509,17 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
             plan=self.plan, component=self.usage_component
         )
 
+        # Create prepaid (one-time) component. Usage is display-only for these,
+        # so it must be reportable — including backfilling past periods.
+        self.prepaid_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            type="prepaid_gpu",
+        )
+        self.prepaid_plan_component = factories.PlanComponentFactory(
+            plan=self.plan, component=self.prepaid_component
+        )
+
         # Create resource owned by consumer but on service provider's offering
         self.resource = models.Resource.objects.create(
             offering=self.offering,
@@ -1587,7 +1598,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Service providers can only specify date for limit-based billing components when backfilling past billing periods",
+            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods",
             str(response.data),
         )
 
@@ -1618,7 +1629,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Service providers can only specify date for limit-based billing components when backfilling past billing periods",
+            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods",
             str(response.data),
         )
 
@@ -1669,6 +1680,102 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
 
         self.assertEqual(cpu_usage.date, backfill_date)
         self.assertEqual(memory_usage.date, backfill_date)
+
+    def test_service_provider_can_report_prepaid_usage_in_current_period(self):
+        """Prepaid (one-time) components must be reportable via set_usage.
+
+        Regression: set_usage previously rejected prepaid components with
+        "These components are invalid", so prepaid usage never showed up in
+        Homeport even though it does not affect usage-based billing.
+        """
+        self.client.force_authenticate(self.fixture.owner)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "usages": [
+                {
+                    "type": "prepaid_gpu",
+                    "amount": 7,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.prepaid_component,
+        )
+        self.assertEqual(usage.usage, 7)
+
+    def test_service_provider_can_backfill_prepaid_usage(self):
+        """Service providers can backfill prepaid usage into a past period."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "prepaid_gpu",
+                    "amount": 7,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.prepaid_component,
+        )
+        self.assertEqual(usage.date, backfill_date)
+        self.assertEqual(usage.billing_period, datetime.date(2023, 12, 1))
+
+    def test_service_provider_can_backfill_user_usage_for_prepaid_components(self):
+        """Service providers can backfill per-user usage for prepaid components."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.prepaid_component,
+            usage=100,
+            date=timezone.now(),
+            billing_period=core_utils.month_start(timezone.now()),
+        )
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
+
+        payload = {
+            "username": "user123",
+            "usage": 25,
+            "date": backfill_date.isoformat(),
+        }
+
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        december_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.prepaid_component,
+            billing_period=datetime.date(2023, 12, 1),
+        )
+        user_usage = models.ComponentUserUsage.objects.get(
+            component_usage=december_usage, username="user123"
+        )
+        self.assertEqual(user_usage.usage, 25)
 
     def test_non_service_provider_cannot_backfill_date(self):
         """Test that non-service provider users cannot specify date."""
@@ -1773,7 +1880,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Service providers can only specify date for limit-based billing components when backfilling past billing periods",
+            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods",
             str(response.data),
         )
 
