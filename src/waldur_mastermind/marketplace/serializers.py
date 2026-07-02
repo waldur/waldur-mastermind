@@ -6893,6 +6893,13 @@ class ComponentUserUsageSerializer(
         return converted_usage
 
 
+# Billing types whose ComponentUsage records never feed usage-based invoicing
+# (only USAGE components are billed from usage). Reporting them is display-only
+# — it updates resource.current_usages and the usage history shown in Homeport —
+# so it is safe to accept, including when backfilling a past billing period.
+DISPLAY_ONLY_BILLING_TYPES = (BillingTypes.LIMIT, BillingTypes.ONE_TIME)
+
+
 class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
     user = serializers.HyperlinkedRelatedField(
         queryset=models.OfferingUser.objects.all(),
@@ -6928,12 +6935,15 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
             date_billing_period = core_utils.month_start(value)
 
             # If date is in a past billing period (historical backfilling),
-            # only allow for limit-based components
+            # only allow for display-only components (limit-based and prepaid)
             if date_billing_period < current_billing_period:
-                if component_usage.component.billing_type != BillingTypes.LIMIT:
+                if (
+                    component_usage.component.billing_type
+                    not in DISPLAY_ONLY_BILLING_TYPES
+                ):
                     raise serializers.ValidationError(
                         _(
-                            "Service providers can only specify date for limit-based billing components when backfilling past billing periods."
+                            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods."
                         )
                     )
             # If date is in current billing period, allow for all component types
@@ -7160,8 +7170,13 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         help_text="Date for usage reporting (staff and service providers for limit-based components). If not provided, current date is used.",
     )
 
-    def _is_limit_based_component_usage(self, attrs):
-        """Check if ALL of the usage components are limit-based."""
+    def _is_backfillable_component_usage(self, attrs):
+        """Check that every reported component is safe to backfill.
+
+        Backfilling a past period is only forbidden for USAGE components,
+        because those directly create retroactive invoice items. Limit-based
+        and prepaid (one-time) usage is display-only, so it is safe to backfill.
+        """
         plan_period = attrs.get("plan_period")
         resource = plan_period and plan_period.resource or attrs.get("resource")
         if not resource:
@@ -7170,7 +7185,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         components_map = self.get_components_map(resource.plan.offering)
         for usage in attrs.get("usages", []):
             component = components_map.get(usage.get("type"))
-            if component and component.billing_type != BillingTypes.LIMIT:
+            if component and component.billing_type not in DISPLAY_ONLY_BILLING_TYPES:
                 return False
         return True
 
@@ -7194,9 +7209,17 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
 
     @classmethod
     def get_components_map(cls, offering) -> dict[str, models.OfferingComponent]:
-        # Allow to report usage for limit-based components
+        # Allow reporting usage for usage-based, limit-based and prepaid
+        # (one-time) components. Only USAGE components feed usage-based
+        # invoicing; limit and prepaid usage is display-only (updates
+        # resource.current_usages and the usage history shown in Homeport),
+        # so accepting it does not affect billing.
         components = offering.components.filter(
-            billing_type__in=[BillingTypes.USAGE, BillingTypes.LIMIT]
+            billing_type__in=[
+                BillingTypes.USAGE,
+                BillingTypes.LIMIT,
+                BillingTypes.ONE_TIME,
+            ]
         )
         return {component.type: component for component in components}
 
@@ -7258,13 +7281,13 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 date_billing_period = core_utils.month_start(date_value)
 
                 # If date is in a past billing period (historical backfilling),
-                # only allow for limit-based components
+                # only allow for display-only components (limit-based and prepaid)
                 if date_billing_period < current_billing_period:
-                    if not self._is_limit_based_component_usage(attrs):
+                    if not self._is_backfillable_component_usage(attrs):
                         raise rf_exceptions.ValidationError(
                             {
                                 "date": _(
-                                    "Service providers can only specify date for limit-based billing components when backfilling past billing periods."
+                                    "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods."
                                 )
                             }
                         )
