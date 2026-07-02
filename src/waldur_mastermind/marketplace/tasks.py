@@ -17,6 +17,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Count, Exists, F, OuterRef, Q, Subquery, Sum
 from django.utils import timezone
+from django_fsm import TransitionNotAllowed
 from rest_framework import status
 
 from waldur_core import _get_version
@@ -44,6 +45,7 @@ from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoad
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
+    MaintenanceState,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -948,6 +950,70 @@ def terminate_expired_resources():
         expired_resources,
         termination_comment=f"Resource expired on {timezone.datetime.today()}",
     )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.process_maintenance_announcement_transitions"
+)
+def process_maintenance_announcement_transitions():
+    """Advance scheduled maintenance announcements based on their time window.
+
+    Auto-starts scheduled announcements once their start time has passed and
+    auto-completes in-progress announcements once their end time has passed.
+    Mirrors the manual start/complete actions so the AdminAnnouncement banner is
+    refreshed by the existing post_save handler.
+    """
+    now = timezone.now()
+
+    # .order_by() clears the model's default ordering; row order is irrelevant.
+    to_start = models.MaintenanceAnnouncement.objects.filter(
+        state=MaintenanceState.SCHEDULED, scheduled_start__lte=now
+    ).order_by()
+    for maintenance in to_start:
+        try:
+            # Use the scheduled time, not now(): the task may run late or catch
+            # up after downtime, where now() would misrepresent the window.
+            maintenance.actual_start = maintenance.scheduled_start
+            maintenance.start_maintenance()
+            maintenance.save(update_fields=["state", "actual_start", "modified"])
+            logger.info(
+                "Auto-started maintenance announcement %s (%s).",
+                maintenance.uuid,
+                maintenance.name,
+            )
+        except TransitionNotAllowed:
+            # Benign race with a concurrent run or manual action; already moved on.
+            logger.debug(
+                "Skipping auto-start of maintenance announcement %s: no longer schedulable.",
+                maintenance.uuid,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to auto-start maintenance announcement %s.", maintenance.uuid
+            )
+
+    to_complete = models.MaintenanceAnnouncement.objects.filter(
+        state=MaintenanceState.IN_PROGRESS, scheduled_end__lte=now
+    ).order_by()
+    for maintenance in to_complete:
+        try:
+            maintenance.actual_end = maintenance.scheduled_end
+            maintenance.complete_maintenance()
+            maintenance.save(update_fields=["state", "actual_end", "modified"])
+            logger.info(
+                "Auto-completed maintenance announcement %s (%s).",
+                maintenance.uuid,
+                maintenance.name,
+            )
+        except TransitionNotAllowed:
+            logger.debug(
+                "Skipping auto-complete of maintenance announcement %s: no longer in progress.",
+                maintenance.uuid,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to auto-complete maintenance announcement %s.", maintenance.uuid
+            )
 
 
 @shared_task

@@ -94,6 +94,13 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": crontab(minute=20, hour=1),
                 "args": (),
             },
+            "process_maintenance_announcement_transitions": {
+                "task": "waldur_mastermind.marketplace.process_maintenance_announcement_transitions",
+                # Auto start/complete maintenance announcements when their
+                # scheduled window is reached; every 5 minutes keeps the lag low.
+                "schedule": crontab(minute="*/5"),
+                "args": (),
+            },
             "send_telemetry": {
                 "task": "waldur_mastermind.marketplace.send_metrics",
                 "schedule": timedelta(days=1),
