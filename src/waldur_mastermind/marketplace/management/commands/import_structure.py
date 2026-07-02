@@ -9609,17 +9609,22 @@ class Command(BaseCommand):
 
                 if not self.dry_run:
                     existing = Tenant.objects.filter(uuid=uuid).first()
+                    tenant = None
                     if existing:
                         if self.update_existing:
                             with transaction.atomic():
                                 Tenant.objects.filter(uuid=uuid).update(**defaults)
+                            tenant = Tenant.objects.get(uuid=uuid)
                             self.stats["openstack_tenants"]["updated"] += 1
                         else:
                             self.stats["openstack_tenants"]["skipped"] += 1
                     else:
                         with transaction.atomic():
-                            Tenant.objects.create(uuid=uuid, **defaults)
+                            tenant = Tenant.objects.create(uuid=uuid, **defaults)
                         self.stats["openstack_tenants"]["created"] += 1
+
+                    if tenant is not None:
+                        self.import_tenant_quotas(tenant, item.get("quotas", []))
                 else:
                     existing = Tenant.objects.filter(uuid=uuid).exists()
                     if existing:
@@ -9637,6 +9642,23 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["openstack_tenants"]["errors"] += 1
+
+    def import_tenant_quotas(self, tenant, quotas_data):
+        """Apply preset quota limits and usages to an imported tenant.
+
+        Without this the quota table is only populated by asynchronous backend
+        sync, so UI tests that read quota values immediately after import race
+        the sync. Both setters are idempotent (update_or_create for limits,
+        delta-to-target for usages), so re-importing is safe.
+        """
+        for quota in quotas_data:
+            name = quota.get("name")
+            if not name:
+                continue
+            if "limit" in quota:
+                tenant.set_quota_limit(name, quota["limit"])
+            if "usage" in quota:
+                tenant.set_quota_usage(name, quota["usage"])
 
     def import_openstack_instances(self, instances_data):
         """Import OpenStack instances."""
