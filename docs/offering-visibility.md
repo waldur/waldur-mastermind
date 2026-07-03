@@ -76,6 +76,19 @@ When set:
 
 Approval is unaffected: whether an order skips consumer review still depends on the role's `ORDER.APPROVE` permission, exactly as for any other offering. Role names must be valid project- or organization-scoped roles.
 
+## Role-based approval skip (`auto_approve_for_roles`)
+
+Independently of `restricted_to_roles`, an offering can designate **project or organization roles whose orders skip consumer review** via the `auto_approve_for_roles` plugin option — a list of role names, e.g. `["PROJECT.MANAGER"]`. It is set per offering under **Integration → Operations → Orders & approval** in the UI, or via the `update_integration` API. **Only staff can change this option** (service providers and customer owners cannot), even though they may edit other integration settings.
+
+When set:
+
+- An order whose creator holds one of the listed roles **on the target project or its customer** skips the consumer review step (it is auto-approved by the consumer), without the role needing the global `ORDER.APPROVE` permission.
+- The role must be held in the order's own project/customer scope — holding it in an unrelated project does not auto-approve.
+- Provider-side review still applies: the order proceeds to `PENDING_PROVIDER` unless the provider also auto-approves.
+- Offerings requiring a purchase-order upload still block auto-approval until the attachment is present.
+
+This option is orthogonal to `restricted_to_roles`: an offering can be public and still auto-approve for a role, restricted without auto-approving, or both. Role names must be valid project- or organization-scoped roles.
+
 ## Use Cases
 
 ### Public Marketplace (default)
