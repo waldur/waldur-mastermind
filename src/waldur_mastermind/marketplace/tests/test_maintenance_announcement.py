@@ -202,6 +202,41 @@ class MaintenanceAnnouncementUpdateTest(test.APITestCase):
 
 
 @ddt
+class MaintenanceAnnouncementUpdateStateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def _set_state(self, state):
+        self.announcement.state = state
+        self.announcement.save()
+
+    @data(MaintenanceState.DRAFT, MaintenanceState.SCHEDULED)
+    def test_update_allowed_before_maintenance_starts(self, state):
+        self._set_state(state)
+        response = self.client.patch(self.url, {"message": "Updated message"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.announcement.refresh_from_db()
+        self.assertEqual(self.announcement.message, "Updated message")
+
+    @data(
+        MaintenanceState.IN_PROGRESS,
+        MaintenanceState.COMPLETED,
+        MaintenanceState.CANCELLED,
+    )
+    def test_update_forbidden_once_maintenance_started(self, state):
+        self._set_state(state)
+        response = self.client.patch(self.url, {"message": "Updated message"})
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.announcement.refresh_from_db()
+        self.assertNotEqual(self.announcement.message, "Updated message")
+
+
+@ddt
 class MaintenanceAnnouncementScheduleTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()

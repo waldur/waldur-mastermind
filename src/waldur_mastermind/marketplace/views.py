@@ -14874,6 +14874,17 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     filterset_class = filters.MaintenanceAnnouncementFilter
     serializer_class = serializers.MaintenanceAnnouncementSerializer
 
+    # Editing is only allowed before the maintenance starts; once In progress,
+    # Completed or Cancelled the announcement is immutable. Mirrors the frontend
+    # Edit action gate.
+    update_validators = partial_update_validators = [
+        core_validators.StateValidator(
+            MaintenanceState.DRAFT,
+            MaintenanceState.SCHEDULED,
+            state_enum=MaintenanceState,
+        )
+    ]
+
     schedule_validators = [
         core_validators.StateValidator(
             MaintenanceState.DRAFT, state_enum=MaintenanceState
