@@ -589,6 +589,70 @@ The system uses several email templates (`waldur_core/users/templates/`):
 - `invitation_approved` - Auto-created user credentials
 - `permission_request_submitted` - Permission request notification
 
+## Notifications
+
+Group invitations rely on the marketplace notification framework
+(`users.*` keys registered in `waldur_core/structure/notifications.py`). Each
+notification maps to a database `Notification` row that staff can toggle and
+whose templates they can override from the UI
+(**Support → User management → Notifications**, backed by
+`/api/notification-messages/`). If a notification is **disabled**, delivery is
+silently skipped — this is the first thing to check when an expected email is
+not received.
+
+### When a request to join is submitted
+
+When a user submits a request against a group invitation, a
+`PermissionRequest` is created and transitioned to `PENDING`. The
+`post_save` handler
+`create_notification_about_permission_request_has_been_submitted`
+(`waldur_core/users/handlers.py`) queues
+`send_mail_notification_about_permission_request_has_been_submitted`
+(`waldur_core/users/tasks.py`) on transaction commit, which sends the
+`users.permission_request_submitted` notification to the approvers.
+
+#### Recipient resolution
+
+Recipients are resolved in
+`get_users_for_notification_about_request_has_been_submitted` and
+`get_customer_notification_emails`
+(`waldur_core/users/utils.py`) and combined as follows:
+
+| Priority | Recipient set | How it is resolved |
+|----------|---------------|--------------------|
+| 1 | **Approvers** | Users holding a role that grants the scope's *create permission* (e.g. `CREATE_CUSTOMER_PERMISSION` for a customer-scoped invitation, `CREATE_PROJECT_PERMISSION` for a project-scoped one). For project scopes, the parent customer's qualifying owners are included too. Users with a blank email or `notifications_enabled=False` are excluded. |
+| 2 | **Organization contacts** | The invitation customer's contact `email` field plus every address in its comma-separated `notification_emails` field. |
+| 3 | **Staff (fallback)** | Active staff users with a valid email — used **only** when priorities 1 and 2 yield no recipients. |
+
+The final list is the union of priorities 1 and 2 (de-duplicated, blanks
+dropped); if that union is empty it falls back to priority 3. If even staff are
+unavailable, a warning is logged and no email is sent.
+
+This means an organization can be notified about join requests even when no
+member currently holds the approver permission — by setting the organization's
+**contact email** or **notification emails**. Those fields are configured on
+the organization (**Edit organization → Contact information**).
+
+!!! note
+    `auto_approve` invitations still emit `permission_request_submitted` to the
+    approvers before the request is immediately approved, because `submit()`
+    runs before `approve()`.
+
+### When a request is rejected
+
+Rejecting a `PermissionRequest` triggers
+`create_notification_about_permission_request_has_been_rejected`
+→ `send_mail_notification_about_permission_request_has_been_rejected`, which
+sends `users.permission_request_rejected` to the requester
+(`permission_request.created_by`) only.
+
+### Individual invitation requests (for contrast)
+
+The separate individual-invitation flow
+(`ONLY_STAFF_CAN_INVITE_USERS`) uses `send_invitation_requested` and the
+`users.invitation_requested` template, which notifies **staff only** — it does
+not consult organization owners or the customer notification emails.
+
 ## Advanced Features
 
 ### Auto-Approval

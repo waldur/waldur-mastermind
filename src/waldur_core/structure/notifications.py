@@ -284,7 +284,7 @@ class UserSection(NotificationSection):
     )
     permission_request_submitted = Notification(
         key="permission_request_submitted",
-        description="Sent to staff or customer owners about a submitted permission request.",
+        description="Sent about a submitted permission request to the organization owners and managers who can approve it, and to the organization's contact and notification emails. Falls back to staff when none of these are available.",
         context_model=PermissionRequestSubmittedContext,
     )
     permission_request_rejected = Notification(

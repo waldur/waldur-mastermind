@@ -413,7 +413,14 @@ def send_mail_notification_about_permission_request_has_been_submitted(
     users = utils.get_users_for_notification_about_request_has_been_submitted(
         permission_request
     )
-    emails = [u.email for u in users if u.email] if users else []
+    customer = permission_request.invitation.customer
+    emails = [u.email for u in users if u.email]
+    emails += utils.get_customer_notification_emails(customer)
+    # Fall back to staff when there are no approvers and no customer emails.
+    if not any(email for email in emails):
+        emails = [u.email for u in utils.get_staff_users_for_notification() if u.email]
+    # Preserve order while dropping blanks and duplicates.
+    emails = list(dict.fromkeys(email for email in emails if email))
 
     if emails:
         broadcast_mail(
@@ -421,6 +428,15 @@ def send_mail_notification_about_permission_request_has_been_submitted(
             "permission_request_submitted",
             {"permission_request": permission_request, "requests_link": requests_link},
             emails,
+        )
+    else:
+        logger.warning(
+            "No recipients found for permission request %s notification: "
+            "customer %s (%s) has no owners with the create permission, no "
+            "contact or notification emails, and no staff are available.",
+            permission_request.uuid.hex,
+            customer.name,
+            customer.uuid.hex,
         )
 
 
