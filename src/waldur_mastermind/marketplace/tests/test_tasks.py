@@ -10,13 +10,14 @@ from rest_framework import test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     BillingTypes,
@@ -209,7 +210,40 @@ class ProjectEndDateTest(test.APITestCase):
             order = models.Order.objects.get(
                 resource=self.fixture.resource, type=OrderTypes.TERMINATE
             )
-            self.assertTrue(order.state, OrderStates.EXECUTING)
+            # BASIC_OFFERING skips consumer review but not provider review
+            # (order_should_not_be_reviewed_by_provider returns False for it),
+            # so the order lands in PENDING_PROVIDER, not EXECUTING.
+            self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
+            self.assertEqual(order.created_by, core_utils.get_system_robot())
+
+    def test_terminate_resources_if_project_end_date_requested_by_cannot_approve_order(
+        self,
+    ):
+        # Regression: project.end_date_requested_by is a distinct fallback from
+        # resource.end_date_requested_by (utils.schedule_resources_termination)
+        # and can equally be an ordinary project manager who lacks ORDER.APPROVE.
+        # The order still gets created and lands in PENDING_CONSUMER, but
+        # terminate_resource force-approves it immediately as the system robot
+        # — created_by (the manager, for audit) stays untouched, only who
+        # reviewed it changes.
+        ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_RESOURCE)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_PRIVATE_ORDER)
+
+        self.fixture.project.end_date_requested_by = self.fixture.manager
+        self.fixture.project.save()
+
+        system_robot = core_utils.get_system_robot()
+
+        with freeze_time("2020-01-02"):
+            tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        order = models.Order.objects.get(
+            resource=self.fixture.resource, type=OrderTypes.TERMINATE
+        )
+        self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+        self.assertEqual(order.created_by, self.fixture.manager)
+        self.assertEqual(order.consumer_reviewed_by, system_robot)
 
     def test_notification_about_project_ending(self):
         project_2 = structure_factories.ProjectFactory(
@@ -433,7 +467,11 @@ class ResourceEndDateTest(test.APITestCase):
             order = models.Order.objects.get(
                 resource=self.fixture.resource, type=OrderTypes.TERMINATE
             )
-            self.assertTrue(order.state, OrderStates.EXECUTING)
+            # The fixture offering is BASIC_OFFERING, so consumer review is
+            # skipped but provider review is not (order_should_not_be_reviewed_
+            # by_provider returns False for BASIC_OFFERING) — the order lands
+            # in PENDING_PROVIDER, not EXECUTING.
+            self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
             self.assertEqual(order.created_by, self.system_robot)
 
     def test_terminate_resource_if_end_date_requested_by_is_passed(self):
@@ -455,8 +493,68 @@ class ResourceEndDateTest(test.APITestCase):
             order = models.Order.objects.get(
                 resource=self.fixture.resource, type=OrderTypes.TERMINATE
             )
-            self.assertTrue(order.state, OrderStates.EXECUTING)
+            self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
             self.assertEqual(order.created_by, user)
+
+    def test_terminate_resource_reuses_existing_pending_order_if_end_date_has_been_reached(
+        self,
+    ):
+        # Regression: a project admin can request termination (RESOURCE.TERMINATE)
+        # but cannot approve it (no ORDER.APPROVE) — mirrors production
+        # PROJECT.ADMIN permissions (docker/rootfs/etc/waldur/permissions.yaml).
+        # The order they submit before the resource's end_date must not be
+        # cancelled and replaced once the end date is reached — it must be
+        # approved in place, preserving who originally requested it.
+        ProjectRole.ADMIN.add_permission(PermissionEnum.UPDATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_PRIVATE_ORDER)
+
+        with freeze_time("2019-12-01"):
+            response = utils.terminate_resource(self.resource, self.fixture.admin)
+            self.assertEqual(response.status_code, 200)
+
+        order = models.Order.objects.get(
+            resource=self.resource, type=OrderTypes.TERMINATE
+        )
+        self.assertEqual(order.state, OrderStates.PENDING_CONSUMER)
+        order_pk = order.pk
+
+        with freeze_time("2020-01-01"):
+            tasks.terminate_expired_resources()
+
+        order.refresh_from_db()
+        self.assertEqual(order.pk, order_pk)
+        self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+        self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
+        self.assertEqual(order.created_by, self.fixture.admin)
+        self.assertEqual(order.consumer_reviewed_by, self.system_robot)
+
+    def test_terminate_resource_if_end_date_requested_by_cannot_approve_order(self):
+        # Regression: unlike test_terminate_resource_if_end_date_requested_by_is_passed
+        # above, end_date_requested_by here is an ordinary project admin who lacks
+        # ORDER.APPROVE. With no pre-existing pending order, the freshly created
+        # order still lands in PENDING_CONSUMER, but terminate_resource notices
+        # and force-approves it as the system robot in the same run — created_by
+        # (the admin, for audit) is untouched, only who reviewed it changes.
+        ProjectRole.ADMIN.add_permission(PermissionEnum.UPDATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_PRIVATE_ORDER)
+
+        with freeze_time("2020-01-01"):
+            self.resource.end_date_requested_by = self.fixture.admin
+            self.resource.save()
+
+            self.assertTrue(self.resource.is_expired)
+            tasks.terminate_expired_resources()
+            self.resource.refresh_from_db()
+
+            order = models.Order.objects.get(
+                resource=self.fixture.resource, type=OrderTypes.TERMINATE
+            )
+            self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+            self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
+            self.assertEqual(order.created_by, self.fixture.admin)
+            self.assertEqual(order.consumer_reviewed_by, self.system_robot)
 
     def test_each_expired_resource_is_attributed_independently(self):
         # Regression: actor for one resource must not leak into the next

@@ -833,8 +833,46 @@ def serialize_resource_limit_period(
     }
 
 
+def _force_approve_pending_terminate_order(pending_order):
+    """Approve a stuck PENDING_CONSUMER terminate order as the system robot.
+
+    Used by the scheduled end-date termination path so a resource past its
+    end date is terminated even if the order's creator lacks APPROVE_ORDER.
+    The order's `created_by` is left untouched — only who reviewed it changes.
+
+    Local import: order_approval.py imports this module (utils) at module
+    scope, and views.py imports both — importing either back here at module
+    level would be circular, so both stay function-local, confined to this
+    one helper.
+    """
+    if (
+        pending_order.offering.plugin_options.get("require_purchase_order_upload")
+        and not pending_order.attachment
+    ):
+        # Mirror the manual-approval guard in ConsumerResourceViewSet.terminate:
+        # a missing required purchase-order attachment still blocks approval
+        # even for an automatic, end-date-triggered termination.
+        logger.info(
+            "Skipping forced approval of order %s: purchase order attachment is required.",
+            pending_order.uuid,
+        )
+        return
+
+    from waldur_mastermind.marketplace import order_approval
+
+    order_approval.confirm_pending_terminate_order(
+        pending_order, core_utils.get_system_robot()
+    )
+
+
 def terminate_resource(resource, user, termination_comment=None, scheduled=False):
     from waldur_mastermind.marketplace import views
+
+    if scheduled:
+        pending_order = get_pending_consumer_terminate_order(resource)
+        if pending_order:
+            _force_approve_pending_terminate_order(pending_order)
+            return
 
     view = views.ConsumerResourceViewSet.as_view({"post": "terminate"})
 
@@ -871,7 +909,20 @@ def terminate_resource(resource, user, termination_comment=None, scheduled=False
         )
         return
 
-    return create_request(view, user, {}, uuid=resource.uuid.hex)
+    response = create_request(view, user, {}, uuid=resource.uuid.hex)
+
+    if scheduled and response and response.status_code == status.HTTP_200_OK:
+        # The freshly created order may still be PENDING_CONSUMER if `user`
+        # couldn't get it approved themselves (e.g. no APPROVE_ORDER). Force
+        # it through now rather than waiting for tomorrow's sweep to catch it
+        # via the pending_order branch above.
+        new_pending_order = models.Order.objects.filter(
+            uuid=response.data.get("order_uuid"), state=OrderStates.PENDING_CONSUMER
+        ).first()
+        if new_pending_order:
+            _force_approve_pending_terminate_order(new_pending_order)
+
+    return response
 
 
 def schedule_resources_termination(resources, termination_comment=None, user=None):
