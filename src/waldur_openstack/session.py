@@ -308,7 +308,7 @@ class PlacementClient:
         # Some clouds register Placement only on the internal interface, so
         # try public first and fall back. Re-raise as OpenStackBackendError on
         # full failure so callers can decide whether to abort or skip.
-        headers = {"OpenStack-API-Version": f"placement {self.MICROVERSION}"}
+        headers = {"OpenStack-API-Version": f"placement {self.MICROVERSION}", "User-Agent": "waldur"}
         last_error = None
         for interface in ("public", "internal"):
             try:
