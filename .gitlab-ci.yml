@@ -1412,9 +1412,23 @@ Trigger integration tests:
     strategy: depend
   variables:
     WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
+    # TRIGGER_SOURCE is forwarded to the downstream E2E suite so it can identify
+    # which upstream repo triggered it (backend-only jobs stay on for mastermind).
+    TRIGGER_SOURCE: mastermind
   rules:
     # Skip tests if said so
     - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
       when: never
+    # Only run E2E when a change can affect backend behaviour or the stack image.
+    # Docs-only / lint-config-only changes (CHANGELOG, *.md, docs/**) skip it.
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: &integration_test_changes
+        - src/**/*
+        - docker/**/*
+        - Dockerfile
+        - pyproject.toml
+        - uv.lock
+        - ansible-generator-config.yaml
+        - .gitlab-ci.yml
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: *integration_test_changes
