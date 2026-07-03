@@ -663,6 +663,22 @@ def terminate_resource(serialized_resource, serialized_user):
         raise exceptions.ResourceTerminateException(response.rendered_content)
 
 
+def _ready_for_scheduled_termination_filter() -> Q:
+    """Resources eligible for the daily end-date termination sweep.
+
+    Includes resources still in OK/ERRED, plus resources already stuck in
+    TERMINATING because an earlier termination request is awaiting consumer
+    approval (state=PENDING_CONSUMER) that the requester couldn't grant
+    themselves — otherwise such a resource would never be revisited by the
+    sweep, since it no longer matches state__in=(OK, ERRED).
+    """
+    return Q(state__in=(ResourceStates.OK, ResourceStates.ERRED)) | Q(
+        state=ResourceStates.TERMINATING,
+        order__type=OrderTypes.TERMINATE,
+        order__state=OrderStates.PENDING_CONSUMER,
+    )
+
+
 @shared_task(
     name="waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached"
 )
@@ -732,9 +748,9 @@ def terminate_resources_if_project_end_date_has_been_reached():
 
         # We expect that resources with parents will be removed when parents are removed
         terminatable_resources = project_resources.filter(
-            state__in=(ResourceStates.OK, ResourceStates.ERRED),
+            _ready_for_scheduled_termination_filter(),
             offering__parent=None,
-        )
+        ).distinct()
         logger.info(
             "About to terminate resources from expired project: %s",
             ",".join([f"{r.uuid}, {r.name}" for r in terminatable_resources]),
@@ -939,9 +955,9 @@ def notify_about_stale_resource():
 def terminate_expired_resources():
     """Terminate marketplace resources that have reached their end date."""
     expired_resources = models.Resource.objects.filter(
+        _ready_for_scheduled_termination_filter(),
         end_date__lte=timezone.datetime.today(),
-        state__in=(ResourceStates.OK, ResourceStates.ERRED),
-    )
+    ).distinct()
     logger.info(
         "About to terminate expired resources: %s",
         ",".join([f"{r.uuid}, {r.name}" for r in expired_resources]),
