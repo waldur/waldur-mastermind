@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urljoin
 
 from django.conf import settings
 
@@ -31,3 +32,18 @@ DEFAULT_LOGOS = {
     "LOGIN_LOGO": static_path + "/waldur_core/img/login_logo.png",
     "FAVICON": static_path + "/waldur_core/img/favicon.ico",
 }
+
+
+def build_logo_url(path: str, request=None) -> str:
+    """
+    Build an absolute URL for a whitelabeling icon endpoint.
+
+    Uses WALDUR_CORE['MASTERMIND_URL'] when configured so that /api/configuration/
+    returns stable public URLs"""
+    base_url = (settings.WALDUR_CORE.get("MASTERMIND_URL") or "").strip()
+    normalized_path = path.lstrip("/")
+    if base_url:
+        return urljoin(base_url.rstrip("/") + "/", normalized_path)
+    if request is not None:
+        return request.build_absolute_uri("/" + normalized_path)
+    return "/" + normalized_path

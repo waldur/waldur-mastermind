@@ -52,7 +52,7 @@ from waldur_core.core.authentication import (
 )
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURES
-from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
+from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP, build_logo_url
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.metadata_schemas import (
     EventMetadataResponseSerializer,
@@ -596,7 +596,7 @@ def get_public_settings(request=None):
         if request:
             for key, val in LOGO_MAP.items():
                 if constance_settings.get(key) or key in DEFAULT_LOGOS:
-                    constance_settings[key] = request.build_absolute_uri("/" + val)
+                    constance_settings[key] = build_logo_url(val, request)
         public_settings["WALDUR_CORE"].update(constance_settings)
         provider_name = public_settings["WALDUR_CORE"].get("DEFAULT_IDP")
         if provider_name:
