@@ -5,9 +5,14 @@ from constance import settings as constance_settings
 from constance.models import Constance
 from constance.utils import get_values
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import RequestFactory, TestCase, override_settings
+from rest_framework import status, test
 
 from waldur_core.core import views
+from waldur_core.core.logos import LOGO_MAP, build_logo_url
+from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.media.utils import dummy_image
+from waldur_core.structure.tests.factories import UserFactory
 
 
 class TestPublicSettings(TestCase):
@@ -159,3 +164,91 @@ class TestGetConstancePluginSettings(TestCase):
         )
         self.assertEqual(result["ENABLED"], True)
         self.assertIsNone(result["DISPLAY_REQUEST_TYPE"])
+
+
+class BuildLogoUrlTest(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @override_waldur_core_settings(MASTERMIND_URL="https://public.example.com")
+    def test_uses_mastermind_url_when_configured(self):
+        request = self.factory.get("/", HTTP_HOST="10.0.49.32:8080")
+        url = build_logo_url(LOGO_MAP["KEYCLOAK_ICON"], request)
+        self.assertEqual(
+            url,
+            "https://public.example.com/api/icons/keycloak_icon/",
+        )
+
+    @override_waldur_core_settings(MASTERMIND_URL="https://public.example.com/")
+    def test_mastermind_url_trailing_slash_is_normalized(self):
+        url = build_logo_url(LOGO_MAP["KEYCLOAK_ICON"])
+        self.assertEqual(
+            url,
+            "https://public.example.com/api/icons/keycloak_icon/",
+        )
+
+    @override_waldur_core_settings(MASTERMIND_URL="")
+    def test_falls_back_to_request_host_when_mastermind_url_is_not_set(self):
+        request = self.factory.get("/", HTTP_HOST="localhost:8000")
+        url = build_logo_url(LOGO_MAP["KEYCLOAK_ICON"], request)
+        self.assertEqual(
+            url,
+            "http://localhost:8000/api/icons/keycloak_icon/",
+        )
+
+
+class LogoUrlConfigurationTest(test.APITestCase):
+    def setUp(self):
+        cache.delete("API_CONFIGURATION")
+        self.staff = UserFactory(is_staff=True)
+
+    @override_settings(ALLOWED_HOSTS=["*"])
+    @override_waldur_core_settings(MASTERMIND_URL="https://public.example.com")
+    def test_configuration_logo_urls_ignore_internal_request_host(self):
+        self.client.force_login(self.staff)
+        self.client.post(
+            "/api/override-settings/",
+            {"KEYCLOAK_ICON": dummy_image()},
+            format="multipart",
+        )
+        cache.delete("API_CONFIGURATION")
+
+        response = self.client.get(
+            "/api/configuration/",
+            HTTP_HOST="10.0.49.32:8080",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        logo_url = response.data["WALDUR_CORE"]["KEYCLOAK_ICON"]
+        self.assertEqual(
+            logo_url,
+            "https://public.example.com/api/icons/keycloak_icon/",
+        )
+
+    @override_settings(ALLOWED_HOSTS=["*"])
+    @override_waldur_core_settings(MASTERMIND_URL="https://public.example.com")
+    def test_cached_configuration_keeps_public_logo_urls(self):
+        self.client.force_login(self.staff)
+        self.client.post(
+            "/api/override-settings/",
+            {"KEYCLOAK_ICON": dummy_image()},
+            format="multipart",
+        )
+        cache.delete("API_CONFIGURATION")
+
+        internal_response = self.client.get(
+            "/api/configuration/",
+            HTTP_HOST="10.0.49.32:8080",
+        )
+        self.assertEqual(
+            internal_response.data["WALDUR_CORE"]["KEYCLOAK_ICON"],
+            "https://public.example.com/api/icons/keycloak_icon/",
+        )
+
+        cached_response = self.client.get(
+            "/api/configuration/",
+            HTTP_HOST="10.0.49.32:8080",
+        )
+        self.assertEqual(
+            cached_response.data["WALDUR_CORE"]["KEYCLOAK_ICON"],
+            "https://public.example.com/api/icons/keycloak_icon/",
+        )
