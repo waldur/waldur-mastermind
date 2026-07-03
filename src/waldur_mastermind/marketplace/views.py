@@ -357,11 +357,21 @@ def _render_glauth_toml(offering, *, resource_filter=None) -> str:
             }
         )
 
-    toml_data = {
-        "users": user_data["users"] + robot_data["users"],
-        "groups": groups,
-    }
-    return tomli_w.dumps(toml_data)
+    # Render groups as ``[[groups]]`` array-of-tables blocks rather than letting
+    # tomli_w emit a top-level ``groups = [ {..}, .. ]`` inline array. GLAuth's
+    # config backend (and the glauth image, which *concatenates* this output onto
+    # a base config that already declares its service-account ``[[groups]]``)
+    # requires array-of-tables so the groups accumulate into one list. A bare
+    # ``groups = [...]`` key collides with the pre-existing ``[[groups]]`` and is
+    # dropped, so none of the Waldur project/role groups reach LDAP. Emitting
+    # ``[[groups]]`` parses to the identical structure while merging cleanly.
+    group_blocks = "".join(
+        "[[groups]]\n"
+        + tomli_w.dumps({"name": group["name"], "gidnumber": int(group["gidnumber"])})
+        for group in groups
+    )
+    users_toml = tomli_w.dumps({"users": user_data["users"] + robot_data["users"]})
+    return group_blocks + users_toml
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
