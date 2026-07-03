@@ -57,10 +57,9 @@ def user_active_role_names(user) -> set:
     )
 
 
-def user_holds_restricted_role(user, project, offering) -> bool:
-    """True if the user holds one of the offering's restricted roles in the
-    given project or its customer. Used for per-project order authorization."""
-    role_names = restricted_offering_roles(offering)
+def user_holds_role_in_project_scope(user, project, role_names) -> bool:
+    """True if the user holds one of role_names on the given project or its
+    customer. An empty role_names means "no restriction" and returns True."""
     if not role_names:
         return True
     if user.is_anonymous:
@@ -75,6 +74,21 @@ def user_holds_restricted_role(user, project, offering) -> bool:
         )
         .exists()
     )
+
+
+def user_holds_restricted_role(user, project, offering) -> bool:
+    """True if the user holds one of the offering's restricted roles in the
+    given project or its customer. Used for per-project order authorization."""
+    return user_holds_role_in_project_scope(
+        user, project, restricted_offering_roles(offering)
+    )
+
+
+def offering_auto_approve_roles(offering) -> list:
+    """Role names whose orders skip consumer review for this offering
+    (plugin_options['auto_approve_for_roles'], empty if none). Independent of
+    restricted_to_roles: governs approval, not visibility/ordering."""
+    return offering.plugin_options.get("auto_approve_for_roles") or []
 
 
 def user_holds_restricted_role_anywhere(user, offering, held_role_names=None) -> bool:
@@ -133,6 +147,15 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
         order.type == OrderTypes.TERMINATE
         and order.offering.customer
         and structure_permissions._has_owner_access(user, order.offering.customer)
+    ):
+        return True
+
+    # Skip consumer review when the offering designates the creator's role for
+    # auto-approval, held on the target project or its customer. Independent of
+    # the ORDER.APPROVE permission below and configurable per offering by staff.
+    auto_approve_roles = offering_auto_approve_roles(order.offering)
+    if auto_approve_roles and user_holds_role_in_project_scope(
+        user, order.project, auto_approve_roles
     ):
         return True
 

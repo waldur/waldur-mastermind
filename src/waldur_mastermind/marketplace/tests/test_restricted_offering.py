@@ -1,10 +1,20 @@
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, serializers
-from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
+from waldur_mastermind.marketplace.enums import (
+    SUPPORT_OFFERING,
+    OfferingStates,
+    OrderStates,
+)
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_order_crud import BaseOrderCreateTest
 
@@ -177,3 +187,168 @@ class RestrictedOfferingValidationTest(test.APITestCase):
             data={"restricted_to_roles": []}
         )
         self.assertTrue(serializer.is_valid(), serializer.errors)
+
+
+class AutoApproveForRolesOrderTest(BaseOrderCreateTest):
+    """auto_approve_for_roles skips consumer review for orders created by the
+    designated roles, independently of the ORDER.APPROVE permission and of
+    restricted_to_roles."""
+
+    def setUp(self):
+        super().setUp()
+        self.offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            billable=True,
+            plugin_options={"auto_approve_for_roles": [RoleEnum.PROJECT_MANAGER]},
+        )
+
+    def _order(self, response):
+        return models.Order.objects.get(uuid=response.data["uuid"])
+
+    def test_designated_role_skips_consumer_review_without_approve_permission(self):
+        # Manager holds no ORDER.APPROVE permission, yet the offering designates
+        # PROJECT.MANAGER for auto-approval.
+        response = self.create_order(self.fixture.manager, self.offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertNotEqual(self._order(response).state, OrderStates.PENDING_CONSUMER)
+
+    def test_non_designated_role_still_reviewed(self):
+        response = self.create_order(self.fixture.member, self.offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(self._order(response).state, OrderStates.PENDING_CONSUMER)
+
+    def test_designated_role_in_other_project_does_not_skip(self):
+        # User is MANAGER in an unrelated project but only MEMBER in the target
+        # project: the scope check must not auto-approve.
+        other_fixture = structure_fixtures.ProjectFixture()
+        user = self.fixture.member
+        other_fixture.project.add_user(user, ProjectRole.MANAGER)
+        response = self.create_order(user, self.offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(self._order(response).state, OrderStates.PENDING_CONSUMER)
+
+    def test_purchase_order_requirement_still_blocks_auto_approval(self):
+        self.offering.plugin_options["require_purchase_order_upload"] = True
+        self.offering.save()
+        response = self.create_order(self.fixture.manager, self.offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(self._order(response).state, OrderStates.PENDING_CONSUMER)
+
+    def test_normal_offering_without_option_is_unaffected(self):
+        normal_offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE, shared=True, billable=True
+        )
+        response = self.create_order(self.fixture.manager, normal_offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(self._order(response).state, OrderStates.PENDING_CONSUMER)
+
+
+class AutoApproveForRolesValidationTest(test.APITestCase):
+    def test_invalid_role_name_is_rejected(self):
+        serializer = serializers.MergedPluginOptionsSerializer(
+            data={"auto_approve_for_roles": ["NONEXISTENT.ROLE"]}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("auto_approve_for_roles", serializer.errors)
+
+    def test_valid_project_role_is_accepted(self):
+        ProjectRole.MANAGER  # ensure the role exists in the DB
+        serializer = serializers.MergedPluginOptionsSerializer(
+            data={"auto_approve_for_roles": [ProjectRole.MANAGER.name]}
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_non_project_or_customer_role_is_rejected(self):
+        serializer = serializers.MergedPluginOptionsSerializer(
+            data={"auto_approve_for_roles": [OfferingRole.MANAGER.name]}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("auto_approve_for_roles", serializer.errors)
+
+
+class AutoApproveForRolesStaffOnlyTest(test.APITestCase):
+    """Only staff may change auto_approve_for_roles via update_integration."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        ProjectRole.MANAGER  # materialize the role so name validation passes
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION
+        )
+        self.customer = self.fixture.customer
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer)
+
+    def _update(self, user, roles):
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_url(self.offering, "update_integration")
+        return self.client.post(
+            url, {"plugin_options": {"auto_approve_for_roles": roles}}
+        )
+
+    def test_staff_can_set_auto_approve_for_roles(self):
+        response = self._update(self.fixture.staff, [RoleEnum.PROJECT_MANAGER])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.offering.plugin_options["auto_approve_for_roles"],
+            [RoleEnum.PROJECT_MANAGER],
+        )
+
+    def test_owner_cannot_set_auto_approve_for_roles(self):
+        response = self._update(self.fixture.owner, [RoleEnum.PROJECT_MANAGER])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("plugin_options", response.data)
+
+    def test_owner_unchanged_value_is_accepted(self):
+        # Submitting the same value is not a change and must not be blocked.
+        self.offering.plugin_options["auto_approve_for_roles"] = [
+            RoleEnum.PROJECT_MANAGER
+        ]
+        self.offering.save()
+        response = self._update(self.fixture.owner, [RoleEnum.PROJECT_MANAGER])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+
+class AutoApproveForRolesCreateStaffOnlyTest(test.APITestCase):
+    """Only staff may seed auto_approve_for_roles when creating an offering."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        ProjectRole.MANAGER  # materialize the role so name validation passes
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        self.customer = self.fixture.customer
+        factories.ServiceProviderFactory(customer=self.customer)
+
+    def _create(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        return self.client.post(
+            factories.OfferingFactory.get_list_url(),
+            {
+                "name": "Restricted approval offering",
+                "category": factories.CategoryFactory.get_url(),
+                "customer": structure_factories.CustomerFactory.get_url(self.customer),
+                "type": SUPPORT_OFFERING,
+                "plans": [{"name": "Small"}],
+                "plugin_options": {
+                    "auto_approve_for_roles": [RoleEnum.PROJECT_MANAGER]
+                },
+            },
+            format="json",
+        )
+
+    def test_owner_cannot_seed_auto_approve_for_roles_on_create(self):
+        response = self._create("owner")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("plugin_options", response.data)
+
+    def test_staff_can_seed_auto_approve_for_roles_on_create(self):
+        response = self._create("staff")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(
+            offering.plugin_options["auto_approve_for_roles"],
+            [RoleEnum.PROJECT_MANAGER],
+        )

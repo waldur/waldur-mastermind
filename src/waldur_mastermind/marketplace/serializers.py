@@ -122,6 +122,44 @@ from . import log, models, permissions, plugins, utils
 logger = logging.getLogger(__name__)
 
 
+def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options):
+    """Reject a non-staff user setting or changing auto_approve_for_roles.
+    The consumer-approval skip it grants is a staff-controlled policy, so it is
+    locked at both creation and update, regardless of who edits the offering."""
+    if user.is_staff or "auto_approve_for_roles" not in plugin_options:
+        return
+    old_value = (
+        instance.plugin_options.get("auto_approve_for_roles", []) if instance else []
+    )
+    if old_value != plugin_options["auto_approve_for_roles"]:
+        raise rf_exceptions.ValidationError(
+            {"plugin_options": _("Only staff can change the auto-approval roles.")}
+        )
+
+
+def validate_project_or_customer_role_names(value):
+    """Reject any name that is not an active project- or organization-scoped
+    role. Shared by the restricted_to_roles / auto_approve_for_roles options."""
+    if not value:
+        return value
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    existing = set(
+        permission_models.Role.objects.filter(
+            name__in=value,
+            is_active=True,
+            content_type__in=[project_ct, customer_ct],
+        ).values_list("name", flat=True)
+    )
+    invalid = [name for name in value if name not in existing]
+    if invalid:
+        raise rf_exceptions.ValidationError(
+            _("The following are not valid project or organization roles: %s")
+            % ", ".join(invalid)
+        )
+    return value
+
+
 class LifecyclePluginOptionsSerializer(serializers.Serializer):
     auto_approve_remote_orders = serializers.BooleanField(
         required=False,
@@ -209,6 +247,17 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         "offering is hidden from the catalog for other users and they cannot create "
         "orders for it. Whether their orders skip consumer review still depends on "
         "the role having the order-approval permission.",
+    )
+    auto_approve_for_roles = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        help_text="List of project or organization role names (e.g. "
+        "'PROJECT.MANAGER') whose orders skip consumer review for this offering. "
+        "The creator must hold the role on the target project or its organization. "
+        "Independent of restricted_to_roles (which governs visibility/ordering) and "
+        "of the ORDER.APPROVE permission. Provider review and purchase-order "
+        "requirements still apply. Only staff can change this option.",
     )
     enable_purchase_order_upload = serializers.BooleanField(
         required=False,
@@ -354,24 +403,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         return value
 
     def validate_restricted_to_roles(self, value):
-        if not value:
-            return value
-        project_ct = ContentType.objects.get_for_model(structure_models.Project)
-        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
-        existing = set(
-            permission_models.Role.objects.filter(
-                name__in=value,
-                is_active=True,
-                content_type__in=[project_ct, customer_ct],
-            ).values_list("name", flat=True)
-        )
-        invalid = [name for name in value if name not in existing]
-        if invalid:
-            raise rf_exceptions.ValidationError(
-                _("The following are not valid project or organization roles: %s")
-                % ", ".join(invalid)
-            )
-        return value
+        return validate_project_or_customer_role_names(value)
+
+    def validate_auto_approve_for_roles(self, value):
+        return validate_project_or_customer_role_names(value)
 
     def validate_latest_date_for_resource_termination(self, value):
         try:
@@ -3596,6 +3631,10 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         self._validate_attributes(attrs)
         self._validate_plans(attrs)
 
+        validate_auto_approve_for_roles_is_staff_only(
+            self.context["request"].user, self.instance, attrs.get("plugin_options", {})
+        )
+
         attrs.setdefault("options", {"options": {}, "order": []})
         attrs.setdefault("resource_options", {"options": {}, "order": []})
 
@@ -3960,6 +3999,9 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                             )
                         }
                     )
+        validate_auto_approve_for_roles_is_staff_only(
+            user, self.instance, attrs.get("plugin_options", {})
+        )
         return attrs
 
     def get_fields(self):
