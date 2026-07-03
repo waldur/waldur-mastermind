@@ -701,7 +701,7 @@ Sent to the user who submitted a permission request to inform them that their re
 
 ### users.permission_request_submitted
 
-Sent to staff or customer owners about a submitted permission request.
+Sent about a submitted permission request to the organization owners and managers who can approve it, and to the organization's contact and notification emails. Falls back to staff when none of these are available.
 
 #### Templates
 

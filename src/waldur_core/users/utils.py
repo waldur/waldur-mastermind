@@ -294,26 +294,40 @@ def get_invitation_duplicates(scope, invitations):
 def get_users_for_notification_about_request_has_been_submitted(
     permission_request: models.PermissionRequest,
 ):
-    staff_users = (
-        core_models.User.objects.filter(is_staff=True, is_active=True)
-        .exclude(email="")
-        .exclude(notifications_enabled=False)
-    )
-
     scope = permission_request.invitation.scope
 
     permission = get_create_permission(scope)
     if not permission:
-        return staff_users
+        return core_models.User.objects.none()
 
     users = get_users_with_permission(scope, permission)
     customer = get_customer(scope)
     if customer != scope:
         users |= get_users_with_permission(customer, permission)
 
-    users = users.exclude(email="").exclude(notifications_enabled=False)
+    return users.exclude(email="").exclude(notifications_enabled=False)
 
-    return users or staff_users
+
+def get_staff_users_for_notification():
+    return (
+        core_models.User.objects.filter(is_staff=True, is_active=True)
+        .exclude(email="")
+        .exclude(notifications_enabled=False)
+    )
+
+
+def get_customer_notification_emails(customer):
+    """Return the customer's contact email plus its configured notification emails."""
+    emails = []
+    if customer.email:
+        emails.append(customer.email)
+    if customer.notification_emails:
+        emails += [
+            email.strip()
+            for email in customer.notification_emails.split(",")
+            if email.strip()
+        ]
+    return emails
 
 
 def post_invitation_to_url(url: str, context):

@@ -14,7 +14,7 @@ from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import add_user, has_user
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_core.users import models
+from waldur_core.users import models, tasks, utils
 from waldur_core.users.tests import factories
 
 from .test_invitation import BaseInvitationTest
@@ -841,6 +841,77 @@ class RequestCreateTest(BaseInvitationTest):
             invitation=self.group_invitation
         )
         mock_tasks.assert_called_once_with(permission_request.id)
+
+
+class RequestNotificationRecipientsTest(BaseInvitationTest):
+    """Recipient resolution for the permission_request_submitted notification."""
+
+    def setUp(self):
+        super().setUp()
+        # A customer with no owners holding the create permission, so role-based
+        # resolution yields nobody and we fall back to customer-level emails.
+        self.orphan_customer = structure_factories.CustomerFactory(
+            email="contact@example.com",
+            notification_emails="ops@example.com, ops@example.com , second@example.com",
+        )
+        self.orphan_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.orphan_customer
+        )
+
+    def test_get_customer_notification_emails_combines_contact_and_list(self):
+        # The helper splits and trims but does not de-duplicate; the task does.
+        self.assertEqual(
+            utils.get_customer_notification_emails(self.orphan_customer),
+            [
+                "contact@example.com",
+                "ops@example.com",
+                "ops@example.com",
+                "second@example.com",
+            ],
+        )
+
+    def test_get_customer_notification_emails_empty(self):
+        customer = structure_factories.CustomerFactory(email="", notification_emails="")
+        self.assertEqual(utils.get_customer_notification_emails(customer), [])
+
+    @mock.patch("waldur_core.users.tasks.broadcast_mail")
+    def test_notification_sent_to_customer_emails_when_no_owners(self, mock_broadcast):
+        request = factories.PermissionRequestFactory(invitation=self.orphan_invitation)
+        tasks.send_mail_notification_about_permission_request_has_been_submitted(
+            request.id
+        )
+        mock_broadcast.assert_called_once()
+        # de-duped, blanks dropped, order preserved
+        self.assertEqual(
+            mock_broadcast.call_args[0][3],
+            ["contact@example.com", "ops@example.com", "second@example.com"],
+        )
+
+    @mock.patch("waldur_core.users.tasks.broadcast_mail")
+    def test_notification_includes_both_owners_and_customer_emails(
+        self, mock_broadcast
+    ):
+        self.customer.email = "owner-contact@example.com"
+        self.customer.save()
+        invitation = factories.CustomerGroupInvitationFactory(scope=self.customer)
+        request = factories.PermissionRequestFactory(invitation=invitation)
+        tasks.send_mail_notification_about_permission_request_has_been_submitted(
+            request.id
+        )
+        emails = mock_broadcast.call_args[0][3]
+        self.assertIn(self.customer_owner.email, emails)
+        self.assertIn("owner-contact@example.com", emails)
+
+    @mock.patch("waldur_core.users.tasks.broadcast_mail")
+    def test_notification_falls_back_to_staff_when_no_recipients(self, mock_broadcast):
+        customer = structure_factories.CustomerFactory(email="", notification_emails="")
+        invitation = factories.CustomerGroupInvitationFactory(scope=customer)
+        request = factories.PermissionRequestFactory(invitation=invitation)
+        tasks.send_mail_notification_about_permission_request_has_been_submitted(
+            request.id
+        )
+        mock_broadcast.assert_called_once()
+        self.assertIn(self.staff.email, mock_broadcast.call_args[0][3])
 
 
 @ddt
