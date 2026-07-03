@@ -1300,6 +1300,7 @@ class Command(BaseCommand):
                         existing_user.is_identity_manager = user_data.get(
                             "is_identity_manager", False
                         )
+                        existing_user.managed_isds = user_data.get("managed_isds", [])
                         existing_user.registration_method = user_data.get(
                             "registration_method", "default"
                         )
@@ -1425,6 +1426,7 @@ class Command(BaseCommand):
                             "notifications_enabled", True
                         ),
                         is_identity_manager=user_data.get("is_identity_manager", False),
+                        managed_isds=user_data.get("managed_isds", []),
                         registration_method=user_data.get(
                             "registration_method", "default"
                         ),
