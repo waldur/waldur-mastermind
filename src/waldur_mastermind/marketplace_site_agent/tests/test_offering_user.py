@@ -364,6 +364,13 @@ class OfferingUserGlauthConfigTest(test.APITestCase):
         }
         self.assertEqual(expected_data, tomllib.loads(response.data))
 
+        # Groups must be emitted as [[groups]] array-of-tables, not an inline
+        # "groups = [...]" array: the glauth image concatenates this export onto
+        # a base config that already declares [[groups]], and a bare groups key
+        # collides with it and is silently dropped (so no group reaches LDAP).
+        self.assertIn("[[groups]]", response.data)
+        self.assertNotIn("groups = [", response.data)
+
         self.assertEqual(
             1,
             marketplace_models.IntegrationStatus.objects.filter(
