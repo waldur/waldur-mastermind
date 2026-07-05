@@ -7,6 +7,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.marketplace import billing_discount
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_limit import LimitPeriodProcessor
 from waldur_mastermind.marketplace.billing_utils import (
@@ -403,6 +404,14 @@ class MarketplaceBillingService:
                 name += " Discount."
                 details["campaign_uuid"] = campaign.uuid.hex
                 details["unit_price"] = float(unit_price)
+
+            # Record the volume that feeds the org-aggregated volume discount:
+            # FIXED scales on the configured amount, one-time and plan-switch
+            # charges on their billed quantity. The discount itself is computed
+            # and materialized at invoice finalization (billing_discount).
+            details[billing_discount.DISCOUNT_USAGE_KEY] = float(
+                plan_component.amount if is_fixed else quantity
+            )
 
             invoice_models.InvoiceItem.objects.create(
                 name=name,

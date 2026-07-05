@@ -17,10 +17,11 @@ from waldur_core.logging.enums import EventType
 from waldur_core.logging.middleware import set_current_user
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
+from waldur_mastermind.marketplace import billing_discount
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
-from ..invoices import compensations, models, serializers, utils
+from ..invoices import compensations, ledger, models, serializers, utils
 from ..invoices.audit import skip_credit_audit
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ def create_monthly_invoices():
         for invoice in old_invoices:
             try:
                 with transaction.atomic():
+                    billing_discount.apply_aggregated_volume_discounts(invoice)
                     process_invoice_credits(invoice)
                     invoice.set_created()
             except Exception:
@@ -141,6 +143,7 @@ def finalize_previous_invoices():
     for invoice in pending_invoices:
         try:
             with transaction.atomic():
+                billing_discount.apply_aggregated_volume_discounts(invoice)
                 process_invoice_credits(invoice)
                 invoice.set_created()
         except Exception:
@@ -386,7 +389,11 @@ def set_to_zero_overdue_credits(effective_date=None):
             f"effective_date={effective_date} (today={today}). "
             f"This would zero credits whose end_date has not arrived yet."
         )
-    with transaction.atomic(), skip_credit_audit():
+    with (
+        transaction.atomic(),
+        skip_credit_audit(),
+        ledger.credit_transaction_type(models.CreditTransaction.Types.EXPIRY),
+    ):
         for credit in (
             models.CustomerCredit.objects.select_for_update()
             .filter(end_date__lt=effective_date)

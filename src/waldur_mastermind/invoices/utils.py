@@ -21,6 +21,18 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
+def affiliates_feature_enabled() -> bool:
+    """The affiliate program is opt-in via the AFFILIATES_ENABLED Constance
+    setting, disabled by default.
+
+    Gates both the customer-affiliates API and fee accrual at invoice
+    finalization. Configured links are kept but stay dormant while the
+    feature is off. The `reseller.affiliates` entry in core features only
+    controls homeport element visibility and is not consulted here.
+    """
+    return config.AFFILIATES_ENABLED
+
+
 def get_current_month():
     return timezone.now().month
 

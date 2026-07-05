@@ -49,6 +49,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CategoryColumnWidget,
     CourseAccountState,
+    DiscountAggregations,
     ImpactLevel,
     LimitPeriods,
     MaintenanceState,
@@ -65,6 +66,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.notifications import models as notifications_models
 from waldur_pid import mixins as pid_mixins
 
+from ..common import formula as common_formula
 from ..common import mixins as common_mixins
 from . import managers, plugins, signals
 from .attribute_types import ATTRIBUTE_TYPES
@@ -1519,17 +1521,38 @@ class PlanComponent(LoggableMixin, models.Model):
         verbose_name=_("Price per unit for future month."),
         null=True,
     )
-    discount_threshold = models.PositiveIntegerField(
-        null=True,
+    discount_formula = models.TextField(
         blank=True,
-        help_text=_("Minimum amount to be eligible for discount."),
+        default="",
+        help_text=_(
+            "Volume discount formula evaluated with the billed quantity bound "
+            "to `usage`; returns a discount percentage (clamped to 0-100). "
+            "Empty means no discount. Example: '10 if usage >= 100 else 0'."
+        ),
     )
-    discount_rate = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text=_("Discount rate in percentage."),
+    discount_aggregation = models.CharField(
+        max_length=10,
+        choices=DiscountAggregations.CHOICES,
+        default=DiscountAggregations.PER_CUSTOMER,
+        help_text=_(
+            "Whether the volume discount is computed on a single resource's "
+            "usage or aggregated across all of the customer's resources of "
+            "this offering."
+        ),
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
+
+    def get_discount_percent(self, usage) -> Decimal:
+        """Evaluate the discount formula for a billed quantity and return a
+        percentage clamped to [0, 100]. Returns 0 when no formula is set.
+
+        Raises common.formula.FormulaError on a broken formula — billing
+        callers log and skip so month close is never blocked.
+        """
+        if not self.discount_formula.strip():
+            return Decimal("0")
+        percent = common_formula.evaluate(self.discount_formula, usage=usage)
+        return max(Decimal("0"), min(Decimal("100"), percent))
 
     @property
     def has_connected_resources(self):

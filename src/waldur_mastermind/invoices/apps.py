@@ -73,6 +73,26 @@ class InvoiceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.record_credit_transaction,
+            sender=models.CustomerCredit,
+            dispatch_uid="waldur_mastermind.invoices.record_credit_transaction",
+        )
+
+        signals.post_save.connect(
+            handlers.log_affiliate,
+            sender=models.CustomerAffiliate,
+            dispatch_uid="waldur_mastermind.invoices.log_affiliate",
+        )
+
+        from . import signals as cost_signals
+
+        cost_signals.invoice_created.connect(
+            handlers.process_affiliate_fees,
+            sender=models.Invoice,
+            dispatch_uid="waldur_mastermind.invoices.process_affiliate_fees",
+        )
+
+        signals.post_save.connect(
             handlers.log_project_credit,
             sender=models.ProjectCredit,
             dispatch_uid="waldur_mastermind.invoices.log_project_credit",

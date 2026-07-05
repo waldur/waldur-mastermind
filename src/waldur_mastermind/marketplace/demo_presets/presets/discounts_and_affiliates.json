@@ -1,0 +1,1153 @@
+{
+  "_metadata": {
+    "name": "discounts_and_affiliates",
+    "title": "Volume discounts & affiliate program",
+    "description": "Demonstrates service-provider volume-discount scenarios (threshold, graduated tiers, continuous formula, organization-level aggregation) and the affiliate program (links, fee accruals and the credit ledger).",
+    "version": "1.0.0",
+    "scenarios": [
+      "No discount, threshold, graduated-tier and continuous-formula volume discounts",
+      "Organization-level aggregation across two resources",
+      "Affiliate links with different fees and an inactive link",
+      "Affiliate fee accruals per invoice",
+      "Credit ledger: earned fees, promotional grant, withdrawable adjustment and payout"
+    ]
+  },
+  "constance_settings": {
+    "SITE_NAME": "Waldur discounts & affiliates demo",
+    "SITE_DESCRIPTION": "Volume discounts and affiliate program showcase",
+    "CURRENCY_NAME": "EUR",
+    "AFFILIATES_ENABLED": true
+  },
+  "features": [
+    {
+      "key": "reseller.affiliates",
+      "value": true
+    }
+  ],
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "first_name": "Staff",
+      "last_name": "Admin",
+      "email": "staff@example.com",
+      "is_active": true,
+      "is_staff": true,
+      "password": "demo",
+      "organization": "GPU Cloud Provider",
+      "agreement_date": "2025-01-01T00:00:00"
+    },
+    {
+      "uuid": "00000000000000000000000000000002",
+      "username": "provider",
+      "first_name": "Pat",
+      "last_name": "Provider",
+      "email": "provider@example.com",
+      "is_active": true,
+      "is_staff": false,
+      "password": "demo",
+      "organization": "GPU Cloud Provider",
+      "agreement_date": "2025-01-01T00:00:00"
+    },
+    {
+      "uuid": "00000000000000000000000000000003",
+      "username": "reseller",
+      "first_name": "Riley",
+      "last_name": "Reseller",
+      "email": "reseller@example.com",
+      "is_active": true,
+      "is_staff": false,
+      "password": "demo",
+      "organization": "Cloud Reseller",
+      "agreement_date": "2025-01-01T00:00:00"
+    },
+    {
+      "uuid": "00000000000000000000000000000004",
+      "username": "acme",
+      "first_name": "Alex",
+      "last_name": "Acme",
+      "email": "acme@example.com",
+      "is_active": true,
+      "is_staff": false,
+      "password": "demo",
+      "organization": "Acme Corp",
+      "agreement_date": "2025-01-01T00:00:00"
+    },
+    {
+      "uuid": "00000000000000000000000000000005",
+      "username": "beta",
+      "first_name": "Bo",
+      "last_name": "Beta",
+      "email": "beta@example.com",
+      "is_active": true,
+      "is_staff": false,
+      "password": "demo",
+      "organization": "Beta Labs",
+      "agreement_date": "2025-01-01T00:00:00"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "a3000000000000000000000000000001",
+      "name": "GPU Cloud Provider",
+      "abbreviation": "GCP",
+      "email": "info@gcp.example.com",
+      "country": "EE",
+      "description": ""
+    },
+    {
+      "uuid": "a3000000000000000000000000000002",
+      "name": "Cloud Reseller",
+      "abbreviation": "RES",
+      "email": "info@res.example.com",
+      "country": "EE",
+      "description": ""
+    },
+    {
+      "uuid": "a3000000000000000000000000000003",
+      "name": "Acme Corp",
+      "abbreviation": "ACME",
+      "email": "info@acme.example.com",
+      "country": "EE",
+      "description": ""
+    },
+    {
+      "uuid": "a3000000000000000000000000000004",
+      "name": "Beta Labs",
+      "abbreviation": "BETA",
+      "email": "info@beta.example.com",
+      "country": "EE",
+      "description": ""
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "19000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "description": "GPU Cloud Provider"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "c3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "name": "Acme \u2014 Research",
+      "description": ""
+    },
+    {
+      "uuid": "c3000000000000000000000000000002",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "name": "Acme \u2014 Production",
+      "description": ""
+    },
+    {
+      "uuid": "c3000000000000000000000000000003",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "name": "Beta \u2014 Lab",
+      "description": ""
+    }
+  ],
+  "category_groups": [
+    {
+      "uuid": "cc000000000000000000000000000001",
+      "title": "Infrastructure",
+      "description": "Core infrastructure services"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "e3000000000000000000000000000001",
+      "title": "Compute",
+      "description": "Compute offerings",
+      "group_uuid": "cc000000000000000000000000000001"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f3000000000000000000000000000001",
+      "name": "GPU Cloud",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "category_uuid": "e3000000000000000000000000000001",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "description": "GPU cloud with organization-aggregated volume discounts"
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "ac000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "cpu",
+      "name": "CPU cores",
+      "measured_unit": "cores",
+      "billing_type": "usage",
+      "description": ""
+    },
+    {
+      "uuid": "ac000000000000000000000000000002",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "ram",
+      "name": "RAM",
+      "measured_unit": "GB",
+      "billing_type": "usage",
+      "description": ""
+    },
+    {
+      "uuid": "ac000000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "gpu",
+      "name": "GPU",
+      "measured_unit": "GPUs",
+      "billing_type": "usage",
+      "description": ""
+    },
+    {
+      "uuid": "ac000000000000000000000000000004",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "storage",
+      "name": "Storage",
+      "measured_unit": "GB",
+      "billing_type": "usage",
+      "description": ""
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "b3000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "name": "Standard",
+      "unit": "month"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "b3000000000000000000000000000001",
+      "component_uuid": "ac000000000000000000000000000001",
+      "price": "2.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000000001",
+      "component_uuid": "ac000000000000000000000000000002",
+      "price": "1.00",
+      "amount": 0,
+      "discount_formula": "10 if usage >= 100 else 0",
+      "discount_aggregation": "customer"
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000000001",
+      "component_uuid": "ac000000000000000000000000000003",
+      "price": "500.00",
+      "amount": 0,
+      "discount_formula": "15 if usage >= 8 else 10 if usage >= 4 else 0",
+      "discount_aggregation": "customer"
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000000001",
+      "component_uuid": "ac000000000000000000000000000004",
+      "price": "0.10",
+      "amount": 0,
+      "discount_formula": "MIN(20, usage / 100)",
+      "discount_aggregation": "resource"
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d3000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "plan_uuid": "b3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A",
+      "state": 2,
+      "limits": {
+        "cpu": 32,
+        "ram": 128,
+        "gpu": 3,
+        "storage": 500
+      },
+      "attributes": {
+        "name": "Acme GPU Node A"
+      },
+      "created": "2025-01-01T00:00:00"
+    },
+    {
+      "uuid": "d3000000000000000000000000000002",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "plan_uuid": "b3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B",
+      "state": 2,
+      "limits": {
+        "cpu": 32,
+        "ram": 64,
+        "gpu": 3,
+        "storage": 1500
+      },
+      "attributes": {
+        "name": "Acme GPU Node B"
+      },
+      "created": "2025-01-01T00:00:00"
+    },
+    {
+      "uuid": "d3000000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "plan_uuid": "b3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node",
+      "state": 2,
+      "limits": {
+        "cpu": 16,
+        "ram": 200,
+        "gpu": 10,
+        "storage": 1200
+      },
+      "attributes": {
+        "name": "Beta GPU Node"
+      },
+      "created": "2025-01-01T00:00:00"
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "1a000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000002",
+      "user_username": "provider",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "a3000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "1a000000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "reseller",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "a3000000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "1a000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "acme",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "a3000000000000000000000000000003",
+      "is_active": true
+    },
+    {
+      "uuid": "1a000000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "beta",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "a3000000000000000000000000000004",
+      "is_active": true
+    }
+  ],
+  "invoices": [
+    {
+      "uuid": "13000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "year": 2026,
+      "month": 5,
+      "state": "created",
+      "tax_percent": "0.00",
+      "invoice_date": "2026-05-01",
+      "total_price": "3175.80",
+      "total_cost": "3175.80",
+      "created": "2026-05-01T00:00:00"
+    },
+    {
+      "uuid": "13000000000000000000000000000002",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "year": 2026,
+      "month": 6,
+      "state": "created",
+      "tax_percent": "0.00",
+      "invoice_date": "2026-06-01",
+      "total_price": "3175.80",
+      "total_cost": "3175.80",
+      "created": "2026-06-01T00:00:00"
+    },
+    {
+      "uuid": "13000000000000000000000000000003",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "year": 2026,
+      "month": 6,
+      "state": "created",
+      "tax_percent": "0.00",
+      "invoice_date": "2026-06-01",
+      "total_price": "4567.60",
+      "total_cost": "4567.60",
+      "created": "2026-06-01T00:00:00"
+    }
+  ],
+  "invoice_items": [
+    {
+      "uuid": "14000000000000000000000000000001",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / CPU cores",
+      "quantity": "32",
+      "unit_price": "2.00",
+      "measured_unit": "cores",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "cpu",
+        "offering_component_name": "CPU cores",
+        "discount_usage": 32.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000002",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / RAM",
+      "quantity": "128",
+      "unit_price": "1.00",
+      "measured_unit": "GB",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_usage": 128.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000003",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / RAM / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-12.80",
+      "measured_unit": "",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_percent": 10.0,
+        "aggregated_usage": 192.0,
+        "discount_of_item": "14000000000000000000000000000002"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000004",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / GPU",
+      "quantity": "3",
+      "unit_price": "500.00",
+      "measured_unit": "GPUs",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_usage": 3.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000005",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / GPU / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-150.00",
+      "measured_unit": "",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_percent": 10.0,
+        "aggregated_usage": 6.0,
+        "discount_of_item": "14000000000000000000000000000004"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000006",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / Storage",
+      "quantity": "500",
+      "unit_price": "0.10",
+      "measured_unit": "GB",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_usage": 500.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000007",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / Storage / Volume discount (5%)",
+      "quantity": "1",
+      "unit_price": "-2.50",
+      "measured_unit": "",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_percent": 5.0,
+        "aggregated_usage": 500.0,
+        "discount_of_item": "14000000000000000000000000000006"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000008",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / CPU cores",
+      "quantity": "32",
+      "unit_price": "2.00",
+      "measured_unit": "cores",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "cpu",
+        "offering_component_name": "CPU cores",
+        "discount_usage": 32.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000009",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / RAM",
+      "quantity": "64",
+      "unit_price": "1.00",
+      "measured_unit": "GB",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_usage": 64.0
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000000a",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / RAM / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-6.40",
+      "measured_unit": "",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_percent": 10.0,
+        "aggregated_usage": 192.0,
+        "discount_of_item": "14000000000000000000000000000009"
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000000b",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / GPU",
+      "quantity": "3",
+      "unit_price": "500.00",
+      "measured_unit": "GPUs",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_usage": 3.0
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000000c",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / GPU / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-150.00",
+      "measured_unit": "",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_percent": 10.0,
+        "aggregated_usage": 6.0,
+        "discount_of_item": "1400000000000000000000000000000b"
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000000d",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / Storage",
+      "quantity": "1500",
+      "unit_price": "0.10",
+      "measured_unit": "GB",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_usage": 1500.0
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000000e",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / Storage / Volume discount (15%)",
+      "quantity": "1",
+      "unit_price": "-22.50",
+      "measured_unit": "",
+      "start": "2026-05-01T00:00:00",
+      "end": "2026-05-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_percent": 15.0,
+        "aggregated_usage": 1500.0,
+        "discount_of_item": "1400000000000000000000000000000d"
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000000f",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / CPU cores",
+      "quantity": "32",
+      "unit_price": "2.00",
+      "measured_unit": "cores",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "cpu",
+        "offering_component_name": "CPU cores",
+        "discount_usage": 32.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000010",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / RAM",
+      "quantity": "128",
+      "unit_price": "1.00",
+      "measured_unit": "GB",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_usage": 128.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000011",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / RAM / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-12.80",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_percent": 10.0,
+        "aggregated_usage": 192.0,
+        "discount_of_item": "14000000000000000000000000000010"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000012",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / GPU",
+      "quantity": "3",
+      "unit_price": "500.00",
+      "measured_unit": "GPUs",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_usage": 3.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000013",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / GPU / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-150.00",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_percent": 10.0,
+        "aggregated_usage": 6.0,
+        "discount_of_item": "14000000000000000000000000000012"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000014",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / Storage",
+      "quantity": "500",
+      "unit_price": "0.10",
+      "measured_unit": "GB",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_usage": 500.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000015",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "name": "Acme GPU Node A / Storage / Volume discount (5%)",
+      "quantity": "1",
+      "unit_price": "-2.50",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_percent": 5.0,
+        "aggregated_usage": 500.0,
+        "discount_of_item": "14000000000000000000000000000014"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000016",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / CPU cores",
+      "quantity": "32",
+      "unit_price": "2.00",
+      "measured_unit": "cores",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "cpu",
+        "offering_component_name": "CPU cores",
+        "discount_usage": 32.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000017",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / RAM",
+      "quantity": "64",
+      "unit_price": "1.00",
+      "measured_unit": "GB",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_usage": 64.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000018",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / RAM / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-6.40",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_percent": 10.0,
+        "aggregated_usage": 192.0,
+        "discount_of_item": "14000000000000000000000000000017"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000019",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / GPU",
+      "quantity": "3",
+      "unit_price": "500.00",
+      "measured_unit": "GPUs",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_usage": 3.0
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000001a",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / GPU / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-150.00",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_percent": 10.0,
+        "aggregated_usage": 6.0,
+        "discount_of_item": "14000000000000000000000000000019"
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000001b",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / Storage",
+      "quantity": "1500",
+      "unit_price": "0.10",
+      "measured_unit": "GB",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_usage": 1500.0
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000001c",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000002",
+      "project_uuid": "c3000000000000000000000000000002",
+      "name": "Acme GPU Node B / Storage / Volume discount (15%)",
+      "quantity": "1",
+      "unit_price": "-22.50",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_percent": 15.0,
+        "aggregated_usage": 1500.0,
+        "discount_of_item": "1400000000000000000000000000001b"
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000001d",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node / CPU cores",
+      "quantity": "16",
+      "unit_price": "2.00",
+      "measured_unit": "cores",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "cpu",
+        "offering_component_name": "CPU cores",
+        "discount_usage": 16.0
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000001e",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node / RAM",
+      "quantity": "200",
+      "unit_price": "1.00",
+      "measured_unit": "GB",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_usage": 200.0
+      }
+    },
+    {
+      "uuid": "1400000000000000000000000000001f",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node / RAM / Volume discount (10%)",
+      "quantity": "1",
+      "unit_price": "-20.00",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "ram",
+        "offering_component_name": "RAM",
+        "discount_percent": 10.0,
+        "aggregated_usage": 200.0,
+        "discount_of_item": "1400000000000000000000000000001e"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000020",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node / GPU",
+      "quantity": "10",
+      "unit_price": "500.00",
+      "measured_unit": "GPUs",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_usage": 10.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000021",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node / GPU / Volume discount (15%)",
+      "quantity": "1",
+      "unit_price": "-750.00",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "gpu",
+        "offering_component_name": "GPU",
+        "discount_percent": 15.0,
+        "aggregated_usage": 10.0,
+        "discount_of_item": "14000000000000000000000000000020"
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000022",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node / Storage",
+      "quantity": "1200",
+      "unit_price": "0.10",
+      "measured_unit": "GB",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_usage": 1200.0
+      }
+    },
+    {
+      "uuid": "14000000000000000000000000000023",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "project_uuid": "c3000000000000000000000000000003",
+      "name": "Beta GPU Node / Storage / Volume discount (12%)",
+      "quantity": "1",
+      "unit_price": "-14.40",
+      "measured_unit": "",
+      "start": "2026-06-01T00:00:00",
+      "end": "2026-06-28T23:59:59",
+      "details": {
+        "is_discount": true,
+        "discount_type": "org_volume_discount",
+        "offering_component_type": "storage",
+        "offering_component_name": "Storage",
+        "discount_percent": 12.0,
+        "aggregated_usage": 1200.0,
+        "discount_of_item": "14000000000000000000000000000022"
+      }
+    }
+  ],
+  "customer_credits": [
+    {
+      "uuid": "15000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000002",
+      "value": "0",
+      "expected_consumption": "0",
+      "grace_coefficient": "0",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true,
+      "offering_uuids": [],
+      "created": "2026-01-01T00:00:00"
+    }
+  ],
+  "customer_affiliates": [
+    {
+      "uuid": "16000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "affiliate_uuid": "a3000000000000000000000000000002",
+      "fee_percent": "10.00000",
+      "is_active": true,
+      "start_date": "2026-01-01"
+    },
+    {
+      "uuid": "16000000000000000000000000000002",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "affiliate_uuid": "a3000000000000000000000000000002",
+      "fee_percent": "5.00000",
+      "is_active": true,
+      "start_date": "2026-06-01"
+    },
+    {
+      "uuid": "16000000000000000000000000000003",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "affiliate_uuid": "a3000000000000000000000000000002",
+      "fee_percent": "8.00000",
+      "is_active": false
+    }
+  ],
+  "credit_transactions": [
+    {
+      "uuid": "18000000000000000000000000000001",
+      "credit_uuid": "15000000000000000000000000000001",
+      "amount": "317.58",
+      "transaction_type": "affiliate_fee",
+      "comment": "",
+      "created": "2026-05-05T09:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000002",
+      "credit_uuid": "15000000000000000000000000000001",
+      "amount": "317.58",
+      "transaction_type": "affiliate_fee",
+      "comment": "",
+      "created": "2026-06-05T09:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000003",
+      "credit_uuid": "15000000000000000000000000000001",
+      "amount": "228.38",
+      "transaction_type": "affiliate_fee",
+      "comment": "",
+      "created": "2026-06-05T09:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000004",
+      "credit_uuid": "15000000000000000000000000000001",
+      "amount": "200.00",
+      "transaction_type": "staff_grant",
+      "comment": "Promotional onboarding credit",
+      "created": "2026-01-10T10:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000005",
+      "credit_uuid": "15000000000000000000000000000001",
+      "amount": "100.00",
+      "transaction_type": "withdrawable_adjustment",
+      "comment": "Goodwill top-up agreed with partner",
+      "created": "2026-06-20T14:00:00"
+    },
+    {
+      "uuid": "18000000000000000000000000000006",
+      "credit_uuid": "15000000000000000000000000000001",
+      "amount": "-50.00",
+      "transaction_type": "payout",
+      "comment": "Quarterly partner payout",
+      "created": "2026-06-30T16:00:00"
+    }
+  ],
+  "affiliate_fee_accruals": [
+    {
+      "uuid": "17000000000000000000000000000001",
+      "affiliate_link_uuid": "16000000000000000000000000000001",
+      "invoice_uuid": "13000000000000000000000000000001",
+      "amount": "317.58"
+    },
+    {
+      "uuid": "17000000000000000000000000000002",
+      "affiliate_link_uuid": "16000000000000000000000000000001",
+      "invoice_uuid": "13000000000000000000000000000002",
+      "amount": "317.58"
+    },
+    {
+      "uuid": "17000000000000000000000000000003",
+      "affiliate_link_uuid": "16000000000000000000000000000002",
+      "invoice_uuid": "13000000000000000000000000000003",
+      "amount": "228.38"
+    }
+  ]
+}

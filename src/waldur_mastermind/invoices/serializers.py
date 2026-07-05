@@ -1,6 +1,7 @@
 import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
+from constance import config
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import F, Sum
@@ -1035,8 +1036,10 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "apply_as_minimal_consumption",
             "allocated_to_projects",
             "consumption_last_month",
+            "withdrawable_balance",
         )
         protected_fields = ("customer",)
+        read_only_fields = ("withdrawable_balance",)
 
         extra_kwargs = {
             "url": {
@@ -1198,6 +1201,161 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class CustomerAffiliateSerializer(serializers.HyperlinkedModelSerializer):
+    customer_name = serializers.ReadOnlyField(source="customer.name")
+    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
+    affiliate_name = serializers.ReadOnlyField(source="affiliate.name")
+    affiliate_uuid = serializers.UUIDField(read_only=True, source="affiliate.uuid")
+    total_earned = serializers.SerializerMethodField()
+
+    def get_total_earned(self, link) -> float:
+        # Prefer the queryset annotation (list endpoint) and fall back to a
+        # per-object aggregate when it is absent (e.g. just-created links).
+        total = getattr(link, "total_earned_agg", None)
+        if total is None:
+            total = link.accruals.aggregate(sum=Sum("amount"))["sum"]
+        return total or 0
+
+    class Meta:
+        model = models.CustomerAffiliate
+        fields = (
+            "uuid",
+            "url",
+            "customer",
+            "customer_name",
+            "customer_uuid",
+            "affiliate",
+            "affiliate_name",
+            "affiliate_uuid",
+            "fee_percent",
+            "is_active",
+            "start_date",
+            "end_date",
+            "total_earned",
+            "created",
+        )
+        protected_fields = ("customer", "affiliate")
+
+        extra_kwargs = {
+            "url": {
+                "view_name": "customer-affiliate-detail",
+                "lookup_field": "uuid",
+            },
+            "customer": {
+                "view_name": "customer-detail",
+                "lookup_field": "uuid",
+            },
+            "affiliate": {
+                "view_name": "customer-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+
+class CreateCustomerAffiliateSerializer(CustomerAffiliateSerializer):
+    def get_from_attrs_or_instance(self, attrs, field_name, default=None):
+        return attrs.get(field_name, getattr(self.instance, field_name, default))
+
+    def validate(self, attrs):
+        customer = self.get_from_attrs_or_instance(attrs, "customer")
+        affiliate = self.get_from_attrs_or_instance(attrs, "affiliate")
+        start_date = self.get_from_attrs_or_instance(attrs, "start_date")
+        end_date = self.get_from_attrs_or_instance(attrs, "end_date")
+
+        if customer == affiliate:
+            raise exceptions.ValidationError(
+                _("An organization cannot be its own affiliate.")
+            )
+
+        if start_date and end_date and end_date <= start_date:
+            raise exceptions.ValidationError(
+                {"end_date": _("End date must be after the start date.")}
+            )
+
+        return attrs
+
+
+class AffiliateFeeAccrualSerializer(serializers.ModelSerializer):
+    """Affiliate-facing accrual representation.
+
+    Deliberately exposes only the fee amount, the invoice period and the
+    referred customer name — never the invoice object itself, so affiliate
+    users cannot see what the referred customer bought.
+    """
+
+    customer_name = serializers.ReadOnlyField(source="affiliate_link.customer.name")
+    affiliate_uuid = serializers.UUIDField(
+        read_only=True, source="affiliate_link.affiliate.uuid"
+    )
+    invoice_year = serializers.IntegerField(read_only=True, source="invoice.year")
+    invoice_month = serializers.IntegerField(read_only=True, source="invoice.month")
+
+    class Meta:
+        model = models.AffiliateFeeAccrual
+        fields = (
+            "uuid",
+            "amount",
+            "customer_name",
+            "affiliate_uuid",
+            "invoice_year",
+            "invoice_month",
+            "created",
+        )
+
+
+class AffiliateEarningsMonthSerializer(serializers.Serializer):
+    year = serializers.IntegerField()
+    month = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=16, decimal_places=5)
+
+
+class AffiliateEarningsSerializer(serializers.Serializer):
+    total_earned = serializers.DecimalField(max_digits=16, decimal_places=5)
+    withdrawable_balance = serializers.DecimalField(max_digits=16, decimal_places=5)
+    per_month = AffiliateEarningsMonthSerializer(many=True)
+
+
+class WithdrawableAdjustmentSerializer(serializers.Serializer):
+    """Staff input for a manual adjustment of the withdrawable credit part."""
+
+    amount = serializers.DecimalField(max_digits=16, decimal_places=5)
+    comment = serializers.CharField()
+
+    def validate_amount(self, value):
+        if value == 0:
+            raise serializers.ValidationError(_("Amount must not be zero."))
+        return value
+
+    def validate_comment(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError(_("A comment is required."))
+        return value
+
+
+class CreditTransactionSerializer(serializers.ModelSerializer):
+    """Read-only ledger entry: the trace of how a credit's value changed."""
+
+    transaction_type_display = serializers.CharField(
+        source="get_transaction_type_display", read_only=True
+    )
+    customer_uuid = serializers.UUIDField(source="credit.customer.uuid", read_only=True)
+    customer_name = serializers.ReadOnlyField(source="credit.customer.name")
+
+    class Meta:
+        model = models.CreditTransaction
+        fields = (
+            "uuid",
+            "created",
+            "amount",
+            "transaction_type",
+            "transaction_type_display",
+            "comment",
+            "customer_uuid",
+            "customer_name",
+        )
+
+
 def get_project_credit(serializer, project) -> float | None:
     # 1. Check bulk context
     bulk_credits = serializer.context.get("bulk_data", {}).get("project_credits")
@@ -1281,6 +1439,22 @@ def add_customer_unallocated_credit(sender, fields, **kwargs):
     setattr(sender, "get_customer_unallocated_credit", get_customer_unallocated_credit)
 
 
+def get_has_affiliate_links(serializer, customer) -> bool:
+    # The affiliate earnings view is only relevant to an organization that is
+    # itself an affiliate on at least one link; the flag lets the UI hide it
+    # otherwise. Skipped entirely when the affiliate program is disabled so the
+    # common case costs no query.
+    if not config.AFFILIATES_ENABLED:
+        return False
+    return customer.affiliate_terms.exists()
+
+
+def add_has_affiliate_links(sender, fields, **kwargs):
+    """Add a flag telling whether the organization is an affiliate on any link."""
+    fields["has_affiliate_links"] = serializers.SerializerMethodField()
+    setattr(sender, "get_has_affiliate_links", get_has_affiliate_links)
+
+
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_customer_credit,
@@ -1289,6 +1463,11 @@ core_signals.pre_serializer_fields.connect(
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_customer_unallocated_credit,
+)
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_has_affiliate_links,
 )
 
 

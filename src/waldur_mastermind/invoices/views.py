@@ -28,7 +28,8 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import compensations
 from waldur_mastermind.invoices.models import InvoiceItem
 
-from . import filters, models, serializers, tasks, utils
+from . import filters, ledger, models, serializers, tasks, utils
+from .audit import skip_credit_audit
 
 
 class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsViewSet):
@@ -1100,7 +1101,17 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
     ) = [structure_permissions.is_staff]
-    queryset = models.CustomerCredit.objects.all().order_by("created")
+    # Annotate the earnings-typed ledger sum so the list endpoint resolves
+    # withdrawable_balance without a per-row aggregate; the property falls
+    # back to a query when the annotation is absent.
+    queryset = models.CustomerCredit.objects.annotate(
+        withdrawable_earned_agg=Sum(
+            "transactions__amount",
+            filter=Q(
+                transactions__transaction_type__in=models.CreditTransaction.Types.WITHDRAWABLE_TYPES
+            ),
+        )
+    ).order_by("created")
     serializer_class = serializers.CustomerCreditSerializer
     create_serializer_class = update_serializer_class = (
         partial_update_serializer_class
@@ -1158,6 +1169,54 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
 
     consumptions_serializer_class = serializers.CustomerCreditConsumptionSerializer
 
+    @extend_schema(
+        description="Staff adjustment of the withdrawable part of the credit. "
+        "Records a signed ledger entry with a comment and changes the credit "
+        "value by the same amount.",
+        request=serializers.WithdrawableAdjustmentSerializer,
+        responses={status.HTTP_200_OK: serializers.CustomerCreditSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def adjust_withdrawable(self, request, uuid=None):
+        credit = self.get_object()
+        input_serializer = serializers.WithdrawableAdjustmentSerializer(
+            data=request.data
+        )
+        input_serializer.is_valid(raise_exception=True)
+        amount = input_serializer.validated_data["amount"]
+        comment = input_serializer.validated_data["comment"]
+
+        with transaction.atomic():
+            credit = models.CustomerCredit.objects.select_for_update().get(pk=credit.pk)
+            if credit.value + amount < 0:
+                raise exceptions.ValidationError(
+                    {"amount": _("Adjustment would make the credit value negative.")}
+                )
+            # A reduction (e.g. a payout) may only draw down the earned,
+            # withdrawable portion — never staff-granted promotional credit.
+            if amount < 0 and -amount > credit.withdrawable_balance:
+                raise exceptions.ValidationError(
+                    {"amount": _("Reduction would exceed the withdrawable balance.")}
+                )
+            with (
+                skip_credit_audit(),
+                ledger.credit_transaction_type(
+                    models.CreditTransaction.Types.WITHDRAWABLE_ADJUSTMENT,
+                    comment=comment,
+                ),
+            ):
+                credit.value += amount
+                credit.save(update_fields=["value"])
+
+        return Response(
+            serializers.CustomerCreditSerializer(
+                credit, context=self.get_serializer_context()
+            ).data
+        )
+
+    adjust_withdrawable_permissions = [structure_permissions.is_staff]
+    adjust_withdrawable_serializer_class = serializers.WithdrawableAdjustmentSerializer
+
 
 class ProjectCreditViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
@@ -1173,3 +1232,110 @@ class ProjectCreditViewSet(core_views.ActionsViewSet):
     ).order_by("created")
     serializer_class = serializers.ProjectCreditSerializer
     filterset_class = filters.ProjectCreditFilter
+
+
+class CustomerAffiliateViewSet(core_views.ActionsViewSet):
+    """Affiliate links are configured by staff only. Affiliate organization
+    owners get read-only access to their own links, earnings and accruals;
+    they never gain access to the referred customer's invoices.
+
+    The whole API is gated behind the opt-in ``AFFILIATES_ENABLED``
+    Constance setting and responds with 404 while the feature is disabled.
+    """
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if not utils.affiliates_feature_enabled():
+            raise exceptions.NotFound()
+
+    lookup_field = "uuid"
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.CustomerAffiliateFilter
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff]
+    # Annotate the lifetime earned sum so the list endpoint does not issue a
+    # per-row aggregate (the serializer falls back to a query when absent).
+    queryset = (
+        models.CustomerAffiliate.objects.annotate(
+            total_earned_agg=Sum("accruals__amount")
+        )
+        .all()
+        .order_by("created")
+    )
+    serializer_class = serializers.CustomerAffiliateSerializer
+    create_serializer_class = update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.CreateCustomerAffiliateSerializer
+
+    @extend_schema(
+        description="List fees accrued from this affiliate link. Exposes the "
+        "fee amount and invoice period only — never the referred customer's "
+        "invoice contents.",
+        responses=serializers.AffiliateFeeAccrualSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"])
+    def accruals(self, request, uuid=None):
+        link = self.get_object()
+        serializer = self.get_serializer(
+            link.accruals.all().order_by("-created"), many=True
+        )
+        return Response(serializer.data)
+
+    accruals_serializer_class = serializers.AffiliateFeeAccrualSerializer
+
+    @extend_schema(
+        description="Earnings summary of this affiliate link: lifetime total, "
+        "per-month series and the affiliate organization's withdrawable "
+        "credit balance.",
+        responses=serializers.AffiliateEarningsSerializer,
+    )
+    @action(detail=True, methods=["get"])
+    def earnings(self, request, uuid=None):
+        link = self.get_object()
+        accruals = link.accruals.all()
+        total_earned = accruals.aggregate(sum=Sum("amount"))["sum"] or 0
+        per_month = (
+            accruals.values("invoice__year", "invoice__month")
+            .annotate(amount=Sum("amount"))
+            .order_by("invoice__year", "invoice__month")
+        )
+        credit = models.CustomerCredit.objects.filter(customer=link.affiliate).first()
+        serializer = self.get_serializer(
+            {
+                "total_earned": total_earned,
+                "withdrawable_balance": credit.withdrawable_balance if credit else 0,
+                "per_month": [
+                    {
+                        "year": int(row["invoice__year"]),
+                        "month": int(row["invoice__month"]),
+                        "amount": row["amount"],
+                    }
+                    for row in per_month
+                ],
+            }
+        )
+        return Response(serializer.data)
+
+    earnings_serializer_class = serializers.AffiliateEarningsSerializer
+
+
+class CreditTransactionViewSet(core_views.ReadOnlyActionsViewSet):
+    """Read-only ledger of a customer credit's value changes (the withdrawable
+    balance trace). Visible to staff and to the credit's customer organization
+    owner via ``GenericRoleFilter`` against ``Permissions.customer_path``.
+    """
+
+    lookup_field = "uuid"
+    queryset = models.CreditTransaction.objects.select_related(
+        "credit__customer"
+    ).order_by("-created")
+    serializer_class = serializers.CreditTransactionSerializer
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.CreditTransactionFilter

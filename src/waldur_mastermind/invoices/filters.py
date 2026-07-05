@@ -141,6 +141,50 @@ class CustomerCreditFilter(django_filters.FilterSet):
         fields = []
 
 
+class CustomerAffiliateFilter(django_filters.FilterSet):
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid"
+    )
+    customer_name = django_filters.CharFilter(
+        field_name="customer__name", lookup_expr="icontains"
+    )
+    affiliate_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="affiliate__uuid"
+    )
+    affiliate_name = django_filters.CharFilter(
+        field_name="affiliate__name", lookup_expr="icontains"
+    )
+    is_active = django_filters.BooleanFilter(widget=BooleanWidget)
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("customer__name", "customer_name"),
+            ("affiliate__name", "affiliate_name"),
+            ("created", "created"),
+        ),
+    )
+
+    class Meta:
+        model = models.CustomerAffiliate
+        fields = []
+
+
+class CreditTransactionFilter(django_filters.FilterSet):
+    credit_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-credit-detail", field_name="credit__uuid"
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="credit__customer__uuid"
+    )
+    transaction_type = django_filters.CharFilter()
+
+    o = django_filters.OrderingFilter(fields=(("created", "created"),))
+
+    class Meta:
+        model = models.CreditTransaction
+        fields = []
+
+
 class ProjectCreditFilter(django_filters.FilterSet):
     project_uuid = core_filters.RelatedUUIDFilter(
         view_name="project-detail", field_name="project__uuid"

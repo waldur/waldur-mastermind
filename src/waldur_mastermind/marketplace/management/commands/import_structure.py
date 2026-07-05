@@ -7,6 +7,7 @@ from uuid import UUID
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
@@ -33,6 +34,9 @@ from waldur_core.structure.models import (
 )
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices.models import (
+    AffiliateFeeAccrual,
+    CreditTransaction,
+    CustomerAffiliate,
     CustomerCredit,
     Invoice,
     InvoiceItem,
@@ -264,6 +268,24 @@ class Command(BaseCommand):
             },
             "customer_credits": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "project_credits": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "customer_affiliates": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "credit_transactions": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "affiliate_fee_accruals": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "events": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "ssh_public_keys": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offering_endpoints": {
@@ -986,6 +1008,26 @@ class Command(BaseCommand):
         self._safe_import(
             "invoice_items",
             lambda: self.import_invoice_items(data.get("invoice_items", [])),
+        )
+
+        # Affiliate program (depends on customers, credits and invoices).
+        self._safe_import(
+            "customer_affiliates",
+            lambda: self.import_customer_affiliates(
+                data.get("customer_affiliates", [])
+            ),
+        )
+        self._safe_import(
+            "credit_transactions",
+            lambda: self.import_credit_transactions(
+                data.get("credit_transactions", [])
+            ),
+        )
+        self._safe_import(
+            "affiliate_fee_accruals",
+            lambda: self.import_affiliate_fee_accruals(
+                data.get("affiliate_fee_accruals", [])
+            ),
         )
 
         # Import offering users (depends on offerings and users)
@@ -3992,8 +4034,10 @@ class Command(BaseCommand):
                     "amount": pc_data.get("amount", 0),
                     "price": pc_data.get("price", 0),
                     "future_price": pc_data.get("future_price"),
-                    "discount_threshold": pc_data.get("discount_threshold"),
-                    "discount_rate": pc_data.get("discount_rate"),
+                    "discount_formula": pc_data.get("discount_formula", ""),
+                    "discount_aggregation": pc_data.get(
+                        "discount_aggregation", "customer"
+                    ),
                 }
 
                 if not self.dry_run:
@@ -6714,6 +6758,141 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["customer_credits"]["errors"] += 1
+
+    @staticmethod
+    def _parse_iso_date(value):
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value).date()
+        except (ValueError, TypeError):
+            return None
+
+    def import_customer_affiliates(self, affiliates_data):
+        """Import affiliate links (CustomerAffiliate)."""
+        self.stdout.write("Importing customer affiliates...")
+        for item in affiliates_data:
+            uuid = item.get("uuid")
+            try:
+                customer = Customer.objects.filter(
+                    uuid=item.get("customer_uuid")
+                ).first()
+                affiliate = Customer.objects.filter(
+                    uuid=item.get("affiliate_uuid")
+                ).first()
+                if not uuid or not customer or not affiliate:
+                    self.stats["customer_affiliates"]["errors"] += 1
+                    continue
+                defaults = {
+                    "customer": customer,
+                    "affiliate": affiliate,
+                    "fee_percent": Decimal(str(item.get("fee_percent", "0"))),
+                    "is_active": item.get("is_active", True),
+                    "start_date": self._parse_iso_date(item.get("start_date")),
+                    "end_date": self._parse_iso_date(item.get("end_date")),
+                }
+                if self.dry_run:
+                    exists = CustomerAffiliate.objects.filter(uuid=uuid).exists()
+                    key = (
+                        "updated"
+                        if exists and self.update_existing
+                        else ("skipped" if exists else "created")
+                    )
+                    self.stats["customer_affiliates"][key] += 1
+                    continue
+                existing = CustomerAffiliate.objects.filter(uuid=uuid).first()
+                if existing:
+                    if self.update_existing:
+                        CustomerAffiliate.objects.filter(uuid=uuid).update(**defaults)
+                        self.stats["customer_affiliates"]["updated"] += 1
+                    else:
+                        self.stats["customer_affiliates"]["skipped"] += 1
+                else:
+                    CustomerAffiliate.objects.create(uuid=uuid, **defaults)
+                    self.stats["customer_affiliates"]["created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(f"Failed to import affiliate {uuid}: {e}")
+                )
+                self.stats["customer_affiliates"]["errors"] += 1
+
+    def import_credit_transactions(self, transactions_data):
+        """Import credit-ledger transactions (CreditTransaction)."""
+        self.stdout.write("Importing credit transactions...")
+        for item in transactions_data:
+            uuid = item.get("uuid")
+            try:
+                credit = CustomerCredit.objects.filter(
+                    uuid=item.get("credit_uuid")
+                ).first()
+                if not uuid or not credit:
+                    self.stats["credit_transactions"]["errors"] += 1
+                    continue
+                if self.dry_run or CreditTransaction.objects.filter(uuid=uuid).exists():
+                    self.stats["credit_transactions"]["skipped"] += 1
+                    continue
+                amount = Decimal(str(item.get("amount", "0")))
+                tx = CreditTransaction.objects.create(
+                    uuid=uuid,
+                    credit=credit,
+                    amount=amount,
+                    transaction_type=item.get("transaction_type", "staff_grant"),
+                    comment=item.get("comment", ""),
+                )
+                # Each transaction is a signed delta to the credit value. Apply it
+                # via a queryset update so the post_save ledger handler does not
+                # record a second (auto staff-grant) transaction for the change.
+                CustomerCredit.objects.filter(pk=credit.pk).update(
+                    value=F("value") + amount
+                )
+                created = item.get("created")
+                if created:
+                    try:
+                        CreditTransaction.objects.filter(pk=tx.pk).update(
+                            created=datetime.fromisoformat(created).replace(tzinfo=UTC)
+                        )
+                    except (ValueError, TypeError):
+                        pass
+                self.stats["credit_transactions"]["created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import credit transaction {uuid}: {e}"
+                    )
+                )
+                self.stats["credit_transactions"]["errors"] += 1
+
+    def import_affiliate_fee_accruals(self, accruals_data):
+        """Import affiliate fee accruals (AffiliateFeeAccrual)."""
+        self.stdout.write("Importing affiliate fee accruals...")
+        for item in accruals_data:
+            uuid = item.get("uuid")
+            try:
+                link = CustomerAffiliate.objects.filter(
+                    uuid=item.get("affiliate_link_uuid")
+                ).first()
+                invoice = Invoice.objects.filter(uuid=item.get("invoice_uuid")).first()
+                if not uuid or not link or not invoice:
+                    self.stats["affiliate_fee_accruals"]["errors"] += 1
+                    continue
+                if (
+                    self.dry_run
+                    or AffiliateFeeAccrual.objects.filter(uuid=uuid).exists()
+                ):
+                    self.stats["affiliate_fee_accruals"]["skipped"] += 1
+                    continue
+                AffiliateFeeAccrual.objects.create(
+                    uuid=uuid,
+                    affiliate_link=link,
+                    invoice=invoice,
+                    amount=Decimal(str(item.get("amount", "0"))),
+                )
+                self.stats["affiliate_fee_accruals"]["created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(f"Failed to import accrual {uuid}: {e}")
+                )
+                self.stats["affiliate_fee_accruals"]["errors"] += 1
 
     def import_project_credits(self, project_credits_data):
         """Import project credit data."""
