@@ -493,28 +493,6 @@ class ToSReconsentRequiredContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
 
 
-class QuotaFullContext(BaseModel):
-    user: Any = Field(
-        description="The User model instance receiving the notification. Provides `user.first_name`."
-    )
-    project_name: str = Field(description="Name of the project.")
-    resource_name: str = Field(description="Name of the resource.")
-    resource_url: str = Field(description="URL to the resource details page.")
-    component_name: str = Field(description="Human-readable name of the component.")
-    component_type: str = Field(description="Type identifier of the component.")
-    measured_unit: str = Field(description="Unit of measurement for the component.")
-    allocation_total: str = Field(description="Total allocated amount as a string.")
-    current_usage: str = Field(description="Current usage amount as a string.")
-    usage_percentage: int = Field(
-        description="Current usage as a percentage of the allocation limit."
-    )
-    provider_name: str = Field(description="Name of the service provider organization.")
-    provider_email: str = Field(
-        default="", description="Email address of the service provider."
-    )
-    site_name: str = Field(description="Name of the site from settings.")
-
-
 class ResourceLimitChangeRequestContext(BaseModel):
     resource_limit_change_request: Any = Field(
         description="The ResourceLimitChangeRequest instance. Provides "
@@ -632,16 +610,6 @@ class MarketplaceSection(NotificationSection):
         key="tos_reconsent_required",
         description="Notifies user that ToS has been updated and re-consent is required.",
         context_model=ToSReconsentRequiredContext,
-    )
-    notification_quota_full = Notification(
-        key="notification_quota_full",
-        description="Notifies project administrators and managers when a resource component allocation limit has been reached.",
-        context_model=QuotaFullContext,
-    )
-    notification_quota_75_percent = Notification(
-        key="notification_quota_75_percent",
-        description="Notifies project administrators and managers when 75% of a resource component allocation has been consumed.",
-        context_model=QuotaFullContext,
     )
     notification_resource_limit_change_request_created = Notification(
         key="notification_resource_limit_change_request_created",

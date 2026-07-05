@@ -1,1 +1,0 @@
-Warning: Your {{ site_name }} project resource allocation has been consumed!

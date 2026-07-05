@@ -64,18 +64,6 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.check_and_notify_quota_full,
-            sender=models.ComponentUsage,
-            dispatch_uid="waldur_mastermind.marketplace.check_and_notify_quota_full",
-        )
-
-        signals.post_save.connect(
-            handlers.check_and_notify_quota_75_percent,
-            sender=models.ComponentUsage,
-            dispatch_uid="waldur_mastermind.marketplace.check_and_notify_quota_75_percent",
-        )
-
-        signals.post_save.connect(
             handlers.sync_current_usages_from_component_usage,
             sender=models.ComponentUsage,
             dispatch_uid="waldur_mastermind.marketplace.sync_current_usages",
