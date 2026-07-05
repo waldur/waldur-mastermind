@@ -3152,6 +3152,14 @@ If true, a support ticket is created when a user adds or removes an SSH public k
 
 Select which reporting screens should be visible to users. Uncheck to disable specific reports.
 
+### Affiliates
+
+#### AFFILIATES_ENABLED
+
+**Type:** bool
+
+Enable the affiliate program: staff-configured affiliate links, fee accrual from finalized invoices, and the customer-affiliates API.
+
 ### Matrix chat
 
 #### MATRIX_ENABLED

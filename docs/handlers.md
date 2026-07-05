@@ -480,6 +480,7 @@ td:nth-child(4) {
 | `add_google_calendar_info` | `Custom Signal (pre_serializer_fields)` | `PublicOfferingDetailsSerializer` | Add a Google Calendar info field to the serializer. |
 | `add_google_calendar_link` | `Custom Signal (pre_serializer_fields)` | `ProviderOfferingDetailsSerializer` | Add a Google Calendar link field to the serializer. |
 | `add_google_calendar_link` | `Custom Signal (pre_serializer_fields)` | `PublicOfferingDetailsSerializer` | Add a Google Calendar link field to the serializer. |
+| `add_has_affiliate_links` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a flag telling whether the organization is an affiliate on any link. |
 | `add_integration_status` | `Custom Signal (pre_serializer_fields)` | `ProviderOfferingDetailsSerializer` | Add an integration status field to the serializer. |
 | `add_issue` | `Custom Signal (pre_serializer_fields)` | `OrderDetailsSerializer` | Add an issue field to the serializer. |
 | `add_maintenance_fields_to_admin_announcement_serializer` | `Custom Signal (pre_serializer_fields)` | `AdminAnnouncementSerializer` | Add maintenance-related fields to AdminAnnouncementSerializer when maintenance is scheduled. |
@@ -615,6 +616,7 @@ td:nth-child(4) {
 | `init_resource_parent` | `Django Signal (post_save)` | `marketplace.Resource` | Initialize the parent resource for a newly created resource. |
 | `limit_update_failed` | `Custom Signal (resource_limit_update_failed)` | `marketplace.Resource` | Handle failed limit updates. |
 | `limit_update_succeeded` | `Custom Signal (resource_limit_update_succeeded)` | `marketplace.Resource` | Handle successful limit updates. |
+| `log_affiliate` | `Django Signal (post_save)` | `invoices.CustomerAffiliate` | Audit staff changes of affiliate terms. Scoped to the affiliate |
 | `log_attachment_delete` | `Django Signal (post_delete)` | `support.Attachment` | No description |
 | `log_attachment_save` | `Django Signal (post_save)` | `support.Attachment` | No description |
 | `log_credit` | `Django Signal (post_save)` | `invoices.CustomerCredit` | No description |
@@ -657,6 +659,7 @@ td:nth-child(4) {
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
 | `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
+| `process_affiliate_fees` | `Custom Signal (invoice_created)` | `invoices.Invoice` | Accrue affiliate fees when an invoice is finalized. |
 | `process_billing_on_resource_save` | `Django Signal (post_save)` | `marketplace.Resource` | Handle resource state changes and billing events. |
 | `process_invitations_and_orders_when_project_start_date_is_unset` | `Django Signal (post_save)` | `structure.Project` | Process pending invitations and orders when a project's start date is unset. |
 | `process_invoice_item` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Process invoice item changes and update related price estimates. |
@@ -666,6 +669,7 @@ td:nth-child(4) {
 | `purge_offering_role_groups_on_scope_delete` | `Django Signal (post_delete)` | `marketplace.ResourceProject` | Drop OfferingRoleGroup rows that pointed at a now-deleted scope. |
 | `reconcile_offering_profile_on_offering_changed` | `Django Signal (post_save)` | `marketplace.Offering` | When an Offering is saved, schedule a reconciliation task. Cheap |
 | `reconcile_offering_profile_on_roles_changed` | `Django Signal (m2m_changed)` | `OfferingProfile_roles` | When OfferingProfile.roles M2M changes, schedule reconciliation |
+| `record_credit_transaction` | `Django Signal (post_save)` | `invoices.CustomerCredit` | Write a CreditTransaction ledger row for every CustomerCredit value |
 | `refund_project_credit_on_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `request_offering_user_deletion_when_project_access_lost` | `Custom Signal (role_revoked)` | `—` | Schedule task to request offering user deletion when project access is lost. |
 | `resource_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource changes. |
@@ -869,14 +873,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 790
+Total unique handlers found: 794
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 322 handlers
+- **waldur_mastermind**: 324 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

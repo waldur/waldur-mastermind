@@ -200,6 +200,10 @@ Render Rancher apps as a separate tab in resource details page.
 
 Allow to select mount point for data volume when Rancher cluster is provisioned.
 
+## reseller.affiliates
+
+Show affiliate program menus and pages. Backend enforcement is controlled separately by the AFFILIATES_ENABLED Constance setting.
+
 ## reseller.arrow
 
 Enable Arrow integration menu in administration.

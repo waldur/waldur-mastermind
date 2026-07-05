@@ -36,8 +36,10 @@
 
 - allowed_offerings_have_been_updated
 - automatic_credit_adjustment
+- create_of_affiliate_by_staff
 - create_of_credit_by_staff
 - create_of_project_credit_by_staff
+- increase_of_customer_credit_due_to_affiliate_fee
 - reduction_of_customer_credit
 - reduction_of_customer_credit_due_to_minimal_consumption
 - reduction_of_customer_expected_consumption
@@ -47,6 +49,7 @@
 - roll_back_customer_credit
 - roll_back_project_credit
 - set_to_zero_overdue_credit
+- update_of_affiliate_by_staff
 - update_of_credit_by_staff
 - update_of_project_credit_by_staff
 
@@ -54,6 +57,7 @@
 
 - allowed_offerings_have_been_updated
 - automatic_credit_adjustment
+- create_of_affiliate_by_staff
 - create_of_credit_by_staff
 - create_of_project_credit_by_staff
 - customer_creation_succeeded
@@ -61,6 +65,7 @@
 - customer_permission_review_closed
 - customer_permission_review_created
 - customer_update_succeeded
+- increase_of_customer_credit_due_to_affiliate_fee
 - payment_added
 - payment_removed
 - reduction_of_customer_credit
@@ -72,6 +77,7 @@
 - roll_back_customer_credit
 - roll_back_project_credit
 - set_to_zero_overdue_credit
+- update_of_affiliate_by_staff
 - update_of_credit_by_staff
 - update_of_project_credit_by_staff
 
