@@ -70,17 +70,27 @@ CATEGORY = u("e3", 1)
 OFFERING = u("f3", 1)
 PLAN = u("b3", 1)
 
-# component type -> (name, measured_unit, unit_price, discount_formula, scenario)
+# component type -> (name, measured_unit, unit_price, discount_formula,
+#                    billing_type, scenario)
 COMPONENTS = [
-    ("cpu", "CPU cores", "cores", "2.00", "", "no discount"),
-    ("ram", "RAM", "GB", "1.00", "10 if usage >= 100 else 0", "threshold 10%"),
+    ("cpu", "CPU cores", "cores", "2.00", "", "usage", "no discount"),
+    (
+        "ram",
+        "RAM",
+        "GB",
+        "1.00",
+        "10 if usage >= 100 else 0",
+        "usage",
+        "usage, aggregated threshold",
+    ),
     (
         "gpu",
         "GPU",
         "GPUs",
         "500.00",
         "15 if usage >= 8 else 10 if usage >= 4 else 0",
-        "graduated tiers",
+        "usage",
+        "usage, aggregated graduated tiers",
     ),
     (
         "storage",
@@ -88,7 +98,31 @@ COMPONENTS = [
         "GB",
         "0.10",
         "MIN(20, usage / 100)",
-        "continuous formula, capped 20%",
+        "usage",
+        "usage, per-resource continuous formula",
+    ),
+    # Limit-based + per-resource + tier-shaped: the one combination the order
+    # form can preview live (quantity fixed at order time, single resource).
+    (
+        "reserved_gpu",
+        "Reserved GPUs",
+        "GPUs",
+        "400.00",
+        "15 if usage >= 8 else 10 if usage >= 4 else 0",
+        "limit",
+        "limit, per-resource graduated (previewed live in the order form)",
+    ),
+    # Limit-based but customer-aggregated: the order form cannot preview it
+    # (the discount depends on the customer's other resources), so it shows the
+    # deferred "applied on your invoice" note instead of a live percentage.
+    (
+        "reserved_storage",
+        "Reserved storage",
+        "GB",
+        "0.50",
+        "10 if usage >= 1000 else 0",
+        "limit",
+        "limit, customer-aggregated (deferred to the invoice)",
     ),
 ]
 COMP_UUID = {c[0]: u("ac", i + 1) for i, c in enumerate(COMPONENTS)}
@@ -96,12 +130,14 @@ COMP = {c[0]: c for c in COMPONENTS}
 
 # Volume-discount aggregation scope per component. "customer" sums usage across
 # all of the customer's resources of the offering; "resource" discounts each
-# resource on its own usage. Storage is per-resource to demonstrate both scopes.
+# resource on its own usage.
 DISCOUNT_AGGREGATION = {
     "cpu": "customer",
     "ram": "customer",
     "gpu": "customer",
     "storage": "resource",
+    "reserved_gpu": "resource",
+    "reserved_storage": "customer",
 }
 
 
@@ -323,18 +359,20 @@ def build():
             "unit": "month",
         }
     )
-    for ctype, cname, unit, price, formula, _scenario in COMPONENTS:
-        preset["offering_components"].append(
-            {
-                "uuid": COMP_UUID[ctype],
-                "offering_uuid": OFFERING,
-                "type": ctype,
-                "name": cname,
-                "measured_unit": unit,
-                "billing_type": "usage",
-                "description": "",
-            }
-        )
+    for ctype, cname, unit, price, formula, billing_type, _scenario in COMPONENTS:
+        offering_component = {
+            "uuid": COMP_UUID[ctype],
+            "offering_uuid": OFFERING,
+            "type": ctype,
+            "name": cname,
+            "measured_unit": unit,
+            "billing_type": billing_type,
+            "description": "",
+        }
+        if billing_type == "limit":
+            # Allow a limit to be entered when ordering the resource.
+            offering_component["max_available_limit"] = 64
+        preset["offering_components"].append(offering_component)
         pc = {
             "plan_uuid": PLAN,
             "component_uuid": COMP_UUID[ctype],
@@ -373,7 +411,7 @@ def build():
                 qty = Decimal(usage.get(ctype, 0))
                 if qty == 0:
                     continue
-                _t, cname, unit, price, _f, _s = COMP[ctype]
+                _t, cname, unit, price, _f, _bt, _s = COMP[ctype]
                 unit_price = Decimal(price)
                 line = unit_price * qty
                 net += line

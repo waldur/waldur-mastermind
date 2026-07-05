@@ -211,6 +211,26 @@
       "measured_unit": "GB",
       "billing_type": "usage",
       "description": ""
+    },
+    {
+      "uuid": "ac000000000000000000000000000005",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "reserved_gpu",
+      "name": "Reserved GPUs",
+      "measured_unit": "GPUs",
+      "billing_type": "limit",
+      "description": "",
+      "max_available_limit": 64
+    },
+    {
+      "uuid": "ac000000000000000000000000000006",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "type": "reserved_storage",
+      "name": "Reserved storage",
+      "measured_unit": "GB",
+      "billing_type": "limit",
+      "description": "",
+      "max_available_limit": 64
     }
   ],
   "plans": [
@@ -251,6 +271,22 @@
       "amount": 0,
       "discount_formula": "MIN(20, usage / 100)",
       "discount_aggregation": "resource"
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000000001",
+      "component_uuid": "ac000000000000000000000000000005",
+      "price": "400.00",
+      "amount": 0,
+      "discount_formula": "15 if usage >= 8 else 10 if usage >= 4 else 0",
+      "discount_aggregation": "resource"
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000000001",
+      "component_uuid": "ac000000000000000000000000000006",
+      "price": "0.50",
+      "amount": 0,
+      "discount_formula": "10 if usage >= 1000 else 0",
+      "discount_aggregation": "customer"
     }
   ],
   "resources": [
