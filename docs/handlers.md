@@ -548,8 +548,6 @@ td:nth-child(4) {
 | `change_order_state` | `Django Signal (post_save)` | `waldur_rancher.Cluster` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_slurm.Allocation` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_vmware.VirtualMachine` | Change the state of an order based on resource state changes. |
-| `check_and_notify_quota_75_percent` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Send notification when a resource component's allocation reaches 75%. |
-| `check_and_notify_quota_full` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Send notification when a resource component's allocation is fully consumed. |
 | `cleanup_admin_announcement_on_maintenance_deletion` | `Django Signal (pre_delete)` | `marketplace.MaintenanceAnnouncement` | Ensure AdminAnnouncement is cleaned up when MaintenanceAnnouncement is deleted. |
 | `close_course_accounts_after_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `close_customer_service_accounts_on_customer_deletion` | `Django Signal (pre_delete)` | `structure.Customer` | Close service accounts associated with a customer when the customer is deleted. |
@@ -871,7 +869,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 792
+Total unique handlers found: 790
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers

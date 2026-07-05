@@ -1423,24 +1423,6 @@ Provider rejection reason: {{ order.provider_rejection_comment }}
 
 ```
 
-### notification_quota_full_message.txt (waldur_mastermind.marketplace)
-
-```txt
-
-Dear {{ user.first_name }},
-
-This message is sent by {{ site_name }} to project administrators and project managers.
-
-{{ usage_percentage }}% of the allocation for your project {{ project_name }} resource {{ resource_name }} for {{ component_name }} ({{ allocation_total }} {{ measured_unit }}) has been consumed (current usage: {{ current_usage }} {{ measured_unit }}).
-
-If you require further information, contact your service provider:{% if provider_email %} {{ provider_email }}{% endif %}.
-
-Best regards,
-{{ provider_name }}{% if provider_email %}
-{{ provider_email }}{% endif %}
-
-```
-
 ### notify_consumer_about_pending_order_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -1652,14 +1634,6 @@ Resource {{ resource_name }} update has failed.
 Hello!
 
 A new order by {{ order.created_by.get_full_name }} is waiting for approval.
-
-```
-
-### notification_quota_75_percent_subject.txt (waldur_mastermind.marketplace)
-
-```txt
-
-Warning: 75% of your {{ site_name }} project resource allocation has been consumed!
 
 ```
 
@@ -2187,23 +2161,6 @@ Thank you!
 
 ```
 
-### notification_quota_full_message.html (waldur_mastermind.marketplace)
-
-```html
-
-<html>
-<head lang="en"><meta charset="UTF-8"><title>Resource allocation limit reached</title></head>
-<body>
-<p>Dear {{ user.first_name }},</p>
-<p>This message is sent by {{ site_name }} to project administrators and project managers.</p>
-<p>{{ usage_percentage }}% of the allocation for your project <strong>{{ project_name }}</strong> resource <strong><a href="{{ resource_url }}">{{ resource_name }}</a></strong> for <strong>{{ component_name }}</strong> (<strong>{{ allocation_total }} {{ measured_unit }}</strong>) has been consumed (current usage: {{ current_usage }} {{ measured_unit }}).</p>
-<p>If you require further information, contact your service provider:{% if provider_email %} <a href="mailto:{{ provider_email }}">{{ provider_email }}</a>{% endif %}.</p>
-<p>Best regards,<br>{{ provider_name }}{% if provider_email %}<br>{{ provider_email }}{% endif %}</p>
-</body>
-</html>
-
-```
-
 ### tos_reconsent_required_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -2354,14 +2311,6 @@ Resource limit change request approved for {{ resource_limit_change_request.reso
 
 ```
 
-### notification_quota_full_subject.txt (waldur_mastermind.marketplace)
-
-```txt
-
-Warning: Your {{ site_name }} project resource allocation has been consumed!
-
-```
-
 ### digest_resource_usage.html (waldur_mastermind.marketplace)
 
 ```html
@@ -2424,24 +2373,6 @@ The resource you have - {{ resource.name }} has not been used for the past 3 mon
 Hello!
 
 Resource {{ resource_name }} deletion has failed.
-
-```
-
-### notification_quota_75_percent_message.txt (waldur_mastermind.marketplace)
-
-```txt
-
-Dear {{ user.first_name }},
-
-This message is sent by {{ site_name }} to project administrators and project managers.
-
-{{ usage_percentage }}% of the allocation for your project {{ project_name }} resource {{ resource_name }} for {{ component_name }} ({{ allocation_total }} {{ measured_unit }}) has been consumed (current usage: {{ current_usage }} {{ measured_unit }}).
-
-If you require further information, contact your service provider:{% if provider_email %} {{ provider_email }}{% endif %}.
-
-Best regards,
-{{ provider_name }}{% if provider_email %}
-{{ provider_email }}{% endif %}
 
 ```
 
@@ -2558,23 +2489,6 @@ Thank you!
 ```txt
 
 Resource {{ resource_name }} creation has failed.
-
-```
-
-### notification_quota_75_percent_message.html (waldur_mastermind.marketplace)
-
-```html
-
-<html>
-<head lang="en"><meta charset="UTF-8"><title>Resource allocation 75% consumed</title></head>
-<body>
-<p>Dear {{ user.first_name }},</p>
-<p>This message is sent by {{ site_name }} to project administrators and project managers.</p>
-<p>{{ usage_percentage }}% of the allocation for your project <strong>{{ project_name }}</strong> resource <strong><a href="{{ resource_url }}">{{ resource_name }}</a></strong> for <strong>{{ component_name }}</strong> (<strong>{{ allocation_total }} {{ measured_unit }}</strong>) has been consumed (current usage: {{ current_usage }} {{ measured_unit }}).</p>
-<p>If you require further information, contact your service provider:{% if provider_email %} <a href="mailto:{{ provider_email }}">{{ provider_email }}</a>{% endif %}.</p>
-<p>Best regards,<br>{{ provider_name }}{% if provider_email %}<br>{{ provider_email }}{% endif %}</p>
-</body>
-</html>
 
 ```
 
