@@ -9,6 +9,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.marketplace import billing_discount
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_utils import (
     convert_quantity,
@@ -206,7 +207,15 @@ class BillingUsageProcessor:
 
         if item:
             item.quantity = converted_usage
-            item.save(update_fields=["quantity"])
+            update_fields = ["quantity"]
+            # Keep the aggregation volume in sync with re-reported usage; the
+            # org-aggregated discount is materialized at invoice finalization.
+            if plan_component is not None and not is_overage:
+                item.details[billing_discount.DISCOUNT_USAGE_KEY] = float(
+                    converted_usage
+                )
+                update_fields.append("details")
+            item.save(update_fields=update_fields)
             logger.info(
                 f"Updated invoice item {item.pk} for resource '{resource.uuid}'. New quantity: {item.quantity}"
             )
@@ -217,6 +226,9 @@ class BillingUsageProcessor:
             )
             if is_overage:
                 details["is_overage"] = True  # Add a flag for reporting
+            elif plan_component is not None:
+                # Record the volume feeding the org-aggregated volume discount.
+                details[billing_discount.DISCOUNT_USAGE_KEY] = float(converted_usage)
 
             month_start = core_utils.month_start(date)
             month_end = core_utils.month_end(date)

@@ -147,3 +147,28 @@ class ProjectCreditFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("project-credit-list")
+
+
+class CustomerAffiliateFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CustomerAffiliate],
+):
+    class Meta:
+        model = models.CustomerAffiliate
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    affiliate = factory.SubFactory(structure_factories.CustomerFactory)
+    fee_percent = decimal.Decimal("10")
+
+    @classmethod
+    def get_url(cls, link=None, action=None):
+        if link is None:
+            link = cls()
+        url = "http://testserver" + reverse(
+            "customer-affiliate-detail", kwargs={"uuid": link.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("customer-affiliate-list")

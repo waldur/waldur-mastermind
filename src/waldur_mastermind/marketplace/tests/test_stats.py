@@ -295,6 +295,7 @@ class ComponentStatsTest(StatsBaseTest):
                 "plan_component_id": self.plan_component.id,
                 "offering_component_type": self.plan_component.component.type,
                 "offering_component_name": self.plan_component.component.name,
+                "discount_usage": 1.0,
                 "resource_limit_periods": [
                     {
                         "end": "2020-03-31T23:59:59.999999+00:00",

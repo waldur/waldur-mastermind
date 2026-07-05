@@ -10,7 +10,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
 from waldur_mastermind.common.enums import Units
 
-from . import log, models
+from . import ledger, log, models
 from .audit import skip_credit_audit
 
 logger = logging.getLogger(__name__)
@@ -85,8 +85,29 @@ class MonthlyCompensation:
                 resource__offering_id__in=credit_offering_ids
             )
 
+        # Volume-discount line items are already negative reductions paired with
+        # a chargeable item (via details["discount_of_item"]). They are not
+        # compensated themselves, but their reduction must lower the credit
+        # drawn for the item they discount — otherwise credit is consumed on the
+        # gross price and the invoice can go negative. Sum each item's paired
+        # discounts so compensation operates on the net cost. Filtered in Python
+        # to avoid JSON-key exclude semantics dropping items whose details lack
+        # the key entirely.
+        discount_by_item: dict[str, decimal.Decimal] = {}
+        chargeable_items: list[models.InvoiceItem] = []
+        for it in items_queryset:
+            details = it.details or {}
+            if details.get("is_discount"):
+                target = details.get("discount_of_item")
+                if target:
+                    discount_by_item[target] = (
+                        discount_by_item.get(target, decimal.Decimal(0)) + it.price
+                    )
+            else:
+                chargeable_items.append(it)
+
         items: list[models.InvoiceItem] = sorted(
-            list(items_queryset),
+            chargeable_items,
             key=models.InvoiceItem._price,
         )
 
@@ -94,7 +115,11 @@ class MonthlyCompensation:
             project_credit: models.ProjectCredit = projects_credits.get(
                 item.project, None
             )
-            cost = item.price
+            # Net of any volume discount paired with this item (discount prices
+            # are negative). Never draw credit below zero.
+            cost = item.price + discount_by_item.get(item.uuid.hex, decimal.Decimal(0))
+            if cost < 0:
+                cost = decimal.Decimal(0)
 
             if project_credit:
                 if cost >= project_credit.value:
@@ -118,6 +143,11 @@ class MonthlyCompensation:
                     self.credit.value -= cost
 
             if credit_compensation:
+                # Copy the source item's details and link back to it, so the UI
+                # can pair the compensation with the exact line item it offsets.
+                compensation_details = dict(item.details or {})
+                compensation_details["is_compensation"] = True
+                compensation_details["compensation_of_item"] = item.uuid.hex
                 self._compensations.append(
                     models.InvoiceItem(
                         invoice=self.invoice,
@@ -128,7 +158,7 @@ class MonthlyCompensation:
                         name=f"Credit compensation. {item}",
                         resource=item.resource,
                         project=item.resource.project,
-                        details=item.details,
+                        details=compensation_details,
                     )
                 )
 
@@ -274,7 +304,12 @@ class MonthlyCompensation:
 
         # The compensation flow emits its own REDUCTION_OF_*_CREDIT* events below;
         # suppress the generic UPDATE_OF_*_CREDIT_BY_STAFF audit to avoid duplicates.
-        with skip_credit_audit():
+        with (
+            skip_credit_audit(),
+            ledger.credit_transaction_type(
+                models.CreditTransaction.Types.COMPENSATION, reference=self.invoice
+            ),
+        ):
             for pc in self.projects_credits:
                 pc.save(update_fields=["value"])
 
@@ -415,7 +450,12 @@ class MonthlyCompensation:
 
         # The roll-back flow emits its own ROLL_BACK_*_CREDIT events below;
         # suppress the generic UPDATE_OF_*_CREDIT_BY_STAFF audit to avoid duplicates.
-        with skip_credit_audit():
+        with (
+            skip_credit_audit(),
+            ledger.credit_transaction_type(
+                models.CreditTransaction.Types.ROLLBACK, reference=self.invoice
+            ),
+        ):
             old_credit_value = self.credit.value
             self.credit.value += max(
                 applied_compensations_sum, self.credit.minimal_consumption

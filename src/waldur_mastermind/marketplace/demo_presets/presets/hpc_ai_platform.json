@@ -1293,8 +1293,7 @@
       "component_uuid": "c3000000000000000000000000000002",
       "price": "10.00",
       "amount": 0,
-      "discount_threshold": 16,
-      "discount_rate": 10
+      "discount_formula": "10 if usage >= 16 else 0"
     },
     {
       "plan_uuid": "13000000000000000000000000000001",
@@ -1307,8 +1306,7 @@
       "component_uuid": "c3000000000000000000000000000004",
       "price": "0.50",
       "amount": 0,
-      "discount_threshold": 500,
-      "discount_rate": 15
+      "discount_formula": "15 if usage >= 500 else 0"
     },
     {
       "plan_uuid": "13000000000000000000000000000001",
@@ -1327,8 +1325,7 @@
       "component_uuid": "c3000000000000000000000000000002",
       "price": "8.00",
       "amount": 0,
-      "discount_threshold": 8,
-      "discount_rate": 15
+      "discount_formula": "15 if usage >= 8 else 0"
     },
     {
       "plan_uuid": "13000000000000000000000000000002",
@@ -1341,8 +1338,7 @@
       "component_uuid": "c3000000000000000000000000000004",
       "price": "0.40",
       "amount": 0,
-      "discount_threshold": 200,
-      "discount_rate": 20
+      "discount_formula": "20 if usage >= 200 else 0"
     },
     {
       "plan_uuid": "13000000000000000000000000000002",

@@ -279,3 +279,7 @@ class ResellerSection(FeatureSection):
         description = "Reseller integrations"
 
     arrow = Feature("Enable Arrow integration menu in administration.")
+    affiliates = Feature(
+        "Show affiliate program menus and pages. Backend enforcement is "
+        "controlled separately by the AFFILIATES_ENABLED Constance setting."
+    )

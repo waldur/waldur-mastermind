@@ -12,8 +12,9 @@ from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
-from waldur_mastermind.invoices import models
+from waldur_mastermind.invoices import ledger, models
 from waldur_mastermind.invoices import signals as cost_signals
+from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
@@ -392,7 +393,12 @@ def refund_project_credit_on_project_removal(sender, instance: Project, **kwargs
     if project_credit.value <= 0:
         return
 
-    with skip_credit_audit():
+    with (
+        skip_credit_audit(),
+        ledger.credit_transaction_type(
+            models.CreditTransaction.Types.ADJUSTMENT, reference=project_credit
+        ),
+    ):
         if project_credit.mark_unused_credit_as_spent_on_project_termination:
             old_org_value = int(customer_credit.value or 0)
             if customer_credit.value > project_credit.value:
@@ -425,3 +431,170 @@ def refund_project_credit_on_project_removal(sender, instance: Project, **kwargs
                 },
                 scopes=[project.customer],
             )
+
+
+def record_credit_transaction(
+    sender, instance: CustomerCredit, created=False, **kwargs
+):
+    """Write a CreditTransaction ledger row for every CustomerCredit value
+    change. The semantic type comes from the innermost
+    ``ledger.credit_transaction_type`` block; untyped mutations (staff UI,
+    REST API, shell) are recorded as staff grants. Unlike the audit events,
+    ledger writes are never suppressed — the withdrawable balance is
+    derived from them.
+    """
+    update_fields = kwargs.get("update_fields")
+    if update_fields and "value" not in update_fields:
+        return
+
+    if created:
+        delta = instance.value
+    elif instance.tracker.has_changed("value"):
+        previous = instance.tracker.previous("value") or decimal.Decimal("0")
+        delta = instance.value - previous
+    else:
+        return
+
+    if not delta:
+        return
+
+    transaction_type, reference, comment = ledger.current_credit_transaction_type()
+    models.CreditTransaction.objects.create(
+        credit=instance,
+        amount=delta,
+        transaction_type=transaction_type or models.CreditTransaction.Types.STAFF_GRANT,
+        reference=reference,
+        comment=comment or "",
+    )
+
+
+AFFILIATE_TERM_FIELDS = (
+    "fee_percent",
+    "is_active",
+    "start_date",
+    "end_date",
+)
+
+
+def log_affiliate(sender, instance: models.CustomerAffiliate, created=False, **kwargs):
+    """Audit staff changes of affiliate terms. Scoped to the affiliate
+    organization so affiliates can see the history of their own terms.
+    """
+    link = instance
+
+    # Customer names and the diff are passed as context VALUES (not woven
+    # into the template) so event_logger's .format() never tries to resolve
+    # braces that happen to appear in user-controlled data.
+    if created:
+        event_logger.emit(
+            "Affiliate terms of {customer_name} have been created: "
+            "{fee_percent}% fee for invoices of {referred_customer_name}.",
+            event_type=EventType.CREATE_OF_AFFILIATE_BY_STAFF,
+            event_context={
+                "customer": link.affiliate,
+                "referred_customer_name": link.customer.name,
+                "fee_percent": str(link.fee_percent),
+            },
+            scopes=[link.affiliate],
+        )
+        return
+
+    changes = {
+        field: (link.tracker.previous(field), getattr(link, field))
+        for field in AFFILIATE_TERM_FIELDS
+        if link.tracker.has_changed(field)
+    }
+    if not changes:
+        return
+
+    diff = ", ".join(
+        f"{field}: {old} -> {new}" for field, (old, new) in changes.items()
+    )
+    event_logger.emit(
+        "Affiliate terms of {customer_name} have been updated. Details: {details}.",
+        event_type=EventType.UPDATE_OF_AFFILIATE_BY_STAFF,
+        event_context={
+            "customer": link.affiliate,
+            "referred_customer_name": link.customer.name,
+            "details": diff,
+            "fee_percent": str(link.fee_percent),
+        },
+        scopes=[link.affiliate],
+    )
+
+
+def process_affiliate_fees(sender, invoice: Invoice, **kwargs):
+    """Accrue affiliate fees when an invoice is finalized.
+
+    Runs after credit compensations (the invoice_created signal fires on
+    the PENDING -> CREATED transition), so fees are computed on the
+    post-compensation net price. Any per-link failure is logged and
+    skipped: fee accrual must never block invoice finalization.
+    """
+    if not invoice_utils.affiliates_feature_enabled():
+        return
+
+    period = datetime.date(int(invoice.year), int(invoice.month), 1)
+    links = models.CustomerAffiliate.objects.filter(
+        customer=invoice.customer, is_active=True
+    )
+    for link in links:
+        if not link.is_active_on(period):
+            continue
+        try:
+            accrue_affiliate_fee(link, invoice)
+        except Exception:
+            logger.exception(
+                "Failed to accrue affiliate fee for link %s and invoice %s.",
+                link.uuid,
+                invoice.uuid,
+            )
+
+
+def accrue_affiliate_fee(link: models.CustomerAffiliate, invoice: Invoice):
+    amount = invoice.price
+    if amount <= 0:
+        return
+
+    fee = link.calculate_fee(amount)
+    if fee <= 0:
+        return
+
+    with transaction.atomic():
+        if models.AffiliateFeeAccrual.objects.filter(
+            affiliate_link=link, invoice=invoice
+        ).exists():
+            # Finalization tasks may re-run (grace period, retries) —
+            # the fee for this invoice has already been accrued.
+            return
+
+        credit, _ = models.CustomerCredit.objects.select_for_update().get_or_create(
+            customer=link.affiliate
+        )
+        accrual = models.AffiliateFeeAccrual.objects.create(
+            affiliate_link=link, invoice=invoice, amount=fee
+        )
+        # The accrual emits its own specialized event below; type the ledger
+        # row so the fee counts towards the withdrawable balance.
+        with (
+            skip_credit_audit(),
+            ledger.credit_transaction_type(
+                models.CreditTransaction.Types.AFFILIATE_FEE, reference=accrual
+            ),
+        ):
+            credit.value += fee
+            credit.save(update_fields=["value"])
+
+    event_logger.emit(
+        "{customer_name} earned an affiliate fee of {amount} for period {period}.",
+        event_type=EventType.INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE,
+        event_context={
+            # Privacy: period and amount only — never invoice details of the
+            # referred customer.
+            "customer": link.affiliate,
+            "amount": float(fee),
+            "period": f"{invoice.year}-{int(invoice.month):02d}",
+            "credit_balance": int(credit.value),
+        },
+        scopes=[link.affiliate],
+    )

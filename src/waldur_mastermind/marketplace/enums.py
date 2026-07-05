@@ -55,6 +55,19 @@ class LimitPeriods:
     )
 
 
+class DiscountAggregations:
+    # each resource of the offering is discounted on its own component usage
+    PER_RESOURCE = "resource"
+    # the component usage is summed across all of the customer's resources of
+    # the offering and a single discount percentage is applied to the total
+    PER_CUSTOMER = "customer"
+
+    CHOICES = (
+        (PER_RESOURCE, "Per resource"),
+        (PER_CUSTOMER, "Aggregated per customer"),
+    )
+
+
 class OfferingStates:
     DRAFT = 1
     ACTIVE = 2

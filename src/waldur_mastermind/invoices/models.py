@@ -7,6 +7,7 @@ from typing import cast
 from dateutil.parser import parse as parse_datetime
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import DatabaseError, models
 from django.db.models import Index
@@ -719,6 +720,23 @@ class CustomerCredit(BaseCredit):
 
         return consumption * -1
 
+    @property
+    def withdrawable_balance(self) -> decimal.Decimal:
+        """Part of the credit that may leave the platform via payouts or
+        transfers: earnings-typed ledger inflows minus outflows, capped by
+        the current credit value so that staff-granted (promotional) credit
+        is never withdrawable and credit expiry wipes earnings too.
+        """
+        # Prefer the queryset annotation (list endpoint) when present, else
+        # aggregate on demand (detail view, direct model access).
+        earned = getattr(self, "withdrawable_earned_agg", None)
+        if earned is None:
+            earned = self.transactions.filter(
+                transaction_type__in=CreditTransaction.Types.WITHDRAWABLE_TYPES
+            ).aggregate(sum=Sum("amount"))["sum"]
+        earned = earned or 0
+        return max(decimal.Decimal("0"), min(earned, self.value))
+
     def __str__(self):
         return f"Customer credit for {self.customer.name}, value {self.value}"
 
@@ -781,6 +799,184 @@ class ProjectCredit(BaseCredit):
             )
 
         return super().save(*args, **kwargs)
+
+
+class CreditTransaction(core_models.UuidMixin, models.Model):
+    """Append-only ledger of CustomerCredit value changes.
+
+    Rows are written by the ``record_credit_transaction`` post_save handler
+    for every value mutation; the semantic type comes from the innermost
+    ``ledger.credit_transaction_type`` block (staff grant when untyped).
+    The ledger is the source of truth for the withdrawable balance, so it
+    must never be edited or deleted — corrections are new rows.
+    """
+
+    class Types:
+        STAFF_GRANT = "staff_grant"
+        COMPENSATION = "compensation"
+        AFFILIATE_FEE = "affiliate_fee"
+        TRANSFER_IN = "transfer_in"
+        TRANSFER_OUT = "transfer_out"
+        PAYOUT = "payout"
+        EXPIRY = "expiry"
+        ROLLBACK = "rollback"
+        ADJUSTMENT = "adjustment"
+        WITHDRAWABLE_ADJUSTMENT = "withdrawable_adjustment"
+
+        CHOICES = (
+            (STAFF_GRANT, "Staff grant"),
+            (COMPENSATION, "Compensation"),
+            (AFFILIATE_FEE, "Affiliate fee"),
+            (TRANSFER_IN, "Transfer in"),
+            (TRANSFER_OUT, "Transfer out"),
+            (PAYOUT, "Payout"),
+            (EXPIRY, "Expiry"),
+            (ROLLBACK, "Rollback"),
+            (ADJUSTMENT, "Adjustment"),
+            (WITHDRAWABLE_ADJUSTMENT, "Withdrawable adjustment"),
+        )
+
+        # Inflows that an organization earned (as opposed to was granted)
+        # and outflows drawing on them, plus manual staff adjustments of the
+        # withdrawable part; their ledger sum, capped by the current credit
+        # value, is the withdrawable balance.
+        WITHDRAWABLE_TYPES = (
+            AFFILIATE_FEE,
+            TRANSFER_IN,
+            TRANSFER_OUT,
+            PAYOUT,
+            WITHDRAWABLE_ADJUSTMENT,
+        )
+
+    credit = models.ForeignKey(
+        CustomerCredit, on_delete=models.CASCADE, related_name="transactions"
+    )
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+    # Signed delta applied to CustomerCredit.value.
+    amount = models.DecimalField(max_digits=16, decimal_places=5)
+    transaction_type = models.CharField(max_length=30, choices=Types.CHOICES)
+    # Free-text note; required for manual staff adjustments.
+    comment = models.TextField(blank=True, default="")
+    content_type = models.ForeignKey(
+        "contenttypes.ContentType", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    object_id = models.PositiveIntegerField(null=True, blank=True)
+    reference = GenericForeignKey("content_type", "object_id")
+
+    class Permissions:
+        customer_path = "credit__customer"
+
+    class Meta:
+        ordering = ["-created"]
+
+    @classmethod
+    def get_url_name(cls):
+        return "credit-transaction"
+
+    def __str__(self):
+        return (
+            f"{self.get_transaction_type_display()} of {self.amount} "
+            f"for {self.credit.customer.name}"
+        )
+
+
+class CustomerAffiliate(core_models.UuidMixin, core_models.TimeStampedModel):
+    """Staff-configured link granting the affiliate organization a fixed
+    percentage fee from every finalized invoice of the linked customer. All
+    fields are writable by staff only; the affiliate organization sees its
+    own links read-only.
+    """
+
+    customer = models.ForeignKey(
+        structure_models.Customer,
+        on_delete=models.CASCADE,
+        related_name="affiliate_links",
+    )
+    affiliate = models.ForeignKey(
+        structure_models.Customer,
+        on_delete=models.CASCADE,
+        related_name="affiliate_terms",
+    )
+    # Percentage of the invoice net price (pre-tax, post-compensation), never
+    # of the tax-inclusive total.
+    fee_percent = models.DecimalField(
+        default=0,
+        validators=[
+            MinValueValidator(decimal.Decimal("0")),
+            MaxValueValidator(decimal.Decimal("100")),
+        ],
+        max_digits=8,
+        decimal_places=5,
+    )
+    is_active = models.BooleanField(default=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
+    class Permissions:
+        customer_path = "affiliate"
+
+    class Meta:
+        unique_together = ("customer", "affiliate")
+        ordering = ["created"]
+
+    @classmethod
+    def get_url_name(cls):
+        return "customer-affiliate"
+
+    def is_active_on(self, date: datetime.date) -> bool:
+        if not self.is_active:
+            return False
+        if self.start_date and date < self.start_date:
+            return False
+        if self.end_date and date >= self.end_date:
+            return False
+        return True
+
+    def calculate_fee(self, amount: decimal.Decimal) -> decimal.Decimal:
+        """Return the fee earned from an invoice net price."""
+        fee = amount * self.fee_percent / 100
+        return max(decimal.Decimal("0"), quantize_price(decimal.Decimal(fee)))
+
+    def __str__(self):
+        return f"Affiliate link {self.customer.name} -> {self.affiliate.name}"
+
+
+class AffiliateFeeAccrual(core_models.UuidMixin, core_models.TimeStampedModel):
+    """One fee earned by an affiliate from one finalized invoice.
+
+    This is the only object crossing the boundary between the referred
+    customer and the affiliate organization: affiliate-facing serializers
+    expose the amount and the invoice period but never the invoice itself.
+    The unique constraint makes fee accrual idempotent across re-runs of
+    invoice finalization.
+    """
+
+    affiliate_link = models.ForeignKey(
+        CustomerAffiliate, on_delete=models.CASCADE, related_name="accruals"
+    )
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.CASCADE, related_name="affiliate_fee_accruals"
+    )
+    amount = models.DecimalField(max_digits=16, decimal_places=5)
+
+    class Permissions:
+        customer_path = "affiliate_link__affiliate"
+
+    class Meta:
+        unique_together = ("affiliate_link", "invoice")
+        ordering = ["-created"]
+
+    @classmethod
+    def get_url_name(cls):
+        return "affiliate-fee-accrual"
+
+    def __str__(self):
+        return (
+            f"Affiliate fee {self.amount} for {self.affiliate_link.affiliate.name} "
+            f"from invoice {self.invoice.year}-{self.invoice.month}"
+        )
 
 
 class PeriodMixin(models.Model):

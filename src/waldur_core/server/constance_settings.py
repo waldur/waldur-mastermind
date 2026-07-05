@@ -1488,6 +1488,12 @@ CONSTANCE_CONFIG = {
         "Select which reporting screens should be visible to users. Uncheck to disable specific reports.",
         "multiple_choice_field",
     ),
+    # Affiliate program settings
+    "AFFILIATES_ENABLED": (
+        False,
+        "Enable the affiliate program: staff-configured affiliate links, "
+        "fee accrual from finalized invoices, and the customer-affiliates API.",
+    ),
     # Matrix chat settings
     "MATRIX_ENABLED": (False, "Enable Matrix chat integration."),
     "MATRIX_HOMESERVER_URL": (
@@ -1941,6 +1947,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES",
     ),
     "Reporting": ("ENABLED_REPORTING_SCREENS",),
+    "Affiliates": ("AFFILIATES_ENABLED",),
     "Matrix chat": (
         "MATRIX_ENABLED",
         "MATRIX_HOMESERVER_URL",
@@ -2018,6 +2025,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "AI_ASSISTANT_ENABLED_ROLES",
     "AI_ASSISTANT_NAME",
     "MATRIX_ENABLED",
+    "AFFILIATES_ENABLED",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",

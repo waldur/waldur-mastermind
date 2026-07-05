@@ -68,6 +68,7 @@ from waldur_mastermind.billing.serializers import (
     NestedPriceEstimateSerializer,
     get_payment_profiles,
 )
+from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import validate_options
@@ -82,6 +83,7 @@ from waldur_mastermind.marketplace.enums import (
     SWAPPABLE_OFFERING_TYPES,
     BillingTypes,
     CourseAccountState,
+    DiscountAggregations,
     LimitPeriods,
     OfferingStates,
     OfferingUserRuntimeStates,
@@ -1680,46 +1682,33 @@ class QuotasUpdateSerializer(serializers.Serializer):
 class DiscountConfigSerializer(serializers.Serializer):
     """Serializer for individual component discount configuration."""
 
-    discount_threshold = serializers.IntegerField(
+    discount_formula = serializers.CharField(
         required=False,
+        allow_blank=True,
         allow_null=True,
-        min_value=1,
-        help_text="Minimum quantity to be eligible for discount.",
+        help_text=(
+            "Volume discount formula evaluated with the billed quantity bound "
+            "to `usage`; returns a discount percentage (0-100). Empty removes "
+            "the discount. Example: '10 if usage >= 100 else 0'."
+        ),
     )
-    discount_rate = serializers.IntegerField(
+    discount_aggregation = serializers.ChoiceField(
+        choices=DiscountAggregations.CHOICES,
         required=False,
-        allow_null=True,
-        min_value=0,
-        max_value=100,
-        help_text="Discount rate in percentage (0-100).",
+        help_text=(
+            "Whether the discount is computed on a single resource's usage or "
+            "aggregated across all of the customer's resources of the offering."
+        ),
     )
 
-    def validate(self, attrs):
-        """Ensure both threshold and rate are set together or both are None."""
-        threshold = attrs.get("discount_threshold")
-        rate = attrs.get("discount_rate")
-
-        # If one is provided, both must be provided
-        if (threshold is not None and rate is None) or (
-            threshold is None and rate is not None
-        ):
-            raise serializers.ValidationError(
-                "Both discount_threshold and discount_rate must be provided together, "
-                "or both must be null to remove discount."
-            )
-
-        # If both are provided, validate they are reasonable
-        if threshold is not None and rate is not None:
-            if threshold <= 0:
-                raise serializers.ValidationError(
-                    "discount_threshold must be a positive number."
-                )
-            if rate < 0 or rate > 100:
-                raise serializers.ValidationError(
-                    "discount_rate must be between 0 and 100."
-                )
-
-        return attrs
+    def validate_discount_formula(self, value):
+        value = (value or "").strip()
+        if value:
+            try:
+                common_formula.validate(value, ("usage",))
+            except common_formula.FormulaError as error:
+                raise serializers.ValidationError(str(error))
+        return value
 
 
 class DiscountsUpdateSerializer(serializers.Serializer):
@@ -1763,37 +1752,33 @@ class DiscountsUpdateSerializer(serializers.Serializer):
                 )
                 continue
 
-            # Get the new values (could be None to clear discount)
-            new_threshold = discount_data.get("discount_threshold")
-            new_rate = discount_data.get("discount_rate")
+            # Empty formula clears the discount.
+            new_formula = (discount_data.get("discount_formula") or "").strip()
+            new_aggregation = discount_data.get(
+                "discount_aggregation", plan_component.discount_aggregation
+            )
 
-            # Track if changes were made
-            changed = False
-            update_fields = []
+            changed_fields = []
+            if plan_component.discount_formula != new_formula:
+                plan_component.discount_formula = new_formula
+                changed_fields.append("discount_formula")
+            if plan_component.discount_aggregation != new_aggregation:
+                plan_component.discount_aggregation = new_aggregation
+                changed_fields.append("discount_aggregation")
 
-            if plan_component.discount_threshold != new_threshold:
-                plan_component.discount_threshold = new_threshold
-                update_fields.append("discount_threshold")
-                changed = True
-
-            if plan_component.discount_rate != new_rate:
-                plan_component.discount_rate = new_rate
-                update_fields.append("discount_rate")
-                changed = True
-
-            if changed:
-                plan_component.save(update_fields=update_fields)
+            if changed_fields:
+                plan_component.save(update_fields=changed_fields)
                 updated_components.append(
                     {
                         "component_type": component_type,
-                        "discount_threshold": new_threshold,
-                        "discount_rate": new_rate,
+                        "discount_formula": new_formula,
+                        "discount_aggregation": new_aggregation,
                     }
                 )
 
                 logger.info(
                     f"Updated discount for plan component '{component_type}' in plan '{plan.uuid}'. "
-                    f"Threshold: {new_threshold}, Rate: {new_rate}%"
+                    f"Formula: {new_formula!r}, scope: {new_aggregation!r}"
                 )
 
         return updated_components
@@ -1803,7 +1788,6 @@ class NestedPlanComponentSerializer(serializers.ModelSerializer):
     type = serializers.ReadOnlyField(source="component.type")
     name = serializers.ReadOnlyField(source="component.name")
     measured_unit = serializers.ReadOnlyField(source="component.measured_unit")
-    discounted_price = serializers.SerializerMethodField()
     discount_description = serializers.SerializerMethodField()
 
     class Meta:
@@ -1815,26 +1799,16 @@ class NestedPlanComponentSerializer(serializers.ModelSerializer):
             "amount",
             "price",
             "future_price",
-            "discount_threshold",
-            "discount_rate",
-            "discounted_price",
+            "discount_formula",
+            "discount_aggregation",
             "discount_description",
         )
 
-    @extend_schema_field(
-        serializers.DecimalField(max_digits=22, decimal_places=10, allow_null=True)
-    )
-    def get_discounted_price(self, component):
-        if not component.discount_threshold or not component.discount_rate:
-            return None
-        return round(float(component.price) * (1 - component.discount_rate / 100), 10)
-
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_discount_description(self, component):
-        if not component.discount_threshold or not component.discount_rate:
+        if not component.discount_formula.strip():
             return None
-        unit = component.component.measured_unit or ""
-        return f"{component.discount_rate}% off when >= {component.discount_threshold} {unit}".strip()
+        return f"Volume discount (% of usage): {component.discount_formula}"
 
 
 class BasePlanSerializer(
@@ -3022,8 +2996,8 @@ class PlanComponentSerializer(serializers.ModelSerializer):
             "amount",
             "price",
             "future_price",
-            "discount_threshold",
-            "discount_rate",
+            "discount_formula",
+            "discount_aggregation",
         )
 
 

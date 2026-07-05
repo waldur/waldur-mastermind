@@ -668,6 +668,46 @@ class CompensationTestResult:
         return max(self.consumption, self.expected_consumption)
 
 
+class DiscountCompensationTest(test.APITestCase):
+    """Credit compensation must draw on the cost net of a paired volume
+    discount, not the gross price — otherwise credit is over-consumed and the
+    invoice can go negative."""
+
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.invoice = self.fixture.invoice
+        self.main_item = self.fixture.invoice_item  # price = 10 * 30 = 300
+        self.credit = factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=Decimal("1000")
+        )
+        # A 20% volume discount paired with the main item: -60.
+        factories.InvoiceItemFactory(
+            name="OFFERING-001 / Volume discount (20%)",
+            resource=self.fixture.resource,
+            project=self.fixture.project,
+            invoice=self.invoice,
+            unit_price=Decimal("-60"),
+            quantity=1,
+            details={
+                "is_discount": True,
+                "discount_of_item": self.main_item.uuid.hex,
+            },
+        )
+
+    def test_credit_is_drawn_net_of_the_volume_discount(self):
+        compensations.MonthlyCompensation(
+            self.fixture.customer, invoice=self.invoice
+        ).apply_compensations()
+
+        self.credit.refresh_from_db()
+        # Net cost is 300 - 60 = 240, so only 240 (not the gross 300) is drawn.
+        self.assertEqual(self.credit.value, Decimal("760"))
+        # The compensation offsets the net, so the invoice does not go negative.
+        self.assertEqual(
+            models.Invoice.objects.get(pk=self.invoice.pk).price, Decimal("0")
+        )
+
+
 class ProcessingCreditTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()

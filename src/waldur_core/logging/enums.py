@@ -21,6 +21,7 @@ class EventType(StrEnum):
     )
     CALL_DOCUMENT_ADDED = "call_document_added"
     CALL_DOCUMENT_REMOVED = "call_document_removed"
+    CREATE_OF_AFFILIATE_BY_STAFF = "create_of_affiliate_by_staff"
     CREATE_OF_CREDIT_BY_STAFF = "create_of_credit_by_staff"
     CREATE_OF_PROJECT_CREDIT_BY_STAFF = "create_of_project_credit_by_staff"
     CUSTOM_NOTIFICATION = "custom_notification"
@@ -226,6 +227,9 @@ class EventType(StrEnum):
     PROPOSAL_DOCUMENT_REMOVED = "proposal_document_removed"
     PROPOSAL_WORKFLOW_ADVANCED = "proposal_workflow_advanced"
     QUERY_EXECUTED = "query_executed"
+    INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE = (
+        "increase_of_customer_credit_due_to_affiliate_fee"
+    )
     REDUCTION_OF_CUSTOMER_CREDIT = "reduction_of_customer_credit"
     REDUCTION_OF_CUSTOMER_CREDIT_DUE_TO_MINIMAL_CONSUMPTION = (
         "reduction_of_customer_credit_due_to_minimal_consumption"
@@ -349,6 +353,7 @@ class EventType(StrEnum):
     TERMINATE_RESOURCES = "terminate_resources"
     TOKEN_CREATED = "token_created"
     TOKEN_LIFETIME_UPDATED = "token_lifetime_updated"
+    UPDATE_OF_AFFILIATE_BY_STAFF = "update_of_affiliate_by_staff"
     UPDATE_OF_CREDIT_BY_STAFF = "update_of_credit_by_staff"
     UPDATE_OF_PROJECT_CREDIT_BY_STAFF = "update_of_project_credit_by_staff"
     AUTOMATIC_CREDIT_ADJUSTMENT = "automatic_credit_adjustment"
@@ -441,8 +446,10 @@ EVENT_GROUP_MAPPING = {
     EventGroup.CREDITS: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,
         EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
+        EventType.CREATE_OF_AFFILIATE_BY_STAFF,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.CREATE_OF_PROJECT_CREDIT_BY_STAFF,
+        EventType.INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE,
         EventType.REDUCTION_OF_CUSTOMER_CREDIT,
         EventType.REDUCTION_OF_CUSTOMER_CREDIT_DUE_TO_MINIMAL_CONSUMPTION,
         EventType.REDUCTION_OF_CUSTOMER_EXPECTED_CONSUMPTION,
@@ -452,17 +459,20 @@ EVENT_GROUP_MAPPING = {
         EventType.ROLL_BACK_CUSTOMER_CREDIT,
         EventType.ROLL_BACK_PROJECT_CREDIT,
         EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+        EventType.UPDATE_OF_AFFILIATE_BY_STAFF,
         EventType.UPDATE_OF_CREDIT_BY_STAFF,
         EventType.UPDATE_OF_PROJECT_CREDIT_BY_STAFF,
     ],
     EventGroup.CUSTOMERS: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,
         EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
+        EventType.CREATE_OF_AFFILIATE_BY_STAFF,
         EventType.CREATE_OF_CREDIT_BY_STAFF,
         EventType.CREATE_OF_PROJECT_CREDIT_BY_STAFF,
         EventType.CUSTOMER_CREATION_SUCCEEDED,
         EventType.CUSTOMER_DELETION_SUCCEEDED,
         EventType.CUSTOMER_UPDATE_SUCCEEDED,
+        EventType.INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE,
         EventType.PAYMENT_ADDED,
         EventType.PAYMENT_REMOVED,
         EventType.REDUCTION_OF_CUSTOMER_CREDIT,
@@ -474,6 +484,7 @@ EVENT_GROUP_MAPPING = {
         EventType.ROLL_BACK_CUSTOMER_CREDIT,
         EventType.ROLL_BACK_PROJECT_CREDIT,
         EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+        EventType.UPDATE_OF_AFFILIATE_BY_STAFF,
         EventType.UPDATE_OF_CREDIT_BY_STAFF,
         EventType.UPDATE_OF_PROJECT_CREDIT_BY_STAFF,
         EventType.CUSTOMER_PERMISSION_REVIEW_CREATED,
