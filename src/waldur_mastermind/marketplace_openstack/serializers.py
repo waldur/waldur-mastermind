@@ -192,3 +192,34 @@ class ImageCreateResponseSerializer(serializers.Serializer):
 class ImageUploadResponseSerializer(serializers.Serializer):
     status = serializers.CharField()
     message = serializers.CharField()
+
+
+class DuplicateOfferingCandidateSerializer(serializers.Serializer):
+    """One offering in a duplicate per-tenant group (read-only diagnostics)."""
+
+    id = serializers.IntegerField()
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    state = serializers.CharField()
+    active_resources = serializers.IntegerField()
+    total_resources = serializers.IntegerField()
+    is_recommended_keeper = serializers.BooleanField()
+
+
+class DuplicateOfferingGroupSerializer(serializers.Serializer):
+    """A tenant + offering type that has more than one per-tenant offering.
+
+    Shape produced by ``utils.build_duplicate_offering_report``; surfaces the
+    duplicate offerings, the recommended keeper and the count of orphaned
+    resources so a staff user can see the problem without reading logs.
+    """
+
+    tenant_id = serializers.IntegerField()
+    tenant_uuid = serializers.UUIDField(allow_null=True)
+    tenant_name = serializers.CharField(allow_null=True)
+    customer_name = serializers.CharField(allow_null=True)
+    customer_uuid = serializers.UUIDField(allow_null=True)
+    offering_type = serializers.CharField()
+    recommended_keeper_id = serializers.IntegerField()
+    orphan_count = serializers.IntegerField()
+    candidates = DuplicateOfferingCandidateSerializer(many=True)

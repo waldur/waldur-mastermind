@@ -17,9 +17,9 @@ from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters
-from waldur_core.structure.permissions import is_administrator
+from waldur_core.structure.permissions import is_administrator, is_staff_or_support
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_openstack import serializers
+from waldur_mastermind.marketplace_openstack import serializers, utils
 from waldur_openstack import models as openstack_models
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.executors import TenantCreateExecutor, TenantDeleteExecutor
@@ -239,3 +239,34 @@ class MarketplaceTenantActionsViewSet(core_views.ReadOnlyActionsViewSet):
             return response.Response(
                 {"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class DuplicateTenantOfferingViewSet(core_views.ReadOnlyActionsViewSet):
+    """Staff/support read-only diagnostics for duplicate per-tenant offerings.
+
+    Surfaces tenants that have more than one per-tenant OpenStack.Instance or
+    OpenStack.Volume offering — the state that makes self-heal give up and
+    leaves VMs/volumes orphaned from the marketplace. Read-only: remediation
+    stays in the ``dedupe_tenant_offerings`` management command.
+    """
+
+    # The report is computed in-memory (a scan across offerings), not a plain
+    # queryset; list() overrides the default. `queryset` only satisfies the
+    # router/schema machinery. There is no per-object detail view.
+    queryset = marketplace_models.Offering.objects.none()
+    serializer_class = serializers.DuplicateOfferingGroupSerializer
+    filter_backends = ()
+    disabled_actions = ["create", "update", "partial_update", "destroy", "retrieve"]
+    list_permissions = [is_staff_or_support]
+
+    @extend_schema(
+        responses={200: serializers.DuplicateOfferingGroupSerializer(many=True)},
+    )
+    def list(self, request, *args, **kwargs):
+        report = utils.build_duplicate_offering_report()
+        page = self.paginate_queryset(report)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(report, many=True)
+        return response.Response(serializer.data)

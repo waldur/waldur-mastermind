@@ -184,6 +184,11 @@ class MarketplaceSection(FeatureSection):
 
     display_software_catalog = Feature("Enable display of software catalog in UI.")
 
+    show_openstack_duplicate_offerings = Feature(
+        "Show the staff diagnostics page listing tenants with duplicate "
+        "per-tenant OpenStack offerings."
+    )
+
     display_offering_partitions = Feature(
         "Enable display of offering partitions in UI."
     )
