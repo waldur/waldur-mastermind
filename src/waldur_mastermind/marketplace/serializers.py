@@ -119,7 +119,7 @@ from waldur_mastermind.marketplace_rancher.const import (
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
-from . import log, models, permissions, plugins, utils
+from . import log, models, permissions, plugins, posix_ids, utils
 
 logger = logging.getLogger(__name__)
 
@@ -478,6 +478,23 @@ class OpenStackPluginOptionsSerializer(serializers.Serializer):
     )
 
 
+# Shared validator for POSIX path-like values (login shell, home directory and
+# its offering-level prefix). These sync to LDAP/GLAuth and are consumed by site
+# agents in a root context, so restrict them to safe absolute paths — no spaces,
+# shell metacharacters, control characters or path traversal. ``fullmatch`` (not
+# ``match``) is required: with ``$`` Python would still accept a trailing newline.
+_POSIX_PATH_RE = re.compile(r"/[A-Za-z0-9_./-]+")
+
+
+def validate_posix_path(value, field):
+    if value and (not _POSIX_PATH_RE.fullmatch(value) or ".." in value):
+        raise serializers.ValidationError(
+            f"{field} must be an absolute path containing only letters, digits, "
+            "'_', '-', '.' and '/', with no '..'."
+        )
+    return value
+
+
 class HeappePluginOptionsSerializer(serializers.Serializer):
     heappe_cluster_id = serializers.CharField(
         required=False, help_text="HEAppE cluster id"
@@ -497,34 +514,21 @@ class HeappePluginOptionsSerializer(serializers.Serializer):
         required=False, help_text="HEAppE project permanent directory"
     )
 
+    def validate_homedir_prefix(self, value):
+        # Concatenated with the username into each account's homeDir and synced
+        # to GLAuth/LDAP, so it must be a safe absolute path (no traversal).
+        return validate_posix_path(value, "Home directory prefix")
+
 
 class GLAuthPluginOptionsSerializer(serializers.Serializer):
-    initial_primarygroup_number = serializers.IntegerField(
+    enable_posix_account = serializers.BooleanField(
         required=False,
-        default=5000,
-        help_text="GLAuth initial primary group number",
-        min_value=0,
-    )
-
-    initial_uidnumber = serializers.IntegerField(
-        required=False, default=5000, help_text="GLAuth initial uidnumber", min_value=0
-    )
-    initial_usergroup_number = serializers.IntegerField(
-        required=False,
-        default=6000,
-        help_text="GLAuth initial usergroup number",
-        min_value=0,
-    )
-    initial_rolegroup_number = serializers.IntegerField(
-        required=False,
-        default=60000,
+        default=True,
         help_text=(
-            "GLAuth initial gid for role-aware groups (one per "
-            "(resource|resource-project, role) tuple). Must leave at "
-            "least 50000 gids of headroom above initial_usergroup_number "
-            "to avoid collisions."
+            "Manage a POSIX/LDAP account (UID, GID, home directory, login "
+            "shell and GLAuth exposure) for this offering's users. Disable for "
+            "offerings that only need a username."
         ),
-        min_value=0,
     )
     resource_role_map = serializers.DictField(
         child=serializers.CharField(),
@@ -574,20 +578,52 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
         help_text="GLAuth username generation policy",
         default=UsernameGenerationPolicy.SERVICE_PROVIDER.value,
     )
+    login_shell = serializers.CharField(
+        required=False,
+        default="/bin/bash",
+        help_text="Default login shell assigned to GLAuth/LDAP accounts.",
+    )
+    uid_source = serializers.ChoiceField(
+        required=False,
+        default="pool",
+        choices=["pool", "user_attribute"],
+        help_text=(
+            "Where each offering user's UID comes from: allocated from the "
+            "POSIX ID pool (default), or taken from the user's uid_number "
+            "attribute (e.g. an OIDC claim). Pair 'user_attribute' with a "
+            "GID-only pool to avoid UID collisions."
+        ),
+    )
+    gid_source = serializers.ChoiceField(
+        required=False,
+        default="pool",
+        choices=["pool", "user_attribute"],
+        help_text=(
+            "Where each offering user's primary GID comes from: the POSIX ID "
+            "pool (default), or the user's primary_gid attribute."
+        ),
+    )
+    emit_display_name = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "Emit the user's full name as a GLAuth displayName custom "
+            "attribute (rendered to LDAP displayName)."
+        ),
+    )
+    emit_waldur_username = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "Emit the Waldur username as a GLAuth waldurUsername custom "
+            "attribute, alongside the generated POSIX login name."
+        ),
+    )
 
-    def validate(self, attrs):
-        usergroup_base = attrs.get("initial_usergroup_number", 6000)
-        rolegroup_base = attrs.get("initial_rolegroup_number", 60000)
-        if rolegroup_base < usergroup_base + 50000:
-            raise serializers.ValidationError(
-                {
-                    "initial_rolegroup_number": (
-                        "Must be at least 50000 above initial_usergroup_number "
-                        "to avoid gid collisions with project-mapped groups."
-                    )
-                }
-            )
-        return attrs
+    def validate_login_shell(self, value):
+        # Assigned as each account's loginShell and synced to GLAuth/LDAP, so it
+        # must be a safe absolute path (same rule as the per-user override).
+        return validate_posix_path(value, "Login shell")
 
 
 class RancherPluginOptionsSerializer(serializers.Serializer):
@@ -1426,6 +1462,300 @@ class OfferingGroupAssignSerializer(serializers.Serializer):
         required=True,
         help_text="OfferingGroup UUID. Pass null to remove the assignment.",
     )
+
+
+class PosixIdPoolSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    core_serializers.RestrictedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    service_provider = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ServiceProvider.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Offering.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
+    customer_name = serializers.ReadOnlyField(source="customer.name")
+    scope = serializers.ReadOnlyField()
+    uid_used = serializers.SerializerMethodField()
+    gid_used = serializers.SerializerMethodField()
+    uid_utilization = serializers.SerializerMethodField()
+    gid_utilization = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.PosixIdPool
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "description",
+            "service_provider",
+            "offering",
+            "min_uid",
+            "max_uid",
+            "next_uid",
+            "min_gid",
+            "max_gid",
+            "next_gid",
+            "customer_uuid",
+            "customer_name",
+            "scope",
+            "uid_used",
+            "gid_used",
+            "uid_utilization",
+            "gid_utilization",
+        )
+        protected_fields = ("service_provider", "offering")
+        read_only_fields = ("next_uid", "next_gid")
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-posix-id-pool-detail",
+            },
+        }
+
+    def _used(self, pool, namespace) -> int:
+        # ``uid_used``/``gid_used`` are annotated by PosixIdPoolViewSet.get_queryset;
+        # fall back to 0 on detail views / schema generation where they are absent.
+        return getattr(pool, f"{namespace}_used", 0) or 0
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_uid_used(self, pool) -> int:
+        return self._used(pool, "uid")
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_gid_used(self, pool) -> int:
+        return self._used(pool, "gid")
+
+    def _utilization(self, pool, namespace):
+        min_v = getattr(pool, f"min_{namespace}")
+        max_v = getattr(pool, f"max_{namespace}")
+        if min_v is None:
+            return None  # namespace not managed by this pool
+        capacity = max_v - min_v + 1
+        used = self._used(pool, namespace)
+        return round(used / capacity * 100, 2) if capacity else 0.0
+
+    @extend_schema_field(serializers.FloatField(allow_null=True))
+    def get_uid_utilization(self, pool):
+        return self._utilization(pool, "uid")
+
+    @extend_schema_field(serializers.FloatField(allow_null=True))
+    def get_gid_utilization(self, pool):
+        return self._utilization(pool, "gid")
+
+    def validate(self, attrs):
+        if not self.instance:
+            scopes = [attrs.get("service_provider"), attrs.get("offering")]
+            if sum(scope is not None for scope in scopes) != 1:
+                raise serializers.ValidationError(
+                    _("Exactly one of service_provider or offering must be set.")
+                )
+            scope = next(scope for scope in scopes if scope is not None)
+            customer = scope.customer
+            if not models.ServiceProvider.objects.filter(customer=customer).exists():
+                raise serializers.ValidationError(
+                    _("The scope's customer must be a service provider.")
+                )
+            if isinstance(scope, models.ServiceProvider):
+                scope_exists = models.PosixIdPool.objects.filter(
+                    service_provider=scope
+                ).exists()
+            else:
+                scope_exists = models.PosixIdPool.objects.filter(
+                    offering=scope
+                ).exists()
+            if scope_exists:
+                raise serializers.ValidationError(
+                    _("A POSIX ID pool already exists for this scope.")
+                )
+            if not has_permission(
+                self.context["request"],
+                PermissionEnum.MANAGE_POSIX_ID_POOL,
+                customer,
+            ):
+                raise PermissionDenied()
+
+        def field(name, default=None):
+            if name in attrs:
+                return attrs[name]
+            return getattr(self.instance, name) if self.instance else default
+
+        candidate = models.PosixIdPool(
+            service_provider=field("service_provider"),
+            offering=field("offering"),
+            min_uid=field("min_uid"),
+            max_uid=field("max_uid"),
+            min_gid=field("min_gid"),
+            max_gid=field("max_gid"),
+        )
+        # Mirror update()'s high-water-mark handling so validate_pool sees the
+        # same next the save will persist. A namespace with no min is unmanaged
+        # (next null); a newly-added namespace starts its pointer at min; an
+        # existing one rides its pointer down into any shrunk bounds (allowed as
+        # long as no *active* value is excluded — the per-namespace guard below).
+        for ns in posix_ids.NAMESPACES:
+            new_min = getattr(candidate, f"min_{ns}")
+            new_max = getattr(candidate, f"max_{ns}")
+            # Unmanaged, or a partial (min/max mismatch) namespace validate_pool
+            # will reject below — either way leave next null and don't compute
+            # on a None bound.
+            if new_min is None or new_max is None:
+                setattr(candidate, f"next_{ns}", None)
+                continue
+            current = getattr(self.instance, f"next_{ns}") if self.instance else None
+            base = current if current is not None else new_min
+            setattr(candidate, f"next_{ns}", min(max(base, new_min), new_max + 1))
+        if self.instance:
+            candidate.pk = self.instance.pk
+        # Reused under a provider lock in create()/update() to close the
+        # check-then-save race on the overlap validation.
+        self._candidate = candidate
+        try:
+            posix_ids.validate_pool(candidate)
+        except ValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
+
+        if self.instance:
+            for ns in posix_ids.NAMESPACES:
+                new_min = field(f"min_{ns}")
+                new_max = field(f"max_{ns}")
+                active = models.PosixIdentity.objects.filter(
+                    pool=self.instance,
+                    released_at__isnull=True,
+                    **{f"{ns}__isnull": False},
+                )
+                if new_min is None:
+                    # Removing a namespace: only allowed if nothing is allocated.
+                    if active.exists():
+                        raise serializers.ValidationError(
+                            _(
+                                "Cannot remove the %(ns)s range while %(count)s "
+                                "value(s) are allocated."
+                            )
+                            % {"ns": ns.upper(), "count": active.count()}
+                        )
+                    continue
+                out_of_bounds = active.exclude(
+                    **{f"{ns}__gte": new_min, f"{ns}__lte": new_max}
+                )
+                if out_of_bounds.exists():
+                    raise serializers.ValidationError(
+                        _(
+                            "Updated %(ns)s bounds would exclude %(count)s "
+                            "already allocated value(s)."
+                        )
+                        % {"ns": ns.upper(), "count": out_of_bounds.count()}
+                    )
+        return attrs
+
+    def _save_under_provider_lock(self, save):
+        # Overlap validation in validate() and the INSERT/UPDATE happen in
+        # separate steps, so two concurrent pool creates for one provider can
+        # both pass and produce overlapping pools. Serialize them by locking
+        # the provider customer, then re-run the overlap check while we hold it.
+        with transaction.atomic():
+            structure_models.Customer.objects.select_for_update().get(
+                pk=self._candidate.customer.pk
+            )
+            try:
+                posix_ids.validate_pool(self._candidate)
+            except ValidationError as exc:
+                raise serializers.ValidationError(exc.messages)
+            return save()
+
+    def create(self, validated_data):
+        # High-water marks start at the bottom of each managed namespace; an
+        # unmanaged namespace (no min) keeps its pointer null.
+        validated_data["next_uid"] = validated_data.get("min_uid")
+        validated_data["next_gid"] = validated_data.get("min_gid")
+        return self._save_under_provider_lock(
+            lambda: super(PosixIdPoolSerializer, self).create(validated_data)
+        )
+
+    def update(self, instance, validated_data):
+        # Keep each high-water pointer inside the (possibly changed) bounds so
+        # the model's next-in-[min, max+1] check constraint still holds; a
+        # newly-added namespace starts at min, a removed one goes null.
+        for ns in posix_ids.NAMESPACES:
+            new_min = validated_data.get(f"min_{ns}", getattr(instance, f"min_{ns}"))
+            new_max = validated_data.get(f"max_{ns}", getattr(instance, f"max_{ns}"))
+            if new_min is None:
+                setattr(instance, f"next_{ns}", None)
+                continue
+            current = getattr(instance, f"next_{ns}")
+            base = current if current is not None else new_min
+            setattr(instance, f"next_{ns}", min(max(base, new_min), new_max + 1))
+        return self._save_under_provider_lock(
+            lambda: super(PosixIdPoolSerializer, self).update(instance, validated_data)
+        )
+
+
+class PosixIdPoolNamespaceStatsSerializer(serializers.Serializer):
+    """Utilization statistics of a single namespace (UID or GID) of a pool."""
+
+    min = serializers.IntegerField()
+    max = serializers.IntegerField()
+    next = serializers.IntegerField()
+    capacity = serializers.IntegerField()
+    used = serializers.IntegerField()
+    utilization = serializers.FloatField()
+
+
+class PosixIdPoolStatsSerializer(serializers.Serializer):
+    """Per-namespace utilization statistics of a POSIX ID pool."""
+
+    uid = PosixIdPoolNamespaceStatsSerializer(allow_null=True)
+    gid = PosixIdPoolNamespaceStatsSerializer(allow_null=True)
+    utilization_threshold = serializers.IntegerField()
+
+
+class PosixIdentitySerializer(serializers.HyperlinkedModelSerializer):
+    pool_uuid = serializers.ReadOnlyField(source="pool.uuid")
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+    consumer_type = serializers.SerializerMethodField()
+    consumer_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.PosixIdentity
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "uid",
+            "gid",
+            "released_at",
+            "pool_uuid",
+            "offering_uuid",
+            "offering_name",
+            "consumer_type",
+            "consumer_name",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-posix-identity-detail",
+            },
+        }
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_consumer_type(self, identity):
+        return identity.content_type.model
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_consumer_name(self, identity):
+        # Consumer may be deleted (released rows) and some consumer models
+        # have no uuid field — fall back to str() rendering only.
+        consumer = identity.consumer
+        return str(consumer) if consumer is not None else None
 
 
 class TagSerializer(
@@ -7461,6 +7791,122 @@ class OfferingReferralSerializer(
         )
 
 
+class ProjectPosixGroupSerializer(serializers.Serializer):
+    """One POSIX group GID assigned to a project (read-only rollup)."""
+
+    kind = serializers.ChoiceField(choices=["project_group", "role_group"])
+    gid = serializers.IntegerField()
+    offering_uuid = serializers.CharField()
+    offering_name = serializers.CharField()
+    provider_name = serializers.CharField()
+    role = serializers.CharField(allow_null=True)
+    scope_type = serializers.CharField(allow_null=True)
+    scope_name = serializers.CharField(allow_null=True)
+    scope_uuid = serializers.CharField(allow_null=True)
+
+
+class OfferingUserPosixGroupSerializer(serializers.Serializer):
+    """A project group GID an offering user belongs to (read-only)."""
+
+    gid = serializers.IntegerField()
+    offering_name = serializers.CharField()
+    project_name = serializers.CharField(allow_null=True)
+    project_uuid = serializers.CharField(allow_null=True)
+    customer_name = serializers.CharField(allow_null=True)
+    customer_uuid = serializers.CharField(allow_null=True)
+    project_accessible = serializers.BooleanField()
+    pool_uuid = serializers.CharField(allow_null=True)
+
+
+class OfferingUserPosixAllocationSerializer(serializers.Serializer):
+    """An offering user's POSIX identifier and the pool it came from (read-only).
+
+    ``namespace`` is ``uid`` or ``gid``; ``pool_*`` / ``scope_*`` are null when
+    the value is not tracked by a POSIX ID pool.
+    """
+
+    namespace = serializers.CharField()
+    value = serializers.IntegerField()
+    pool_uuid = serializers.CharField(allow_null=True)
+    scope = serializers.CharField(allow_null=True)
+    scope_name = serializers.CharField(allow_null=True)
+
+
+class UserPosixIdentitySerializer(serializers.Serializer):
+    """One of a user's POSIX identifiers across all their offering accounts.
+
+    ``namespace`` is ``uid`` or ``gid``; ``context`` holds the project name for
+    group GIDs. ``pool_uuid`` is null when the value is not tracked by a pool.
+    """
+
+    offering_name = serializers.CharField()
+    offering_uuid = serializers.CharField()
+    namespace = serializers.CharField()
+    value = serializers.IntegerField()
+    context = serializers.CharField(allow_null=True)
+    pool_uuid = serializers.CharField(allow_null=True)
+
+
+class OfferingUserPosixAttributesSerializer(serializers.Serializer):
+    """Per-user overrides for the GLAuth/LDAP POSIX attributes that the offering
+    otherwise derives from its defaults / the range allocator."""
+
+    login_shell = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Login shell for this account (LDAP loginShell).",
+    )
+    home_directory = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Home directory for this account (LDAP homeDirectory).",
+    )
+    uidnumber = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=models.PosixIdPool.MIN_ID,
+        max_value=models.PosixIdPool.MAX_ID,
+        help_text=(
+            "Override the account's UID. The value must fall within the "
+            "offering's POSIX ID pool and is rejected if already allocated."
+        ),
+    )
+    primarygroup = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=models.PosixIdPool.MIN_ID,
+        max_value=models.PosixIdPool.MAX_ID,
+        help_text="Override the account's primary GID (see uidnumber).",
+    )
+
+    # login_shell and home_directory sync to LDAP and are consumed by downstream
+    # site agents in a root context; reuse the shared safe-absolute-path
+    # validator (see ``validate_posix_path``).
+    def validate_login_shell(self, value):
+        return validate_posix_path(value, "Login shell")
+
+    def validate_home_directory(self, value):
+        return validate_posix_path(value, "Home directory")
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError(
+                "Provide at least one of login_shell, home_directory, "
+                "uidnumber or primarygroup."
+            )
+        return attrs
+
+
+class OfferingUserPosixUpdateResponseSerializer(serializers.Serializer):
+    """Response of the set_posix_attributes action: the updated POSIX
+    attributes plus any non-fatal warnings (e.g. a UID outside every active
+    range)."""
+
+    uidnumber = serializers.IntegerField(allow_null=True, required=False)
+    primarygroup = serializers.IntegerField(allow_null=True, required=False)
+    warnings = serializers.ListField(child=serializers.CharField(), default=list)
+
+
 class OfferingUserSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -7550,6 +7996,8 @@ class OfferingUserSerializer(
     user_civil_number = serializers.ReadOnlyField(source="user.civil_number")
     user_birth_date = serializers.ReadOnlyField(source="user.birth_date")
     user_identity_source = serializers.ReadOnlyField(source="user.identity_source")
+    user_uid_number = serializers.ReadOnlyField(source="user.uid_number")
+    user_primary_gid = serializers.ReadOnlyField(source="user.primary_gid")
 
     # Identity Bridge attributes
     user_active_isds = serializers.ListField(
@@ -7580,6 +8028,10 @@ class OfferingUserSerializer(
     consent_data = serializers.SerializerMethodField()
     is_profile_complete = serializers.SerializerMethodField()
     missing_profile_attributes = serializers.SerializerMethodField()
+    uidnumber = serializers.SerializerMethodField()
+    primarygroup = serializers.SerializerMethodField()
+    login_shell = serializers.SerializerMethodField()
+    home_directory = serializers.SerializerMethodField()
 
     # Extra serializer fields exposed/hidden together with their parent attribute.
     # When expose_full_name is enabled, first/last name are also exposed.
@@ -7612,6 +8064,8 @@ class OfferingUserSerializer(
         "birth_date": "user_birth_date",
         "identity_source": "user_identity_source",
         "active_isds": "user_active_isds",
+        "uid_number": "user_uid_number",
+        "primary_gid": "user_primary_gid",
     }
 
     class Meta:
@@ -7654,6 +8108,8 @@ class OfferingUserSerializer(
             "user_civil_number",
             "user_birth_date",
             "user_identity_source",
+            "user_uid_number",
+            "user_primary_gid",
             # Identity Bridge attributes
             "user_active_isds",
             # Other fields
@@ -7673,6 +8129,10 @@ class OfferingUserSerializer(
             "consent_data",
             "is_profile_complete",
             "missing_profile_attributes",
+            "uidnumber",
+            "primarygroup",
+            "login_shell",
+            "home_directory",
         )
         extra_kwargs = dict(
             url={
@@ -7684,6 +8144,22 @@ class OfferingUserSerializer(
     @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.VALUES))
     def get_state(self, offering_user: models.OfferingUser) -> OfferingUserStatesType:
         return offering_user.get_state_display()
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_uidnumber(self, offering_user: models.OfferingUser):
+        return (offering_user.backend_metadata or {}).get("uidnumber")
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_primarygroup(self, offering_user: models.OfferingUser):
+        return (offering_user.backend_metadata or {}).get("primarygroup")
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_login_shell(self, offering_user: models.OfferingUser):
+        return (offering_user.backend_metadata or {}).get("loginShell")
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_home_directory(self, offering_user: models.OfferingUser):
+        return (offering_user.backend_metadata or {}).get("homeDir")
 
     def to_internal_value(self, data):
         # Pre-process data to convert UUID fields to URL fields before field validation
@@ -9790,12 +10266,25 @@ class ProviderOfferingSerializer(
             "thumbnail",
             "offering_group_uuid",
             "offering_group_title",
+            "service_provider_can_create_offering_user",
         )
 
     category_title = serializers.ReadOnlyField(source="category.title")
     resources_count = serializers.SerializerMethodField()
     billing_price_estimate = serializers.SerializerMethodField()
     state = serializers.SerializerMethodField()
+    service_provider_can_create_offering_user = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_service_provider_can_create_offering_user(
+        self, offering: models.Offering
+    ) -> bool:
+        return bool(
+            (offering.plugin_options or {}).get(
+                "service_provider_can_create_offering_user"
+            )
+        )
+
     components = OfferingComponentSerializer(required=False, many=True)
     plans = BaseProviderPlanSerializer(many=True, required=False)
     secret_options = MergedSecretOptionsField(read_only=True)
@@ -11307,6 +11796,8 @@ class UserAttributeConfigBaseSerializer(serializers.ModelSerializer):
             "expose_civil_number",
             "expose_birth_date",
             "expose_active_isds",
+            "expose_uid_number",
+            "expose_primary_gid",
             # Computed
             "exposed_fields",
             "is_default",

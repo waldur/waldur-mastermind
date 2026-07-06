@@ -14,6 +14,24 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_slurm.tests import factories as slurm_factories
 
 
+def add_posix_ranges(offering, uid_start=1001, gid_start=2001):
+    """Create an offering-level POSIX ID pool so setup_linux_related_data
+    allocates from it (pools are the sole allocation mechanism).
+
+    Range starts mirror the legacy ``initial_* + 1`` first-allocated value so
+    asserted uid/gid numbers stay stable.
+    """
+    marketplace_factories.PosixIdPoolFactory(
+        offering=offering,
+        min_uid=uid_start,
+        max_uid=uid_start + 99999,
+        next_uid=uid_start,
+        min_gid=gid_start,
+        max_gid=gid_start + 99999,
+        next_gid=gid_start,
+    )
+
+
 class MarketplaceSiteAgentFixture(marketplace_fixtures.MarketplaceFixture):
     @cached_property
     def offering(self):
@@ -47,10 +65,9 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
         self.offering.plugin_options = {
             "service_provider_can_create_offering_user": True,
             "username_generation_policy": "waldur_username",
-            "initial_uidnumber": 1000,
-            "initial_primarygroup_number": 2000,
             "homedir_prefix": "/tmp/",
         }
+        add_posix_ranges(self.offering)
         self.offering.save()
 
         # Set up resource and offering user
@@ -90,11 +107,10 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
             plugin_options={
                 "service_provider_can_create_offering_user": True,
                 "username_generation_policy": "waldur_username",
-                "initial_uidnumber": 1000,
-                "initial_primarygroup_number": 2000,
                 "homedir_prefix": "/tmp/",
             },
         )
+        add_posix_ranges(offering)
         offering_user = marketplace_models.OfferingUser.objects.create(
             offering=offering,
             user=self.manager,
@@ -113,11 +129,10 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
             plugin_options={
                 "service_provider_can_create_offering_user": True,
                 "username_generation_policy": "waldur_username",
-                "initial_uidnumber": 1000,
-                "initial_primarygroup_number": 2000,
                 "homedir_prefix": "/tmp/",
             },
         )
+        add_posix_ranges(offering)
 
         # Create a project and resource
         project = structure_factories.ProjectFactory(customer=self.offering_customer)

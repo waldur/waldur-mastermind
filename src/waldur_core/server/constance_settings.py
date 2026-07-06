@@ -1488,6 +1488,11 @@ CONSTANCE_CONFIG = {
         "Select which reporting screens should be visible to users. Uncheck to disable specific reports.",
         "multiple_choice_field",
     ),
+    # POSIX ID pool settings
+    "POSIX_ID_POOL_UTILIZATION_THRESHOLD": (
+        90,
+        "Utilization percentage of a POSIX ID pool namespace that triggers a warning event.",
+    ),
     # Affiliate program settings
     "AFFILIATES_ENABLED": (
         False,
@@ -1947,6 +1952,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES",
     ),
     "Reporting": ("ENABLED_REPORTING_SCREENS",),
+    "POSIX ID pools": ("POSIX_ID_POOL_UTILIZATION_THRESHOLD",),
     "Affiliates": ("AFFILIATES_ENABLED",),
     "Matrix chat": (
         "MATRIX_ENABLED",

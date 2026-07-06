@@ -152,7 +152,6 @@
         "restrict_deletion_with_active_resources": true,
         "keycloak_username_label": "",
         "backend_id_display_label": "Backend ID",
-        "initial_usergroup_number": 6000,
         "username_anonymized_prefix": "waldur_",
         "offering_user_auto_deletion": false,
         "highlight_backend_id_display": false,

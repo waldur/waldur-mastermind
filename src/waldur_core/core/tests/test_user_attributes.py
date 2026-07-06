@@ -45,6 +45,8 @@ class TestCoreUserAttributes(TestCase):
             "civil_number",
             "identity_source",
             "active_isds",
+            "uid_number",
+            "primary_gid",
         }
         self.assertEqual(ALL_PROFILE_ATTRIBUTES, expected)
 

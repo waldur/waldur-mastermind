@@ -1,0 +1,412 @@
+{
+  "_metadata": {
+    "title": "GLAuth E2E Testing Preset",
+    "description": "Preset exercising every dimension of the glauth_users_config export: varied uid/gid metadata, SSH key counts, offering user states, disabled flag, robot account states, project groups and shared password.",
+    "version": "1.0.0",
+    "scenarios": [
+      "GLAuth LDAP integration testing"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "e2e00000000000000000000000000001",
+      "username": "e2euser",
+      "email": "e2euser@example.com",
+      "first_name": "E2E",
+      "last_name": "User",
+      "is_active": true,
+      "password": "e2epassword",
+      "organization": "E2E Organization",
+      "job_title": "Tester",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "e2e00000000000000000000000000002",
+      "username": "admin",
+      "email": "admin@example.com",
+      "first_name": "Admin",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "adminpassword",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "e2e000000000000000000000000000a1",
+      "username": "alice",
+      "email": "alice@example.com",
+      "first_name": "Alice",
+      "last_name": "Active",
+      "is_active": true,
+      "password": "alicepassword",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "e2e000000000000000000000000000b1",
+      "username": "bob",
+      "email": "bob@example.com",
+      "first_name": "Bob",
+      "last_name": "Benched",
+      "is_active": true,
+      "password": "bobpassword",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "e2e000000000000000000000000000c1",
+      "username": "carol",
+      "email": "carol@example.com",
+      "first_name": "Carol",
+      "last_name": "Keyless",
+      "is_active": true,
+      "password": "carolpassword",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "e2e000000000000000000000000000d1",
+      "username": "dave",
+      "email": "dave@example.com",
+      "first_name": "Dave",
+      "last_name": "Unnamed",
+      "is_active": true,
+      "password": "davepassword",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "e2e000000000000000000000000000f1",
+      "username": "glauth-provider",
+      "email": "glauth-provider@example.com",
+      "first_name": "GLAuth",
+      "last_name": "Provider",
+      "is_active": true,
+      "password": "glauthproviderpassword",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "auth_tokens": [
+    {
+      "key": "e2e0abababababababababababababababababab",
+      "user_uuid": "e2e000000000000000000000000000f1",
+      "created": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "ssh_public_keys": [
+    {
+      "uuid": "55a00000000000000000000000000001",
+      "user_uuid": "e2e000000000000000000000000000a1",
+      "name": "alice-key-1",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArrwy9ggGWmE4zs/UXbhxndRPcjwewMJxsSxNxDuzYn e2e-key-1@example.com"
+    },
+    {
+      "uuid": "55a00000000000000000000000000002",
+      "user_uuid": "e2e000000000000000000000000000a1",
+      "name": "alice-key-2",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMzwMAyNYKTc06UPtizeoZQnVTX4D0DmEBsMjM/vcVL6 e2e-key-2@example.com"
+    },
+    {
+      "uuid": "55a00000000000000000000000000003",
+      "user_uuid": "e2e000000000000000000000000000b1",
+      "name": "bob-key-1",
+      "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHJ00mWV5OeQww53GZCMwXn6C/oSSBjplVIxc3+0+q4M e2e-key-3@example.com"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "e2e10000000000000000000000000001",
+      "name": "E2E Organization",
+      "abbreviation": "E2E",
+      "description": "Provider organization for E2E tests",
+      "email": "contact@e2e.org",
+      "country": "EE"
+    },
+    {
+      "uuid": "e2e10000000000000000000000000002",
+      "name": "GLAuth Consumer Organization",
+      "abbreviation": "GCO",
+      "email": "contact@gco.org",
+      "country": "EE"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "e2e20000000000000000000000000001",
+      "name": "E2E Project",
+      "description": "Project for E2E tests",
+      "customer_uuid": "e2e10000000000000000000000000001"
+    },
+    {
+      "uuid": "e2e20000000000000000000000000a01",
+      "name": "GLAuth Active Project",
+      "description": "Project with an active resource - members are enabled in LDAP",
+      "customer_uuid": "e2e10000000000000000000000000002"
+    },
+    {
+      "uuid": "e2e20000000000000000000000000b01",
+      "name": "GLAuth Inactive Project",
+      "description": "Project without active resources - members are disabled in LDAP",
+      "customer_uuid": "e2e10000000000000000000000000002"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "e2e30000000000000000000000000001",
+      "title": "HPC",
+      "description": "High Performance Computing"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "e2e40000000000000000000000000001",
+      "customer_uuid": "e2e10000000000000000000000000001",
+      "description": "E2E Service Provider"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f3000000000000000000000000000a01",
+      "name": "E2E GLAuth Directory",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e2e30000000000000000000000000001",
+      "customer_uuid": "e2e10000000000000000000000000001",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true,
+        "username_generation_policy": "service_provider",
+        "initial_uidnumber": 7000,
+        "initial_primarygroup_number": 8000,
+        "homedir_prefix": "/home/e2e/",
+        "resource_role_map": { "ClusterAdmin": "admin" },
+        "resource_project_role_map": { "ProjectMember": "member" },
+        "resource_role_group_template": "${resource_slug}_${role_name}",
+        "resource_project_role_group_template": "${resource_slug}_${rp_uuid_short}_${role_name}"
+      },
+      "secret_options": {
+        "shared_user_password": "GlauthSharedE2e1"
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "e2e70000000000000000000000000a01",
+      "name": "GLAuth Directory Access",
+      "state": 2,
+      "offering_uuid": "f3000000000000000000000000000a01",
+      "plan_uuid": null,
+      "project_uuid": "e2e20000000000000000000000000a01",
+      "attributes": {},
+      "limits": {},
+      "options": {}
+    }
+  ],
+  "offering_users": [
+    {
+      "uuid": "f4000000000000000000000000000a01",
+      "offering_uuid": "f3000000000000000000000000000a01",
+      "user_uuid": "e2e000000000000000000000000000a1",
+      "username": "alice",
+      "state": 5,
+      "backend_metadata": {
+        "uidnumber": 7001,
+        "primarygroup": 8001,
+        "loginShell": "/bin/bash",
+        "homeDir": "/home/e2e/alice"
+      }
+    },
+    {
+      "uuid": "f4000000000000000000000000000b01",
+      "offering_uuid": "f3000000000000000000000000000a01",
+      "user_uuid": "e2e000000000000000000000000000b1",
+      "username": "bob",
+      "state": 5,
+      "backend_metadata": {
+        "uidnumber": 7002,
+        "primarygroup": 8002,
+        "loginShell": "/bin/sh",
+        "homeDir": "/srv/home/bob"
+      }
+    },
+    {
+      "uuid": "f4000000000000000000000000000c01",
+      "offering_uuid": "f3000000000000000000000000000a01",
+      "user_uuid": "e2e000000000000000000000000000c1",
+      "username": "carol",
+      "state": 3,
+      "backend_metadata": {
+        "uidnumber": 7003,
+        "primarygroup": 8003,
+        "loginShell": "/bin/bash",
+        "homeDir": "/home/e2e/carol"
+      }
+    },
+    {
+      "uuid": "f4000000000000000000000000000d01",
+      "offering_uuid": "f3000000000000000000000000000a01",
+      "user_uuid": "e2e000000000000000000000000000d1",
+      "username": "",
+      "state": 1,
+      "backend_metadata": {
+        "uidnumber": 7004,
+        "primarygroup": 8004,
+        "loginShell": "/bin/bash",
+        "homeDir": "/home/e2e/dave"
+      }
+    }
+  ],
+  "robot_accounts": [
+    {
+      "uuid": "ab000000000000000000000000000a01",
+      "resource_uuid": "e2e70000000000000000000000000a01",
+      "username": "robot1",
+      "type": "cicd",
+      "keys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKoEwZozK2a3ll4pRDnv3bQqWtUAIp7jsVJ4A4JEFU7/ e2e-key-4@example.com"
+      ],
+      "state": 3,
+      "backend_metadata": {
+        "uidnumber": 7100,
+        "primarygroup": 8100,
+        "loginShell": "/bin/false",
+        "homeDir": "/home/e2e/robot1"
+      }
+    },
+    {
+      "uuid": "ab000000000000000000000000000b01",
+      "resource_uuid": "e2e70000000000000000000000000a01",
+      "username": "robot2",
+      "type": "cli",
+      "keys": [],
+      "state": 4,
+      "backend_metadata": {
+        "uidnumber": 7101,
+        "primarygroup": 8101,
+        "loginShell": "/bin/false",
+        "homeDir": "/home/e2e/robot2"
+      }
+    },
+    {
+      "uuid": "ab000000000000000000000000000c01",
+      "resource_uuid": "e2e70000000000000000000000000a01",
+      "username": "robot3",
+      "type": "mon",
+      "keys": [],
+      "state": 6,
+      "backend_metadata": {
+        "uidnumber": 7102,
+        "primarygroup": 8102,
+        "loginShell": "/bin/false",
+        "homeDir": "/home/e2e/robot3"
+      }
+    }
+  ],
+  "offering_user_groups": [
+    {
+      "offering_uuid": "f3000000000000000000000000000a01",
+      "backend_metadata": {
+        "gid": 8501
+      },
+      "project_uuids": [
+        "e2e20000000000000000000000000a01"
+      ]
+    }
+  ],
+  "posix_id_pools": [
+    {
+      "uuid": "e2eb0000000000000000000000000a01",
+      "offering_uuid": "f3000000000000000000000000000a01",
+      "min_uid": 7000,
+      "max_uid": 7999,
+      "next_uid": 7005,
+      "min_gid": 8000,
+      "max_gid": 8999,
+      "next_gid": 8502,
+      "description": "GLAuth demo pool"
+    }
+  ],
+  "roles": [
+    {
+      "uuid": "e2ea0000000000000000000000000a01",
+      "name": "ClusterAdmin",
+      "content_type": "marketplace.resource",
+      "is_system_role": false
+    },
+    {
+      "uuid": "e2ea0000000000000000000000000a02",
+      "name": "ProjectMember",
+      "content_type": "marketplace.resourceproject",
+      "is_system_role": false
+    }
+  ],
+  "resource_projects": [
+    {
+      "uuid": "e2e90000000000000000000000000a01",
+      "resource_uuid": "e2e70000000000000000000000000a01",
+      "name": "team-x"
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "e2e80000000000000000000000000c01",
+      "user_uuid": "e2e000000000000000000000000000a1",
+      "user_username": "alice",
+      "role_name": "ClusterAdmin",
+      "scope_type": "marketplace.resource",
+      "scope_uuid": "e2e70000000000000000000000000a01",
+      "is_active": true
+    },
+    {
+      "uuid": "e2e80000000000000000000000000c02",
+      "user_uuid": "e2e000000000000000000000000000b1",
+      "user_username": "bob",
+      "role_name": "ProjectMember",
+      "scope_type": "marketplace.resourceproject",
+      "scope_uuid": "e2e90000000000000000000000000a01",
+      "is_active": true
+    },
+    {
+      "uuid": "e2e80000000000000000000000000001",
+      "user_uuid": "e2e00000000000000000000000000001",
+      "user_username": "e2euser",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "e2e10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "e2e80000000000000000000000000a01",
+      "user_uuid": "e2e000000000000000000000000000f1",
+      "user_username": "glauth-provider",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "e2e10000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "e2e80000000000000000000000000a02",
+      "user_uuid": "e2e000000000000000000000000000a1",
+      "user_username": "alice",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "e2e20000000000000000000000000a01",
+      "is_active": true
+    },
+    {
+      "uuid": "e2e80000000000000000000000000a03",
+      "user_uuid": "e2e000000000000000000000000000c1",
+      "user_username": "carol",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "e2e20000000000000000000000000a01",
+      "is_active": true
+    },
+    {
+      "uuid": "e2e80000000000000000000000000a04",
+      "user_uuid": "e2e000000000000000000000000000b1",
+      "user_username": "bob",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "e2e20000000000000000000000000b01",
+      "is_active": true
+    }
+  ]
+}

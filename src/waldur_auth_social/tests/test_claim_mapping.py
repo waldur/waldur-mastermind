@@ -24,6 +24,13 @@ class NormalizeMappedClaimValueTest(SimpleTestCase):
             normalize_mapped_claim_value("birth_date", "not-a-date"),
         )
 
+    def test_uid_number_string_coerced_to_int(self):
+        self.assertEqual(normalize_mapped_claim_value("uid_number", "50000"), 50000)
+        self.assertEqual(normalize_mapped_claim_value("primary_gid", "60000"), 60000)
+
+    def test_uid_number_non_numeric_returns_none(self):
+        self.assertIsNone(normalize_mapped_claim_value("uid_number", "not-a-number"))
+
 
 class ClaimMappingSuggestionsTest(SimpleTestCase):
     def test_get_claim_suggestions_for_first_name(self):

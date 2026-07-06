@@ -53,6 +53,8 @@ ALL_PROFILE_ATTRIBUTES = frozenset(
         "civil_number",
         "identity_source",
         "active_isds",
+        "uid_number",
+        "primary_gid",
     ]
 )
 

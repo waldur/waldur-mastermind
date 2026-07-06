@@ -58,8 +58,14 @@ class GlauthTreeFixture(GlauthUserFixture):
                 "resource_project_role_group_template": (
                     "${resource_slug}_${rp_uuid_short}_${role_name}"
                 ),
-                "initial_rolegroup_number": 60000,
             }
+            # The offering already has a pool (from the parent fixture). Push its
+            # GID high-water mark up so the lazily-allocated role groups land in a
+            # distinct high band, above the seeded project-group GIDs.
+            pool = self.offering.posix_pool
+            pool.max_gid = 159999
+            pool.next_gid = 60000
+            pool.save(update_fields=["max_gid", "next_gid"])
             self.offering.save()
 
 
@@ -103,7 +109,7 @@ class GlauthTreeOfferingEndpointTest(test.APITestCase):
         self.assertEqual(response.status_code, 200)
         tree = response.data
 
-        # Project-mapped legacy groups (gid 6001, 6002) still present.
+        # Project-mapped groups (gid 6001, 6002) still present.
         project_groups = [g for g in tree["groups"] if g["kind"] == "project"]
         self.assertEqual(sorted(g["gid"] for g in project_groups), [6001, 6002])
 

@@ -30,6 +30,16 @@ def register_in(router):
         basename="marketplace-offering-group",
     )
     router.register(
+        r"marketplace-posix-id-pools",
+        views.PosixIdPoolViewSet,
+        basename="marketplace-posix-id-pool",
+    )
+    router.register(
+        r"marketplace-posix-identities",
+        views.PosixIdentityViewSet,
+        basename="marketplace-posix-identity",
+    )
+    router.register(
         r"marketplace-tags",
         views.TagViewSet,
         basename="marketplace-tag",
@@ -126,6 +136,11 @@ def register_in(router):
         r"marketplace-stats",
         views.StatsViewSet,
         basename="marketplace-stats",
+    )
+    router.register(
+        r"marketplace-project-posix-groups",
+        views.ProjectPosixGroupsViewSet,
+        basename="marketplace-project-posix-group",
     )
     router.register(
         r"marketplace-customer-usage",

@@ -347,6 +347,19 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.log_offering_user_deleted",
         )
 
+        for posix_consumer_model in (
+            models.OfferingUser,
+            models.RobotAccount,
+            models.OfferingUserGroup,
+            models.OfferingRoleGroup,
+        ):
+            signals.post_delete.connect(
+                handlers.release_posix_allocations_on_consumer_deletion,
+                sender=posix_consumer_model,
+                dispatch_uid="waldur_mastermind.marketplace."
+                f"release_posix_allocations_on_{posix_consumer_model.__name__.lower()}_deletion",
+            )
+
         signals.post_save.connect(
             handlers.log_offering_user_username_updated,
             sender=models.OfferingUser,

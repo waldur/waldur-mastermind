@@ -62,9 +62,11 @@ from waldur_mastermind.marketplace.models import (
     Order,
     Plan,
     PlanComponent,
+    PosixIdPool,
     ProjectServiceAccount,
     Resource,
     ResourcePlanPeriod,
+    ResourceProject,
     RobotAccount,
     ServiceProvider,
     SoftwareCatalog,
@@ -191,6 +193,18 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "user_roles": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "resource_projects": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "posix_id_pools": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "project_service_accounts": {
                 "created": 0,
                 "updated": 0,
@@ -793,6 +807,18 @@ class Command(BaseCommand):
         # Import resources (depends on offerings, plans, projects)
         self._safe_import(
             "resources", lambda: self.import_resources(data.get("resources", []))
+        )
+
+        # Import resource projects (sub-projects of a resource; depends on resources)
+        self._safe_import(
+            "resource_projects",
+            lambda: self.import_resource_projects(data.get("resource_projects", [])),
+        )
+
+        # Import POSIX ID pools (depends on offerings / service providers)
+        self._safe_import(
+            "posix_id_pools",
+            lambda: self.import_posix_id_pools(data.get("posix_id_pools", [])),
         )
 
         # Import resource plan periods (depends on resources and plans)
@@ -3396,6 +3422,94 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["role_permissions"]["errors"] += len(permissions)
+
+    def import_posix_id_pools(self, pools_data):
+        """Import POSIX ID pools (offering- or service-provider-scoped), by uuid."""
+        if not pools_data:
+            return
+        self.stdout.write("Importing POSIX ID pools...")
+        offering_map = {str(o.uuid): o for o in Offering.objects.all()}
+        sp_map = {str(sp.uuid): sp for sp in ServiceProvider.objects.all()}
+        for item in pools_data:
+            try:
+                uuid = item.get("uuid")
+                if not uuid:
+                    self.stats["posix_id_pools"]["errors"] += 1
+                    continue
+                offering = (
+                    offering_map.get(self._normalize_uuid(item["offering_uuid"]))
+                    if item.get("offering_uuid")
+                    else None
+                )
+                service_provider = (
+                    sp_map.get(self._normalize_uuid(item["service_provider_uuid"]))
+                    if item.get("service_provider_uuid")
+                    else None
+                )
+                if not offering and not service_provider:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping POSIX ID pool {uuid}: scope not found"
+                        )
+                    )
+                    self.stats["posix_id_pools"]["errors"] += 1
+                    continue
+                _, created = PosixIdPool.objects.update_or_create(
+                    uuid=self._normalize_uuid(uuid),
+                    defaults={
+                        "offering": offering,
+                        "service_provider": service_provider,
+                        "min_uid": item.get("min_uid"),
+                        "max_uid": item.get("max_uid"),
+                        "next_uid": item.get("next_uid"),
+                        "min_gid": item.get("min_gid"),
+                        "max_gid": item.get("max_gid"),
+                        "next_gid": item.get("next_gid"),
+                        "description": item.get("description", ""),
+                    },
+                )
+                self.stats["posix_id_pools"]["created" if created else "updated"] += 1
+            except Exception as e:
+                self.stats["posix_id_pools"]["errors"] += 1
+                self.stdout.write(
+                    self.style.ERROR(f"Error importing POSIX ID pool: {e}")
+                )
+
+    def import_resource_projects(self, resource_projects_data):
+        """Import resource projects (sub-projects of a resource), matched by uuid."""
+        if not resource_projects_data:
+            return
+        self.stdout.write("Importing resource projects...")
+        resource_map = {str(r.uuid): r for r in Resource.objects.all()}
+        for item in resource_projects_data:
+            try:
+                uuid = item.get("uuid")
+                resource_uuid = item.get("resource_uuid")
+                if not uuid or not resource_uuid:
+                    self.stats["resource_projects"]["errors"] += 1
+                    continue
+                resource = resource_map.get(self._normalize_uuid(resource_uuid))
+                if not resource:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping resource project {uuid}: "
+                            f"resource {resource_uuid} not found"
+                        )
+                    )
+                    self.stats["resource_projects"]["errors"] += 1
+                    continue
+                _, created = ResourceProject.objects.update_or_create(
+                    uuid=self._normalize_uuid(uuid),
+                    defaults={"resource": resource, "name": item.get("name", "")},
+                )
+                self.stats["resource_projects"][
+                    "created" if created else "updated"
+                ] += 1
+            except Exception as e:
+                self.stats["resource_projects"]["errors"] += 1
+                self.stdout.write(
+                    self.style.ERROR(f"Error importing resource project: {e}")
+                )
 
     def import_user_roles(self, user_roles_data):
         """Import user role assignments."""

@@ -129,6 +129,27 @@ class OfferingGroupAdmin(admin.ModelAdmin):
     raw_id_fields = ("customer",)
 
 
+class PosixIdPoolAdmin(admin.ModelAdmin):
+    model = models.PosixIdPool
+    list_display = (
+        "scope",
+        "customer",
+        "min_uid",
+        "max_uid",
+        "next_uid",
+        "min_gid",
+        "max_gid",
+        "next_gid",
+    )
+    raw_id_fields = ("service_provider", "offering")
+
+
+class PosixIdentityAdmin(admin.ModelAdmin):
+    model = models.PosixIdentity
+    list_display = ("uid", "gid", "pool", "offering", "released_at")
+    raw_id_fields = ("pool", "offering")
+
+
 class ScreenshotsInline(admin.StackedInline):
     model = models.Screenshot
     classes = ["collapse"]
@@ -758,6 +779,8 @@ admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category)
 admin.site.register(models.CategoryGroup, CategoryGroupAdmin)
 admin.site.register(models.OfferingGroup, OfferingGroupAdmin)
+admin.site.register(models.PosixIdPool, PosixIdPoolAdmin)
+admin.site.register(models.PosixIdentity, PosixIdentityAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section, SectionAdmin)
 admin.site.register(models.Attribute, AttributeAdmin)

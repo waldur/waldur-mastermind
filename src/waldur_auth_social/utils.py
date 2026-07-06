@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import DateField
+from django.db.models import DateField, IntegerField
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
@@ -70,6 +70,16 @@ def normalize_mapped_claim_value(user_field: str, value):
             except ValidationError:
                 logger.warning(
                     "Skipping claim for user field %s. Value %r is not a valid date.",
+                    user_field,
+                    value,
+                )
+                return None
+        if isinstance(field, IntegerField):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Skipping claim for user field %s. Value %r is not numeric.",
                     user_field,
                     value,
                 )

@@ -2147,7 +2147,8 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
 
     o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
     query = django_filters.CharFilter(
-        method="filter_query", label="Search by offering name, username or user name"
+        method="filter_query",
+        label="Search by offering name, username, user name, UID or primary GID",
     )
 
     class Meta:
@@ -2160,6 +2161,9 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
             | Q(username__icontains=value)
             | Q(user__first_name__icontains=value)
             | Q(user__last_name__icontains=value)
+            | Q(user__username__icontains=value)
+            | Q(backend_metadata__uidnumber__icontains=value)
+            | Q(backend_metadata__primarygroup__icontains=value)
         )
 
     def filter_has_consent(self, queryset, name, value):
@@ -2277,6 +2281,54 @@ class OfferingGroupFilter(django_filters.FilterSet):
         view_name="customer-detail",
         field_name="customer__uuid",
         label="Customer UUID",
+    )
+
+
+class PosixIdPoolFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.PosixIdPool
+        fields = []
+
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        method="filter_customer_uuid",
+        label="Customer UUID",
+    )
+    service_provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-service-provider-detail",
+        field_name="service_provider__uuid",
+        label="Service provider UUID",
+    )
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="offering__uuid",
+        label="Offering UUID",
+    )
+
+    def filter_customer_uuid(self, queryset, name, value):
+        return queryset.filter(
+            Q(service_provider__customer__uuid=value)
+            | Q(offering__customer__uuid=value)
+        )
+
+
+class PosixIdentityFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.PosixIdentity
+        fields = []
+
+    pool_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-posix-id-pool-detail",
+        field_name="pool__uuid",
+        label="POSIX ID pool UUID",
+    )
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="offering__uuid",
+        label="Offering UUID",
+    )
+    is_released = django_filters.BooleanFilter(
+        field_name="released_at", lookup_expr="isnull", exclude=True
     )
 
 
