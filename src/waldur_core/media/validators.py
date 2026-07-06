@@ -119,7 +119,7 @@ CertificateValidator = FileTypeValidator(
         "application/x-x509-ca-cert",
         "text/plain",
     ],
-    allowed_extensions=["pem"],
+    allowed_extensions=[".pem"],
 )
 
 
