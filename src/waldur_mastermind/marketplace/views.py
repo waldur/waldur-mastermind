@@ -19,8 +19,10 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, connection, transaction
 from django.db.models import (
+    Avg,
     CharField,
     Count,
+    DurationField,
     ExpressionWrapper,
     F,
     Func,
@@ -15103,6 +15105,38 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
             (on_time_count / completed_count * 100) if completed_count > 0 else None
         )
 
+        # On-time rate within a 15-minute tolerance (fraction 0-1): completed
+        # maintenances that finished no later than 15 min past scheduled_end.
+        completed_within_15min = queryset.filter(
+            state=MaintenanceState.COMPLETED,
+            actual_end__isnull=False,
+            actual_end__lte=F("scheduled_end")
+            + models.MaintenanceAnnouncement.TIMING_TOLERANCE,
+        ).count()
+        on_time_rate_15min = (
+            completed_within_15min / completed_count if completed_count > 0 else None
+        )
+
+        # Mean overrun (hours) across completed maintenances that ran over.
+        overrun_agg = queryset.filter(
+            state=MaintenanceState.COMPLETED,
+            actual_end__isnull=False,
+            actual_end__gt=F("scheduled_end"),
+        ).aggregate(
+            avg=Avg(
+                ExpressionWrapper(
+                    F("actual_end") - F("scheduled_end"),
+                    output_field=DurationField(),
+                )
+            )
+        )
+        avg_overrun = overrun_agg["avg"]
+        avg_overrun_hours = avg_overrun.total_seconds() / 3600 if avg_overrun else None
+
+        emergency_count = queryset.filter(
+            maintenance_type=MaintenanceType.EMERGENCY
+        ).count()
+
         # State counts
         state_counts_raw = dict(
             queryset.values("state")
@@ -15195,6 +15229,9 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
                 "completed": completed_count,
                 "average_duration_hours": avg_duration_hours,
                 "on_time_completion_rate": on_time_rate,
+                "on_time_rate_15min": on_time_rate_15min,
+                "avg_overrun_hours": avg_overrun_hours,
+                "emergency_count": emergency_count,
             },
             "by_state": state_counts,
             "by_type": type_counts,

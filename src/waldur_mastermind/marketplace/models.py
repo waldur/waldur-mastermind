@@ -53,6 +53,7 @@ from waldur_mastermind.marketplace.enums import (
     ImpactLevel,
     LimitPeriods,
     MaintenanceState,
+    MaintenanceTimingBucket,
     MaintenanceType,
     OfferingStates,
     OfferingUserRuntimeStates,
@@ -4437,6 +4438,45 @@ class MaintenanceAnnouncement(
     def affected_offerings_count(self):
         """Count of affected offerings"""
         return self.affected_offerings.count()
+
+    # Start/end deviations within this window count as on-time (see timing_bucket).
+    TIMING_TOLERANCE = timedelta(minutes=15)
+
+    @property
+    def overrun_minutes(self):
+        """Minutes actual_end ran past scheduled_end (negative = finished early);
+        None until the maintenance has completed."""
+        if not self.actual_end:
+            return None
+        return round((self.actual_end - self.scheduled_end).total_seconds() / 60)
+
+    @property
+    def start_delta_minutes(self):
+        """Minutes actual_start deviated from scheduled_start (negative = started
+        early); None until the maintenance has started."""
+        if not self.actual_start:
+            return None
+        return round((self.actual_start - self.scheduled_start).total_seconds() / 60)
+
+    @property
+    def timing_bucket(self):
+        """Classify timing against TIMING_TOLERANCE.
+
+        One of: pending / overrun / late_start / early / on_time.
+        Precedence: pending > overrun > late_start > early > on_time.
+        Uses raw timedelta comparison so it stays in sync with the DB-level
+        timing_bucket filter.
+        """
+        if not self.actual_start:
+            return MaintenanceTimingBucket.PENDING
+        tol = self.TIMING_TOLERANCE
+        if self.actual_end and (self.actual_end - self.scheduled_end) > tol:
+            return MaintenanceTimingBucket.OVERRUN
+        if (self.actual_start - self.scheduled_start) > tol:
+            return MaintenanceTimingBucket.LATE_START
+        if self.actual_end and (self.actual_end - self.scheduled_end) < -tol:
+            return MaintenanceTimingBucket.EARLY
+        return MaintenanceTimingBucket.ON_TIME
 
     @transition(
         field=state, source=MaintenanceState.DRAFT, target=MaintenanceState.SCHEDULED

@@ -3,7 +3,16 @@ import json
 import django_filters
 from constance import config
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet
+from django.db.models import (
+    Count,
+    DurationField,
+    Exists,
+    ExpressionWrapper,
+    F,
+    OuterRef,
+    Q,
+    QuerySet,
+)
 from django.utils.translation import gettext_lazy as _
 from django_filters import DateFromToRangeFilter
 from django_filters.widgets import BooleanWidget
@@ -2569,6 +2578,47 @@ class MaintenanceAnnouncementTemplateFilter(django_filters.FilterSet):
         fields = []
 
 
+def annotate_timing_deltas(queryset):
+    """Annotate the derived overrun/start deltas used by timing ordering and the
+    timing_bucket filter. Applied on demand (only when those params are used) so
+    the aggregation queries in maintenance_stats keep their intended GROUP BY."""
+    return queryset.annotate(
+        overrun_delta=ExpressionWrapper(
+            F("actual_end") - F("scheduled_end"), output_field=DurationField()
+        ),
+        start_delta=ExpressionWrapper(
+            F("actual_start") - F("scheduled_start"), output_field=DurationField()
+        ),
+    )
+
+
+class MaintenanceOrderingFilter(django_filters.OrderingFilter):
+    """Ordering filter that sorts derived timing fields by their queryset
+    annotations and always sinks NULL rows (not-yet-completed maintenances)."""
+
+    # ?o param name -> queryset annotation.
+    NULLS_LAST_ANNOTATIONS = {
+        "overrun_minutes": "overrun_delta",
+        "start_delta_minutes": "start_delta",
+    }
+
+    def filter(self, qs, value):
+        if value and {v.lstrip("-") for v in value} & set(self.NULLS_LAST_ANNOTATIONS):
+            qs = annotate_timing_deltas(qs)
+        return super().filter(qs, value)
+
+    def get_ordering_value(self, param):
+        descending = param.startswith("-")
+        name = param[1:] if descending else param
+        annotation = self.NULLS_LAST_ANNOTATIONS.get(name)
+        if annotation:
+            expr = F(annotation)
+            return (
+                expr.desc(nulls_last=True) if descending else expr.asc(nulls_last=True)
+            )
+        return super().get_ordering_value(param)
+
+
 class MaintenanceAnnouncementFilter(django_filters.FilterSet):
     service_provider_uuid = core_filters.RelatedUUIDFilter(
         view_name="marketplace-service-provider-detail",
@@ -2593,13 +2643,56 @@ class MaintenanceAnnouncementFilter(django_filters.FilterSet):
     scheduled_end_before = django_filters.DateTimeFilter(
         field_name="scheduled_end", lookup_expr="lte", label="Scheduled end before"
     )
-    o = django_filters.OrderingFilter(
-        fields=("created", "name", "scheduled_start", "scheduled_end")
+    o = MaintenanceOrderingFilter(
+        fields=(
+            "created",
+            "name",
+            "scheduled_start",
+            "scheduled_end",
+            "overrun_minutes",
+            "start_delta_minutes",
+        )
+    )
+    timing_bucket = django_filters.CharFilter(
+        method="filter_timing_bucket",
+        label="Timing bucket (comma-separated: on_time, late_start, overrun, early, pending)",
     )
 
     class Meta:
         model = models.MaintenanceAnnouncement
         fields = []
+
+    def filter_timing_bucket(self, queryset, name, value):
+        buckets = [b.strip() for b in value.split(",") if b.strip()]
+        if not buckets:
+            return queryset
+        queryset = annotate_timing_deltas(queryset)
+        # Q-expressions mirror MaintenanceAnnouncement.timing_bucket precedence
+        # (pending > overrun > late_start > early > on_time), operating on the
+        # overrun_delta / start_delta annotations added by the viewset.
+        tol = models.MaintenanceAnnouncement.TIMING_TOLERANCE
+        started = Q(actual_start__isnull=False)
+        ended = Q(actual_end__isnull=False)
+        q_overrun = ended & Q(overrun_delta__gt=tol)
+        q_late = started & Q(start_delta__gt=tol) & ~q_overrun
+        q_early = ended & Q(overrun_delta__lt=-tol) & ~q_overrun & ~q_late
+        q_on_time = started & ~q_overrun & ~q_late & ~q_early
+        bucket_q = {
+            models.MaintenanceTimingBucket.OVERRUN: q_overrun,
+            models.MaintenanceTimingBucket.LATE_START: q_late,
+            models.MaintenanceTimingBucket.EARLY: q_early,
+            models.MaintenanceTimingBucket.ON_TIME: q_on_time,
+            models.MaintenanceTimingBucket.PENDING: Q(actual_start__isnull=True),
+        }
+        combined = Q()
+        matched = False
+        for bucket in buckets:
+            if bucket in bucket_q:
+                combined |= bucket_q[bucket]
+                matched = True
+        if not matched:
+            return queryset.none()
+        return queryset.filter(combined)
 
 
 class MaintenanceAnnouncementOfferingTemplateFilter(django_filters.FilterSet):
