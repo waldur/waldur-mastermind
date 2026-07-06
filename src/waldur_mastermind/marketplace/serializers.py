@@ -326,6 +326,13 @@ class OpenStackPluginOptionsSerializer(serializers.Serializer):
         max_value=1440,
         help_text="Interval in minutes between usage polling for this offering (default: 60)",
     )
+    billing_source = serializers.ChoiceField(
+        required=False,
+        choices=["quota", "placement"],
+        help_text="Source for OpenStack instance compute ComponentUsage: "
+        "'quota' (flavor-derived Nova quota, default) or 'placement' "
+        "(Placement allocations; also bills VGPU/PCI/custom resource classes).",
+    )
 
 
 class HeappePluginOptionsSerializer(serializers.Serializer):

@@ -30,6 +30,8 @@ from waldur_mastermind.marketplace.utils import (
     import_resource_metadata,
 )
 from waldur_mastermind.marketplace_openstack import (
+    BILLING_SOURCE_PLACEMENT,
+    BILLING_SOURCE_QUOTA,
     CORES_TYPE,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
@@ -42,7 +44,8 @@ from waldur_openstack import (
 from waldur_openstack import (
     models as openstack_models,
 )
-from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.backend import OpenStackBackend, OpenStackBackendError
+from waldur_openstack.session import get_placement_client
 from waldur_openstack.utils import (
     is_valid_volume_type_name,
     volume_type_name_to_quota_name,
@@ -174,13 +177,46 @@ def _apply_quotas(target: openstack_models.Tenant, quotas: dict[str, int]):
         target.set_quota_limit(name, limit)
 
 
+def get_usage_values(resource: marketplace_models.Resource, tenant) -> dict:
+    """Build the ``{component_type: usage}`` dict for a tenant resource.
+
+    Default (``billing_source`` unset or ``"quota"``) sources cores/ram/storage
+    from the tenant's flavor-derived Nova quota and Cinder quota usage. With
+    ``plugin_options["billing_source"] == "placement"``, cores/ram and
+    specialty resource classes (VGPU, PCI_DEVICE, custom) come from Placement
+    allocations instead; storage stays on Cinder quota (Placement ``DISK_GB`` is
+    ephemeral disk, not Cinder volumes — see ``PLACEMENT_CLASSES_IGNORED``).
+    """
+    quota_usages = import_quotas(resource.offering, tenant.quota_usages)
+    billing_source = (
+        resource.offering.plugin_options.get("billing_source") or BILLING_SOURCE_QUOTA
+    )
+    if billing_source != BILLING_SOURCE_PLACEMENT:
+        return quota_usages
+
+    try:
+        placement_totals = collect_placement_allocations(tenant)
+    except OpenStackBackendError as e:
+        # A transient Placement outage must not zero the bill: fall back to the
+        # quota-derived numbers for this tick. The high-watermark in
+        # import_current_usages keeps the monthly peak intact regardless.
+        logger.warning(
+            "Placement billing source unavailable for tenant %s; "
+            "falling back to quota usage: %s",
+            tenant,
+            e,
+        )
+        return quota_usages
+    return merge_placement_usages(quota_usages, placement_totals)
+
+
 def import_usage(resource: marketplace_models.Resource):
     tenant = cast(openstack_models.Tenant, resource.scope)
 
     if not tenant:
         return
 
-    usages = import_quotas(resource.offering, tenant.quota_usages)
+    usages = get_usage_values(resource, tenant)
     has_usage_billing = resource.offering.components.filter(
         billing_type=BillingTypes.USAGE,
     ).exists()
@@ -875,7 +911,7 @@ def delete_volume(volume, attributes=None, is_async=True):
     )
 
 
-# --- Placement billing reconciliation (WAL-9900) -------------------------------
+# --- Placement billing reconciliation ----------------------------------------
 #
 # Read-only audit comparing the flavor-derived billing of an OpenStack instance
 # (cores/ram/disk, which feed the tenant ComponentUsage via quota) against what
@@ -1039,3 +1075,60 @@ def detect_untracked_volume_types(
             }
         )
     return drifts
+
+
+# --- Placement-sourced ComponentUsage ----------------------------------------
+#
+# Opt-in alternative to flavor-derived billing: source compute usage straight
+# from Placement allocations. Reuses the reconciliation pure functions
+# (aggregate_placement_allocations, placement_to_component_values). Enabled per
+# offering via plugin_options["billing_source"] == "placement".
+
+
+def collect_placement_allocations(tenant) -> dict:
+    """Sum Placement allocations across all of a tenant's instances.
+
+    One ``PlacementClient`` per tenant. Instances with no ``backend_id`` or no
+    Placement record contribute nothing — transient (just created) or never
+    scheduled — mirroring the reconciliation audit. Returns a flat
+    ``{resource_class: total}`` dict.
+    """
+    backend = tenant.get_backend()
+    placement = get_placement_client(backend.admin_session)
+    instances = (
+        openstack_models.Instance.objects.filter(tenant=tenant)
+        .exclude(backend_id="")
+        .exclude(backend_id__isnull=True)
+    )
+    totals: dict[str, int] = {}
+    for instance in instances:
+        allocations = placement.get_allocations(instance.backend_id)
+        for resource_class, amount in aggregate_placement_allocations(
+            allocations
+        ).items():
+            totals[resource_class] = totals.get(resource_class, 0) + amount
+    return totals
+
+
+def merge_placement_usages(quota_usages: dict, placement_totals: dict) -> dict:
+    """Overlay Placement-derived compute usage onto quota-derived usage.
+
+    cores/ram are replaced with the Placement-aggregated values; specialty
+    resource classes (VGPU, PCI_DEVICE, custom) become one component each,
+    matched to an ``OfferingComponent`` by lowercased class name (``VGPU`` ->
+    ``vgpu``). A class with no matching component is logged and skipped by
+    ``import_current_usages``, so it is surfaced but never billed.
+
+    Storage and every other quota-sourced component are left untouched —
+    Placement ``DISK_GB`` is deliberately ignored (see
+    ``PLACEMENT_CLASSES_IGNORED``): instance storage is Cinder volumes, a
+    subsystem Placement does not track.
+    """
+    mapped, unmapped = placement_to_component_values(placement_totals)
+    result = dict(quota_usages)
+    result[CORES_TYPE] = mapped.get(CORES_TYPE, 0)
+    result[RAM_TYPE] = mapped.get(RAM_TYPE, 0)
+    for resource_class, amount in unmapped.items():
+        if amount > 0:
+            result[resource_class.lower()] = amount
+    return result

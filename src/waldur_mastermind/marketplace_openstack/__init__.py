@@ -14,3 +14,10 @@ def get_mb_component_types() -> frozenset[str]:
 
 STORAGE_MODE_FIXED = "fixed"
 STORAGE_MODE_DYNAMIC = "dynamic"
+
+# Source for OpenStack instance compute ComponentUsage.
+# QUOTA: cores/ram from the tenant's flavor-derived Nova quota usage (default).
+# PLACEMENT: cores/ram and specialty resource classes (VGPU, PCI_DEVICE, custom)
+# from Placement allocations. Storage stays on Cinder quota in both modes.
+BILLING_SOURCE_QUOTA = "quota"
+BILLING_SOURCE_PLACEMENT = "placement"
