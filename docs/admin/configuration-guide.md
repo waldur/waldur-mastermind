@@ -3152,6 +3152,16 @@ If true, a support ticket is created when a user adds or removes an SSH public k
 
 Select which reporting screens should be visible to users. Uncheck to disable specific reports.
 
+### POSIX ID pools
+
+#### POSIX_ID_POOL_UTILIZATION_THRESHOLD
+
+**Type:** int
+
+**Default value:** 90
+
+Utilization percentage of a POSIX ID pool namespace that triggers a warning event.
+
 ### Affiliates
 
 #### AFFILIATES_ENABLED

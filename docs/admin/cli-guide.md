@@ -281,6 +281,26 @@ options:
 
 ```
 
+## dedupe_tenant_offerings
+
+Report and optionally resolve tenants that have more than one per-tenant OpenStack.Instance/Volume offering.
+
+```bash
+
+usage: waldur dedupe_tenant_offerings [--tenant TENANT_ID] [--apply] [--merge]
+
+options:
+  --tenant TENANT_ID  Restrict to a single OpenStack tenant (by numeric id).
+                      Matches the tenant id printed in the self-heal ERROR
+                      log.
+  --apply             Delete empty duplicate offerings. Without this flag the
+                      command only reports (dry-run).
+  --merge             Also resolve duplicates that still own resources/orders
+                      by re-pointing them onto the keeper before deletion.
+                      Requires --apply.
+
+```
+
 ## demo_presets
 
 Manage demo data presets for Waldur.

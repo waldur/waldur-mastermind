@@ -124,6 +124,14 @@ Enabled display of call management functionality.
 
 Enabled display of experimental or mocked components in marketplace.
 
+## marketplace.show_openstack_duplicate_offerings
+
+Show the staff diagnostics page listing tenants with duplicate per-tenant OpenStack offerings.
+
+## marketplace.show_posix_id_pools
+
+Render POSIX ID pool management UI for service providers.
+
 ## marketplace.show_resource_end_date
 
 Show resource end date as a non optional column in resources list.
