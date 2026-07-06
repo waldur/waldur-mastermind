@@ -201,6 +201,7 @@ from . import (
     order_approval,
     permissions,
     plugins,
+    posix_ids,
     serializers,
     tasks,
     utils,
@@ -1965,6 +1966,121 @@ class OfferingGroupViewSet(core_views.ActionsViewSet):
     ]
 
 
+def posix_id_pool_has_no_active_identities(pool: models.PosixIdPool):
+    if pool.identities.filter(released_at__isnull=True).exists():
+        raise rf_exceptions.ValidationError(
+            _("Pool with active identities cannot be deleted.")
+        )
+
+
+class PosixIdPoolViewSet(core_views.ActionsViewSet):
+    """Manage POSIX UID/GID pools of a service provider.
+
+    Each provider has one default pool; an offering may carry an override pool.
+    A pool reserves a UID range and a GID range and is the sole UID/GID
+    allocation mechanism for offering users, robot accounts and groups.
+    """
+
+    queryset = (
+        models.PosixIdPool.objects.all()
+        .order_by("id")
+        .select_related("service_provider__customer", "offering__customer")
+    )
+    serializer_class = serializers.PosixIdPoolSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.PosixIdPoolFilter
+
+    # Create permission checks happen in the serializer (the scope object is
+    # only known after validation). GenericRoleFilter cannot span the two scope
+    # paths, hence manual queryset scoping below.
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_POSIX_ID_POOL,
+            ["customer", "customer.serviceprovider"],
+        )
+    ]
+    destroy_validators = [posix_id_pool_has_no_active_identities]
+
+    def get_queryset(self):
+        # Annotate the per-namespace active-identity counts so the list can
+        # render utilization without an N+1 stats query per row.
+        queryset = (
+            super()
+            .get_queryset()
+            .annotate(
+                uid_used=Count(
+                    "identities",
+                    filter=Q(
+                        identities__released_at__isnull=True,
+                        identities__uid__isnull=False,
+                    ),
+                    distinct=True,
+                ),
+                gid_used=Count(
+                    "identities",
+                    filter=Q(
+                        identities__released_at__isnull=True,
+                        identities__gid__isnull=False,
+                    ),
+                    distinct=True,
+                ),
+            )
+        )
+        current_user = self.request.user
+        if current_user.is_staff or current_user.is_support:
+            return queryset
+
+        customers = get_connected_customers(current_user)
+        return queryset.filter(
+            Q(service_provider__customer__in=customers)
+            | Q(offering__customer__in=customers)
+        )
+
+    @extend_schema(
+        summary="Pool utilization statistics",
+        responses={200: serializers.PosixIdPoolStatsSerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def stats(self, request, uuid=None):
+        pool = self.get_object()
+        serializer = serializers.PosixIdPoolStatsSerializer(
+            posix_ids.get_pool_stats(pool)
+        )
+        return Response(serializer.data)
+
+
+class PosixIdentityViewSet(core_views.ReadOnlyActionsViewSet):
+    """Read-only audit view of allocated POSIX identities.
+
+    Released values are recycled automatically on the next allocation from the
+    same pool and namespace; released rows are retained here as an audit trail.
+    """
+
+    queryset = (
+        models.PosixIdentity.objects.all()
+        .order_by("id")
+        .select_related("pool", "offering", "content_type")
+        .prefetch_related("consumer")
+    )
+    serializer_class = serializers.PosixIdentitySerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.PosixIdentityFilter
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        current_user = self.request.user
+        if current_user.is_staff or current_user.is_support:
+            return queryset
+
+        customers = get_connected_customers(current_user)
+        return queryset.filter(
+            Q(pool__service_provider__customer__in=customers)
+            | Q(pool__offering__customer__in=customers)
+        )
+
+
 class TagViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     """
     Manage offering tags.
@@ -2365,6 +2481,26 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
         return self._update_state("archive")
+
+    @extend_schema(
+        summary="Effective POSIX ID pool",
+        description=(
+            "The POSIX ID pool that governs this offering: its own override "
+            "pool if present, otherwise the service provider's default pool. "
+            "Returns null when no pool is configured."
+        ),
+        responses={200: serializers.PosixIdPoolSerializer(allow_null=True)},
+    )
+    @action(detail=True, methods=["get"])
+    def effective_posix_id_pool(self, request, uuid=None):
+        offering = self.get_object()
+        pool = posix_ids.resolve(offering)
+        if pool is None:
+            return Response(None)
+        serializer = serializers.PosixIdPoolSerializer(
+            pool, context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
 
     def _update_state(self, action, request=None):
         offering: models.Offering = self.get_object()
@@ -10120,6 +10256,21 @@ class OfferingUsersViewSet(
         serializer.save()
 
         if "username" in serializer.validated_data and old_username != new_username:
+            # The home directory is derived from the username (homedir_prefix +
+            # username). Under the service_provider username policy it is first
+            # computed while the username is still empty, so re-derive it now
+            # that the provider has assigned one. An explicit per-user override
+            # (a homeDir that no longer matches the derived pattern) is left
+            # untouched.
+            backend_metadata = instance.backend_metadata or {}
+            if "homeDir" in backend_metadata:
+                prefix = instance.offering.plugin_options.get(
+                    "homedir_prefix", "/home/"
+                )
+                if backend_metadata.get("homeDir") == f"{prefix}{old_username}":
+                    backend_metadata["homeDir"] = f"{prefix}{new_username}"
+                    instance.backend_metadata = backend_metadata
+                    instance.save(update_fields=["backend_metadata"])
             logger.info(
                 "OfferingUser username update via API: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r source_user_uuid=%s",
                 instance.uuid.hex,
@@ -10128,6 +10279,154 @@ class OfferingUsersViewSet(
                 new_username,
                 getattr(self.request.user, "uuid", None) and self.request.user.uuid.hex,
             )
+
+    @extend_schema(
+        summary="Set POSIX attributes for an offering user",
+        description=(
+            "Override the login shell, home directory, UID and/or primary GID "
+            "for a single offering user, taking precedence over the "
+            "offering-level defaults / the range allocator. UID and primary GID "
+            "re-point the allocation ledger; values outside every active range "
+            "are accepted but reported in the response 'warnings'."
+        ),
+        request=serializers.OfferingUserPosixAttributesSerializer,
+        responses={200: serializers.OfferingUserPosixUpdateResponseSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_posix_attributes(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        serializer = serializers.OfferingUserPosixAttributesSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        warnings = []
+        posix_id_overrides = (
+            ("uidnumber", posix_ids.UID, "UID"),
+            ("primarygroup", posix_ids.GID, "primary GID"),
+        )
+        # One transaction so a conflict on the second identifier rolls back the
+        # identity change made for the first — the action is all-or-nothing.
+        with transaction.atomic():
+            backend_metadata = offering_user.backend_metadata or {}
+            if "login_shell" in data:
+                backend_metadata["loginShell"] = data["login_shell"]
+            if "home_directory" in data:
+                backend_metadata["homeDir"] = data["home_directory"]
+
+            for field, namespace, label in posix_id_overrides:
+                if data.get(field) is None:
+                    continue
+                value = data[field]
+                try:
+                    posix_ids.set_value(
+                        offering_user, namespace, value, offering_user.offering
+                    )
+                except posix_ids.PosixIdValueConflict:
+                    raise rf_exceptions.ValidationError(
+                        {
+                            field: _(
+                                "%(value)s is already allocated to another account."
+                            )
+                            % {"value": value}
+                        }
+                    )
+                except DjangoValidationError as exc:
+                    raise rf_exceptions.ValidationError({field: exc.messages[0]})
+                backend_metadata[field] = value
+                warnings.extend(posix_ids.posix_value_advisories(label, value))
+
+            offering_user.backend_metadata = backend_metadata
+            offering_user.save(update_fields=["backend_metadata"])
+
+        # Echo the just-persisted values from backend_metadata (the source the
+        # allocator/GLAuth read). Building the response from the action's input
+        # serializer would re-read non-existent model attributes and report null.
+        return Response(
+            serializers.OfferingUserPosixUpdateResponseSerializer(
+                {
+                    "uidnumber": backend_metadata.get("uidnumber"),
+                    "primarygroup": backend_metadata.get("primarygroup"),
+                    "warnings": warnings,
+                }
+            ).data
+        )
+
+    set_posix_attributes_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer", "offering"],
+        )
+    ]
+    set_posix_attributes_serializer_class = (
+        serializers.OfferingUserPosixAttributesSerializer
+    )
+
+    @extend_schema(
+        summary="List project group GIDs an offering user belongs to",
+        description=(
+            "Returns the project group GIDs (shared GIDs that appear in the "
+            "user's GLAuth otherGroups) for this offering user."
+        ),
+        responses={200: serializers.OfferingUserPosixGroupSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"])
+    def posix_groups(self, request, uuid=None):
+        offering_user = self.get_object()
+        rows = utils.get_offering_user_posix_groups(offering_user, viewer=request.user)
+        serializer = serializers.OfferingUserPosixGroupSerializer(rows, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="List POSIX UID/GID allocations of an offering user",
+        description=(
+            "Returns the user's POSIX identifiers (UID, primary GID) and, for "
+            "each, the POSIX ID pool that tracks it. The pool fields are null "
+            "when the value is not tracked by a pool."
+        ),
+        responses={200: serializers.OfferingUserPosixAllocationSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"])
+    def posix_allocations(self, request, uuid=None):
+        offering_user = self.get_object()
+        rows = utils.get_offering_user_posix_allocations(offering_user)
+        serializer = serializers.OfferingUserPosixAllocationSerializer(rows, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="List a user's POSIX identities across all their offerings",
+        description=(
+            "Consolidated view of one user's POSIX identifiers (UID, primary "
+            "GID and project group GIDs) across every offering they have an "
+            "account on, each with the range it was allocated from. Scoped to "
+            "the offering users the requester is allowed to see."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "user_uuid",
+                OpenApiTypes.UUID,
+                OpenApiParameter.QUERY,
+                required=True,
+            ),
+        ],
+        responses={200: serializers.UserPosixIdentitySerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def posix_identities(self, request):
+        user_uuid = request.query_params.get("user_uuid")
+        if not user_uuid:
+            raise rf_exceptions.ValidationError(
+                {"user_uuid": _("This query parameter is required.")}
+            )
+        offering_users = (
+            self.filter_queryset(self.get_queryset())
+            .filter(user__uuid=user_uuid)
+            .select_related("offering", "user")
+        )
+        rows = utils.get_user_posix_identities(offering_users, viewer=request.user)
+        serializer = serializers.UserPosixIdentitySerializer(rows, many=True)
+        return Response(serializer.data)
 
     def _offering_user_or_service_provider_permission(request, view, obj=None):
         """
@@ -10910,21 +11209,62 @@ class OfferingUserGroupViewSet(core_views.ActionsViewSet):
     def perform_create(self, serializer):
         offering_group: models.OfferingUserGroup = serializer.save()
         offering = offering_group.offering
-        offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
 
-        existing_ids = offering_groups.filter(
-            backend_metadata__has_key="gid"
-        ).values_list("backend_metadata__gid", flat=True)
-
-        if len(existing_ids) == 0:
-            max_group_id = int(
-                offering.plugin_options.get("initial_usergroup_number", 6000)
-            )
+        gid = posix_ids.allocate(offering, posix_ids.GID, offering_group)
+        if gid is not None:
+            offering_group.backend_metadata["gid"] = gid
+            offering_group.save(update_fields=["backend_metadata"])
         else:
-            max_group_id = max(existing_ids)
+            logger.warning(
+                "No POSIX ID pool configured for offering %s; offering user "
+                "group %s created without a gid.",
+                offering,
+                offering_group.pk,
+            )
 
-        offering_group.backend_metadata["gid"] = max_group_id + 1
-        offering_group.save(update_fields=["backend_metadata"])
+
+class ProjectPosixGroupsViewSet(rf_viewsets.ViewSet):
+    """Read-only rollup of POSIX group GIDs assigned to a project across all
+    offerings — both project-mapped groups and resource/role groups."""
+
+    @extend_schema(
+        summary="List POSIX group GIDs assigned to a project",
+        description=(
+            "Returns every POSIX group GID a project has been assigned, across "
+            "all offerings: project-mapped groups (project_group_gid) and "
+            "resource / resource-project role groups (role_group_gid). The "
+            "project_uuid query parameter is required."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "project_uuid",
+                str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+            )
+        ],
+        responses={200: serializers.ProjectPosixGroupSerializer(many=True)},
+    )
+    def list(self, request):
+        project_uuid = request.query_params.get("project_uuid")
+        if not project_uuid:
+            raise rf_exceptions.ValidationError(
+                {"project_uuid": "This query parameter is required."}
+            )
+        project = get_object_or_404(structure_models.Project, uuid=project_uuid)
+
+        user = request.user
+        if not (
+            user.is_staff
+            or user.is_support
+            or project.id in get_connected_projects(user)
+            or project.customer_id in get_connected_customers(user)
+        ):
+            raise rf_exceptions.PermissionDenied()
+
+        rows = utils.get_project_posix_groups(project)
+        serializer = serializers.ProjectPosixGroupSerializer(rows, many=True)
+        return Response(serializer.data)
 
 
 class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):

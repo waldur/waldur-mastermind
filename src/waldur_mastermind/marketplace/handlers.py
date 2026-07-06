@@ -68,7 +68,7 @@ from waldur_mastermind.marketplace.permissions import (
 )
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
-from . import callbacks, log, models, order_approval, tasks, utils
+from . import callbacks, log, models, order_approval, posix_ids, tasks, utils
 from .tasks import remove_users_from_robot_accounts_on_permission_loss
 
 logger = logging.getLogger(__name__)
@@ -2861,3 +2861,14 @@ def log_resource_limit_change_request_events(sender, instance, created=False, **
             event_context=event_context,
             scopes=[instance.resource],
         )
+
+
+def release_posix_allocations_on_consumer_deletion(sender, instance, **kwargs):
+    """Mark the deleted POSIX id consumer's identity as released.
+
+    A released value is recycled automatically on the next allocation from the
+    same pool and namespace; the released row is kept as an audit trail. Note:
+    OfferingUser also has a soft DELETED lifecycle state — release is
+    intentionally tied to actual row deletion only.
+    """
+    posix_ids.release_posix_allocations(instance)

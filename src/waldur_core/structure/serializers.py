@@ -2112,6 +2112,9 @@ class UserSerializer(
             "organization_vat_code",
             "organization_address",
             "eduperson_assurance",
+            # POSIX identity from the identity provider (read-only)
+            "uid_number",
+            "primary_gid",
             # Identity Bridge fields (staff-only, see get_fields)
             "is_identity_manager",
             "can_use_personal_access_tokens",
@@ -2135,6 +2138,8 @@ class UserSerializer(
             "attribute_sources",
             "active_isds",
             "is_admin_deactivated",
+            "uid_number",
+            "primary_gid",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},

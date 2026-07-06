@@ -183,6 +183,58 @@ class OfferingGroupFactory(
         return url if action is None else url + action + "/"
 
 
+class PosixIdPoolFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.PosixIdPool]
+):
+    class Meta:
+        model = models.PosixIdPool
+
+    min_uid = 100000
+    max_uid = 199999
+    next_uid = 100000
+    min_gid = 100000
+    max_gid = 199999
+    next_gid = 100000
+
+    @classmethod
+    def get_url(cls, pool=None, action=None):
+        if pool is None:
+            pool = PosixIdPoolFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-posix-id-pool-detail",
+            kwargs={"uuid": pool.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-posix-id-pool-list")
+        return url if action is None else url + action + "/"
+
+
+class PosixIdentityFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.PosixIdentity],
+):
+    class Meta:
+        model = models.PosixIdentity
+
+    @classmethod
+    def get_url(cls, identity=None, action=None):
+        if identity is None:
+            identity = PosixIdentityFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-posix-identity-detail",
+            kwargs={"uuid": identity.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-posix-identity-list")
+        return url if action is None else url + action + "/"
+
+
 class TagFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Tag]
 ):

@@ -19,7 +19,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, utils
 from waldur_mastermind.marketplace.enums import (
     OfferingUserRuntimeStates,
     OfferingUserStates,
@@ -110,6 +110,18 @@ class ListOfferingUsersTest(test.APITestCase):
         )
         self.assertEqual(1, len(response.data))
         self.assertEqual("user", response.data[0]["username"])
+
+    def test_query_search_by_uid_and_gid(self):
+        OfferingUser.objects.filter(username="user").update(
+            backend_metadata={"uidnumber": 100042, "primarygroup": 200042}
+        )
+        self.client.force_login(self.fixture.staff)
+
+        for value in ("100042", "200042", "0004"):  # exact uid, exact gid, partial
+            response = self.client.get(
+                OfferingUserFactory.get_list_url(), {"query": value}
+            )
+            self.assertEqual([u["username"] for u in response.data], ["user"], value)
 
     def test_user_can_filter_by_user_username(self):
         offering_user = OfferingUser.objects.get(username="user")
@@ -307,6 +319,170 @@ class OfferingUsersUpdateTest(test.APITestCase):
     def test_unauthorized_user_can_not_update_offering_user(self, user):
         response = self.update_offering_user(user, self.offering_user)
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+
+@ddt
+class OfferingUserPosixAttributesTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+            "homedir_prefix": "/home/hpc/",
+        }
+        self.offering.save()
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=UserFactory(),
+            username="alice",
+            backend_metadata={
+                "uidnumber": 1000,
+                "loginShell": "/bin/bash",
+                "homeDir": "/home/hpc/alice",
+            },
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def get_url(self, action=None):
+        url = OfferingUserFactory.get_url(self.offering_user)
+        return url if action is None else url + action + "/"
+
+    # --- #1: home directory follows the username ---------------------------
+
+    def test_home_directory_is_rederived_on_username_change(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.get_url(), {"username": "alice2"})
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.backend_metadata["homeDir"], "/home/hpc/alice2"
+        )
+
+    def test_overridden_home_directory_is_preserved_on_username_change(self):
+        self.offering_user.backend_metadata["homeDir"] = "/custom/alice"
+        self.offering_user.save()
+        self.client.force_authenticate(self.fixture.staff)
+        self.client.patch(self.get_url(), {"username": "alice2"})
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.backend_metadata["homeDir"], "/custom/alice"
+        )
+
+    # --- #2: per-user POSIX attribute overrides ----------------------------
+
+    def test_posix_attributes_are_exposed_read_only(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.get_url())
+        self.assertEqual(response.data["login_shell"], "/bin/bash")
+        self.assertEqual(response.data["home_directory"], "/home/hpc/alice")
+
+    @data("staff", "owner")
+    def test_authorized_user_can_set_posix_attributes(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(
+            self.get_url("set_posix_attributes"),
+            {"login_shell": "/bin/zsh", "home_directory": "/data/alice"},
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.backend_metadata["loginShell"], "/bin/zsh")
+        self.assertEqual(self.offering_user.backend_metadata["homeDir"], "/data/alice")
+        # The allocated uid is untouched.
+        self.assertEqual(self.offering_user.backend_metadata["uidnumber"], 1000)
+
+    def test_set_posix_attributes_accepts_partial_payload(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.get_url("set_posix_attributes"), {"login_shell": "/bin/sh"}
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.backend_metadata["loginShell"], "/bin/sh")
+        self.assertEqual(
+            self.offering_user.backend_metadata["homeDir"], "/home/hpc/alice"
+        )
+
+    def test_set_posix_attributes_rejects_empty_payload(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.get_url("set_posix_attributes"), {})
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+    @data("customer_support", "service_manager")
+    def test_unauthorized_user_can_not_set_posix_attributes(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(
+            self.get_url("set_posix_attributes"), {"login_shell": "/bin/zsh"}
+        )
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+
+class OfferingUserPosixGroupsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.manager, username="m"
+        )
+        group = models.OfferingUserGroup.objects.create(
+            offering=self.offering, backend_metadata={"gid": 8500}
+        )
+        group.projects.add(self.fixture.project)
+
+    def get_url(self):
+        return OfferingUserFactory.get_url(self.offering_user) + "posix_groups/"
+
+    def test_lists_project_group_gids_for_member(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.get_url())
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        self.assertEqual(len(response.data), 1)
+        row = response.data[0]
+        self.assertEqual(row["gid"], 8500)
+        self.assertEqual(row["project_uuid"], self.fixture.project.uuid.hex)
+        self.assertEqual(row["customer_name"], self.fixture.customer.name)
+        self.assertEqual(row["customer_uuid"], self.fixture.customer.uuid.hex)
+        # Staff may open any project.
+        self.assertTrue(row["project_accessible"])
+        # The GID was seeded directly, so it is not tied to any pool.
+        self.assertIsNone(row["pool_uuid"])
+
+    def test_group_gid_shows_originating_pool_when_allocated(self):
+        service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
+        pool = factories.PosixIdPoolFactory(
+            service_provider=service_provider,
+            min_uid=1000,
+            max_uid=7999,
+            next_uid=1000,
+            min_gid=8000,
+            max_gid=8999,
+            next_gid=8000,
+        )
+        group = models.OfferingUserGroup.objects.get(offering=self.offering)
+        models.PosixIdentity.objects.create(
+            pool=pool, gid=8500, consumer=group, offering=self.offering
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.get_url())
+        row = response.data[0]
+        self.assertEqual(row["pool_uuid"], pool.uuid.hex)
+
+    def test_project_not_accessible_for_unconnected_viewer(self):
+        outsider = UserFactory()
+        rows = utils.get_offering_user_posix_groups(self.offering_user, viewer=outsider)
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["project_accessible"])
+        # The organization is still reported.
+        self.assertEqual(rows[0]["customer_name"], self.fixture.customer.name)
+
+    def test_empty_when_group_has_no_gid(self):
+        models.OfferingUserGroup.objects.all().update(backend_metadata={})
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.get_url())
+        self.assertEqual(response.data, [])
 
 
 @ddt

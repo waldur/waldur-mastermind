@@ -39,7 +39,12 @@ from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.models import InvoiceItem
-from waldur_mastermind.marketplace import exceptions, models, plugins, utils
+from waldur_mastermind.marketplace import (
+    exceptions,
+    models,
+    plugins,
+    utils,
+)
 from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
 from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (

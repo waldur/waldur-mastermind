@@ -30,6 +30,8 @@ WRITABLE_USER_FIELDS = (
     "organization_vat_code",
     "organization_address",
     "eduperson_assurance",
+    "uid_number",
+    "primary_gid",
 )
 
 SECRET_PROVIDER_FIELDS = (

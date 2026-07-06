@@ -89,7 +89,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace_openstack import get_mb_component_types
 
-from . import models, plugins
+from . import models, plugins, posix_ids
 from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 from .enums import OrderTypes
 
@@ -1757,37 +1757,6 @@ def get_resource_users(resource):
     )
 
 
-def generate_uidnumber_and_primary_group(offering):
-    initial_uidnumber = int(offering.plugin_options.get("initial_uidnumber", 5000))
-    initial_primarygroup_number = int(
-        offering.plugin_options.get("initial_primarygroup_number", 5000)
-    )
-
-    offering_user_last_uidnumber = (
-        models.OfferingUser.objects.exclude(backend_metadata=None)
-        .filter(offering=offering, backend_metadata__has_key="uidnumber")
-        .order_by("backend_metadata__uidnumber")
-        .values_list("backend_metadata__uidnumber", flat=True)
-        .last()
-    ) or initial_uidnumber
-
-    robot_account_last_uidnumber = (
-        models.RobotAccount.objects.exclude(backend_metadata=None)
-        .filter(resource__offering=offering, backend_metadata__has_key="uidnumber")
-        .order_by("backend_metadata__uidnumber")
-        .values_list("backend_metadata__uidnumber", flat=True)
-        .last()
-    ) or initial_uidnumber
-
-    last_uidnumber = max([offering_user_last_uidnumber, robot_account_last_uidnumber])
-
-    offset = last_uidnumber - initial_uidnumber + 1
-    uidnumber = initial_uidnumber + offset
-    primarygroup = initial_primarygroup_number + offset
-
-    return uidnumber, primarygroup
-
-
 def count_customers_number_change(service_provider):
     to_day = timezone.datetime.today().date()
     new_customers = []
@@ -1884,18 +1853,65 @@ def generate_offering_password_hash(offering: models.Offering):
 def setup_linux_related_data(
     instance: models.OfferingUser | models.RobotAccount, offering
 ):
-    uidnumber = instance.backend_metadata.get("uidnumber")
-    primarygroup = instance.backend_metadata.get("primarygroup")
+    if not offering.plugin_options.get("enable_posix_account", True):
+        # Username-only offering: do not manage a POSIX/LDAP account.
+        return
 
-    if not uidnumber or not primarygroup:
-        uidnumber, primarygroup = generate_uidnumber_and_primary_group(offering)
-
-        instance.backend_metadata["uidnumber"] = uidnumber
-        instance.backend_metadata["primarygroup"] = primarygroup
+    # Fill the UID and the primary GID independently. Each is filled only when it
+    # is actually missing, so a value already present in backend_metadata
+    # (including a manual override) is never overwritten by filling the other.
+    # A value is sourced either from the offering's pool (default) or, when the
+    # offering's uid_source/gid_source is 'user_attribute', from the Waldur user's
+    # uid_number/primary_gid (e.g. populated from an OIDC claim).
+    plugin_options = offering.plugin_options or {}
+    sources = {
+        posix_ids.UID: plugin_options.get("uid_source", "pool"),
+        posix_ids.GID: plugin_options.get("gid_source", "pool"),
+    }
+    # Only OfferingUser is tied to a Waldur user; robot accounts always use the pool.
+    user = getattr(instance, "user", None)
+    for key, namespace, label, user_attr in (
+        ("uidnumber", posix_ids.UID, "UID", "uid_number"),
+        ("primarygroup", posix_ids.GID, "primary GID", "primary_gid"),
+    ):
+        if instance.backend_metadata.get(key):
+            continue
+        if sources[namespace] == "user_attribute":
+            value = getattr(user, user_attr, None) if user is not None else None
+            if value is None:
+                logger.warning(
+                    "%s source is the user attribute for offering %s, but %s %s "
+                    "has no %s; left without a %s.",
+                    label,
+                    offering,
+                    instance.__class__.__name__,
+                    instance.pk,
+                    user_attr,
+                    label,
+                )
+                continue
+            instance.backend_metadata[key] = value
+            continue
+        value = posix_ids.allocate(offering, namespace, instance)
+        if value is None:
+            # No POSIX ID pool covers this offering for this namespace — skip the
+            # assignment. The account keeps its homedir/shell but stays out of
+            # GLAuth for this identifier until a provider defines a pool.
+            logger.warning(
+                "No POSIX ID pool configured for offering %s; %s %s left without a %s.",
+                offering,
+                instance.__class__.__name__,
+                instance.pk,
+                label,
+            )
+            continue
+        instance.backend_metadata[key] = value
 
     login_shell = instance.backend_metadata.get("loginShell")
     if not login_shell:
-        instance.backend_metadata["loginShell"] = "/bin/bash"
+        instance.backend_metadata["loginShell"] = offering.plugin_options.get(
+            "login_shell", "/bin/bash"
+        )
 
     homedir_prefix = offering.plugin_options.get("homedir_prefix", "/home/")
     instance.backend_metadata["homeDir"] = f"{homedir_prefix}{instance.username}"
@@ -2002,17 +2018,33 @@ def generate_glauth_records_for_offering_users(
     for offering_user in offering_users_list:
         user = offering_user.user
         username = offering_user.username
-        if "uidnumber" not in offering_user.backend_metadata:
+        # Never emit an LDAP record for an account without a username
+        # (covers both "" and NULL). The queryset already excludes these,
+        # but guard here too so a blank can never render an empty-name entry.
+        if not username:
             logger.warning(
-                "OfferingUser %s does not have uidnumber in backend_metadata, skipping generation of glauth record",
+                "OfferingUser %s has no username, skipping generation of glauth record",
                 offering_user,
             )
             continue
+        metadata = offering_user.backend_metadata or {}
+        # A complete POSIX account needs all four attributes. A partial set (e.g.
+        # a UID assigned by an override while a primary GID is still missing)
+        # must be skipped rather than crash the whole sync with a KeyError.
+        required = ("uidnumber", "primarygroup", "loginShell", "homeDir")
+        if not all(key in metadata for key in required):
+            logger.warning(
+                "OfferingUser %s is missing POSIX attributes %s, skipping "
+                "generation of glauth record",
+                offering_user,
+                [key for key in required if key not in metadata],
+            )
+            continue
 
-        uidnumber = offering_user.backend_metadata["uidnumber"]
-        primarygroup = offering_user.backend_metadata["primarygroup"]
-        login_shell = offering_user.backend_metadata["loginShell"]
-        home_dir = offering_user.backend_metadata["homeDir"]
+        uidnumber = metadata["uidnumber"]
+        primarygroup = metadata["primarygroup"]
+        login_shell = metadata["loginShell"]
+        home_dir = metadata["homeDir"]
 
         # Use pre-computed user-to-project-to-gid mapping
         user_project_ids = user_project_mappings.get(user.id, set())
@@ -2140,28 +2172,13 @@ def _render_role_group_name(template_str, **variables):
     return Template(template_str).safe_substitute(**variables)
 
 
-def _allocate_role_group_gid(offering):
-    """Pick the next gid for a new OfferingRoleGroup on this offering.
-
-    The caller MUST hold an outer ``transaction.atomic`` + a
-    ``SELECT FOR UPDATE`` on the offering row, so concurrent role
-    assignments don't collide on the same gid.
-    """
-    plugin_options = offering.plugin_options or {}
-    base = plugin_options.get("initial_rolegroup_number", 60000)
-    existing = [
-        int(rg.backend_metadata["gid"])
-        for rg in models.OfferingRoleGroup.objects.filter(offering=offering)
-        if "gid" in (rg.backend_metadata or {})
-    ]
-    return max(existing + [base - 1]) + 1
-
-
 def _ensure_role_group(offering, scope, role):
     """Get-or-create an OfferingRoleGroup row, allocating a gid if new.
 
     Returns the row. Safe under concurrent role assignments — the
-    offering row is locked while we allocate.
+    offering row is locked while we allocate. When no role-group-gid range
+    is configured the row is created without a gid (and stays out of
+    GLAuth) until a provider defines one.
     """
     with transaction.atomic():
         models.Offering.objects.select_for_update().get(pk=offering.pk)
@@ -2173,9 +2190,17 @@ def _ensure_role_group(offering, scope, role):
             role=role,
         )
         if created or "gid" not in (rg.backend_metadata or {}):
-            gid = _allocate_role_group_gid(offering)
-            rg.backend_metadata = {**(rg.backend_metadata or {}), "gid": gid}
-            rg.save(update_fields=["backend_metadata"])
+            gid = posix_ids.allocate(offering, posix_ids.GID, rg)
+            if gid is not None:
+                rg.backend_metadata = {**(rg.backend_metadata or {}), "gid": gid}
+                rg.save(update_fields=["backend_metadata"])
+            else:
+                logger.warning(
+                    "No POSIX ID pool configured for offering %s; role group "
+                    "%s left without a gid.",
+                    offering,
+                    rg.pk,
+                )
         return rg
 
 
@@ -2357,6 +2382,257 @@ def _emit_groups_for_scope(
     return emitted
 
 
+def get_project_posix_groups(project):
+    """Return every POSIX group GID assigned to a project, across all offerings.
+
+    A project accumulates GIDs through two independent mechanisms:
+
+    - **project_group** (``project_group_gid``): one per offering whose
+      ``OfferingUserGroup`` covers the project;
+    - **role_group** (``role_group_gid``): one per resource / resource-project
+      role group whose scope belongs to the project.
+
+    Returns a flat list of dicts (one per assigned GID) for a read-only
+    project-side rollup.
+    """
+    rows = []
+
+    project_groups = (
+        models.OfferingUserGroup.objects.filter(projects=project)
+        .select_related("offering", "offering__customer")
+        .prefetch_related("projects")
+    )
+    for group in project_groups:
+        gid = (group.backend_metadata or {}).get("gid")
+        if gid is None:
+            continue
+        rows.append(
+            {
+                "kind": "project_group",
+                "gid": int(gid),
+                "offering_uuid": group.offering.uuid.hex,
+                "offering_name": group.offering.name,
+                "provider_name": group.offering.customer.name,
+                "role": None,
+                "scope_type": None,
+                "scope_name": None,
+                "scope_uuid": None,
+            }
+        )
+
+    resource_ct = ContentType.objects.get_for_model(models.Resource)
+    rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
+    resource_ids = list(
+        models.Resource.objects.filter(project=project).values_list("id", flat=True)
+    )
+    rp_ids = list(
+        models.ResourceProject.objects.filter(resource__project=project).values_list(
+            "id", flat=True
+        )
+    )
+    role_groups = (
+        models.OfferingRoleGroup.objects.filter(
+            Q(content_type=resource_ct, object_id__in=resource_ids)
+            | Q(content_type=rp_ct, object_id__in=rp_ids)
+        )
+        .select_related("offering", "offering__customer", "role")
+        .prefetch_related("scope")
+    )
+    for role_group in role_groups:
+        gid = (role_group.backend_metadata or {}).get("gid")
+        if gid is None:
+            continue
+        scope = role_group.scope
+        rows.append(
+            {
+                "kind": "role_group",
+                "gid": int(gid),
+                "offering_uuid": role_group.offering.uuid.hex,
+                "offering_name": role_group.offering.name,
+                "provider_name": role_group.offering.customer.name,
+                "role": role_group.role.name,
+                "scope_type": (
+                    "resource"
+                    if role_group.content_type_id == resource_ct.id
+                    else "resource_project"
+                ),
+                "scope_name": getattr(scope, "name", "") or "",
+                "scope_uuid": scope.uuid.hex if scope is not None else None,
+            }
+        )
+
+    rows.sort(key=lambda r: (r["offering_name"], r["kind"], r["gid"]))
+    return rows
+
+
+def get_offering_user_posix_groups(offering_user, viewer=None):
+    """Return the project group GIDs an offering user belongs to.
+
+    A user is a member of a project group when they have a role on one of the
+    group's projects. Returns one row per matching project group GID — the
+    shared GIDs that appear in the user's GLAuth ``otherGroups``.
+
+    Each row carries the owning organization and a ``project_accessible`` flag
+    saying whether ``viewer`` (the requesting user) may open the project — used
+    to decide whether to render the project as a link. With no ``viewer`` the
+    flag stays ``False``.
+    """
+    offering = offering_user.offering
+    project_ids = list(get_connected_projects(offering_user.user))
+    if not project_ids:
+        return []
+
+    viewer_sees_all = bool(viewer and (viewer.is_staff or viewer.is_support))
+    if viewer and not viewer_sees_all:
+        viewer_project_ids = set(get_connected_projects(viewer))
+        viewer_customer_ids = set(get_connected_customers(viewer))
+    else:
+        viewer_project_ids = viewer_customer_ids = set()
+
+    groups = list(
+        models.OfferingUserGroup.objects.filter(
+            offering=offering, projects__id__in=project_ids
+        )
+        .prefetch_related("projects__customer")
+        .distinct()
+    )
+
+    # Map each group to the pool its GID was allocated from (if any), so the row
+    # can show pool provenance like the per-user UID/GID table does.
+    group_ct = ContentType.objects.get_for_model(models.OfferingUserGroup)
+    group_pools = {
+        identity.object_id: identity.pool
+        for identity in models.PosixIdentity.objects.filter(
+            content_type=group_ct,
+            object_id__in=[group.id for group in groups],
+            released_at__isnull=True,
+        ).select_related("pool")
+    }
+
+    rows = []
+    for group in groups:
+        gid = (group.backend_metadata or {}).get("gid")
+        if gid is None:
+            continue
+        project = next((p for p in group.projects.all() if p.id in project_ids), None)
+        customer = project.customer if project else None
+        if project is None:
+            accessible = False
+        elif viewer_sees_all:
+            accessible = True
+        else:
+            accessible = (
+                project.id in viewer_project_ids
+                or project.customer_id in viewer_customer_ids
+            )
+        pool = group_pools.get(group.id)
+        rows.append(
+            {
+                "gid": int(gid),
+                "offering_name": offering.name,
+                "project_name": project.name if project else "",
+                "project_uuid": project.uuid.hex if project else None,
+                "customer_name": customer.name if customer else None,
+                "customer_uuid": customer.uuid.hex if customer else None,
+                "project_accessible": accessible,
+                "pool_uuid": pool.uuid.hex if pool else None,
+            }
+        )
+    rows.sort(key=lambda r: r["gid"])
+    return rows
+
+
+def _posix_pool_scope_name(pool) -> str | None:
+    if pool is None:
+        return None
+    if pool.offering_id:
+        return pool.offering.name
+    if pool.service_provider_id:
+        return pool.service_provider.customer.name
+    return None
+
+
+def get_offering_user_posix_allocations(offering_user):
+    """Return the offering user's POSIX identifiers and their originating pool.
+
+    One row per identifier (UID, primary GID) present in ``backend_metadata``.
+    The row carries the pool that tracks the value and its scope; ``pool_uuid``
+    is ``None`` when the value is not tracked by a pool (e.g. seeded manually).
+    """
+    metadata = offering_user.backend_metadata or {}
+    identifiers = [
+        (posix_ids.UID, metadata.get("uidnumber")),
+        (posix_ids.GID, metadata.get("primarygroup")),
+    ]
+
+    ct = ContentType.objects.get_for_model(models.OfferingUser)
+    identity = (
+        models.PosixIdentity.objects.filter(
+            content_type=ct,
+            object_id=offering_user.pk,
+            released_at__isnull=True,
+        )
+        .select_related("pool__offering", "pool__service_provider__customer")
+        .first()
+    )
+    pool = identity.pool if identity else None
+
+    rows = []
+    for namespace, value in identifiers:
+        if value is None:
+            continue
+        tracked = identity is not None and getattr(identity, namespace) == int(value)
+        rows.append(
+            {
+                "namespace": namespace,
+                "value": int(value),
+                "pool_uuid": pool.uuid.hex if (tracked and pool) else None,
+                "scope": pool.scope if (tracked and pool) else None,
+                "scope_name": _posix_pool_scope_name(pool) if tracked else None,
+            }
+        )
+    return rows
+
+
+def get_user_posix_identities(offering_users, viewer=None):
+    """Flatten a user's POSIX identities across all their offering accounts.
+
+    One row per identifier — personal UID / primary GID and each project group
+    GID — tagged with the owning offering and the pool it came from, so a
+    consolidated cross-offering view can be rendered. The same project may
+    appear under several offerings with different GIDs (each offering runs its
+    own directory and pool).
+    """
+    rows = []
+    for offering_user in offering_users:
+        offering = offering_user.offering
+        base = {
+            "offering_name": offering.name,
+            "offering_uuid": offering.uuid.hex,
+        }
+        for allocation in get_offering_user_posix_allocations(offering_user):
+            rows.append(
+                {
+                    **base,
+                    "namespace": allocation["namespace"],
+                    "value": allocation["value"],
+                    "context": None,
+                    "pool_uuid": allocation["pool_uuid"],
+                }
+            )
+        for group in get_offering_user_posix_groups(offering_user, viewer=viewer):
+            rows.append(
+                {
+                    **base,
+                    "namespace": posix_ids.GID,
+                    "value": group["gid"],
+                    "context": group["project_name"],
+                    "pool_uuid": group["pool_uuid"],
+                }
+            )
+    return rows
+
+
 def build_glauth_tree(offering, *, resource_filter=None):
     """Build the structured glauth view for an offering (or one resource).
 
@@ -2367,10 +2643,13 @@ def build_glauth_tree(offering, *, resource_filter=None):
     instance to scope users to ``resource.project`` and groups to one
     resource and its ResourceProjects.
     """
-    # Offering users: queryset same as the existing endpoints.
+    # Offering users: queryset same as the existing endpoints. Exclude
+    # accounts without a username — both "" and NULL, since the field is
+    # nullable and ``.exclude(username="")`` alone does not drop NULL.
     offering_users_qs = (
         models.OfferingUser.objects.filter(offering=offering)
         .exclude(username="")
+        .exclude(username__isnull=True)
         .select_related("user")
         .prefetch_related("user__sshpublickey_set")
     )
@@ -4689,6 +4968,8 @@ USER_FIELD_TO_ATTRIBUTE = {
     "eduperson_assurance": "eduperson_assurance",
     "identity_source": "identity_source",
     "registration_method": "registration_method",
+    "uid_number": "uid_number",
+    "primary_gid": "primary_gid",
 }
 
 

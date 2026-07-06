@@ -173,6 +173,10 @@ class MarketplaceSection(FeatureSection):
         "Show resource end date as a non optional column in resources list."
     )
 
+    show_posix_id_pools = Feature(
+        "Render POSIX ID pool management UI for service providers."
+    )
+
     allow_display_of_images_in_markdown = Feature(
         "Allow display of images in markdown format."
     )

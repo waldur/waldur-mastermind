@@ -113,6 +113,10 @@ SPECTACULAR_SETTINGS = {
             "resource_role",
             "resource_project_role",
         ],
+        # GLAuth uid_source and gid_source share the same choice set; give it a
+        # single enum name so drf-spectacular doesn't emit clashing
+        # Uid/GidSourceEnum names for the identical choices.
+        "PosixIdSourceEnum": ["pool", "user_attribute"],
         "GenderEnum": GENDER_CHOICES,
         "InjectionSeverityEnum": SeverityLevel.choices(),
         "FeedbackCategoryEnum": FeedbackCategory.choices,

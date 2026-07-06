@@ -397,6 +397,22 @@ class User(
         blank=True,
         help_text=_("Indicates what identity provider was used."),
     )
+    uid_number = models.PositiveBigIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "POSIX UID from the identity provider; used when an offering's "
+            "uid_source is 'user_attribute'."
+        ),
+    )
+    primary_gid = models.PositiveBigIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "POSIX primary GID from the identity provider; used when an "
+            "offering's gid_source is 'user_attribute'."
+        ),
+    )
     agreement_date = models.DateTimeField(
         _("agreement date"),
         blank=True,
@@ -572,6 +588,8 @@ class User(
         "eduperson_assurance",
         "managed_isds",
         "active_isds",
+        "uid_number",
+        "primary_gid",
     ]
 
     @property

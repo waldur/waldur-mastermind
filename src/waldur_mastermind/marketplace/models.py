@@ -1085,6 +1085,10 @@ class UserAttributeConfigBase(TimeStampedModel, core_models.UuidMixin):
     expose_civil_number = models.BooleanField(default=False)
     expose_birth_date = models.BooleanField(default=False)
     expose_active_isds = models.BooleanField(default=False)
+    # POSIX identity from the identity provider (used by offerings whose
+    # uid_source/gid_source is 'user_attribute').
+    expose_uid_number = models.BooleanField(default=False)
+    expose_primary_gid = models.BooleanField(default=False)
 
     class Meta:
         abstract = True
@@ -3307,6 +3311,231 @@ class OfferingRoleGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
 
     def __str__(self):
         return f"Offering role group {self.role.name} on {self.scope} ({self.offering})"
+
+
+class PosixIdPool(
+    core_models.UuidMixin,
+    core_models.DescribableMixin,
+    TimeStampedModel,
+):
+    """
+    POSIX UID/GID pool for a service provider (or a single offering override).
+
+    A provider is one POSIX namespace: by default a single pool attached to the
+    ServiceProvider supplies every UID and GID the provider hands out. An
+    optional per-offering pool overrides the provider default for that offering
+    (see :meth:`PosixIdPool.resolve`).
+
+    Each pool carries two independent numeric namespaces — UID and GID — each
+    with its own ``[min, max]`` bounds and a ``next`` high-water mark. A UID and
+    a GID may legally share a number, so the two namespaces are never compared
+    to each other; provider-wide non-overlap is enforced per namespace.
+
+    Values are recorded in :class:`PosixIdentity`; consumers keep a projection of
+    the allocated value in their ``backend_metadata`` so the GLAuth rendering and
+    site-agent contracts stay unchanged.
+    """
+
+    MIN_ID = 1000
+    MAX_ID = 2**32 - 2
+
+    service_provider = models.OneToOneField(
+        ServiceProvider,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="posix_pool",
+    )
+    offering = models.OneToOneField(
+        Offering,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="posix_pool",
+    )
+    # Each namespace (UID, GID) is optional but all-or-nothing: a pool may manage
+    # UIDs only, GIDs only, or both. Managing only GIDs supports offerings whose
+    # UIDs come from an external identity source (e.g. an OIDC claim) while their
+    # project/role group GIDs are still allocated by Waldur.
+    min_uid = models.BigIntegerField(null=True, blank=True)
+    max_uid = models.BigIntegerField(null=True, blank=True)
+    next_uid = models.BigIntegerField(null=True, blank=True)
+    min_gid = models.BigIntegerField(null=True, blank=True)
+    max_gid = models.BigIntegerField(null=True, blank=True)
+    next_gid = models.BigIntegerField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("POSIX ID pool")
+        verbose_name_plural = _("POSIX ID pools")
+        constraints = [
+            models.CheckConstraint(
+                name="marketplace_posixidpool_exactly_one_scope",
+                condition=(
+                    Q(service_provider__isnull=False, offering__isnull=True)
+                    | Q(service_provider__isnull=True, offering__isnull=False)
+                ),
+            ),
+            # A namespace's three columns are all set or all null (all-or-nothing).
+            models.CheckConstraint(
+                name="marketplace_posixidpool_uid_all_or_nothing",
+                condition=(
+                    Q(min_uid__isnull=True, max_uid__isnull=True, next_uid__isnull=True)
+                    | Q(
+                        min_uid__isnull=False,
+                        max_uid__isnull=False,
+                        next_uid__isnull=False,
+                    )
+                ),
+            ),
+            models.CheckConstraint(
+                name="marketplace_posixidpool_gid_all_or_nothing",
+                condition=(
+                    Q(min_gid__isnull=True, max_gid__isnull=True, next_gid__isnull=True)
+                    | Q(
+                        min_gid__isnull=False,
+                        max_gid__isnull=False,
+                        next_gid__isnull=False,
+                    )
+                ),
+            ),
+            # At least one namespace must be managed.
+            models.CheckConstraint(
+                name="marketplace_posixidpool_at_least_one_namespace",
+                condition=Q(min_uid__isnull=False) | Q(min_gid__isnull=False),
+            ),
+            # Bounds are only enforced for a managed namespace; the comparisons
+            # evaluate to NULL (i.e. satisfied) when its columns are null.
+            models.CheckConstraint(
+                name="marketplace_posixidpool_uid_bounds",
+                condition=Q(min_uid__gte=1000)
+                & Q(min_uid__lte=models.F("max_uid"))
+                & Q(max_uid__lte=2**32 - 2)
+                & Q(next_uid__gte=models.F("min_uid"))
+                & Q(next_uid__lte=models.F("max_uid") + 1),
+            ),
+            models.CheckConstraint(
+                name="marketplace_posixidpool_gid_bounds",
+                condition=Q(min_gid__gte=1000)
+                & Q(min_gid__lte=models.F("max_gid"))
+                & Q(max_gid__lte=2**32 - 2)
+                & Q(next_gid__gte=models.F("min_gid"))
+                & Q(next_gid__lte=models.F("max_gid") + 1),
+            ),
+        ]
+
+    def __str__(self):
+        scope = self.service_provider if self.service_provider_id else self.offering
+        parts = []
+        if self.min_uid is not None:
+            parts.append(f"uid {self.min_uid}-{self.max_uid}")
+        if self.min_gid is not None:
+            parts.append(f"gid {self.min_gid}-{self.max_gid}")
+        return f"POSIX ID pool ({', '.join(parts)}) for {scope}"
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-posix-id-pool"
+
+    def manages(self, namespace: str) -> bool:
+        """Whether this pool allocates the given namespace ('uid' or 'gid')."""
+        return getattr(self, f"min_{namespace}") is not None
+
+    @property
+    def customer(self) -> structure_models.Customer:
+        if self.service_provider_id:
+            return self.service_provider.customer
+        return self.offering.customer
+
+    @property
+    def scope(self) -> str:
+        return "service_provider" if self.service_provider_id else "offering"
+
+    @classmethod
+    def resolve(cls, offering) -> "PosixIdPool | None":
+        """Most-specific pool for an offering: its own pool, else the provider's."""
+        pool = cls.objects.filter(offering=offering).first()
+        if pool is not None:
+            return pool
+        return cls.objects.filter(
+            service_provider__customer_id=offering.customer_id
+        ).first()
+
+    def clean(self):
+        from . import posix_ids
+
+        posix_ids.validate_pool(self)
+
+
+class PosixIdentity(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    """
+    Allocated POSIX identity for one consumer, drawn from a :class:`PosixIdPool`.
+
+    The consumer is an OfferingUser, RobotAccount, OfferingUserGroup or
+    OfferingRoleGroup. User and robot rows carry both a ``uid`` and a primary
+    ``gid``; group rows carry only a ``gid``. This table is the source of truth;
+    the values are mirrored into the consumer's ``backend_metadata`` for GLAuth
+    and the site agent.
+
+    Deleting a consumer marks the row released (``released_at``). Released values
+    are recycled automatically: a released row leaves the partial-unique active
+    set, so its value is offered again on the next allocation from the same pool
+    and namespace. Released rows are retained as an audit trail.
+    """
+
+    pool = models.ForeignKey(
+        PosixIdPool, on_delete=models.CASCADE, related_name="identities"
+    )
+    uid = models.BigIntegerField(null=True, blank=True)
+    gid = models.BigIntegerField(null=True, blank=True)
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name="+"
+    )
+    object_id = models.PositiveIntegerField()
+    consumer = GenericForeignKey("content_type", "object_id")
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="posix_identities"
+    )
+    released_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("POSIX identity")
+        verbose_name_plural = _("POSIX identities")
+        ordering = ("pool", "uid", "gid")
+        constraints = [
+            UniqueConstraint(
+                fields=["pool", "uid"],
+                condition=Q(released_at__isnull=True, uid__isnull=False),
+                name="marketplace_posixidentity_active_uid",
+            ),
+            UniqueConstraint(
+                fields=["pool", "gid"],
+                condition=Q(released_at__isnull=True, gid__isnull=False),
+                name="marketplace_posixidentity_active_gid",
+            ),
+            UniqueConstraint(
+                fields=["content_type", "object_id"],
+                condition=Q(released_at__isnull=True),
+                name="marketplace_posixidentity_active_consumer",
+            ),
+        ]
+        indexes = [
+            Index(
+                fields=["content_type", "object_id"],
+                name="mp_posixidentity_consumer_idx",
+            ),
+            Index(fields=["pool", "uid"], name="mp_posixidentity_pool_uid_idx"),
+            Index(fields=["pool", "gid"], name="mp_posixidentity_pool_gid_idx"),
+        ]
+
+    def __str__(self):
+        return f"POSIX identity uid={self.uid} gid={self.gid} ({self.consumer})"
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-posix-identity"
 
 
 class CategoryHelpArticle(models.Model):
