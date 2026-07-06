@@ -331,6 +331,25 @@ class ImpactLevel:
     )
 
 
+class MaintenanceTimingBucket:
+    """Classification of a maintenance's start/end timing (see
+    MaintenanceAnnouncement.timing_bucket)."""
+
+    PENDING = "pending"
+    OVERRUN = "overrun"
+    LATE_START = "late_start"
+    EARLY = "early"
+    ON_TIME = "on_time"
+
+    CHOICES = (
+        (PENDING, "Pending"),
+        (OVERRUN, "Overrun"),
+        (LATE_START, "Late start"),
+        (EARLY, "Early"),
+        (ON_TIME, "On time"),
+    )
+
+
 class RemoteResourceSyncStatus:
     IN_SYNC = "in_sync"
     OUT_OF_SYNC = "out_of_sync"

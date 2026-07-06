@@ -1,8 +1,16 @@
+from datetime import timedelta
+
 from ddt import data, ddt
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.enums import ImpactLevel, MaintenanceState
+from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import (
+    ImpactLevel,
+    MaintenanceState,
+    MaintenanceType,
+)
 from waldur_mastermind.marketplace.tests import (
     factories as marketplace_factories,
 )
@@ -924,3 +932,151 @@ class MaintenanceAnnouncementInternalNotesTest(test.APITestCase):
 
         self.assertIsNotNone(test_announcement)
         self.assertNotIn("internal_notes", test_announcement)
+
+
+@ddt
+class MaintenanceAnnouncementDerivedFieldsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.sp = self.fixture.service_provider
+        self.client.force_authenticate(self.fixture.staff)
+        self.ss = timezone.now().replace(microsecond=0)
+        self.se = self.ss + timedelta(hours=2)
+
+    @data((30, 30), (-30, -30), (0, 0))
+    def test_overrun_minutes_returned_with_announcement(self, case):
+        end_delta, expected = case
+        announcement = marketplace_factories.MaintenanceAnnouncementFactory(
+            service_provider=self.sp,
+            state=MaintenanceState.COMPLETED,
+            scheduled_start=self.ss,
+            scheduled_end=self.se,
+            actual_start=self.ss,
+            actual_end=self.se + timedelta(minutes=end_delta),
+        )
+        url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(announcement)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["overrun_minutes"], expected)
+
+    def test_overrun_minutes_null_when_not_completed(self):
+        announcement = marketplace_factories.MaintenanceAnnouncementFactory(
+            service_provider=self.sp,
+            state=MaintenanceState.SCHEDULED,
+            scheduled_start=self.ss,
+            scheduled_end=self.se,
+        )
+        url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(announcement)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.json()["overrun_minutes"])
+
+    def test_timing_bucket_returned_with_announcement(self):
+        announcement = marketplace_factories.MaintenanceAnnouncementFactory(
+            service_provider=self.sp,
+            state=MaintenanceState.COMPLETED,
+            scheduled_start=self.ss,
+            scheduled_end=self.se,
+            actual_start=self.ss,
+            actual_end=self.se + timedelta(minutes=30),
+        )
+        url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(announcement)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["timing_bucket"], "overrun")
+
+    def _bucket(self, *, started=True, ended=True, start_delta=0, end_delta=0):
+        announcement = models.MaintenanceAnnouncement(
+            scheduled_start=self.ss,
+            scheduled_end=self.se,
+            actual_start=self.ss + timedelta(minutes=start_delta) if started else None,
+            actual_end=self.se + timedelta(minutes=end_delta) if ended else None,
+        )
+        return announcement.timing_bucket
+
+    def test_timing_bucket_classification(self):
+        self.assertEqual(self._bucket(started=False, ended=False), "pending")
+        self.assertEqual(self._bucket(start_delta=0, end_delta=0), "on_time")
+        # 15-minute boundary is inclusive of on_time (tolerance is exceeded only above 15).
+        self.assertEqual(self._bucket(start_delta=0, end_delta=15), "on_time")
+        self.assertEqual(self._bucket(start_delta=0, end_delta=30), "overrun")
+        # Start-side boundary: 15 min late is still on_time, 16 min is late_start.
+        self.assertEqual(self._bucket(start_delta=15, end_delta=0), "on_time")
+        self.assertEqual(self._bucket(start_delta=16, end_delta=0), "late_start")
+        self.assertEqual(self._bucket(start_delta=30, end_delta=0), "late_start")
+        self.assertEqual(self._bucket(start_delta=0, end_delta=-30), "early")
+
+
+class MaintenanceStatsDerivedTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.fixture.maintenance_announcement.delete()
+        self.sp = self.fixture.service_provider
+        self.url = marketplace_factories.MaintenanceAnnouncementFactory.get_list_url(
+            "maintenance_stats"
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        self.ss = timezone.now().replace(microsecond=0)
+        self.se = self.ss + timedelta(hours=2)
+
+    def _make(
+        self, *, state, end_delta=None, maintenance_type=MaintenanceType.SCHEDULED
+    ):
+        started = state in (MaintenanceState.COMPLETED, MaintenanceState.IN_PROGRESS)
+        return marketplace_factories.MaintenanceAnnouncementFactory(
+            service_provider=self.sp,
+            state=state,
+            maintenance_type=maintenance_type,
+            scheduled_start=self.ss,
+            scheduled_end=self.se,
+            actual_start=self.ss if started else None,
+            actual_end=self.se + timedelta(minutes=end_delta)
+            if end_delta is not None
+            else None,
+        )
+
+    def test_maintenance_stats_on_time_rate_15min(self):
+        self._make(state=MaintenanceState.COMPLETED, end_delta=0)  # within 15 min
+        self._make(state=MaintenanceState.COMPLETED, end_delta=60)  # overran
+        self._make(state=MaintenanceState.COMPLETED, end_delta=-30)  # early, within 15
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertAlmostEqual(
+            response.data["summary"]["on_time_rate_15min"], 2 / 3, places=4
+        )
+
+    def test_maintenance_stats_avg_overrun_hours(self):
+        self._make(state=MaintenanceState.COMPLETED, end_delta=0)  # not an overrun
+        self._make(state=MaintenanceState.COMPLETED, end_delta=60)  # 1h overrun
+        self._make(state=MaintenanceState.COMPLETED, end_delta=120)  # 2h overrun
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertAlmostEqual(
+            response.data["summary"]["avg_overrun_hours"], 1.5, places=4
+        )
+
+    def test_maintenance_stats_emergency_count(self):
+        self._make(
+            state=MaintenanceState.SCHEDULED,
+            maintenance_type=MaintenanceType.EMERGENCY,
+        )
+        self._make(
+            state=MaintenanceState.SCHEDULED,
+            maintenance_type=MaintenanceType.EMERGENCY,
+        )
+        self._make(
+            state=MaintenanceState.SCHEDULED,
+            maintenance_type=MaintenanceType.SCHEDULED,
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["summary"]["emergency_count"], 2)
+
+    def test_maintenance_stats_tolerates_timing_ordering_and_bucket_params(self):
+        # The stats endpoint must not 500 if the timing ordering/bucket params
+        # (which rely on annotations only applied by those filters) leak in.
+        self._make(state=MaintenanceState.COMPLETED, end_delta=60)
+        response = self.client.get(
+            self.url, {"o": "overrun_minutes", "timing_bucket": "overrun"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -2,9 +2,10 @@
 Tests for MaintenanceAnnouncement filtering functionality.
 """
 
-from datetime import UTC
+from datetime import UTC, timedelta
 
 from ddt import ddt
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_mastermind.marketplace import models
@@ -159,3 +160,124 @@ class MaintenanceAnnouncementFilterTest(test.APITestCase):
         uuids = [item["uuid"] for item in response.data]
         self.assertIn(str(matching_announcement.uuid), uuids)
         self.assertNotIn(str(non_matching_announcement.uuid), uuids)
+
+
+@ddt
+class MaintenanceAnnouncementTimingFilterTest(test.APITestCase):
+    """Ordering and filtering by the derived overrun / timing_bucket fields."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.maintenance_announcement.delete()
+        self.sp = self.fixture.service_provider
+        self.url = factories.MaintenanceAnnouncementFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+        self.ss = timezone.now().replace(microsecond=0)
+        self.se = self.ss + timedelta(hours=2)
+
+    def _make(self, *, state, start_delta=None, end_delta=None):
+        return factories.MaintenanceAnnouncementFactory(
+            service_provider=self.sp,
+            state=state,
+            scheduled_start=self.ss,
+            scheduled_end=self.se,
+            actual_start=self.ss + timedelta(minutes=start_delta)
+            if start_delta is not None
+            else None,
+            actual_end=self.se + timedelta(minutes=end_delta)
+            if end_delta is not None
+            else None,
+        )
+
+    def _ordered_uuids(self, ordering):
+        response = self.client.get(self.url, {"o": ordering})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [item["uuid"] for item in response.data]
+
+    def test_ordering_by_overrun_minutes(self):
+        big = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=0, end_delta=60
+        )
+        small = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=0, end_delta=10
+        )
+        # Not completed -> overrun is NULL and must sink in both directions.
+        pending = self._make(state=models.MaintenanceState.SCHEDULED)
+
+        asc = self._ordered_uuids("overrun_minutes")
+        self.assertLess(asc.index(str(small.uuid)), asc.index(str(big.uuid)))
+        self.assertGreater(asc.index(str(pending.uuid)), asc.index(str(big.uuid)))
+
+        desc = self._ordered_uuids("-overrun_minutes")
+        self.assertLess(desc.index(str(big.uuid)), desc.index(str(small.uuid)))
+        self.assertGreater(desc.index(str(pending.uuid)), desc.index(str(small.uuid)))
+
+    def test_ordering_by_start_delta_minutes(self):
+        late = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=60, end_delta=0
+        )
+        early = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=10, end_delta=0
+        )
+        # Not started -> start_delta is NULL and must sink in both directions.
+        not_started = self._make(state=models.MaintenanceState.SCHEDULED)
+
+        asc = self._ordered_uuids("start_delta_minutes")
+        self.assertLess(asc.index(str(early.uuid)), asc.index(str(late.uuid)))
+        self.assertGreater(asc.index(str(not_started.uuid)), asc.index(str(late.uuid)))
+
+        desc = self._ordered_uuids("-start_delta_minutes")
+        self.assertLess(desc.index(str(late.uuid)), desc.index(str(early.uuid)))
+        self.assertGreater(
+            desc.index(str(not_started.uuid)), desc.index(str(early.uuid))
+        )
+
+    def test_filter_by_timing_bucket_single(self):
+        overrun = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=0, end_delta=60
+        )
+        late = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=30, end_delta=0
+        )
+        on_time = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=0, end_delta=0
+        )
+
+        response = self.client.get(self.url, {"timing_bucket": "overrun"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [item["uuid"] for item in response.data]
+        self.assertIn(str(overrun.uuid), uuids)
+        self.assertNotIn(str(late.uuid), uuids)
+        self.assertNotIn(str(on_time.uuid), uuids)
+
+    def test_filter_by_timing_bucket_multi(self):
+        overrun = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=0, end_delta=60
+        )
+        late = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=30, end_delta=0
+        )
+        on_time = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=0, end_delta=0
+        )
+        pending = self._make(state=models.MaintenanceState.SCHEDULED)
+
+        response = self.client.get(self.url, {"timing_bucket": "overrun,late_start"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [item["uuid"] for item in response.data]
+        self.assertIn(str(overrun.uuid), uuids)
+        self.assertIn(str(late.uuid), uuids)
+        self.assertNotIn(str(on_time.uuid), uuids)
+        self.assertNotIn(str(pending.uuid), uuids)
+
+    def test_filter_by_timing_bucket_pending(self):
+        pending = self._make(state=models.MaintenanceState.SCHEDULED)
+        completed = self._make(
+            state=models.MaintenanceState.COMPLETED, start_delta=0, end_delta=0
+        )
+
+        response = self.client.get(self.url, {"timing_bucket": "pending"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [item["uuid"] for item in response.data]
+        self.assertIn(str(pending.uuid), uuids)
+        self.assertNotIn(str(completed.uuid), uuids)

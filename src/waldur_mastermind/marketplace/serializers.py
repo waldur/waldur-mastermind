@@ -85,6 +85,7 @@ from waldur_mastermind.marketplace.enums import (
     CourseAccountState,
     DiscountAggregations,
     LimitPeriods,
+    MaintenanceTimingBucket,
     OfferingStates,
     OfferingUserRuntimeStates,
     OfferingUserStates,
@@ -11247,6 +11248,9 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, source="service_provider.customer.name"
     )
     state = serializers.SerializerMethodField()
+    overrun_minutes = serializers.SerializerMethodField()
+    start_delta_minutes = serializers.SerializerMethodField()
+    timing_bucket = serializers.SerializerMethodField()
 
     def get_state(
         self, obj: models.MaintenanceAnnouncement
@@ -11258,6 +11262,20 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
         "Cancelled",
     ]:
         return obj.get_state_display()
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_overrun_minutes(self, obj: models.MaintenanceAnnouncement):
+        return obj.overrun_minutes
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_start_delta_minutes(self, obj: models.MaintenanceAnnouncement):
+        return obj.start_delta_minutes
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=MaintenanceTimingBucket.CHOICES)
+    )
+    def get_timing_bucket(self, obj: models.MaintenanceAnnouncement):
+        return obj.timing_bucket
 
     class Meta:
         model = models.MaintenanceAnnouncement
@@ -11274,6 +11292,9 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
             "scheduled_end",
             "actual_start",
             "actual_end",
+            "overrun_minutes",
+            "start_delta_minutes",
+            "timing_bucket",
             "service_provider",
             "created_by",
             "affected_offerings",
@@ -13141,6 +13162,19 @@ class MaintenanceStatsSummarySerializer(serializers.Serializer):
     )
     on_time_completion_rate = serializers.FloatField(
         allow_null=True, help_text="Percentage of maintenances completed on time"
+    )
+    on_time_rate_15min = serializers.FloatField(
+        allow_null=True,
+        help_text="Fraction (0-1) of completed maintenances that finished within "
+        "15 minutes of their scheduled end",
+    )
+    avg_overrun_hours = serializers.FloatField(
+        allow_null=True,
+        help_text="Mean overrun in hours across completed maintenances that ran "
+        "past their scheduled end",
+    )
+    emergency_count = serializers.IntegerField(
+        help_text="Number of emergency-type maintenances in the window"
     )
 
 
