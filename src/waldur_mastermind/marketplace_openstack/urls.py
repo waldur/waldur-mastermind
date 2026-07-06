@@ -7,6 +7,11 @@ def register_in(router):
         views.MarketplaceTenantActionsViewSet,
         basename="openstack-marketplace-tenant",
     )
+    router.register(
+        r"marketplace-openstack-duplicate-offerings",
+        views.DuplicateTenantOfferingViewSet,
+        basename="marketplace-openstack-duplicate-offering",
+    )
 
 
 urlpatterns = []

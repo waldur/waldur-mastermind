@@ -159,10 +159,15 @@ def process_order(order: models.Order, user):
         else:
             order.resource.set_state_erred()
 
+        # exc_info=True emits the full traceback to the log stream (Loki); the
+        # DB only keeps order.error_traceback, which operators cannot see while
+        # triaging from logs. The order __str__ already carries type/offering/
+        # created_by context.
         logger.error(
             f"Error processing order {order}. "
             f"Order ID: {order.id}. "
-            f"Exception: {order.error_message}."
+            f"Exception: {order.error_message}.",
+            exc_info=True,
         )
         order.resource.save(update_fields=["state"])
 
@@ -964,9 +969,20 @@ def schedule_resources_termination(resources, termination_comment=None, user=Non
         )
 
         if response and response.status_code != status.HTTP_200_OK:
+            # Include the HTTP status and resource state so a repeating failure
+            # is diagnosable from the log alone. A 404 here means the terminate
+            # view could not resolve the resource by uuid (e.g. it is already
+            # gone on the backend) — retrying the daily sweep will keep failing
+            # identically until the resource row is reconciled.
             logger.error(
-                "Terminating resource %s has failed. %s",
+                "Terminating resource %s (state=%s, offering=%s, project=%s, "
+                "actor=%s) has failed with HTTP %s. %s",
                 resource.uuid.hex,
+                resource.get_state_display(),
+                resource.offering,
+                resource.project,
+                actor,
+                response.status_code,
                 response.rendered_content,
             )
 

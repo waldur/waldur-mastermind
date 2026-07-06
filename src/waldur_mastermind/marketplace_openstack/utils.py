@@ -385,6 +385,163 @@ def restore_limits(resource: marketplace_models.Resource):
     update_limits(order)
 
 
+def count_active_resources(offering: marketplace_models.Offering) -> int:
+    """Number of non-terminated marketplace Resources attached to an offering."""
+    return (
+        marketplace_models.Resource.objects.filter(offering=offering)
+        .exclude(state=marketplace_models.Resource.States.TERMINATED)
+        .count()
+    )
+
+
+def describe_offering_candidates(
+    offerings: list[marketplace_models.Offering],
+) -> str:
+    """Human-readable, operator-facing breakdown of duplicate offerings.
+
+    Emits ``id``, ``name``, lifecycle ``state`` and the count of non-terminated
+    resources for each candidate so an operator can tell at a glance which
+    offering is in use and which are safe to drop. Used both in the self-heal
+    ERROR log and by the ``dedupe_tenant_offerings`` command.
+    """
+    parts = []
+    for offering in sorted(offerings, key=lambda o: o.id):
+        parts.append(
+            "id=%s name=%r state=%s active_resources=%d total_resources=%d"
+            % (
+                offering.id,
+                offering.name,
+                offering.get_state_display(),
+                count_active_resources(offering),
+                marketplace_models.Resource.objects.filter(offering=offering).count(),
+            )
+        )
+    return "; ".join(parts)
+
+
+# Per-tenant offering types that self-heal expects exactly one of per tenant.
+PER_TENANT_OFFERING_TYPES = (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING)
+
+# Maps each per-tenant offering type to the OpenStack resource class it governs,
+# so orphan resources (rows with no marketplace Resource) can be counted per type.
+_OFFERING_TYPE_TO_RESOURCE_CLASS = {
+    OPENSTACK_INSTANCE_OFFERING: openstack_models.Instance,
+    OPENSTACK_VOLUME_OFFERING: openstack_models.Volume,
+}
+
+
+def collect_duplicate_offering_groups(tenant_id: int | None = None) -> dict:
+    """Return ``{(tenant_object_id, offering_type): [offerings]}`` for groups > 1.
+
+    Per-tenant Instance/Volume offerings are always scoped to a Tenant, so the
+    ScopeMixin ``object_id`` is the tenant primary key (equal to the ``tenant.id``
+    printed by self-heal). Grouping on it avoids loading each generic-FK scope.
+    Shared by the ``dedupe_tenant_offerings`` command and the read-only
+    diagnostics API so both agree on what "duplicate" means.
+    """
+    qs = marketplace_models.Offering.objects.filter(
+        type__in=PER_TENANT_OFFERING_TYPES,
+        object_id__isnull=False,
+    )
+    if tenant_id is not None:
+        qs = qs.filter(object_id=tenant_id)
+    groups: dict = {}
+    for offering in qs:
+        key = (offering.object_id, offering.type)
+        groups.setdefault(key, []).append(offering)
+    return {key: value for key, value in groups.items() if len(value) > 1}
+
+
+def pick_keeper_offering(
+    offerings: list[marketplace_models.Offering],
+) -> marketplace_models.Offering:
+    """Choose which offering in a duplicate group to keep.
+
+    Preference order: most non-terminated resources, then an active lifecycle
+    state, then the oldest (lowest id) — i.e. the original offering.
+    """
+    return max(
+        offerings,
+        key=lambda o: (
+            count_active_resources(o),
+            o.state == marketplace_models.Offering.States.ACTIVE,
+            -o.id,
+        ),
+    )
+
+
+def count_tenant_orphan_resources(tenant: openstack_models.Tenant, klass) -> int:
+    """Number of ``klass`` rows in ``tenant`` with no marketplace Resource.
+
+    These are exactly the orphans self-heal cannot link while the per-tenant
+    offering is ambiguous — the user-visible symptom (VMs/volumes missing from
+    the marketplace). Same query as ``self_heal_tenant_orphan_resources``.
+    """
+    content_type = ContentType.objects.get_for_model(klass)
+    linked_ids = set(
+        marketplace_models.Resource.objects.filter(
+            content_type=content_type
+        ).values_list("object_id", flat=True)
+    )
+    return klass.objects.filter(tenant=tenant).exclude(id__in=linked_ids).count()
+
+
+def build_duplicate_offering_report(tenant_id: int | None = None) -> list[dict]:
+    """Structured, read-only report of tenants with duplicate per-tenant offerings.
+
+    One row per (tenant, offering type) group, each carrying the candidate
+    offerings (with the recommended keeper flagged), the tenant/customer
+    identity, and the count of orphaned resources of that type. Consumed by the
+    staff diagnostics API; mirrors the fields ``describe_offering_candidates``
+    formats into a log string.
+    """
+    report = []
+    groups = collect_duplicate_offering_groups(tenant_id)
+    for (object_id, offering_type), offerings in sorted(groups.items()):
+        keeper = pick_keeper_offering(offerings)
+        tenant = offerings[0].scope
+        tenant_uuid = tenant_name = customer_name = customer_uuid = None
+        orphan_count = 0
+        if tenant is not None:
+            tenant_uuid = getattr(tenant, "uuid", None)
+            tenant_name = tenant.name
+            project = getattr(tenant, "project", None)
+            if project is not None:
+                customer_name = project.customer.name
+                customer_uuid = project.customer.uuid
+            klass = _OFFERING_TYPE_TO_RESOURCE_CLASS.get(offering_type)
+            if klass is not None:
+                orphan_count = count_tenant_orphan_resources(tenant, klass)
+        candidates = [
+            {
+                "id": offering.id,
+                "uuid": offering.uuid,
+                "name": offering.name,
+                "state": offering.get_state_display(),
+                "active_resources": count_active_resources(offering),
+                "total_resources": marketplace_models.Resource.objects.filter(
+                    offering=offering
+                ).count(),
+                "is_recommended_keeper": offering.id == keeper.id,
+            }
+            for offering in sorted(offerings, key=lambda o: o.id)
+        ]
+        report.append(
+            {
+                "tenant_id": object_id,
+                "tenant_uuid": tenant_uuid,
+                "tenant_name": tenant_name,
+                "customer_name": customer_name,
+                "customer_uuid": customer_uuid,
+                "offering_type": offering_type,
+                "recommended_keeper_id": keeper.id,
+                "orphan_count": orphan_count,
+                "candidates": candidates,
+            }
+        )
+    return report
+
+
 def self_heal_tenant_offerings(tenant: openstack_models.Tenant) -> dict:
     """Ensure per-tenant Instance/Volume offerings exist and are usable.
 
@@ -432,11 +589,16 @@ def self_heal_tenant_offerings(tenant: openstack_models.Tenant) -> dict:
         else:
             result[offering_type] = "skipped_multiple"
             logger.error(
-                "Self-heal skipped: multiple per-tenant %s offerings exist for "
-                "tenant %s (offering IDs: %s)",
+                "Self-heal skipped: %d per-tenant %s offerings exist for tenant "
+                "%s (expected exactly 1). Candidates: %s. Resolve with "
+                "'dedupe_tenant_offerings --tenant %s' (dry-run) — it keeps the "
+                "offering with attached resources and removes the empty "
+                "duplicate(s).",
+                len(offerings),
                 offering_type,
                 tenant.id,
-                [o.id for o in offerings],
+                describe_offering_candidates(offerings),
+                tenant.id,
             )
 
     if needs_creation:

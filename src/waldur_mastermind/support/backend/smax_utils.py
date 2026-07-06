@@ -431,7 +431,21 @@ class SmaxBackend:
 
         if not first_name or not last_name:
             raise SmaxBackendError(
-                "User creation has failed because first or last names have not been passed."
+                "User creation has failed because first or last names have not "
+                f"been passed. Name: {user.name!r}, email: {user.email!r}."
+            )
+
+        # SMAX keys Person entities by Email/Upn and search_user() below looks
+        # them up by those fields — so an empty email can never be found again,
+        # surfacing later as an opaque "User creation has failed" with no cause.
+        # Reject it up front with the offending identity. (Seen in production
+        # when terminating support-backed resources requested by the system
+        # robot, which has no email address.)
+        if not user.email:
+            raise SmaxBackendError(
+                "User creation has failed because no email address was passed. "
+                f"Name: {user.name!r}, upn: {user.upn!r}, "
+                f"external_id: {user.external_id!r}."
             )
 
         response = self.post(
@@ -453,8 +467,17 @@ class SmaxBackend:
         backend_user = self.wait_result(self.search_user, user.email)
 
         if not backend_user:
+            logger.error(
+                "SMAX user creation failed for email=%r name=%r: the Person was "
+                "not found after creation. HTTP %s, response: %s",
+                user.email,
+                user.name,
+                response.status_code,
+                response.text,
+            )
             raise SmaxBackendError(
-                f"User creation has failed. Creation response: {response.text}"
+                f"User creation has failed for {user.email!r}. "
+                f"HTTP {response.status_code}. Creation response: {response.text}"
             )
 
         return backend_user
