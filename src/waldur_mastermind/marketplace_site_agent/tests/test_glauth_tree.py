@@ -381,7 +381,11 @@ class GlauthMultiUserUidGidPropagationTest(test.APITestCase):
         self.assertNotEqual(m["personal_group"], u2["personal_group"])
 
     def test_role_group_gid_is_shared_across_members(self):
-        role_groups = [g for g in self._tree()["groups"] if g["kind"] != "project"]
+        role_groups = [
+            g
+            for g in self._tree()["groups"]
+            if g["kind"] not in ("project", "personal")
+        ]
         # One resource-role group and one resource-project-role group.
         self.assertEqual(
             {g["kind"] for g in role_groups},
@@ -396,7 +400,9 @@ class GlauthMultiUserUidGidPropagationTest(test.APITestCase):
     def test_both_users_carry_role_gids_in_memberships(self):
         tree = self._tree()
         users = {u["username"]: u for u in tree["users"]}
-        role_gids = {g["gid"] for g in tree["groups"] if g["kind"] != "project"}
+        role_gids = {
+            g["gid"] for g in tree["groups"] if g["kind"] not in ("project", "personal")
+        }
         self.assertEqual(len(role_gids), 2)
         for username in (self.fixture.manager.username, self.user2.username):
             membership_gids = {m["gid"] for m in users[username]["memberships"]}
