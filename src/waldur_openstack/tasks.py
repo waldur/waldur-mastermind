@@ -42,9 +42,12 @@ class TenantCreateErrorTask(core_tasks.ErrorStateTransitionTask):
 
 class TenantCreateSuccessTask(core_tasks.StateTransitionTask):
     def execute(self, tenant):
-        from . import executors
-
-        executors.TenantPullExecutor.execute(tenant)
+        # Avoid triggering executors.TenantPullExecutor, which starts an asynchronous
+        # sync task that sets the tenant to UPDATING state, causing race conditions
+        # for clients (like Terraform) expecting the tenant to be immediately OK and ready.
+        # Instead, trigger only the required post-creation side-effects directly.
+        signals.tenant_pull_succeeded.send(models.Tenant, instance=tenant)
+        create_offerings_for_volume_and_instance(tenant)
         return super().execute(tenant)
 
 
