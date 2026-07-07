@@ -353,6 +353,11 @@ def _render_glauth_toml(offering, *, resource_filter=None) -> str:
 
     groups = user_data["groups"] + robot_data["groups"]
     for group in tree["groups"]:
+        # Per-user personal groups are already emitted by
+        # generate_glauth_records_for_offering_users above; the tree carries them
+        # only so the JSON view can show them. Skip here to avoid double-emitting.
+        if group.get("kind") == "personal":
+            continue
         groups.append(
             {
                 "name": group["name"],

@@ -141,7 +141,8 @@ class GlauthTreeOfferingEndpointTest(test.APITestCase):
         role_group_gids = {
             g["gid"]
             for g in response.data["groups"]
-            if g["kind"] != "project" and self.fixture.manager.username in g["members"]
+            if g["kind"] not in ("project", "personal")
+            and self.fixture.manager.username in g["members"]
         }
         self.assertTrue(role_group_gids.issubset(membership_gids))
 
@@ -173,8 +174,26 @@ class GlauthTreeOfferingEndpointTest(test.APITestCase):
         self.client.force_login(self.fixture.offering_owner)
         response = self.client.get(self.url)
         kinds = {g["kind"] for g in response.data["groups"]}
-        # Only the legacy project-mapped groups remain.
-        self.assertEqual(kinds, {"project"})
+        # Only the legacy project-mapped groups and per-user personal groups
+        # remain — no role groups.
+        self.assertEqual(kinds, {"project", "personal"})
+
+    def test_personal_groups_surface_in_tree(self):
+        # Each user's personal group (name = username, gid = primarygroup) is
+        # served by glauth as a posixGroup, so the tree must list it too.
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        offering_user = self.fixture.offering_user
+        expected_gid = offering_user.backend_metadata["primarygroup"]
+        personal = [g for g in response.data["groups"] if g["kind"] == "personal"]
+        by_name = {g["name"]: g for g in personal}
+        self.assertIn(offering_user.username, by_name)
+        group = by_name[offering_user.username]
+        self.assertEqual(group["gid"], expected_gid)
+        self.assertIsNone(group["role"])
+        self.assertEqual(group["members"], [offering_user.username])
+        self.assertEqual(group["scope"]["type"], "user")
+        self.assertEqual(group["scope"]["uuid"], self.fixture.manager.uuid.hex)
 
     def test_role_outside_role_map_is_skipped(self):
         # Add another role and assignment, but don't include it in the map.
@@ -269,6 +288,14 @@ class GlauthRoleAwareTomlTest(test.APITestCase):
         self.assertIn(6001, gids)
         role_gids = {g for g in gids if g >= 60000}
         self.assertEqual(len(role_gids), 2)
+
+    def test_personal_group_not_double_emitted(self):
+        # The personal group is emitted by the per-user record path; the tree
+        # also carries it, so guard against the TOML writing it twice.
+        self.client.force_login(self.fixture.offering_owner)
+        body = self.client.get(self.toml_url).data
+        personal_gid = self.fixture.offering_user.backend_metadata["primarygroup"]
+        self.assertEqual(body.count(f"gidnumber = {personal_gid}\n"), 1)
 
     def test_no_role_groups_when_role_map_empty(self):
         offering = self.fixture.offering
