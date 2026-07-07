@@ -4,7 +4,7 @@ from constance.test.unittest import override_config
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
-from waldur_core.core.models import User
+from waldur_core.core.models import SshPublicKey, User
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.tests.scim.conftest import make_staff_token
 
@@ -352,3 +352,238 @@ class UsersEndpointFeatureFlagTest(test.APITestCase):
         response = self.client.get("/scim/v2/Users")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("SCIM_INBOUND_ENABLED", response.data["detail"])
+
+
+WALDUR_URN = "urn:waldur:params:scim:schemas:extension:User:1.0"
+PATCH_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+
+# Cryptographically valid ed25519 public keys (the create path parses them).
+KEY1 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJJ8hP1eFBxBCWiUaB5vsLAvFaYjs0zQ0gWOltsWd8LI key1@example.com"
+KEY2 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH4VKrindOs5cEW4vv2NZfGAB6A1/tuYmOXv2emFcuSC key2@example.com"
+KEY3 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ8Q7PU4ES7C3W+mJuQ/RM0NX7WIONl78tMKAqwZeWXu key3@example.com"
+
+
+@override_config(SCIM_INBOUND_ENABLED=True, SCIM_INBOUND_SSH_KEYS_ENABLED=True)
+class SshKeysViaScimTest(test.APITestCase):
+    """Inbound SCIM management of user SSH public keys (Waldur extension)."""
+
+    def setUp(self):
+        token_key, self.svc_user = make_staff_token()
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {token_key}",
+            HTTP_ACCEPT="application/scim+json",
+        )
+
+    def _body(self, ssh_keys, **overrides):
+        body = {
+            "schemas": [
+                "urn:ietf:params:scim:schemas:core:2.0:User",
+                WALDUR_URN,
+            ],
+            "userName": "alice",
+            "active": True,
+            WALDUR_URN: {"sshPublicKeys": ssh_keys},
+        }
+        body.update(overrides)
+        return body
+
+    def _patch(self, uuid_hex, operations):
+        return self.client.patch(
+            f"/scim/v2/Users/{uuid_hex}",
+            data={"schemas": [PATCH_SCHEMA], "Operations": operations},
+            format="json",
+        )
+
+    def _keys(self, user):
+        return SshPublicKey.objects.filter(user=user)
+
+    def test_create_user_with_ssh_keys(self):
+        response = self.client.post(
+            "/scim/v2/Users",
+            data=self._body([{"value": KEY1, "display": "laptop"}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        user = User.objects.get(username="alice")
+        key = self._keys(user).get()
+        self.assertEqual(key.name, "laptop")
+        self.assertEqual(key.public_key, KEY1)
+        self.assertFalse(key.is_shared)
+        self.assertTrue(key.fingerprint_sha256)
+
+    def test_created_keys_owned_by_target_user_not_service_account(self):
+        self.client.post(
+            "/scim/v2/Users",
+            data=self._body([{"value": KEY1, "display": "laptop"}]),
+            format="json",
+        )
+        key = SshPublicKey.objects.get(public_key=KEY1)
+        self.assertEqual(key.user.username, "alice")
+        self.assertNotEqual(key.user, self.svc_user)
+
+    def test_get_user_returns_ssh_keys(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        structure_factories.SshPublicKeyFactory(user=user, name="b", public_key=KEY2)
+        response = self.client.get(f"/scim/v2/Users/{user.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        entries = response.data[WALDUR_URN]["sshPublicKeys"]
+        values = {e["value"] for e in entries}
+        self.assertSetEqual(values, {KEY1, KEY2})
+
+    def test_put_replaces_ssh_keys_and_deletes_omitted(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        structure_factories.SshPublicKeyFactory(user=user, name="b", public_key=KEY2)
+        body = self._body([{"value": KEY1, "display": "a"}], userName="bob")
+        response = self.client.put(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        remaining = {k.public_key for k in self._keys(user)}
+        self.assertSetEqual(remaining, {KEY1})
+
+    def test_put_without_ssh_attribute_leaves_keys_untouched(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        body = {
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "bob",
+            "active": True,
+        }
+        response = self.client.put(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._keys(user).count(), 1)
+
+    def test_patch_add_ssh_key(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        response = self._patch(
+            user.uuid.hex,
+            [
+                {
+                    "op": "add",
+                    "path": f"{WALDUR_URN}:sshPublicKeys",
+                    "value": [{"value": KEY2, "display": "b"}],
+                }
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertSetEqual({k.public_key for k in self._keys(user)}, {KEY1, KEY2})
+
+    def test_patch_remove_ssh_key_by_filter(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        structure_factories.SshPublicKeyFactory(user=user, name="b", public_key=KEY2)
+        response = self._patch(
+            user.uuid.hex,
+            [{"op": "remove", "path": f'sshPublicKeys[value eq "{KEY1}"]'}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertSetEqual({k.public_key for k in self._keys(user)}, {KEY2})
+
+    def test_patch_remove_all_ssh_keys(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        structure_factories.SshPublicKeyFactory(user=user, name="b", public_key=KEY2)
+        response = self._patch(
+            user.uuid.hex, [{"op": "remove", "path": "sshPublicKeys"}]
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self._keys(user).count(), 0)
+
+    def test_patch_replace_ssh_keys(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        response = self._patch(
+            user.uuid.hex,
+            [
+                {
+                    "op": "replace",
+                    "path": f"{WALDUR_URN}:sshPublicKeys",
+                    "value": [{"value": KEY2, "display": "b"}],
+                }
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertSetEqual({k.public_key for k in self._keys(user)}, {KEY2})
+
+    def test_invalid_ssh_key_material_returns_400_and_rolls_back(self):
+        response = self.client.post(
+            "/scim/v2/Users",
+            data=self._body([{"value": "not-a-real-key", "display": "x"}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["scimType"], "invalidValue")
+        self.assertFalse(User.objects.filter(username="alice").exists())
+
+    @override_config(SSH_KEY_ALLOWED_TYPES=["ssh-rsa"])
+    def test_disallowed_key_type_returns_400(self):
+        response = self.client.post(
+            "/scim/v2/Users",
+            data=self._body([{"value": KEY1, "display": "x"}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["scimType"], "invalidValue")
+
+    def test_missing_value_returns_400(self):
+        response = self.client.post(
+            "/scim/v2/Users",
+            data=self._body([{"display": "no-value"}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["scimType"], "invalidValue")
+
+    def test_duplicate_display_name_is_deduplicated(self):
+        response = self.client.post(
+            "/scim/v2/Users",
+            data=self._body(
+                [
+                    {"value": KEY1, "display": "dup"},
+                    {"value": KEY2, "display": "dup"},
+                ]
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        user = User.objects.get(username="alice")
+        keys = self._keys(user)
+        self.assertEqual(keys.count(), 2)
+        self.assertEqual(len({k.name for k in keys}), 2)
+
+    def test_blank_display_names_do_not_collide(self):
+        response = self.client.post(
+            "/scim/v2/Users",
+            data=self._body([{"value": KEY1}, {"value": KEY2}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        user = User.objects.get(username="alice")
+        self.assertEqual(self._keys(user).count(), 2)
+
+    def test_resync_same_key_is_idempotent(self):
+        user = structure_factories.UserFactory(username="bob")
+        structure_factories.SshPublicKeyFactory(user=user, name="a", public_key=KEY1)
+        body = self._body([{"value": KEY1, "display": "a"}], userName="bob")
+        response = self.client.put(
+            f"/scim/v2/Users/{user.uuid.hex}", data=body, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self._keys(user).count(), 1)
+
+    @override_config(SCIM_INBOUND_SSH_KEYS_ENABLED=False)
+    def test_ssh_keys_ignored_when_feature_disabled(self):
+        response = self.client.post(
+            "/scim/v2/Users",
+            data=self._body([{"value": KEY1, "display": "laptop"}]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        user = User.objects.get(username="alice")
+        self.assertEqual(self._keys(user).count(), 0)
+        self.assertNotIn("sshPublicKeys", response.data.get(WALDUR_URN, {}))
