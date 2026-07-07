@@ -51,30 +51,3 @@ def skip_side_effects():
         yield
     finally:
         set_skip_side_effects(previous_value)
-
-
-# Legacy aliases for backward compatibility (to be removed in future version)
-def set_skip_rabbitmq_messages(skip=True):
-    """
-    DEPRECATED: Use set_skip_side_effects() instead.
-    Legacy alias for backward compatibility.
-    """
-    set_skip_side_effects(skip)
-
-
-def get_skip_rabbitmq_messages():
-    """
-    DEPRECATED: Use get_skip_side_effects() instead.
-    Legacy alias for backward compatibility.
-    """
-    return get_skip_side_effects()
-
-
-@contextmanager
-def skip_rabbitmq_messages():
-    """
-    DEPRECATED: Use skip_side_effects() instead.
-    Legacy alias for backward compatibility.
-    """
-    with skip_side_effects():
-        yield
