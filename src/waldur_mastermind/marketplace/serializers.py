@@ -5991,7 +5991,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     username = serializers.SerializerMethodField()
     limit_usage = serializers.SerializerMethodField(
         help_text="Dictionary mapping limit-based component types to their consumed usage. "
-        "For monthly periods, maps from current_usages; for longer periods, aggregates historical usage."
+        "Sums the ComponentUsage rows of the component's current period (the monthly "
+        "billing period unless the component defines a longer limit_period), i.e. the "
+        "period's high-watermark rather than the instantaneous current_usages value."
     )
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     available_actions = serializers.SerializerMethodField()
@@ -6046,9 +6048,12 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     def get_limit_usage(self, resource: models.Resource) -> dict[str, float]:
         """
         Calculates and returns the consumption of limit-based components.
-        For components with a monthly (or unspecified) limit period, it attempts to
-        fetch the value directly from the resource's `current_usages` JSONField.
-        For other periods (like annual), it calculates the sum from `ComponentUsage` tracking data.
+        Delegates to `get_current_period_usage`, which sums the `ComponentUsage`
+        rows of each component's current period (monthly by default, or the
+        component's own `limit_period` for quarterly/annual/total). This is the
+        period high-watermark, shared with SLURM QoS policy enforcement — not the
+        instantaneous `current_usages` value (which may be lower after usage
+        drops mid-period).
         """
         if not resource.offering.is_limit_based or not resource.plan:
             return {}
