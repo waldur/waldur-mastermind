@@ -223,25 +223,37 @@ class MaintenanceAnnouncementUpdateStateTest(test.APITestCase):
         self.announcement.state = state
         self.announcement.save()
 
-    @data(MaintenanceState.DRAFT, MaintenanceState.SCHEDULED)
-    def test_update_allowed_before_maintenance_starts(self, state):
+    @data(
+        MaintenanceState.DRAFT,
+        MaintenanceState.SCHEDULED,
+        MaintenanceState.IN_PROGRESS,
+    )
+    def test_update_allowed_while_active(self, state):
         self._set_state(state)
         response = self.client.patch(self.url, {"message": "Updated message"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.announcement.refresh_from_db()
         self.assertEqual(self.announcement.message, "Updated message")
 
-    @data(
-        MaintenanceState.IN_PROGRESS,
-        MaintenanceState.COMPLETED,
-        MaintenanceState.CANCELLED,
-    )
-    def test_update_forbidden_once_maintenance_started(self, state):
+    @data(MaintenanceState.COMPLETED, MaintenanceState.CANCELLED)
+    def test_update_forbidden_in_terminal_states(self, state):
         self._set_state(state)
         response = self.client.patch(self.url, {"message": "Updated message"})
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.announcement.refresh_from_db()
         self.assertNotEqual(self.announcement.message, "Updated message")
+
+    def test_internal_notes_can_be_updated_while_in_progress(self):
+        self._set_state(MaintenanceState.IN_PROGRESS)
+        response = self.client.patch(
+            self.url, {"internal_notes": "Ended early: work finished ahead of schedule"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.announcement.refresh_from_db()
+        self.assertEqual(
+            self.announcement.internal_notes,
+            "Ended early: work finished ahead of schedule",
+        )
 
 
 @ddt
