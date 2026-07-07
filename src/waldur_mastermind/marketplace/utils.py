@@ -2084,7 +2084,15 @@ def generate_glauth_records_for_offering_users(
             custom_attributes["waldurUsername"] = [user.username]
 
         user_dict = {
-            "name": user.get_username(),
+            # Use the offering-scoped username as the GLAuth account name (LDAP
+            # cn), matching robot accounts, the personal-group name, homeDir and
+            # the JSON tree view. It is the unique, POSIX-facing login identity;
+            # the Waldur username is not unique across offering users and cannot
+            # be used as a login name (GLAuth cannot filter on custom
+            # attributes, so preferredUsername is unusable as an NSS key). The
+            # human identity stays available via givenname/sn/mail and the
+            # optional waldurUsername attribute.
+            "name": username,
             "givenname": user.first_name,
             "sn": user.last_name,
             "mail": user.email,
