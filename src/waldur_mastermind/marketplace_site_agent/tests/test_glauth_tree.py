@@ -1,3 +1,5 @@
+import tomllib
+
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import test
 
@@ -291,6 +293,23 @@ class GlauthRoleAwareTomlTest(test.APITestCase):
         self.assertIn(6001, gids)
         role_gids = {g for g in gids if g >= 60000}
         self.assertEqual(len(role_gids), 2)
+
+    def test_account_name_is_offering_username_not_waldur_username(self):
+        # The GLAuth account name (LDAP cn) must be the offering-scoped
+        # username: the unique, filterable POSIX login identity. It coincides
+        # with the Waldur username under the waldur_username policy, so force
+        # them apart to prove the record follows the offering username and not
+        # the (non-unique, unfilterable) Waldur one.
+        offering_user = self.fixture.offering_user
+        offering_user.username = "dig_09999"
+        offering_user.save()
+        self.assertNotEqual(offering_user.username, self.fixture.manager.username)
+
+        self.client.force_login(self.fixture.offering_owner)
+        body = self.client.get(self.toml_url).data
+        names = {u["name"] for u in tomllib.loads(body)["users"]}
+        self.assertIn("dig_09999", names)
+        self.assertNotIn(self.fixture.manager.username, names)
 
     def test_personal_group_not_double_emitted(self):
         # The personal group is emitted by the per-user record path; the tree
