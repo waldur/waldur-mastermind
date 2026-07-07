@@ -2486,6 +2486,12 @@ Source label written to User.attribute_sources for inbound SCIM writes. Used by 
 
 User attributes settable via inbound SCIM.
 
+#### SCIM_INBOUND_SSH_KEYS_ENABLED
+
+**Type:** bool
+
+Allow inbound SCIM to manage user SSH public keys via the sshPublicKeys attribute of the Waldur User extension. When enabled, SCIM is authoritative: a full-replace (PUT / PATCH replace) that omits a key deletes it, including keys the user added via the UI. Off by default because SSH keys grant access.
+
 #### SCIM_PULL_API_URL
 
 **Type:** str
