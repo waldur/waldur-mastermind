@@ -1,8 +1,11 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import test
 
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.models import Role, UserRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_site_agent.tests.fixtures import GlauthUserFixture
 
@@ -309,3 +312,125 @@ class GlauthRoleAwareTomlTest(test.APITestCase):
         body = self.client.get(self.toml_url).data
         self.assertNotIn('_admin"', body)
         self.assertNotIn('_member"', body)
+
+
+class GlauthMultiUserUidGidPropagationTest(test.APITestCase):
+    """uid/gid propagation for several team members sharing role assignments.
+
+    Two users are granted the same resource-scope role and the same
+    resource-project-scope role. Each must receive its own distinct POSIX uid and
+    personal-group gid (allocated from the offering pool), while the role groups
+    — keyed per (offering, scope, role), not per user — must be shared: one gid,
+    both usernames as members, and both users carrying that gid in their
+    ``otherGroups`` membership rollup.
+    """
+
+    def setUp(self):
+        self.fixture = GlauthTreeFixture()
+        self.offering = self.fixture.offering
+        self.url = marketplace_factories.OfferingFactory.get_url(
+            self.offering, "glauth_tree"
+        )
+
+        # Second team member: real project membership, then the same resource +
+        # resource-project role grants the manager already holds.
+        self.user2 = structure_factories.UserFactory()
+        self.fixture.project.add_user(self.user2, ProjectRole.MEMBER)
+        self.offering_user2, _ = marketplace_models.OfferingUser.objects.get_or_create(
+            offering=self.offering,
+            user=self.user2,
+            defaults={"username": self.user2.username},
+        )
+        marketplace_utils.setup_linux_related_data(self.offering_user2, self.offering)
+        self.offering_user2.save()
+
+        self.user2_resource_role = UserRole.objects.create(
+            user=self.user2,
+            role=self.fixture.resource_role,
+            content_type=self.fixture.resource_ct,
+            object_id=self.fixture.resource.id,
+        )
+        UserRole.objects.create(
+            user=self.user2,
+            role=self.fixture.rp_role,
+            content_type=self.fixture.rp_ct,
+            object_id=self.fixture.rp_a.id,
+        )
+
+    def _tree(self):
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_distinct_uid_and_personal_gid_per_user(self):
+        users = {u["username"]: u for u in self._tree()["users"]}
+        self.assertIn(self.fixture.manager.username, users)
+        self.assertIn(self.user2.username, users)
+        m = users[self.fixture.manager.username]
+        u2 = users[self.user2.username]
+        # UIDs are allocated sequentially from the offering pool (uid namespace
+        # untouched by the fixture): manager 1001, second member 1002.
+        self.assertEqual({m["uidnumber"], u2["uidnumber"]}, {1001, 1002})
+        # Personal groups draw from the same offering GID pool as the role groups
+        # and must stay distinct per user. The manager's group was allocated at
+        # the pool's gid_start (2001) before the fixture pushed the GID
+        # high-water mark up to seed role groups; the second member's is drawn
+        # from wherever the pool pointer sits when its account is created.
+        self.assertEqual(m["personal_group"], 2001)
+        self.assertNotEqual(m["personal_group"], u2["personal_group"])
+
+    def test_role_group_gid_is_shared_across_members(self):
+        role_groups = [g for g in self._tree()["groups"] if g["kind"] != "project"]
+        # One resource-role group and one resource-project-role group.
+        self.assertEqual(
+            {g["kind"] for g in role_groups},
+            {"resource_role", "resource_project_role"},
+        )
+        for g in role_groups:
+            # Both team members belong to the single shared role group.
+            self.assertIn(self.fixture.manager.username, g["members"])
+            self.assertIn(self.user2.username, g["members"])
+            self.assertGreaterEqual(g["gid"], 60000)
+
+    def test_both_users_carry_role_gids_in_memberships(self):
+        tree = self._tree()
+        users = {u["username"]: u for u in tree["users"]}
+        role_gids = {g["gid"] for g in tree["groups"] if g["kind"] != "project"}
+        self.assertEqual(len(role_gids), 2)
+        for username in (self.fixture.manager.username, self.user2.username):
+            membership_gids = {m["gid"] for m in users[username]["memberships"]}
+            self.assertTrue(
+                role_gids.issubset(membership_gids),
+                f"{username} missing role gids: {role_gids - membership_gids}",
+            )
+
+    def test_role_revocation_shrinks_membership_but_keeps_gid_stable(self):
+        before = self._tree()
+        resource_group_before = next(
+            g for g in before["groups"] if g["kind"] == "resource_role"
+        )
+        gid_before = resource_group_before["gid"]
+        self.assertIn(self.user2.username, resource_group_before["members"])
+
+        # Real revocation: deactivate only user2's resource-scope role.
+        self.user2_resource_role.revoke()
+
+        after = self._tree()
+        resource_group_after = next(
+            g for g in after["groups"] if g["kind"] == "resource_role"
+        )
+        # The group survives (manager still holds the role) with a stable gid.
+        self.assertEqual(resource_group_after["gid"], gid_before)
+        self.assertIn(self.fixture.manager.username, resource_group_after["members"])
+        self.assertNotIn(self.user2.username, resource_group_after["members"])
+
+        # user2 drops the resource-role gid but keeps the resource-project-role
+        # gid it still holds.
+        users_after = {u["username"]: u for u in after["users"]}
+        u2_gids = {m["gid"] for m in users_after[self.user2.username]["memberships"]}
+        self.assertNotIn(gid_before, u2_gids)
+        rp_group = next(
+            g for g in after["groups"] if g["kind"] == "resource_project_role"
+        )
+        self.assertIn(rp_group["gid"], u2_gids)
