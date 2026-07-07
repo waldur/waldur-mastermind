@@ -218,6 +218,40 @@ def _build_schemas() -> list[ScimSchema]:
                 required=False,
                 description="eduPersonAssurance identity assurance values.",
             ),
+            Attribute(
+                name="sshPublicKeys",
+                type="complex",
+                multi_valued=True,
+                required=False,
+                mutability=Mutability.read_write,
+                description=(
+                    "User SSH public keys. Managed when "
+                    "SCIM_INBOUND_SSH_KEYS_ENABLED is set."
+                ),
+                sub_attributes=[
+                    Attribute(
+                        name="value",
+                        type="string",
+                        multi_valued=False,
+                        required=True,
+                        case_exact=True,
+                        description="SSH public key material.",
+                    ),
+                    Attribute(
+                        name="display",
+                        type="string",
+                        multi_valued=False,
+                        required=False,
+                        description="Human-readable key name.",
+                    ),
+                    Attribute(
+                        name="primary",
+                        type="boolean",
+                        multi_valued=False,
+                        required=False,
+                    ),
+                ],
+            ),
         ],
     )
     return [

@@ -13,7 +13,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from constance import config
+
 from waldur_core.core.models import User
+from waldur_core.users.scim.server.ssh_keys import serialize_ssh_keys
 
 # Waldur-specific SCIM schema extension. Carries fields used by federated
 # research deployments (civil_number, affiliations, eduperson_assurance).
@@ -112,6 +115,10 @@ def waldur_to_scim_user(user: User, location: str | None = None) -> dict:
         extension["affiliations"] = list(user.affiliations)
     if user.eduperson_assurance:
         extension["edupersonAssurance"] = list(user.eduperson_assurance)
+    if config.SCIM_INBOUND_SSH_KEYS_ENABLED:
+        ssh_keys = serialize_ssh_keys(user)
+        if ssh_keys:
+            extension["sshPublicKeys"] = ssh_keys
     if extension:
         body["schemas"].append(WALDUR_USER_EXTENSION_URN)
         body[WALDUR_USER_EXTENSION_URN] = extension

@@ -36,6 +36,15 @@ _MEMBER_FILTER_RE = re.compile(
 _ENTERPRISE_URN = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user"
 _WALDUR_URN = "urn:waldur:params:scim:schemas:extension:user:1.0"
 
+# sshPublicKeys[value eq "<key material>"], optionally URN-prefixed (Entra ID).
+# The capture group preserves case — key material is case-sensitive base64.
+_SSH_FILTER_RE = re.compile(
+    r"^(?:urn:waldur:params:scim:schemas:extension:user:1\.0:)?"
+    r'sshpublickeys\[\s*value\s+eq\s+"([^"]+)"\s*\]$',
+    re.IGNORECASE,
+)
+_SSH_KEYS_PATHS = {"sshpublickeys", f"{_WALDUR_URN}:sshpublickeys"}
+
 # URN-prefixed attribute paths (Entra ID sends these for extension fields):
 # path → (waldur field, empty value used by 'remove').
 # civil_number clears to None, not "" — it carries a unique constraint and
@@ -65,6 +74,11 @@ class UserPatchResult:
     attributes: dict = field(default_factory=dict)
     set_active: bool | None = None
     set_external_id: str | None = None
+    # SSH keys are a related collection, applied separately from `attributes`.
+    # Entries are raw SCIM dicts ({"value", "display"}); the view normalises them.
+    add_ssh_keys: list[dict] = field(default_factory=list)
+    remove_ssh_key_values: list[str] = field(default_factory=list)
+    replace_ssh_keys: list[dict] | None = None  # None = no full replace requested
 
 
 @dataclass
@@ -263,6 +277,30 @@ def _apply_user_path(result: UserPatchResult, verb: str, path: str, value) -> No
                 result.attributes["phone_number"] = phone
         return
 
+    ssh_filter = _SSH_FILTER_RE.match(path)
+    if ssh_filter:
+        material = ssh_filter.group(1)
+        if verb == "remove":
+            result.remove_ssh_key_values.append(material)
+        elif verb == "add":
+            result.add_ssh_keys.append({"value": material})
+        else:
+            raise ScimError(
+                400,
+                "PATCH 'replace' on a filtered sshPublicKeys entry is not supported.",
+                scim_type="invalidPath",
+            )
+        return
+
+    if lc in _SSH_KEYS_PATHS:
+        if verb == "add":
+            result.add_ssh_keys.extend(_ssh_key_entries(value))
+        elif verb == "remove":
+            result.replace_ssh_keys = []  # remove all managed keys
+        else:  # replace
+            result.replace_ssh_keys = _ssh_key_entries(value)
+        return
+
     if lc in _EXTENSION_ATTRIBUTE_PATHS:
         target, empty = _EXTENSION_ATTRIBUTE_PATHS[lc]
         if verb == "remove" or value is None or value == "":
@@ -284,6 +322,10 @@ def _apply_user_path(result: UserPatchResult, verb: str, path: str, value) -> No
                 scim_type="invalidValue",
             )
         for key, item in value.items():
+            if key.lower() == "sshpublickeys":
+                # Whole Waldur extension replaced -> keys are authoritative.
+                result.replace_ssh_keys = _ssh_key_entries(item)
+                continue
             entry = fields.get(key.lower())
             if entry:
                 target, empty = entry
@@ -291,6 +333,21 @@ def _apply_user_path(result: UserPatchResult, verb: str, path: str, value) -> No
         return
 
     raise ScimError(400, f"Unsupported PATCH path {path!r}.", scim_type="invalidPath")
+
+
+def _ssh_key_entries(value) -> list[dict]:
+    """Coerce a PATCH value into a list of raw SCIM sshPublicKeys entries."""
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list):
+        return value
+    raise ScimError(
+        400,
+        "'sshPublicKeys' value must be an array of key objects.",
+        scim_type="invalidValue",
+    )
 
 
 def _merge_user_attributes(result: UserPatchResult, value: dict) -> None:
@@ -307,6 +364,14 @@ def _merge_user_attributes(result: UserPatchResult, value: dict) -> None:
         result.set_active = bool(active)
     if "externalId" in value:
         result.set_external_id = str(value["externalId"] or "")
+
+    # A no-path replace is a whole-resource replace (PUT semantics): if the
+    # Waldur extension carries sshPublicKeys, treat it as authoritative.
+    for key, item in value.items():
+        if key.lower() == _WALDUR_URN and isinstance(item, dict):
+            for sub_key, sub_val in item.items():
+                if sub_key.lower() == "sshpublickeys":
+                    result.replace_ssh_keys = _ssh_key_entries(sub_val)
 
 
 def _first_email_value(value) -> str | None:

@@ -913,6 +913,13 @@ CONSTANCE_CONFIG = {
         "User attributes settable via inbound SCIM.",
         "multiple_choice_field",
     ),
+    "SCIM_INBOUND_SSH_KEYS_ENABLED": (
+        False,
+        "Allow inbound SCIM to manage user SSH public keys via the sshPublicKeys "
+        "attribute of the Waldur User extension. When enabled, SCIM is authoritative: "
+        "a full-replace (PUT / PATCH replace) that omits a key deletes it, including "
+        "keys the user added via the UI. Off by default because SSH keys grant access.",
+    ),
     "SCIM_PULL_API_URL": (
         "",
         "Base URL for outbound SCIM pull (fetching user attributes from an external IdP).",
@@ -1839,6 +1846,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SCIM_INBOUND_ENABLED",
         "SCIM_INBOUND_SOURCE_NAME",
         "SCIM_INBOUND_ALLOWED_ATTRIBUTES",
+        "SCIM_INBOUND_SSH_KEYS_ENABLED",
         "SCIM_PULL_API_URL",
         "SCIM_PULL_API_KEY",
         "SCIM_PULL_SOURCE_NAME",

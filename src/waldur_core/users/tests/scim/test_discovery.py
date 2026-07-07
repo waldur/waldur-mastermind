@@ -84,3 +84,18 @@ class ScimDiscoveryTest(test.APITestCase):
         self.assertIn("urn:ietf:params:scim:schemas:core:2.0:Group", ids)
         self.assertIn("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User", ids)
         self.assertIn("urn:waldur:params:scim:schemas:extension:User:1.0", ids)
+
+    @override_config(SCIM_INBOUND_ENABLED=True)
+    def test_waldur_extension_advertises_ssh_public_keys(self):
+        response = self.client.get(
+            "/scim/v2/Schemas/urn:waldur:params:scim:schemas:extension:User:1.0"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        attributes = {a["name"]: a for a in response.json()["attributes"]}
+        self.assertIn("sshPublicKeys", attributes)
+        ssh = attributes["sshPublicKeys"]
+        self.assertEqual(ssh["type"], "complex")
+        self.assertTrue(ssh["multiValued"])
+        sub = {a["name"] for a in ssh["subAttributes"]}
+        self.assertIn("value", sub)
+        self.assertIn("display", sub)

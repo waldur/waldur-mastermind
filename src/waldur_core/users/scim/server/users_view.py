@@ -36,6 +36,7 @@ from waldur_core.users.scim.server.filters import (
     parse as parse_filter,
 )
 from waldur_core.users.scim.server.mapping import (
+    WALDUR_USER_EXTENSION_URN,
     scim_to_waldur_payload,
     set_scim_external_id,
     waldur_to_scim_user,
@@ -49,6 +50,12 @@ from waldur_core.users.scim.server.renderers import (
     ScimJSONParser,
     ScimJSONParserPlain,
     ScimJSONRenderer,
+)
+from waldur_core.users.scim.server.ssh_keys import (
+    normalize_entries,
+    parse_ssh_key_entries,
+    remove_ssh_keys,
+    sync_ssh_keys,
 )
 
 
@@ -69,6 +76,14 @@ def _allowed_fields() -> set[str]:
 
 def _source() -> str:
     return config.SCIM_INBOUND_SOURCE_NAME or "scim:default"
+
+
+def _ssh_keys_enabled() -> bool:
+    return bool(config.SCIM_INBOUND_SSH_KEYS_ENABLED)
+
+
+def _extension_block(body: dict) -> dict:
+    return body.get(WALDUR_USER_EXTENSION_URN) or {}
 
 
 def _user_location(request, user: User) -> str:
@@ -172,6 +187,11 @@ def _create_user(body: dict, request) -> User:
         set_scim_external_id(user, str(external_id), source=_source())
         user.save(update_fields=["attribute_sources"])
 
+    if _ssh_keys_enabled():
+        entries = parse_ssh_key_entries(_extension_block(body))
+        if entries is not None:
+            sync_ssh_keys(user, entries, replace=True)
+
     user.refresh_from_db()
     return user
 
@@ -215,6 +235,13 @@ def _update_user(user: User, body: dict, *, full_replace: bool) -> User:
         user.deactivation_reason = ""
         user._change_source = _source()
         user.save(update_fields=["is_active", "deactivation_reason"])
+
+    if _ssh_keys_enabled():
+        # PUT is a full replace: SCIM is authoritative over the user's keys.
+        # An absent attribute leaves keys untouched (many IdPs omit it).
+        entries = parse_ssh_key_entries(_extension_block(body))
+        if entries is not None:
+            sync_ssh_keys(user, entries, replace=True)
 
     user.refresh_from_db()
     return user
@@ -318,6 +345,21 @@ class UserDetailView(_UsersBaseView):
                         user.deactivation_reason = ""
                         user._change_source = _source()
                         user.save(update_fields=["is_active", "deactivation_reason"])
+            if _ssh_keys_enabled():
+                if patch_result.replace_ssh_keys is not None:
+                    sync_ssh_keys(
+                        user,
+                        normalize_entries(patch_result.replace_ssh_keys),
+                        replace=True,
+                    )
+                if patch_result.add_ssh_keys:
+                    sync_ssh_keys(
+                        user,
+                        normalize_entries(patch_result.add_ssh_keys),
+                        replace=False,
+                    )
+                if patch_result.remove_ssh_key_values:
+                    remove_ssh_keys(user, patch_result.remove_ssh_key_values)
         user.refresh_from_db()
         return Response(_serialize(user, request))
 
