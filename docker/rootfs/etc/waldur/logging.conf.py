@@ -38,7 +38,7 @@ LOGGING = {
         },
     },
     "root": {
-        "level": "DEBUG",
+        "level": "INFO",
         "handlers": ["console", "database"],
     },
     "loggers": {
