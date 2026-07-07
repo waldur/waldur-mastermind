@@ -112,6 +112,7 @@ SPECTACULAR_SETTINGS = {
             "project",
             "resource_role",
             "resource_project_role",
+            "personal",
         ],
         # GLAuth uid_source and gid_source share the same choice set; give it a
         # single enum name so drf-spectacular doesn't emit clashing

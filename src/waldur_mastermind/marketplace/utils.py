@@ -2739,6 +2739,13 @@ def build_glauth_tree(offering, *, resource_filter=None):
     # Users with membership rollup.
     users_with_active_resources = _users_with_active_resources(offering, offering_users)
     users = []
+    # Per-user personal groups: the TOML emitter writes one ``[[groups]]`` block
+    # per user (name = username, gid = primarygroup), and glauth serves these as
+    # posixGroup entries. Surface them in the tree too so the JSON view matches
+    # what an ``ldapsearch`` actually returns rather than silently dropping the
+    # per-user groups. They are folded into each user's ``gidNumber`` in the UI,
+    # so they carry no ``memberships`` rollup.
+    personal_groups = []
     for ou in offering_users:
         if not ou.username:
             continue
@@ -2780,6 +2787,25 @@ def build_glauth_tree(offering, *, resource_filter=None):
             }
         )
 
+        primarygroup = meta.get("primarygroup")
+        if primarygroup is not None:
+            personal_groups.append(
+                {
+                    "gid": int(primarygroup),
+                    "name": ou.username,
+                    "kind": "personal",
+                    "scope": {
+                        "type": "user",
+                        "uuid": ou.user.uuid.hex,
+                        "name": ou.username,
+                        "slug": "",
+                        "resource_uuid": None,
+                    },
+                    "role": None,
+                    "members": [ou.username],
+                }
+            )
+
     # Robot accounts (no group memberships in current model — surfaced flat).
     robot_qs = models.RobotAccount.objects.filter(resource__offering=offering).filter(
         state__in=[RobotAccountStates.OK, RobotAccountStates.REQUESTED_DELETION]
@@ -2804,7 +2830,7 @@ def build_glauth_tree(offering, *, resource_filter=None):
             "name": offering.name,
             "slug": offering.slug or "",
         },
-        "groups": project_groups + role_groups,
+        "groups": project_groups + role_groups + personal_groups,
         "users": users,
         "robot_accounts": robot_accounts,
         # Internal: pre-computed user_id -> set[gid] for the TOML emitter.

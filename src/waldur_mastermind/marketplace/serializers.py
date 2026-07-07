@@ -13743,7 +13743,9 @@ class UserHasResourceAccessSerializer(serializers.Serializer):
 class GlauthTreeScopeSerializer(serializers.Serializer):
     """Scope reference inside a glauth tree group entry."""
 
-    type = serializers.ChoiceField(choices=["resource", "resource_project", "project"])
+    type = serializers.ChoiceField(
+        choices=["resource", "resource_project", "project", "user"]
+    )
     uuid = serializers.CharField()
     name = serializers.CharField(allow_blank=True, allow_null=True)
     slug = serializers.CharField(required=False, allow_blank=True, allow_null=True)
@@ -13756,6 +13758,7 @@ GLAUTH_GROUP_KIND_CHOICES = (
     ("project", "project"),
     ("resource_role", "resource_role"),
     ("resource_project_role", "resource_project_role"),
+    ("personal", "personal"),
 )
 
 
