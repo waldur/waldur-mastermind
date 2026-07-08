@@ -1390,6 +1390,14 @@ URL for sending telemetry data.
 
 Telemetry service version.
 
+#### CHECK_FOR_UPDATES
+
+**Type:** bool
+
+**Default value:** True
+
+If true, the version endpoint queries GitHub for the latest released Waldur version. Disable in deployments without outbound internet access to avoid failed requests to api.github.com.
+
 ### Custom Scripts
 
 #### SCRIPT_RUN_MODE
