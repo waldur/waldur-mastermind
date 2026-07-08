@@ -1770,6 +1770,11 @@ def get_latest_github_tag(timeout=5):
     Fetch the latest tag from GitHub with caching.
     Cache timeout is 1 hour to avoid hitting GitHub API too frequently.
     """
+    if not config.CHECK_FOR_UPDATES:
+        # Update checks are disabled (e.g. deployments without egress). Skip the
+        # outbound request to api.github.com entirely.
+        return None
+
     cache_key = "waldur_latest_github_tag"
     cached_version = cache.get(cache_key)
     if cached_version:

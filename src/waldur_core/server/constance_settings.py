@@ -393,6 +393,12 @@ CONSTANCE_CONFIG = {
         "URL for sending telemetry data.",
     ),
     "TELEMETRY_VERSION": (1, "Telemetry service version."),
+    "CHECK_FOR_UPDATES": (
+        True,
+        "If true, the version endpoint queries GitHub for the latest released "
+        "Waldur version. Disable in deployments without outbound internet access "
+        "to avoid failed requests to api.github.com.",
+    ),
     "SCRIPT_RUN_MODE": (
         "docker",
         'Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
@@ -1653,6 +1659,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Telemetry": (
         "TELEMETRY_URL",
         "TELEMETRY_VERSION",
+        "CHECK_FOR_UPDATES",
     ),
     "Custom Scripts": (
         "SCRIPT_RUN_MODE",
