@@ -27,7 +27,7 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from waldur_core.core.models import User
 from waldur_core.core.permissions import IsAdminOrReadOnly
 from waldur_core.core.utils import get_ip_address, is_uuid_like
-from waldur_core.core.views import ActionsViewSet
+from waldur_core.core.views import ActionsViewSet, count_action
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.utils import (
     add_user,
@@ -490,6 +490,7 @@ class UserRoleMixin:
             )
         ],
     )
+    @count_action
     @action(detail=True, methods=["GET"])
     def list_users(self, request, uuid=None):
         scope = self.get_object()
@@ -533,6 +534,10 @@ class UserRoleMixin:
             else:
                 queryset = queryset.filter(role__name=role)
         queryset = self.paginate_queryset(queryset)
+        if request.method == "HEAD":
+            # Count-only request (the `_count` companion): the X-Result-Count
+            # header is set from the paginator, so skip serialising the page.
+            return self.get_paginated_response([])
         serializer = serializers.UserRoleDetailsSerializer(
             queryset, many=True, context={"request": request}
         )

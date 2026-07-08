@@ -62,6 +62,57 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
         # Assert
         self.assertNotIn("x-permissions", operation)
 
+    def _head_operation(self, *, detail, action="list", count_enabled=False):
+        self.view.action = action
+        self.view.detail = detail
+        # The action callable carries the @count_action opt-in flag.
+        action_fn = MagicMock()
+        action_fn.count_enabled = count_enabled
+        setattr(self.view, action, action_fn)
+        inspector = WaldurOpenApiInspector()
+        inspector.view = self.view
+        with patch.object(AutoSchema, "get_operation", return_value={}):
+            return inspector.get_operation(
+                "/api/dummies/", r"^/api/dummies/$", "/api/", "HEAD", MagicMock()
+            )
+
+    def test_head_count_emitted_for_collection(self):
+        """A collection (list) endpoint keeps its HEAD `count` operation."""
+        operation = self._head_operation(detail=False)
+
+        self.assertIsNotNone(operation)
+        self.assertEqual(
+            operation["responses"], {"200": {"description": "No response body"}}
+        )
+
+    def test_head_count_emitted_for_opted_in_detail_action(self):
+        """
+        A detail-scoped action that opts in via @count_action (e.g.
+        `/projects/{uuid}/list_users/`) keeps its HEAD `count` operation.
+        """
+        operation = self._head_operation(
+            detail=True, action="list_users", count_enabled=True
+        )
+
+        self.assertIsNotNone(operation)
+        self.assertEqual(
+            operation["responses"], {"200": {"description": "No response body"}}
+        )
+
+    def test_head_count_suppressed_for_detail_action_without_opt_in(self):
+        """A detail-scoped action that did not opt in gets no HEAD `count`."""
+        operation = self._head_operation(
+            detail=True, action="list_users", count_enabled=False
+        )
+
+        self.assertIsNone(operation)
+
+    def test_head_count_suppressed_for_object_detail(self):
+        """A single-object detail view (retrieve) does not get a HEAD `count`."""
+        operation = self._head_operation(detail=True, action="retrieve")
+
+        self.assertIsNone(operation)
+
 
 class _TestSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
     """Test serializer for OpenAPI inspector tests."""
@@ -474,3 +525,163 @@ def test_nullable_fk_slug_related_fields_have_allow_null():
         "to produce correct OpenAPI specs for SDK client generation:\n"
         + "\n".join(f"  - {v}" for v in violations)
     )
+
+
+class CountOperationSchemaGenerationTest(unittest.TestCase):
+    """
+    End-to-end schema checks for the HEAD `_count` companion operations that
+    drive the generated SDK's `*Count` methods.
+    """
+
+    @staticmethod
+    def _generate_schema(patterns):
+        from unittest import mock
+
+        from drf_spectacular.settings import spectacular_settings
+
+        from waldur_core.core.openapi_generators import WaldurSchemaGenerator
+
+        generator = WaldurSchemaGenerator(patterns=patterns)
+        # Skip project-wide post-processing/validation hooks: they operate on
+        # the full API surface and are irrelevant to the raw operation shape.
+        with mock.patch.object(spectacular_settings, "POSTPROCESSING_HOOKS", []):
+            return generator.get_schema(request=None, public=True)
+
+    @staticmethod
+    def _find_path(schema, suffix):
+        for url, path_item in schema["paths"].items():
+            if url.rstrip("/").endswith(suffix):
+                return url, path_item
+        raise AssertionError(f"No path ending in {suffix!r} in {list(schema['paths'])}")
+
+    def test_nested_router_collection_gets_count_by_default(self):
+        """
+        A nested collection gets a HEAD `_count` operation by default, the same
+        as a top-level collection (e.g. `/customers/{uuid}/users/`).
+        """
+        from django.urls import include, path
+        from rest_framework import mixins, viewsets
+        from rest_framework.response import Response
+
+        from waldur_core.core.nested_routers import NestedSimpleRouter
+        from waldur_core.core.routers import SortedDefaultRouter
+
+        class _ChildSerializer(serializers.Serializer):
+            name = serializers.CharField()
+
+        class _ParentViewSet(viewsets.ViewSet):
+            def list(self, request):
+                return Response([])
+
+        class _ChildViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+            serializer_class = _ChildSerializer
+            queryset = apps.get_model("structure", "Customer").objects.none()
+
+        parent_router = SortedDefaultRouter()
+        parent_router.register("parents", _ParentViewSet, basename="parent")
+        nested_router = NestedSimpleRouter(parent_router, "parents", lookup="parent")
+        nested_router.register("children", _ChildViewSet, basename="child")
+
+        patterns = [
+            path("api/", include(parent_router.urls)),
+            path("api/", include(nested_router.urls)),
+        ]
+        schema = self._generate_schema(patterns)
+
+        _url, children = self._find_path(schema, "children")
+        self.assertIn("get", children)
+        self.assertIn(
+            "head", children, "nested collection must expose a HEAD count operation"
+        )
+        self.assertTrue(children["head"]["operationId"].endswith("_count"))
+
+    def test_explicit_operation_id_head_gets_distinct_count_id(self):
+        """
+        When a list route sets an explicit @extend_schema(operation_id=...), the
+        auto-added HEAD companion inherits it and would collide; it must get a
+        distinct `_count` id instead — whether or not the GET id ends in `_list`.
+        """
+        from django.urls import include, path
+        from drf_spectacular.utils import extend_schema, extend_schema_view
+        from rest_framework import mixins, viewsets
+
+        from waldur_core.core.routers import SortedDefaultRouter
+
+        class _ThingSerializer(serializers.Serializer):
+            name = serializers.CharField()
+
+        def _head_id_for(explicit_id):
+            @extend_schema_view(list=extend_schema(operation_id=explicit_id))
+            class _ThingViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+                serializer_class = _ThingSerializer
+                queryset = apps.get_model("structure", "Customer").objects.none()
+
+            router = SortedDefaultRouter()
+            router.register("things", _ThingViewSet, basename="thing")
+            schema = self._generate_schema([path("api/", include(router.urls))])
+            _url, things = self._find_path(schema, "things")
+            self.assertEqual(things["get"]["operationId"], explicit_id)
+            return things["head"]["operationId"]
+
+        # GET id ending in `_list` → swap the suffix.
+        self.assertEqual(
+            _head_id_for("my_custom_things_list"), "my_custom_things_count"
+        )
+        # GET id not ending in `_list` → append `_count` (would otherwise
+        # collide with the GET and fail `--fail-on-warn`).
+        self.assertEqual(_head_id_for("my_custom_things"), "my_custom_things_count")
+
+    def test_detail_action_count_is_opt_in(self):
+        """
+        A detail-scoped list action gets a HEAD `_count` operation only when it
+        opts in via @count_action (e.g. `/projects/{uuid}/list_users/`); a plain
+        object retrieve and a non-opted-in list action do not.
+        """
+        from django.urls import include, path
+        from drf_spectacular.utils import extend_schema
+        from rest_framework import viewsets
+        from rest_framework.decorators import action
+        from rest_framework.response import Response
+
+        from waldur_core.core.routers import SortedDefaultRouter
+        from waldur_core.core.views import count_action
+
+        class _ThingSerializer(serializers.Serializer):
+            name = serializers.CharField()
+
+        class _ThingViewSet(viewsets.ViewSet):
+            serializer_class = _ThingSerializer
+
+            def retrieve(self, request, pk=None):
+                return Response({})
+
+            @count_action
+            @extend_schema(responses=_ThingSerializer(many=True))
+            @action(detail=True, methods=["get"])
+            def members(self, request, pk=None):
+                return Response([])
+
+            @extend_schema(responses=_ThingSerializer(many=True))
+            @action(detail=True, methods=["get"])
+            def guests(self, request, pk=None):
+                return Response([])
+
+        router = SortedDefaultRouter()
+        router.register("things", _ThingViewSet, basename="thing")
+        schema = self._generate_schema([path("api/", include(router.urls))])
+
+        _url, members = self._find_path(schema, "members")
+        self.assertIn("head", members)
+        self.assertTrue(members["head"]["operationId"].endswith("_count"))
+
+        _url, guests = self._find_path(schema, "guests")
+        self.assertNotIn(
+            "head", guests, "detail list action without opt-in must not expose a count"
+        )
+
+        _url, retrieve = self._find_path(schema, "{id}")
+        self.assertNotIn(
+            "head",
+            retrieve,
+            "single-object retrieve must not expose a count operation",
+        )
