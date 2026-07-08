@@ -221,6 +221,7 @@ my_action_serializer_class = MyActionSerializer
 - Custom field types → Extension in `openapi_extensions.py`
 - Hide endpoints → `disabled_actions` list on ViewSet
 - Schema-wide changes → Hook in `schema_hooks.py`
+- Count (`*Count` SDK method) for a detail list action → `@count_action` decorator (collections get one automatically)
 
 ```python
 from drf_spectacular.utils import extend_schema, OpenApiParameter

@@ -103,6 +103,19 @@ from waldur_core.structure.permissions import IsStaffOrSupportUser
 logger = logging.getLogger(__name__)
 
 
+def count_action(func):
+    """Opt a detail-scoped list @action into a HEAD `count` companion operation.
+
+    Collection endpoints get a `_count` HEAD operation (and thus an SDK
+    `*Count` method) automatically. Detail-scoped actions do not, because a
+    count is usually meaningless there. Actions that return a list (e.g.
+    `list_users`) can opt in by stacking this on top of the @action decorator;
+    WaldurOpenApiInspector reads the flag when generating the schema.
+    """
+    func.count_enabled = True
+    return func
+
+
 def validate_authentication_method(method):
     def wrapper(view_func):
         @functools.wraps(view_func)

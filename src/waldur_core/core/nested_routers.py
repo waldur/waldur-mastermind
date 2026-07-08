@@ -131,6 +131,17 @@ class NestedMixin:
                 f"lookup argument '{value}' needs to be valid python identifier"
             )
 
+    def get_method_map(self, viewset, method_map):
+        # Mirror SortedDefaultRouter: expose HEAD on every GET route so nested
+        # collections answer HEAD and get a companion ``_count`` operation in
+        # the schema, the same as top-level collections. Plain DRF routers never
+        # register HEAD.
+        mappings = super().get_method_map(viewset, method_map)
+        if "get" in mappings:
+            mappings["head"] = mappings["get"]
+
+        return mappings
+
 
 class NestedSimpleRouter(NestedMixin, SimpleRouter):  # type: ignore[misc]
     """Create a NestedSimpleRouter nested within `parent_router`

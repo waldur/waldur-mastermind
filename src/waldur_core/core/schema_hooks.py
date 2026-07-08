@@ -229,7 +229,9 @@ def make_fields_optional(result, generator, **kwargs):
                 continue
 
             for response in operation.get("responses", {}).values():
-                for content in response.get("content").values():
+                # Content-less responses are valid (e.g. a HEAD `count` op's
+                # "200 No response body"); skip them instead of crashing.
+                for content in (response.get("content") or {}).values():
                     if "schema" in content:
                         _make_fields_optional(content["schema"], result)
 

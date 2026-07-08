@@ -1452,6 +1452,10 @@ class ServiceProviderUserCustomersViewSet(
         methods=["GET"],
     ),
 )
+# Declare the nested parent path parameter at class level so it is typed for
+# every operation, including the auto-generated HEAD `count` companions (the
+# per-action annotations above are restricted to methods=["GET"]).
+@extend_schema(parameters=[SERVICE_PROVIDER_UUID])
 class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
     """
     ViewSet for service providers to manage and view compliance data.
