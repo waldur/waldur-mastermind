@@ -104,6 +104,13 @@ class CallRole:
             content_type=ContentType.objects.get_by_natural_key("proposal", "call"),
         )
 
+    @classproperty
+    def PANEL_MEMBER(self):
+        return Role.objects.get_system_role(
+            RoleEnum.CALL_PANEL_MEMBER,
+            content_type=ContentType.objects.get_by_natural_key("proposal", "call"),
+        )
+
 
 class ProposalRole:
     @classproperty

@@ -34,8 +34,8 @@ class WorkflowStepCreateTest(test.APITestCase):
         self.call = self.fixture.call
         self.call.state = CallStates.DRAFT
         self.call.save()
-        # Call creation seeds all 6 workflow steps as enabled. Clear them so
-        # these tests can exercise the create endpoint from a clean slate.
+        # Call creation seeds the default workflow steps. Clear them so these
+        # tests can exercise the create endpoint from a clean slate.
         CallWorkflowStep.objects.filter(call=self.call).delete()
 
     def test_create_workflow_step(self):
@@ -92,10 +92,10 @@ class ProposalSubmitWorkflowTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
 
-        # Configure workflow steps. The call creation signal seeds all 6 steps
-        # as enabled by default; the factory uses update_or_create so these
-        # calls tune durations on the seeded rows. expert_review is explicitly
-        # disabled to exercise the SKIPPED submit-time branch.
+        # Configure workflow steps. The call creation signal seeds the default
+        # steps; the factory uses update_or_create so these calls tune durations
+        # on the seeded rows. expert_review is explicitly disabled to exercise
+        # the SKIPPED submit-time branch (it is disabled by default anyway).
         factories.CallWorkflowStepFactory(
             call=self.call, step="administrative_check", duration_in_days=5
         )
@@ -246,6 +246,10 @@ class CompleteWorkflowStepTest(test.APITestCase):
 
     def test_complete_last_step_accepts_proposal(self):
         self.proposal.workflow_step = "allocation_decision"
+        # A freshly-submitted proposal has no project yet; the terminal step is
+        # what provisions it. The fixture pre-assigns one, so clear it to
+        # exercise the allocation path.
+        self.proposal.project = None
         self.proposal.save()
 
         admin_instance = ProposalWorkflowStepInstance.objects.get(
@@ -273,6 +277,50 @@ class CompleteWorkflowStepTest(test.APITestCase):
 
         self.proposal.refresh_from_db()
         self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
+        # Reaching the terminal step must also provision (converges with the
+        # legacy approve action) and record who accepted it.
+        self.assertIsNotNone(self.proposal.project)
+        self.assertIsNotNone(self.proposal.approved_by)
+
+    def test_terminal_step_records_approved_by_when_project_exists(self):
+        # Regression: approved_by used to be written only inside
+        # allocate_proposal, which the ``project_id is None`` guard skips when a
+        # project already exists — leaving acceptance with no recorded approver.
+        self.proposal.workflow_step = "allocation_decision"
+        # Keep the fixture's pre-assigned project so the allocation branch (and
+        # its approved_by write) is skipped.
+        self.assertIsNotNone(self.proposal.project)
+        self.proposal.approved_by = None
+        self.proposal.save()
+
+        admin_instance = ProposalWorkflowStepInstance.objects.get(
+            proposal=self.proposal, step="administrative_check"
+        )
+        admin_instance.status = WorkflowStepInstanceStatuses.COMPLETED
+        admin_instance.save()
+
+        alloc_instance = ProposalWorkflowStepInstance.objects.get(
+            proposal=self.proposal, step="allocation_decision"
+        )
+        alloc_instance.status = WorkflowStepInstanceStatuses.ACTIVE
+        alloc_instance.started_at = timezone.now()
+        alloc_instance.save()
+
+        manager = structure_factories.UserFactory()
+        self.call.add_user(manager, CallRole.MANAGER)
+        self.client.force_authenticate(manager)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {"step_uuid": alloc_instance.uuid.hex, "outcome": "approved"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
+        self.assertEqual(self.proposal.approved_by, manager)
 
     def test_cannot_complete_when_not_in_review(self):
         self.proposal.state = ProposalStates.ACCEPTED
@@ -884,8 +932,9 @@ class WorkflowStepResponsibleRolePermissionTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class WorkflowStepPanelMemberFailsClosedTest(test.APITestCase):
-    """panel_member has no system role yet — must fail closed instead of allowing."""
+class WorkflowStepPanelMemberTest(test.APITestCase):
+    """panel_review is gated by the CALL.PANEL_MEMBER role: a real panel member
+    may act; users holding only other call roles are denied."""
 
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
@@ -931,6 +980,16 @@ class WorkflowStepPanelMemberFailsClosedTest(test.APITestCase):
             {"step_uuid": self.active_instance.uuid.hex, "outcome": "approved"},
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_panel_member_step_allows_panel_member(self):
+        panel_member = structure_factories.UserFactory()
+        self.call.add_user(panel_member, CallRole.PANEL_MEMBER)
+        self.client.force_authenticate(panel_member)
+        response = self.client.post(
+            self.url,
+            {"step_uuid": self.active_instance.uuid.hex, "outcome": "approved"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class WorkflowStepActiveUniqueConstraintTest(test.APITransactionTestCase):
@@ -1137,6 +1196,10 @@ class ManualTransitionTest(test.APITestCase):
         ProposalWorkflowStepInstance.objects.filter(
             proposal=self.proposal, step="allocation_decision"
         ).delete()
+        # Clear the fixture's pre-assigned project so the terminal advance
+        # exercises allocation (and records who approved it).
+        self.proposal.project = None
+        self.proposal.save()
 
         self._complete_manual_step()
 
@@ -1148,6 +1211,10 @@ class ManualTransitionTest(test.APITestCase):
         self.proposal.refresh_from_db()
         self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
         self.assertIsNone(self.proposal.workflow_step)
+        self.assertIsNotNone(self.proposal.project)
+        # The manager who confirmed the advance is recorded as approver, not
+        # the system robot.
+        self.assertEqual(self.proposal.approved_by, self.fixture.call_manager)
 
     def test_advance_forbidden_for_non_call_manager(self):
         self._complete_manual_step()
@@ -1271,15 +1338,27 @@ class WorkflowOutcomeValidationTest(test.APITestCase):
 
 
 class CallCreationSeedsWorkflowStepsTest(test.APITestCase):
-    def test_call_creation_seeds_evaluation_workflow_steps(self):
+    def test_call_creation_enables_only_manager_drivable_steps(self):
+        # Only the call-manager-owned steps are enabled by default, so the
+        # default workflow is fully drivable by the call manager. The other
+        # evaluation steps are seeded disabled (opt-in) until their actor-facing
+        # surfaces exist.
         call = factories.CallFactory()
-        seeded = set(
+        enabled = set(
             CallWorkflowStep.objects.filter(call=call, is_enabled=True).values_list(
                 "step", flat=True
             )
         )
-        expected = {s.id for s in WORKFLOW_STEPS if s.id != "award_response"}
-        self.assertEqual(seeded, expected)
+        self.assertEqual(enabled, {"administrative_check", "allocation_decision"})
+
+        disabled = set(
+            CallWorkflowStep.objects.filter(call=call, is_enabled=False).values_list(
+                "step", flat=True
+            )
+        )
+        self.assertEqual(
+            disabled, {"technical_assessment", "expert_review", "panel_review"}
+        )
 
     def test_award_response_is_not_seeded(self):
         # award_response is provisioned via allocation_decision's
@@ -1794,6 +1873,163 @@ class InternalNotesDualRolePolicyTest(test.APITestCase):
         # on, the dual-role-applicant case just exercises the same branch.
         self.assertIn("internal_notes", states["administrative_check"])
         self.assertIsNone(states["administrative_check"]["internal_notes"])
+
+
+class WorkflowStepCompletedByBlindReviewTest(test.APITestCase):
+    """completed_by reveals who completed a step — including the reviewer on
+    expert_review and the panel member on panel_review. It must honour the
+    call's reviewer_identity_visible_to_submitters setting: masked for the
+    proposal submitter when blind, visible to the call team, and revealed to
+    the submitter only when the call opts in.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "expert_review"
+        self.proposal.save()
+
+        self.reviewer = structure_factories.UserFactory()
+        self.call.add_user(self.reviewer, CallRole.REVIEWER)
+        ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="expert_review",
+            status=WorkflowStepInstanceStatuses.COMPLETED,
+            started_at=timezone.now(),
+            completed_at=timezone.now(),
+            completed_by=self.reviewer,
+            outcome=WorkflowStepOutcomes.REVIEWED,
+            outcome_reason="Detailed reviewer commentary.",
+        )
+
+    def _states_for(self, user):
+        self.client.force_authenticate(user)
+        url = factories.ProposalFactory.get_url(self.proposal, action="workflow_states")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {s["step"]: s for s in response.data}
+
+    def test_submitter_cannot_see_completed_by_when_blind(self):
+        self.call.reviewer_identity_visible_to_submitters = False
+        self.call.save()
+        states = self._states_for(self.fixture.proposal_creator)
+        # Field present but masked (stable response shape).
+        self.assertIn("completed_by", states["expert_review"])
+        self.assertIsNone(states["expert_review"]["completed_by"])
+
+    def test_submitter_sees_completed_by_when_call_reveals_identity(self):
+        self.call.reviewer_identity_visible_to_submitters = True
+        self.call.save()
+        states = self._states_for(self.fixture.proposal_creator)
+        self.assertIsNotNone(states["expert_review"]["completed_by"])
+
+    def test_call_manager_always_sees_completed_by(self):
+        self.call.reviewer_identity_visible_to_submitters = False
+        self.call.save()
+        manager = structure_factories.UserFactory()
+        self.call.add_user(manager, CallRole.MANAGER)
+        states = self._states_for(manager)
+        self.assertIsNotNone(states["expert_review"]["completed_by"])
+
+    def test_submitter_cannot_see_review_outcome_when_reviews_private(self):
+        self.call.reviews_visible_to_submitters = False
+        self.call.save()
+        states = self._states_for(self.fixture.proposal_creator)
+        # Verdict and commentary on the peer-review step are masked.
+        self.assertIsNone(states["expert_review"]["outcome"])
+        self.assertEqual(states["expert_review"]["outcome_reason"], "")
+
+    def test_submitter_sees_review_outcome_when_reviews_visible(self):
+        self.call.reviews_visible_to_submitters = True
+        self.call.save()
+        states = self._states_for(self.fixture.proposal_creator)
+        self.assertEqual(
+            states["expert_review"]["outcome"], WorkflowStepOutcomes.REVIEWED
+        )
+        self.assertEqual(
+            states["expert_review"]["outcome_reason"], "Detailed reviewer commentary."
+        )
+
+    def test_submitter_cannot_see_rejection_reason_when_reviews_private(self):
+        # Regression: rejection_reason re-exposes outcome_reason via a
+        # SerializerMethodField. Masking outcome_reason alone leaked the exact
+        # rejection text through rejection_reason on a REJECTED review step.
+        instance = self.proposal.workflow_step_instances.get(step="expert_review")
+        instance.outcome = WorkflowStepOutcomes.REJECTED
+        instance.outcome_reason = "Weak methodology — reject."
+        instance.save()
+        self.call.reviews_visible_to_submitters = False
+        self.call.save()
+        states = self._states_for(self.fixture.proposal_creator)
+        self.assertIsNone(states["expert_review"]["outcome"])
+        self.assertEqual(states["expert_review"]["outcome_reason"], "")
+        self.assertIsNone(states["expert_review"]["rejection_reason"])
+
+    def test_submitter_sees_rejection_reason_when_reviews_visible(self):
+        instance = self.proposal.workflow_step_instances.get(step="expert_review")
+        instance.outcome = WorkflowStepOutcomes.REJECTED
+        instance.outcome_reason = "Weak methodology — reject."
+        instance.save()
+        self.call.reviews_visible_to_submitters = True
+        self.call.save()
+        states = self._states_for(self.fixture.proposal_creator)
+        self.assertEqual(
+            states["expert_review"]["rejection_reason"], "Weak methodology — reject."
+        )
+
+    def test_call_manager_always_sees_rejection_reason(self):
+        instance = self.proposal.workflow_step_instances.get(step="expert_review")
+        instance.outcome = WorkflowStepOutcomes.REJECTED
+        instance.outcome_reason = "Weak methodology — reject."
+        instance.save()
+        self.call.reviews_visible_to_submitters = False
+        self.call.save()
+        manager = structure_factories.UserFactory()
+        self.call.add_user(manager, CallRole.MANAGER)
+        states = self._states_for(manager)
+        self.assertEqual(
+            states["expert_review"]["rejection_reason"], "Weak methodology — reject."
+        )
+
+
+class ProposalApprovedByBlindReviewTest(test.APITestCase):
+    """approved_by names the decision-maker who accepted the proposal. Hide it
+    from the proposal's own submitter under blind review; show it to the call
+    team and once the call reveals reviewer identity to submitters.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.manager = structure_factories.UserFactory()
+        self.call.add_user(self.manager, CallRole.MANAGER)
+        self.proposal.state = ProposalStates.ACCEPTED
+        self.proposal.approved_by = self.manager
+        self.proposal.save()
+
+    def _get(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(factories.ProposalFactory.get_url(self.proposal))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def test_submitter_cannot_see_approver_when_blind(self):
+        self.call.reviewer_identity_visible_to_submitters = False
+        self.call.save()
+        self.assertIsNone(self._get(self.fixture.proposal_creator)["approved_by"])
+
+    def test_submitter_sees_approver_when_identity_visible(self):
+        self.call.reviewer_identity_visible_to_submitters = True
+        self.call.save()
+        self.assertIsNotNone(self._get(self.fixture.proposal_creator)["approved_by"])
+
+    def test_call_manager_sees_approver(self):
+        self.call.reviewer_identity_visible_to_submitters = False
+        self.call.save()
+        self.assertIsNotNone(self._get(self.manager)["approved_by"])
 
 
 class RejectionReasonBlankStringTest(test.APITestCase):

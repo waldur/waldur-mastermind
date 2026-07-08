@@ -29,13 +29,12 @@ class CanUpdateCallPermission(permissions.BasePermission):
 
 
 # Map proposal.ResponsibleRoles → permission system role on the call.
-# Roles handled by special-case branches (applicant, offering_manager,
-# panel_member) are intentionally absent from this dict — see
-# _user_can_act_on_active_step. panel_member is denied via the explicit
-# branch below; mapping a future panel system role here will enable it.
+# Roles handled by special-case branches (applicant, offering_manager) are
+# intentionally absent from this dict — see _user_can_act_on_active_step.
 RESPONSIBLE_ROLE_TO_CALL_ROLE = {
     ResponsibleRoles.CALL_MANAGER: RoleEnum.CALL_MANAGER,
     ResponsibleRoles.REVIEWER: RoleEnum.CALL_REVIEWER,
+    ResponsibleRoles.PANEL_MEMBER: RoleEnum.CALL_PANEL_MEMBER,
 }
 
 
@@ -89,11 +88,6 @@ def _user_can_act_on_active_step(user, proposal):
 
     if role == ResponsibleRoles.OFFERING_MANAGER:
         return _user_holds_offering_manager_for_call(user, call)
-
-    if role == ResponsibleRoles.PANEL_MEMBER:
-        # No system role exists yet for panel members — fail closed so the
-        # call manager has to either reassign the step or implement the role.
-        return False
 
     role_name = RESPONSIBLE_ROLE_TO_CALL_ROLE.get(role)
     if not role_name:

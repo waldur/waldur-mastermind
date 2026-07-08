@@ -1653,6 +1653,18 @@ class ProposalSerializer(
             return data
         request = self.context.get("request")
         user = request.user if request else None
+        # ``approved_by`` names the decision-maker (the call manager / staff who
+        # accepted the proposal). Honour the call's blind-review setting: hide
+        # it from the proposal's own submitter unless the call reveals reviewer
+        # identity to submitters. Call team and staff (not the submitter) keep
+        # seeing it.
+        if (
+            user is not None
+            and not getattr(user, "is_staff", False)
+            and instance.created_by_id == getattr(user, "id", None)
+            and not instance.round.call.reviewer_identity_visible_to_submitters
+        ):
+            data["approved_by"] = None
         return filter_applicant_fields_for_reviewer(data, instance, user)
 
     def get_fields(self):
@@ -4481,6 +4493,40 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             "is_required",
         ]
         read_only_fields = fields
+
+    # Steps whose outcome/commentary is peer-review content, gated by the
+    # call's reviews_visible_to_submitters setting (separate from the reviewer
+    # *identity* gate that governs completed_by).
+    REVIEW_STEPS = frozenset({"expert_review", "panel_review"})
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # ``completed_by`` reveals the identity of whoever completed the step —
+        # including the reviewer on expert_review and the panel member on
+        # panel_review. Honour the call's blind-review setting: null it for
+        # proposal submitters (and any other non-call-team viewer) unless the
+        # call reveals reviewer identity to submitters. ``can_view_step_actors``
+        # is set by the view; defaulting to hidden fails closed if a future
+        # caller forgets to set it. Mirrors the Review serializer's
+        # reviewer_identity_visible_to_submitters gate.
+        if not self.context.get("can_view_step_actors"):
+            data["completed_by"] = None
+        # Hide the reviewer/panel verdict and free-text commentary on the peer
+        # review steps from submitters when the call keeps reviews private. This
+        # must strip *every* field that surfaces the reviewer's words:
+        # ``outcome`` (the verdict), ``outcome_reason`` (the raw commentary) and
+        # ``rejection_reason`` — which is just ``outcome_reason`` re-exposed via a
+        # SerializerMethodField and would otherwise leak the exact rejection text
+        # the mask exists to hide. The applicant still learns the *decision* from
+        # the proposal's own state and the call manager's allocation comment;
+        # what stays private here is the reviewer's step-level reasoning.
+        if instance.step in self.REVIEW_STEPS and not self.context.get(
+            "can_view_review_content"
+        ):
+            data["outcome"] = None
+            data["outcome_reason"] = ""
+            data["rejection_reason"] = None
+        return data
 
     def _get_call_step(self, obj):
         """Resolve the per-call ``CallWorkflowStep`` for this instance.

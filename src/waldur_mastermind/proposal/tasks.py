@@ -406,6 +406,22 @@ def notify_reviewer_on_proposal_decision(proposal_uuid):
             )
 
 
+def notify_proposal_decision(proposal_uuid, previous_state, new_state):
+    """Enqueue the applicant + reviewer notifications for a proposal decision.
+
+    Every code path that accepts or rejects a proposal — the legacy
+    approve/reject actions, the workflow engine's terminal step, and any future
+    automatic allocator — must call this so the decision emails stay consistent
+    and cannot be silently dropped by a new caller. Call it after the state
+    change has been committed (or is about to be), never before allocation, so
+    the accepted email can include the provisioned project and resources.
+    """
+    notify_user_about_proposal_state_update.delay(
+        proposal_uuid, previous_state, new_state
+    )
+    notify_reviewer_on_proposal_decision.delay(proposal_uuid)
+
+
 @shared_task(
     name="waldur_mastermind.proposal.run_coi_detection",
     bind=True,
