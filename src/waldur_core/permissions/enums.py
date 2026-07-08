@@ -240,7 +240,11 @@ CREATE_PERMISSIONS = {
     "offering": PermissionEnum.CREATE_OFFERING_PERMISSION,
     "call": PermissionEnum.CREATE_CALL_PERMISSION,
     "proposal": PermissionEnum.MANAGE_PROPOSAL,
-    "call_organizer": PermissionEnum.CREATE_CALL_PERMISSION,
+    # Keyed by model_name (see get_create_permission); CallManagingOrganisation's
+    # model_name is "callmanagingorganisation", not the scope-type alias
+    # "call_organizer", so the alias key never resolved and granting the
+    # organizer role 403'd for everyone but staff.
+    "callmanagingorganisation": PermissionEnum.CREATE_CALL_PERMISSION,
     "service_provider": PermissionEnum.CREATE_CUSTOMER_PERMISSION,
     "resource": PermissionEnum.CREATE_RESOURCE_PERMISSION,
     "resourceproject": PermissionEnum.CREATE_RESOURCE_PROJECT_PERMISSION,
@@ -253,7 +257,7 @@ UPDATE_PERMISSIONS = {
     "offering": PermissionEnum.UPDATE_OFFERING_PERMISSION,
     "call": PermissionEnum.UPDATE_CALL_PERMISSION,
     "proposal": PermissionEnum.UPDATE_PROPOSAL_PERMISSION,
-    "call_organizer": PermissionEnum.UPDATE_CALL_PERMISSION,
+    "callmanagingorganisation": PermissionEnum.UPDATE_CALL_PERMISSION,
     "service_provider": PermissionEnum.UPDATE_CUSTOMER_PERMISSION,
     "resource": PermissionEnum.UPDATE_RESOURCE_PERMISSION,
     "resourceproject": PermissionEnum.UPDATE_RESOURCE_PROJECT_PERMISSION,
@@ -266,7 +270,7 @@ DELETE_PERMISSIONS = {
     "offering": PermissionEnum.DELETE_OFFERING_PERMISSION,
     "call": PermissionEnum.DELETE_CALL_PERMISSION,
     "proposal": PermissionEnum.DELETE_PROPOSAL_PERMISSION,
-    "call_organizer": PermissionEnum.DELETE_CALL_PERMISSION,
+    "callmanagingorganisation": PermissionEnum.DELETE_CALL_PERMISSION,
     "service_provider": PermissionEnum.DELETE_CUSTOMER_PERMISSION,
     "resource": PermissionEnum.DELETE_RESOURCE_PERMISSION,
     "resourceproject": PermissionEnum.DELETE_RESOURCE_PROJECT_PERMISSION,

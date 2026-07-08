@@ -2518,6 +2518,15 @@
       "scope_uuid": "ca600000000000000000000000000004",
       "is_active": true,
       "_comment": "Team member on LLM Fine-tuning proposal"
+    },
+    {
+      "uuid": "04000000000000000000000000000018",
+      "user_uuid": "a4000000000000000000000000000001",
+      "user_username": "call_director",
+      "role_name": "CUSTOMER.CALL_ORGANIZER",
+      "scope_type": "proposal.callmanagingorganisation",
+      "scope_uuid": "ca100000000000000000000000000001",
+      "is_active": true
     }
   ],
   "component_usages": [
