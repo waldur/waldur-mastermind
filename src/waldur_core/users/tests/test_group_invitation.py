@@ -2,6 +2,7 @@ from unittest import mock
 
 from constance.test.unittest import override_config
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import override_settings
 from rest_framework import status
@@ -912,6 +913,54 @@ class RequestNotificationRecipientsTest(BaseInvitationTest):
         )
         mock_broadcast.assert_called_once()
         self.assertIn(self.staff.email, mock_broadcast.call_args[0][3])
+
+    def test_auto_create_project_invitation_notifies_project_creators(self):
+        """For an auto_create_project invitation, owners who can create projects
+        (but not customers) must be notified, since they are the ones authorized
+        to approve. Regression for empty recipient lists caused by resolving
+        CREATE_CUSTOMER_PERMISSION from the customer scope."""
+        customer = structure_factories.CustomerFactory(email="", notification_emails="")
+        customer_ct = ContentType.objects.get_for_model(customer)
+        # A role that can create projects within a customer but cannot create
+        # customers, matching a real deployment's CUSTOMER.OWNER.
+        project_creator_role = Role.objects.create(
+            name="TEST.PROJECT_CREATOR", content_type=customer_ct
+        )
+        project_creator_role.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        approver = structure_factories.UserFactory(email="approver@example.com")
+        add_user(customer, approver, project_creator_role)
+
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=customer, auto_create_project=True
+        )
+        request = factories.PermissionRequestFactory(invitation=invitation)
+
+        recipients = utils.get_users_for_notification_about_request_has_been_submitted(
+            request
+        )
+        self.assertIn(approver, recipients)
+
+    def test_auto_create_project_invitation_ignores_customer_creators(self):
+        """A user who can only create customers is not an approver for an
+        auto_create_project invitation and must not be notified."""
+        customer = structure_factories.CustomerFactory(email="", notification_emails="")
+        customer_ct = ContentType.objects.get_for_model(customer)
+        customer_creator_role = Role.objects.create(
+            name="TEST.CUSTOMER_CREATOR", content_type=customer_ct
+        )
+        customer_creator_role.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        outsider = structure_factories.UserFactory(email="outsider@example.com")
+        add_user(customer, outsider, customer_creator_role)
+
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=customer, auto_create_project=True
+        )
+        request = factories.PermissionRequestFactory(invitation=invitation)
+
+        recipients = utils.get_users_for_notification_about_request_has_been_submitted(
+            request
+        )
+        self.assertNotIn(outsider, recipients)
 
 
 @ddt

@@ -294,16 +294,30 @@ def get_invitation_duplicates(scope, invitations):
 def get_users_for_notification_about_request_has_been_submitted(
     permission_request: models.PermissionRequest,
 ):
-    scope = permission_request.invitation.scope
+    invitation = permission_request.invitation
 
-    permission = get_create_permission(scope)
-    if not permission:
-        return core_models.User.objects.none()
+    # Notify the users who are actually authorized to approve the request. This
+    # must mirror can_manage_permission_request: for an auto_create_project
+    # invitation approval creates a project and grants a project role within the
+    # customer, so the relevant authority is project creation within the customer
+    # (typically the customer owners), NOT customer creation. Resolving the
+    # permission from the scope type via get_create_permission() would yield
+    # CREATE_CUSTOMER_PERMISSION for a customer-scoped invitation, which no owner
+    # holds, leaving the recipient list empty.
+    if invitation.auto_create_project:
+        users = get_users_with_permission(
+            invitation.customer, PermissionEnum.CREATE_PROJECT_PERMISSION
+        )
+    else:
+        scope = invitation.scope
+        permission = get_create_permission(scope)
+        if not permission:
+            return core_models.User.objects.none()
 
-    users = get_users_with_permission(scope, permission)
-    customer = get_customer(scope)
-    if customer != scope:
-        users |= get_users_with_permission(customer, permission)
+        users = get_users_with_permission(scope, permission)
+        customer = get_customer(scope)
+        if customer != scope:
+            users |= get_users_with_permission(customer, permission)
 
     return users.exclude(email="").exclude(notifications_enabled=False)
 
