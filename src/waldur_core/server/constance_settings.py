@@ -174,6 +174,7 @@ USER_ATTRIBUTE_CHOICES = [
     ("personal_title", "Personal title"),
     ("birth_date", "Birth date"),
     ("place_of_birth", "Place of birth"),
+    ("address", "Address"),
     ("country_of_residence", "Country of residence"),
     ("nationality", "Nationality"),
     ("nationalities", "Nationalities"),
@@ -185,6 +186,9 @@ USER_ATTRIBUTE_CHOICES = [
     ("eduperson_assurance", "Eduperson assurance"),
     ("civil_number", "Civil number"),
     ("identity_source", "Identity source"),
+    ("active_isds", "Active identity sources"),
+    ("uid_number", "UID number"),
+    ("primary_gid", "Primary GID"),
 ]
 
 REPORTING_SCREEN_CHOICES = [
