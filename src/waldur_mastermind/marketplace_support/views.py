@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import views as core_views
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace_support import utils
 
 logger = logging.getLogger(__name__)
@@ -13,9 +14,13 @@ logger = logging.getLogger(__name__)
 class IssueViewSet(core_views.ActionsViewSet):
     def create(self, request, *args, **kwargs):
         order = marketplace_models.Order.objects.get(uuid=request.data["uuid"])
+        if order.type == OrderTypes.RESTORE:
+            summary = f"Request to restore resource {order.resource.name}"
+        else:
+            summary = f"Request for {order.offering.name}"
         issue = utils.create_issue(
             order,
-            summary=f"Request for {order.offering.name}",
+            summary=summary,
             description=utils.format_create_description(order),
             confirmation_comment=order.offering.secret_options.get(
                 "template_confirmation_comment"

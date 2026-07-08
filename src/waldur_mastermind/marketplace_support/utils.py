@@ -9,6 +9,7 @@ from rest_framework import exceptions as rf_exceptions
 from waldur_core.core.utils import format_homeport_link, text2html
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace.utils import format_limits_list, get_order_url
 from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
@@ -41,6 +42,11 @@ def format_description(template_name, context):
 
 def format_create_description(order):
     result = []
+
+    if order.type == OrderTypes.RESTORE:
+        result.append(
+            "This is a restoration request for a previously terminated resource."
+        )
 
     for key in order.offering.options.get("order") or []:
         if key not in order.attributes:
