@@ -25,6 +25,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OfferingStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -59,6 +60,26 @@ class RequestCreateTest(BaseTest):
         self.assertTrue(isinstance(issue.resource, marketplace_models.Order))
         self.assertTrue(
             isinstance(issue.resource.resource, marketplace_models.Resource)
+        )
+
+    def test_restore_order_ticket_is_marked_as_restoration(self):
+        fixture = fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(type=SUPPORT_OFFERING)
+
+        order = marketplace_factories.OrderFactory(
+            offering=offering,
+            type=OrderTypes.RESTORE,
+            attributes={"name": "item_name", "description": "Description"},
+            state=OrderStates.EXECUTING,
+        )
+
+        marketplace_utils.process_order(order, fixture.staff)
+        issue = get_order_issue(order)
+        self.assertIn("Request to restore resource", issue.summary)
+        self.assertIn(order.resource.name, issue.summary)
+        self.assertIn(
+            "This is a restoration request for a previously terminated resource.",
+            issue.description,
         )
 
     def test_request_payload_is_validated(self):
