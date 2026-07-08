@@ -27,24 +27,32 @@ def delete_checklist_completion(sender, instance, **kwargs):
 
 
 def seed_workflow_steps(sender, instance, created, **kwargs):
-    """Pre-seed catalog workflow steps as enabled on call creation.
+    """Seed catalog workflow steps on call creation.
 
-    Matches Figma F17: applicants should see the full evaluation tracker on
-    any submitted proposal. Call managers can still disable individual steps
-    from the call config UI; mandatory steps (e.g. allocation_decision) are
-    protected separately and cannot be disabled.
+    Only steps that have a working completion surface today — the
+    call-manager-owned steps (administrative check, allocation decision) — are
+    enabled by default, so a newly created call's workflow is fully drivable by
+    the call manager end to end and needs no legacy Accept/Reject fallback. The
+    remaining evaluation steps (offering-manager / reviewer / panel-member
+    owned) are seeded *disabled*; a call manager can opt them in from the call
+    config UI once their actor-facing surfaces exist, without stranding the
+    workflow in the meantime.
 
     ``award_response`` is intentionally excluded: it is provisioned via
     ``allocation_decision.include_award_response`` and direct creation is
-    blocked by the serializer.
+    blocked by the serializer. Mandatory steps (allocation_decision) cannot be
+    disabled and are always enabled here.
     """
     if not created:
         return
     for step_def in enums.WORKFLOW_STEPS:
         if step_def.id == "award_response":
             continue
+        enabled = (
+            step_def.default_responsible_role == enums.ResponsibleRoles.CALL_MANAGER
+        )
         models.CallWorkflowStep.objects.get_or_create(
             call=instance,
             step=step_def.id,
-            defaults={"is_enabled": True},
+            defaults={"is_enabled": enabled},
         )

@@ -280,6 +280,12 @@
   permissions:
     - PROPOSAL.LIST
 
+- role: CALL.PANEL_MEMBER
+  description: Call panel member
+  scope: call
+  permissions:
+    - PROPOSAL.LIST
+
 - role: CUSTOMER.SUPPORT
   is_active: false
   description: Organization support

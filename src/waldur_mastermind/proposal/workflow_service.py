@@ -10,7 +10,8 @@ from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from waldur_mastermind.proposal import models
+from waldur_core.core.utils import get_system_robot
+from waldur_mastermind.proposal import models, utils
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS,
     ProposalStates,
@@ -125,20 +126,31 @@ def complete_step(
         # advance endpoint and UI can locate it.
         return None
 
-    return _advance_to_next(proposal, current_instance.step)
+    return _advance_to_next(proposal, current_instance.step, acting_user=completed_by)
 
 
-def _advance_to_next(proposal, from_step):
+def _advance_to_next(proposal, from_step, acting_user=None):
     """Advance the proposal past ``from_step`` to the next enabled step.
 
     Returns the newly active step instance, or None if the workflow
-    terminated (proposal accepted).
+    terminated (proposal accepted). Reaching the terminal step both accepts
+    the proposal *and* provisions it (project + resources), so the workflow
+    engine and the legacy ``approve`` action converge on the same side
+    effects. ``allocate_proposal`` is not idempotent — it always creates a
+    Project — so allocation is guarded on the proposal not already having one.
+    ``approved_by`` is stamped unconditionally (not only inside the allocation
+    branch) so acceptance always records who decided it, even when a project
+    already exists and allocation is skipped.
     """
     next_step_def = _next_enabled_step(proposal, from_step)
     if next_step_def is None:
+        approver = acting_user or get_system_robot()
+        if proposal.project_id is None:
+            utils.allocate_proposal(proposal, approved_by=approver)
+        proposal.approved_by = approver
         proposal.state = ProposalStates.ACCEPTED
         proposal.workflow_step = None
-        proposal.save(update_fields=["state", "workflow_step"])
+        proposal.save(update_fields=["state", "workflow_step", "approved_by"])
         return None
 
     proposal.workflow_step = next_step_def.id
@@ -168,17 +180,18 @@ def is_awaiting_manual_advance(proposal) -> bool:
 
 
 @transaction.atomic
-def advance_step(proposal):
+def advance_step(proposal, acting_user=None):
     """Manually advance a workflow parked on a manual-mode completed step.
 
     Returns the newly active step instance, or None if the workflow
     terminated. Raises ValueError if the proposal is not in a state where
-    manual advance is valid. The acting user is captured by the event log
-    emitted in the calling view, not threaded through here.
+    manual advance is valid. ``acting_user`` is the call manager confirming the
+    advance; it is recorded as ``approved_by`` if this advance reaches the
+    terminal (allocation) step.
     """
     if not is_awaiting_manual_advance(proposal):
         raise ValueError("Workflow is not awaiting manual advance.")
-    return _advance_to_next(proposal, proposal.workflow_step)
+    return _advance_to_next(proposal, proposal.workflow_step, acting_user=acting_user)
 
 
 @transaction.atomic

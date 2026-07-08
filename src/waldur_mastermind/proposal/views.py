@@ -2682,15 +2682,27 @@ class ProposalViewSet(
                 call_id=proposal.round.call_id
             ).only("step", "applicant_visible", "duration_in_days", "responsible_role")
         }
+        can_view_internal_notes = proposal_permissions.user_can_view_internal_notes(
+            request.user, proposal
+        )
         serializer = serializers.ProposalWorkflowStepInstanceSerializer(
             instances,
             many=True,
             context={
                 "step_configs_by_key": step_configs_by_key,
-                "can_view_internal_notes": (
-                    proposal_permissions.user_can_view_internal_notes(
-                        request.user, proposal
-                    )
+                "can_view_internal_notes": can_view_internal_notes,
+                # completed_by can reveal reviewer / panel-member identity;
+                # only the call team (same gate as internal notes) or calls
+                # that reveal reviewer identity to submitters may see it.
+                "can_view_step_actors": (
+                    can_view_internal_notes
+                    or proposal.round.call.reviewer_identity_visible_to_submitters
+                ),
+                # outcome / outcome_reason on the peer-review steps are review
+                # content, gated by reviews_visible_to_submitters.
+                "can_view_review_content": (
+                    can_view_internal_notes
+                    or proposal.round.call.reviews_visible_to_submitters
                 ),
             },
         )
@@ -2788,6 +2800,13 @@ class ProposalViewSet(
                 return response.Response(
                     response_serializer.data, status=status.HTTP_200_OK
                 )
+            # Terminal step reached: the proposal was accepted AND provisioned
+            # inside complete_step. Fire the shared decision notifications
+            # (allocation already ran, so the accepted email can include the
+            # project + allocated resources).
+            tasks.notify_proposal_decision(
+                proposal.uuid, ProposalStates.IN_REVIEW, ProposalStates.ACCEPTED
+            )
             response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
                 {
                     "detail": "Workflow completed. Proposal accepted.",
@@ -2915,7 +2934,9 @@ class ProposalViewSet(
                     status=status.HTTP_409_CONFLICT,
                 )
             try:
-                next_instance = workflow_service.advance_step(proposal=locked)
+                next_instance = workflow_service.advance_step(
+                    proposal=locked, acting_user=request.user
+                )
             except ValueError as e:
                 return response.Response(
                     {"detail": str(e)}, status=status.HTTP_409_CONFLICT
@@ -2943,6 +2964,11 @@ class ProposalViewSet(
             )
 
         if next_instance is None:
+            # Manual advance reached the terminal step: accepted + provisioned
+            # inside advance_step. Fire the shared decision notifications.
+            tasks.notify_proposal_decision(
+                proposal.uuid, ProposalStates.IN_REVIEW, ProposalStates.ACCEPTED
+            )
             response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
                 {
                     "detail": "Workflow completed. Proposal accepted.",
@@ -3012,7 +3038,7 @@ class ProposalViewSet(
     def approve(self, request, uuid=None):
         proposal = self.get_object()
         previous_state = proposal.state
-        utils.allocate_proposal(proposal)
+        utils.allocate_proposal(proposal, approved_by=request.user)
         proposal.state = ProposalStates.ACCEPTED
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -3020,10 +3046,7 @@ class ProposalViewSet(
             "allocation_comment", ""
         )
         proposal.save()
-        tasks.notify_user_about_proposal_state_update.delay(
-            proposal.uuid, previous_state, proposal.state
-        )
-        tasks.notify_reviewer_on_proposal_decision.delay(proposal.uuid)
+        tasks.notify_proposal_decision(proposal.uuid, previous_state, proposal.state)
         return response.Response(
             "Proposal has been approved.",
             status=status.HTTP_200_OK,
@@ -3054,10 +3077,7 @@ class ProposalViewSet(
             "allocation_comment", ""
         )
         proposal.save()
-        tasks.notify_user_about_proposal_state_update.delay(
-            proposal.uuid, previous_state, proposal.state
-        )
-        tasks.notify_reviewer_on_proposal_decision.delay(proposal.uuid)
+        tasks.notify_proposal_decision(proposal.uuid, previous_state, proposal.state)
         return response.Response(
             "Proposal has been rejected.",
             status=status.HTTP_200_OK,

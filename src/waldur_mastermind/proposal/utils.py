@@ -24,7 +24,7 @@ from waldur_mastermind.proposal.enums import (
 logger = logging.getLogger(__name__)
 
 
-def allocate_proposal(proposal: proposal_models.Proposal):
+def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     proposal_round = proposal.round
     name = proposal.name
     start_date = None
@@ -52,6 +52,8 @@ def allocate_proposal(proposal: proposal_models.Proposal):
         )
 
     proposal.project = project
+    if approved_by is not None:
+        proposal.approved_by = approved_by
     proposal.save()
 
     requested_resources = proposal.requestedresource_set.filter(
