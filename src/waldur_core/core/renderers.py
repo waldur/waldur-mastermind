@@ -60,7 +60,11 @@ class WaldurORJSONRenderer(BaseORJSONRenderer):
         if data is None:
             return b""
 
-        options = self.options
+        # OPT_NON_STR_KEYS coerces non-string dict keys (int, uuid, enum, ...)
+        # to strings, matching stdlib json.dumps. Without it orjson raises
+        # "Dict key must be str", turning e.g. a DRF ListField validation error
+        # (keyed by integer item index) into a 500 instead of a clean 400.
+        options = self.options | orjson.OPT_NON_STR_KEYS
         if media_type and self.html_media_type in media_type:
             options |= orjson.OPT_INDENT_2
 
