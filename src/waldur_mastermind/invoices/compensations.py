@@ -416,6 +416,13 @@ class MonthlyCompensation:
             ]
         )
 
+    def get_resource_compensation(self, resource):
+        """Returns the sum of compensation in the next month for the resource."""
+
+        return sum(
+            [c.unit_price * -1 for c in self.compensations if c.resource == resource]
+        )
+
     @transaction.atomic
     def clear_compensations(self):
         """

@@ -188,14 +188,46 @@ class ProjectPolicy(Policy):
 
 
 class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
+    # Optional narrowing of the policy to a single marketplace resource. When
+    # set, cost is measured only from that resource's invoice items and actions
+    # target only that resource. CASCADE (not SET_NULL) is deliberate: a
+    # resource-scoped policy is meaningless without its subject, and reverting
+    # to project-wide scope on resource deletion would silently widen the
+    # policy to every resource — a dangerous change. The pre_delete reset
+    # handler cleans up any applied actions before the policy is removed.
+    resource = models.ForeignKey(
+        marketplace_models.Resource,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+    # When False, credit is ignored entirely: neither monthly compensation is
+    # subtracted nor the credit-balance override applied — raw invoice cost is
+    # compared against limit_cost. Defaults to True to preserve behavior of
+    # existing policies.
+    use_credit = models.BooleanField(default=True)
+
     def is_triggered(self):
         project = self.scope
         invoice_items = invoices_models.InvoiceItem.objects.filter(project=project)
-        compensation = invoices_compensation.MonthlyCompensation(project.customer)
-        project_compensation = compensation.get_project_compensation(project)
+        if self.resource_id:
+            invoice_items = invoice_items.filter(resource_id=self.resource_id)
 
-        if not self._is_triggered(invoice_items, project_compensation):
+        if self.use_credit:
+            compensation = invoices_compensation.MonthlyCompensation(project.customer)
+            if self.resource_id:
+                deduction = compensation.get_resource_compensation(self.resource)
+            else:
+                deduction = compensation.get_project_compensation(project)
+        else:
+            deduction = 0
+
+        if not self._is_triggered(invoice_items, deduction):
             return False
+
+        if not self.use_credit:
+            return True
 
         # Cost exceeds limit even after compensation. Check whether
         # available credit can cover the overage. Credit values are

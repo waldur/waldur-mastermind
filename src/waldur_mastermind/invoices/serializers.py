@@ -404,6 +404,12 @@ class InvoiceItemProjectCostsForPeriodSerializer(InvoiceItemCostsForPeriodSerial
     project_uuid = serializers.UUIDField(
         help_text="UUID of the project for which statistics should be calculated."
     )
+    resource_uuid = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Optional marketplace resource UUID. When provided, costs are "
+        "limited to this resource only.",
+    )
 
     def validate(self, attrs):
         user = self.context["request"].user
