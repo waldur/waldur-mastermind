@@ -604,6 +604,8 @@ td:nth-child(4) {
 | `emit_invoice_created_event` | `Django Signal (post_save)` | `invoices.Invoice` | Emit invoice created signal when invoice state changes to CREATED. |
 | `enable_service_settings_when_not_archived` | `Django Signal (post_save)` | `marketplace.Offering` | Enable service settings when an offering is not archived. |
 | `enable_service_settings_with_existing_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Enable service settings if there are existing resources. |
+| `evaluate_usage_limit_on_component_change` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Re-evaluate an offering's resources when a component's limit_amount changes. |
+| `evaluate_usage_limit_on_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Pause or downscale a resource when reported usage reaches a component limit. |
 | `handle_openstack_tenant_order_creation` | `Django Signal (post_save)` | `marketplace.Order` | No description |
 | `handle_openstack_tenant_order_termination` | `Django Signal (post_save)` | `marketplace.Order` | No description |
 | `handle_user_role_revoked` | `Custom Signal (role_revoked)` | `—` | Handle user role revocation by removing users from robot accounts |
@@ -877,14 +879,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 798
+Total unique handlers found: 800
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 328 handlers
+- **waldur_mastermind**: 330 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
