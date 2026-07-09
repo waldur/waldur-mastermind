@@ -351,6 +351,38 @@ class InvoiceItemCostsForPeriodTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_price"], "290.00")
 
+    def test_project_costs_filtered_by_resource(self):
+        # Two resources in the project with different accrued costs.
+        resource_a = marketplace_factories.ResourceFactory(project=self.fixture.project)
+        resource_b = marketplace_factories.ResourceFactory(project=self.fixture.project)
+        factories.InvoiceItemFactory(
+            invoice=self.invoice1,
+            project=self.fixture.project,
+            resource=resource_a,
+            unit_price=100,
+            quantity=1,
+        )
+        factories.InvoiceItemFactory(
+            invoice=self.invoice1,
+            project=self.fixture.project,
+            resource=resource_b,
+            unit_price=7,
+            quantity=1,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.project_costs_url,
+            {
+                "project_uuid": self.fixture.project.uuid.hex,
+                "resource_uuid": resource_a.uuid.hex,
+                "period": PeriodMixin.Periods.TOTAL,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Only resource_a's cost is counted, not resource_b or the unscoped items.
+        self.assertEqual(response.data["total_price"], "100.00")
+
     def test_uuid_is_not_connected_to_any_project(self):
         self.client.force_authenticate(self.fixture.staff)
         url = factories.InvoiceItemFactory.get_list_url("project_costs_for_period")

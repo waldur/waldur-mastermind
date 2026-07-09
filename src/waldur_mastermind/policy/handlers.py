@@ -232,6 +232,12 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
         )
 
         for policy in policies:
+            # Resource-scoped policies (project cost policies) only act on their
+            # own resource; skip when the saved resource is a different one.
+            policy_resource_id = getattr(policy, "resource_id", None)
+            if policy_resource_id and policy_resource_id != observable_object.pk:
+                continue
+
             if policy.get_threshold_actions() and policy.has_fired:
                 threshold_actions = policy.get_threshold_actions()
                 logger.info(
@@ -417,31 +423,38 @@ def _check_project_policies(resource, cost):
     from waldur_mastermind.marketplace.exceptions import PolicyException
 
     project = resource.project
+    # Resource-scoped policies govern an existing resource and never block the
+    # creation of other resources, so they are excluded from the creation gate.
     policies = models.ProjectEstimatedCostPolicy.objects.filter(
-        scope=project, actions__contains=_BLOCKING_ACTION
+        scope=project, actions__contains=_BLOCKING_ACTION, resource__isnull=True
     )
     for policy in policies:
         items_qs = invoices_models.InvoiceItem.objects.filter(project=project)
         existing = _existing_total(items_qs, policy)
-        compensation = invoices_compensation.MonthlyCompensation(
-            project.customer
-        ).get_project_compensation(project)
+        if policy.use_credit:
+            compensation = invoices_compensation.MonthlyCompensation(
+                project.customer
+            ).get_project_compensation(project)
+        else:
+            compensation = 0
         projected = existing + cost
         if projected - compensation <= policy.limit_cost:
             continue
-        # Above the limit: credit may still cover the overage.
-        project_credit = invoices_models.ProjectCredit.objects.filter(
-            project=project
-        ).first()
-        if project_credit:
-            if project_credit.value > policy.limit_cost:
-                continue
-        else:
-            customer_credit = invoices_models.CustomerCredit.objects.filter(
-                customer=project.customer
+        # Above the limit: credit may still cover the overage (unless the policy
+        # is configured to ignore credit).
+        if policy.use_credit:
+            project_credit = invoices_models.ProjectCredit.objects.filter(
+                project=project
             ).first()
-            if customer_credit and customer_credit.value > policy.limit_cost:
-                continue
+            if project_credit:
+                if project_credit.value > policy.limit_cost:
+                    continue
+            else:
+                customer_credit = invoices_models.CustomerCredit.objects.filter(
+                    customer=project.customer
+                ).first()
+                if customer_credit and customer_credit.value > policy.limit_cost:
+                    continue
         raise PolicyException(
             f"Creation of new resources in this project is prohibited by {policy}. "
             f"Projected cost ({projected - compensation}) would exceed "

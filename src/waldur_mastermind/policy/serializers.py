@@ -220,10 +220,62 @@ class ProjectEstimatedCostPolicySerializer(
         fields = EstimatedCostPolicySerializer.Meta.fields + (
             "project_credit",
             "customer_credit",
+            "resource",
+            "resource_name",
+            "use_credit",
         )
 
     project_credit = serializers.SerializerMethodField()
     customer_credit = serializers.SerializerMethodField()
+    resource = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=marketplace_models.Resource.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+    resource_name = serializers.CharField(read_only=True, source="resource.name")
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        resource = (
+            attrs.get("resource")
+            if "resource" in attrs
+            else (self.instance.resource if self.instance else None)
+        )
+        if resource is None:
+            return attrs
+
+        scope = attrs.get("scope") or (self.instance.scope if self.instance else None)
+        if scope is not None and resource.project_id != scope.id:
+            raise serializers.ValidationError(
+                {"resource": _("Resource must belong to the selected project.")}
+            )
+
+        # Only reject a terminated resource when it is being (re)assigned.
+        if "resource" in attrs and resource.state in (
+            ResourceStates.TERMINATED,
+            ResourceStates.TERMINATING,
+        ):
+            raise serializers.ValidationError(
+                {"resource": _("Cannot scope a policy to a terminated resource.")}
+            )
+
+        actions = attrs.get("actions")
+        if actions is None and self.instance:
+            actions = self.instance.actions
+        action_set = set((actions or "").split(","))
+        if "block_creation_of_new_resources" in action_set:
+            raise serializers.ValidationError(
+                {
+                    "actions": _(
+                        "block_creation_of_new_resources cannot be used with a "
+                        "resource-scoped policy."
+                    )
+                }
+            )
+
+        return attrs
 
     def get_project_credit(self, instance) -> str | None:
         project = cast(structure_models.Project, instance.scope)

@@ -809,6 +809,15 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
                 description="UUID of the project for which statistics should be calculated.",
                 extensions={"x-waldur-operation-id": "projects_retrieve"},
             ),
+            OpenApiParameter(
+                name="resource_uuid",
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Optional marketplace resource UUID. When provided, "
+                "costs are limited to this resource only.",
+                required=False,
+                extensions={"x-waldur-operation-id": "marketplace_resources_retrieve"},
+            ),
         ],
         responses=serializers.CostsForPeriodSerializer,
     )
@@ -817,12 +826,16 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.GET, context={"request": request})
         serializer.is_valid(raise_exception=True)
         project_uuid = serializer.validated_data["project_uuid"]
+        resource_uuid = serializer.validated_data.get("resource_uuid")
         period = serializer.validated_data["period"]
         month_start = datetime.date.today().replace(day=1)
 
+        items = InvoiceItem.objects.filter(project_uuid=project_uuid.hex)
+        if resource_uuid:
+            items = items.filter(resource__uuid=resource_uuid.hex)
+
         invoices = (
-            InvoiceItem.objects.filter(project_uuid=project_uuid.hex)
-            .values("invoice__year", "invoice__month")
+            items.values("invoice__year", "invoice__month")
             .annotate(price=Sum(F("unit_price") * F("quantity")))
             .distinct()
             .order_by("-invoice__year", "-invoice__month")

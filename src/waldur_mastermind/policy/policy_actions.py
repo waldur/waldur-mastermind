@@ -364,14 +364,8 @@ def terminate_resources(policy: models.Policy):
         state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING)
     )
 
-    if isinstance(policy.scope, Project):
-        resources = resources.filter(project=policy.scope)
-    elif isinstance(policy.scope, Customer):
-        resources = resources.filter(project__customer=policy.scope)
-    elif isinstance(policy.scope, Offering):
-        resources = resources.filter(offering=policy.scope)
-    else:
-        logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
+    resources = _filter_resources_by_scope(resources, policy)
+    if resources is None:
         return
 
     for resource in resources:
@@ -453,16 +447,26 @@ def block_modification_of_existing_resources(policy, created):
 
 
 def _filter_resources_by_scope(resources, policy):
-    """Filter a resource queryset by the policy's scope type."""
+    """Filter a resource queryset by the policy's scope type.
+
+    When the policy is narrowed to a single resource (project cost policies
+    only), the queryset is further restricted to that resource so actions
+    target it alone.
+    """
     if isinstance(policy.scope, Project):
-        return resources.filter(project=policy.scope)
+        resources = resources.filter(project=policy.scope)
     elif isinstance(policy.scope, Customer):
-        return resources.filter(project__customer=policy.scope)
+        resources = resources.filter(project__customer=policy.scope)
     elif isinstance(policy.scope, Offering):
-        return resources.filter(offering=policy.scope)
+        resources = resources.filter(offering=policy.scope)
     else:
         logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
         return None
+
+    if getattr(policy, "resource_id", None):
+        resources = resources.filter(pk=policy.resource_id)
+
+    return resources
 
 
 def _apply_generic_action(
