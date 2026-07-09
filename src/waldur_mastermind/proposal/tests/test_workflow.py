@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from unittest import mock
 
 from django.db import IntegrityError
@@ -9,6 +10,7 @@ from rest_framework import status, test
 from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.proposal import workflow_service
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS,
     CallStates,
@@ -22,6 +24,7 @@ from waldur_mastermind.proposal.models import (
     CallWorkflowStep,
     Proposal,
     ProposalWorkflowStepInstance,
+    Review,
     WorkflowCriterion,
 )
 from waldur_mastermind.proposal.tasks import mark_expired_workflow_steps
@@ -621,6 +624,29 @@ class WorkflowStepValidationTest(test.APITestCase):
             url, {"include_award_response": True}, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_allocation_time_rejected_on_non_allocation_step(self):
+        url = factories.CallWorkflowStepFactory.get_list_url(self.call)
+        payload = {
+            "step": "administrative_check",
+            "is_enabled": True,
+            "allocation_time": "fixed_date",
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allocation_time", response.data)
+
+    def test_allocation_time_allowed_on_allocation_decision(self):
+        step = factories.CallWorkflowStepFactory(
+            call=self.call, step="allocation_decision"
+        )
+        url = factories.CallWorkflowStepFactory.get_url(self.call, step)
+        response = self.client.patch(
+            url, {"allocation_time": "fixed_date"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        step.refresh_from_db()
+        self.assertEqual(step.allocation_time, "fixed_date")
 
     def test_criteria_rejected_on_non_expert_review_step(self):
         url = factories.CallWorkflowStepFactory.get_list_url(self.call)
@@ -2066,3 +2092,164 @@ class RejectionReasonBlankStringTest(test.APITestCase):
         # them via ``return obj.outcome_reason or None`` was the bug.
         self.assertEqual(state["rejection_reason"], "")
         self.assertIsNotNone(state["rejection_reason"])
+
+
+class WorkflowStepGateEnforcementTest(test.APITestCase):
+    """CallWorkflowStep.min_reviewers / min_score_threshold are the enforced
+    source of truth: a step whose review gate is unmet cannot be completed
+    (replacing the removed Round-level review/decision fields)."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "expert_review"
+        self.proposal.save()
+
+        self.expert_step = factories.CallWorkflowStepFactory(
+            call=self.call, step="expert_review", min_reviewers=2
+        )
+        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="expert_review",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+        self.url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+
+    def _submit_reviews(self, scores):
+        for score in scores:
+            factories.ReviewFactory(
+                proposal=self.proposal,
+                reviewer=structure_factories.UserFactory(),
+                state=Review.States.SUBMITTED,
+                summary_score=score,
+            )
+
+    def _complete(self, outcome="reviewed"):
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.post(
+            self.url,
+            {"step_uuid": self.active_instance.uuid.hex, "outcome": outcome},
+        )
+
+    def test_cannot_complete_below_min_reviewers(self):
+        self._submit_reviews([8])  # only one, gate requires two
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.active_instance.refresh_from_db()
+        self.assertEqual(
+            self.active_instance.status, WorkflowStepInstanceStatuses.ACTIVE
+        )
+
+    def test_can_complete_when_min_reviewers_met(self):
+        self._submit_reviews([8, 9])
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.active_instance.refresh_from_db()
+        self.assertEqual(
+            self.active_instance.status, WorkflowStepInstanceStatuses.COMPLETED
+        )
+
+    def test_cannot_complete_below_score_threshold(self):
+        self.expert_step.min_reviewers = None
+        self.expert_step.min_score_threshold = Decimal("7.0")
+        self.expert_step.save()
+        self._submit_reviews([5, 6])  # average 5.5 < 7.0
+        self.assertEqual(self._complete().status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_complete_when_score_threshold_met(self):
+        self.expert_step.min_reviewers = None
+        self.expert_step.min_score_threshold = Decimal("7.0")
+        self.expert_step.save()
+        self._submit_reviews([8, 9])  # average 8.5 >= 7.0
+        self.assertEqual(self._complete().status_code, status.HTTP_200_OK)
+
+    def test_ungated_step_completes_without_reviews(self):
+        self.expert_step.min_reviewers = None
+        self.expert_step.min_score_threshold = None
+        self.expert_step.save()
+        self.assertEqual(self._complete().status_code, status.HTTP_200_OK)
+
+    def test_declined_outcome_bypasses_gate(self):
+        # Declining a proposal must never be blocked by a review gate, even on a
+        # decision step configured with one and with zero reviews submitted.
+        decision_step = factories.CallWorkflowStepFactory(
+            call=self.call, step="allocation_decision", min_reviewers=5
+        )
+        # Exercise the helper directly to avoid the terminal-allocation path.
+        workflow_service._enforce_step_gates(
+            self.proposal,
+            self.active_instance,
+            WorkflowStepOutcomes.DECLINED,
+            decision_step,
+        )  # must not raise
+
+
+class WorkflowStepNegativeOutcomeTest(test.APITestCase):
+    """A negative step outcome terminates the workflow instead of advancing or
+    allocating: an applicant declining the award cancels the proposal; any other
+    negative decision (declined / ineligible / infeasible) rejects it. No project
+    is provisioned, and the step instance keeps its real outcome."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.project = None
+        self.proposal.save()
+
+    def _complete(self, step, outcome):
+        factories.CallWorkflowStepFactory(call=self.call, step=step, is_enabled=True)
+        self.proposal.workflow_step = step
+        self.proposal.save()
+        instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step=step,
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        response = self.client.post(
+            url, {"step_uuid": instance.uuid.hex, "outcome": outcome}
+        )
+        return response, instance
+
+    def _assert_terminal(self, response, expected_state):
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, expected_state)
+        self.assertIsNone(self.proposal.project)
+        self.assertIsNone(self.proposal.workflow_step)
+
+    def test_declined_allocation_decision_rejects(self):
+        response, _ = self._complete("allocation_decision", "declined")
+        self._assert_terminal(response, ProposalStates.REJECTED)
+
+    def test_declined_panel_review_rejects(self):
+        response, _ = self._complete("panel_review", "declined")
+        self._assert_terminal(response, ProposalStates.REJECTED)
+
+    def test_ineligible_administrative_check_rejects(self):
+        response, _ = self._complete("administrative_check", "ineligible")
+        self._assert_terminal(response, ProposalStates.REJECTED)
+
+    def test_infeasible_technical_assessment_rejects(self):
+        response, _ = self._complete("technical_assessment", "infeasible")
+        self._assert_terminal(response, ProposalStates.REJECTED)
+
+    def test_declined_award_response_cancels(self):
+        response, _ = self._complete("award_response", "declined")
+        self._assert_terminal(response, ProposalStates.CANCELED)
+
+    def test_instance_keeps_true_outcome_not_rejected(self):
+        _, instance = self._complete("allocation_decision", "declined")
+        instance.refresh_from_db()
+        self.assertEqual(instance.outcome, WorkflowStepOutcomes.DECLINED)

@@ -93,6 +93,23 @@ class TransitionModes:
     )
 
 
+class AllocationTimes:
+    """When a granted proposal's project/resources take effect.
+
+    A call-level allocation *policy*, configured on the ``allocation_decision``
+    workflow step: ``on_decision`` starts the allocation immediately, while
+    ``fixed_date`` dates it to the round's ``allocation_date``.
+    """
+
+    ON_DECISION = "on_decision"
+    FIXED_DATE = "fixed_date"
+
+    CHOICES = (
+        (ON_DECISION, "On decision"),
+        (FIXED_DATE, "Fixed date"),
+    )
+
+
 class WorkflowStepOutcomes:
     """Allowed outcome values for completed workflow steps.
 
@@ -127,6 +144,11 @@ class WorkflowStepOutcomes:
 
     # System-only outcomes; complete_workflow_step rejects them.
     SYSTEM_RESERVED = frozenset({REJECTED, EXPIRED})
+
+    # User-submittable outcomes that terminate the workflow negatively: the
+    # proposal is rejected (or, for an applicant declining the award, canceled)
+    # instead of advancing / allocating. See workflow_service.complete_step.
+    NEGATIVE_OUTCOMES = frozenset({INELIGIBLE, INFEASIBLE, DECLINED})
 
     # Outcomes a user may submit when completing each step.
     STEP_ALLOW_LIST = {

@@ -8,6 +8,7 @@ active step instance (via select_for_update) before invoking these helpers.
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Avg
 from django.utils import timezone
 
 from waldur_core.core.utils import get_system_robot
@@ -97,7 +98,15 @@ def complete_step(
     ``internal_notes`` is a call-management-team-only free-text field; it is
     appended (not overwritten) so completing a step never erases notes
     captured earlier in the same step's lifecycle.
+
+    Raises ``ValueError`` if the step's review gate (``min_reviewers`` /
+    ``min_score_threshold``) is configured and not yet satisfied.
     """
+    call_step = models.CallWorkflowStep.objects.filter(
+        call=proposal.round.call, step=current_instance.step
+    ).first()
+    _enforce_step_gates(proposal, current_instance, outcome, call_step)
+
     current_instance.status = WorkflowStepInstanceStatuses.COMPLETED
     current_instance.outcome = outcome
     current_instance.outcome_reason = outcome_reason or ""
@@ -118,15 +127,65 @@ def complete_step(
         ]
     )
 
-    call_step = models.CallWorkflowStep.objects.filter(
-        call=proposal.round.call, step=current_instance.step
-    ).first()
+    # A negative outcome (declined / ineligible / infeasible) terminates the
+    # workflow instead of advancing or allocating — regardless of transition
+    # mode or whether downstream steps remain. The applicant declining the
+    # award cancels the proposal; any other negative decision rejects it. The
+    # instance keeps its true outcome (unlike reject_at_step, which overwrites
+    # it with REJECTED).
+    if outcome in WorkflowStepOutcomes.NEGATIVE_OUTCOMES:
+        if (
+            outcome == WorkflowStepOutcomes.DECLINED
+            and current_instance.step == "award_response"
+        ):
+            proposal.state = ProposalStates.CANCELED
+        else:
+            proposal.state = ProposalStates.REJECTED
+        proposal.workflow_step = None
+        proposal.save(update_fields=["state", "workflow_step"])
+        return None
+
     if call_step and call_step.transition_mode == TransitionModes.MANUAL:
         # Keep proposal.workflow_step pointing at this step so the manual
         # advance endpoint and UI can locate it.
         return None
 
     return _advance_to_next(proposal, current_instance.step, acting_user=completed_by)
+
+
+def _enforce_step_gates(proposal, current_instance, outcome, call_step):
+    """Block completion of a gated step until its review thresholds are met.
+
+    ``CallWorkflowStep.min_reviewers`` / ``min_score_threshold`` are the single
+    enforced source of truth for "enough reviewers" and "high enough average
+    score" (replacing the removed Round-level fields). They are evaluated
+    against the proposal's *submitted* reviews. A ``DECLINED`` outcome is never
+    blocked — declining a weak proposal must always be possible regardless of
+    how many reviews came in.
+    """
+    if call_step is None or outcome == WorkflowStepOutcomes.DECLINED:
+        return
+    if call_step.min_reviewers is None and call_step.min_score_threshold is None:
+        return
+
+    submitted = proposal.review_set.filter(state=models.Review.States.SUBMITTED)
+    if (
+        call_step.min_reviewers is not None
+        and submitted.count() < call_step.min_reviewers
+    ):
+        raise ValueError(
+            f"Cannot complete {current_instance.step}: "
+            f"{submitted.count()} of {call_step.min_reviewers} required reviews "
+            "have been submitted."
+        )
+    if call_step.min_score_threshold is not None:
+        avg_score = submitted.aggregate(avg=Avg("summary_score"))["avg"]
+        if avg_score is None or avg_score < call_step.min_score_threshold:
+            raise ValueError(
+                f"Cannot complete {current_instance.step}: the average review "
+                f"score ({avg_score if avg_score is not None else 0}) is below "
+                f"the required minimum of {call_step.min_score_threshold}."
+            )
 
 
 def _advance_to_next(proposal, from_step, acting_user=None):

@@ -34,6 +34,7 @@ from waldur_mastermind.marketplace.serializers import (
 )
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS_MAP,
+    AllocationTimes,
     BulkRoundCadence,
     CallStates,
     COISeverityLevels,
@@ -598,13 +599,8 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
             "start_time",
             "cutoff_time",
             "status",
-            "review_strategy",
-            "deciding_entity",
-            "allocation_time",
             "allocation_date",
-            "minimal_average_scoring",
             "review_duration_in_days",
-            "minimum_number_of_reviewers",
         ]
         extra_kwargs = {
             "slug": {"required": False},
@@ -3347,12 +3343,7 @@ class BulkRoundCreateRequestSerializer(serializers.ModelSerializer):
         model = models.Round
         fields = [
             "start_time",
-            "review_strategy",
-            "deciding_entity",
-            "allocation_time",
             "review_duration_in_days",
-            "minimum_number_of_reviewers",
-            "minimal_average_scoring",
             "cadence",
             "custom_interval_months",
             "submission_window_days",
@@ -3365,16 +3356,6 @@ class BulkRoundCreateRequestSerializer(serializers.ModelSerializer):
         ):
             raise serializers.ValidationError(
                 {"custom_interval_months": _("Required when cadence is set to custom.")}
-            )
-        if attrs.get("allocation_time") == models.Round.AllocationTimes.FIXED_DATE:
-            raise serializers.ValidationError(
-                {
-                    "allocation_time": _(
-                        "Fixed-date allocation is not supported when creating "
-                        "multiple rounds. Pick on-decision allocation, or set "
-                        "the date individually on each round after creation."
-                    )
-                }
             )
         return attrs
 
@@ -4309,6 +4290,7 @@ class WorkflowCriterionSerializer(serializers.ModelSerializer):
 
 CRITERIA_ALLOWED_STEPS = {"expert_review"}
 AWARD_RESPONSE_ALLOWED_STEPS = {"allocation_decision"}
+ALLOCATION_TIMING_ALLOWED_STEPS = {"allocation_decision"}
 
 
 class CallWorkflowStepSerializer(
@@ -4348,6 +4330,7 @@ class CallWorkflowStepSerializer(
             "responsible_role",
             "transition_mode",
             "include_award_response",
+            "allocation_time",
             "display_order",
             "criteria",
         ]
@@ -4381,6 +4364,19 @@ class CallWorkflowStepSerializer(
                 {
                     "include_award_response": (
                         "include_award_response can only be set on the "
+                        "allocation_decision step."
+                    )
+                }
+            )
+
+        if (
+            attrs.get("allocation_time") == AllocationTimes.FIXED_DATE
+            and step not in ALLOCATION_TIMING_ALLOWED_STEPS
+        ):
+            raise serializers.ValidationError(
+                {
+                    "allocation_time": (
+                        "allocation_time can only be configured on the "
                         "allocation_decision step."
                     )
                 }

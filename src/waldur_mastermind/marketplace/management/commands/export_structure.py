@@ -1806,14 +1806,7 @@ class Command(BaseCommand):
                     "cutoff_time": round_obj.cutoff_time.isoformat()
                     if round_obj.cutoff_time
                     else None,
-                    "review_strategy": round_obj.review_strategy,
-                    "deciding_entity": round_obj.deciding_entity,
-                    "allocation_time": round_obj.allocation_time,
                     "review_duration_in_days": round_obj.review_duration_in_days,
-                    "minimum_number_of_reviewers": round_obj.minimum_number_of_reviewers,
-                    "minimal_average_scoring": str(round_obj.minimal_average_scoring)
-                    if round_obj.minimal_average_scoring is not None
-                    else None,
                     "allocation_date": round_obj.allocation_date.isoformat()
                     if round_obj.allocation_date
                     else None,

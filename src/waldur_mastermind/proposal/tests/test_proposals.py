@@ -12,8 +12,8 @@ from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.proposal import models, tasks
-from waldur_mastermind.proposal.enums import CallStates, ProposalStates
+from waldur_mastermind.proposal import models, tasks, utils
+from waldur_mastermind.proposal.enums import AllocationTimes, CallStates, ProposalStates
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -373,14 +373,48 @@ class ActionTest(test.APITestCase):
         )
         allocation_date = timezone.now() + datetime.timedelta(weeks=1)
         new_proposal.round.allocation_date = allocation_date
-        new_proposal.round.allocation_time = models.Round.AllocationTimes.FIXED_DATE
         new_proposal.round.save()
+        # Allocation timing is now a call-level policy on the allocation_decision
+        # workflow step; the concrete date stays on the round.
+        models.CallWorkflowStep.objects.update_or_create(
+            call=new_proposal.round.call,
+            step="allocation_decision",
+            defaults={"allocation_time": AllocationTimes.FIXED_DATE},
+        )
 
         new_url_approve = factories.ProposalFactory.get_url(new_proposal, "approve")
         response = self.client.post(new_url_approve)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         new_proposal.refresh_from_db()
         self.assertEqual(new_proposal.project.start_date, allocation_date.date())
+
+    def test_fixed_date_allocation_sets_project_start_date_as_a_date(self):
+        # Regression: Project.start_date is a DateField but the round's
+        # allocation_date is a DateTimeField. allocate_proposal must coerce it,
+        # otherwise the in-memory project carries a datetime and downstream
+        # date comparisons (the order-created notification handler) crash with
+        # a datetime-vs-date TypeError.
+        new_proposal = factories.ProposalFactory(
+            round=self.fixture.round,
+            state=ProposalStates.IN_REVIEW,
+            project=None,
+        )
+        new_proposal.round.allocation_date = timezone.now() + datetime.timedelta(
+            weeks=1
+        )
+        new_proposal.round.save()
+        models.CallWorkflowStep.objects.update_or_create(
+            call=new_proposal.round.call,
+            step="allocation_decision",
+            defaults={"allocation_time": AllocationTimes.FIXED_DATE},
+        )
+
+        utils.allocate_proposal(new_proposal)
+
+        # Check the in-memory value (a reload would coerce it regardless).
+        start_date = new_proposal.project.start_date
+        self.assertIsInstance(start_date, datetime.date)
+        self.assertNotIsInstance(start_date, datetime.datetime)
 
     @override_settings(task_always_eager=True)
     def test_reviewer_notification_triggered_on_reject(self):

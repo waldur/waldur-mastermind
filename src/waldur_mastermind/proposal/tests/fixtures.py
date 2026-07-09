@@ -123,7 +123,6 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             call=self.call,
             start_time=timezone.now(),
             cutoff_time=timezone.now() + datetime.timedelta(days=10),
-            minimum_number_of_reviewers=1,
         )
 
     @cached_property

@@ -2335,6 +2335,15 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     ]
 
 
+def _terminal_workflow_detail(proposal_state):
+    """Human-readable detail for a workflow that reached its terminal step."""
+    return {
+        ProposalStates.ACCEPTED: "Workflow completed. Proposal accepted.",
+        ProposalStates.REJECTED: "Workflow completed. Proposal rejected.",
+        ProposalStates.CANCELED: "Workflow completed. Proposal canceled.",
+    }.get(proposal_state, "Workflow completed.")
+
+
 class ProposalViewSet(
     UserChecklistMixin,
     ReviewerChecklistMixin,
@@ -2778,14 +2787,19 @@ class ProposalViewSet(
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            next_instance = workflow_service.complete_step(
-                proposal=proposal,
-                current_instance=current_instance,
-                outcome=outcome,
-                outcome_reason=outcome_reason,
-                completed_by=request.user,
-                internal_notes=internal_notes,
-            )
+            try:
+                next_instance = workflow_service.complete_step(
+                    proposal=proposal,
+                    current_instance=current_instance,
+                    outcome=outcome,
+                    outcome_reason=outcome_reason,
+                    completed_by=request.user,
+                    internal_notes=internal_notes,
+                )
+            except ValueError as e:
+                # Step gate not satisfied (e.g. too few reviews / score below
+                # threshold). Roll back and surface the reason to the caller.
+                raise exceptions.ValidationError({"detail": str(e)})
             # Step-activation notifications were intentionally removed; see
             # commit d2d5fb77c "Drop step-activation notifications [WAL-9346]".
             # Re-introducing them requires a debounce/digest policy first.
@@ -2800,17 +2814,18 @@ class ProposalViewSet(
                 return response.Response(
                     response_serializer.data, status=status.HTTP_200_OK
                 )
-            # Terminal step reached: the proposal was accepted AND provisioned
-            # inside complete_step. Fire the shared decision notifications
-            # (allocation already ran, so the accepted email can include the
-            # project + allocated resources).
+            # Terminal step reached: complete_step set the final state — accepted
+            # (and provisioned), or rejected / canceled on a negative outcome.
+            # Notify with the actual outcome so a rejected/canceled terminal
+            # never sends an "accepted" email.
+            proposal.refresh_from_db()
             tasks.notify_proposal_decision(
-                proposal.uuid, ProposalStates.IN_REVIEW, ProposalStates.ACCEPTED
+                proposal.uuid, ProposalStates.IN_REVIEW, proposal.state
             )
             response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
                 {
-                    "detail": "Workflow completed. Proposal accepted.",
-                    "proposal_state": ProposalStates.ACCEPTED,
+                    "detail": _terminal_workflow_detail(proposal.state),
+                    "proposal_state": proposal.state,
                 }
             )
             return response.Response(
