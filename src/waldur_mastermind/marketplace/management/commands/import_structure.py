@@ -86,12 +86,14 @@ from waldur_mastermind.proposal.models import (
     CallManagingOrganisation,
     CallResourceTemplate,
     CallReviewerPool,
+    CallWorkflowStep,
     COIDisclosureForm,
     ConflictOfInterest,
     ExpertiseCategory,
     MatchingConfiguration,
     Proposal,
     ProposalProjectRoleMapping,
+    ProposalWorkflowStepInstance,
     RequestedOffering,
     RequestedResource,
     Review,
@@ -340,7 +342,19 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "rounds": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "call_workflow_steps": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "proposals": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "proposal_workflow_step_instances": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "requested_resources": {
                 "created": 0,
                 "updated": 0,
@@ -929,6 +943,17 @@ class Command(BaseCommand):
             "rounds",
             lambda: self.import_rounds(data.get("rounds", [])),
         )
+        # Configure the per-call workflow steps. Every call already gets a full
+        # set of CallWorkflowStep rows auto-seeded by a post-save signal on
+        # creation; this overrides their enable/transition/blind-review config
+        # for calls that want a non-default workflow (e.g. enabling the review
+        # steps). Matched by (call, step), not uuid.
+        self._safe_import(
+            "call_workflow_steps",
+            lambda: self.import_call_workflow_steps(
+                data.get("call_workflow_steps", [])
+            ),
+        )
         self._safe_import(
             "proposals",
             lambda: self.import_proposals(data.get("proposals", [])),
@@ -942,6 +967,16 @@ class Command(BaseCommand):
         self._safe_import(
             "reviews",
             lambda: self.import_reviews(data.get("reviews", [])),
+        )
+        # Per-proposal workflow engine state. Created only by the submit action
+        # at runtime, so preset proposals (imported directly into their target
+        # state) have none — seed them here so the engine is demonstrable.
+        # Depends on proposals (FK) and users (completed_by FK).
+        self._safe_import(
+            "proposal_workflow_step_instances",
+            lambda: self.import_proposal_workflow_step_instances(
+                data.get("proposal_workflow_step_instances", [])
+            ),
         )
 
         # Import COI and matching data (depends on reviewer_profiles, proposals, calls)
@@ -8063,6 +8098,188 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["reviews"]["errors"] += 1
+
+    def import_call_workflow_steps(self, steps_data):
+        """Configure per-call workflow steps.
+
+        Every call auto-seeds a full set of ``CallWorkflowStep`` rows via a
+        post-save signal on creation, so the rows this configures already
+        exist; matched by ``(call, step)`` it overrides their enable /
+        transition / review settings for calls that want a non-default
+        workflow (e.g. enabling the review steps). A missing ``(call, step)``
+        (such as ``award_response``, which the signal skips) is created.
+        The configuration is always applied — unlike most entities these are
+        never "skipped" on re-import, since the point is to override defaults.
+        """
+        self.stdout.write("Importing call workflow steps...")
+        config_fields = (
+            "is_enabled",
+            "duration_in_days",
+            "blind_review",
+            "requires_coi_confirmation",
+            "min_reviewers",
+            "min_score_threshold",
+            "applicant_visible",
+            "responsible_role",
+            "transition_mode",
+            "display_order",
+            "include_award_response",
+        )
+        for step_data in steps_data:
+            try:
+                call_uuid = step_data.get("call_uuid")
+                step = step_data.get("step")
+                if not call_uuid or not step:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call workflow step without call_uuid or step"
+                        )
+                    )
+                    self.stats["call_workflow_steps"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call workflow step {step}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["call_workflow_steps"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    field: step_data[field]
+                    for field in config_fields
+                    if field in step_data
+                }
+
+                if self.dry_run:
+                    exists = CallWorkflowStep.objects.filter(
+                        call=call, step=step
+                    ).exists()
+                    self.stats["call_workflow_steps"][
+                        "updated" if exists else "created"
+                    ] += 1
+                    continue
+
+                with transaction.atomic():
+                    _, created = CallWorkflowStep.objects.update_or_create(
+                        call=call, step=step, defaults=defaults
+                    )
+                self.stats["call_workflow_steps"][
+                    "created" if created else "updated"
+                ] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call workflow step {step_data.get('step')}: {e}"
+                    )
+                )
+                self.stats["call_workflow_steps"]["errors"] += 1
+
+    def import_proposal_workflow_step_instances(self, instances_data):
+        """Seed per-proposal workflow step instances (engine state).
+
+        These are normally created only by the ``submit`` action at runtime, so
+        preset proposals — imported directly into their target state — have
+        none, leaving the workflow engine invisible. This mirrors the shape
+        ``submit`` / ``workflow_service`` produce: exactly one ``active``
+        instance per proposal (enforced by a DB constraint), ``pending`` for
+        enabled-but-not-yet-reached steps, ``skipped`` for disabled steps, and
+        ``completed`` (with an ``outcome``) for finished ones. When an instance
+        is ``active`` the parent proposal's ``workflow_step`` is set to match.
+        """
+        self.stdout.write("Importing proposal workflow step instances...")
+        for inst in instances_data:
+            try:
+                uuid = inst.get("uuid")
+                proposal_uuid = inst.get("proposal_uuid")
+                step = inst.get("step")
+                if not uuid or not proposal_uuid or not step:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping workflow step instance without uuid, proposal_uuid, or step"
+                        )
+                    )
+                    self.stats["proposal_workflow_step_instances"]["errors"] += 1
+                    continue
+
+                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                if not proposal:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping workflow step instance {uuid}: proposal {proposal_uuid} not found"
+                        )
+                    )
+                    self.stats["proposal_workflow_step_instances"]["errors"] += 1
+                    continue
+
+                completed_by = None
+                if inst.get("completed_by_uuid"):
+                    completed_by = User.objects.filter(
+                        uuid=inst["completed_by_uuid"]
+                    ).first()
+
+                status = inst.get("status", "pending")
+                defaults = {
+                    "proposal": proposal,
+                    "step": step,
+                    "status": status,
+                    "outcome": inst.get("outcome"),
+                    "outcome_reason": inst.get("outcome_reason", ""),
+                    "started_at": self._parse_datetime(inst.get("started_at")),
+                    "completed_at": self._parse_datetime(inst.get("completed_at")),
+                    "completed_by": completed_by,
+                    "internal_notes": inst.get("internal_notes", ""),
+                }
+
+                if not self.dry_run:
+                    existing = ProposalWorkflowStepInstance.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing and not self.update_existing:
+                        self.stats["proposal_workflow_step_instances"]["skipped"] += 1
+                        continue
+                    with transaction.atomic():
+                        if existing:
+                            ProposalWorkflowStepInstance.objects.filter(
+                                uuid=uuid
+                            ).update(**defaults)
+                            self.stats["proposal_workflow_step_instances"][
+                                "updated"
+                            ] += 1
+                        else:
+                            ProposalWorkflowStepInstance.objects.create(
+                                uuid=uuid, **defaults
+                            )
+                            self.stats["proposal_workflow_step_instances"][
+                                "created"
+                            ] += 1
+                        # Keep the proposal's pointer consistent with its
+                        # active step (the submit/advance actions do this).
+                        if status == "active" and proposal.workflow_step != step:
+                            proposal.workflow_step = step
+                            proposal.save(update_fields=["workflow_step"])
+                else:
+                    existing = ProposalWorkflowStepInstance.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing and not self.update_existing:
+                        self.stats["proposal_workflow_step_instances"]["skipped"] += 1
+                    else:
+                        self.stats["proposal_workflow_step_instances"][
+                            "updated" if existing else "created"
+                        ] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import workflow step instance {inst.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["proposal_workflow_step_instances"]["errors"] += 1
 
     def import_user_agreements(self, user_agreements_data):
         """Import user agreement data (Terms of Service, Privacy Policy)."""
