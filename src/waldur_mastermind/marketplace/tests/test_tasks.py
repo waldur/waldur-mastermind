@@ -375,6 +375,126 @@ class GracePeriodPausingTest(test.APITestCase):
         )
 
 
+class GracePeriodDisableTest(test.APITestCase):
+    """Offerings with plugin_options.disable_grace_period terminate on the
+    project end date, ignoring the grace window, and are never paused."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        # end_date in the past; grace period would extend termination to 2020-01-31
+        self.fixture.project.end_date = datetime.date(2020, 1, 1)
+        self.fixture.project.grace_period_days = 30
+        self.fixture.project.save()
+        self.fixture.resource.set_state_ok()
+        self.fixture.resource.save()
+
+    @freeze_time("2020-01-15")
+    def test_grace_disabled_resource_is_terminated_within_grace_window(self):
+        self.fixture.offering.plugin_options = {"disable_grace_period": True}
+        self.fixture.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.assertTrue(
+            models.Order.objects.filter(
+                resource=self.fixture.resource,
+                type=OrderTypes.TERMINATE,
+            ).exists()
+        )
+
+    @freeze_time("2020-01-15")
+    def test_normal_resource_is_not_terminated_within_grace_window(self):
+        # Control: without the flag, the resource survives the grace window.
+        self.fixture.offering.plugin_options = {}
+        self.fixture.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.assertFalse(
+            models.Order.objects.filter(
+                resource=self.fixture.resource,
+                type=OrderTypes.TERMINATE,
+            ).exists()
+        )
+
+    @freeze_time("2020-01-15")
+    def test_grace_disabled_resource_is_terminated_not_paused(self):
+        # supports_pausing would normally pause during grace; disable_grace_period
+        # takes precedence and the resource is terminated instead.
+        self.fixture.offering.plugin_options = {
+            "supports_pausing": True,
+            "disable_grace_period": True,
+        }
+        self.fixture.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.fixture.resource.refresh_from_db()
+        self.assertFalse(self.fixture.resource.paused)
+        self.assertTrue(
+            models.Order.objects.filter(
+                resource=self.fixture.resource,
+                type=OrderTypes.TERMINATE,
+            ).exists()
+        )
+
+
+class ResourceEndingNotificationGraceTest(test.APITestCase):
+    """notification_about_resource_ending fires on the resource's effective end
+    date, so grace-disabled resources (which terminate on the raw project end
+    date, without an own end date) are included when the project has a grace
+    window."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.resource.set_state_ok()
+        self.fixture.resource.save()
+        self.fixture.manager  # project user who receives the notification
+        structure_factories.NotificationFactory(
+            key="marketplace.notification_about_resource_ending"
+        )
+
+    def _configure(self, project_end_date, grace, plugin_options):
+        self.fixture.project.end_date = project_end_date
+        self.fixture.project.grace_period_days = grace
+        self.fixture.project.save()
+        self.fixture.offering.plugin_options = plugin_options
+        self.fixture.offering.save()
+
+    def test_grace_disabled_resource_notified_by_raw_project_end_date(self):
+        # Project raw end date is 7 days out; grace-disabled → terminates then.
+        self._configure(datetime.date(2020, 1, 8), 30, {"disable_grace_period": True})
+        with freeze_time("2020-01-01"):
+            tasks.notification_about_resource_ending()
+        self.assertTrue(mail.outbox)
+        self.assertIn(self.fixture.resource.name, mail.outbox[0].subject)
+
+    def test_normal_resource_without_own_end_date_is_not_notified(self):
+        # Normal offering with no own end date → the project-ending notice covers
+        # it, so notification_about_resource_ending stays silent.
+        self._configure(datetime.date(2020, 1, 8), 30, {})
+        with freeze_time("2020-01-01"):
+            tasks.notification_about_resource_ending()
+        self.assertFalse(mail.outbox)
+
+    def test_grace_disabled_without_grace_window_is_not_double_notified(self):
+        # grace = 0 → raw == effective → project-ending notice covers it.
+        self._configure(datetime.date(2020, 1, 8), 0, {"disable_grace_period": True})
+        with freeze_time("2020-01-01"):
+            tasks.notification_about_resource_ending()
+        self.assertFalse(mail.outbox)
+
+    def test_own_end_date_resource_is_still_notified(self):
+        # Regression: the original behaviour (own end date approaching) is kept.
+        self._configure(None, 0, {})
+        self.fixture.resource.end_date = datetime.date(2020, 1, 8)
+        self.fixture.resource.save()
+        with freeze_time("2020-01-01"):
+            tasks.notification_about_resource_ending()
+        self.assertTrue(mail.outbox)
+        self.assertIn(self.fixture.resource.name, mail.outbox[0].subject)
+
+
 @override_config(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
 class NotificationAboutStaleResourceTest(test.APITestCase):
     def setUp(self):

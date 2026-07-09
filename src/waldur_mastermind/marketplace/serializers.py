@@ -141,6 +141,23 @@ def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options
         )
 
 
+def validate_disable_grace_period_is_staff_only(user, instance, plugin_options):
+    """Reject a non-staff user setting or changing disable_grace_period.
+    Overriding the org/project grace period is a staff-controlled policy, so it is
+    locked at both creation and update, regardless of who edits the offering."""
+    if user.is_staff or "disable_grace_period" not in plugin_options:
+        return
+    old_value = (
+        instance.plugin_options.get("disable_grace_period", False)
+        if instance
+        else False
+    )
+    if old_value != plugin_options["disable_grace_period"]:
+        raise rf_exceptions.ValidationError(
+            {"plugin_options": _("Only staff can change the grace-period setting.")}
+        )
+
+
 def validate_project_or_customer_role_names(value):
     """Reject any name that is not an active project- or organization-scoped
     role. Shared by the restricted_to_roles / auto_approve_for_roles options."""
@@ -221,6 +238,12 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     supports_pausing = serializers.BooleanField(
         required=False,
         help_text="If set to True, it will be possible to pause resources",
+    )
+    disable_grace_period = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, this offering's resources ignore the project "
+        "grace period and are terminated on the project end date. "
+        "Only staff can change this option.",
     )
     action_on_usage_limit = serializers.ChoiceField(
         choices=UsageLimitAction.CHOICES,
@@ -3957,6 +3980,9 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         validate_auto_approve_for_roles_is_staff_only(
             self.context["request"].user, self.instance, attrs.get("plugin_options", {})
         )
+        validate_disable_grace_period_is_staff_only(
+            self.context["request"].user, self.instance, attrs.get("plugin_options", {})
+        )
 
         attrs.setdefault("options", {"options": {}, "order": []})
         attrs.setdefault("resource_options", {"options": {}, "order": []})
@@ -4323,6 +4349,9 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                         }
                     )
         validate_auto_approve_for_roles_is_staff_only(
+            user, self.instance, attrs.get("plugin_options", {})
+        )
+        validate_disable_grace_period_is_staff_only(
             user, self.instance, attrs.get("plugin_options", {})
         )
         return attrs
@@ -5865,6 +5894,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "project_description",
             "project_end_date",
             "project_effective_end_date",
+            "resource_effective_end_date",
             "project_is_in_grace_period",
             "project_end_date_requested_by",
             "customer_uuid",
@@ -5960,7 +5990,16 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         read_only=True,
         allow_null=True,
         source="project.end_date_with_grace",
-        help_text="Effective project end date including grace period. After this date, resources will be terminated.",
+        help_text="Effective project end date including grace period. After this date, resources are terminated, except resources of offerings that disable the grace period — those are terminated on the raw project end date.",
+    )
+    resource_effective_end_date = serializers.DateField(
+        read_only=True,
+        allow_null=True,
+        source="effective_end_date",
+        help_text="The date this resource is scheduled to terminate: the earliest "
+        "of its own end date and the project-driven termination date (the raw "
+        "project end date if the offering disables the grace period, otherwise the "
+        "effective with-grace end date).",
     )
     project_is_in_grace_period = serializers.BooleanField(
         read_only=True,
