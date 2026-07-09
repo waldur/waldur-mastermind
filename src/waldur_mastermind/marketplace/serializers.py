@@ -99,6 +99,7 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
     ServiceAccountState,
     ServiceAccountStatesType,
+    UsageLimitAction,
 )
 from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.plugins import manager
@@ -220,6 +221,16 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     supports_pausing = serializers.BooleanField(
         required=False,
         help_text="If set to True, it will be possible to pause resources",
+    )
+    action_on_usage_limit = serializers.ChoiceField(
+        choices=UsageLimitAction.CHOICES,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="If set to 'pause' or 'downscale', resources are automatically "
+        "paused or downscaled when reported usage in the current period reaches a "
+        "component's limit_amount, and the restriction is lifted when usage drops "
+        "below the limit again (e.g. a new billing period or a raised limit).",
     )
     minimal_team_count_for_provisioning = serializers.IntegerField(
         required=False,
@@ -5883,6 +5894,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "downscaled",
             "restrict_member_access",
             "paused",
+            "usage_limit_restriction",
             "endpoints",
             "error_message",
             "error_traceback",
@@ -5914,6 +5926,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "error_traceback",
             "options",
             "restrict_member_access",
+            "usage_limit_restriction",
             "last_sync",
             "project_slug",
             "customer_slug",

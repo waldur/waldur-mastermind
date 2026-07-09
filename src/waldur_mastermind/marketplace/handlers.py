@@ -36,12 +36,14 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    BillingTypes,
     MaintenanceState,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
     OrderTypes,
     ResourceStates,
+    UsageLimitAction,
 )
 from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
 from waldur_mastermind.marketplace.enums import (
@@ -52,6 +54,7 @@ from waldur_mastermind.marketplace.maintenance_utils import (
     MaintenanceAnnouncementTemplate,
 )
 from waldur_mastermind.marketplace.models import (
+    ComponentUsage,
     Offering,
     OfferingComponent,
     OfferingUser,
@@ -734,6 +737,68 @@ def sync_current_usages_from_component_usage(
         current[component_type] = new_value
         resource.current_usages = current
         resource.save(update_fields=["current_usages"])
+
+
+def evaluate_usage_limit_on_usage_report(
+    sender, instance: ComponentUsage, created=False, **kwargs
+):
+    """Pause or downscale a resource when reported usage reaches a component limit.
+
+    Enqueued on every ComponentUsage save; the async task is a no-op unless the
+    offering opts in via plugin_options["action_on_usage_limit"]. Runs on commit
+    so the just-saved usage is visible to the period aggregation.
+    """
+    if not (created or instance.tracker.has_changed("usage")):
+        return
+    # Only limit-based components with a limit_amount drive the restriction; a
+    # usage report against any other component cannot change the outcome.
+    component = instance.component
+    if not (component.billing_type == BillingTypes.LIMIT and component.limit_amount):
+        return
+    resource = instance.resource
+    action = resource.offering.plugin_options.get("action_on_usage_limit")
+    if action not in (UsageLimitAction.PAUSE, UsageLimitAction.DOWNSCALE):
+        return
+
+    # Local import mirrors the existing tasks imports in this module (avoids the
+    # handlers <-> tasks import cycle).
+    from waldur_mastermind.marketplace import tasks
+
+    resource_id = resource.pk
+    transaction.on_commit(
+        lambda: tasks.evaluate_usage_limit_restriction_task.delay(resource_id)
+    )
+
+
+def evaluate_usage_limit_on_component_change(
+    sender, instance: OfferingComponent, created=False, **kwargs
+):
+    """Re-evaluate an offering's resources when a component's limit_amount changes.
+
+    Raising the limit should lift an automatically applied restriction; lowering
+    it may introduce one. Only relevant for offerings that opt in.
+    """
+    if created or not instance.tracker.has_changed("limit_amount"):
+        return
+    if instance.billing_type != BillingTypes.LIMIT:
+        return
+    action = instance.offering.plugin_options.get("action_on_usage_limit")
+    if action not in (UsageLimitAction.PAUSE, UsageLimitAction.DOWNSCALE):
+        return
+
+    from waldur_mastermind.marketplace import tasks
+
+    resource_ids = list(
+        Resource.objects.filter(offering=instance.offering)
+        .exclude(state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING))
+        .values_list("pk", flat=True)
+    )
+
+    def _schedule():
+        for resource_id in resource_ids:
+            tasks.evaluate_usage_limit_restriction_task.delay(resource_id)
+
+    transaction.on_commit(_schedule)
 
 
 def update_or_create_quotas(resource: Resource):

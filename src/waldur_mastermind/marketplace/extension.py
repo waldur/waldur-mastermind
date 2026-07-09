@@ -45,6 +45,11 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "waldur-marketplace-re-evaluate-usage-limit-restrictions": {
+                "task": "waldur_mastermind.marketplace.re_evaluate_usage_limit_restrictions",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
             "waldur-marketplace-sync-component-usage-summaries": {
                 "task": "waldur_mastermind.marketplace.sync_component_usage_summaries",
                 "schedule": timedelta(days=1),

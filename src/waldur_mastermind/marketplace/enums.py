@@ -55,6 +55,37 @@ class LimitPeriods:
     )
 
 
+class UsageLimitAction:
+    """Restriction applied to a resource when reported usage reaches a component limit.
+
+    Configured per offering via ``plugin_options["action_on_usage_limit"]``.
+    A single value keeps the two restrictions mutually exclusive.
+    """
+
+    PAUSE = "pause"
+    DOWNSCALE = "downscale"
+
+    CHOICES = (
+        (PAUSE, "Pause resources when reported usage reaches the component limit."),
+        (
+            DOWNSCALE,
+            "Downscale resources when reported usage reaches the component limit.",
+        ),
+    )
+
+    # Maps a configured action to the Resource boolean flag it drives.
+    FLAG = {
+        PAUSE: "paused",
+        DOWNSCALE: "downscaled",
+    }
+
+    # Reverse: the flag stored in Resource.usage_limit_restriction.
+    FLAG_CHOICES = (
+        ("paused", "Paused"),
+        ("downscaled", "Downscaled"),
+    )
+
+
 class DiscountAggregations:
     # each resource of the offering is discounted on its own component usage
     PER_RESOURCE = "resource"
