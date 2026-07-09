@@ -9,7 +9,12 @@ from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.proposal.models import Call, CallResourceTemplate, Proposal
+from waldur_mastermind.proposal.models import (
+    Call,
+    CallResourceTemplate,
+    CallWorkflowStep,
+    Proposal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +110,13 @@ class GuideProposalTool(BaseTool):
         open_rounds = rounds.filter(start_time__lte=now, cutoff_time__gte=now)
         upcoming_rounds = rounds.filter(start_time__gt=now)
 
+        # Review policy (reviewer count) now lives on the expert_review
+        # workflow step, not the Round.
+        expert_step = CallWorkflowStep.objects.filter(
+            call=call, step="expert_review"
+        ).first()
+        min_reviewers = expert_step.min_reviewers if expert_step else None
+
         round_info = []
         for r in rounds:
             status = "closed"
@@ -120,11 +132,8 @@ class GuideProposalTool(BaseTool):
                     "days_remaining": (r.cutoff_time - now).days
                     if r.cutoff_time and r.cutoff_time > now
                     else None,
-                    "review_strategy": r.get_review_strategy_display()
-                    if hasattr(r, "get_review_strategy_display")
-                    else r.review_strategy,
                     "review_duration_days": r.review_duration_in_days,
-                    "min_reviewers": r.minimum_number_of_reviewers,
+                    "min_reviewers": min_reviewers,
                 }
             )
 

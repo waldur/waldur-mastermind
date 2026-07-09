@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Literal, cast
 
 from django.conf import settings
@@ -346,6 +345,16 @@ class CallWorkflowStep(
             "Allocation decision: require applicant award response after decision."
         ),
     )
+    allocation_time = models.CharField(
+        max_length=15,
+        choices=enums.AllocationTimes.CHOICES,
+        default=enums.AllocationTimes.ON_DECISION,
+        help_text=(
+            "Allocation decision: when a granted proposal takes effect — "
+            "immediately (on_decision) or on the round's allocation date "
+            "(fixed_date)."
+        ),
+    )
     display_order = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
@@ -563,65 +572,18 @@ class Round(
     core_models.UuidMixin,
     core_models.SlugMixin,
 ):
-    """Time-bounded submission periods within calls, with configurable review strategies, allocation strategies, and scoring thresholds."""
+    """Time-bounded submission and allocation-scheduling window within a call.
 
-    class ReviewStrategies:
-        AFTER_ROUND = "after_round"
-        AFTER_PROPOSAL = "after_proposal"
-
-        CHOICES = (
-            (AFTER_ROUND, "After round is closed"),
-            (AFTER_PROPOSAL, "After proposal submission"),
-        )
-
-    class AllocationStrategies:
-        BY_CALL_MANAGER = "by_call_manager"
-        AUTOMATIC = "automatic"
-
-        CHOICES = (
-            (BY_CALL_MANAGER, "By call manager"),
-            (AUTOMATIC, "Automatic based on review scoring"),
-        )
-
-    class AllocationTimes:
-        ON_DECISION = "on_decision"
-        FIXED_DATE = "fixed_date"
-
-        CHOICES = (
-            (ON_DECISION, "On decision"),
-            (FIXED_DATE, "Fixed date"),
-        )
+    Review and allocation *policy* (which steps run, how many reviewers, score
+    thresholds, manual vs automatic transitions) lives on the per-call workflow
+    step configuration (``CallWorkflowStep``), not here — the Round only carries
+    scheduling (submission window, review duration, allocation timing).
+    """
 
     class Statuses(RoundStatuses):
         pass
 
-    review_strategy = models.CharField(
-        default=ReviewStrategies.AFTER_ROUND,
-        choices=ReviewStrategies.CHOICES,
-        db_index=True,
-        max_length=15,
-    )
-    deciding_entity = models.CharField(
-        default=AllocationStrategies.AUTOMATIC,
-        choices=AllocationStrategies.CHOICES,
-        db_index=True,
-        max_length=15,
-    )
-    allocation_time = models.CharField(
-        default=AllocationTimes.ON_DECISION,
-        choices=AllocationTimes.CHOICES,
-        db_index=True,
-        max_length=15,
-    )
     review_duration_in_days = models.PositiveIntegerField(null=True, blank=True)
-    minimum_number_of_reviewers = models.PositiveIntegerField(null=True, blank=True)
-    minimal_average_scoring = models.DecimalField(
-        max_digits=5,
-        decimal_places=1,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(Decimal("0"))],
-    )
     allocation_date = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField()
     cutoff_time = models.DateTimeField()

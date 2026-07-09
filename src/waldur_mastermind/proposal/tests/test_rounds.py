@@ -160,11 +160,7 @@ class RoundCreateTest(test.APITestCase):
             "cutoff_time": (timezone.now() + datetime.timedelta(days=2)).strftime(
                 "%Y-%m-%dT%H:%M:%S"
             ),
-            "review_strategy": models.Round.ReviewStrategies.AFTER_PROPOSAL,
-            "deciding_entity": models.Round.AllocationStrategies.BY_CALL_MANAGER,
             "review_duration_in_days": 2,
-            "minimum_number_of_reviewers": 3,
-            "minimal_average_scoring": 3.0,
             "allocation_date": (timezone.now() + datetime.timedelta(days=2)).strftime(
                 "%Y-%m-%dT%H:%M:%S"
             ),
@@ -247,8 +243,6 @@ class RoundCloseTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round = self.fixture.new_round
-        self.round.minimum_number_of_reviewers = 1
-        self.round.save()
         self.url = factories.RoundFactory.get_url(
             self.fixture.call, self.round, "close"
         )
@@ -349,7 +343,6 @@ class RoundNotificationsTest(test.APITestCase):
         self.assertIn("Dear call manager", body)
         self.assertIn(self.round.name, body)
         self.assertIn(self.call.name, body)
-        self.assertIn(self.round.get_review_strategy_display(), body)
 
     @override_settings(task_always_eager=True)
     def test_proposal_creator_is_notified_before_submission_deadline(self):
@@ -937,12 +930,7 @@ class BulkRoundCreateTest(test.APITestCase):
             "submission_window_days": 14,
             "cadence": "monthly",
             "number_of_rounds": 3,
-            "review_strategy": models.Round.ReviewStrategies.AFTER_ROUND,
-            "deciding_entity": models.Round.AllocationStrategies.AUTOMATIC,
-            "allocation_time": models.Round.AllocationTimes.ON_DECISION,
             "review_duration_in_days": 7,
-            "minimum_number_of_reviewers": 2,
-            "minimal_average_scoring": 3.0,
         }
         payload.update(overrides)
         return payload
@@ -989,17 +977,6 @@ class BulkRoundCreateTest(test.APITestCase):
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
         self.assertIn("custom_interval_months", response.data)
-        self.assertEqual(self.call.round_set.count(), 0)
-
-    def test_fixed_date_allocation_is_rejected(self):
-        response = self._post(
-            "staff",
-            allocation_time=models.Round.AllocationTimes.FIXED_DATE,
-        )
-        self.assertEqual(
-            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
-        )
-        self.assertIn("allocation_time", response.data)
         self.assertEqual(self.call.round_set.count(), 0)
 
     def test_overlap_aborts_whole_batch(self):

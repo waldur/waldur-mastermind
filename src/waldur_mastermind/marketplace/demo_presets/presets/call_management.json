@@ -1625,12 +1625,7 @@
       "call_uuid": "ca200000000000000000000000000001",
       "start_time": "relative:-30days",
       "cutoff_time": "relative:+60days",
-      "review_strategy": "AFTER_ROUND",
-      "deciding_entity": "BY_CALL_MANAGER",
-      "allocation_time": "FIXED_DATE",
       "allocation_date": "relative:+120days",
-      "minimum_number_of_reviewers": 3,
-      "minimal_average_scoring": "7.0",
       "review_duration_in_days": 30
     },
     {
@@ -1638,12 +1633,7 @@
       "call_uuid": "ca200000000000000000000000000001",
       "start_time": "relative:+180days",
       "cutoff_time": "relative:+270days",
-      "review_strategy": "AFTER_ROUND",
-      "deciding_entity": "BY_CALL_MANAGER",
-      "allocation_time": "FIXED_DATE",
       "allocation_date": "relative:+330days",
-      "minimum_number_of_reviewers": 3,
-      "minimal_average_scoring": "7.0",
       "review_duration_in_days": 30
     },
     {
@@ -1651,11 +1641,6 @@
       "call_uuid": "ca200000000000000000000000000002",
       "start_time": "relative:-15days",
       "cutoff_time": "relative:+350days",
-      "review_strategy": "AFTER_PROPOSAL",
-      "deciding_entity": "AUTOMATIC",
-      "allocation_time": "ON_DECISION",
-      "minimum_number_of_reviewers": 2,
-      "minimal_average_scoring": "6.0",
       "review_duration_in_days": 14
     },
     {
@@ -1663,12 +1648,7 @@
       "call_uuid": "ca200000000000000000000000000003",
       "start_time": "relative:-180days",
       "cutoff_time": "relative:-90days",
-      "review_strategy": "AFTER_ROUND",
-      "deciding_entity": "BY_CALL_MANAGER",
-      "allocation_time": "FIXED_DATE",
       "allocation_date": "relative:-60days",
-      "minimum_number_of_reviewers": 3,
-      "minimal_average_scoring": "7.0",
       "review_duration_in_days": 30
     }
   ],
@@ -4145,6 +4125,11 @@
       "call_uuid": "ca200000000000000000000000000002",
       "step": "allocation_decision",
       "transition_mode": "automatic_on_completion"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "step": "allocation_decision",
+      "allocation_time": "fixed_date"
     }
   ],
   "proposal_workflow_step_instances": [

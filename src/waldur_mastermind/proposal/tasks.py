@@ -612,7 +612,6 @@ def notify_manager_on_round_cutoff():
             "round_name": round_obj.name,
             "total_proposals": r_any.total_proposals,
             "total_reviews": r_any.total_reviews,
-            "review_strategy": r_any.get_review_strategy_display(),
             "start_date": round_obj.start_time,
             "close_date": round_obj.cutoff_time,
             "round_url": round_url,
@@ -693,9 +692,14 @@ def notify_manager_when_reviews_are_completed(proposal_uuid):
         state=proposal_models.Review.States.IN_REVIEW
     )
 
-    if incomplete_reviews.exists() or completed_reviews.count() < (
-        proposal.round.minimum_number_of_reviewers or 0
-    ):
+    # The "enough reviewers" threshold is now sourced from the expert_review
+    # workflow step (single config track), not the removed Round field.
+    expert_step = proposal_models.CallWorkflowStep.objects.filter(
+        call=proposal.round.call, step="expert_review"
+    ).first()
+    min_reviewers = expert_step.min_reviewers if expert_step else None
+
+    if incomplete_reviews.exists() or completed_reviews.count() < (min_reviewers or 0):
         return
 
     call = proposal.round.call

@@ -411,9 +411,13 @@ class ActionTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 0)
 
-        # if not minimum number of reviews reached
-        self.review.proposal.round.minimum_number_of_reviewers = 2
-        self.review.proposal.round.save()
+        # if not minimum number of reviews reached (the reviewer-count gate now
+        # lives on the expert_review workflow step, not the Round)
+        expert_step = models.CallWorkflowStep.objects.get(
+            call=self.review.proposal.round.call, step="expert_review"
+        )
+        expert_step.min_reviewers = 2
+        expert_step.save()
 
         response = self._submit_review(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

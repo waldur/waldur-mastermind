@@ -7736,30 +7736,13 @@ class Command(BaseCommand):
                     self.stats["rounds"]["errors"] += 1
                     continue
 
-                # Parse minimal_average_scoring
-                minimal_average_scoring = None
-                if round_data.get("minimal_average_scoring") is not None:
-                    try:
-                        minimal_average_scoring = Decimal(
-                            str(round_data["minimal_average_scoring"])
-                        )
-                    except (InvalidOperation, TypeError):
-                        pass
-
                 defaults = {
                     "call": call,
                     "start_time": start_time,
                     "cutoff_time": cutoff_time,
-                    "review_strategy": round_data.get("review_strategy", "after_round"),
-                    "deciding_entity": round_data.get("deciding_entity", "automatic"),
-                    "allocation_time": round_data.get("allocation_time", "on_decision"),
                     "review_duration_in_days": round_data.get(
                         "review_duration_in_days"
                     ),
-                    "minimum_number_of_reviewers": round_data.get(
-                        "minimum_number_of_reviewers"
-                    ),
-                    "minimal_average_scoring": minimal_average_scoring,
                     "allocation_date": allocation_date,
                 }
 
@@ -8124,6 +8107,7 @@ class Command(BaseCommand):
             "transition_mode",
             "display_order",
             "include_award_response",
+            "allocation_time",
         )
         for step_data in steps_data:
             try:

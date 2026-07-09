@@ -16,6 +16,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
+    AllocationTimes,
     BulkRoundCadence,
     CallStates,
     RequestedOfferingStates,
@@ -33,11 +34,22 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
         [call_prefix, proposal_round.start_time.strftime("%Y-%m-%d"), name]
     )[: structure_models.PROJECT_NAME_LENGTH]
 
-    if (
-        proposal.round.allocation_time
-        == proposal_models.Round.AllocationTimes.FIXED_DATE
-    ):
-        start_date = proposal.round.allocation_date
+    # Allocation timing is a call-level policy on the allocation_decision step;
+    # the concrete date stays per-round.
+    allocation_step = proposal_models.CallWorkflowStep.objects.filter(
+        call=proposal_round.call, step="allocation_decision"
+    ).first()
+    allocation_time = (
+        allocation_step.allocation_time
+        if allocation_step
+        else AllocationTimes.ON_DECISION
+    )
+    if allocation_time == AllocationTimes.FIXED_DATE and proposal_round.allocation_date:
+        # Project.start_date is a DateField; the round's allocation_date is a
+        # DateTimeField. Coerce to a date so downstream date comparisons (e.g.
+        # the order-created notification handler) don't hit a datetime-vs-date
+        # TypeError.
+        start_date = proposal_round.allocation_date.date()
 
     project = structure_models.Project.objects.create(
         customer=proposal_round.call.manager.customer,
