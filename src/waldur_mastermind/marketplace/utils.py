@@ -44,9 +44,10 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.core.validators import is_potentially_dangerous_regex
+from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
-from waldur_core.logging.enums import ObservableObjectType
+from waldur_core.logging.enums import EventType, ObservableObjectType
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -81,6 +82,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     ResourceStates,
     RobotAccountStates,
+    UsageLimitAction,
 )
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
 from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
@@ -1249,6 +1251,98 @@ def get_current_period_usage(resource, limit_period=None):
         )
 
     return result
+
+
+def is_usage_over_component_limit(resource):
+    """Whether current-period reported usage reaches any limit component's limit_amount.
+
+    Only limit-based components (``billing_type == LIMIT``) with a ``limit_amount``
+    are considered. Uses ``get_current_period_usage`` so each component is compared
+    over its own ``limit_period`` (month / quarter / annual / total).
+    """
+    period_usage = get_current_period_usage(resource)
+    return any(
+        component.billing_type == BillingTypes.LIMIT
+        and component.limit_amount
+        and period_usage.get(component.type, 0) >= component.limit_amount
+        for component in resource.offering.components.all()
+    )
+
+
+_USAGE_LIMIT_EVENT_TYPES = {
+    ("paused", True): EventType.REQUEST_PAUSING,
+    ("paused", False): EventType.RESET_PAUSING,
+    ("downscaled", True): EventType.REQUEST_DOWNSCALING,
+    ("downscaled", False): EventType.RESET_DOWNSCALING,
+}
+
+
+def _emit_usage_limit_event(resource, flag, applied):
+    if applied:
+        message = (
+            "Resource {resource_name} has been "
+            + ("paused" if flag == "paused" else "downscaled")
+            + " because reported usage reached the component limit."
+        )
+    else:
+        message = (
+            "Resource {resource_name} has been "
+            + ("unpaused" if flag == "paused" else "restored from downscaling")
+            + " because reported usage dropped below the component limit."
+        )
+    event_logger.emit(
+        message,
+        event_type=_USAGE_LIMIT_EVENT_TYPES[(flag, applied)],
+        event_context={"resource": resource},
+        scopes=[resource, resource.project, resource.project.customer],
+    )
+
+
+def evaluate_usage_limit_restriction(resource):
+    """Pause/downscale a resource when reported usage reaches a component limit.
+
+    Enabled per offering via ``plugin_options["action_on_usage_limit"]``
+    (``pause`` or ``downscale``). When the current-period reported usage of any
+    component reaches or exceeds that component's ``limit_amount``, the matching
+    flag (``paused`` or ``downscaled``) is set; when usage falls back below every
+    limit, a restriction previously applied here is lifted. Restrictions applied
+    for other reasons (manual, grace period, budget policy) are never touched —
+    tracked via ``Resource.usage_limit_restriction``.
+    """
+    offering = resource.offering
+    action = offering.plugin_options.get("action_on_usage_limit")
+    if action not in UsageLimitAction.FLAG:
+        return
+    if resource.state in (
+        ResourceStates.TERMINATING,
+        ResourceStates.TERMINATED,
+    ):
+        return
+
+    flag = UsageLimitAction.FLAG[action]
+    over_limit = is_usage_over_component_limit(resource)
+
+    with transaction.atomic():
+        locked = models.Resource.objects.select_for_update().get(pk=resource.pk)
+
+        if over_limit and locked.usage_limit_restriction != flag:
+            update_fields = {flag, "usage_limit_restriction"}
+            stale = locked.usage_limit_restriction
+            if stale and stale != flag:
+                # Offering switched action while a resource carried the old
+                # restriction (e.g. pause -> downscale): clear the old flag.
+                setattr(locked, stale, False)
+                update_fields.add(stale)
+                _emit_usage_limit_event(locked, stale, applied=False)
+            setattr(locked, flag, True)
+            locked.usage_limit_restriction = flag
+            locked.save(update_fields=list(update_fields))
+            _emit_usage_limit_event(locked, flag, applied=True)
+        elif not over_limit and locked.usage_limit_restriction == flag:
+            setattr(locked, flag, False)
+            locked.usage_limit_restriction = ""
+            locked.save(update_fields=[flag, "usage_limit_restriction"])
+            _emit_usage_limit_event(locked, flag, applied=False)
 
 
 def get_components_usage_data(resources, for_current_month=False):

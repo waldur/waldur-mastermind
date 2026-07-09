@@ -70,6 +70,20 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.evaluate_usage_limit_on_usage_report,
+            sender=models.ComponentUsage,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "evaluate_usage_limit_on_usage_report",
+        )
+
+        signals.post_save.connect(
+            handlers.evaluate_usage_limit_on_component_change,
+            sender=models.OfferingComponent,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "evaluate_usage_limit_on_component_change",
+        )
+
+        signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
             sender=models.Screenshot,
             dispatch_uid="waldur_mastermind.marketplace.create_screenshot_thumbnail",

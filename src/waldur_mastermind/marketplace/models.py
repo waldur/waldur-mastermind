@@ -63,6 +63,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
+    UsageLimitAction,
 )
 from waldur_mastermind.notifications import models as notifications_models
 from waldur_pid import mixins as pid_mixins
@@ -1844,6 +1845,18 @@ class Resource(
     downscaled = models.BooleanField(default=False)
     restrict_member_access = models.BooleanField(default=False)
     paused = models.BooleanField(default=False)
+    usage_limit_restriction = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        choices=UsageLimitAction.FLAG_CHOICES,
+        help_text=(
+            "Which restriction (paused or downscaled) was automatically applied "
+            "because reported usage reached a component limit. Empty when no such "
+            "restriction is active. Used so the automatic lift never clears a "
+            "restriction that was set for another reason."
+        ),
+    )
 
     NON_LOGGABLE_FIELDS = (
         "modified",

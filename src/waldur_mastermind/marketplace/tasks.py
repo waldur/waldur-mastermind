@@ -57,15 +57,45 @@ from waldur_mastermind.marketplace.enums import (
     OrderTypes,
     ResourceStates,
     RobotAccountStates,
+    UsageLimitAction,
 )
 
 # Delayed import to avoid circular import with handlers.py
 from waldur_mastermind.marketplace.utils import (
+    evaluate_usage_limit_restriction,
     get_consumer_approvers,
     get_provider_approvers,
 )
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name="waldur_mastermind.marketplace.evaluate_usage_limit_restriction")
+def evaluate_usage_limit_restriction_task(resource_id):
+    """Re-evaluate the usage-limit restriction for a single resource."""
+    resource = models.Resource.objects.filter(pk=resource_id).first()
+    if resource is not None:
+        evaluate_usage_limit_restriction(resource)
+
+
+@shared_task(name="waldur_mastermind.marketplace.re_evaluate_usage_limit_restrictions")
+def re_evaluate_usage_limit_restrictions():
+    """Lift usage-limit restrictions when a new period resets reported usage.
+
+    A restriction applied by ``evaluate_usage_limit_restriction`` is normally
+    lifted on the next usage report. When a new billing period begins and no new
+    usage is reported, this periodic task re-evaluates every currently restricted
+    resource so month/quarter/annual restrictions clear on rollover. ``total``
+    restrictions never roll over and are only lifted when the limit is raised.
+    """
+    restricted = models.Resource.objects.exclude(usage_limit_restriction="").filter(
+        offering__plugin_options__action_on_usage_limit__in=(
+            UsageLimitAction.PAUSE,
+            UsageLimitAction.DOWNSCALE,
+        )
+    )
+    for resource in restricted:
+        evaluate_usage_limit_restriction(resource)
 
 
 def process_order_on_commit(order: models.Order, user):
