@@ -43,6 +43,11 @@ from waldur_mastermind.policy.models import (
     SlurmPeriodicUsagePolicy,
 )
 from waldur_mastermind.policy.tests import factories as policy_factories
+from waldur_mastermind.proposal.models import (
+    CallWorkflowStep,
+    ProposalWorkflowStepInstance,
+)
+from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 
 class ImportStructureCommandTest(TestCase):
@@ -3389,3 +3394,96 @@ class ImportStructureCommandTest(TestCase):
 
         token = Token.objects.get(user=user)
         self.assertEqual(token.key, declared_key)
+
+
+class ImportWorkflowEngineStateTest(TestCase):
+    """The importer seeds per-call workflow step config and per-proposal
+    workflow step instances — engine state otherwise created only by the
+    runtime submit/advance actions, so absent from directly-imported presets.
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.temp_dir, "test_structure.json")
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def _run(self, data):
+        with open(self.test_file_path, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        output = StringIO()
+        call_command("import_structure", input=self.test_file_path, stdout=output)
+        return output.getvalue()
+
+    def test_seeds_step_config_and_instances(self):
+        proposal = proposal_factories.ProposalFactory()
+        call = proposal.round.call
+        actor = structure_factories.UserFactory()
+
+        self._run(
+            {
+                "call_workflow_steps": [
+                    {
+                        "call_uuid": call.uuid.hex,
+                        "step": "expert_review",
+                        "is_enabled": True,
+                        "blind_review": True,
+                        "responsible_role": "reviewer",
+                        "transition_mode": "manual",
+                    },
+                ],
+                "proposal_workflow_step_instances": [
+                    {
+                        "uuid": "cf000000000000000000000000000001",
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "administrative_check",
+                        "status": "completed",
+                        "outcome": "eligible",
+                        "completed_by_uuid": actor.uuid.hex,
+                    },
+                    {
+                        "uuid": "cf000000000000000000000000000002",
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "expert_review",
+                        "status": "active",
+                    },
+                ],
+            }
+        )
+
+        # Step config overrides the row auto-seeded by the call's post-save
+        # signal (matched by call + step, not uuid).
+        step = CallWorkflowStep.objects.get(call=call, step="expert_review")
+        self.assertTrue(step.is_enabled)
+        self.assertTrue(step.blind_review)
+
+        instances = ProposalWorkflowStepInstance.objects.filter(proposal=proposal)
+        self.assertEqual(instances.count(), 2)
+        completed = instances.get(step="administrative_check")
+        self.assertEqual(completed.status, "completed")
+        self.assertEqual(completed.outcome, "eligible")
+        self.assertEqual(completed.completed_by, actor)
+        self.assertEqual(instances.get(step="expert_review").status, "active")
+
+        # The active instance keeps the proposal's workflow_step pointer in sync.
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.workflow_step, "expert_review")
+
+    def test_instance_without_uuid_is_skipped(self):
+        proposal = proposal_factories.ProposalFactory()
+        self._run(
+            {
+                "proposal_workflow_step_instances": [
+                    {
+                        "proposal_uuid": proposal.uuid.hex,
+                        "step": "expert_review",
+                        "status": "active",
+                    },
+                ],
+            }
+        )
+        self.assertEqual(
+            ProposalWorkflowStepInstance.objects.filter(proposal=proposal).count(), 0
+        )
