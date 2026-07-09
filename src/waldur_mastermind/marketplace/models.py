@@ -2105,6 +2105,28 @@ class Resource(
             return False
         return self.end_date <= timezone.datetime.today().date()
 
+    @property
+    def effective_end_date(self) -> datetime.date | None:
+        """The date this resource is actually scheduled to terminate: the earliest
+        of its own end date and the project-driven termination date. The project
+        date is the raw project end date when the offering disables the grace
+        period, otherwise the effective (with-grace) end date."""
+        project = self.project
+        project_date = None
+        if project and project.end_date:
+            # Reflects this resource's own offering flag. A child resource whose
+            # parent offering (rather than its own) disables the grace period
+            # terminates with its parent on the raw date; that edge case is not
+            # reflected here.
+            if (self.offering.plugin_options or {}).get("disable_grace_period"):
+                project_date = project.end_date
+            else:
+                project_date = project.end_date_with_grace
+        candidates = [
+            date for date in (self.end_date, project_date) if date is not None
+        ]
+        return min(candidates) if candidates else None
+
     def __str__(self):
         if self.name:
             return f"{self.name} ({self.offering.name})"
