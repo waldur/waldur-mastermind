@@ -15,6 +15,7 @@ from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS,
     CallStates,
     ProposalStates,
+    RequestedOfferingStates,
     ResponsibleRoles,
     TransitionModes,
     WorkflowStepInstanceStatuses,
@@ -1410,6 +1411,8 @@ class CallActivateWorkflowGuardTest(test.APITestCase):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
         factories.RoundFactory(call=self.draft_call)
+        # A call must have at least one offering to be activated.
+        factories.RequestedOfferingFactory(call=self.draft_call)
 
     def _activate(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -1420,6 +1423,27 @@ class CallActivateWorkflowGuardTest(test.APITestCase):
         CallWorkflowStep.objects.filter(call=self.draft_call).delete()
         response = self._activate()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.draft_call.refresh_from_db()
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
+
+    def test_activate_without_offerings_returns_400(self):
+        self.draft_call.requestedoffering_set.all().delete()
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering", str(response.data).lower())
+        self.draft_call.refresh_from_db()
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
+
+    def test_activate_with_only_requested_offering_returns_400(self):
+        # A requested-but-not-accepted offering yields no resource templates, so
+        # activation requires an ACCEPTED one (matches the accepted-only
+        # `offerings` serializer field the frontend gate reads).
+        self.draft_call.requestedoffering_set.update(
+            state=RequestedOfferingStates.REQUESTED
+        )
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering", str(response.data).lower())
         self.draft_call.refresh_from_db()
         self.assertEqual(self.draft_call.state, CallStates.DRAFT)
 
@@ -2253,3 +2277,32 @@ class WorkflowStepNegativeOutcomeTest(test.APITestCase):
         _, instance = self._complete("allocation_decision", "declined")
         instance.refresh_from_db()
         self.assertEqual(instance.outcome, WorkflowStepOutcomes.DECLINED)
+
+
+class ProposalTeamVisibilityTest(test.APITestCase):
+    """A call's reviewers/panel members may view a proposal's team (read-only)
+    so the review interface renders instead of 403-crashing its team section."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.url = factories.ProposalFactory.get_url(
+            self.fixture.proposal, "list_users"
+        )
+
+    def test_call_reviewer_can_view_proposal_team(self):
+        self.client.force_authenticate(self.fixture.reviewer_1)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_call_manager_can_view_proposal_team(self):
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_unrelated_user_cannot_view_proposal_team(self):
+        self.client.force_authenticate(structure_factories.UserFactory())
+        response = self.client.get(self.url)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )

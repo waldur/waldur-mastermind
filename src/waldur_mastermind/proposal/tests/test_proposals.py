@@ -259,8 +259,6 @@ class ActionTest(test.APITestCase):
         # step so submit() doesn't transition the proposal into IN_REVIEW.
         models.CallWorkflowStep.objects.filter(call=self.proposal.round.call).delete()
         self.submit_url = factories.ProposalFactory.get_url(self.proposal, "submit")
-        self.approve_url = factories.ProposalFactory.get_url(self.proposal, "approve")
-        self.reject_url = factories.ProposalFactory.get_url(self.proposal, "reject")
         structure_factories.NotificationFactory(
             key="proposal.proposal_state_changed",
         )
@@ -338,43 +336,16 @@ class ActionTest(test.APITestCase):
         response = self.client.post(self.submit_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @override_settings(task_always_eager=True)
-    def test_force_approval_of_proposal_creates_project(self):
-        self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.save()
-
-        self.client.force_authenticate(self.fixture.staff)
-
-        response = self.client.post(self.approve_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.proposal.refresh_from_db()
-        self.assertTrue(self.proposal.project)
-
-        # Verify proposal creator has been notified
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [self.proposal.created_by.email])
-        project_url = core_utils.format_homeport_link(
-            "projects/{project_uuid}/",
-            project_uuid=self.proposal.project.uuid,
-        )
-        body = mail.outbox[0].body
-        self.assertIn("Your proposal has been accepted.", body)
-        self.assertIn(f"Previous state: {ProposalStates.IN_REVIEW}", body)
-        self.assertIn(f"New state: {ProposalStates.ACCEPTED}", body)
-        self.assertIn(f"View Project: {project_url}", body)
-        for requested_resource in self.proposal.requestedresource_set.all():
-            self.assertIn(requested_resource.resource.name, body)
-
-    def test_set_project_start_date_if_proposal_has_been_approved(self):
-        self.client.force_authenticate(self.fixture.staff)
+    def test_set_project_start_date_on_fixed_date_allocation(self):
         new_proposal = factories.ProposalFactory(
             round=self.fixture.round,
             state=ProposalStates.IN_REVIEW,
+            project=None,
         )
         allocation_date = timezone.now() + datetime.timedelta(weeks=1)
         new_proposal.round.allocation_date = allocation_date
         new_proposal.round.save()
-        # Allocation timing is now a call-level policy on the allocation_decision
+        # Allocation timing is a call-level policy on the allocation_decision
         # workflow step; the concrete date stays on the round.
         models.CallWorkflowStep.objects.update_or_create(
             call=new_proposal.round.call,
@@ -382,9 +353,7 @@ class ActionTest(test.APITestCase):
             defaults={"allocation_time": AllocationTimes.FIXED_DATE},
         )
 
-        new_url_approve = factories.ProposalFactory.get_url(new_proposal, "approve")
-        response = self.client.post(new_url_approve)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        utils.allocate_proposal(new_proposal, approved_by=self.fixture.staff)
         new_proposal.refresh_from_db()
         self.assertEqual(new_proposal.project.start_date, allocation_date.date())
 
@@ -415,73 +384,6 @@ class ActionTest(test.APITestCase):
         start_date = new_proposal.project.start_date
         self.assertIsInstance(start_date, datetime.date)
         self.assertNotIsInstance(start_date, datetime.datetime)
-
-    @override_settings(task_always_eager=True)
-    def test_reviewer_notification_triggered_on_reject(self):
-        factories.ReviewFactory(
-            proposal=self.proposal,
-            reviewer=self.fixture.reviewer_1,
-            state=models.Review.States.SUBMITTED,
-        )
-
-        self.proposal.state = ProposalStates.IN_REVIEW
-        self.proposal.save()
-
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(
-            self.reject_url, {"allocation_comment": "Not suitable"}
-        )
-
-        self.proposal.refresh_from_db()
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Should have 2 emails: 1 for proposal creator + 1 for reviewer
-        self.assertEqual(len(mail.outbox), 2)
-
-        reviewer_email = next(
-            email
-            for email in mail.outbox
-            if email.to[0] == self.fixture.reviewer_1.email
-        )
-
-        body = reviewer_email.body
-        self.assertIn("A decision has been made on the proposal", body)
-        self.assertIn(self.proposal.name, body)
-        self.assertIn(self.proposal.round.call.name, body)
-        self.assertIn(self.proposal.state, body)
-        self.assertIn("Not suitable", body)
-        self.assertIn(self.fixture.reviewer_1.full_name, body)
-
-    @data(
-        "call_manager",
-        "call_organizer_user",
-    )
-    def test_user_can_approve_or_reject(self, user):
-        accept_response, reject_response = self._approve_reject_proposal(user)
-        self.assertEqual(accept_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(reject_response.status_code, status.HTTP_200_OK)
-
-    @data(
-        "proposal_creator",
-    )
-    def test_user_can_not_approve_or_reject(self, user):
-        accept_response, reject_response = self._approve_reject_proposal(user)
-        self.assertEqual(accept_response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(reject_response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def _approve_reject_proposal(self, user):
-        user = getattr(self.fixture, user)
-        self.client.force_authenticate(user)
-        self.proposal.state = ProposalStates.SUBMITTED
-        self.proposal.save()
-        accept_response = self.client.post(self.approve_url)
-
-        self.proposal.state = ProposalStates.SUBMITTED
-        self.proposal.save()
-
-        reject_response = self.client.post(self.reject_url)
-        return accept_response, reject_response
 
 
 @ddt

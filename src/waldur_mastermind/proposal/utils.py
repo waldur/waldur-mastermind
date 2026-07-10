@@ -26,6 +26,18 @@ logger = logging.getLogger(__name__)
 
 
 def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
+    # Idempotency guard: a proposal is provisioned exactly once. Without this a
+    # second allocation (e.g. re-driving the workflow, or a stale caller) would
+    # create a duplicate project + resources + orders. The workflow terminal
+    # already checks project_id, but the guard belongs here so no caller can
+    # double-provision.
+    if proposal.project is not None:
+        logger.info(
+            "Proposal %s is already allocated to project %s; skipping.",
+            proposal.uuid,
+            proposal.project,
+        )
+        return
     proposal_round = proposal.round
     name = proposal.name
     start_date = None
