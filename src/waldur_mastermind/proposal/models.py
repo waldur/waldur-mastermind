@@ -314,7 +314,10 @@ class CallWorkflowStep(
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Minimum average score to pass this step.",
+        help_text=(
+            "Minimum average score required before this step can complete "
+            "(a completion gate; it does not auto-reject lower scores)."
+        ),
     )
 
     # Visibility
@@ -335,7 +338,11 @@ class CallWorkflowStep(
         max_length=32,
         choices=enums.TransitionModes.CHOICES,
         default=enums.TransitionModes.AUTOMATIC_ON_COMPLETION,
-        help_text="How this step advances to the next.",
+        help_text=(
+            "How this step advances once a human completes it. 'Automatic' "
+            "advances to the next step immediately; 'Manual' waits for a "
+            "separate advance action. Neither auto-decides from review scores."
+        ),
     )
 
     # Per-step extras

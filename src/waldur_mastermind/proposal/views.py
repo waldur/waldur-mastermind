@@ -33,7 +33,6 @@ from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.core import validators as core_validators
-from waldur_core.core.enums import ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.models import User
 from waldur_core.core.utils import SubqueryCount
@@ -573,6 +572,16 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             raise exceptions.ValidationError(
                 _("Mandatory workflow steps are missing: %s.")
                 % ", ".join(missing_names)
+            )
+        # Require an *accepted* offering: only accepted offerings yield the
+        # resource templates applicants can request, and it matches the call
+        # serializer's `offerings` field (accepted-only) so the frontend gate
+        # agrees exactly with this check.
+        if not call.requestedoffering_set.filter(
+            state=RequestedOfferingStates.ACCEPTED
+        ).exists():
+            raise exceptions.ValidationError(
+                _("Call must have at least one accepted offering to be activated.")
             )
         call.state = CallStates.ACTIVE
         call.save()
@@ -2385,11 +2394,18 @@ class ProposalViewSet(
         )
 
     def can_view_scope_team(self, user, proposal):
-        # Core walks the proposal's customer/project tree, which misses a
-        # user whose only role is CALL.MANAGER directly on the call.
+        # Core walks the proposal's customer/project tree, which misses users
+        # whose only role is directly on the call. Call managers — and the
+        # reviewers/panel members assigned to the call — may view the proposal
+        # team read-only, so the review interface renders (rather than crashing
+        # its team section on a 403) and evaluators can comment on it.
         if super().can_view_scope_team(user, proposal):
             return True
-        return proposal.round.call_id in get_connected_calls(user, CallRole.MANAGER)
+        call_id = proposal.round.call_id
+        return any(
+            call_id in get_connected_calls(user, role)
+            for role in (CallRole.MANAGER, CallRole.REVIEWER, CallRole.PANEL_MEMBER)
+        )
 
     # Both mixins use the default implementation (obj.checklist_completion)
     # UserChecklistMixin permissions - for proposal managers only
@@ -3044,75 +3060,11 @@ class ProposalViewSet(
 
     detach_documents_serializer_class = serializers.ProposalDetachDocumentsSerializer
 
-    @extend_schema(
-        description="Approve a proposal.",
-        request=serializers.ProposalApproveSerializer,
-        responses={status.HTTP_200_OK: None},
-    )
-    @decorators.action(detail=True, methods=["post"])
-    def approve(self, request, uuid=None):
-        proposal = self.get_object()
-        previous_state = proposal.state
-        utils.allocate_proposal(proposal, approved_by=request.user)
-        proposal.state = ProposalStates.ACCEPTED
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        proposal.allocation_comment = serializer.validated_data.get(
-            "allocation_comment", ""
-        )
-        proposal.save()
-        tasks.notify_proposal_decision(proposal.uuid, previous_state, proposal.state)
-        return response.Response(
-            "Proposal has been approved.",
-            status=status.HTTP_200_OK,
-        )
-
-    approve_validators = [
-        core_validators.StateValidator(
-            ProposalStates.SUBMITTED,
-            ProposalStates.IN_REVIEW,
-            ProposalStates.REJECTED,
-            state_enum=ReviewStates,
-        )
-    ]
-
-    @extend_schema(
-        description="Reject a proposal.",
-        request=serializers.ProposalApproveSerializer,
-        responses={status.HTTP_200_OK: None},
-    )
-    @decorators.action(detail=True, methods=["post"])
-    def reject(self, request, uuid=None):
-        proposal = self.get_object()
-        previous_state = proposal.state
-        proposal.state = ProposalStates.REJECTED
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        proposal.allocation_comment = serializer.validated_data.get(
-            "allocation_comment", ""
-        )
-        proposal.save()
-        tasks.notify_proposal_decision(proposal.uuid, previous_state, proposal.state)
-        return response.Response(
-            "Proposal has been rejected.",
-            status=status.HTTP_200_OK,
-        )
-
-    reject_validators = [
-        core_validators.StateValidator(
-            ProposalStates.SUBMITTED,
-            ProposalStates.IN_REVIEW,
-        )
-    ]
-    reject_permissions = approve_permissions = [
-        permission_factory(
-            PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
-            ["round.call", "round.call.manager"],
-        )
-    ]
-    reject_serializer_class = approve_serializer_class = (
-        serializers.ProposalApproveSerializer
-    )
+    # NOTE: the legacy one-click `approve`/`reject` actions were removed — every
+    # proposal is now driven through the workflow engine (complete/advance/reject
+    # workflow-step actions), which is the single provisioning path. See the
+    # data migration that backfilled any pre-engine `submitted`/`in_review`
+    # proposals with workflow instances.
 
     # Checklist Integration Endpoints
     # Checklist methods are now provided by ChecklistViewSetMixin

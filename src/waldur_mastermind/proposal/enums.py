@@ -88,8 +88,15 @@ class TransitionModes:
     MANUAL = "manual"
 
     CHOICES = (
-        (AUTOMATIC_ON_COMPLETION, "Advance automatically when step completes"),
-        (MANUAL, "Advance manually (call manager confirms)"),
+        # "Automatic" governs only whether advancing to the next step needs a
+        # second manual action once a human completes this step — it does NOT
+        # auto-decide from review scores (min_reviewers / min_score_threshold
+        # remain completion gates a human must clear).
+        (
+            AUTOMATIC_ON_COMPLETION,
+            "Advance to the next step as soon as this one is completed",
+        ),
+        (MANUAL, "Hold for a separate manual advance after completion"),
     )
 
 

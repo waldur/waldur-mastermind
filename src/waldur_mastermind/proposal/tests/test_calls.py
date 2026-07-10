@@ -269,6 +269,17 @@ class CallActivateTest(test.APITestCase):
         self.draft_call = self.fixture.new_call
         self.active_call = self.fixture.call
         self.draft_call.add_user(self.fixture.call_manager, CallRole.MANAGER)
+        # A call must have at least one offering to be activated.
+        factories.RequestedOfferingFactory(call=self.draft_call)
+
+    def test_user_can_not_activate_call_without_offering(self):
+        factories.RoundFactory(call=self.draft_call)
+        self.draft_call.requestedoffering_set.all().delete()
+        response = self.activate_call("staff", self.draft_call)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
 
     @data(
         "staff",

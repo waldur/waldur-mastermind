@@ -33,6 +33,7 @@ from waldur_mastermind.marketplace.serializers import (
     UserAttributeConfigBaseSerializer,
 )
 from waldur_mastermind.proposal.enums import (
+    MANDATORY_STEPS,
     WORKFLOW_STEPS_MAP,
     AllocationTimes,
     BulkRoundCadence,
@@ -1764,10 +1765,6 @@ class RoundReviewerSerializer(serializers.Serializer):
 
     def get_full_name(self, obj) -> str:
         return f"{obj.first_name} {obj.last_name}"
-
-
-class ProposalApproveSerializer(serializers.Serializer):
-    allocation_comment = serializers.CharField(required=False)
 
 
 class CallRoundSerializer(serializers.HyperlinkedModelSerializer):
@@ -4307,6 +4304,7 @@ class CallWorkflowStepSerializer(
         allow_null=True,
     )
     checklist_name = serializers.SerializerMethodField()
+    is_mandatory = serializers.SerializerMethodField()
     criteria = WorkflowCriterionSerializer(many=True, required=False)
 
     class Meta:
@@ -4319,6 +4317,7 @@ class CallWorkflowStepSerializer(
             "call_uuid",
             "call_name",
             "is_enabled",
+            "is_mandatory",
             "duration_in_days",
             "checklist",
             "checklist_name",
@@ -4340,6 +4339,12 @@ class CallWorkflowStepSerializer(
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_checklist_name(self, obj):
         return obj.checklist.name if obj.checklist else None
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_mandatory(self, obj):
+        # Mandatory steps can't be disabled and are required for call
+        # activation; the UI mirrors this to gate the Activate button.
+        return obj.step in MANDATORY_STEPS
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

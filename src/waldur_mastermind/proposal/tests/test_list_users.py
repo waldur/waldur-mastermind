@@ -31,11 +31,13 @@ class ProposalListUsersPermissionTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_call_reviewer_is_denied(self):
-        # Reviewers on the call don't get team-listing access — only managers.
+    def test_call_reviewer_is_allowed(self):
+        # Reviewers (and panel members) assigned to the call may view the
+        # proposal team read-only, so the review interface renders and they can
+        # comment on the team section.
         self.client.force_authenticate(self.fixture.reviewer_1)
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_outsider_cannot_see_proposal_at_all(self):
         # Unrelated user — the queryset filter hides the proposal entirely,
