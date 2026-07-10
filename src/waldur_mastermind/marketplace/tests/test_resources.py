@@ -2696,6 +2696,19 @@ class ProviderResourceLimitsSetTest(test.APITestCase):
             ).exists()
         )
 
+    def test_keys_without_matching_component_are_rejected(self):
+        # An agent may push a backend-native key that does not correspond to any
+        # offering component. This is configuration skew that must surface, not
+        # be persisted (an orphan key would later crash limit formatting on
+        # resource update), so the whole request is rejected and limits stay put.
+        response = self.make_request(
+            self.fixture.staff, limits={"cpu": 20, "max_tokens": 1000000000}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("max_tokens", str(response.data))
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10})
+
 
 class ProviderResourceSetLimitsWithPeriodicPolicyTest(test.APITestCase):
     """When a SlurmPeriodicUsagePolicy is active on the offering, the
