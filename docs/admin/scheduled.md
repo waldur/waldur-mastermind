@@ -31,7 +31,7 @@ td:nth-child(4) {
 | `check-arrow-billing-export` | `waldur_mastermind.waldur_arrow.check_billing_export_scheduled` | 6 hours | Scheduled task to check for finalized billing export and reconcile.<br><br>Runs every ARROW_BILLING_CHECK_INTERVAL_HOURS (default: 6 hours).<br>Checks previous month and current month for billing data. |
 | `check-arrow-validated-billing` | `waldur_mastermind.waldur_arrow.check_validated_billing` | 12 hours | Scheduled task to check for newly validated billing in Arrow.<br><br>Checks synced but not yet validated billing syncs and updates their state.<br>If auto-reconciliation is enabled, triggers reconciliation. |
 | `check-expired-permissions` | `waldur_core.permissions.check_expired_permissions` | 1 day | No description available |
-| `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
+| `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `0 */4 * * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
 | `check-table-growth-alerts` | `waldur_core.check_table_growth_alerts` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Check for tables that have grown abnormally fast and send alerts.<br>Compares current sizes against 7-day and 30-day historical data. |
 | `cleanup-dangling-user-actions` | `waldur_core.user_actions.cleanup_dangling_user_actions` | Cron: `30 3 * * * (m/h/dM/MY/d)` | Clean up user actions pointing to non-existent objects (fallback periodic cleanup) |
 | `cleanup-expired-pats` | `waldur_core.core.cleanup_expired_personal_access_tokens` | 6 hours | Deactivate expired PATs. |
