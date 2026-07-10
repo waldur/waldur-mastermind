@@ -373,3 +373,136 @@ class UsageLimitRestrictionWiringTest(test.APITestCase):
             )
 
         mock_delay.assert_called_once_with(resource.pk)
+
+
+class UsageLimitRestrictionPerResourceLimitTest(test.APITestCase):
+    """The limit checked against is the per-resource limit (``resource.limits``),
+    not just the offering component's ``limit_amount``."""
+
+    def _setup(self, limit_amount=None, resource_limit=2, action="pause"):
+        offering, component, resource = build_setup(
+            action=action, limit_amount=limit_amount
+        )
+        resource.limits = {component.type: resource_limit}
+        resource.save()
+        return offering, component, resource
+
+    def test_pause_on_per_resource_limit_without_component_limit_amount(self):
+        _, component, resource = self._setup(limit_amount=None, resource_limit=2)
+        report(resource, component, usage=3)
+
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.paused)
+        self.assertEqual(resource.usage_limit_restriction, "paused")
+
+    def test_per_resource_limit_takes_precedence_over_component_limit_amount(self):
+        # Component allows 100, but this resource's own limit is 2.
+        _, component, resource = self._setup(limit_amount=100, resource_limit=2)
+        report(resource, component, usage=3)
+
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.paused)
+
+    def test_no_pause_below_per_resource_limit(self):
+        _, component, resource = self._setup(limit_amount=None, resource_limit=5)
+        report(resource, component, usage=4)
+
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+    def test_auto_clear_when_usage_drops_below_per_resource_limit(self):
+        _, component, resource = self._setup(limit_amount=None, resource_limit=2)
+        usage = report(resource, component, usage=3)
+        evaluate_usage_limit_restriction(resource)
+        resource.refresh_from_db()
+        self.assertTrue(resource.paused)
+
+        usage.usage = 1
+        usage.save()
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+
+class UsageLimitRestrictionResourceLimitWiringTest(test.APITestCase):
+    def test_usage_report_schedules_with_only_per_resource_limit(self):
+        _, component, resource = build_setup(action="pause", limit_amount=None)
+        resource.limits = {component.type: 2}
+        resource.save()
+        usage = report(resource, component, usage=3)
+
+        with (
+            mock.patch(
+                "waldur_mastermind.marketplace.tasks."
+                "evaluate_usage_limit_restriction_task.delay"
+            ) as mock_delay,
+            mock.patch(
+                "waldur_mastermind.marketplace.handlers.transaction.on_commit",
+                side_effect=lambda fn: fn(),
+            ),
+        ):
+            handlers.evaluate_usage_limit_on_usage_report(
+                sender=models.ComponentUsage, instance=usage, created=True
+            )
+
+        mock_delay.assert_called_once_with(resource.pk)
+
+    def test_usage_report_does_not_schedule_without_any_limit(self):
+        _, component, resource = build_setup(action="pause", limit_amount=None)
+        # resource.limits carries no entry for the component type.
+        usage = report(resource, component, usage=3)
+
+        with mock.patch(
+            "waldur_mastermind.marketplace.tasks."
+            "evaluate_usage_limit_restriction_task.delay"
+        ) as mock_delay:
+            handlers.evaluate_usage_limit_on_usage_report(
+                sender=models.ComponentUsage, instance=usage, created=True
+            )
+
+        mock_delay.assert_not_called()
+
+    def test_lowering_resource_limit_schedules_reevaluation(self):
+        _, component, resource = build_setup(action="pause", limit_amount=None)
+        resource.limits = {component.type: 10}
+        resource.save()
+        resource.limits = {component.type: 1}  # changed, unsaved
+
+        with (
+            mock.patch(
+                "waldur_mastermind.marketplace.tasks."
+                "evaluate_usage_limit_restriction_task.delay"
+            ) as mock_delay,
+            mock.patch(
+                "waldur_mastermind.marketplace.handlers.transaction.on_commit",
+                side_effect=lambda fn: fn(),
+            ),
+        ):
+            handlers.evaluate_usage_limit_on_resource_limit_change(
+                sender=models.Resource, instance=resource, created=False
+            )
+
+        mock_delay.assert_called_once_with(resource.pk)
+
+    def test_resource_limit_change_does_not_schedule_when_disabled(self):
+        _, component, resource = build_setup(action=None, limit_amount=None)
+        resource.limits = {component.type: 1}
+
+        with mock.patch(
+            "waldur_mastermind.marketplace.tasks."
+            "evaluate_usage_limit_restriction_task.delay"
+        ) as mock_delay:
+            handlers.evaluate_usage_limit_on_resource_limit_change(
+                sender=models.Resource, instance=resource, created=False
+            )
+
+        mock_delay.assert_not_called()

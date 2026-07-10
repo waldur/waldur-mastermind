@@ -1253,20 +1253,38 @@ def get_current_period_usage(resource, limit_period=None):
     return result
 
 
-def is_usage_over_component_limit(resource):
-    """Whether current-period reported usage reaches any limit component's limit_amount.
+def get_effective_component_limit(resource, component):
+    """The limit reported usage is checked against for a LIMIT component.
 
-    Only limit-based components (``billing_type == LIMIT``) with a ``limit_amount``
-    are considered. Uses ``get_current_period_usage`` so each component is compared
-    over its own ``limit_period`` (month / quarter / annual / total).
+    The per-resource limit (``resource.limits[component.type]``, set when the
+    resource is ordered) takes precedence, falling back to the offering
+    component's ``limit_amount``. Returns ``None`` when neither is set. A limit
+    of 0 is treated as unset, matching the previous ``limit_amount`` behaviour.
+    """
+    resource_limit = (resource.limits or {}).get(component.type)
+    if resource_limit:
+        return resource_limit
+    return component.limit_amount or None
+
+
+def is_usage_over_component_limit(resource):
+    """Whether current-period reported usage reaches any limit component's limit.
+
+    Only limit-based components (``billing_type == LIMIT``) are considered, and
+    each is compared against its effective limit — the per-resource limit when
+    set, otherwise the component's ``limit_amount`` (see
+    ``get_effective_component_limit``). Uses ``get_current_period_usage`` so each
+    component is compared over its own ``limit_period`` (month / quarter /
+    annual / total).
     """
     period_usage = get_current_period_usage(resource)
-    return any(
-        component.billing_type == BillingTypes.LIMIT
-        and component.limit_amount
-        and period_usage.get(component.type, 0) >= component.limit_amount
-        for component in resource.offering.components.all()
-    )
+    for component in resource.offering.components.all():
+        if component.billing_type != BillingTypes.LIMIT:
+            continue
+        limit = get_effective_component_limit(resource, component)
+        if limit and period_usage.get(component.type, 0) >= limit:
+            return True
+    return False
 
 
 _USAGE_LIMIT_EVENT_TYPES = {
