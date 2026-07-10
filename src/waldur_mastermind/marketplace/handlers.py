@@ -750,14 +750,18 @@ def evaluate_usage_limit_on_usage_report(
     """
     if not (created or instance.tracker.has_changed("usage")):
         return
-    # Only limit-based components with a limit_amount drive the restriction; a
-    # usage report against any other component cannot change the outcome.
+    # Only limit-based components drive the restriction; a usage report against
+    # any other component cannot change the outcome.
     component = instance.component
-    if not (component.billing_type == BillingTypes.LIMIT and component.limit_amount):
+    if component.billing_type != BillingTypes.LIMIT:
         return
     resource = instance.resource
     action = resource.offering.plugin_options.get("action_on_usage_limit")
     if action not in (UsageLimitAction.PAUSE, UsageLimitAction.DOWNSCALE):
+        return
+    # The limit is the per-resource limit when set, otherwise the component's
+    # limit_amount. Without any limit the outcome cannot change.
+    if not marketplace_utils.get_effective_component_limit(resource, component):
         return
 
     # Local import mirrors the existing tasks imports in this module (avoids the
@@ -799,6 +803,29 @@ def evaluate_usage_limit_on_component_change(
             tasks.evaluate_usage_limit_restriction_task.delay(resource_id)
 
     transaction.on_commit(_schedule)
+
+
+def evaluate_usage_limit_on_resource_limit_change(
+    sender, instance: Resource, created=False, **kwargs
+):
+    """Re-evaluate a resource's usage-limit restriction when its limits change.
+
+    Lowering a per-resource limit may push reported usage over it (introducing a
+    restriction); raising it should lift one previously applied here. Only
+    relevant for offerings that opt in.
+    """
+    if created or not instance.tracker.has_changed("limits"):
+        return
+    action = instance.offering.plugin_options.get("action_on_usage_limit")
+    if action not in (UsageLimitAction.PAUSE, UsageLimitAction.DOWNSCALE):
+        return
+
+    from waldur_mastermind.marketplace import tasks
+
+    resource_id = instance.pk
+    transaction.on_commit(
+        lambda: tasks.evaluate_usage_limit_restriction_task.delay(resource_id)
+    )
 
 
 def update_or_create_quotas(resource: Resource):
