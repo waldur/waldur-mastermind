@@ -29,7 +29,9 @@ from waldur_mastermind.policy.handlers import (
     _CUSTOMER_POLICY_PATH,
     _OFFERING_ESTIMATED_COST_POLICY_PATH,
     _OFFERING_USAGE_POLICY_PATH,
+    _PROJECT_POLICY_PATH,
     COST_POLICY_DEBOUNCE_SECONDS,
+    COST_POLICY_FAST_DEBOUNCE_SECONDS,
     _debounced_evaluate,
 )
 from waldur_mastermind.policy.tests import factories as policy_factories
@@ -104,6 +106,39 @@ class CostPolicyDebounceTest(test.APITestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 _debounced_evaluate("test.Path", {"scope_id": 1}, "expiry_key")
             self.assertEqual(mock_apply.call_count, 2)
+
+    def test_failed_publish_releases_key_no_blind_window(self):
+        """A failed broker publish must not leave a stale debounce key.
+
+        Regression for the blind-window bug: the key was claimed with
+        ``cache.add`` *before* the publish, and publish errors were swallowed
+        without releasing the key. A single failed publish therefore dropped
+        every subsequent trigger for the whole debounce window even after the
+        broker recovered — evaluation was lost until the key expired (or the
+        periodic safety-net sweep ran). The fix releases the key on failure so
+        the next trigger reschedules.
+        """
+        with mock.patch(
+            "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+        ) as mock_apply:
+            # First trigger: broker is down, the deferred publish raises.
+            mock_apply.side_effect = RuntimeError("broker down")
+            with self.captureOnCommitCallbacks(execute=True):
+                _debounced_evaluate("test.Path", {"scope_id": 1}, "blind_window_key")
+            self.assertEqual(mock_apply.call_count, 1)
+
+            # Broker recovers; a fresh trigger arrives within the debounce window.
+            mock_apply.side_effect = None
+            mock_apply.reset_mock()
+            with self.captureOnCommitCallbacks(execute=True):
+                _debounced_evaluate("test.Path", {"scope_id": 1}, "blind_window_key")
+
+            self.assertEqual(
+                mock_apply.call_count,
+                1,
+                "After a failed publish the debounce key must be released so "
+                "the next trigger reschedules; a stale key drops the evaluation.",
+            )
 
 
 @override_settings(task_always_eager=True, WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120)
@@ -188,6 +223,98 @@ class CostPolicyHandlerIntegrationTest(test.APITestCase):
                 f"got {len(debounced_calls)}: {scheduled_paths}",
             )
             self.assertIn(_OFFERING_ESTIMATED_COST_POLICY_PATH, scheduled_paths)
+
+
+@override_settings(
+    task_always_eager=True,
+    WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120,
+)
+@freeze_time("2026-04-01")
+class ProjectPolicyFastDebounceTest(test.APITestCase):
+    """Resource-scoped and ``use_credit=False`` project policies must act
+    promptly after a breach: they evaluate asynchronously but on the fast
+    countdown, not the full month-boundary settling window."""
+
+    def setUp(self):
+        cache.clear()
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = 2
+        self.resource.save()
+        self.invoice = invoices_models.Invoice.objects.get(
+            customer=self.fixture.customer, month=4, year=2026
+        )
+
+    def _project_publish_countdowns(self):
+        """Save an invoice item and return the countdowns of the scheduled
+        project-policy evaluations."""
+        with mock.patch(
+            "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+        ) as apply_async:
+            cache.clear()
+            with self.captureOnCommitCallbacks(execute=True):
+                invoices_factories.InvoiceItemFactory(
+                    invoice=self.invoice,
+                    project=self.fixture.project,
+                    resource=self.resource,
+                    unit_price=Decimal("10"),
+                    quantity=1,
+                )
+            return [
+                c.kwargs["countdown"]
+                for c in apply_async.call_args_list
+                if c.kwargs.get("args", [None])[0] == _PROJECT_POLICY_PATH
+            ]
+
+    def test_resource_scoped_policy_uses_fast_countdown(self):
+        policy_factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.fixture.project,
+            resource=self.resource,
+            use_credit=True,
+            limit_cost=1,
+            actions="request_pausing",
+        )
+        self.assertEqual(
+            self._project_publish_countdowns(), [COST_POLICY_FAST_DEBOUNCE_SECONDS]
+        )
+
+    def test_use_credit_false_policy_uses_fast_countdown(self):
+        policy_factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.fixture.project,
+            resource=None,
+            use_credit=False,
+            limit_cost=1,
+            actions="request_pausing",
+        )
+        self.assertEqual(
+            self._project_publish_countdowns(), [COST_POLICY_FAST_DEBOUNCE_SECONDS]
+        )
+
+    def test_project_wide_credit_policy_keeps_default_window(self):
+        """A project-wide ``use_credit=True`` policy still waits the full window
+        so the month-boundary compensation burst can settle."""
+        policy_factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.fixture.project,
+            resource=None,
+            use_credit=True,
+            limit_cost=1,
+            actions="notify_project_team",
+        )
+        self.assertEqual(
+            self._project_publish_countdowns(), [COST_POLICY_DEBOUNCE_SECONDS]
+        )
+
+    def test_no_project_policy_keeps_default_window(self):
+        """With no project policy at all, the default window is used."""
+        self.assertEqual(
+            self._project_publish_countdowns(), [COST_POLICY_DEBOUNCE_SECONDS]
+        )
+
+    def test_fast_countdown_is_a_coalescing_floor_not_near_zero(self):
+        """The fast interval must stay a few seconds so a synchronized fleet
+        burst still coalesces into a handful of evaluations per project rather
+        than roughly one per second."""
+        self.assertGreaterEqual(COST_POLICY_FAST_DEBOUNCE_SECONDS, 5)
 
 
 def _publishes_for(apply_async_mock, delay_mock, policy_path):

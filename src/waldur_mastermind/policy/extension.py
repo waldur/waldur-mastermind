@@ -21,9 +21,13 @@ class PolicyExtension(WaldurExtension):
         from celery.schedules import crontab
 
         return {
+            # Safety net that re-evaluates every policy 6 times a day (every
+            # 4 hours). Evaluation is normally event-driven (invoice-item and
+            # credit saves); this periodic sweep bounds how long a policy can
+            # stay stale if an async evaluation was ever dropped.
             "check-polices": {
                 "task": "waldur_mastermind.policy.check_polices",
-                "schedule": crontab(hour=2, minute=0),
+                "schedule": crontab(minute=0, hour="*/4"),
                 "args": (),
             },
             "cleanup-slurm-evaluation-logs": {

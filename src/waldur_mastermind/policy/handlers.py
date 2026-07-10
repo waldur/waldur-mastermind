@@ -2,6 +2,7 @@ import logging
 
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import Q
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
@@ -19,6 +20,21 @@ logger = logging.getLogger(__name__)
 # Configurable via settings.WALDUR_COST_POLICY_DEBOUNCE_SECONDS.
 COST_POLICY_DEBOUNCE_SECONDS = 120
 
+# Fast debounce interval for policies that must act promptly after a single
+# resource breaches its limit. Resource-scoped and credit-agnostic
+# (``use_credit=False``) project policies do not depend on the month-boundary
+# compensation burst settling — there is no shared credit to distribute — so
+# they do not need the full window before pausing.
+#
+# This is deliberately a few seconds rather than ~0: the debounce also
+# coalesces bursts, and many resources in one project reporting usage at the
+# same time (e.g. a fleet on a 30-minute cadence) would otherwise schedule an
+# evaluation roughly every second for the whole burst. A short floor collapses
+# such a burst into a handful of evaluations per project while still pausing
+# well within a "prompt" window.
+# Configurable via settings.WALDUR_COST_POLICY_FAST_DEBOUNCE_SECONDS.
+COST_POLICY_FAST_DEBOUNCE_SECONDS = 10
+
 
 def _get_debounce_seconds():
     from django.conf import settings
@@ -28,7 +44,33 @@ def _get_debounce_seconds():
     )
 
 
-def _debounced_call(task, args, cache_key):
+def _get_fast_debounce_seconds():
+    from django.conf import settings
+
+    return getattr(
+        settings,
+        "WALDUR_COST_POLICY_FAST_DEBOUNCE_SECONDS",
+        COST_POLICY_FAST_DEBOUNCE_SECONDS,
+    )
+
+
+def _project_fast_debounce_seconds(project_id):
+    """Return the fast countdown when the project has a policy that must fire
+    promptly, otherwise ``None`` (caller falls back to the default window).
+
+    A resource-scoped or ``use_credit=False`` policy targets a single resource
+    and has no compensation to wait for, so it should pause the resource within
+    seconds of a breach rather than after the full debounce window.
+    """
+    has_fast_policy = (
+        ProjectEstimatedCostPolicy.objects.filter(scope_id=project_id)
+        .filter(Q(resource__isnull=False) | Q(use_credit=False))
+        .exists()
+    )
+    return _get_fast_debounce_seconds() if has_fast_policy else None
+
+
+def _debounced_call(task, args, cache_key, debounce_seconds=None):
     """Schedule a debounced Celery task call.
 
     Uses cache.add() (atomic SETNX) to ensure only one task is scheduled
@@ -49,9 +91,18 @@ def _debounced_call(task, args, cache_key):
 
     Publish exceptions are swallowed and logged: policy evaluation is a
     side-effect, not a correctness requirement, so a transient broker
-    blip must not propagate up to a 5xx on the parent operation.
+    blip must not propagate up to a 5xx on the parent operation. On such a
+    failure the claim is released (``cache.delete``) so the *next* trigger
+    reschedules immediately instead of being dropped against a stale key —
+    otherwise a single failed publish opens a blind window for the whole
+    debounce interval (longer, if no further trigger arrives, until the
+    periodic safety-net sweep).
+
+    ``debounce_seconds`` overrides the default window for a single call;
+    callers pass the fast interval for policies that must act promptly.
     """
-    debounce_seconds = _get_debounce_seconds()
+    if debounce_seconds is None:
+        debounce_seconds = _get_debounce_seconds()
     if debounce_seconds <= 0:
         # Debounce disabled — dispatch immediately (used in tests).
         task.delay(*args)
@@ -69,9 +120,12 @@ def _debounced_call(task, args, cache_key):
         try:
             task.apply_async(args=list(args), countdown=debounce_seconds)
         except Exception:  # noqa: BLE001
+            # Release the claim so the next trigger retries rather than being
+            # dropped against a key that guards a task which was never enqueued.
+            cache.delete(cache_key)
             logger.exception(
                 "Deferred policy publish failed for %s key=%s; "
-                "policy evaluation will catch up on the next trigger.",
+                "released debounce key so the next trigger reschedules.",
                 task.name,
                 cache_key,
             )
@@ -79,9 +133,14 @@ def _debounced_call(task, args, cache_key):
     transaction.on_commit(_publish)
 
 
-def _debounced_evaluate(policy_path, filters, cache_key):
+def _debounced_evaluate(policy_path, filters, cache_key, debounce_seconds=None):
     """Debounced dispatch of ``evaluate_policies_async`` — convenience wrapper."""
-    _debounced_call(tasks.evaluate_policies_async, (policy_path, filters), cache_key)
+    _debounced_call(
+        tasks.evaluate_policies_async,
+        (policy_path, filters),
+        cache_key,
+        debounce_seconds=debounce_seconds,
+    )
 
 
 _CUSTOMER_POLICY_PATH = "waldur_mastermind.policy.models.CustomerEstimatedCostPolicy"
@@ -118,6 +177,7 @@ def project_estimated_cost_policy_trigger_handler(
         _PROJECT_POLICY_PATH,
         {"scope_id": project_id},
         f"cost_policy_debounce:project:{project_id}",
+        debounce_seconds=_project_fast_debounce_seconds(project_id),
     )
 
 
@@ -306,6 +366,7 @@ def project_credit_changed_handler(
         _PROJECT_POLICY_PATH,
         {"scope_id": project_id},
         f"cost_policy_debounce:project:{project_id}",
+        debounce_seconds=_project_fast_debounce_seconds(project_id),
     )
 
 
