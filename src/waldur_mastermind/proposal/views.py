@@ -2540,6 +2540,16 @@ class ProposalViewSet(
             proposal = locked
             previous_state = proposal.state
 
+            # A proposal must have a project team before it can be submitted.
+            # (The creator is normally auto-added, so a solo-PI proposal passes;
+            # this enforces the invariant server-side and blocks the degenerate
+            # empty-team case that the DRAFT state validator alone would allow.)
+            if not permissions_utils.get_users(proposal).exists():
+                return response.Response(
+                    {"detail": "Proposal must have a project team before submission."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             call = proposal.round.call
             enabled_steps = list(
                 models.CallWorkflowStep.objects.filter(call=call, is_enabled=True)

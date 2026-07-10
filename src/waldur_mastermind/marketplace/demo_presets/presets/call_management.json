@@ -4402,6 +4402,106 @@
       "proposal_uuid": "ca60000000000000000000000000000a",
       "step": "allocation_decision",
       "status": "pending"
+    },
+    {
+      "uuid": "cf001000000000000000000000000000",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "administrative_check",
+      "status": "active",
+      "outcome": null,
+      "started_at": "2026-06-17T09:00:00+00:00",
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "technical_assessment",
+      "status": "skipped",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "expert_review",
+      "status": "pending",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "panel_review",
+      "status": "pending",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000004",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "step": "allocation_decision",
+      "status": "pending",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000110",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "step": "administrative_check",
+      "status": "active",
+      "outcome": null,
+      "started_at": "2026-06-17T09:00:00+00:00",
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000111",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "step": "technical_assessment",
+      "status": "skipped",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000112",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "step": "expert_review",
+      "status": "pending",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000113",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "step": "panel_review",
+      "status": "pending",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf001000000000000000000000000114",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "step": "allocation_decision",
+      "status": "pending",
+      "outcome": null,
+      "started_at": null,
+      "completed_at": null,
+      "completed_by_uuid": null
     }
   ]
 }
