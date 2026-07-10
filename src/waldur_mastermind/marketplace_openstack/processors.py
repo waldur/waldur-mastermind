@@ -1,10 +1,13 @@
 import logging
 from typing import cast
 
+from django.core.exceptions import ObjectDoesNotExist
+from django.http import Http404
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_mastermind.marketplace import models, processors, signals
@@ -17,6 +20,8 @@ from waldur_mastermind.marketplace_openstack import views
 from waldur_mastermind.marketplace_openstack.utils import delete_instance
 from waldur_openstack import models as openstack_models
 from waldur_openstack import views as openstack_views
+from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.exceptions import OpenStackBackendError
 
 from . import utils
 
@@ -140,6 +145,72 @@ class InstanceCreateProcessor(TenantMixin, processors.BaseCreateResourceProcesso
         "config_drive",
         "data_volumes",
     )
+
+    def validate_order(self, request):
+        super().validate_order(request)
+        self._run_pre_flight_check()
+
+    def _run_pre_flight_check(self):
+        """Pre-flight allocation check against OpenStack Placement.
+
+        When the offering opts in via ``plugin_options.pre_flight_check_enabled``,
+        ask Placement whether any compute host can currently satisfy the flavor
+        of the requested instance and reject the order upfront if none can,
+        instead of failing in the middle of provisioning.
+
+        Only VCPU and MEMORY_MB are checked: Waldur instances boot from Cinder
+        volumes, so the compute host's DISK_GB is not consumed. Querying DISK_GB
+        would ask Placement for compute-node disk that boot-from-volume instances
+        never allocate, falsely rejecting legitimate orders.
+
+        Placement being missing or unreachable is treated as an infrastructure
+        issue: log a warning and let the order proceed rather than blocking it.
+        """
+        offering = self.order.offering
+        if not offering.plugin_options.get("pre_flight_check_enabled"):
+            return
+
+        tenant = offering.scope
+        if tenant is None:
+            return
+
+        flavor_url = self.order.attributes.get("flavor")
+        if not flavor_url:
+            return
+        try:
+            flavor = core_utils.instance_from_url(flavor_url)
+        except (ObjectDoesNotExist, Http404):
+            # Invalid flavor is already reported by serializer validation.
+            return
+
+        settings = tenant.service_settings
+
+        resources = {"VCPU": flavor.cores, "MEMORY_MB": flavor.ram}
+
+        backend = OpenStackBackend(settings)
+        try:
+            raw = backend.get_allocation_candidates(resources=resources)
+        except OpenStackBackendError as e:
+            logger.warning(
+                "Pre-flight allocation check skipped for order %s: "
+                "Placement is unavailable (%s).",
+                self.order.uuid,
+                e,
+            )
+            return
+
+        candidate_count = len(raw.get("allocation_requests", []))
+        if candidate_count == 0:
+            raise serializers.ValidationError(
+                {
+                    "flavor": _(
+                        "No schedulable host: the cloud cannot currently "
+                        "satisfy a request for %(cores)s vCPU / %(ram)s MB RAM. "
+                        "Please choose a smaller flavor or try again later."
+                    )
+                    % {"cores": flavor.cores, "ram": flavor.ram}
+                }
+            )
 
 
 class InstanceDeleteProcessor(processors.AbstractDeleteResourceProcessor):
