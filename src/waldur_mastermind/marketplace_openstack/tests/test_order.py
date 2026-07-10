@@ -2,7 +2,9 @@ from unittest import mock
 
 from ddt import data, ddt
 from django.core.exceptions import ObjectDoesNotExist
+from rest_framework import serializers as rf_serializers
 from rest_framework import status, test
+from rest_framework.request import Request
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
@@ -28,6 +30,7 @@ from waldur_mastermind.marketplace.utils import (
 from waldur_mastermind.marketplace_openstack.processors import InstanceDeleteProcessor
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_openstack import models as openstack_models
+from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import (
     fixtures as openstack_fixtures,
@@ -558,6 +561,98 @@ class InstanceCreateTest(test.APITestCase):
 
         order.refresh_from_db()
         return order
+
+
+class InstancePreFlightCheckTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+
+    def _build_order(self, pre_flight_check_enabled=True):
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.fixture.subnet)
+        attributes = {
+            "flavor": openstack_factories.FlavorFactory.get_url(self.fixture.flavor),
+            "image": openstack_factories.ImageFactory.get_url(self.fixture.image),
+            "name": "virtual-machine",
+            "system_volume_size": self.fixture.image.min_disk,
+            "ports": [{"subnet": subnet_url}],
+            "ssh_public_key": structure_factories.SshPublicKeyFactory.get_url(
+                structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
+            ),
+        }
+        plugin_options = (
+            {"pre_flight_check_enabled": True} if pre_flight_check_enabled else {}
+        )
+        offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING,
+            scope=self.tenant,
+            plugin_options=plugin_options,
+        )
+        marketplace_factories.OfferingFactory(
+            type=OPENSTACK_VOLUME_OFFERING, scope=self.tenant
+        )
+        order = marketplace_factories.OrderFactory(
+            offering=offering,
+            attributes=attributes,
+            project=self.fixture.project,
+            state=OrderStates.EXECUTING,
+        )
+        url = marketplace_factories.OrderFactory.get_url(order)
+        request = Request(test.APIRequestFactory().post(url))
+        request.user = self.fixture.owner
+        return order, request
+
+    @mock.patch("waldur_mastermind.marketplace_openstack.processors.OpenStackBackend")
+    def test_order_is_rejected_when_no_candidates(self, mock_backend):
+        mock_backend.return_value.get_allocation_candidates.return_value = {
+            "allocation_requests": [],
+            "provider_summaries": {},
+        }
+        order, request = self._build_order()
+
+        with self.assertRaises(rf_serializers.ValidationError):
+            validate_order(order, request)
+
+        mock_backend.return_value.get_allocation_candidates.assert_called_once_with(
+            resources={"VCPU": 2, "MEMORY_MB": 2048}
+        )
+
+    @mock.patch("waldur_mastermind.marketplace_openstack.processors.OpenStackBackend")
+    def test_order_proceeds_when_candidates_exist(self, mock_backend):
+        mock_backend.return_value.get_allocation_candidates.return_value = {
+            "allocation_requests": [{"allocations": {}}],
+            "provider_summaries": {},
+        }
+        order, request = self._build_order()
+
+        validate_order(order, request)
+
+        mock_backend.return_value.get_allocation_candidates.assert_called_once()
+
+    @mock.patch("waldur_mastermind.marketplace_openstack.processors.OpenStackBackend")
+    def test_order_proceeds_when_placement_unavailable(self, mock_backend):
+        mock_backend.return_value.get_allocation_candidates.side_effect = (
+            OpenStackBackendError("Placement endpoint not found")
+        )
+        order, request = self._build_order()
+
+        with self.assertLogs(
+            "waldur_mastermind.marketplace_openstack.processors", level="WARNING"
+        ) as logs:
+            validate_order(order, request)
+
+        self.assertTrue(
+            any("Placement is unavailable" in message for message in logs.output)
+        )
+
+    @mock.patch("waldur_mastermind.marketplace_openstack.processors.OpenStackBackend")
+    def test_check_is_skipped_when_option_disabled(self, mock_backend):
+        order, request = self._build_order(pre_flight_check_enabled=False)
+
+        validate_order(order, request)
+
+        mock_backend.return_value.get_allocation_candidates.assert_not_called()
 
 
 class InstanceDeleteTest(test.APITransactionTestCase):
