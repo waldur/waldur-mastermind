@@ -1853,10 +1853,13 @@ def get_offering_usage_by_project(
 
 
 def format_limits_list(components_map, limits):
-    return ", ".join(
-        f"{components_map[key].name or components_map[key].type}: {value}"
-        for key, value in limits.items()
-    )
+    def format_label(key):
+        component = components_map.get(key)
+        if component is None:
+            return key
+        return component.name or component.type
+
+    return ", ".join(f"{format_label(key)}: {value}" for key, value in limits.items())
 
 
 def get_resource_users(resource):

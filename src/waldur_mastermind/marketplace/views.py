@@ -9437,6 +9437,29 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
 
         new_limits = dict(serializer.validated_data["limits"])
 
+        # Unlike the order path, this action performs no key validation, so an
+        # agent can push backend-native keys that do not correspond to any
+        # offering component (e.g. an inference backend reporting "max_tokens"
+        # while the offering only declares "token_cost"). Such orphan keys later
+        # crash limit formatting on resource update. Reject them: this is a
+        # configuration skew between the agent and the offering that must not
+        # pass unnoticed. The agent has no error handling for set_limits 4xx and
+        # will mark the resource as ERRED, which is the intended signal that the
+        # agent's limit reporting needs fixing. (This differs from the
+        # periodic-policy echo handling below, which deliberately absorbs a
+        # benign inflated value for a *known* component instead of erroring.)
+        known_component_types = set(
+            resource.offering.components.values_list("type", flat=True)
+        )
+        unknown_types = set(new_limits) - known_component_types
+        if unknown_types:
+            raise ValidationError(
+                {
+                    "limits": _("Unknown component types: %s")
+                    % ", ".join(sorted(unknown_types))
+                }
+            )
+
         limit_based_components = resource.offering.components.filter(
             billing_type=BillingTypes.LIMIT
         )

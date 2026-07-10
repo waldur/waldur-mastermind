@@ -317,3 +317,22 @@ class LimitUpdateTriggersPolicyReevaluationTest(test.APITestCase):
             callbacks.resource_update_succeeded(order.resource)
 
         mock_delay.assert_not_called()
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_resource_against_policy.delay")
+    def test_limit_change_with_non_limit_component_key_does_not_raise(self, mock_delay):
+        # The resource may carry limits for keys that are not limit components
+        # (e.g. usage-based components); building the email context must not crash.
+        self.resource.limits = {"node-hours": 1000, "max_tokens": 1000000000}
+        self.resource.save()
+
+        order = self._create_update_order(
+            limits={"node-hours": 2000, "max_tokens": 1000000000}
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            callbacks.resource_update_succeeded(order.resource)
+
+        order.resource.refresh_from_db()
+        self.assertEqual(
+            order.resource.limits, {"node-hours": 2000, "max_tokens": 1000000000}
+        )
