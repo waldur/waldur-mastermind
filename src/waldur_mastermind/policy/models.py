@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import logging
 
 from dateutil.relativedelta import relativedelta
@@ -7,7 +8,8 @@ from django.core import exceptions
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum, Value
+from django.db.models.functions import Abs, Ceil, Sign
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
@@ -144,8 +146,42 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
 
         invoice_items = invoice_items.filter(query)
 
-        total = sum([i.total for i in invoice_items])
+        total = self._scoped_cost(invoice_items)
         return total - compensation > self.limit_cost
+
+    @staticmethod
+    def _scoped_cost(invoice_items) -> decimal.Decimal:
+        """Sum ``InvoiceItem.total`` over the queryset in the database instead
+        of loading every row and summing in Python.
+
+        This must reproduce the Python semantics exactly:
+        ``InvoiceItem.price = quantize_price(unit_price * quantity)`` rounds each
+        item UP to 2 decimals (``ROUND_UP``, away from zero), and
+        ``total = price + price * invoice.tax_percent / 100``.
+
+        The per-item rounding is done in SQL as
+        ``sign(v) * ceil(abs(v) * 100) / 100`` — exact on Postgres ``numeric``
+        and equal to ``quantize_price``. Tax is per-invoice, so items are grouped
+        by tax rate and the (constant-per-group) tax factor is applied in Python
+        with ``Decimal`` — ``Σ price·(1+t) == Σ(price + price·t)`` — keeping the
+        query at O(distinct tax rates) rows and avoiding the per-item invoice
+        fetch (the previous N+1).
+        """
+        hundred = Value(decimal.Decimal(100))
+        raw = F("unit_price") * F("quantity")
+        quantized_price = ExpressionWrapper(
+            Sign(raw) * Ceil(Abs(raw) * hundred) / hundred,
+            output_field=DecimalField(max_digits=30, decimal_places=2),
+        )
+        rows = invoice_items.values("invoice__tax_percent").annotate(
+            subtotal=Sum(quantized_price)
+        )
+        total = decimal.Decimal(0)
+        for row in rows:
+            subtotal = row["subtotal"] or decimal.Decimal(0)
+            tax_percent = row["invoice__tax_percent"] or decimal.Decimal(0)
+            total += subtotal * (1 + tax_percent / decimal.Decimal(100))
+        return total
 
     def __str__(self):
         return super().__str__() + f" Limit cost: {self.limit_cost}"
