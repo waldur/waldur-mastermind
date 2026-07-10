@@ -443,17 +443,28 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
             raise ValidationError({"resource_uuid": "Resource not found."})
 
         # Update the most recent SlurmCommandHistory records for this resource
-        recent_commands = models.SlurmCommandHistory.objects.filter(
-            policy=policy,
-            resource=resource,
-        ).order_by("-executed_at")[:20]
+        recent_commands = list(
+            models.SlurmCommandHistory.objects.filter(
+                policy=policy,
+                resource=resource,
+            ).order_by("-executed_at")[:20]
+        )
 
+        now = timezone.now()
         for cmd in recent_commands:
             cmd.execution_mode = mode
+            cmd.modified = now
             if not success:
                 cmd.success = False
                 cmd.error_message = error_message
-            cmd.save()
+
+        if recent_commands:
+            update_fields = ["execution_mode", "modified"]
+            if not success:
+                update_fields += ["success", "error_message"]
+            models.SlurmCommandHistory.objects.bulk_update(
+                recent_commands, update_fields
+            )
 
         # Update the most recent evaluation log for this resource
         evaluation_log = (
