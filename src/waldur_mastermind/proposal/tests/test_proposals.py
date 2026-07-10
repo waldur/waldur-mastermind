@@ -254,6 +254,9 @@ class ActionTest(test.APITestCase):
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.DRAFT
         self.proposal.save()
+        # A proposal must have a project team to be submitted (in production the
+        # creator is auto-added; the factory doesn't, so add them here).
+        self.proposal.add_user(self.proposal.created_by, ProposalRole.MANAGER)
         # Tests in this class exercise the no-workflow submission path
         # (DRAFT -> SUBMITTED). Clear the auto-seeded allocation_decision
         # step so submit() doesn't transition the proposal into IN_REVIEW.

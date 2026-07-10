@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.checklist.tests import factories as checklist_factories
-from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import workflow_service
 from waldur_mastermind.proposal.enums import (
@@ -95,6 +95,9 @@ class ProposalSubmitWorkflowTest(test.APITestCase):
         self.fixture = fixtures.ProposalFixture()
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
+        # A proposal needs a team to be submitted (production auto-adds the
+        # creator; the factory does not).
+        self.proposal.add_user(self.proposal.created_by, ProposalRole.MANAGER)
 
         # Configure workflow steps. The call creation signal seeds the default
         # steps; the factory uses update_or_create so these calls tune durations
@@ -988,7 +991,9 @@ class WorkflowStepPanelMemberTest(test.APITestCase):
             self.proposal, action="complete_workflow_step"
         )
 
-    def test_panel_member_step_denies_call_manager(self):
+    def test_panel_member_step_allows_call_manager(self):
+        # Call managers drive progression and may complete any non-applicant
+        # step (gated by the review/score gates), including a panel step.
         manager = structure_factories.UserFactory()
         self.call.add_user(manager, CallRole.MANAGER)
         self.client.force_authenticate(manager)
@@ -996,7 +1001,7 @@ class WorkflowStepPanelMemberTest(test.APITestCase):
             self.url,
             {"step_uuid": self.active_instance.uuid.hex, "outcome": "approved"},
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_panel_member_step_denies_reviewer(self):
         reviewer = structure_factories.UserFactory()
@@ -2306,3 +2311,58 @@ class ProposalTeamVisibilityTest(test.APITestCase):
             response.status_code,
             [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
         )
+
+
+class CallManagerDrivesStepsTest(test.APITestCase):
+    """The call manager drives progression: they may complete/reject any
+    non-applicant step (gated by the review/score gates), while award_response
+    stays the applicant's to complete."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.save()
+
+    def _active(self, step, responsible_role):
+        factories.CallWorkflowStepFactory(
+            call=self.call, step=step, responsible_role=responsible_role
+        )
+        self.proposal.workflow_step = step
+        self.proposal.save(update_fields=["workflow_step"])
+        return ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step=step,
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+
+    def _complete(self, user, instance, outcome):
+        self.client.force_authenticate(user)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        return self.client.post(
+            url, {"step_uuid": instance.uuid.hex, "outcome": outcome}
+        )
+
+    def test_call_manager_can_complete_a_reviewer_step(self):
+        instance = self._active("expert_review", ResponsibleRoles.REVIEWER)
+        response = self._complete(self.fixture.call_manager, instance, "reviewed")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_call_manager_can_complete_a_panel_step(self):
+        instance = self._active("panel_review", ResponsibleRoles.PANEL_MEMBER)
+        response = self._complete(self.fixture.call_manager, instance, "approved")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_call_manager_cannot_complete_award_response(self):
+        instance = self._active("award_response", ResponsibleRoles.APPLICANT)
+        response = self._complete(self.fixture.call_manager, instance, "accepted")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_applicant_can_complete_award_response(self):
+        instance = self._active("award_response", ResponsibleRoles.APPLICANT)
+        response = self._complete(self.proposal.created_by, instance, "declined")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

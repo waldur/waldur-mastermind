@@ -84,7 +84,17 @@ def _user_can_act_on_active_step(user, proposal):
 
     role = call_step.responsible_role
     if role == ResponsibleRoles.APPLICANT:
+        # award_response is the applicant's to complete; the call manager does
+        # not act on the applicant's behalf here.
         return proposal.created_by_id == user.id
+
+    # Call managers drive step progression: they may complete/reject any
+    # non-applicant step. The step's review/score gates (_enforce_step_gates)
+    # remain the guardrail, so this is not a rubber stamp. The step's own
+    # responsible actor (reviewer / panel member / offering manager) may also
+    # act on it.
+    if get_users(call, role_name=RoleEnum.CALL_MANAGER).filter(pk=user.pk).exists():
+        return True
 
     if role == ResponsibleRoles.OFFERING_MANAGER:
         return _user_holds_offering_manager_for_call(user, call)
