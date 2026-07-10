@@ -388,6 +388,89 @@ class ActionsTest(test.APITestCase):
         self.assertTrue(policy.has_fired)
         self.assertTrue(resource.paused)
 
+    def test_request_pausing_event_carries_resource_identity(self):
+        """The pausing event must carry the resource name and uuid so the
+        activity log renders "<resource> has been paused by a cost policy"
+        with a working link instead of a blank prefix."""
+        policy = self.project_policy
+        policy.actions = "request_pausing"
+        policy.save()
+
+        resource = self.fixture.resource
+        offering = resource.offering
+        offering.plugin_options.update({"supports_pausing": True})
+        offering.save()
+
+        self.create_invoice_item(policy.limit_cost + 1)
+
+        event = logging_models.Event.objects.filter(
+            event_type="request_pausing"
+        ).latest("created")
+        self.assertEqual(event.context.get("resource_uuid"), resource.uuid.hex)
+        self.assertEqual(event.context.get("resource_name"), resource.name)
+
+    def test_pausing_event_attributed_to_system_robot_not_request_user(self):
+        """When a policy fires inside a user's request context, the emitted
+        event must be attributed to the system robot, not the ambient request
+        user (whose save happened to trigger the evaluation)."""
+        from waldur_core.core.utils import get_system_robot
+        from waldur_core.logging import middleware as logging_middleware
+
+        policy = self.project_policy
+        policy.actions = "request_pausing"
+        policy.save()
+
+        resource = self.fixture.resource
+        offering = resource.offering
+        offering.plugin_options.update({"supports_pausing": True})
+        offering.save()
+
+        robot = get_system_robot()
+        # Simulate an authenticated request context, as
+        # CaptureEventContextMiddleware would set during an HTTP request.
+        logging_middleware.set_event_context(
+            {
+                "user_username": "requesting_user",
+                "user_uuid": "0" * 32,
+                "ip_address": "203.0.113.7",
+            }
+        )
+        try:
+            self.create_invoice_item(policy.limit_cost + 1)
+        finally:
+            logging_middleware.reset_event_context()
+
+        event = logging_models.Event.objects.filter(
+            event_type="request_pausing"
+        ).latest("created")
+        self.assertEqual(event.context.get("user_username"), robot.username)
+        self.assertNotEqual(event.context.get("user_username"), "requesting_user")
+        self.assertNotIn("ip_address", event.context)
+
+    def test_policy_events_on_async_path_skip_system_robot_lookup(self):
+        """On the background path (no request context) there is no request user
+        to hide, so the event carries no user and the system-robot lookup is
+        skipped entirely — keeping burst policy evaluation off the User table."""
+        from waldur_core.logging import middleware as logging_middleware
+
+        policy = self.project_policy
+        policy.actions = "request_pausing"
+        policy.save()
+        resource = self.fixture.resource
+        offering = resource.offering
+        offering.plugin_options.update({"supports_pausing": True})
+        offering.save()
+
+        logging_middleware.reset_event_context()  # no ambient request context
+        with mock.patch("waldur_mastermind.policy.utils.get_system_robot") as robot:
+            self.create_invoice_item(policy.limit_cost + 1)
+            robot.assert_not_called()
+
+        event = logging_models.Event.objects.filter(
+            event_type="request_pausing"
+        ).latest("created")
+        self.assertNotIn("user_uuid", event.context)
+
     @data("customer_policy", "project_policy")
     def test_restrict_members(self, policy_name):
         policy = getattr(self, policy_name)

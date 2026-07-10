@@ -217,7 +217,11 @@ def request_slurm_resource_downscaling(policy: models.Policy):
                     {
                         "message": f"SLURM usage policy has triggered downscaling of resource {resource.name}. Usage: {usage_percentage:.1f}%.",
                         "event_type": EventType.REQUEST_SLURM_RESOURCE_DOWNSCALING,
-                        "event_context": {"policy_uuid": policy.uuid.hex},
+                        "event_context": {
+                            "policy_uuid": policy.uuid.hex,
+                            "resource_name": resource.name,
+                            "resource_uuid": resource.uuid.hex,
+                        },
                         "scopes": [resource] + base_scopes,
                     }
                 )
@@ -238,7 +242,11 @@ def request_slurm_resource_downscaling(policy: models.Policy):
                     {
                         "message": f"SLURM usage policy has removed downscaling of resource {resource.name}. Usage: {usage_percentage:.1f}%.",
                         "event_type": EventType.RESET_DOWNSCALING,
-                        "event_context": {"policy_uuid": policy.uuid.hex},
+                        "event_context": {
+                            "policy_uuid": policy.uuid.hex,
+                            "resource_name": resource.name,
+                            "resource_uuid": resource.uuid.hex,
+                        },
                         "scopes": [resource] + base_scopes,
                     }
                 )
@@ -286,7 +294,11 @@ def request_slurm_resource_pausing(policy: models.Policy):
                     {
                         "message": f"SLURM usage policy has triggered pausing of resource {resource.name}. Usage: {usage_percentage:.1f}%, grace limit: {grace_limit:.1f}%.",
                         "event_type": EventType.REQUEST_SLURM_RESOURCE_PAUSING,
-                        "event_context": {"policy_uuid": policy.uuid.hex},
+                        "event_context": {
+                            "policy_uuid": policy.uuid.hex,
+                            "resource_name": resource.name,
+                            "resource_uuid": resource.uuid.hex,
+                        },
                         "scopes": [resource] + base_scopes,
                     }
                 )
@@ -307,7 +319,11 @@ def request_slurm_resource_pausing(policy: models.Policy):
                     {
                         "message": f"SLURM usage policy has removed pausing of resource {resource.name}. Usage: {usage_percentage:.1f}%.",
                         "event_type": EventType.RESET_PAUSING,
-                        "event_context": {"policy_uuid": policy.uuid.hex},
+                        "event_context": {
+                            "policy_uuid": policy.uuid.hex,
+                            "resource_name": resource.name,
+                            "resource_uuid": resource.uuid.hex,
+                        },
                         "scopes": [resource] + base_scopes,
                     }
                 )
@@ -469,6 +485,56 @@ def _filter_resources_by_scope(resources, policy):
     return resources
 
 
+# The resource flag each generic action sets True -> the action that sets it.
+# Used at reset time so clearing a flag does not clobber a value another
+# still-firing policy wants set.
+_FIELD_TO_REQUEST_ACTION = {
+    "paused": "request_pausing",
+    "downscaled": "request_downscaling",
+    "restrict_member_access": "restrict_members",
+}
+
+
+def _cost_policy_classes():
+    # The estimated-cost policy classes that set these flags via
+    # _apply_generic_action. SLURM periodic policies drive pausing through a
+    # separate per-resource path and are intentionally not considered here.
+    return (
+        models.ProjectEstimatedCostPolicy,
+        models.CustomerEstimatedCostPolicy,
+        models.OfferingEstimatedCostPolicy,
+    )
+
+
+def _resources_locked_by_other_policies(policy, field_name):
+    """Resource ids that another still-firing policy wants kept at
+    ``field_name=True``.
+
+    Reset is otherwise unconditional and scope-blind, so a resource-scoped
+    policy that stops firing would unpause a resource a project-wide policy
+    still wants paused (last-writer-wins). A policy is treated as still wanting
+    the flag when it ``has_fired`` and carries the matching ``request_*``
+    action; ``has_fired`` is authoritative because a still-triggered policy
+    keeps it set, and any stale value self-heals on that policy's next
+    evaluation.
+    """
+    request_action = _FIELD_TO_REQUEST_ACTION.get(field_name)
+    if not request_action:
+        return set()
+
+    base = marketplace_models.Resource.objects.filter(**{field_name: True})
+    locked: set[int] = set()
+    for klass in _cost_policy_classes():
+        others = klass.objects.filter(has_fired=True, actions__contains=request_action)
+        if isinstance(policy, klass):
+            others = others.exclude(pk=policy.pk)
+        for other in others:
+            scoped = _filter_resources_by_scope(base, other)
+            if scoped is not None:
+                locked.update(scoped.values_list("pk", flat=True))
+    return locked
+
+
 def _apply_generic_action(
     policy, action_name, field_name, new_value, event_type, queryset
 ):
@@ -483,6 +549,14 @@ def _apply_generic_action(
     if resources is None:
         return
 
+    # When clearing a flag, keep it set on resources another still-firing
+    # policy wants set, so one policy's reset does not clobber another's action.
+    locked = (
+        _resources_locked_by_other_policies(policy, field_name)
+        if new_value is False
+        else set()
+    )
+
     base_scopes = _get_base_policy_scopes(policy)
     system_robot = get_system_robot()
     cost_policy_ctx = _get_cost_policy_context(policy)
@@ -493,6 +567,8 @@ def _apply_generic_action(
         for resource in resources:
             current_value = getattr(resource, field_name)
             if current_value == new_value:
+                continue
+            if new_value is False and resource.pk in locked:
                 continue
 
             _save_resource_with_reversion(
@@ -510,6 +586,12 @@ def _apply_generic_action(
                     "event_type": event_type,
                     "event_context": {
                         "policy_uuid": policy.uuid.hex,
+                        # The frontend renders its own message from the event
+                        # context ("{resource_link} has been paused ..."), so
+                        # the resource identity must travel with the event or
+                        # the name/link renders blank.
+                        "resource_name": resource.name,
+                        "resource_uuid": resource.uuid.hex,
                         **cost_policy_ctx,
                     },
                     "scopes": [resource] + base_scopes,

@@ -24,6 +24,7 @@ from waldur_mastermind.policy.policy_actions import (
 
 from . import models
 from .models import LIMIT_PERIOD_TO_POLICY_PERIOD
+from .utils import system_actor_event_context
 
 logger = logging.getLogger(__name__)
 
@@ -131,13 +132,17 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
                 # Execute actions after the transaction is committed to ensure
                 # the policy exists in the database when Celery tasks run
                 def execute_actions():
-                    for action in policy.get_immediate_actions():
-                        action.method(policy)
-                        logger.info(
-                            "%s action of policy %s has been triggered.",
-                            action.method.__name__,
-                            policy.uuid.hex,
-                        )
+                    # Attribute the policy-driven events (and the resource saves
+                    # they trigger) to the system robot rather than the user whose
+                    # request saved the policy.
+                    with system_actor_event_context():
+                        for action in policy.get_immediate_actions():
+                            action.method(policy)
+                            logger.info(
+                                "%s action of policy %s has been triggered.",
+                                action.method.__name__,
+                                policy.uuid.hex,
+                            )
 
                 transaction.on_commit(execute_actions)
         else:
@@ -154,14 +159,15 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
 
                 # Execute reset actions after transaction commit
                 def execute_reset_actions():
-                    for action in policy.get_all_actions():
-                        if action.reset_method:
-                            action.reset_method(policy)
-                            logger.info(
-                                "Reset method %s of policy %s has been executed.",
-                                action.reset_method.__name__,
-                                policy.uuid.hex,
-                            )
+                    with system_actor_event_context():
+                        for action in policy.get_all_actions():
+                            if action.reset_method:
+                                action.reset_method(policy)
+                                logger.info(
+                                    "Reset method %s of policy %s has been executed.",
+                                    action.reset_method.__name__,
+                                    policy.uuid.hex,
+                                )
 
                 transaction.on_commit(execute_reset_actions)
 
