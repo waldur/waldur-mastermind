@@ -317,6 +317,12 @@
       "name": "Administrative Eligibility",
       "description": "Administrative compliance checklist verifying institutional eligibility, funding rules, and conformance with grant program requirements.",
       "checklist_type": "proposal_compliance"
+    },
+    {
+      "uuid": "cb100000000000000000000000000003",
+      "name": "Technical assessment",
+      "description": "Structured technical feasibility assessment completed by the responsible role during the technical_assessment workflow step.",
+      "checklist_type": "workflow_step"
     }
   ],
   "questions": [
@@ -511,6 +517,28 @@
       "order": 13,
       "user_guidance": "By checking this box, you certify that you have reviewed the eligibility requirements and confirm compliance.",
       "requires_review": true
+    },
+    {
+      "uuid": "cb200000000000000000000000000201",
+      "checklist_uuid": "cb100000000000000000000000000003",
+      "description": "Technical feasibility decision",
+      "question_type": "single_select",
+      "required": true,
+      "order": 1,
+      "user_guidance": "Assess whether the requested resources and technical approach are feasible for this proposal.",
+      "review_answer_value": null,
+      "operator": "equals"
+    },
+    {
+      "uuid": "cb200000000000000000000000000202",
+      "checklist_uuid": "cb100000000000000000000000000003",
+      "description": "Assessment rationale",
+      "question_type": "text_area",
+      "required": true,
+      "order": 2,
+      "user_guidance": "Explain the reasoning behind the feasibility decision.",
+      "review_answer_value": null,
+      "operator": "equals"
     }
   ],
   "question_options": [
@@ -639,6 +667,24 @@
       "question_uuid": "cb200000000000000000000000000109",
       "label": "Humanities and Arts",
       "order": 6
+    },
+    {
+      "uuid": "cb300000000000000000000000000401",
+      "question_uuid": "cb200000000000000000000000000201",
+      "label": "Feasible - sufficient resources",
+      "order": 1
+    },
+    {
+      "uuid": "cb300000000000000000000000000402",
+      "question_uuid": "cb200000000000000000000000000201",
+      "label": "Feasible with conditions",
+      "order": 2
+    },
+    {
+      "uuid": "cb300000000000000000000000000403",
+      "question_uuid": "cb200000000000000000000000000201",
+      "label": "Not feasible",
+      "order": 3
     }
   ],
   "question_dependencies": [
@@ -758,6 +804,14 @@
       "scope_object_uuid": "ca600000000000000000000000000004",
       "is_complete": true,
       "_comment": "Admin Eligibility checklist for LLM Fine-tuning proposal"
+    },
+    {
+      "uuid": "cc100000000000000000000000000009",
+      "checklist_uuid": "cb100000000000000000000000000003",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000002",
+      "is_complete": true,
+      "_comment": "Technical assessment for the Quantum Error Correction proposal"
     }
   ],
   "answers": [
@@ -1147,6 +1201,38 @@
       "completion_uuid": "cc100000000000000000000000000008",
       "answer_data": true,
       "_comment": "LLM Fine-tuning: Eligibility confirmed"
+    },
+    {
+      "uuid": "ca100000000000000000000000000401",
+      "user_uuid": "a4000000000000000000000000000003",
+      "question_uuid": "cb200000000000000000000000000201",
+      "completion_uuid": "cc100000000000000000000000000009",
+      "answer_data": "cb300000000000000000000000000401",
+      "_comment": "Assessor 1: feasible"
+    },
+    {
+      "uuid": "ca100000000000000000000000000402",
+      "user_uuid": "a4000000000000000000000000000003",
+      "question_uuid": "cb200000000000000000000000000202",
+      "completion_uuid": "cc100000000000000000000000000009",
+      "answer_data": "Compute and storage requests are within the call envelope; the proposed GPU allocation is justified by the model size.",
+      "_comment": "Assessor 1 rationale"
+    },
+    {
+      "uuid": "ca100000000000000000000000000403",
+      "user_uuid": "a4000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000201",
+      "completion_uuid": "cc100000000000000000000000000009",
+      "answer_data": "cb300000000000000000000000000402",
+      "_comment": "Assessor 2: feasible with conditions"
+    },
+    {
+      "uuid": "ca100000000000000000000000000404",
+      "user_uuid": "a4000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000202",
+      "completion_uuid": "cc100000000000000000000000000009",
+      "answer_data": "Feasible provided the team confirms access to the required interconnect; recommend a scaling test before full allocation.",
+      "_comment": "Assessor 2 rationale"
     }
   ],
   "category_groups": [
@@ -4094,7 +4180,8 @@
       "blind_review": true,
       "responsible_role": "reviewer",
       "transition_mode": "manual",
-      "applicant_visible": true
+      "applicant_visible": true,
+      "requires_coi_confirmation": true
     },
     {
       "call_uuid": "ca200000000000000000000000000001",
@@ -4130,6 +4217,16 @@
       "call_uuid": "ca200000000000000000000000000001",
       "step": "allocation_decision",
       "allocation_time": "fixed_date"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "step": "technical_assessment",
+      "is_enabled": true,
+      "checklist_uuid": "cb100000000000000000000000000003",
+      "checklist_required": true,
+      "responsible_role": "offering_manager",
+      "applicant_visible": true,
+      "transition_mode": "manual"
     }
   ],
   "proposal_workflow_step_instances": [
@@ -4147,7 +4244,11 @@
       "uuid": "cf000000000000000000000000000002",
       "proposal_uuid": "ca600000000000000000000000000002",
       "step": "technical_assessment",
-      "status": "skipped"
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "2026-06-16T09:00:00+00:00",
+      "completed_at": "2026-06-16T15:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000003"
     },
     {
       "uuid": "cf000000000000000000000000000003",
