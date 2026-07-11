@@ -477,3 +477,99 @@ class ReviewerGetTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.json()))
         self.assertEqual(response.data[0]["in_review_proposals"], 1)
+
+
+@ddt
+class ReviewCoiConfirmationTest(test.APITestCase):
+    """requires_coi_confirmation: a reviewer must attest absence of conflict of
+    interest before a review can be submitted, but only when the call has an
+    enabled workflow step configured with that flag."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.review = self.fixture.review
+        self.review.state = models.Review.States.IN_REVIEW
+        self.review.save()
+        self.call = self.review.proposal.round.call
+        self.url = factories.ReviewFactory.get_url(self.review, "submit")
+
+    def _enable_coi_step(self):
+        factories.CallWorkflowStepFactory(
+            call=self.call,
+            step="expert_review",
+            is_enabled=True,
+            requires_coi_confirmation=True,
+        )
+
+    def _submit(self, payload=None):
+        self.client.force_authenticate(self.fixture.reviewer_1)
+        data = {
+            "summary_score": "4",
+            "summary_public_comment": "ok",
+            "summary_private_comment": "ok",
+        }
+        if payload:
+            data.update(payload)
+        with (
+            mock.patch(
+                "waldur_mastermind.proposal.tasks."
+                "notify_call_managers_about_new_review.delay"
+            ),
+            mock.patch(
+                "waldur_mastermind.proposal.tasks."
+                "notify_manager_when_reviews_are_completed.delay"
+            ),
+        ):
+            return self.client.post(self.url, data)
+
+    def test_submit_without_coi_step_does_not_require_confirmation(self):
+        response = self._submit()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.state, models.Review.States.SUBMITTED)
+
+    def test_submit_blocked_when_coi_required_and_not_confirmed(self):
+        self._enable_coi_step()
+        response = self._submit()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("coi_confirmed", response.data)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.state, models.Review.States.IN_REVIEW)
+
+    def test_submit_allowed_when_coi_required_and_confirmed(self):
+        self._enable_coi_step()
+        response = self._submit({"coi_confirmed": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.state, models.Review.States.SUBMITTED)
+        self.assertTrue(self.review.coi_confirmed)
+        self.assertIsNotNone(self.review.coi_confirmed_at)
+
+    def test_disabled_coi_step_does_not_trigger_requirement(self):
+        factories.CallWorkflowStepFactory(
+            call=self.call,
+            step="expert_review",
+            is_enabled=False,
+            requires_coi_confirmation=True,
+        )
+        response = self._submit()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_confirmation_required_flag_exposed_on_review(self):
+        self._enable_coi_step()
+        self.client.force_authenticate(self.fixture.reviewer_1)
+        response = self.client.get(factories.ReviewFactory.get_url(self.review))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["coi_confirmation_required"])
+
+    def test_coi_confirmed_at_cleared_when_resubmitted_unconfirmed(self):
+        # The timestamp must not go stale: submitting with coi_confirmed=False
+        # (no COI step configured, so it's allowed) clears coi_confirmed_at.
+        self.review.coi_confirmed = True
+        self.review.coi_confirmed_at = timezone.now()
+        self.review.save()
+        response = self._submit({"coi_confirmed": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.review.refresh_from_db()
+        self.assertFalse(self.review.coi_confirmed)
+        self.assertIsNone(self.review.coi_confirmed_at)

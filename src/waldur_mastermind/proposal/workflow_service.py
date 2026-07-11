@@ -15,11 +15,18 @@ from waldur_core.core.utils import get_system_robot
 from waldur_mastermind.proposal import models, utils
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS,
+    WORKFLOW_STEPS_MAP,
     ProposalStates,
     TransitionModes,
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
+
+
+def _step_label(step_key):
+    """Human-readable step name for error messages (falls back to the raw key)."""
+    step_def = WORKFLOW_STEPS_MAP.get(step_key)
+    return step_def.name if step_def else step_key
 
 
 def _merge_notes(existing, addition):
@@ -75,6 +82,10 @@ def _activate_next_step(proposal, next_step_def):
         instance.deadline = instance.started_at + timedelta(
             days=call_step.duration_in_days
         )
+    # Provision a checklist completion for the step so its responsible role has
+    # something to answer against once the step is active.
+    if call_step and call_step.checklist_id:
+        proposal.ensure_checklist_completion_for(call_step.checklist)
     instance.save(update_fields=["status", "started_at", "deadline"])
     return instance
 
@@ -165,6 +176,24 @@ def _enforce_step_gates(proposal, current_instance, outcome, call_step):
     """
     if call_step is None or outcome == WorkflowStepOutcomes.DECLINED:
         return
+
+    # Checklist gate: a step with an attached, required checklist cannot be
+    # completed until every required question is answered (WAL-9484). Advisory
+    # checklists (checklist_required=False) never block.
+    if call_step.checklist_id and call_step.checklist_required:
+        completion = proposal.get_checklist_completion_for(call_step.checklist)
+        if completion is None:
+            unanswered = call_step.checklist.questions.filter(required=True)
+        else:
+            unanswered = completion.get_unanswered_required_questions()
+        if unanswered.exists():
+            raise ValueError(
+                f"Cannot complete {_step_label(current_instance.step)}: "
+                f"{unanswered.count()} required checklist "
+                f"{'question is' if unanswered.count() == 1 else 'questions are'} "
+                "unanswered."
+            )
+
     if call_step.min_reviewers is None and call_step.min_score_threshold is None:
         return
 

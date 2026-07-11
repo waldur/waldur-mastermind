@@ -294,6 +294,13 @@ class CallWorkflowStep(
         blank=True,
         help_text="Evaluation form for this step.",
     )
+    checklist_required = models.BooleanField(
+        default=True,
+        help_text=(
+            "When the step has a checklist, block completion until its required "
+            "questions are answered. Set False to make the checklist advisory."
+        ),
+    )
 
     # Review behavior
     blind_review = models.BooleanField(
@@ -666,6 +673,11 @@ def filter_proposals(user):
             )
         )
         | Q(round__call__in=managers.get_connected_calls(user))
+        # Offering managers (technical reviewers) act on the technical_assessment
+        # step, so they must be able to retrieve the non-draft proposals that
+        # requested one of their accepted offerings (not every proposal on the
+        # call).
+        | Q(pk__in=managers.get_offering_manager_proposals(user))
     )
 
 
@@ -764,15 +776,39 @@ class Proposal(
         if not self.round.call.compliance_checklist:
             return None
 
-        try:
-            proposal_content_type = ContentType.objects.get_for_model(self)
-            return checklist_models.ChecklistCompletion.objects.get(
-                scope_content_type=proposal_content_type,
-                scope_object_id=self.id,
-                checklist=self.round.call.compliance_checklist,
-            )
-        except checklist_models.ChecklistCompletion.DoesNotExist:
+        return self.get_checklist_completion_for(self.round.call.compliance_checklist)
+
+    def get_checklist_completion_for(self, checklist):
+        """Return this proposal's completion for an arbitrary checklist, or None.
+
+        ``ChecklistCompletion`` is keyed on ``(scope, checklist)``, so a proposal
+        can hold a distinct completion per attached checklist (e.g. one per
+        workflow step) alongside the call-level compliance completion.
+        """
+        if checklist is None:
             return None
+        proposal_content_type = ContentType.objects.get_for_model(self)
+        return checklist_models.ChecklistCompletion.objects.filter(
+            scope_content_type=proposal_content_type,
+            scope_object_id=self.id,
+            checklist=checklist,
+        ).first()
+
+    def ensure_checklist_completion_for(self, checklist):
+        """Get-or-create this proposal's completion for a checklist.
+
+        Called when a workflow step with an attached checklist becomes active so
+        the responsible role has a completion to answer against.
+        """
+        if checklist is None:
+            return None
+        proposal_content_type = ContentType.objects.get_for_model(self)
+        completion, _ = checklist_models.ChecklistCompletion.objects.get_or_create(
+            scope_content_type=proposal_content_type,
+            scope_object_id=self.id,
+            checklist=checklist,
+        )
+        return completion
 
     def can_submit(self):
         """Check if proposal can be submitted."""
@@ -1030,6 +1066,17 @@ class Review(
     reviewer = models.ForeignKey[core_models.User](
         to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
     )
+
+    # Reviewer's per-proposal attestation of absence of conflict of interest.
+    # Enforced at review submission only when the call has an enabled workflow
+    # step with ``requires_coi_confirmation`` set. This is the "no conflict"
+    # counterpart to the ConflictOfInterest model (which records conflicts that
+    # *do* exist); keeping it here avoids polluting that manager-resolution queue.
+    coi_confirmed = models.BooleanField(
+        default=False,
+        help_text="Reviewer confirmed absence of conflict of interest with this proposal.",
+    )
+    coi_confirmed_at = models.DateTimeField(null=True, blank=True)
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 

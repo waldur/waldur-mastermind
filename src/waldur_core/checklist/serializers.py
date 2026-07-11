@@ -318,8 +318,17 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
 
         try:
             # If user has permission to view the completion, they should see all answers
-            # The permission check is done at the viewset level, so if we're here, user is authorized
-            answer = completion.answers.filter(question=obj).first()
+            # The permission check is done at the viewset level, so if we're here, user is authorized.
+            # For multi-writer completions (e.g. a workflow step answered by several
+            # reviewers) callers pass ``answer_user`` so each user only sees/edits
+            # their OWN answer rather than an arbitrary peer's.
+            answer_user = self.context.get("answer_user")
+            if answer_user is not None:
+                answer = completion.answers.filter(
+                    question=obj, user=answer_user
+                ).first()
+            else:
+                answer = completion.answers.filter(question=obj).first()
 
             if not answer:
                 return None
