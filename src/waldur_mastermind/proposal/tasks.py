@@ -184,8 +184,7 @@ def notify_call_managers_about_new_review(review_uuid):
     context = {
         "site_name": config.SITE_NAME,
         "review_url": core_utils.format_homeport_link(
-            "call-management/{customer_uuid}/review/{review_uuid}/",
-            customer_uuid=review.proposal.round.call.manager.customer.uuid,
+            "proposal-review/{review_uuid}/",
             review_uuid=review.uuid,
         ),
         "proposal_name": review.proposal.name,
