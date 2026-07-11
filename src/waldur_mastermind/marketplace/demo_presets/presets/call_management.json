@@ -1897,6 +1897,30 @@
       "project_is_confidential": false,
       "project_has_civilian_purpose": true,
       "oecd_fos_2007_code": "1.3"
+    },
+    {
+      "uuid": "ca60000000000000000000000000000d",
+      "name": "Exascale Turbulence Simulation",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "in_review",
+      "created_by_uuid": "a4000000000000000000000000000006",
+      "project_summary": "Direct numerical simulation of compressible turbulence at exascale to resolve the fine-scale energy cascade; awaiting the applicant's award response before provisioning.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.3"
+    },
+    {
+      "uuid": "ca60000000000000000000000000000e",
+      "name": "Cryo-EM Density Map Refinement",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "in_review",
+      "created_by_uuid": "a4000000000000000000000000000007",
+      "project_summary": "GPU-accelerated cryo-EM density map refinement; currently at technical assessment awaiting the responsible role to complete the required feasibility checklist.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.6"
     }
   ],
   "requested_resources": [
@@ -4216,7 +4240,8 @@
     {
       "call_uuid": "ca200000000000000000000000000001",
       "step": "allocation_decision",
-      "allocation_time": "fixed_date"
+      "allocation_time": "fixed_date",
+      "include_award_response": true
     },
     {
       "call_uuid": "ca200000000000000000000000000001",
@@ -4227,6 +4252,14 @@
       "responsible_role": "offering_manager",
       "applicant_visible": true,
       "transition_mode": "manual"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000001",
+      "step": "award_response",
+      "is_enabled": true,
+      "responsible_role": "applicant",
+      "applicant_visible": true,
+      "transition_mode": "automatic_on_completion"
     }
   ],
   "proposal_workflow_step_instances": [
@@ -4603,6 +4636,98 @@
       "started_at": null,
       "completed_at": null,
       "completed_by_uuid": null
+    },
+    {
+      "uuid": "cf002000000000000000000000000000",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "2026-06-15T09:00:00+00:00",
+      "completed_at": "2026-06-15T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf002000000000000000000000000001",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "2026-06-16T09:00:00+00:00",
+      "completed_at": "2026-06-16T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf002000000000000000000000000002",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "expert_review",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "2026-06-17T09:00:00+00:00",
+      "completed_at": "2026-06-17T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000003"
+    },
+    {
+      "uuid": "cf002000000000000000000000000003",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "panel_review",
+      "status": "completed",
+      "outcome": "approved",
+      "started_at": "2026-06-18T09:00:00+00:00",
+      "completed_at": "2026-06-18T12:00:00+00:00",
+      "completed_by_uuid": "a400000000000000000000000000000a"
+    },
+    {
+      "uuid": "cf002000000000000000000000000004",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "allocation_decision",
+      "status": "completed",
+      "outcome": "approved",
+      "started_at": "2026-06-19T09:00:00+00:00",
+      "completed_at": "2026-06-19T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf002000000000000000000000000005",
+      "proposal_uuid": "ca60000000000000000000000000000d",
+      "step": "award_response",
+      "status": "active",
+      "started_at": "2026-06-20T09:00:00+00:00"
+    },
+    {
+      "uuid": "cf003000000000000000000000000000",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "2026-06-15T09:00:00+00:00",
+      "completed_at": "2026-06-15T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf003000000000000000000000000001",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "technical_assessment",
+      "status": "active",
+      "started_at": "2026-06-16T09:00:00+00:00"
+    },
+    {
+      "uuid": "cf003000000000000000000000000002",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "expert_review",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf003000000000000000000000000003",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "panel_review",
+      "status": "pending"
+    },
+    {
+      "uuid": "cf003000000000000000000000000004",
+      "proposal_uuid": "ca60000000000000000000000000000e",
+      "step": "allocation_decision",
+      "status": "pending"
     }
   ]
 }
