@@ -2366,3 +2366,84 @@ class CallManagerDrivesStepsTest(test.APITestCase):
         instance = self._active("award_response", ResponsibleRoles.APPLICANT)
         response = self._complete(self.proposal.created_by, instance, "declined")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+
+class CompleteWorkflowStepChecklistGateTest(test.APITestCase):
+    """A step with an attached required checklist cannot be completed until its
+    required questions are answered (WAL-9484)."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "administrative_check"
+        self.proposal.save()
+
+        self.checklist = checklist_factories.ChecklistFactory()
+        self.question = checklist_factories.QuestionFactory(
+            checklist=self.checklist, required=True
+        )
+        self.call_step = factories.CallWorkflowStepFactory(
+            call=self.call,
+            step="administrative_check",
+            checklist=self.checklist,
+            checklist_required=True,
+        )
+        factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
+
+        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+        ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="allocation_decision",
+            status=WorkflowStepInstanceStatuses.PENDING,
+        )
+        self.url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+
+    def _complete(self, outcome="eligible"):
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.post(
+            self.url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "outcome": outcome,
+                "outcome_reason": "reason",
+            },
+        )
+
+    def test_complete_blocked_when_required_checklist_unanswered(self):
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.workflow_step, "administrative_check")
+
+    def test_complete_allowed_after_required_question_answered(self):
+        completion = self.proposal.ensure_checklist_completion_for(self.checklist)
+        checklist_factories.AnswerFactory(
+            completion=completion,
+            question=self.question,
+            user=self.fixture.staff,
+        )
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.workflow_step, "allocation_decision")
+
+    def test_advisory_checklist_does_not_block_completion(self):
+        self.call_step.checklist_required = False
+        self.call_step.save()
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_optional_questions_only_does_not_block(self):
+        self.question.required = False
+        self.question.save()
+        response = self._complete()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

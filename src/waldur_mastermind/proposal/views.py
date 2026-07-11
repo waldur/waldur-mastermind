@@ -28,6 +28,7 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema
 from rest_framework import decorators, exceptions, mixins, response, status, viewsets
 from rest_framework import permissions as rf_permissions
 
+from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.checklist.enums import ChecklistTypes
@@ -972,6 +973,34 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )(self, request, uuid, obj_uuid)
 
     workflow_step_detail_serializer_class = serializers.CallWorkflowStepSerializer
+
+    @extend_schema(
+        description=(
+            "List checklists that can be attached to a workflow step "
+            "(WORKFLOW_STEP-typed). Available to call managers so the workflow "
+            "config UI can populate its checklist picker without staff-only "
+            "access to the checklist admin API."
+        ),
+        responses={
+            status.HTTP_200_OK: checklist_serializers.ChecklistShortSerializer(
+                many=True
+            )
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def step_checklists(self, request):
+        checklists = checklist_models.Checklist.objects.filter(
+            checklist_type=checklist_enums.ChecklistTypes.WORKFLOW_STEP
+        ).order_by("name")
+        serializer = checklist_serializers.ChecklistShortSerializer(
+            checklists, many=True
+        )
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    # Any authenticated user may read the WORKFLOW_STEP checklist catalogue; the
+    # templates are non-sensitive and only actionable by call managers who can
+    # already edit the step config.
+    step_checklists_permissions = []
 
     # Call Manager Compliance Endpoints
     compliance_overview_permissions = [permission_factory(PermissionEnum.UPDATE_CALL)]
@@ -2399,6 +2428,10 @@ class ProposalViewSet(
         # reviewers/panel members assigned to the call — may view the proposal
         # team read-only, so the review interface renders (rather than crashing
         # its team section on a 403) and evaluators can comment on it.
+        # The proposal author always sees their own team, even before the
+        # ProposalRole.MANAGER grant lands (e.g. preset/imported proposals).
+        if proposal.created_by_id == user.id:
+            return True
         if super().can_view_scope_team(user, proposal):
             return True
         call_id = proposal.round.call_id
@@ -2416,6 +2449,12 @@ class ProposalViewSet(
 
         user = request.user
         if user.is_staff:
+            return
+
+        # The author always reads the compliance answers they submitted, even
+        # before the ProposalRole.MANAGER grant lands (e.g. preset/imported
+        # proposals, or a co-author who never held MANAGE_PROPOSAL).
+        if obj.created_by_id == user.id:
             return
 
         if permissions_utils.has_permission(
@@ -2715,7 +2754,17 @@ class ProposalViewSet(
             cs.step: cs
             for cs in models.CallWorkflowStep.objects.filter(
                 call_id=proposal.round.call_id
-            ).only("step", "applicant_visible", "duration_in_days", "responsible_role")
+            )
+            .select_related("checklist")
+            .only(
+                "step",
+                "applicant_visible",
+                "duration_in_days",
+                "responsible_role",
+                "checklist",
+                "checklist_required",
+                "checklist__name",
+            )
         }
         can_view_internal_notes = proposal_permissions.user_can_view_internal_notes(
             request.user, proposal
@@ -3151,6 +3200,213 @@ class ProposalViewSet(
         )
 
         return response.Response(response_serializer.data)
+
+    # -- Per-step checklists (WAL-9484) -----------------------------------
+    # The actions above are hardwired to the single call-level compliance
+    # checklist. These step-parameterized variants address the checklist
+    # attached to an individual workflow step (CallWorkflowStep.checklist),
+    # reusing the same request/response serializers so the frontend renders
+    # them with the same components.
+
+    def _resolve_step_checklist(self, request, obj):
+        """Return (call_step, error_response). error_response is None on success."""
+        query_params = getattr(request, "query_params", request.GET)
+        step_key = query_params.get("step")
+        if not step_key:
+            return None, response.Response(
+                {"detail": "The 'step' query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        call_step = models.CallWorkflowStep.objects.filter(
+            call=obj.round.call, step=step_key
+        ).first()
+        if call_step is None or not call_step.checklist_id:
+            return None, response.Response(
+                {"detail": "No checklist is configured for this workflow step."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return call_step, None
+
+    @extend_schema(
+        description="Get a workflow step's checklist with questions and answers.",
+        parameters=[
+            OpenApiParameter(
+                name="step",
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Workflow step key (e.g. technical_assessment).",
+            ),
+            OpenApiParameter(
+                name="include_all",
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Return all questions ignoring dynamic visibility.",
+            ),
+        ],
+        responses={
+            200: checklist_serializers.ChecklistResponseSerializer,
+            400: {"description": "No step/checklist"},
+        },
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="step-checklist")
+    def step_checklist(self, request, uuid=None):
+        obj = self.get_object()
+        call_step, error = self._resolve_step_checklist(request, obj)
+        if error is not None:
+            return error
+        checklist = call_step.checklist
+        # Provision the completion lazily so answers and completion status
+        # serialize cleanly even before the responsible role has answered.
+        completion = obj.ensure_checklist_completion_for(checklist)
+        query_params = getattr(request, "query_params", request.GET)
+        include_all = query_params.get("include_all", "false").lower() == "true"
+        if include_all:
+            questions = checklist.questions.all().order_by("order")
+        else:
+            questions = checklist.get_visible_questions(completion)
+        response_serializer = checklist_serializers.ChecklistResponseSerializer(
+            {"checklist": checklist, "completion": completion, "questions": questions},
+            context={
+                "request": request,
+                "completion": completion,
+                # Multi-writer steps (e.g. technical_assessment) share one
+                # completion; scope the seeded answer to the requesting user so a
+                # reviewer never sees/edits a peer's answer.
+                "answer_user": request.user,
+            },
+        )
+        return response.Response(response_serializer.data)
+
+    step_checklist_permissions = [proposal_permissions.can_read_step_checklist]
+
+    @extend_schema(
+        description="Submit answers to a workflow step's checklist.",
+        parameters=[
+            OpenApiParameter(
+                name="step",
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Workflow step key (e.g. technical_assessment).",
+            ),
+        ],
+        request=checklist_serializers.AnswerSubmitSerializer(many=True),
+        responses={
+            200: serializers.ProposalChecklistAnswerSubmitResponseSerializer,
+            400: {"description": "Validation error or no checklist configured"},
+        },
+    )
+    @decorators.action(
+        detail=True, methods=["post"], url_path="submit-step-checklist-answers"
+    )
+    def submit_step_checklist_answers(self, request, uuid=None):
+        obj = self.get_object()
+        call_step, error = self._resolve_step_checklist(request, obj)
+        if error is not None:
+            return error
+        completion = obj.ensure_checklist_completion_for(call_step.checklist)
+
+        submit_serializer = checklist_serializers.AnswerSubmitSerializer(
+            data=request.data,
+            many=True,
+            context={"completion": completion, "request": request},
+        )
+        submit_serializer.is_valid(raise_exception=True)
+
+        for answer_data in submit_serializer.validated_data:
+            question = answer_data["question"]
+            answer_value = answer_data["answer_data"]
+            if answer_value is None:
+                checklist_models.Answer.objects.filter(
+                    completion=completion, question=question, user=request.user
+                ).delete()
+            else:
+                checklist_models.Answer.objects.update_or_create(
+                    completion=completion,
+                    question=question,
+                    user=request.user,
+                    defaults={"answer_data": answer_value},
+                )
+
+        completion.update_completion_status()
+        completion.refresh_from_db()
+
+        response_serializer = (
+            serializers.ProposalChecklistAnswerSubmitResponseSerializer(
+                {"detail": "Answers submitted successfully", "completion": completion},
+                context={"request": request},
+            )
+        )
+        return response.Response(response_serializer.data)
+
+    submit_step_checklist_answers_permissions = [
+        proposal_permissions.can_submit_step_checklist_answers
+    ]
+
+    @extend_schema(
+        description=(
+            "List a workflow step's checklist answers grouped by reviewer, for "
+            "the threaded technical-assessment view. Each technical reviewer "
+            "(offering manager) answers the same checklist; this returns every "
+            "reviewer's decision and comment."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="step",
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Workflow step key (e.g. technical_assessment).",
+            ),
+        ],
+        responses={
+            200: serializers.StepChecklistResponseGroupSerializer(many=True),
+            400: {"description": "No step/checklist"},
+        },
+    )
+    @decorators.action(
+        detail=True, methods=["get"], url_path="step-checklist-responses"
+    )
+    def step_checklist_responses(self, request, uuid=None):
+        obj = self.get_object()
+        call_step, error = self._resolve_step_checklist(request, obj)
+        if error is not None:
+            return error
+        completion = obj.get_checklist_completion_for(call_step.checklist)
+        if completion is None:
+            return response.Response([])
+
+        answers = (
+            checklist_models.Answer.objects.filter(completion=completion)
+            .select_related("user", "question")
+            .order_by("user_id", "question__order")
+        )
+        # Group by reviewer, preserving each reviewer's earliest answer time so
+        # the threaded list can order reviewers by when they first responded.
+        groups = {}
+        for answer in answers:
+            group = groups.setdefault(
+                answer.user_id,
+                {
+                    "user": answer.user,
+                    "answers": [],
+                    "submitted_at": answer.modified,
+                    "_first": answer.created,
+                },
+            )
+            group["answers"].append(answer)
+            if answer.modified and answer.modified > group["submitted_at"]:
+                group["submitted_at"] = answer.modified
+            if answer.created and answer.created < group["_first"]:
+                group["_first"] = answer.created
+
+        ordered = sorted(groups.values(), key=lambda g: g["_first"])
+        serializer = serializers.StepChecklistResponseGroupSerializer(
+            ordered, many=True, context={"request": request, "proposal": obj}
+        )
+        return response.Response(serializer.data)
+
+    step_checklist_responses_permissions = [
+        proposal_permissions.can_view_step_checklist_responses
+    ]
 
 
 class ReviewViewSet(ActionsViewSet):

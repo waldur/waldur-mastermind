@@ -200,6 +200,19 @@ class ProposalComplianceAPITest(ProposalComplianceTestMixin, test.APITestCase):
         # Verify questions
         self.assertEqual(len(data["questions"]), 3)
 
+    def test_creator_without_manager_role_can_view_checklist(self):
+        # Regression: the author reads the compliance answers they submitted
+        # even without the ProposalRole.MANAGER grant (preset/imported
+        # proposals, or a co-author who never held MANAGE_PROPOSAL).
+        creator = structure_factories.UserFactory()
+        proposal = proposal_factories.ProposalFactory(
+            round=self.fixture.round, created_by=creator
+        )
+        url = proposal_factories.ProposalFactory.get_url(proposal) + "checklist/"
+        self.client.force_authenticate(creator)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_get_compliance_checklist_without_checklist(self):
         """Test getting checklist for proposal without compliance checklist."""
         # Create proposal without compliance checklist

@@ -169,3 +169,165 @@ def can_advance_workflow_step(request, view, obj=None):
 
 
 can_advance_workflow_step.sources = ["*"]
+
+
+def _get_step_query_param(request):
+    query_params = getattr(request, "query_params", None) or request.GET
+    return query_params.get("step")
+
+
+def _resolve_step_checklist(proposal, step_key):
+    """Return the CallWorkflowStep for (proposal's call, step_key) if it has a
+    checklist attached, else None.
+    """
+    if not step_key:
+        return None
+    return proposal_models.CallWorkflowStep.objects.filter(
+        call=proposal.round.call, step=step_key, checklist__isnull=False
+    ).first()
+
+
+def _user_holds_step_role(user, proposal, call_step):
+    """True iff the user holds the step's responsible role — the applicant for an
+    applicant-owned step, the offering manager for an offering-manager step, or
+    the matching call role for reviewer/panel steps. Does NOT grant staff or
+    call-manager access (callers add those) and does NOT check whether the step
+    is active. Shared by the answer- and read-permission checks so they stay
+    consistent.
+    """
+    call = proposal.round.call
+    role = call_step.responsible_role
+    if role == ResponsibleRoles.APPLICANT:
+        return proposal.created_by_id == user.id
+    if role == ResponsibleRoles.OFFERING_MANAGER:
+        return _user_holds_offering_manager_for_call(user, call)
+    role_name = RESPONSIBLE_ROLE_TO_CALL_ROLE.get(role)
+    if not role_name:
+        return False
+    return get_users(call, role_name=role_name).filter(pk=user.pk).exists()
+
+
+def user_can_answer_step_checklist(user, proposal, call_step):
+    """True iff the user may submit answers to a workflow step's checklist.
+
+    Staff and the call's managers may always answer. Otherwise the step must be
+    currently ACTIVE (checklists become read-only once the step completes) and
+    the user must hold the step's responsible role. Mirrors
+    ``_user_can_act_on_active_step`` so answering and acting stay consistent.
+    """
+    if user.is_staff:
+        return True
+    call = proposal.round.call
+    if get_users(call, role_name=RoleEnum.CALL_MANAGER).filter(pk=user.pk).exists():
+        return True
+
+    is_active = proposal.workflow_step_instances.filter(
+        step=call_step.step,
+        status=WorkflowStepInstanceStatuses.ACTIVE,
+    ).exists()
+    if not is_active:
+        return False
+
+    return _user_holds_step_role(user, proposal, call_step)
+
+
+def user_can_read_step_checklist(user, proposal, call_step):
+    """True iff the user may read a workflow step's checklist (its answers).
+
+    Staff, the call's managers, and the step's responsible role — the latter
+    even after the step completes, so responsible roles keep read access to what
+    they submitted. Crucially the applicant may read ONLY an applicant-owned
+    step (their submission checklist); they can NOT read an evaluation step's
+    answers here — that would bypass the ``applicant_visible`` gate enforced on
+    the threaded responses endpoint.
+    """
+    if user.is_staff:
+        return True
+    call = proposal.round.call
+    if get_users(call, role_name=RoleEnum.CALL_MANAGER).filter(pk=user.pk).exists():
+        return True
+    return _user_holds_step_role(user, proposal, call_step)
+
+
+def can_read_step_checklist(request, view, obj=None):
+    """ActionsPermission check for the step_checklist GET action."""
+    if obj is None:
+        return
+    step_key = _get_step_query_param(request)
+    if not step_key:
+        raise exceptions.ValidationError({"step": "This query parameter is required."})
+    call_step = _resolve_step_checklist(obj, step_key)
+    if call_step is None:
+        raise exceptions.PermissionDenied(
+            "No checklist is configured for this workflow step."
+        )
+    if not user_can_read_step_checklist(request.user, obj, call_step):
+        raise exceptions.PermissionDenied(
+            "You do not have permission to view this step's checklist."
+        )
+
+
+can_read_step_checklist.sources = ["*"]
+
+
+def can_submit_step_checklist_answers(request, view, obj=None):
+    """ActionsPermission check for the submit_step_checklist_answers action."""
+    if obj is None:
+        return
+    step_key = _get_step_query_param(request)
+    if not step_key:
+        raise exceptions.ValidationError({"step": "This query parameter is required."})
+    call_step = _resolve_step_checklist(obj, step_key)
+    if call_step is None:
+        raise exceptions.PermissionDenied(
+            "No checklist is configured for this workflow step."
+        )
+    if not user_can_answer_step_checklist(request.user, obj, call_step):
+        raise exceptions.PermissionDenied(
+            "You cannot answer this step's checklist, or the step is no longer active."
+        )
+
+
+can_submit_step_checklist_answers.sources = ["*"]
+
+
+def can_view_step_checklist_responses(request, view, obj=None):
+    """ActionsPermission check for the threaded technical-assessment responses.
+
+    The per-reviewer technical assessments are visible to staff, the call's
+    managers, and offering managers of the call (technical reviewers may see
+    their peers' assessments). The applicant (proposal creator) sees them only
+    when the step is configured ``applicant_visible`` — matching WAL-9337's
+    "visible to Call Managers by default unless configured to let the applicant
+    see the feedback too".
+    """
+    if obj is None:
+        return
+    step_key = _get_step_query_param(request)
+    if not step_key:
+        raise exceptions.ValidationError({"step": "This query parameter is required."})
+    call_step = _resolve_step_checklist(obj, step_key)
+    if call_step is None:
+        raise exceptions.PermissionDenied(
+            "No checklist is configured for this workflow step."
+        )
+    user = request.user
+    if user.is_staff:
+        return
+    call = obj.round.call
+    if get_users(call, role_name=RoleEnum.CALL_MANAGER).filter(pk=user.pk).exists():
+        return
+    # Offering managers (technical reviewers) may see their peers' assessments —
+    # unless the step is blind_review, whose whole purpose is that evaluators
+    # cannot see each other's assessments. Managers/staff are oversight, not
+    # evaluators, so blind_review does not gate them.
+    if _user_holds_offering_manager_for_call(user, call) and not call_step.blind_review:
+        return
+    if obj.created_by_id == user.id and call_step.applicant_visible:
+        return
+    raise exceptions.PermissionDenied(
+        "You do not have permission to view technical assessment responses."
+    )
+
+
+can_view_step_checklist_responses.sources = ["*"]

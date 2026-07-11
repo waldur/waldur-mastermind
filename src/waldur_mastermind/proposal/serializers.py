@@ -349,6 +349,7 @@ class ProposalReviewSerializer(
     proposal_name = serializers.ReadOnlyField(source="proposal.name")
     proposal_uuid = serializers.UUIDField(read_only=True, source="proposal.uuid")
     proposal_slug = serializers.ReadOnlyField(source="proposal.slug")
+    coi_confirmation_required = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Review
@@ -387,9 +388,13 @@ class ProposalReviewSerializer(
             "comment_project_supporting_documentation",
             "comment_resource_requests",
             "comment_team",
+            "coi_confirmed",
+            "coi_confirmed_at",
+            "coi_confirmation_required",
             "created",
             "modified",
         )
+        read_only_fields = ("coi_confirmed", "coi_confirmed_at")
         protected_fields = ("proposal", "reviewer")
         extra_kwargs = {
             "url": {
@@ -416,6 +421,17 @@ class ProposalReviewSerializer(
                 )
 
         return attrs
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_coi_confirmation_required(self, obj) -> bool:
+        # True when the call has an enabled workflow step that requires the
+        # reviewer to attest absence of conflict of interest. Drives the
+        # confirmation checkbox in the review-submission UI.
+        return models.CallWorkflowStep.objects.filter(
+            call=obj.proposal.round.call_id,
+            is_enabled=True,
+            requires_coi_confirmation=True,
+        ).exists()
 
     def get_anonymous_reviewer_name(self, obj) -> str | None:
         """
@@ -524,7 +540,43 @@ class ReviewSubmitSerializer(serializers.ModelSerializer):
             "summary_score",
             "summary_public_comment",
             "summary_private_comment",
+            "coi_confirmed",
         )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        review = self.instance
+        # A conflict-of-interest attestation is required only when the call has
+        # an enabled workflow step configured with requires_coi_confirmation.
+        # The flag is per-step, but the attestation is per-review, so any such
+        # enabled step on the call triggers the requirement.
+        requires_coi = models.CallWorkflowStep.objects.filter(
+            call=review.proposal.round.call_id,
+            is_enabled=True,
+            requires_coi_confirmation=True,
+        ).exists()
+        coi_confirmed = attrs.get("coi_confirmed", review.coi_confirmed)
+        if requires_coi and not coi_confirmed:
+            raise serializers.ValidationError(
+                {
+                    "coi_confirmed": _(
+                        "You must confirm absence of conflict of interest "
+                        "before submitting this review."
+                    )
+                }
+            )
+        return attrs
+
+    def update(self, instance, validated_data):
+        if "coi_confirmed" in validated_data:
+            if validated_data["coi_confirmed"]:
+                if not instance.coi_confirmed_at:
+                    validated_data["coi_confirmed_at"] = timezone.now()
+            else:
+                # Keep the timestamp consistent with the flag: an unconfirmed
+                # review must not carry a stale confirmation time.
+                validated_data["coi_confirmed_at"] = None
+        return super().update(instance, validated_data)
 
 
 class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
@@ -1942,6 +1994,84 @@ class ProposalChecklistAnswerSubmitResponseSerializer(serializers.Serializer):
 
     detail = serializers.CharField()
     completion = checklist_serializers.ChecklistCompletionReviewerSerializer()
+
+
+class TechnicalAssessmentAnswerSerializer(serializers.Serializer):
+    """One reviewer's answer to a technical-assessment question, with a
+    human-readable ``answer_display`` (option labels for select questions)."""
+
+    question_uuid = serializers.UUIDField(source="question.uuid")
+    question_description = serializers.CharField(source="question.description")
+    question_type = serializers.CharField(source="question.question_type")
+    answer_data = serializers.JSONField()
+    answer_display = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_answer_display(self, obj):
+        question = obj.question
+        value = obj.answer_data
+        if question.question_type in ("single_select", "multi_select"):
+            option_uuids = value if isinstance(value, list) else [value]
+            labels = list(
+                checklist_models.QuestionOption.objects.filter(
+                    question=question, uuid__in=[str(u) for u in option_uuids]
+                )
+                .order_by("order")
+                .values_list("label", flat=True)
+            )
+            return ", ".join(labels) if labels else None
+        if isinstance(value, bool):
+            return _("Yes") if value else _("No")
+        if value in (None, ""):
+            return None
+        return str(value)
+
+
+class StepChecklistResponseGroupSerializer(serializers.Serializer):
+    """All answers a single reviewer gave to a step's checklist (grouped),
+    for the threaded technical-assessment display (WAL-9337).
+
+    Reviewer identity (uuid, name, image) is anonymized when the **applicant**
+    is viewing and the call's ``reviewer_identity_visible_to_submitters`` is
+    off — the decision + comment stay visible, but who said it is hidden.
+    Managers, staff and offering managers always see identities.
+    """
+
+    user_uuid = serializers.SerializerMethodField()
+    user_full_name = serializers.SerializerMethodField()
+    user_image = serializers.SerializerMethodField()
+    submitted_at = serializers.DateTimeField(allow_null=True)
+    answers = TechnicalAssessmentAnswerSerializer(many=True)
+
+    def _anonymize(self):
+        request = self.context.get("request")
+        proposal = self.context.get("proposal")
+        if not request or proposal is None:
+            return False
+        user = request.user
+        if user.is_staff or proposal.created_by_id != user.id:
+            return False
+        return not proposal.round.call.reviewer_identity_visible_to_submitters
+
+    @extend_schema_field(serializers.UUIDField(allow_null=True))
+    def get_user_uuid(self, obj):
+        return None if self._anonymize() else obj["user"].uuid
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_user_full_name(self, obj):
+        if self._anonymize():
+            return str(_("Technical reviewer"))
+        return obj["user"].full_name
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_user_image(self, obj):
+        if self._anonymize():
+            return None
+        image = getattr(obj["user"], "image", None)
+        if not image:
+            return None
+        request = self.context.get("request")
+        return request.build_absolute_uri(image.url) if request else image.url
 
 
 # Response serializer is now handled generically by ChecklistResponseSerializer
@@ -4321,6 +4451,7 @@ class CallWorkflowStepSerializer(
             "duration_in_days",
             "checklist",
             "checklist_name",
+            "checklist_required",
             "blind_review",
             "requires_coi_confirmation",
             "min_reviewers",
@@ -4453,6 +4584,17 @@ class CallWorkflowStepSerializer(
             ).update(is_enabled=False)
 
 
+class StepChecklistStatusSerializer(serializers.Serializer):
+    """Compact per-step checklist status surfaced on workflow_states so the UI
+    can show a badge and gate the Complete button."""
+
+    has_checklist = serializers.BooleanField()
+    checklist_required = serializers.BooleanField()
+    checklist_name = serializers.CharField(allow_null=True)
+    checklist_completed = serializers.BooleanField()
+    unanswered_required_count = serializers.IntegerField()
+
+
 class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
     step_name = serializers.SerializerMethodField()
     step_description = serializers.SerializerMethodField()
@@ -4471,6 +4613,7 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
     # SDK types it as a required string and frontends crash on the applicant
     # view (CLAUDE.md "Nullable FKs MUST use allow_null=True").
     internal_notes = serializers.SerializerMethodField()
+    checklist_status = serializers.SerializerMethodField()
 
     class Meta:
         model = models.ProposalWorkflowStepInstance
@@ -4492,6 +4635,7 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             "applicant_visible",
             "duration_in_days",
             "is_required",
+            "checklist_status",
         ]
         read_only_fields = fields
 
@@ -4557,6 +4701,8 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
                 "applicant_visible",
                 "duration_in_days",
                 "responsible_role",
+                "checklist",
+                "checklist_required",
             )
             .first()
         )
@@ -4572,6 +4718,24 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
     def get_step_description(self, obj):
         step_def = WORKFLOW_STEPS_MAP.get(obj.step)
         return step_def.description if step_def else ""
+
+    @extend_schema_field(StepChecklistStatusSerializer(allow_null=True))
+    def get_checklist_status(self, obj):
+        call_step = self._get_call_step(obj)
+        if call_step is None or not call_step.checklist_id:
+            return None
+        completion = obj.proposal.get_checklist_completion_for(call_step.checklist)
+        if completion is not None:
+            unanswered = completion.get_unanswered_required_questions().count()
+        else:
+            unanswered = call_step.checklist.questions.filter(required=True).count()
+        return {
+            "has_checklist": True,
+            "checklist_required": call_step.checklist_required,
+            "checklist_name": call_step.checklist.name,
+            "checklist_completed": unanswered == 0,
+            "unanswered_required_count": unanswered,
+        }
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_responsible_role(self, obj):

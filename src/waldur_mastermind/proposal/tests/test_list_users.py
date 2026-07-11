@@ -39,6 +39,19 @@ class ProposalListUsersPermissionTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
+    def test_creator_can_list_own_proposal_team(self):
+        # The proposal author views their own team even without the
+        # ProposalRole.MANAGER grant (e.g. preset/imported proposals, where
+        # perform_create's role assignment never ran).
+        creator = structure_factories.UserFactory()
+        proposal = factories.ProposalFactory(
+            round=self.fixture.round, created_by=creator
+        )
+        url = factories.ProposalFactory.get_url(proposal, action="list_users")
+        self.client.force_authenticate(creator)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_outsider_cannot_see_proposal_at_all(self):
         # Unrelated user — the queryset filter hides the proposal entirely,
         # yielding 404 before the permission check fires.
