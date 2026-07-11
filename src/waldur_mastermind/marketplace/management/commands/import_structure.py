@@ -8100,6 +8100,7 @@ class Command(BaseCommand):
             "duration_in_days",
             "blind_review",
             "requires_coi_confirmation",
+            "checklist_required",
             "min_reviewers",
             "min_score_threshold",
             "applicant_visible",
@@ -8137,6 +8138,21 @@ class Command(BaseCommand):
                     for field in config_fields
                     if field in step_data
                 }
+
+                # Resolve the optional workflow-step checklist (a WORKFLOW_STEP
+                # checklist the responsible role fills in during the step).
+                checklist_uuid = step_data.get("checklist_uuid")
+                if checklist_uuid:
+                    checklist = Checklist.objects.filter(uuid=checklist_uuid).first()
+                    if checklist:
+                        defaults["checklist"] = checklist
+                    else:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Call workflow step {step}: "
+                                f"checklist {checklist_uuid} not found"
+                            )
+                        )
 
                 if self.dry_run:
                     exists = CallWorkflowStep.objects.filter(
