@@ -314,6 +314,11 @@
   permissions:
     - PROPOSAL.MANAGE
 
+- role: PROPOSAL.MEMBER
+  description: Proposal member
+  scope: proposal
+  permissions: []
+
 - role: PROJECT.MEMBER
   description: Project member
   scope: project
