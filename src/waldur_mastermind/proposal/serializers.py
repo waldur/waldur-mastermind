@@ -669,7 +669,22 @@ class CallDocumentSerializer(serializers.ModelSerializer):
         fields = ["uuid", "file", "file_name", "file_size", "description", "created"]
 
 
+class CallNotArchivedCreateMixin:
+    """Provide the ``validate_call_not_archived`` hook used by
+    ``ActionMethodMixin.action_list_method``'s ``additional_validators``.
+
+    The hook is looked up by name on the serializer and called with the parent
+    Call. It keeps archived calls read-only across their nested-create surface
+    (offerings / resource templates / workflow steps).
+    """
+
+    def validate_call_not_archived(self, call):
+        if call.state == CallStates.ARCHIVED:
+            raise serializers.ValidationError(_("Cannot modify an archived call."))
+
+
 class CallResourceTemplateSerializer(
+    CallNotArchivedCreateMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -886,7 +901,9 @@ class PublicCallSerializer(
 
 
 class RequestedOfferingSerializer(
-    core_serializers.AugmentedSerializerMixin, NestedRequestedOfferingSerializer
+    CallNotArchivedCreateMixin,
+    core_serializers.AugmentedSerializerMixin,
+    NestedRequestedOfferingSerializer,
 ):
     url = serializers.SerializerMethodField()
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
@@ -1208,6 +1225,15 @@ class ProtectedCallSerializer(PublicCallSerializer):
         allow_null=True,
     )
 
+    has_proposals = serializers.SerializerMethodField(
+        help_text="Whether any proposal has been submitted to this call. "
+        "Used by the frontend to gate slug-template and checklist fields."
+    )
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_has_proposals(self, obj) -> bool:
+        return models.Proposal.objects.filter(round__call=obj).exists()
+
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
             "created_by",
@@ -1222,6 +1248,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "user_organization_types",
             "user_assurance_levels",
             "applicant_visibility_config",
+            "has_proposals",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -1969,6 +1996,9 @@ class ProposalProjectRoleMappingSerializer(serializers.HyperlinkedModelSerialize
             call,
         ):
             raise PermissionDenied()
+
+        if call.state == CallStates.ARCHIVED:
+            raise serializers.ValidationError(_("Cannot modify an archived call."))
 
         return attrs
 
@@ -4421,6 +4451,7 @@ ALLOCATION_TIMING_ALLOWED_STEPS = {"allocation_decision"}
 
 
 class CallWorkflowStepSerializer(
+    CallNotArchivedCreateMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
