@@ -101,6 +101,18 @@ from .serializers import ReviewSubmitSerializer, _is_reviewer_only_view
 logger = logging.getLogger(__name__)
 
 
+def validate_call_not_archived(nested_obj):
+    """Reject update/delete of a nested object whose parent call is archived.
+
+    Used as an ``action_detail_method`` validator: it receives the nested
+    object (RequestedOffering / CallResourceTemplate / CallWorkflowStep /
+    ProposalProjectRoleMapping), all of which reach their call via ``.call``.
+    An archived call is read-only across its whole edit surface.
+    """
+    if nested_obj.call.state == CallStates.ARCHIVED:
+        raise IncorrectStateException()
+
+
 class CallManagingOrganisationViewSet(
     UserRoleMixin, PublicViewsetMixin, BaseMarketplaceView
 ):
@@ -468,6 +480,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     filterset_class = filters.CallFilter
     filter_backends = [DjangoFilterBackend]
     destroy_validators = [core_validators.StateValidator(CallStates.DRAFT)]
+    # An archived call is read-only: block core field edits (name/description/
+    # reference_code/external_url/fixed_duration + visibility + COI settings)
+    # while keeping draft and active calls fully editable.
+    update_validators = partial_update_validators = [
+        core_validators.StateValidator(CallStates.DRAFT, CallStates.ACTIVE)
+    ]
 
     queryset = models.Call.objects.all()
 
@@ -525,7 +543,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             )
             return response.Response(serializer.data, status=status.HTTP_200_OK)
 
-        return self.action_list_method("requestedoffering_set")(self, request, uuid)
+        return self.action_list_method(
+            "requestedoffering_set",
+            additional_validators=["validate_call_not_archived"],
+        )(self, request, uuid)
 
     offerings_serializer_class = serializers.RequestedOfferingSerializer
 
@@ -535,11 +556,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     def offering_detail(self, request, uuid=None, obj_uuid=None):
         return self.action_detail_method(
             "requestedoffering_set",
-            delete_validators=[],
+            delete_validators=[validate_call_not_archived],
             update_validators=[
+                validate_call_not_archived,
                 core_validators.StateValidator(
                     models.RequestedOffering.States.REQUESTED
-                )
+                ),
             ],
         )(self, request, uuid, obj_uuid)
 
@@ -673,6 +695,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         method = self.request.method
 
         if method == "POST":
+            if call.state == CallStates.ARCHIVED:
+                raise IncorrectStateException()
             repeat = request.query_params.get("repeat", "false")
             count = request.query_params.get("count", "1")
 
@@ -754,6 +778,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"], url_path="rounds-bulk-set")
     def rounds_bulk_set(self, request, uuid=None):
         call: models.Call = self.get_object()
+        if call.state == CallStates.ARCHIVED:
+            raise IncorrectStateException()
         payload = serializers.BulkRoundCreateRequestSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         rounds = utils.bulk_create_rounds(call, payload.validated_data)
@@ -828,6 +854,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     def attach_documents(self, request, uuid=None):
         instance: models.Call = self.get_object()
 
+        if instance.state == CallStates.ARCHIVED:
+            raise IncorrectStateException()
+
         if hasattr(request.data, "getlist"):
             documents = request.data.getlist("documents", [])
         else:
@@ -863,6 +892,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def detach_documents(self, request, uuid=None):
         instance: models.Call = self.get_object()
+        if instance.state == CallStates.ARCHIVED:
+            raise IncorrectStateException()
         if hasattr(request.data, "getlist"):
             documents = request.data.getlist("documents", [])
         else:
@@ -903,7 +934,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(responses={status.HTTP_200_OK: dict})
     @decorators.action(detail=True, methods=["get", "post"])
     def resource_templates(self, request, uuid=None):
-        return self.action_list_method("resource_templates")(self, request, uuid)
+        return self.action_list_method(
+            "resource_templates",
+            additional_validators=["validate_call_not_archived"],
+        )(self, request, uuid)
 
     resource_templates_serializer_class = serializers.CallResourceTemplateSerializer
 
@@ -912,7 +946,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     )
     def resource_template_detail(self, request, uuid=None, obj_uuid=None):
         return self.action_detail_method(
-            "resource_templates", delete_validators=[], update_validators=[]
+            "resource_templates",
+            delete_validators=[validate_call_not_archived],
+            update_validators=[validate_call_not_archived],
         )(self, request, uuid, obj_uuid)
 
     resource_template_detail_serializer_class = (
@@ -960,7 +996,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 steps, context=self.get_serializer_context(), many=True
             )
             return response.Response(serializer.data, status=status.HTTP_200_OK)
-        return self.action_list_method("workflow_steps")(self, request, uuid)
+        return self.action_list_method(
+            "workflow_steps",
+            additional_validators=["validate_call_not_archived"],
+        )(self, request, uuid)
 
     workflow_steps_serializer_class = serializers.CallWorkflowStepSerializer
 
@@ -969,7 +1008,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     )
     def workflow_step_detail(self, request, uuid=None, obj_uuid=None):
         return self.action_detail_method(
-            "workflow_steps", delete_validators=[], update_validators=[]
+            "workflow_steps",
+            delete_validators=[validate_call_not_archived],
+            update_validators=[validate_call_not_archived],
         )(self, request, uuid, obj_uuid)
 
     workflow_step_detail_serializer_class = serializers.CallWorkflowStepSerializer
@@ -3720,6 +3761,12 @@ class ProposalProjectRoleMappingViewSet(ActionsViewSet):
     filterset_class = filters.ProposalProjectRoleMappingFilter
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [proposal_permissions.CanUpdateCallPermission]
+    # Archived calls are read-only. Update/delete run against the mapping
+    # (which reaches its call via ``.call``); create is guarded in the
+    # serializer's ``validate`` where the target call is known.
+    update_validators = partial_update_validators = destroy_validators = [
+        validate_call_not_archived
+    ]
 
 
 # =============================================================================
