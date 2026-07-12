@@ -15,7 +15,11 @@ from .handlers import (
     deactivate_user_with_logging,
     reactivate_user_with_logging,
 )
-from .utils import exclude_removed_project_roles, get_scope_ancestors
+from .utils import (
+    exclude_removed_project_roles,
+    get_scope_ancestors,
+    is_expiration_exempt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,8 @@ def check_expired_permissions():
     for permission in models.UserRole.objects.filter(
         expiration_time__lt=timezone.now(), is_active=True
     ):
+        if is_expiration_exempt(permission):
+            continue
         permission.revoke(reason="Automatic expiration cleanup task")
 
 

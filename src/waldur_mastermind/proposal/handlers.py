@@ -6,6 +6,20 @@ from waldur_core.checklist import models as checklist_models
 from waldur_mastermind.proposal import enums, models
 
 
+def is_submitted_proposal_role(user_role) -> bool:
+    """Expiration-sweep guard (waldur_core.permissions.check_expired_permissions).
+
+    A submitted proposal's team is part of the application record and feeds the
+    awarded project's roles, so its grants must not be auto-revoked when their
+    expiration_time passes. Draft proposals keep normal expiry, so a temporary
+    drafting collaborator can still auto-lapse before submission.
+    """
+    scope = user_role.scope
+    return (
+        isinstance(scope, models.Proposal) and scope.state != enums.ProposalStates.DRAFT
+    )
+
+
 def create_checklist_completion(sender, instance, created, **kwargs):
     """Create checklist completion tracking when proposal is created."""
     if created and instance.round.call.compliance_checklist:
