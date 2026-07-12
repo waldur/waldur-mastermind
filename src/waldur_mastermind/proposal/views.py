@@ -96,7 +96,7 @@ from waldur_mastermind.proposal.enums import (
 
 from .managers import get_connected_call_organizers, get_connected_calls
 from .models import Proposal
-from .serializers import ReviewSubmitSerializer
+from .serializers import ReviewSubmitSerializer, _is_reviewer_only_view
 
 logger = logging.getLogger(__name__)
 
@@ -2439,6 +2439,14 @@ class ProposalViewSet(
             call_id in get_connected_calls(user, role)
             for role in (CallRole.MANAGER, CallRole.REVIEWER, CallRole.PANEL_MEMBER)
         )
+
+    def filter_user_roles_representation(self, data, scope, request):
+        # Role expiration is team-admin metadata irrelevant to evaluation, so
+        # conceal it from reviewers viewing the proposal team read-only.
+        if _is_reviewer_only_view(request.user, scope):
+            for item in data:
+                item.pop("expiration_time", None)
+        return data
 
     # Both mixins use the default implementation (obj.checklist_completion)
     # UserChecklistMixin permissions - for proposal managers only

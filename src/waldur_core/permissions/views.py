@@ -541,7 +541,13 @@ class UserRoleMixin:
         serializer = serializers.UserRoleDetailsSerializer(
             queryset, many=True, context={"request": request}
         )
-        return self.get_paginated_response(serializer.data)
+        data = self.filter_user_roles_representation(serializer.data, scope, request)
+        return self.get_paginated_response(data)
+
+    def filter_user_roles_representation(self, data, scope, request):
+        """Hook for subclasses to redact fields from the list_users payload
+        (e.g. hide role expiration from reviewers). Default: no change."""
+        return data
 
     @extend_schema(
         summary="Grant a role to a user",
