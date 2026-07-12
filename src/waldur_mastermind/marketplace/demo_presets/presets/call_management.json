@@ -812,6 +812,14 @@
       "scope_object_uuid": "ca600000000000000000000000000002",
       "is_complete": true,
       "_comment": "Technical assessment for the Quantum Error Correction proposal"
+    },
+    {
+      "uuid": "cc10000000000000000000000000000a",
+      "checklist_uuid": "cb100000000000000000000000000003",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000010",
+      "is_complete": true,
+      "_comment": "Answered technical assessment checklist"
     }
   ],
   "answers": [
@@ -1233,6 +1241,20 @@
       "completion_uuid": "cc100000000000000000000000000009",
       "answer_data": "Feasible provided the team confirms access to the required interconnect; recommend a scaling test before full allocation.",
       "_comment": "Assessor 2 rationale"
+    },
+    {
+      "uuid": "ca100000000000000000000000000501",
+      "user_uuid": "a4000000000000000000000000000003",
+      "question_uuid": "cb200000000000000000000000000201",
+      "completion_uuid": "cc10000000000000000000000000000a",
+      "answer_data": "cb300000000000000000000000000401"
+    },
+    {
+      "uuid": "ca100000000000000000000000000502",
+      "user_uuid": "a4000000000000000000000000000003",
+      "question_uuid": "cb200000000000000000000000000202",
+      "completion_uuid": "cc10000000000000000000000000000a",
+      "answer_data": "Requested compute is well within the round envelope; the gyrokinetic approach is sound."
     }
   ],
   "category_groups": [
@@ -1921,6 +1943,30 @@
       "project_is_confidential": false,
       "project_has_civilian_purpose": true,
       "oecd_fos_2007_code": "1.6"
+    },
+    {
+      "uuid": "ca60000000000000000000000000000f",
+      "name": "Photonic Quantum Networking",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "in_review",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "project_summary": "Design and simulation of a metropolitan-scale photonic quantum network; all evaluation steps complete, awaiting the allocation decision.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.3"
+    },
+    {
+      "uuid": "ca600000000000000000000000000010",
+      "name": "Fusion Plasma Turbulence Modeling",
+      "round_uuid": "ca500000000000000000000000000001",
+      "state": "in_review",
+      "created_by_uuid": "a4000000000000000000000000000008",
+      "project_summary": "High-fidelity gyrokinetic modeling of fusion plasma turbulence; technical assessment in progress with the feasibility checklist completed.",
+      "project_duration": 365,
+      "project_is_confidential": false,
+      "project_has_civilian_purpose": true,
+      "oecd_fos_2007_code": "1.3"
     }
   ],
   "requested_resources": [
@@ -2634,6 +2680,15 @@
       "role_name": "CALL.PANEL_MEMBER",
       "scope_type": "proposal.call",
       "scope_uuid": "ca200000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000023",
+      "user_uuid": "a4000000000000000000000000000002",
+      "user_username": "call_manager",
+      "role_name": "CALL.MANAGER",
+      "scope_type": "proposal.call",
+      "scope_uuid": "ca200000000000000000000000000004",
       "is_active": true
     }
   ],
@@ -4728,6 +4783,70 @@
       "proposal_uuid": "ca60000000000000000000000000000e",
       "step": "allocation_decision",
       "status": "pending"
+    },
+    {
+      "uuid": "cf004000000000000000000000000000",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "2026-06-15T09:00:00+00:00",
+      "completed_at": "2026-06-15T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf004000000000000000000000000001",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "technical_assessment",
+      "status": "completed",
+      "outcome": "feasible",
+      "started_at": "2026-06-16T09:00:00+00:00",
+      "completed_at": "2026-06-16T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf004000000000000000000000000002",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "expert_review",
+      "status": "completed",
+      "outcome": "reviewed",
+      "started_at": "2026-06-17T09:00:00+00:00",
+      "completed_at": "2026-06-17T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000003"
+    },
+    {
+      "uuid": "cf004000000000000000000000000003",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "panel_review",
+      "status": "completed",
+      "outcome": "approved",
+      "started_at": "2026-06-18T09:00:00+00:00",
+      "completed_at": "2026-06-18T12:00:00+00:00",
+      "completed_by_uuid": "a400000000000000000000000000000a"
+    },
+    {
+      "uuid": "cf004000000000000000000000000004",
+      "proposal_uuid": "ca60000000000000000000000000000f",
+      "step": "allocation_decision",
+      "status": "active",
+      "started_at": "2026-06-19T09:00:00+00:00"
+    },
+    {
+      "uuid": "cf005000000000000000000000000000",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "administrative_check",
+      "status": "completed",
+      "outcome": "eligible",
+      "started_at": "2026-06-15T09:00:00+00:00",
+      "completed_at": "2026-06-15T12:00:00+00:00",
+      "completed_by_uuid": "a4000000000000000000000000000002"
+    },
+    {
+      "uuid": "cf005000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000010",
+      "step": "technical_assessment",
+      "status": "active",
+      "started_at": "2026-06-16T09:00:00+00:00"
     }
   ]
 }
