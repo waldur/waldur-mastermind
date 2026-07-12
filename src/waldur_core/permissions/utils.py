@@ -17,6 +17,24 @@ if TYPE_CHECKING:
     from django.http import HttpRequest
 
 
+# Predicates that exempt a UserRole from the automatic expiration sweep
+# (permissions.tasks.check_expired_permissions). Apps register a predicate in
+# their AppConfig.ready() to protect scopes whose membership must not be
+# auto-revoked when a grant's expiration_time passes.
+_expiration_guards: list = []
+
+
+def register_expiration_guard(predicate) -> None:
+    """Register ``predicate(user_role) -> bool``; returning ``True`` exempts the
+    role from automatic expiration revocation."""
+    _expiration_guards.append(predicate)
+
+
+def is_expiration_exempt(user_role) -> bool:
+    """True if any registered guard opts this role out of auto-expiry."""
+    return any(guard(user_role) for guard in _expiration_guards)
+
+
 def _is_pat_auth(auth) -> bool:
     """Check if auth object is a PersonalAccessToken instance.
 
