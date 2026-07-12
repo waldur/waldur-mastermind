@@ -4848,5 +4848,25 @@
       "status": "active",
       "started_at": "2026-06-16T09:00:00+00:00"
     }
+  ],
+  "call_documents": [
+    {
+      "uuid": "cd100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "description": "Call guidelines and submission instructions",
+      "file_name": "call-guidelines.txt"
+    },
+    {
+      "uuid": "cd100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "description": "Evaluation criteria and scoring rubric",
+      "file_name": "evaluation-criteria.txt"
+    },
+    {
+      "uuid": "cd100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000002",
+      "description": "Proposal application template",
+      "file_name": "application-template.txt"
+    }
   ]
 }

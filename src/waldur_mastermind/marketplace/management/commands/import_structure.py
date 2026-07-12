@@ -83,6 +83,7 @@ from waldur_mastermind.proposal.models import (
     AssignmentItem,
     Call,
     CallCOIConfiguration,
+    CallDocument,
     CallManagingOrganisation,
     CallResourceTemplate,
     CallReviewerPool,
@@ -329,6 +330,12 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "calls": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "call_documents": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "requested_offerings": {
                 "created": 0,
                 "updated": 0,
@@ -903,6 +910,11 @@ class Command(BaseCommand):
         self._safe_import(
             "calls",
             lambda: self.import_calls(data.get("calls", [])),
+        )
+        # Documentation files attached to calls (depends on calls)
+        self._safe_import(
+            "call_documents",
+            lambda: self.import_call_documents(data.get("call_documents", [])),
         )
 
         # Import call configurations (depends on calls)
@@ -7976,6 +7988,64 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["requested_resources"]["errors"] += 1
+
+    def import_call_documents(self, documents_data):
+        """Import documentation files attached to calls, seeding a placeholder
+        file so the document (and the public-call Documents tab) is shown."""
+        from django.core.files.base import ContentFile
+
+        self.stdout.write("Importing call documents...")
+        for item in documents_data:
+            try:
+                uuid = item.get("uuid")
+                call_uuid = item.get("call_uuid")
+                if not uuid or not call_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call document without UUID or call_uuid"
+                        )
+                    )
+                    self.stats["call_documents"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping call document {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["call_documents"]["errors"] += 1
+                    continue
+
+                document, created = CallDocument.objects.update_or_create(
+                    uuid=uuid,
+                    defaults={
+                        "call": call,
+                        "description": item.get("description", ""),
+                    },
+                )
+                if not document.file:
+                    content = item.get(
+                        "content",
+                        f"{item.get('description') or 'Call document'}\n\n"
+                        "Sample document for this call for proposals.\n",
+                    ).encode()
+                    document.file.save(
+                        item.get("file_name", "document.txt"),
+                        ContentFile(content),
+                        save=True,
+                    )
+                # The call exposes documents via the M2M relation (what the
+                # serializer/UI read), in addition to the CallDocument.call FK.
+                call.documents.add(document)
+
+                self.stats["call_documents"]["created" if created else "updated"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f"Error importing call document: {e}")
+                )
+                self.stats["call_documents"]["errors"] += 1
 
     def import_reviews(self, reviews_data):
         """Import review data."""
