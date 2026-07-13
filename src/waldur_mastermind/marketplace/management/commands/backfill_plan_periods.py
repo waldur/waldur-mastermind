@@ -1,8 +1,11 @@
-from django.core.management.base import BaseCommand
+import datetime
+
+from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 
 from waldur_mastermind.marketplace.models import (
     ComponentUsage,
+    Offering,
     Resource,
     ResourcePlanPeriod,
 )
@@ -21,6 +24,49 @@ class Command(BaseCommand):
             action="store_true",
             help="Only show what would be done without making changes.",
         )
+        parser.add_argument(
+            "--offering",
+            dest="offering_uuid",
+            help="Only process resources belonging to the offering with this UUID.",
+        )
+        parser.add_argument(
+            "--resource",
+            dest="resource_uuid",
+            help="Only process the resource with this UUID.",
+        )
+        parser.add_argument(
+            "--start-date",
+            dest="start_date",
+            help=(
+                "Only backfill ComponentUsage records whose billing_period is on or "
+                "after this date (format: YYYY-MM-DD)."
+            ),
+        )
+        parser.add_argument(
+            "--end-date",
+            dest="end_date",
+            help=(
+                "Only backfill ComponentUsage records whose billing_period is on or "
+                "before this date (format: YYYY-MM-DD)."
+            ),
+        )
+
+    def _parse_date(self, value, label):
+        try:
+            return datetime.datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            raise CommandError(
+                f"Invalid {label} {value!r}: expected format YYYY-MM-DD."
+            )
+
+    def _orphan_qs(self, resource):
+        """Orphaned ComponentUsage records for a resource, honouring date filters."""
+        orphans = ComponentUsage.objects.filter(resource=resource, plan_period=None)
+        if self.start_date:
+            orphans = orphans.filter(billing_period__gte=self.start_date)
+        if self.end_date:
+            orphans = orphans.filter(billing_period__lte=self.end_date)
+        return orphans
 
     def _backfill_for_plan_period(self, plan_period, dry_run):
         """Backfill orphaned ComponentUsage records for a given plan period.
@@ -30,9 +76,7 @@ class Command(BaseCommand):
 
         Returns (updated_count, deleted_count).
         """
-        orphans = ComponentUsage.objects.filter(
-            resource=plan_period.resource, plan_period=None
-        )
+        orphans = self._orphan_qs(plan_period.resource)
         if not orphans.exists():
             return 0, 0
 
@@ -47,9 +91,7 @@ class Command(BaseCommand):
             duplicates.delete()
 
         # Backfill remaining orphans
-        remaining = ComponentUsage.objects.filter(
-            resource=plan_period.resource, plan_period=None
-        )
+        remaining = self._orphan_qs(plan_period.resource)
         updated_count = remaining.count()
         if not dry_run and updated_count:
             remaining.update(plan_period=plan_period)
@@ -64,13 +106,50 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
+        self.start_date = (
+            self._parse_date(options["start_date"], "--start-date")
+            if options["start_date"]
+            else None
+        )
+        self.end_date = (
+            self._parse_date(options["end_date"], "--end-date")
+            if options["end_date"]
+            else None
+        )
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise CommandError("--start-date must not be after --end-date.")
+
+        offering = None
+        if options["offering_uuid"]:
+            try:
+                offering = Offering.objects.get(uuid=options["offering_uuid"])
+            except (Offering.DoesNotExist, ValueError):
+                raise CommandError(
+                    f"Offering with UUID {options['offering_uuid']!r} does not exist."
+                )
+
+        resource = None
+        if options["resource_uuid"]:
+            try:
+                resource = Resource.objects.get(uuid=options["resource_uuid"])
+            except (Resource.DoesNotExist, ValueError):
+                raise CommandError(
+                    f"Resource with UUID {options['resource_uuid']!r} does not exist."
+                )
+
         total_updated = 0
         total_deleted = 0
 
         # Step 1: Backfill where ResourcePlanPeriod already exists
-        for plan_period in ResourcePlanPeriod.objects.filter(end=None).select_related(
+        plan_periods = ResourcePlanPeriod.objects.filter(end=None).select_related(
             "resource"
-        ):
+        )
+        if offering:
+            plan_periods = plan_periods.filter(resource__offering=offering)
+        if resource:
+            plan_periods = plan_periods.filter(resource=resource)
+
+        for plan_period in plan_periods:
             updated, deleted = self._backfill_for_plan_period(plan_period, dry_run)
             total_updated += updated
             total_deleted += deleted
@@ -87,21 +166,27 @@ class Command(BaseCommand):
             )
             .distinct()
         )
-
-        for resource in resources_still_orphaned:
-            orphaned = ComponentUsage.objects.filter(
-                resource=resource, plan_period=None
+        if offering:
+            resources_still_orphaned = resources_still_orphaned.filter(
+                offering=offering
             )
+        if resource:
+            resources_still_orphaned = resources_still_orphaned.filter(pk=resource.pk)
+
+        for resource_obj in resources_still_orphaned:
+            orphaned = self._orphan_qs(resource_obj)
             count = orphaned.count()
+            if not count:
+                continue
             self.stdout.write(
-                f"  {resource.name} (uuid={resource.uuid.hex}): "
+                f"  {resource_obj.name} (uuid={resource_obj.uuid.hex}): "
                 f"creating ResourcePlanPeriod and backfilling {count} records"
             )
             if not dry_run:
                 plan_period = ResourcePlanPeriod.objects.create(
-                    resource=resource,
-                    plan=resource.plan,
-                    start=resource.created,
+                    resource=resource_obj,
+                    plan=resource_obj.plan,
+                    start=resource_obj.created,
                     end=None,
                 )
                 updated, deleted = self._backfill_for_plan_period(
