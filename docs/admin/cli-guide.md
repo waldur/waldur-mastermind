@@ -143,10 +143,25 @@ Backfill plan_period on ComponentUsage records where it is NULL. This fixes inco
 
 ```bash
 
-usage: waldur backfill_plan_periods [--dry-run]
+usage: waldur backfill_plan_periods [--dry-run] [--offering OFFERING_UUID]
+                                    [--resource RESOURCE_UUID]
+                                    [--start-date START_DATE]
+                                    [--end-date END_DATE]
 
 options:
-  --dry-run  Only show what would be done without making changes.
+  --dry-run             Only show what would be done without making changes.
+  --offering OFFERING_UUID
+                        Only process resources belonging to the offering with
+                        this UUID.
+  --resource RESOURCE_UUID
+                        Only process the resource with this UUID.
+  --start-date START_DATE
+                        Only backfill ComponentUsage records whose
+                        billing_period is on or after this date (format: YYYY-
+                        MM-DD).
+  --end-date END_DATE   Only backfill ComponentUsage records whose
+                        billing_period is on or before this date (format:
+                        YYYY-MM-DD).
 
 ```
 
