@@ -590,8 +590,15 @@ def set_mtu_when_network_has_been_created(
 def update_floating_ip_external_addresses(
     sender, instance: FloatingIP, created=False, **kwargs
 ):
-    # Process if address changed OR if this is a newly created IP with an address
-    if not (instance.tracker.has_changed("address") or (created and instance.address)):
+    # Recompute when the address OR the port association changes. A floating IP
+    # is often attached to an instance port in a later save that leaves the
+    # address untouched, so triggering on address alone leaves external_address
+    # (the 1:1 NAT public IP) unset and the VM looks like it has no public IP.
+    if not (
+        instance.tracker.has_changed("address")
+        or instance.tracker.has_changed("port_id")
+        or (created and instance.address)
+    ):
         return
 
     utils.update_external_addresses_of_floating_ip(instance)

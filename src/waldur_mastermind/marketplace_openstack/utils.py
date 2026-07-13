@@ -1011,7 +1011,7 @@ def update_external_addresses_of_resource(resource: marketplace_models.Resource)
 def update_external_addresses_of_floating_ip(floating_ip: openstack_models.FloatingIP):
     if not floating_ip.address:
         if floating_ip.external_address:
-            floating_ip.external_address = []
+            floating_ip.external_address = None
             floating_ip.save()
         return
 

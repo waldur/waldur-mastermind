@@ -29,6 +29,7 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_FIXED,
 )
 from waldur_openstack import models as openstack_models
+from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import fixtures as openstack_fixtures
 from waldur_openstack.tests.factories import VolumeTypeFactory
@@ -699,6 +700,139 @@ class ImportedFloatingIPExternalMappingTest(test.APITestCase):
 
         floating_ip.refresh_from_db()
         self.assertEqual(floating_ip.external_address, None)
+
+    def test_floating_ip_gets_external_address_when_port_attached_later(self):
+        # A floating IP is frequently allocated with its address first and only
+        # associated to an instance port in a later save (e.g. during pull),
+        # which does not change the address. The external_address (1:1 NAT
+        # public IP) must still be computed once the port is attached, otherwise
+        # the VM looks like it has no public IP when it actually does.
+        floating_ip = openstack_factories.FloatingIPFactory(
+            port=None,
+            address="100.100.100.50",
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            state=CoreStates.OK,
+        )
+        marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.instance,
+        )
+
+        # Not attached to any instance yet, so no mapping can be resolved.
+        floating_ip.refresh_from_db()
+        self.assertIsNone(floating_ip.external_address)
+
+        # Attach to the instance port in a save that changes only the port.
+        floating_ip.port = self.fixture.port
+        floating_ip.save()
+
+        floating_ip.refresh_from_db()
+        self.assertEqual(floating_ip.external_address, "200.200.200.50")
+
+    def test_external_address_is_cleared_when_floating_ip_address_is_removed(self):
+        # When a floating IP loses its address, its external_address must be
+        # reset to None. external_address is a GenericIPAddressField, so it must
+        # not be assigned a list.
+        marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.instance,
+        )
+        floating_ip = openstack_factories.FloatingIPFactory(
+            port=self.fixture.port,
+            address="100.100.100.50",
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            state=CoreStates.OK,
+        )
+        floating_ip.refresh_from_db()
+        self.assertEqual(floating_ip.external_address, "200.200.200.50")
+
+        floating_ip.address = None
+        floating_ip.save()
+
+        floating_ip.refresh_from_db()
+        self.assertIsNone(floating_ip.external_address)
+
+
+class PullFloatingIpExternalMappingTest(test.APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
+        openstack_fixtures.mock_session()
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.parent_offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING,
+            secret_options={
+                "ipv4_external_ip_mapping": [
+                    {
+                        "floating_ip": "100.100.100.0/24",
+                        "external_ip": "200.200.200.0/24",
+                    }
+                ]
+            },
+        )
+        self.offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING,
+            parent=self.parent_offering,
+        )
+        marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.instance,
+        )
+        self.backend = OpenStackBackend(self.fixture.tenant.service_settings)
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
+
+    def test_pull_computes_external_address_when_port_gets_attached(self):
+        # Reproduces the real production trigger: the floating IP already has
+        # an address but is bound to a port that is not on the instance; a pull
+        # rebinds it to the instance's port in a save that only changes `port`.
+        instance = self.fixture.instance
+        subnet = self.fixture.subnet
+        detached_port = openstack_factories.PortFactory(
+            tenant=self.fixture.tenant,
+            subnet=subnet,
+            backend_id="port_detached",
+            fixed_ips=[{"ip_address": "192.168.42.10", "subnet_id": subnet.backend_id}],
+        )
+        instance_port = openstack_factories.PortFactory(
+            tenant=self.fixture.tenant,
+            subnet=subnet,
+            backend_id="port_instance",
+            fixed_ips=[{"ip_address": "192.168.42.20", "subnet_id": subnet.backend_id}],
+            instance=instance,
+        )
+        floating_ip = openstack_factories.FloatingIPFactory(
+            tenant=self.fixture.tenant,
+            address="100.100.100.50",
+            port=detached_port,
+        )
+        # Bound to a port with no instance, so the mapping cannot resolve yet.
+        floating_ip.refresh_from_db()
+        self.assertIsNone(floating_ip.external_address)
+
+        self.mocked_neutron.list_floatingips.return_value = {
+            "floatingips": [
+                {
+                    "floating_ip_address": floating_ip.address,
+                    "floating_network_id": "backend_network_id",
+                    "status": "DOWN",
+                    "id": floating_ip.backend_id,
+                    "port_id": instance_port.backend_id,
+                }
+            ]
+        }
+
+        self.backend.pull_instance_floating_ips(instance)
+
+        floating_ip.refresh_from_db()
+        self.assertEqual(floating_ip.port, instance_port)
+        self.assertEqual(floating_ip.external_address, "200.200.200.50")
 
 
 class UpdateSecretOptionsTest(test.APITestCase):
