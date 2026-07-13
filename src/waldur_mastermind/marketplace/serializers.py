@@ -7743,7 +7743,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             ).update(recurring=False)
 
             if not plan_period:
-                plan_period = utils.get_plan_period(resource, now)
+                plan_period = utils.get_plan_period_for_billing(resource, now)
 
             # Look up by (resource, component, billing_period) only —
             # plan_period is a mutable attribute, not part of the identity.
