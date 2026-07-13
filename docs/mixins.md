@@ -103,6 +103,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
 | [`EstimatedCostPolicyMixin`](#estimatedcostpolicymixin) | `waldur_mastermind.policy.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
+| [`CallNotArchivedCreateMixin`](#callnotarchivedcreatemixin) | `waldur_mastermind.proposal.serializers` | Provide the ``validate_call_not_archived`` hook used by ``ActionMethodMixin |
 | [`ProposalComplianceTestMixin`](#proposalcompliancetestmixin) | `waldur_mastermind.proposal.tests.test_proposal_compliance` | Common setup for proposal compliance tests |
 | [`InvitationAcceptanceMixin`](#invitationacceptancemixin) | `waldur_mastermind.proposal.views` | Mixin providing common logic for accepting/declining reviewer pool invitations |
 | [`BackendNameMixin`](#backendnamemixin) | `waldur_mastermind.support.models` | Make subclasses preserve the alters_data attribute on overridden methods |
@@ -1480,6 +1481,19 @@ Example:
 or uses URL name specified in a model of serialized object.
 
 **Base classes:** `AugmentedSerializerMixin`
+
+### CallNotArchivedCreateMixin
+
+**Module:** `waldur_mastermind.proposal.serializers`
+
+**Description:**
+
+Provide the ``validate_call_not_archived`` hook used by
+``ActionMethodMixin.action_list_method``'s ``additional_validators``.
+
+The hook is looked up by name on the serializer and called with the parent
+Call. It keeps archived calls read-only across their nested-create surface
+(offerings / resource templates / workflow steps).
 
 ### ProposalComplianceTestMixin
 
