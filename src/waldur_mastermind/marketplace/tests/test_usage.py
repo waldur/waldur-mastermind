@@ -1121,6 +1121,95 @@ class HistoricalUsagePlanPeriodDuplicateTest(test.APITestCase):
         self.assertEqual(usages.first().usage, 300)
 
 
+@freeze_time("2024-07-15")
+class MidMonthPlanPeriodResolutionTest(test.APITestCase):
+    """Site agents report usage dated to the first of the billing month. A
+    resource that became active mid-month has a ResourcePlanPeriod that starts
+    after the first of the month, so the point-in-time plan-period lookup at
+    the month start misses it and the usage is stored with plan_period=None —
+    which suppresses invoice-item (and therefore cost-policy) creation.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.USAGE,
+            type="cpu",
+        )
+        factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component
+        )
+        self.resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+        self.client.force_authenticate(self.fixture.staff)
+
+    def _report_month_start_usage(self, amount=100):
+        # Emulate the site agent: usage dated to the first of the current month.
+        payload = {
+            "resource": self.resource.uuid.hex,
+            "usages": [{"type": "cpu", "amount": amount}],
+            "date": "2024-07-01T00:00:00Z",
+        }
+        return self.client.post("/api/marketplace-component-usages/set_usage/", payload)
+
+    def _get_usage(self, billing_period=datetime.date(2024, 7, 1)):
+        return models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.offering_component,
+            billing_period=billing_period,
+        )
+
+    def test_mid_month_plan_period_is_resolved_for_month_start_usage(self):
+        # Resource became active on the 10th; plan period starts mid-month.
+        plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource,
+            plan=self.plan,
+            start=datetime.datetime(2024, 7, 10, tzinfo=datetime.UTC),
+            end=None,
+        )
+        response = self._report_month_start_usage()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # The usage belongs to the mid-month plan period, not None.
+        self.assertEqual(self._get_usage().plan_period, plan_period)
+
+    def test_plan_period_is_created_when_resource_has_none(self):
+        # Resource reached OK without a plan period (e.g. backend-synced): no
+        # ResourcePlanPeriod exists at all, yet current-month usage must bill.
+        self.assertFalse(
+            models.ResourcePlanPeriod.objects.filter(resource=self.resource).exists()
+        )
+        response = self._report_month_start_usage()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        usage = self._get_usage()
+        self.assertIsNotNone(usage.plan_period)
+        self.assertEqual(usage.plan_period.resource, self.resource)
+
+    def test_historical_usage_without_plan_period_stays_null(self):
+        # Backfilling a past month for a resource with no plan period must NOT
+        # lazily create one — genuine historical gaps stay unbilled.
+        payload = {
+            "resource": self.resource.uuid.hex,
+            "usages": [{"type": "cpu", "amount": 100}],
+            "date": "2024-03-15T10:00:00Z",
+        }
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(self._get_usage(datetime.date(2024, 3, 1)).plan_period)
+        self.assertFalse(
+            models.ResourcePlanPeriod.objects.filter(resource=self.resource).exists()
+        )
+
+
 @freeze_time("2024-02-15")  # Current time: February 2024
 class UsageBackfillInvoiceTest(test.APITestCase):
     def setUp(self):

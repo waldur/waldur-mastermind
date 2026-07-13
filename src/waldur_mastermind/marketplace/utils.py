@@ -1039,6 +1039,64 @@ def get_plan_period(resource, date):
     )
 
 
+def get_plan_period_for_billing(resource: models.Resource, date):
+    """Resolve the plan period a usage recorded for the billing month of ``date``
+    should be attached to.
+
+    Site agents report usage dated to the first of the billing month. A resource
+    that became active mid-month has a :class:`ResourcePlanPeriod` starting after
+    that date, so the point-in-time :func:`get_plan_period` lookup misses it and
+    the usage would be stored with ``plan_period=None`` (suppressing billing).
+
+    Resolution order:
+
+    1. Exact point-in-time match at ``date`` (unchanged behaviour).
+    2. Any plan period overlapping the billing month ``[month_start, month_end]``
+       — this catches mid-month resources. The invoice item start is clamped to
+       ``max(plan_period.start, month_start)`` downstream, so a mid-month
+       resource is only charged from when it became active.
+    3. If the resource is billable and active but has *no* plan period at all
+       (e.g. it reached OK without a ``CREATING -> OK`` transition) and this is
+       the current billing month, create one so current usage can be billed.
+       Historical (past-month) backfills are intentionally left unresolved.
+    """
+    plan_period = get_plan_period(resource, date)
+    if plan_period is not None:
+        return plan_period
+
+    month_start = core_utils.month_start(date)
+    month_end = core_utils.month_end(date)
+    plan_period = (
+        models.ResourcePlanPeriod.objects.filter(resource=resource)
+        .filter(Q(start__lte=month_end) | Q(start__isnull=True))
+        .filter(Q(end__gte=month_start) | Q(end__isnull=True))
+        .order_by("start")
+        .last()
+    )
+    if plan_period is not None:
+        return plan_period
+
+    if (
+        resource.plan
+        and resource.state in [ResourceStates.OK, ResourceStates.UPDATING]
+        and month_start == core_utils.month_start(timezone.now())
+        and not models.ResourcePlanPeriod.objects.filter(resource=resource).exists()
+    ):
+        logger.info(
+            "Creating missing Resource Plan Period for resource %s (UUID: %s)",
+            resource.name,
+            resource.uuid.hex,
+        )
+        plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=resource.created,
+            end=None,
+        )
+
+    return plan_period
+
+
 def get_or_create_plan_period(resource: models.Resource, date):
     plan_period = get_plan_period(resource, date)
 
@@ -1082,7 +1140,7 @@ def import_current_usages(resource, usages=None, hourly_accumulation=False):
             )
             continue
 
-        plan_period = get_plan_period(resource, date)
+        plan_period = get_plan_period_for_billing(resource, date)
         billing_period = core_utils.month_start(date)
 
         use_accumulation = (
