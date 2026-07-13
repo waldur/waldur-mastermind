@@ -524,10 +524,17 @@ def create_resource_plan_period_when_resource_is_created(
     if instance.state != ResourceStates.OK:
         return
 
-    if instance.tracker.previous("state") != ResourceStates.CREATING:
+    if not instance.plan:
         return
 
-    if not instance.plan:
+    # Create a plan period on the resource's first transition into OK. This was
+    # historically gated on the previous state being CREATING, which missed
+    # resources reaching OK by other paths (e.g. recovering from ERRED, or
+    # backend-synced resources) — leaving them without any plan period and with
+    # usage that cannot be billed. Guard against duplicates by skipping when an
+    # open plan period already exists (e.g. UPDATING -> OK, or a plan switch
+    # that already opened a new period).
+    if models.ResourcePlanPeriod.objects.filter(resource=instance, end=None).exists():
         return
 
     callbacks.create_resource_plan_period(instance)

@@ -1637,3 +1637,62 @@ class CreateOrRestoreOfferingUsersTaskOrderStateFilterTest(APITestCase):
         self._make_resource_with_order(ResourceStates.ERRED, OrderStates.ERRED)
         self._run_task()
         self.assertFalse(self._offering_user_exists())
+
+
+class CreatePlanPeriodOnOkTransitionTest(APITestCase):
+    """A resource that reaches OK from a state other than CREATING (e.g. it
+    erred during creation, or was synced from a backend) must still get a
+    ResourcePlanPeriod, otherwise its usage cannot be billed. Duplicates must
+    not be created when an open plan period already exists (e.g. UPDATING -> OK).
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    def _make_resource(self, state):
+        return factories.ResourceFactory(
+            offering=self.fixture.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            state=state,
+        )
+
+    def _open_periods(self, resource):
+        return marketplace_models.ResourcePlanPeriod.objects.filter(
+            resource=resource, end=None
+        )
+
+    def test_plan_period_created_on_transition_to_ok_from_non_creating_state(self):
+        resource = self._make_resource(ResourceStates.ERRED)
+        self.assertFalse(self._open_periods(resource).exists())
+
+        resource.state = ResourceStates.OK
+        resource.save()
+
+        self.assertEqual(self._open_periods(resource).count(), 1)
+
+    def test_no_duplicate_plan_period_when_open_one_exists(self):
+        resource = self._make_resource(ResourceStates.UPDATING)
+        plan_period = marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+            end=None,
+        )
+
+        resource.state = ResourceStates.OK
+        resource.save()
+
+        periods = self._open_periods(resource)
+        self.assertEqual(periods.count(), 1)
+        self.assertEqual(periods.first(), plan_period)
+
+    def test_no_plan_period_without_plan(self):
+        resource = self._make_resource(ResourceStates.ERRED)
+        resource.plan = None
+        resource.save()
+
+        resource.state = ResourceStates.OK
+        resource.save()
+
+        self.assertFalse(self._open_periods(resource).exists())
