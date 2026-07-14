@@ -4516,6 +4516,20 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
     ports = OpenStackNestedPortSerializer(many=True, required=True)
     floating_ips = OpenStackNestedFloatingIPSerializer(many=True)
 
+    user_data = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text=_(
+            "Cloud-init user data passed to the instance on provisioning. "
+            "SECURITY: this value is stored and transmitted in plain text — "
+            "it is kept unencrypted in Waldur's database, forwarded to OpenStack "
+            "where any process on the instance can read it via the metadata "
+            "service, and it may appear in logs. Do NOT put unencrypted secrets "
+            "(passwords, private keys, API tokens) here; reference a secrets "
+            "manager or inject them through an encrypted channel instead."
+        ),
+    )
+
     volumes = OpenStackNestedVolumeSerializer(
         many=True,
         required=False,

@@ -4811,9 +4811,14 @@ class OpenStackBackend(ServiceBackend):
             if server_group:
                 server_create_parameters["scheduler_hints"] = {"group": server_group}
 
-            logger.info(
-                "Creating instance with parameters: %s", server_create_parameters
-            )
+            # user_data may contain sensitive cloud-init payloads, so redact it
+            # from the log to avoid leaking secrets into log aggregation.
+            loggable_parameters = dict(server_create_parameters)
+            if "userdata" in loggable_parameters:
+                loggable_parameters["userdata"] = (
+                    f"<redacted, {len(server_create_parameters['userdata'])} bytes>"
+                )
+            logger.info("Creating instance with parameters: %s", loggable_parameters)
             server = nova.servers.create(**server_create_parameters)
             instance.backend_id = server.id
             instance.save()

@@ -1088,6 +1088,14 @@ User places order
 
 For **instance creation**, the processor resolves the parent tenant from the offering scope, then passes attributes (name, flavor, image, security groups, networks, SSH key, user_data) to the Instance ViewSet.
 
+> **Security note on `user_data`:** cloud-init `user_data` is handled as plain text
+> throughout the stack. It is stored unencrypted in the Waldur database (and in the
+> marketplace order's `attributes`), forwarded to OpenStack where any process running
+> on the instance can read it via the metadata service (`169.254.169.254`), and it is
+> only base64-encoded (not encrypted) on the wire. Do not place unencrypted secrets
+> such as passwords, private keys or API tokens in `user_data`; reference a secrets
+> manager or inject them through an encrypted channel instead.
+
 For **instance deletion**, the processor validates that the instance is in a deletable state (SHUTOFF + OK, or ERRED) before proceeding. Both `destroy` (delete instance, keep volumes) and `force_destroy` (delete instance and all attached volumes) modes are supported.
 
 ### Automatic Offering Creation
