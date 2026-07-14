@@ -1189,34 +1189,34 @@ class ProtectedCallSerializer(PublicCallSerializer):
     )
 
     # Eligibility restriction fields (from UserDetailsMatchMixin)
-    user_email_patterns = serializers.JSONField(
+    user_email_patterns = serializers.ListField(
+        child=serializers.CharField(),
         required=False,
-        default=list,
         help_text="List of email regex patterns. User must match one.",
     )
-    user_affiliations = serializers.JSONField(
+    user_affiliations = serializers.ListField(
+        child=serializers.CharField(),
         required=False,
-        default=list,
         help_text="List of allowed affiliations. User must have one.",
     )
-    user_identity_sources = serializers.JSONField(
+    user_identity_sources = serializers.ListField(
+        child=serializers.CharField(),
         required=False,
-        default=list,
         help_text="List of allowed identity sources (identity providers).",
     )
-    user_nationalities = serializers.JSONField(
+    user_nationalities = serializers.ListField(
+        child=serializers.CharField(),
         required=False,
-        default=list,
         help_text="List of allowed nationality codes (ISO 3166-1 alpha-2). User must have one.",
     )
-    user_organization_types = serializers.JSONField(
+    user_organization_types = serializers.ListField(
+        child=serializers.CharField(),
         required=False,
-        default=list,
         help_text="List of allowed organization type URNs (SCHAC). User must match one.",
     )
-    user_assurance_levels = serializers.JSONField(
+    user_assurance_levels = serializers.ListField(
+        child=serializers.CharField(),
         required=False,
-        default=list,
         help_text="List of required assurance URIs (REFEDS). User must have ALL of these.",
     )
 
@@ -1578,7 +1578,11 @@ class ProposalSerializer(
         allow_null=True,
     )
     applicant_job_title = serializers.ReadOnlyField(source="created_by.job_title")
-    applicant_affiliations = serializers.ReadOnlyField(source="created_by.affiliations")
+    applicant_affiliations = serializers.ListField(
+        child=serializers.CharField(),
+        source="created_by.affiliations",
+        read_only=True,
+    )
     applicant_gender = serializers.ReadOnlyField(source="created_by.gender")
     applicant_personal_title = serializers.ReadOnlyField(
         source="created_by.personal_title"
@@ -1591,18 +1595,22 @@ class ProposalSerializer(
         source="created_by.country_of_residence"
     )
     applicant_nationality = serializers.ReadOnlyField(source="created_by.nationality")
-    applicant_nationalities = serializers.ReadOnlyField(
-        source="created_by.nationalities"
+    applicant_nationalities = serializers.ListField(
+        child=serializers.CharField(), source="created_by.nationalities", read_only=True
     )
-    applicant_eduperson_assurance = serializers.ReadOnlyField(
-        source="created_by.eduperson_assurance"
+    applicant_eduperson_assurance = serializers.ListField(
+        child=serializers.CharField(),
+        source="created_by.eduperson_assurance",
+        read_only=True,
     )
     applicant_identity_source = serializers.ReadOnlyField(
         source="created_by.identity_source"
     )
     applicant_civil_number = serializers.ReadOnlyField(source="created_by.civil_number")
     applicant_birth_date = serializers.ReadOnlyField(source="created_by.birth_date")
-    applicant_active_isds = serializers.ReadOnlyField(source="created_by.active_isds")
+    applicant_active_isds = serializers.ListField(
+        child=serializers.CharField(), source="created_by.active_isds", read_only=True
+    )
 
     # Compliance fields
     compliance_status = serializers.SerializerMethodField()

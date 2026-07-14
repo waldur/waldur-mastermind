@@ -595,6 +595,16 @@ class ProjectSerializer(
     )
     affiliation_name = serializers.ReadOnlyField(source="affiliation.name")
     affiliation_code = serializers.ReadOnlyField(source="affiliation.code")
+    user_email_patterns = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_affiliations = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_identity_sources = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+    )
     science_sub_domain = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.ScienceSubDomain.objects.all(),
@@ -1300,6 +1310,16 @@ class CustomerSerializer(
         many=True,
         read_only=True,
         help_text="Affiliations offered to project creators of this organization.",
+    )
+    user_email_patterns = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_affiliations = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    user_identity_sources = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
     )
 
     class Meta:
