@@ -15,12 +15,17 @@ from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
-from waldur_mastermind.marketplace.models import SoftwareCatalog
+from waldur_mastermind.marketplace.models import (
+    OfferingSoftwareCatalog,
+    SoftwareCatalog,
+)
 from waldur_mastermind.marketplace.tasks import (
     _update_catalog_with_error_handling,
     _validate_catalog_config,
+    cleanup_old_software_catalogs,
     update_software_catalogs,
 )
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class CatalogTasksTest(TestCase):
@@ -738,7 +743,6 @@ class CatalogCleanupTasksTest(TestCase):
     )
     def test_cleanup_deletes_old_catalogs(self):
         """Test that cleanup deletes catalogs older than retention period."""
-        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
 
         result = cleanup_old_software_catalogs()
 
@@ -759,7 +763,6 @@ class CatalogCleanupTasksTest(TestCase):
     @override_config(SOFTWARE_CATALOG_CLEANUP_ENABLED=False)
     def test_cleanup_disabled_does_nothing(self):
         """Test that cleanup does nothing when disabled."""
-        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
 
         result = cleanup_old_software_catalogs()
 
@@ -778,8 +781,6 @@ class CatalogCleanupTasksTest(TestCase):
     def test_cleanup_respects_retention_days_setting(self):
         """Test that cleanup respects the retention days setting."""
         from datetime import timedelta
-
-        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
 
         # Create a catalog that's 50 days old (should be deleted with 30 day retention)
         medium_old_catalog = SoftwareCatalog.objects.create(
@@ -813,7 +814,6 @@ class CatalogCleanupTasksTest(TestCase):
     )
     def test_cleanup_with_large_retention_keeps_all(self):
         """Test that cleanup keeps all catalogs when retention is very large."""
-        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
 
         result = cleanup_old_software_catalogs()
 
@@ -832,8 +832,6 @@ class CatalogCleanupTasksTest(TestCase):
     def test_cleanup_removes_duplicate_catalogs(self):
         """Test that cleanup removes duplicate catalogs, keeping only the newest."""
         from datetime import timedelta
-
-        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
 
         now = timezone.now()
 
@@ -878,3 +876,52 @@ class CatalogCleanupTasksTest(TestCase):
         self.assertFalse(
             SoftwareCatalog.objects.filter(pk=oldest_duplicate.pk).exists()
         )
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=200
+    )
+    def test_cleanup_duplicate_catalogs_with_overlapping_offering_links(self):
+        """Cleanup succeeds when an offering links to both newest and old duplicate catalogs."""
+        from datetime import timedelta
+
+        now = timezone.now()
+
+        older_duplicate = SoftwareCatalog.objects.create(
+            name="Spack",
+            version="2026.01.20",
+            catalog_type="source_package",
+            last_successful_update=now - timedelta(days=5),
+        )
+
+        offering = marketplace_factories.OfferingFactory()
+        newest_link = marketplace_factories.OfferingSoftwareCatalogFactory(
+            offering=offering,
+            catalog=self.recent_catalog,
+        )
+        marketplace_factories.OfferingSoftwareCatalogFactory(
+            offering=offering,
+            catalog=older_duplicate,
+        )
+
+        other_offering = marketplace_factories.OfferingFactory()
+        migrated_link = marketplace_factories.OfferingSoftwareCatalogFactory(
+            offering=other_offering,
+            catalog=older_duplicate,
+        )
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["duplicates_deleted"], 1)
+
+        self.assertEqual(
+            OfferingSoftwareCatalog.objects.filter(offering=offering).count(),
+            1,
+        )
+        newest_link.refresh_from_db()
+        self.assertEqual(newest_link.catalog_id, self.recent_catalog.pk)
+
+        migrated_link.refresh_from_db()
+        self.assertEqual(migrated_link.catalog_id, self.recent_catalog.pk)
+
+        self.assertFalse(SoftwareCatalog.objects.filter(pk=older_duplicate.pk).exists())

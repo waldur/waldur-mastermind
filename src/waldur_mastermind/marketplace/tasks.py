@@ -2822,10 +2822,17 @@ def _cleanup_duplicate_catalogs():
         )
 
         # Update OfferingSoftwareCatalog references to point to newest catalog
+        # Skip offerings that already link to the newest catalog
+        existing_offering_ids = models.OfferingSoftwareCatalog.objects.filter(
+            catalog=newest_catalog
+        ).values_list("offering_id", flat=True)
+
         for old_catalog in catalogs_to_delete:
-            updated = models.OfferingSoftwareCatalog.objects.filter(
-                catalog=old_catalog
-            ).update(catalog=newest_catalog)
+            updated = (
+                models.OfferingSoftwareCatalog.objects.filter(catalog=old_catalog)
+                .exclude(offering_id__in=existing_offering_ids)
+                .update(catalog=newest_catalog)
+            )
             if updated:
                 logger.info(
                     f"Migrated {updated} offering references from "
