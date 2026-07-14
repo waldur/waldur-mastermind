@@ -1893,8 +1893,7 @@ class Instance(
         default=False,
         help_text=_("If True, instance will be connected directly to external network"),
     )
-    directly_connected_ips = models.CharField(
-        max_length=255,
+    directly_connected_ips = models.TextField(
         blank=True,
         help_text=_("Comma-separated list of directly connected IP addresses"),
     )
