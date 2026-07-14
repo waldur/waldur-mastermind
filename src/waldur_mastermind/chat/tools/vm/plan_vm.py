@@ -126,7 +126,11 @@ class PlanVMTool(BaseTool):
                         "items": {"type": "string"},
                     },
                     "system_volume_size": {"type": "integer"},
-                    "user_data": {"type": "string"},
+                    "user_data": {
+                        "type": "string",
+                        "description": "Cloud-init user data. Stored and transmitted in plain text, "
+                        "so it must not contain unencrypted secrets.",
+                    },
                 },
                 "required": [],
             },

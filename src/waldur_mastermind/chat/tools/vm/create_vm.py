@@ -107,7 +107,10 @@ class CreateVMTool(BaseTool):
                     },
                     "user_data": {
                         "type": "string",
-                        "description": "Cloud-init user data script for VM initialization. Optional.",
+                        "description": "Cloud-init user data script for VM initialization. Optional. "
+                        "Stored and transmitted in plain text (Waldur database, OpenStack metadata "
+                        "service, logs), so it must not contain unencrypted secrets such as passwords, "
+                        "private keys or API tokens.",
                     },
                 },
                 # project_uuid/project_name at-least-one is enforced in execute()
