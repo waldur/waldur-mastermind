@@ -17,6 +17,7 @@ from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
+from waldur_core.core.validators import validate_name
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas.fields import QuotaField
@@ -1547,6 +1548,10 @@ class Volume(
     snapshots: models.Manager["Snapshot"]
     restoration: models.Manager["SnapshotRestoration"]
 
+    # Cinder allows volume names up to 255 chars, but the base NameMixin caps at
+    # 150. Widen so volumes with long backend names can be imported (WAL-10102).
+    name = models.CharField(_("name"), max_length=255, validators=[validate_name])
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Tenant,
@@ -1596,7 +1601,7 @@ class Volume(
         help_text=_("Image that this volume was created from, if any"),
     )
     image_name = models.CharField(
-        max_length=150,
+        max_length=255,
         blank=True,
         help_text=_("Name of the image this volume was created from"),
     )
@@ -1808,6 +1813,12 @@ class Instance(
     ports: "RelatedManager[Port]"
     volumes: "RelatedManager[Volume]"
     backups: "RelatedManager[Backup]"
+
+    # Nova allows server display names and image names up to 255 chars, but the
+    # base NameMixin/VirtualMachine cap both at 150. Widen so instances with long
+    # backend names can be imported instead of crashing tenant sync (WAL-10102).
+    name = models.CharField(_("name"), max_length=255, validators=[validate_name])
+    image_name = models.CharField(max_length=255, blank=True)
 
     class RuntimeStates:
         # All possible OpenStack Instance states on backend.
