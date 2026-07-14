@@ -10018,6 +10018,30 @@ class MarketplaceServiceProviderUserSerializer(
         "active_isds": "active_isds",
     }
 
+    affiliations = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="Person's affiliation within organization such as student, faculty, staff.",
+    )
+    nationalities = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="List of all citizenships (ISO 3166-1 alpha-2 codes)",
+    )
+    eduperson_assurance = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="REFEDS assurance profile URIs from identity provider",
+    )
+    active_isds = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=(
+            "List of ISDs that have asserted this user exists. "
+            "User is deactivated when this becomes empty."
+        ),
+    )
+
     class Meta:
         model = User
         fields = (
