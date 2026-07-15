@@ -6,6 +6,8 @@ workflow:
 
 include:
   - project: "waldur/waldur-pipelines"
+    file: "/templates/release/tag-release.yml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/stages.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/check-merge-compatibility.yml"
@@ -140,10 +142,33 @@ Validate documentation:
       paths:
         - $UV_CACHE_DIR
 
-Run openapi export test:
+Generate OpenAPI schema:
   extends: .Unit test runner
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "pipeline" && $RELEASE_VERSION'
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
-    - uv run waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
+    - export VERSION="${RELEASE_VERSION:-$CI_COMMIT_TAG}"
+    - if [ -z "$VERSION" ]; then VERSION="develop"; fi
+    - uv run waldur spectacular --api-version "$VERSION" --file "$CI_PROJECT_DIR/waldur-openapi-schema.yaml" --fail-on-warn
+    - SKIP_MAKE_FIELDS_OPTIONAL=true uv run waldur spectacular --api-version "$VERSION" --file "$CI_PROJECT_DIR/waldur-typescript-schema.yaml" --fail-on-warn
+  variables:
+    DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
+  artifacts:
+    paths:
+      - waldur-openapi-schema.yaml
+      - waldur-typescript-schema.yaml
+    expire_in: 1 day
+
+Check database migrations:
+  extends: .Unit test runner
+  stage: test
+  script:
     - uv run waldur makemigrations --check --dry-run
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.base_settings
@@ -640,280 +665,7 @@ Upload configuration guide:
     - git push --set-upstream origin new-metadata:main
   before_script: []
 
-Generate OpenAPI schema:
-  stage: deploy
-  interruptible: true
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  # Use a stock Python image — uv sync installs all required deps.
-  # Decoupled from "Build docker image for tests" so SDK release pipelines
-  # don't block on test image build/push.
-  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
-  needs: []
-  variables:
-    DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
-    UV_CACHE_DIR: .uv-cache
-  cache:
-    key:
-      files:
-        - uv.lock
-    paths:
-      - .uv-cache/
-  before_script:
-    # System deps needed by some Python packages — mirrors tests/Dockerfile so
-    # uv sync can build python-ldap / load python-magic / parse xmlsec etc.
-    - apt-get update && apt-get install -y --no-install-recommends
-      libldap2-dev libsasl2-dev ldap-utils xmlsec1 libmagic1 python3-dev
-      && rm -rf /var/lib/apt/lists/*
-    # Ensure the CI runner has all tags from the remote repository
-    - git fetch --tags
-  script:
-    - pip install uv
-    - uv sync --group dev
 
-    # Determine the release version based on the trigger
-    - |
-      if [ -n "$CI_COMMIT_TAG" ]; then
-        # This is a stable, tagged release. The version is the tag itself.
-        RELEASE_VERSION="$CI_COMMIT_TAG"
-        echo "Building OpenAPI schema for stable release version: $RELEASE_VERSION"
-      else
-        # This is a dev release from a schedule.
-        # Find the latest tag to use as a base for the pre-release version.
-        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
-        TIMESTAMP=$(date +%Y%m%d%H%M%S)
-        # When LATEST_TAG already carries a pre-release suffix (e.g. 8.0.9-rc.12),
-        # extend it with a dot so the dev counter is a fresh semver identifier
-        # rather than fusing into an alphanumeric one. Otherwise comparison
-        # between rc.9-dev and rc.12-dev falls back to lexical ASCII sort
-        # (semver 2.0.0 §11.4.2), which inverts the intended order.
-        case "$LATEST_TAG" in
-          *-*) RELEASE_VERSION="${LATEST_TAG}.dev.${TIMESTAMP}" ;;
-          *)   RELEASE_VERSION="${LATEST_TAG}-dev.${TIMESTAMP}" ;;
-        esac
-        echo "Latest stable tag found: $LATEST_TAG"
-        echo "Building OpenAPI schema for development release version: $RELEASE_VERSION"
-      fi
-
-    # Generate the schema, injecting the dynamic version
-    - uv run waldur spectacular --api-version "$RELEASE_VERSION" --file waldur-openapi-schema.yaml --fail-on-warn
-    - SKIP_MAKE_FIELDS_OPTIONAL=true uv run waldur spectacular --api-version "$RELEASE_VERSION" --file waldur-typescript-schema.yaml --fail-on-warn
-    - echo "Successfully generated OpenAPI schema with version $RELEASE_VERSION"
-  artifacts:
-    paths:
-      - waldur-openapi-schema.yaml
-      - waldur-typescript-schema.yaml
-    expire_in: 1 day
-
-Generate TypeScript SDK:
-  stage: deploy
-  interruptible: true
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/library/node:lts-alpine
-  needs:
-    - Generate OpenAPI schema
-  script: |
-    apk add --no-cache bash
-    bash scripts/generate-ts-sdk.sh
-  artifacts:
-    paths:
-      - waldur-typescript-sdk/
-    expire_in: 1 day
-
-Generate Python SDK:
-  stage: deploy
-  interruptible: true
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
-  needs:
-    - Generate OpenAPI schema
-  script: |
-    pip install git+https://github.com/waldur/openapi-python-client.git pyyaml
-    openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite --meta poetry
-    python scripts/generate_llm_docs.py waldur-openapi-schema.yaml py-client/
-  artifacts:
-    paths:
-      - py-client/
-    expire_in: 1 day
-
-Generate Go SDK:
-  stage: deploy
-  interruptible: true
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/library/golang:tip-alpine
-  needs:
-    - Generate OpenAPI schema
-  script: |
-    set -e
-    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-    oapi-codegen --package client --generate types,client -o client.go waldur-openapi-schema.yaml
-    ls -l client.go
-
-    # Verify the generated Go client compiles successfully
-    mkdir -p /tmp/go-sdk-test
-    cp client.go /tmp/go-sdk-test/
-    cd /tmp/go-sdk-test
-    go mod init github.com/waldur/go-client
-    go mod tidy
-    go build ./...
-    echo "Go SDK compilation check passed"
-  artifacts:
-    paths:
-      - client.go
-    expire_in: 1 day
-
-
-Upload Go SDK:
-  stage: postdeploy
-  interruptible: true
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image:
-    name: registry.hpc.ut.ee/mirror/alpine/git:latest
-    entrypoint: [""]
-  needs:
-    - Generate Go SDK
-  script:
-    - cd /tmp/
-    - git clone --depth 1 git@github.com:waldur/go-client.git
-    - cd go-client
-    - cp $CI_PROJECT_DIR/client.go client.go
-    - git add client.go
-    - git commit -m "Update Waldur Go SDK" || exit 0
-    - git push
-  before_script: *build_before_script
-
-Upload Python SDK:
-  stage: postdeploy
-  interruptible: true
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image:
-    name: registry.hpc.ut.ee/mirror/alpine/git:latest
-    entrypoint: [""]
-  needs:
-    - Generate Python SDK
-  script:
-    - cd /tmp/
-    - git clone --depth 1 --branch main git@github.com:waldur/py-client.git
-    - cd py-client
-    - rm -rf waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" waldur_api_client
-    - cp "$CI_PROJECT_DIR/py-client/llms.txt" llms.txt
-    - cp "$CI_PROJECT_DIR/py-client/llms-full.txt" llms-full.txt
-    - cp "$CI_PROJECT_DIR/py-client/api-map.md" api-map.md
-    - cp llms.txt waldur_api_client/llms.txt
-    - cp llms-full.txt waldur_api_client/llms-full.txt
-    - cp api-map.md waldur_api_client/api-map.md
-    - git add waldur_api_client llms.txt llms-full.txt api-map.md
-    - git commit -m "Update Waldur Python SDK" || exit 0
-    - git push
-  before_script: *build_before_script
-
-
-Generate OpenAPI schema diff:
-  stage: deploy
-  interruptible: true
-  image:
-    name: registry.hpc.ut.ee/mirror/tufin/oasdiff:latest
-    entrypoint: [""]
-  needs:
-    - Generate OpenAPI schema
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  before_script:
-    - apk update
-    - apk add --no-cache git nodejs npm
-    - npm install -g markdownlint-cli
-  script:
-    - ls -la
-    - echo "Cloning api-docs repository"
-    - git clone --depth 1 "https://github.com/waldur/api-docs.git"
-    - ls api-docs
-    - |
-      # Find previous schema from api-docs repository
-      if [ -f "api-docs/docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" ]; then
-        echo "Current tag file exists, finding previous version"
-        PREV_SCHEMA=$(ls api-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | grep -B1 "waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" | head -n1)
-      else
-        echo "Current tag file does not exist, getting latest version"
-        PREV_SCHEMA=$(ls api-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | tail -n1 || echo "")
-      fi
-
-    - echo "Previous schema $PREV_SCHEMA"
-    - |
-      if [ -z "$PREV_SCHEMA" ]; then
-        echo "No previous schema found. Skipping diff generation."
-        touch $CI_PROJECT_DIR/openapi-diff.md
-        echo "No previous schema found. Skipping diff generation." > $CI_PROJECT_DIR/openapi-diff.md
-      else
-        echo "Previous schema found: $PREV_SCHEMA"
-        /usr/bin/oasdiff diff -f markup $PREV_SCHEMA $CI_PROJECT_DIR/waldur-openapi-schema.yaml > $CI_PROJECT_DIR/openapi-diff.md
-        ls -la $CI_PROJECT_DIR/openapi-diff.md
-        head -n 30 $CI_PROJECT_DIR/openapi-diff.md || true
-        sed -i "1i # OpenAPI schema diff - ${CI_COMMIT_TAG}\n\n## For version ${CI_COMMIT_TAG}" $CI_PROJECT_DIR/openapi-diff.md
-        markdownlint  --disable MD041 MD035 --fix $CI_PROJECT_DIR/openapi-diff.md || true
-        head -n 30 $CI_PROJECT_DIR/openapi-diff.md || true
-      fi
-  artifacts:
-    paths:
-      - openapi-diff.md
-    expire_in: 1 day
-
-Upload OpenAPI schema and schema diff to docs:
-  stage: postdeploy
-  interruptible: true
-  needs:
-    - Generate OpenAPI schema
-    - Generate OpenAPI schema diff
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  image:
-    name: registry.hpc.ut.ee/mirror/alpine/git:latest
-    entrypoint: [""]
-  before_script: *build_before_script
-  script:
-    - cd /tmp/
-    - git clone --depth 1 "git@github.com:waldur/api-docs.git"
-    - cd api-docs
-    - mkdir -p docs/API
-    - cp $CI_PROJECT_DIR/waldur-openapi-schema.yaml docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml
-    - ls -la docs/API
-    # Upload OpenAPI schema diff
-    - mkdir -p docs/integrator-guide/APIs/api-changes
-    - |
-      if [ -s "$CI_PROJECT_DIR/openapi-diff.md" ]; then
-        cp $CI_PROJECT_DIR/openapi-diff.md docs/integrator-guide/APIs/api-changes/waldur-openapi-schema-${CI_COMMIT_TAG}-diff.md
-      else
-        echo "No API changes detected, skipping diff file upload"
-      fi
-    - ls -la docs/integrator-guide/APIs/api-changes
-    # Commit and push changes
-    - git add docs/API docs/integrator-guide/APIs/api-changes
-    - git commit -m "Add Waldur OpenAPI schema and diff for ${CI_COMMIT_TAG}" || exit 0
-    - git pull --rebase origin main
-    - git push origin HEAD:main
 
 Upload HomePort enums:
   stage: postdeploy
@@ -963,91 +715,6 @@ Upload HomePort enums:
     - git push --set-upstream origin new-enums:develop
   before_script: []
 
-Upload TypeScript SDK:
-  stage: postdeploy
-  interruptible: true
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image:
-    name: registry.hpc.ut.ee/mirror/alpine/git:latest
-    entrypoint: [""]
-  needs:
-    - Generate TypeScript SDK
-  script:
-    - cd /tmp/
-    - git clone --depth 1 --branch main git@github.com:waldur/js-client.git
-    - cd js-client
-    - rm -rf src/
-    - mv $CI_PROJECT_DIR/waldur-typescript-sdk src
-    - git add src
-    - git commit -m "Update Waldur TypeScript SDK" || exit 0
-    - git push
-  before_script: *build_before_script
-
-Update SDK docs generator schema:
-  stage: postdeploy # Runs after the schema has been successfully generated
-  image:
-    name: registry.hpc.ut.ee/mirror/alpine/git:latest
-    entrypoint: [""]
-  needs:
-    - job: Generate OpenAPI schema
-      artifacts: true # This is crucial to get the schema file from the previous job
-  rules:
-    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
-    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
-      when: never
-    # Run under the exact same conditions as the 'Generate OpenAPI schema' job
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  before_script:
-    # No SSH setup is needed. We only need to install git and configure the user.
-    - apk add --no-cache git
-    - git config --global user.name "${GITLAB_USER_NAME}"
-    - git config --global user.email "${GITLAB_USER_EMAIL}"
-  script:
-    # --- Define variables for clarity ---
-    - DOCS_REPO_URL="https://gitlab-ci-token:${GITLAB_TOKEN}@${CI_SERVER_HOST}/waldur/waldur-sdk-docs-generator.git"
-    - DOCS_REPO_DIR="/tmp/waldur-sdk-docs-generator"
-    - SOURCE_SCHEMA_PATH="${CI_PROJECT_DIR}/waldur-openapi-schema.yaml"
-    - DESTINATION_SCHEMA_PATH="${DOCS_REPO_DIR}/input/openapi.yml"
-
-    # --- Step 1: Clone the target repository using the GITLAB_TOKEN ---
-    - echo "Cloning docs generator repository..."
-    - git clone --depth 1 "${DOCS_REPO_URL}" "${DOCS_REPO_DIR}"
-
-    # --- Step 2: Copy the new schema file ---
-    - echo "Copying schema from ${SOURCE_SCHEMA_PATH} to ${DESTINATION_SCHEMA_PATH}"
-    - cp "${SOURCE_SCHEMA_PATH}" "${DESTINATION_SCHEMA_PATH}"
-
-    # --- Step 3: Commit and push if changes exist ---
-    - cd "${DOCS_REPO_DIR}"
-    - |
-      # Check if there are any changes to commit.
-      if [ -z "$(git status --porcelain)" ]; then
-        echo "OpenAPI schema has not changed. No commit needed."
-      else
-        echo "Schema has changed. Committing and pushing..."
-
-        # Determine the version for a descriptive commit message
-        if [ -n "$CI_COMMIT_TAG" ]; then
-          SCHEMA_VERSION="$CI_COMMIT_TAG"
-        else
-          # Fallback for develop branch: use the timestamp from the dev version
-          SCHEMA_VERSION="develop-$(date +%Y%m%d%H%M)"
-        fi
-
-        git add input/openapi.yml
-        git commit -m "feat: Update OpenAPI schema to version ${SCHEMA_VERSION} from mastermind"
-
-        # Push to the 'main' branch of the docs generator repository
-        git push origin main
-
-        echo "Successfully pushed schema update to waldur-sdk-docs-generator."
-      fi
-
 Trigger integration tests:
   stage: validate
   trigger:
@@ -1072,7 +739,9 @@ Trigger integration tests:
         - Dockerfile
         - pyproject.toml
         - uv.lock
-        - ansible-generator-config.yaml
         - .gitlab-ci.yml
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: *integration_test_changes
+
+Release tag:
+  extends: .release-tag-base
