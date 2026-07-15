@@ -39,9 +39,12 @@ class RestrictedOfferingVisibilityTest(test.APITestCase):
             state=OfferingStates.ACTIVE, shared=True, billable=True
         )
 
-    def list_offering_uuids(self, user):
+    def list_offering_uuids(self, user, accessible=None):
         self.client.force_authenticate(user)
-        response = self.client.get(factories.OfferingFactory.get_public_list_url())
+        params = {} if accessible is None else {"accessible": accessible}
+        response = self.client.get(
+            factories.OfferingFactory.get_public_list_url(), params
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         return {offering["uuid"] for offering in response.data}
 
@@ -68,11 +71,41 @@ class RestrictedOfferingVisibilityTest(test.APITestCase):
 
     def test_existing_resource_owner_still_sees_restricted_offering(self):
         # A member who already consumes a resource from the offering keeps
-        # catalog access even after it becomes restricted.
+        # catalog access even after it becomes restricted (default behaviour).
         factories.ResourceFactory(
             project=self.fixture.project, offering=self.restricted_offering
         )
         uuids = self.list_offering_uuids(self.fixture.member)
+        self.assertIn(self.restricted_offering.uuid.hex, uuids)
+
+    def test_accessible_filter_hides_restricted_offering_from_member(self):
+        # With accessible=true the catalog only returns orderable offerings.
+        uuids = self.list_offering_uuids(self.fixture.member, accessible=True)
+        self.assertNotIn(self.restricted_offering.uuid.hex, uuids)
+        self.assertIn(self.normal_offering.uuid.hex, uuids)
+
+    def test_accessible_filter_hides_consumed_restricted_offering(self):
+        # Even a member whose project already consumes a resource from the
+        # restricted offering does not see it when accessible=true: they still
+        # cannot order a new one.
+        factories.ResourceFactory(
+            project=self.fixture.project, offering=self.restricted_offering
+        )
+        uuids = self.list_offering_uuids(self.fixture.member, accessible=True)
+        self.assertNotIn(self.restricted_offering.uuid.hex, uuids)
+
+    def test_accessible_filter_keeps_restricted_offering_for_manager(self):
+        # A user holding a required role can order it, so accessible=true keeps
+        # it visible.
+        uuids = self.list_offering_uuids(self.fixture.manager, accessible=True)
+        self.assertIn(self.restricted_offering.uuid.hex, uuids)
+
+    def test_accessible_false_does_not_filter(self):
+        # accessible=false is a no-op: default catalog behaviour applies.
+        factories.ResourceFactory(
+            project=self.fixture.project, offering=self.restricted_offering
+        )
+        uuids = self.list_offering_uuids(self.fixture.member, accessible=False)
         self.assertIn(self.restricted_offering.uuid.hex, uuids)
 
     def test_member_cannot_retrieve_restricted_offering(self):

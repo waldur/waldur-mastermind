@@ -205,6 +205,10 @@ class OfferingFilter(
     accessible_via_calls = django_filters.BooleanFilter(
         label="Accessible via calls", method="filter_accessible_via_calls"
     )
+    accessible = django_filters.BooleanFilter(
+        label="Only offerings the current user can order",
+        method="filter_accessible",
+    )
     resource_customer_uuid = core_filters.RelatedUUIDFilter(
         view_name="customer-detail",
         method="filter_resource_customer_uuid",
@@ -331,6 +335,16 @@ class OfferingFilter(
 
             queryset = self.filters[name].filter(queryset, value)
         return queryset
+
+    def filter_accessible(self, queryset, name, value):
+        # When True, hide restricted offerings the current user cannot order
+        # (e.g. plugin_options.restricted_to_roles the user does not hold), even
+        # if their project already consumes a resource from one. The catalog
+        # passes this so non-orderable offerings do not clutter the marketplace,
+        # while detail/retrieve endpoints keep resolving them.
+        if not value:
+            return queryset
+        return queryset.filter_accessible_for_user(self.request.user)
 
     def filter_accessible_via_calls(self, queryset, name, value):
         if value is None:

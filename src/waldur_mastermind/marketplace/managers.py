@@ -46,12 +46,12 @@ class OfferingQuerySet(django_models.QuerySet):
             | Q(id__in=connected_offerings)
         ).distinct()
 
-    def _exclude_restricted_offerings(self, queryset, user):
-        """Hide offerings that restrict access via
-        plugin_options['restricted_to_roles'] from users who do not hold one of
-        the listed roles, except offerings the user already consumes resources
-        from. Catalog visibility is coarse (role held in any scope); precise
-        per-project authorization happens at order creation."""
+    @staticmethod
+    def _restricted_forbidden_ids(queryset, user):
+        """Ids of offerings in queryset that restrict access via
+        plugin_options['restricted_to_roles'] to roles the user does not hold.
+        The check is coarse (role held in any scope); precise per-project
+        authorization happens at order creation."""
         restricted = queryset.filter(
             plugin_options__has_key="restricted_to_roles"
         ).values_list("id", "plugin_options")
@@ -65,12 +65,20 @@ class OfferingQuerySet(django_models.QuerySet):
                 )
             )
 
-        forbidden_ids = {
+        return {
             offering_id
             for offering_id, plugin_options in restricted
             if plugin_options.get("restricted_to_roles")
             and not set(plugin_options["restricted_to_roles"]) & user_role_names
         }
+
+    def _exclude_restricted_offerings(self, queryset, user):
+        """Hide offerings that restrict access via
+        plugin_options['restricted_to_roles'] from users who do not hold one of
+        the listed roles, except offerings the user already consumes resources
+        from. Catalog visibility is coarse (role held in any scope); precise
+        per-project authorization happens at order creation."""
+        forbidden_ids = self._restricted_forbidden_ids(queryset, user)
         if not forbidden_ids:
             return queryset
         if not user.is_anonymous:
@@ -81,6 +89,17 @@ class OfferingQuerySet(django_models.QuerySet):
             ).values_list("offering_id", flat=True)
             forbidden_ids -= set(connected)
         return queryset.exclude(id__in=forbidden_ids)
+
+    def filter_accessible_for_user(self, user):
+        """Drop restricted offerings the user is not allowed to order.
+
+        Unlike the catalog default (filter_by_ordering_availability_for_user),
+        this does NOT keep offerings the user merely consumes a resource from:
+        it returns only offerings the user could actually order. Backs the
+        `accessible` query filter so the marketplace catalog can request only
+        orderable offerings while resource-driven detail/retrieve keeps showing
+        the rest."""
+        return self.exclude(id__in=self._restricted_forbidden_ids(self, user))
 
     def filter_by_ordering_availability_for_user(self, user):
         """Returns offerings available to the user to create an order"""
