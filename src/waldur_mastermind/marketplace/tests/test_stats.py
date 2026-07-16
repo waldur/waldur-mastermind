@@ -3,6 +3,8 @@ import datetime
 from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -1022,6 +1024,75 @@ class OfferingStatsTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.data["resources_count"], 2)
         self.assertEqual(response.data["customers_count"], 1)
+
+
+class CountActiveResourcesByOrganizationGroupTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.url = (
+            "/api/marketplace-stats/"
+            "count_active_resources_grouped_by_organization_group/"
+        )
+
+        self.group_1 = structure_factories.OrganizationGroupFactory()
+        self.group_2 = structure_factories.OrganizationGroupFactory()
+
+        # customer_1 belongs to both groups -> its resources counted in both
+        self.customer_1 = structure_factories.CustomerFactory()
+        self.customer_1.organization_groups.add(self.group_1, self.group_2)
+        self.offering_1 = factories.OfferingFactory(customer=self.customer_1)
+        factories.ResourceFactory(offering=self.offering_1, state=ResourceStates.OK)
+        factories.ResourceFactory(
+            offering=self.offering_1, state=ResourceStates.TERMINATING
+        )
+        # terminated resource must be excluded
+        factories.ResourceFactory(
+            offering=self.offering_1, state=ResourceStates.TERMINATED
+        )
+
+        # customer_2 belongs only to group_2
+        self.customer_2 = structure_factories.CustomerFactory()
+        self.customer_2.organization_groups.add(self.group_2)
+        self.offering_2 = factories.OfferingFactory(customer=self.customer_2)
+        factories.ResourceFactory(offering=self.offering_2, state=ResourceStates.OK)
+
+        # customer without any organization group must not appear
+        self.offering_3 = factories.OfferingFactory()
+        factories.ResourceFactory(offering=self.offering_3, state=ResourceStates.OK)
+
+    def test_active_resources_are_grouped_by_organization_group(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        counts = {record["uuid"]: record["count"] for record in response.data}
+        # group_1: only customer_1's active resources (2)
+        self.assertEqual(counts[self.group_1.uuid.hex], 2)
+        # group_2: customer_1 (2) + customer_2 (1)
+        self.assertEqual(counts[self.group_2.uuid.hex], 3)
+        # only the two groups with active resources are present
+        self.assertEqual(len(response.data), 2)
+
+    def test_number_of_queries_does_not_grow_with_groups(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        with CaptureQueriesContext(connection) as ctx_before:
+            self.client.get(self.url)
+        queries_before = len(ctx_before.captured_queries)
+
+        # add more groups with resources; query count must stay constant
+        for _ in range(3):
+            group = structure_factories.OrganizationGroupFactory()
+            customer = structure_factories.CustomerFactory()
+            customer.organization_groups.add(group)
+            offering = factories.OfferingFactory(customer=customer)
+            factories.ResourceFactory(offering=offering, state=ResourceStates.OK)
+
+        with CaptureQueriesContext(connection) as ctx_after:
+            self.client.get(self.url)
+        queries_after = len(ctx_after.captured_queries)
+
+        self.assertEqual(queries_before, queries_after)
 
 
 class OfferingStatsCounterTest(test.APITestCase):
