@@ -1,6 +1,7 @@
 from unittest import mock
 
 import responses
+from constance.test import override_config
 from django.core.cache import cache
 from django.test import override_settings
 from rest_framework import status, test
@@ -202,3 +203,89 @@ class RemoteEduteamsTest(test.APITestCase):
 
         existing_user.refresh_from_db()
         self.assertTrue(existing_user.notifications_enabled)
+
+    @responses.activate
+    @override_config(
+        FEDERATED_IDENTITY_AUTHORITATIVE_ISD="isd:efp",
+        FEDERATED_IDENTITY_LOCKED_FIELDS=["first_name", "last_name"],
+    )
+    def test_locked_fields_not_overwritten_when_authoritative_isd_present(self):
+        # EFP is the authoritative source for names of users federated via both
+        # EFP and eduTEAMS. The eduTEAMS sync must leave the locked fields
+        # (first_name/last_name) intact while still syncing the rest of the
+        # profile, avoiding the periodic name flapping. Pre-existing names differ
+        # from the eduTEAMS payload ("John Snow") so preservation is observable.
+        self.setup_user_info()
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        remote_user = structure_factories.UserFactory(
+            username=self.valid_cuid,
+            first_name="Jane",
+            last_name="Doe",
+            email="foo@example.com",
+            active_isds=["isd:efp"],
+        )
+
+        response = self.client.post(self.url, {"cuid": self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        remote_user.refresh_from_db()
+        # Locked fields owned by EFP are preserved ...
+        self.assertEqual(remote_user.first_name, "Jane")
+        self.assertEqual(remote_user.last_name, "Doe")
+        # ... while the rest of the eduTEAMS profile still syncs.
+        self.assertEqual(remote_user.email, "john@snow.me")
+        self.assertIn("isd:efp", remote_user.active_isds)
+        self.assertIn("isd:eduteams", remote_user.active_isds)
+
+    @responses.activate
+    @override_config(
+        FEDERATED_IDENTITY_AUTHORITATIVE_ISD="isd:efp",
+        FEDERATED_IDENTITY_LOCKED_FIELDS=["first_name", "last_name"],
+    )
+    def test_locked_fields_updated_when_authoritative_isd_absent(self):
+        # Protection is enabled, but the user is not asserted by the
+        # authoritative ISD, so eduTEAMS remains the source of truth.
+        self.setup_user_info()
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        remote_user = structure_factories.UserFactory(
+            username=self.valid_cuid,
+            first_name="Jane",
+            last_name="Doe",
+            email="foo@example.com",
+        )
+
+        response = self.client.post(self.url, {"cuid": self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        remote_user.refresh_from_db()
+        self.assertEqual(remote_user.first_name, "John")
+        self.assertEqual(remote_user.last_name, "Snow")
+        self.assertEqual(remote_user.email, "john@snow.me")
+
+    @responses.activate
+    def test_locked_fields_updated_when_protection_disabled(self):
+        # Default configuration (no authoritative ISD / no locked fields):
+        # the protection is off and eduTEAMS updates names as before, even for
+        # a user asserted by EFP.
+        self.setup_user_info()
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        remote_user = structure_factories.UserFactory(
+            username=self.valid_cuid,
+            first_name="Jane",
+            last_name="Doe",
+            email="foo@example.com",
+            active_isds=["isd:efp"],
+        )
+
+        response = self.client.post(self.url, {"cuid": self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        remote_user.refresh_from_db()
+        self.assertEqual(remote_user.first_name, "John")
+        self.assertEqual(remote_user.last_name, "Snow")

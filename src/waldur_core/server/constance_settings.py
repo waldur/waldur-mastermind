@@ -290,6 +290,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "DISABLED_OFFERING_TYPES": OFFERING_TYPE_CHOICES,
     "ONBOARDING_VALIDATION_METHODS": ONBOARDING_VALIDATION_CHOICES,
     "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "FEDERATED_IDENTITY_LOCKED_FIELDS": USER_ATTRIBUTE_CHOICES,
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": DEACTIVATION_POLICY_CHOICES,
     "SCIM_INBOUND_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
@@ -1472,6 +1473,20 @@ CONSTANCE_CONFIG = {
         "User attributes settable via Identity Bridge.",
         "multiple_choice_field",
     ),
+    "FEDERATED_IDENTITY_AUTHORITATIVE_ISD": (
+        "",
+        "ISD source identifier that is authoritative for FEDERATED_IDENTITY_LOCKED_FIELDS "
+        "(e.g. 'isd:efp'). When set and present in a user's active ISDs, other identity "
+        "sources (eduTEAMS, OIDC logins, ...) cannot overwrite the locked fields on sync. "
+        "Empty disables the protection.",
+    ),
+    "FEDERATED_IDENTITY_LOCKED_FIELDS": (
+        [],
+        "User attributes that only FEDERATED_IDENTITY_AUTHORITATIVE_ISD may set. "
+        "Other identity sources cannot overwrite these once the authoritative ISD "
+        "has asserted the user (e.g. first_name, last_name). Empty disables the protection.",
+        "multiple_choice_field",
+    ),
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": (
         "any_isd_removed",
         "When to deactivate a federated user.",
@@ -1962,6 +1977,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Identity Bridge": (
         "FEDERATED_IDENTITY_SYNC_ENABLED",
         "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES",
+        "FEDERATED_IDENTITY_AUTHORITATIVE_ISD",
+        "FEDERATED_IDENTITY_LOCKED_FIELDS",
         "FEDERATED_IDENTITY_DEACTIVATION_POLICY",
     ),
     "Project Digest": ("ENABLE_PROJECT_DIGEST",),
