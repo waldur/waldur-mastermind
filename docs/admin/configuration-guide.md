@@ -3116,6 +3116,18 @@ Enable the Identity Bridge API for push-based ISD user attribute synchronization
 
 User attributes settable via Identity Bridge.
 
+#### FEDERATED_IDENTITY_AUTHORITATIVE_ISD
+
+**Type:** str
+
+ISD source identifier that is authoritative for FEDERATED_IDENTITY_LOCKED_FIELDS (e.g. 'isd:efp'). When set and present in a user's active ISDs, other identity sources (eduTEAMS, OIDC logins, ...) cannot overwrite the locked fields on sync. Empty disables the protection.
+
+#### FEDERATED_IDENTITY_LOCKED_FIELDS
+
+**Type:** multiple_choice_field
+
+User attributes that only FEDERATED_IDENTITY_AUTHORITATIVE_ISD may set. Other identity sources cannot overwrite these once the authoritative ISD has asserted the user (e.g. first_name, last_name). Empty disables the protection.
+
 #### FEDERATED_IDENTITY_DEACTIVATION_POLICY
 
 **Type:** choice_field

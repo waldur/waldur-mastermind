@@ -634,6 +634,8 @@ td:nth-child(4) {
 | `log_order_events` | `Django Signal (post_save)` | `marketplace.Order` | Log order creation and state transition events. |
 | `log_project_credit` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `log_request_events` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
+| `log_resource_access_subnet_deletion` | `Django Signal (post_delete)` | `marketplace.ResourceAccessSubnet` | Log successful resource access subnet deletion. |
+| `log_resource_access_subnet_save` | `Django Signal (post_save)` | `marketplace.ResourceAccessSubnet` | Log resource access subnet creation and updates. |
 | `log_resource_events` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource creation request events. |
 | `log_resource_limit_change_request_events` | `Django Signal (post_save)` | `marketplace.ResourceLimitChangeRequest` | Log events when resource limit change request is created or reviewed. |
 | `log_resource_robot_account_created_or_updated` | `Django Signal (post_save)` | `marketplace.RobotAccount` | Log resource robot account creation and updates. |
@@ -880,14 +882,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 801
+Total unique handlers found: 803
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 331 handlers
+- **waldur_mastermind**: 333 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

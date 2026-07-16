@@ -1221,6 +1221,24 @@ Create or update price estimates based on invoices.
 
 Remove Django event log records with stale content types.
 
+## resource_access_subnets
+
+Dumps per-resource access subnets for consumption by external firewalls, merging adjacent or overlapping networks. Only resources of offerings that opt in via the enable_resource_access_subnets plugin option have subnets.
+
+```bash
+
+usage: waldur resource_access_subnets [-r OFFERING] [-o OUTPUT]
+
+options:
+  -r, --offering OFFERING
+                        Limit the dump to resources of the offering with the
+                        given UUID.
+  -o, --output OUTPUT   Specifies file to which the merged subnets will be
+                        written. The output will be printed to stdout by
+                        default.
+
+```
+
 ## scim_pull_user
 
 Pull user attributes from a remote SCIM 2.0 directory.

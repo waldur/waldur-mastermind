@@ -5,6 +5,9 @@
 - access_subnet_creation_succeeded
 - access_subnet_deletion_succeeded
 - access_subnet_update_succeeded
+- resource_access_subnet_creation_succeeded
+- resource_access_subnet_deletion_succeeded
+- resource_access_subnet_update_succeeded
 
 ## Auth
 
