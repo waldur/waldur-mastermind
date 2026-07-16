@@ -154,7 +154,17 @@ Generate OpenAPI schema:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - export VERSION="${RELEASE_VERSION:-$CI_COMMIT_TAG}"
-    - if [ -z "$VERSION" ]; then VERSION="develop"; fi
+    - |
+      if [ -z "$VERSION" ] || [ "$VERSION" = "develop" ]; then
+        git fetch --tags || true
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        case "$LATEST_TAG" in
+          *-*) VERSION="${LATEST_TAG}.dev.${TIMESTAMP}" ;;
+          *)   VERSION="${LATEST_TAG}-dev.${TIMESTAMP}" ;;
+        esac
+      fi
+    - echo "Generating OpenAPI schema version ${VERSION} ..."
     - uv run waldur spectacular --api-version "$VERSION" --file "$CI_PROJECT_DIR/waldur-openapi-schema.yaml" --fail-on-warn
     - SKIP_MAKE_FIELDS_OPTIONAL=true uv run waldur spectacular --api-version "$VERSION" --file "$CI_PROJECT_DIR/waldur-typescript-schema.yaml" --fail-on-warn
   variables:
