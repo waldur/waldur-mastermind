@@ -12471,27 +12471,32 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
     def count_active_resources_grouped_by_organization_group(
         self, request, *args, **kwargs
     ):
-        organization_groups = structure_models.OrganizationGroup.objects.annotate(
-            customer_count=Count("customers")
-        ).filter(customer_count__gt=0)
-
-        results = []
-
-        for group in organization_groups:
-            active_resources = self.get_active_resources().filter(
-                offering__customer__in=group.customers.all()
+        # Single grouped aggregate instead of one COUNT query per organization
+        # group (was an N+1). Groups without active resources are naturally
+        # excluded because they produce no rows.
+        grouped = (
+            self.get_active_resources()
+            .filter(offering__customer__organization_groups__isnull=False)
+            .values(
+                "offering__customer__organization_groups__uuid",
+                "offering__customer__organization_groups__name",
             )
+            .annotate(count=Count("id"))
+            .order_by()
+        )
 
-            resource_count = active_resources.count()
-
-            if resource_count > 0:
-                results.append(
-                    {
-                        "organization_group_uuid": group.uuid.hex,
-                        "organization_group_name": group.name,
-                        "count": resource_count,
-                    }
-                )
+        results = [
+            {
+                "organization_group_uuid": row[
+                    "offering__customer__organization_groups__uuid"
+                ].hex,
+                "organization_group_name": row[
+                    "offering__customer__organization_groups__name"
+                ],
+                "count": row["count"],
+            }
+            for row in grouped
+        ]
 
         serialized_results = serializers.CountStatsSerializer(results, many=True).data
 
