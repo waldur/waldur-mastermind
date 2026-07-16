@@ -2392,6 +2392,58 @@ class ProviderOfferingViewSet(
         return self._update_state("draft")
 
     @extend_schema(
+        summary="List access subnets for an offering",
+        description="Returns the allowed access subnets of all resources of the "
+        "offering, in two forms: 'expanded' — every subnet with its resource, "
+        "project and customer context; and 'packed' — the same subnets collapsed "
+        "into the minimal set of CIDRs (adjacent/overlapping networks merged). "
+        "Intended for service providers building an external firewall allow-list. "
+        "Available to staff, support, the offering's service manager and the "
+        "offering customer owner.",
+        responses=serializers.OfferingAccessSubnetsSerializer,
+    )
+    @action(detail=True, methods=["get"], filter_backends=[])
+    def access_subnets(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        # Only allow staff, support and offering managers/owners.
+        if not (request.user.is_staff or request.user.is_support):
+            if not (
+                offering.has_user(request.user, OfferingRole.MANAGER)
+                or offering.customer.has_user(request.user, CustomerRole.OWNER)
+            ):
+                raise PermissionDenied()
+        subnets = (
+            models.ResourceAccessSubnet.objects.filter(resource__offering=offering)
+            .exclude(inet__isnull=True)
+            .select_related(
+                "resource", "resource__project", "resource__project__customer"
+            )
+            .order_by("inet")
+        )
+        expanded = [
+            {
+                "inet": str(subnet.inet),
+                "description": subnet.description,
+                "resource_uuid": subnet.resource.uuid.hex,
+                "resource_name": subnet.resource.name,
+                "resource_backend_id": subnet.resource.backend_id,
+                "project_uuid": subnet.resource.project.uuid.hex,
+                "project_name": subnet.resource.project.name,
+                "customer_uuid": subnet.resource.project.customer.uuid.hex,
+                "customer_name": subnet.resource.project.customer.name,
+            }
+            for subnet in subnets
+        ]
+        packed = [
+            str(network)
+            for network in core_utils.merge_access_subnets(s.inet for s in subnets)
+        ]
+        serializer = serializers.OfferingAccessSubnetsSerializer(
+            {"expanded": expanded, "packed": packed}
+        )
+        return Response(serializer.data)
+
+    @extend_schema(
         summary="List orders for an offering",
         description="Returns a paginated list of orders associated with a specific offering.",
         responses=serializers.OrderDetailsSerializer(many=True),
@@ -7661,6 +7713,38 @@ class OrderViewSet(
         description="Partially updates the name, description, or end date of a resource. Requires appropriate permissions.",
     ),
 )
+class ResourceAccessSubnetViewSet(core_views.ActionsViewSet):
+    queryset = models.ResourceAccessSubnet.objects.all().order_by("inet")
+    serializer_class = serializers.ResourceAccessSubnetSerializer
+    lookup_field = "uuid"
+    filterset_class = filters.ResourceAccessSubnetFilter
+    filter_backends = (DjangoFilterBackend,)
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DELETE_RESOURCE_ACCESS_SUBNET,
+            ["resource.project", "resource.project.customer"],
+        )
+    ]
+    update_permissions = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_ACCESS_SUBNET,
+            ["resource.project", "resource.project.customer"],
+        )
+    ]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if user.is_staff or user.is_support:
+            return qs
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
+        return qs.filter(
+            Q(resource__project__in=connected_projects)
+            | Q(resource__project__customer__in=connected_customers)
+        )
+
+
 class BaseResourceViewSet(
     ConnectedOfferingDetailsMixin,
     core_views.HistoryViewSetMixin,
@@ -8487,6 +8571,12 @@ def check_end_date_change_for_prepaid(resource, request):
     ),
 )
 class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
+    # Conceal resources whose offering opted into subnet-based concealment from
+    # callers outside the resource's access subnets (consumer API only).
+    filter_backends = BaseResourceViewSet.filter_backends + (
+        filters.ResourceAccessSubnetConcealmentFilterBackend,
+    )
+
     def get_queryset(self):
         queryset = self.queryset.filter_for_service_consumer(self.request.user)
         queryset = filter_queryset_by_user_ip(queryset, self.request)

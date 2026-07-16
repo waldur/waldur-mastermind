@@ -4,7 +4,11 @@ from django.http import HttpRequest
 from django.test import TestCase
 
 from waldur_core.core.models import User
-from waldur_core.core.utils import chunked_queryset, get_ip_address
+from waldur_core.core.utils import (
+    chunked_queryset,
+    get_ip_address,
+    merge_access_subnets,
+)
 
 
 class GetIpAddressTest(TestCase):
@@ -106,3 +110,20 @@ class ChunkedQuerysetTest(TestCase):
     def test_chunk_size_larger_than_dataset(self):
         result = list(chunked_queryset(User.objects.all(), chunk_size=100))
         self.assertEqual(len(result), len(self.users))
+
+
+class MergeAccessSubnetsTest(TestCase):
+    def test_adjacent_hosts_collapse(self):
+        result = merge_access_subnets(["192.168.1.0/32", "192.168.1.1/32"])
+        self.assertEqual([str(n) for n in result], ["192.168.1.0/31"])
+
+    def test_non_adjacent_stay_separate_and_sorted(self):
+        result = merge_access_subnets(["10.0.5.20/32", "192.168.1.5/32"])
+        self.assertEqual([str(n) for n in result], ["10.0.5.20/32", "192.168.1.5/32"])
+
+    def test_invalid_and_null_values_are_skipped(self):
+        result = merge_access_subnets([None, "not-an-ip", "192.168.1.5/32"])
+        self.assertEqual([str(n) for n in result], ["192.168.1.5/32"])
+
+    def test_empty_input(self):
+        self.assertEqual(merge_access_subnets([]), [])

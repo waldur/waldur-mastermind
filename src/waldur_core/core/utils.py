@@ -11,7 +11,7 @@ import time
 import unicodedata
 import uuid
 import warnings
-from itertools import chain
+from itertools import chain, groupby
 from secrets import choice
 from string import ascii_letters, digits
 from urllib.parse import urlsplit
@@ -539,6 +539,30 @@ def get_ip_address(request: HttpRequest) -> str | None:
     elif "REMOTE_ADDR" in request.META:
         return request.META["REMOTE_ADDR"]
     return None
+
+
+def merge_access_subnets(inet_values):
+    """Collapse CIDR strings into the minimal list of networks.
+
+    Adjacent or overlapping networks are merged (per IP version) using
+    ``ipaddress.collapse_addresses``. Invalid or null values are skipped.
+    Returns a list of ``ip_network`` objects sorted by version and address.
+    """
+    networks = []
+    for value in inet_values:
+        if value is None:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(value))
+        except ValueError:
+            continue
+
+    networks.sort(key=lambda n: (n.version, n.network_address))
+
+    merged = []
+    for _version, version_networks in groupby(networks, key=lambda n: n.version):
+        merged.extend(ipaddress.collapse_addresses(list(version_networks)))
+    return merged
 
 
 def get_user_agent(request):

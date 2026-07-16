@@ -24,6 +24,7 @@ from model_utils import FieldTracker
 from model_utils.managers import SoftDeletableManager
 from model_utils.models import SoftDeletableModel, TimeFramedModel, TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
+from netfields import CidrAddressField, NetManager
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
@@ -2401,6 +2402,44 @@ class Resource(
             "remaining_days": remaining_days,
             "new_end_date": new_end_date,
         }
+
+
+class ResourceAccessSubnet(
+    core_models.UuidMixin, core_models.DescribableMixin, LoggableMixin
+):
+    """
+    Model for resource access subnets.
+
+    Stores CIDR addresses with /32 mask validation. By default the data is
+    advisory metadata exported for consumption by external firewalls that guard
+    the backend entity the resource maps to (e.g. an S3 bucket); Waldur does not
+    act on it. Optionally, if the resource's offering enables the
+    ``conceal_subnet_restricted_resources`` plugin option, Waldur also hides such
+    resources from the consumer API for callers whose IP is not in the list.
+    Available only for resources whose offering opts in via the
+    ``enable_resource_access_subnets`` plugin option.
+    """
+
+    resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="access_subnet_set"
+    )
+    inet = CidrAddressField(
+        null=True, blank=True, validators=[structure_models.validate_cidr_32]
+    )
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+    # NetManager enables the netfields network lookups (e.g.
+    # inet__net_contains_or_equals) used by the consumer-API concealment filter.
+    objects = NetManager()
+
+    class Meta:
+        unique_together = ("resource", "inet")
+        ordering = ["inet"]
+
+    def __str__(self):
+        return self.resource.name + " | " + str(self.inet)
+
+    def get_log_fields(self):
+        return "description", "inet", "resource"
 
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
