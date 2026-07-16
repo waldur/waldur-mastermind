@@ -292,6 +292,26 @@ def create_or_update_oauth_user(
                 lookup_value,
             )
 
+        # Some ISDs are authoritative for certain fields. Once the authoritative
+        # ISD (e.g. EFP/passport) has asserted a user, other identity sources
+        # must not overwrite the locked fields, otherwise the values flap on
+        # every sync (e.g. eduTEAMS re-uppercasing a name EFP owns:
+        # "John Snow" <-> "JOHN SNOW"). Controlled by Constance:
+        # FEDERATED_IDENTITY_AUTHORITATIVE_ISD + FEDERATED_IDENTITY_LOCKED_FIELDS.
+        authoritative_isd = config.FEDERATED_IDENTITY_AUTHORITATIVE_ISD
+        locked_fields = config.FEDERATED_IDENTITY_LOCKED_FIELDS or []
+        if (
+            authoritative_isd
+            and locked_fields
+            and source != authoritative_isd
+            and authoritative_isd in (user.active_isds or [])
+        ):
+            payload = {
+                field: value
+                for field, value in payload.items()
+                if field not in locked_fields
+            }
+
         # Prepare for update
         now_iso = timezone.now().isoformat()
         attribute_sources = dict(user.attribute_sources or {})
@@ -649,10 +669,26 @@ def update_user_attributes_from_source(
     updated_fields = set()
     attribute_sources = dict(user.attribute_sources or {})
 
+    # Fields locked to an authoritative ISD (e.g. EFP/passport) must not be
+    # overwritten by other sources pushing over the Identity Bridge, mirroring
+    # the guard in create_or_update_oauth_user. See FEDERATED_IDENTITY_*.
+    authoritative_isd = config.FEDERATED_IDENTITY_AUTHORITATIVE_ISD
+    locked_fields = config.FEDERATED_IDENTITY_LOCKED_FIELDS or []
+    lock_active = bool(
+        authoritative_isd
+        and locked_fields
+        and source != authoritative_isd
+        and authoritative_isd in (user.active_isds or [])
+    )
+
     for field, new_value in payload.items():
         if allowed_fields and field not in allowed_fields:
             continue
         if field not in WRITABLE_USER_FIELDS:
+            continue
+        if lock_active and field in locked_fields:
+            # Preserve the authoritative ISD's value; do not update or transfer
+            # ownership for locked fields.
             continue
 
         current_value = getattr(user, field, None)

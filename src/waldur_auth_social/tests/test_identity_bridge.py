@@ -293,6 +293,80 @@ class PreserveOtherSourcesTest(TestCase):
         self.assertEqual(user.attribute_sources["email"]["source"], "isd:puhuri")
 
 
+class LockedFieldsTest(TestCase):
+    """Fields locked to an authoritative ISD are protected on the bridge push path."""
+
+    @override_config(
+        FEDERATED_IDENTITY_AUTHORITATIVE_ISD="isd:efp",
+        FEDERATED_IDENTITY_LOCKED_FIELDS=["first_name", "last_name"],
+    )
+    def test_locked_field_not_overwritten_by_non_authoritative_source(self):
+        user = structure_factories.UserFactory()
+        # EFP (authoritative) owns the name.
+        update_user_attributes_from_source(
+            user,
+            {"first_name": "Jane", "last_name": "Doe"},
+            "isd:efp",
+            allowed_fields={"first_name", "last_name"},
+        )
+        # A different, non-authoritative bridge source tries to overwrite the
+        # locked names and also sends a non-locked field.
+        update_user_attributes_from_source(
+            user,
+            {"first_name": "JANE", "last_name": "DOE", "organization": "CSC"},
+            "isd:puhuri",
+            allowed_fields={"first_name", "last_name", "organization"},
+        )
+        user.refresh_from_db()
+        # Locked names preserved and still owned by EFP ...
+        self.assertEqual(user.first_name, "Jane")
+        self.assertEqual(user.last_name, "Doe")
+        self.assertEqual(user.attribute_sources["first_name"]["source"], "isd:efp")
+        # ... while the non-locked field from the other source still applies.
+        self.assertEqual(user.organization, "CSC")
+        self.assertEqual(user.attribute_sources["organization"]["source"], "isd:puhuri")
+
+    @override_config(
+        FEDERATED_IDENTITY_AUTHORITATIVE_ISD="isd:efp",
+        FEDERATED_IDENTITY_LOCKED_FIELDS=["first_name", "last_name"],
+    )
+    def test_authoritative_source_can_update_locked_field(self):
+        user = structure_factories.UserFactory()
+        update_user_attributes_from_source(
+            user,
+            {"first_name": "Jane", "last_name": "Doe"},
+            "isd:efp",
+            allowed_fields={"first_name", "last_name"},
+        )
+        # EFP itself updates the locked field — the lock must not block the owner.
+        update_user_attributes_from_source(
+            user,
+            {"first_name": "Mary"},
+            "isd:efp",
+            allowed_fields={"first_name"},
+        )
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "Mary")
+
+    def test_locked_field_overwritten_when_protection_disabled(self):
+        # Default configuration: no authoritative ISD -> existing last-writer-wins.
+        user = structure_factories.UserFactory()
+        update_user_attributes_from_source(
+            user,
+            {"first_name": "Jane"},
+            "isd:efp",
+            allowed_fields={"first_name"},
+        )
+        update_user_attributes_from_source(
+            user,
+            {"first_name": "JANE"},
+            "isd:puhuri",
+            allowed_fields={"first_name"},
+        )
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "JANE")
+
+
 class MultiISDDeactivationTest(TestCase):
     @override_config(FEDERATED_IDENTITY_DEACTIVATION_POLICY="all_isds_removed")
     def test_remove_from_one_isd_keeps_active(self):
