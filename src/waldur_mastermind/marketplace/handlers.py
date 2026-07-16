@@ -2971,3 +2971,63 @@ def release_posix_allocations_on_consumer_deletion(sender, instance, **kwargs):
     intentionally tied to actual row deletion only.
     """
     posix_ids.release_posix_allocations(instance)
+
+
+def get_resource_access_subnet_changes(instance):
+    """Return {field: (old, new)} for fields that genuinely changed.
+
+    The tracker reports the ``inet`` CidrAddressField as changed whenever it is
+    assigned, because the stored value is an IPNetwork object while the incoming
+    value is a string; comparing their string forms filters out such no-op
+    diffs so the audit log only records real changes.
+    """
+    changes = {}
+    for key, old_value in instance.tracker.changed().items():
+        new_value = getattr(instance, key)
+        if str(old_value) != str(new_value):
+            changes[key] = (old_value, new_value)
+    return changes
+
+
+def generate_resource_access_subnet_changes(changes):
+    """Render a {field: (old, new)} change map as a human-readable string."""
+    changes_string = "Resource access subnet has been updated.\n"
+    for key, (old_value, new_value) in changes.items():
+        changes_string += (
+            f"{key} has been changed from '{old_value}' to '{new_value}'. "
+        )
+    return changes_string
+
+
+def log_resource_access_subnet_save(sender, instance, created=False, **kwargs):
+    """Log resource access subnet creation and updates."""
+    if created:
+        event_logger.emit(
+            f"Resource access subnet {instance} has been created.",
+            event_type=EventType.RESOURCE_ACCESS_SUBNET_CREATION_SUCCEEDED,
+            event_context={"resource_access_subnet": instance},
+            scopes=[instance, instance.resource, instance.resource.project],
+        )
+        return
+
+    changes = get_resource_access_subnet_changes(instance)
+    if not changes:
+        # Nothing genuinely changed (e.g. a save that only re-assigned the same
+        # values) — do not emit a noisy no-op update event.
+        return
+    event_logger.emit(
+        generate_resource_access_subnet_changes(changes),
+        event_type=EventType.RESOURCE_ACCESS_SUBNET_UPDATE_SUCCEEDED,
+        event_context={"resource_access_subnet": instance},
+        scopes=[instance, instance.resource, instance.resource.project],
+    )
+
+
+def log_resource_access_subnet_deletion(sender, instance, **kwargs):
+    """Log successful resource access subnet deletion."""
+    event_logger.emit(
+        f"Resource access subnet {instance} has been deleted.",
+        event_type=EventType.RESOURCE_ACCESS_SUBNET_DELETION_SUCCEEDED,
+        event_context={"resource_access_subnet": instance},
+        scopes=[instance.resource, instance.resource.project],
+    )

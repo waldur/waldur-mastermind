@@ -31,7 +31,7 @@ from waldur_core.core.filters import (
     get_generic_field_filter,
 )
 from waldur_core.core.models import User
-from waldur_core.core.utils import is_uuid_like
+from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum, RoleEnum
 from waldur_core.permissions.filters import UserPermissionFilter
@@ -477,6 +477,38 @@ class OfferingFilter(
 class OfferingCustomersFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         return queryset.filter_for_user(request.user)
+
+
+class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
+    """Hide resources whose offering opted into subnet-based concealment when the
+    caller's IP is not covered by the resource's access subnets.
+
+    Mirrors the organization-level ``filter_queryset_by_user_ip`` semantics:
+    staff/support and requests without a resolvable IP bypass the check, and a
+    resource with no access subnets stays visible. A resource is hidden only when
+    its offering enabled ``conceal_subnet_restricted_resources`` AND it has at
+    least one subnet AND none of them contain the caller's IP.
+    """
+
+    FLAG = "conceal_subnet_restricted_resources"
+
+    def filter_queryset(self, request, queryset, view):
+        user = request.user
+        if user is None or not user.is_authenticated:
+            return queryset
+        user_ip = get_ip_address(request)
+        if user.is_staff or user.is_support or not user_ip:
+            return queryset
+
+        restricted = models.ResourceAccessSubnet.objects.filter(
+            resource__offering__plugin_options__has_key=self.FLAG,
+            resource__offering__plugin_options__conceal_subnet_restricted_resources=True,
+            inet__isnull=False,
+        ).values_list("resource_id", flat=True)
+        allowed = models.ResourceAccessSubnet.objects.filter(
+            inet__net_contains_or_equals=user_ip,
+        ).values_list("resource_id", flat=True)
+        return queryset.exclude(Q(pk__in=restricted) & ~Q(pk__in=allowed))
 
 
 class OfferingImportableFilterBackend(BaseFilterBackend):
@@ -1680,6 +1712,38 @@ class ResourceFilter(
                 )
             )
         return queryset
+
+
+class ResourceAccessSubnetFilter(django_filters.FilterSet):
+    resource = core_filters.URLFilter(
+        view_name="marketplace-resource-detail",
+        field_name="resource__uuid",
+        label="Resource URL",
+    )
+    resource_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-resource-detail",
+        field_name="resource__uuid",
+        label="Resource UUID",
+    )
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="resource__offering__uuid",
+        label="Offering UUID",
+    )
+    inet = django_filters.CharFilter(lookup_expr="icontains", label="Inet")
+    description = django_filters.CharFilter(
+        lookup_expr="icontains", label="Description"
+    )
+
+    class Meta:
+        model = models.ResourceAccessSubnet
+        fields = [
+            "resource",
+            "resource_uuid",
+            "offering_uuid",
+            "inet",
+            "description",
+        ]
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
