@@ -66,6 +66,23 @@ class CalculateUsageForCurrentMonthTest(test.APITestCase):
         tasks.calculate_usage_for_current_month()
         self.assertEqual(models.CategoryComponentUsage.objects.count(), 0)
 
+    def test_calculate_usage_is_idempotent(self):
+        tasks.calculate_usage_for_current_month()
+        self.assertEqual(models.CategoryComponentUsage.objects.count(), 2)
+
+        # Re-running must update existing rows in place, not create duplicates.
+        models.ComponentUsage.objects.update(usage=25)
+        tasks.calculate_usage_for_current_month()
+        self.assertEqual(models.CategoryComponentUsage.objects.count(), 2)
+        self.assertEqual(
+            set(
+                models.CategoryComponentUsage.objects.values_list(
+                    "reported_usage", flat=True
+                )
+            ),
+            {25},
+        )
+
 
 class NotificationTest(test.APITestCase):
     @patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
