@@ -484,10 +484,12 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
     caller's IP is not covered by the resource's access subnets.
 
     Mirrors the organization-level ``filter_queryset_by_user_ip`` semantics:
-    staff/support and requests without a resolvable IP bypass the check, and a
-    resource with no access subnets stays visible. A resource is hidden only when
-    its offering enabled ``conceal_subnet_restricted_resources`` AND it has at
-    least one subnet AND none of them contain the caller's IP.
+    staff/support and requests without a resolvable IP bypass the check. A
+    resource is hidden only when its offering enabled
+    ``conceal_subnet_restricted_resources`` AND it is restricted (it has at least
+    one own subnet, or its offering has at least one provider-default subnet) AND
+    the caller's IP is in none of the resource's own subnets nor the offering's
+    default subnets. The provider defaults widen the allow-list.
     """
 
     FLAG = "conceal_subnet_restricted_resources"
@@ -500,15 +502,36 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
         if user.is_staff or user.is_support or not user_ip:
             return queryset
 
-        restricted = models.ResourceAccessSubnet.objects.filter(
-            resource__offering__plugin_options__has_key=self.FLAG,
-            resource__offering__plugin_options__conceal_subnet_restricted_resources=True,
+        concealing = {
+            "offering__plugin_options__has_key": self.FLAG,
+            f"offering__plugin_options__{self.FLAG}": True,
+        }
+        # Resources restricted because they have their own subnet(s).
+        restricted_own = models.ResourceAccessSubnet.objects.filter(
+            **{f"resource__{k}": v for k, v in concealing.items()},
             inet__isnull=False,
         ).values_list("resource_id", flat=True)
-        allowed = models.ResourceAccessSubnet.objects.filter(
+        # Concealing offerings that carry provider-default subnets: every resource
+        # of such an offering is restricted (checked against the defaults).
+        offerings_with_defaults = models.OfferingAccessSubnet.objects.filter(
+            **concealing,
+            inet__isnull=False,
+        ).values_list("offering_id", flat=True)
+
+        # Resources allowed because one of their own subnets covers the IP.
+        allowed_own = models.ResourceAccessSubnet.objects.filter(
             inet__net_contains_or_equals=user_ip,
         ).values_list("resource_id", flat=True)
-        return queryset.exclude(Q(pk__in=restricted) & ~Q(pk__in=allowed))
+        # Offerings whose provider-default subnets cover the IP.
+        offerings_allowing_ip = models.OfferingAccessSubnet.objects.filter(
+            inet__net_contains_or_equals=user_ip,
+        ).values_list("offering_id", flat=True)
+
+        restricted = Q(pk__in=restricted_own) | Q(
+            offering_id__in=offerings_with_defaults
+        )
+        allowed = Q(pk__in=allowed_own) | Q(offering_id__in=offerings_allowing_ip)
+        return queryset.exclude(restricted & ~allowed)
 
 
 class OfferingImportableFilterBackend(BaseFilterBackend):
@@ -1740,6 +1763,32 @@ class ResourceAccessSubnetFilter(django_filters.FilterSet):
         fields = [
             "resource",
             "resource_uuid",
+            "offering_uuid",
+            "inet",
+            "description",
+        ]
+
+
+class OfferingAccessSubnetFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="offering__uuid",
+        label="Offering URL",
+    )
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="offering__uuid",
+        label="Offering UUID",
+    )
+    inet = django_filters.CharFilter(lookup_expr="icontains", label="Inet")
+    description = django_filters.CharFilter(
+        lookup_expr="icontains", label="Description"
+    )
+
+    class Meta:
+        model = models.OfferingAccessSubnet
+        fields = [
+            "offering",
             "offering_uuid",
             "inet",
             "description",

@@ -301,6 +301,22 @@ class ResourceAccessSubnetConcealmentTest(test.APITestCase):
         uuids = self._consumer_list_uuids(getattr(self.fixture, user), DENIED_IP)
         self.assertIn(self.resource.uuid.hex, uuids)
 
+    def test_offering_default_widens_allow_list(self):
+        # Resource with no own subnet, but its offering has a provider default
+        # /24: a caller inside the /24 sees it, one outside does not.
+        self.resource.access_subnet_set.all().delete()
+        models.OfferingAccessSubnet.objects.create(
+            offering=self.fixture.offering, inet="203.0.113.0/24"
+        )
+        self.assertIn(
+            self.resource.uuid.hex,
+            self._consumer_list_uuids(self.consumer, "203.0.113.50"),
+        )
+        self.assertNotIn(
+            self.resource.uuid.hex,
+            self._consumer_list_uuids(self.consumer, "8.8.8.8"),
+        )
+
     def test_provider_api_not_concealed(self):
         # Concealment is consumer-only: the provider still sees the resource
         # from a non-allowed IP.

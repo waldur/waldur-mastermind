@@ -12,6 +12,13 @@ class EventType(StrEnum):
         "resource_access_subnet_deletion_succeeded"
     )
     RESOURCE_ACCESS_SUBNET_UPDATE_SUCCEEDED = "resource_access_subnet_update_succeeded"
+    OFFERING_ACCESS_SUBNET_CREATION_SUCCEEDED = (
+        "offering_access_subnet_creation_succeeded"
+    )
+    OFFERING_ACCESS_SUBNET_DELETION_SUCCEEDED = (
+        "offering_access_subnet_deletion_succeeded"
+    )
+    OFFERING_ACCESS_SUBNET_UPDATE_SUCCEEDED = "offering_access_subnet_update_succeeded"
     ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED = "allowed_offerings_have_been_updated"
     ATTACHMENT_CREATED = "attachment_created"
     ATTACHMENT_DELETED = "attachment_deleted"
@@ -444,6 +451,9 @@ EVENT_GROUP_MAPPING = {
         EventType.RESOURCE_ACCESS_SUBNET_CREATION_SUCCEEDED,
         EventType.RESOURCE_ACCESS_SUBNET_DELETION_SUCCEEDED,
         EventType.RESOURCE_ACCESS_SUBNET_UPDATE_SUCCEEDED,
+        EventType.OFFERING_ACCESS_SUBNET_CREATION_SUCCEEDED,
+        EventType.OFFERING_ACCESS_SUBNET_DELETION_SUCCEEDED,
+        EventType.OFFERING_ACCESS_SUBNET_UPDATE_SUCCEEDED,
     ],
     EventGroup.AUTH: [
         EventType.AUTH_LOGGED_IN_WITH_USERNAME,

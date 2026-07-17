@@ -617,6 +617,17 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.log_resource_access_subnet_deletion",
         )
 
+        signals.post_save.connect(
+            handlers.log_offering_access_subnet_save,
+            sender=models.OfferingAccessSubnet,
+            dispatch_uid="waldur_mastermind.marketplace.log_offering_access_subnet_save",
+        )
+        signals.post_delete.connect(
+            handlers.log_offering_access_subnet_deletion,
+            sender=models.OfferingAccessSubnet,
+            dispatch_uid="waldur_mastermind.marketplace.log_offering_access_subnet_deletion",
+        )
+
         # Register user action cleanup handlers for marketplace models
         from waldur_core.user_actions.handlers import register_cleanup_handler
 

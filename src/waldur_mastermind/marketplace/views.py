@@ -2434,12 +2434,23 @@ class ProviderOfferingViewSet(
             }
             for subnet in subnets
         ]
+        default_subnets = list(
+            models.OfferingAccessSubnet.objects.filter(offering=offering)
+            .exclude(inet__isnull=True)
+            .values_list("inet", flat=True)
+        )
+        defaults = [str(inet) for inet in default_subnets]
+        # The packed allow-list merges the per-resource subnets with the
+        # provider-default subnets of the offering.
+        resource_inets = [s.inet for s in subnets]
         packed = [
             str(network)
-            for network in core_utils.merge_access_subnets(s.inet for s in subnets)
+            for network in core_utils.merge_access_subnets(
+                resource_inets + default_subnets
+            )
         ]
         serializer = serializers.OfferingAccessSubnetsSerializer(
-            {"expanded": expanded, "packed": packed}
+            {"expanded": expanded, "packed": packed, "defaults": defaults}
         )
         return Response(serializer.data)
 
@@ -7713,6 +7724,38 @@ class OrderViewSet(
         description="Partially updates the name, description, or end date of a resource. Requires appropriate permissions.",
     ),
 )
+class OfferingAccessSubnetViewSet(core_views.ActionsViewSet):
+    queryset = models.OfferingAccessSubnet.objects.all().order_by("inet")
+    serializer_class = serializers.OfferingAccessSubnetSerializer
+    lookup_field = "uuid"
+    filterset_class = filters.OfferingAccessSubnetFilter
+    filter_backends = (DjangoFilterBackend,)
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DELETE_OFFERING_ACCESS_SUBNET,
+            ["offering", "offering.customer", "offering.customer.serviceprovider"],
+        )
+    ]
+    update_permissions = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_ACCESS_SUBNET,
+            ["offering", "offering.customer", "offering.customer.serviceprovider"],
+        )
+    ]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if user.is_staff or user.is_support:
+            return qs
+        connected_customers = get_connected_customers(user)
+        connected_offerings = get_connected_offerings(user)
+        return qs.filter(
+            Q(offering__customer__in=connected_customers)
+            | Q(offering__in=connected_offerings)
+        )
+
+
 class ResourceAccessSubnetViewSet(core_views.ActionsViewSet):
     queryset = models.ResourceAccessSubnet.objects.all().order_by("inet")
     serializer_class = serializers.ResourceAccessSubnetSerializer
