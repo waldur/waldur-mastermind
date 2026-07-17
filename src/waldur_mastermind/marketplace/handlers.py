@@ -1954,6 +1954,81 @@ def notify_user_about_rejected_order(sender, instance: Order, created=False, **k
             tasks.notify_user_that_order_been_rejected.delay(order.uuid.hex)
 
 
+MAINTENANCE_STATE_HANDLERS = {
+    MaintenanceState.SCHEDULED: (
+        EventType.MAINTENANCE_ANNOUNCEMENT_SCHEDULED,
+        "Maintenance announcement {maintenance_announcement_name} has been scheduled.",
+    ),
+    MaintenanceState.DRAFT: (
+        EventType.MAINTENANCE_ANNOUNCEMENT_UNSCHEDULED,
+        "Maintenance announcement {maintenance_announcement_name} has been unscheduled.",
+    ),
+    MaintenanceState.IN_PROGRESS: (
+        EventType.MAINTENANCE_ANNOUNCEMENT_STARTED,
+        "Maintenance announcement {maintenance_announcement_name} has been started.",
+    ),
+    MaintenanceState.COMPLETED: (
+        EventType.MAINTENANCE_ANNOUNCEMENT_COMPLETED,
+        "Maintenance announcement {maintenance_announcement_name} has been completed.",
+    ),
+    MaintenanceState.CANCELLED: (
+        EventType.MAINTENANCE_ANNOUNCEMENT_CANCELLED,
+        "Maintenance announcement {maintenance_announcement_name} has been cancelled.",
+    ),
+}
+
+
+def log_maintenance_announcement_events(sender, instance, created=False, **kwargs):
+    """Log audit events for MaintenanceAnnouncement CRUD and state transitions."""
+    scopes = log.get_maintenance_announcement_scopes(instance)
+
+    if created:
+        event_logger.emit(
+            "Maintenance announcement {maintenance_announcement_name} has been created.",
+            event_type=EventType.MAINTENANCE_ANNOUNCEMENT_CREATED,
+            event_context={"maintenance_announcement": instance},
+            scopes=scopes,
+        )
+        return
+
+    if instance.tracker.has_changed("state"):
+        if instance.state not in MAINTENANCE_STATE_HANDLERS:
+            return
+        event_type, message = MAINTENANCE_STATE_HANDLERS[instance.state]
+        event_logger.emit(
+            message,
+            event_type=event_type,
+            event_context={"maintenance_announcement": instance},
+            scopes=scopes,
+        )
+        return
+
+    changes = [
+        f"{field}: {instance.tracker.previous(field)} -> {getattr(instance, field, None)}"
+        for field in instance.tracker.changed()
+    ]
+    if not changes:
+        return
+
+    diff = ", ".join(changes)
+    event_logger.emit(
+        f"Maintenance announcement {{maintenance_announcement_name}} has been updated. Details: {diff}.",
+        event_type=EventType.MAINTENANCE_ANNOUNCEMENT_UPDATED,
+        event_context={"maintenance_announcement": instance},
+        scopes=scopes,
+    )
+
+
+def log_maintenance_announcement_deleted(sender, instance, **kwargs):
+    """Log audit event when a MaintenanceAnnouncement is deleted."""
+    event_logger.emit(
+        "Maintenance announcement {maintenance_announcement_name} has been deleted.",
+        event_type=EventType.MAINTENANCE_ANNOUNCEMENT_DELETED,
+        event_context={"maintenance_announcement": instance},
+        scopes=log.get_maintenance_announcement_scopes(instance),
+    )
+
+
 def manage_maintenance_admin_announcements(sender, instance, created, **kwargs):
     """
     Manage AdminAnnouncement lifecycle based on MaintenanceAnnouncement state changes.

@@ -481,6 +481,18 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.log_maintenance_announcement_events,
+            sender=models.MaintenanceAnnouncement,
+            dispatch_uid="waldur_mastermind.marketplace.log_maintenance_announcement_events",
+        )
+
+        signals.pre_delete.connect(
+            handlers.log_maintenance_announcement_deleted,
+            sender=models.MaintenanceAnnouncement,
+            dispatch_uid="waldur_mastermind.marketplace.log_maintenance_announcement_deleted",
+        )
+
+        signals.post_save.connect(
             handlers.update_maintenance_announcement_on_offering_change,
             sender=models.MaintenanceAnnouncementOffering,
             dispatch_uid="waldur_mastermind.marketplace.update_maintenance_announcement_on_offering_change",
