@@ -465,41 +465,74 @@ def calculate_usage_for_current_month():
     project_ct = ContentType.objects.get_for_model(structure_models.Project)
     customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
 
-    for customer in structure_models.Customer.objects.all():
-        reported_usage = customer_reported.get(customer.id, {})
-        fixed_usage = customer_fixed.get(customer.id, {})
+    # Collect the target usage values keyed by (content_type_id, object_id,
+    # component_id) so the writes can be performed in bulk instead of issuing a
+    # SELECT ... FOR UPDATE + UPDATE/INSERT per scope/component pair (N+1).
+    desired = {}
+
+    def collect(content_type, object_id, reported_usage, fixed_usage):
         fixed_usage.pop(None, None)
-        components = set(reported_usage.keys()) | set(fixed_usage.keys())
-        for component_id in components:
-            models.CategoryComponentUsage.objects.update_or_create(
-                content_type=customer_ct,
-                object_id=customer.id,
-                component_id=component_id,
-                date=start,
-                defaults={
-                    "reported_usage": reported_usage.get(component_id),
-                    "fixed_usage": fixed_usage.get(component_id),
-                },
+        for component_id in set(reported_usage.keys()) | set(fixed_usage.keys()):
+            desired[(content_type.id, object_id, component_id)] = (
+                reported_usage.get(component_id),
+                fixed_usage.get(component_id),
             )
 
-        for project in structure_models.Project.available_objects.filter(
-            customer=customer
-        ):
-            reported_usage = project_reported.get(project.id, {})
-            fixed_usage = project_fixed.get(project.id, {})
-            fixed_usage.pop(None, None)
-            components = set(reported_usage.keys()) | set(fixed_usage.keys())
-            for component_id in components:
-                models.CategoryComponentUsage.objects.update_or_create(
-                    content_type=project_ct,
-                    object_id=project.id,
+    for customer in structure_models.Customer.objects.all():
+        collect(
+            customer_ct,
+            customer.id,
+            customer_reported.get(customer.id, {}),
+            customer_fixed.get(customer.id, {}),
+        )
+
+    # Every available project belongs to a customer, so iterating them once is
+    # equivalent to the previous per-customer filtering without the extra query.
+    for project in structure_models.Project.available_objects.all():
+        collect(
+            project_ct,
+            project.id,
+            project_reported.get(project.id, {}),
+            project_fixed.get(project.id, {}),
+        )
+
+    existing = {
+        (usage.content_type_id, usage.object_id, usage.component_id): usage
+        for usage in models.CategoryComponentUsage.objects.filter(
+            date=start,
+            content_type__in=[customer_ct, project_ct],
+        )
+    }
+
+    to_create = []
+    to_update = []
+    for (content_type_id, object_id, component_id), (
+        reported,
+        fixed,
+    ) in desired.items():
+        usage = existing.get((content_type_id, object_id, component_id))
+        if usage is None:
+            to_create.append(
+                models.CategoryComponentUsage(
+                    content_type_id=content_type_id,
+                    object_id=object_id,
                     component_id=component_id,
                     date=start,
-                    defaults={
-                        "reported_usage": reported_usage.get(component_id),
-                        "fixed_usage": fixed_usage.get(component_id),
-                    },
+                    reported_usage=reported,
+                    fixed_usage=fixed,
                 )
+            )
+        else:
+            usage.reported_usage = reported
+            usage.fixed_usage = fixed
+            to_update.append(usage)
+
+    if to_create:
+        models.CategoryComponentUsage.objects.bulk_create(to_create)
+    if to_update:
+        models.CategoryComponentUsage.objects.bulk_update(
+            to_update, ["reported_usage", "fixed_usage"]
+        )
 
 
 @shared_task(name="waldur_mastermind.marketplace.sync_component_usage_summaries")
