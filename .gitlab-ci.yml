@@ -173,7 +173,7 @@ Generate OpenAPI schema:
     paths:
       - waldur-openapi-schema.yaml
       - waldur-typescript-schema.yaml
-    expire_in: 1 day
+    expire_in: 1 week
 
 Check database migrations:
   extends: .Unit test runner
