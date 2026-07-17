@@ -29,10 +29,21 @@ class Command(BaseCommand):
         )
 
     def get_merged_subnets(self, offering_uuid=None):
-        queryset = models.ResourceAccessSubnet.objects.exclude(inet__isnull=True)
+        resource_subnets = models.ResourceAccessSubnet.objects.exclude(
+            inet__isnull=True
+        )
+        offering_defaults = models.OfferingAccessSubnet.objects.exclude(
+            inet__isnull=True
+        )
         if offering_uuid:
-            queryset = queryset.filter(resource__offering__uuid=offering_uuid)
-        return core_utils.merge_access_subnets(queryset.values_list("inet", flat=True))
+            resource_subnets = resource_subnets.filter(
+                resource__offering__uuid=offering_uuid
+            )
+            offering_defaults = offering_defaults.filter(offering__uuid=offering_uuid)
+        inets = list(resource_subnets.values_list("inet", flat=True)) + list(
+            offering_defaults.values_list("inet", flat=True)
+        )
+        return core_utils.merge_access_subnets(inets)
 
     def handle(self, *args, **options):
         merged_subnets = self.get_merged_subnets(options.get("offering"))

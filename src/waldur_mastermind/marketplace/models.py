@@ -2442,6 +2442,39 @@ class ResourceAccessSubnet(
         return "description", "inet", "resource"
 
 
+class OfferingAccessSubnet(
+    core_models.UuidMixin, core_models.DescribableMixin, LoggableMixin
+):
+    """
+    Provider-defined default access subnets for an offering.
+
+    Unlike the per-resource ``ResourceAccessSubnet`` (single-host /32 entries
+    curated by consumers), these are wider CIDR segments (any mask) defined by
+    the service provider. They are shown read-only to consumers alongside their
+    own resource subnets, count toward the consumer-API concealment allow-list,
+    and are included in the exported firewall allow-list.
+    """
+
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="default_access_subnets"
+    )
+    inet = CidrAddressField(null=True, blank=True)
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+    # NetManager enables the netfields network lookups (e.g.
+    # inet__net_contains_or_equals) used by the consumer-API concealment filter.
+    objects = NetManager()
+
+    class Meta:
+        unique_together = ("offering", "inet")
+        ordering = ["inet"]
+
+    def __str__(self):
+        return self.offering.name + " | " + str(self.inet)
+
+    def get_log_fields(self):
+        return "description", "inet", "offering"
+
+
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """
     Time-framed billing plan tracking for resources.

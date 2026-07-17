@@ -1,4 +1,5 @@
 import datetime
+import ipaddress
 import logging
 import re
 from decimal import Decimal
@@ -3388,6 +3389,14 @@ class EndpointUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField(help_text="UUID of the access endpoint")
 
 
+class NestedOfferingAccessSubnetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.OfferingAccessSubnet
+        fields = ("uuid", "inet", "description")
+
+    inet = serializers.CharField()
+
+
 class SoftwareCatalogUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField(help_text="UUID of the software catalog")
 
@@ -3517,6 +3526,9 @@ class ProviderOfferingDetailsSerializer(
     total_cost = serializers.SerializerMethodField()
     total_cost_estimated = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
+    default_access_subnets = NestedOfferingAccessSubnetSerializer(
+        many=True, read_only=True
+    )
     software_catalogs = NestedSoftwareCatalogSerializer(many=True, read_only=True)
     partitions = NestedPartitionSerializer(many=True, read_only=True)
     has_compliance_requirements = serializers.SerializerMethodField()
@@ -3564,6 +3576,7 @@ class ProviderOfferingDetailsSerializer(
             "documentation_url",
             "access_url",
             "endpoints",
+            "default_access_subnets",
             "software_catalogs",
             "partitions",
             "customer",
@@ -5870,6 +5883,69 @@ class ResourceSuggestNameSerializer(serializers.ModelSerializer):
         return fields
 
 
+class OfferingAccessSubnetSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    class Meta:
+        model = models.OfferingAccessSubnet
+        fields = (
+            "uuid",
+            "inet",
+            "description",
+            "offering",
+            "offering_name",
+        )
+        extra_kwargs = {
+            "offering": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-provider-offering-detail",
+            },
+        }
+        protected_fields = ["offering"]
+
+    inet = serializers.CharField()
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+
+    def validate_inet(self, value):
+        # Provider defaults may be any CIDR width; normalise and reject networks
+        # with host bits set or malformed input.
+        try:
+            network = ipaddress.ip_network(value, strict=True)
+        except ValueError as e:
+            raise rf_exceptions.ValidationError(str(e))
+        return str(network)
+
+    def validate(self, validated_data):
+        if not self.instance:
+            offering = validated_data["offering"]
+            if not (offering.plugin_options or {}).get(
+                "enable_resource_access_subnets"
+            ):
+                raise rf_exceptions.ValidationError(
+                    {"offering": _("Access subnets are not enabled for this offering.")}
+                )
+            # Provider write access: offering manager, customer owner, or the
+            # customer's service-provider manager (staff bypass in has_permission).
+            scopes = [offering, offering.customer]
+            service_provider = models.ServiceProvider.objects.filter(
+                customer=offering.customer
+            ).first()
+            if service_provider is not None:
+                scopes.append(service_provider)
+            if not any(
+                has_permission(
+                    self.context["request"],
+                    PermissionEnum.CREATE_OFFERING_ACCESS_SUBNET,
+                    scope,
+                )
+                for scope in scopes
+            ):
+                raise PermissionDenied()
+
+        return validated_data
+
+
 class ResourceAccessSubnetSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -5952,6 +6028,7 @@ class OfferingAccessSubnetsSerializer(serializers.Serializer):
 
     expanded = OfferingAccessSubnetExpandedSerializer(many=True)
     packed = serializers.ListField(child=serializers.CharField())
+    defaults = serializers.ListField(child=serializers.CharField())
 
 
 class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerializer):

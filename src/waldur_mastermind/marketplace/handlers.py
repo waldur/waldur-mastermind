@@ -3106,3 +3106,41 @@ def log_resource_access_subnet_deletion(sender, instance, **kwargs):
         event_context={"resource_access_subnet": instance},
         scopes=[instance.resource, instance.resource.project],
     )
+
+
+def log_offering_access_subnet_save(sender, instance, created=False, **kwargs):
+    """Log offering default access subnet creation and updates."""
+    if created:
+        event_logger.emit(
+            f"Offering access subnet {instance} has been created.",
+            event_type=EventType.OFFERING_ACCESS_SUBNET_CREATION_SUCCEEDED,
+            event_context={"offering_access_subnet": instance},
+            scopes=[instance, instance.offering, instance.offering.customer],
+        )
+        return
+
+    # Reuse the resource change-detection helper: it only inspects the tracker.
+    changes = get_resource_access_subnet_changes(instance)
+    if not changes:
+        return
+    changes_string = "Offering access subnet has been updated.\n"
+    for key, (old_value, new_value) in changes.items():
+        changes_string += (
+            f"{key} has been changed from '{old_value}' to '{new_value}'. "
+        )
+    event_logger.emit(
+        changes_string,
+        event_type=EventType.OFFERING_ACCESS_SUBNET_UPDATE_SUCCEEDED,
+        event_context={"offering_access_subnet": instance},
+        scopes=[instance, instance.offering, instance.offering.customer],
+    )
+
+
+def log_offering_access_subnet_deletion(sender, instance, **kwargs):
+    """Log successful offering default access subnet deletion."""
+    event_logger.emit(
+        f"Offering access subnet {instance} has been deleted.",
+        event_type=EventType.OFFERING_ACCESS_SUBNET_DELETION_SUCCEEDED,
+        event_context={"offering_access_subnet": instance},
+        scopes=[instance.offering, instance.offering.customer],
+    )
