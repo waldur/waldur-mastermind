@@ -4,12 +4,15 @@ import logging
 import uuid
 
 from constance import config
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import connection, models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.fields import AutoCreatedField, AutoLastModifiedField
 from model_utils.models import TimeStampedModel
 
+from waldur_mastermind.chat.block_schemas import blocks_to_text
 from waldur_mastermind.chat.enums import FeedbackCategory
 
 # Imported here so AnonymousChatBudget can use the same sentinel without
@@ -209,6 +212,20 @@ class AnonymousChatInteraction(models.Model):
     user_input = models.TextField(blank=True, default="")  # truncated 2000 chars
     assistant_blocks = models.JSONField(default=list)
 
+    # Denormalized plain-text of the whole turn (user_input + assistant reply),
+    # kept in sync in save(). Feeds `search_vector` so staff can full-text
+    # search anon transcript content. blocks_to_text is the shared extractor
+    # (single source of truth, also used by chat.Message and the LLM context).
+    search_text = models.TextField(blank=True, default="")
+    # tsvector of search_text, computed by Postgres as a stored generated
+    # column (not a trigger) so it exists even when the schema is built from
+    # models directly — e.g. CI's `pytest --no-migrations`.
+    search_vector = models.GeneratedField(
+        expression=SearchVector("search_text", config="english"),
+        output_field=SearchVectorField(),
+        db_persist=True,
+    )
+
     is_flagged = models.BooleanField(default=False)
     severity = models.CharField(max_length=16, blank=True, default="")
     injection_categories = models.JSONField(default=list)
@@ -230,10 +247,32 @@ class AnonymousChatInteraction(models.Model):
             models.Index(fields=["session_id", "created"]),
             models.Index(fields=["user_slug", "created"]),
             models.Index(fields=["uuid"]),
+            GinIndex(fields=["search_vector"], name="anon_chat_search_gin"),
         ]
 
     def __str__(self):
         return f"AnonymousChatInteraction({self.uuid})"
+
+    def _build_search_text(self):
+        # One row holds both sides of the turn — combine so staff can find a
+        # session by the question OR the answer. blocks_to_text handles the
+        # assistant blocks; user_input is already plain text.
+        parts = [self.user_input or "", blocks_to_text(self.assistant_blocks or [])]
+        return "\n".join(p for p in parts if p)
+
+    def save(self, *args, **kwargs):
+        # Recompute only when a text-bearing field is part of this write. The
+        # reply lands in a second save (see anonymous/views.py stream
+        # finaliser); a save touching neither side can't change search_text, so
+        # skip the work — and skip touching the source fields, which could
+        # otherwise force a deferred fetch.
+        source_fields = {"user_input", "assistant_blocks"}
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None or source_fields & set(update_fields):
+            self.search_text = self._build_search_text()
+            if update_fields is not None:
+                kwargs["update_fields"] = set(update_fields) | {"search_text"}
+        super().save(*args, **kwargs)
 
 
 class AnonymousChatFeedback(models.Model):

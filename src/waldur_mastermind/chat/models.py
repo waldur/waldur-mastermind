@@ -3,6 +3,8 @@ from datetime import timedelta
 from enum import IntEnum
 
 from constance import config
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.core.validators import MinValueValidator
 from django.db import connection, models
 from django.utils import timezone
@@ -10,6 +12,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.models import DescribableMixin, NameMixin, User, UuidMixin
+from waldur_mastermind.chat.block_schemas import blocks_to_text
 from waldur_mastermind.chat.enums import FeedbackCategory
 from waldur_mastermind.chat.input_guards import (
     DetectionAction,
@@ -373,6 +376,20 @@ class Message(UuidMixin, TimeStampedModel):
     # Persisted rendering of the assistant/user turn as a list of UI blocks.
     # Mirrors the frontend UIBlock shape so history reload needs no conversion.
     blocks = models.JSONField(default=list)
+    # Denormalized plain-text of `blocks`, kept in sync in save() via
+    # blocks_to_text (the single source of truth for a message's text, also
+    # used by the LLM context builder). Feeds `search_vector`.
+    search_text = models.TextField(blank=True, default="")
+    # tsvector of search_text, computed by Postgres as a stored generated
+    # column so staff can full-text search conversation content, not just the
+    # thread title. Defined at the model level (not via a trigger) so it exists
+    # even when the schema is built from models directly — e.g. CI's
+    # `pytest --no-migrations`, where migration-only DB objects never run.
+    search_vector = models.GeneratedField(
+        expression=SearchVector("search_text", config="english"),
+        output_field=SearchVectorField(),
+        db_persist=True,
+    )
     # Optional non-blocking warning surfaced by guards (e.g. PII redaction).
     warning = models.TextField(blank=True, default="")
     sequence_index = models.PositiveIntegerField()
@@ -451,6 +468,7 @@ class Message(UuidMixin, TimeStampedModel):
                 condition=models.Q(feedback_score__isnull=False),
                 name="chat_msg_fb_score_partial_idx",
             ),
+            GinIndex(fields=["search_vector"], name="chat_msg_search_gin"),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -462,6 +480,21 @@ class Message(UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return f"Message({self.role}, seq={self.sequence_index})"
+
+    def save(self, *args, **kwargs):
+        # Keep search_text in lockstep with blocks. blocks_to_text is the single
+        # source of truth for a message's text content; Postgres then derives
+        # search_vector from search_text via a stored generated column.
+        # Recompute only when blocks is part of this write (a full save, or a
+        # partial save naming blocks). A partial save that leaves blocks alone
+        # can't change search_text, so skip the work — and skip touching
+        # self.blocks, which could otherwise force a deferred fetch.
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None or "blocks" in update_fields:
+            self.search_text = blocks_to_text(self.blocks)
+            if update_fields is not None:
+                kwargs["update_fields"] = set(update_fields) | {"search_text"}
+        super().save(*args, **kwargs)
 
     def apply_detection_result(self, result: InputGuardResult):
         self.is_flagged = result.is_flagged

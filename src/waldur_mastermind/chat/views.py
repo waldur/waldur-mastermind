@@ -2,6 +2,7 @@ import logging
 
 import django_filters
 from constance import config
+from django.contrib.postgres.search import SearchQuery
 from django.db import transaction
 from django.db.models import Case, Count, Exists, Max, OuterRef, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
@@ -671,14 +672,29 @@ class ThreadSessionFilter(django_filters.FilterSet):
         return queryset.filter(flags__max_severity=value)
 
     def filter_by_query(self, queryset, name, value):
-        """Full-text search across thread name and user details."""
-        return queryset.filter(
-            Q(name__icontains=value)
-            | Q(chat_session__user__username__icontains=value)
-            | Q(chat_session__user__first_name__icontains=value)
-            | Q(chat_session__user__last_name__icontains=value)
-            | Q(chat_session__user__email__icontains=value)
-        ).distinct()
+        """Search thread name, user identity, and conversation content.
+
+        Content search uses Postgres full-text over Message.search_vector
+        (a stored generated column). `websearch` syntax gives staff
+        quoted-phrase support ("SLURM quota error") and tolerates arbitrary
+        input without erroring.
+        """
+        content_match = models.Message.objects.filter(
+            thread=OuterRef("pk"),
+            search_vector=SearchQuery(value, search_type="websearch", config="english"),
+        )
+        return (
+            queryset.annotate(_content_match=Exists(content_match))
+            .filter(
+                Q(name__icontains=value)
+                | Q(chat_session__user__username__icontains=value)
+                | Q(chat_session__user__first_name__icontains=value)
+                | Q(chat_session__user__last_name__icontains=value)
+                | Q(chat_session__user__email__icontains=value)
+                | Q(_content_match=True)
+            )
+            .distinct()
+        )
 
     def filter_scope(self, queryset, name, value):
         if value == "own":
