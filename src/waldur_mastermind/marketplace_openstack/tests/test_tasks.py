@@ -2,10 +2,14 @@ import unittest
 from unittest import mock
 
 from waldur_core.core import utils as core_utils
+from waldur_core.logging import models as logging_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
     OPENSTACK_VOLUME_OFFERING,
+    OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -65,6 +69,164 @@ class TaskTest(BaseOpenStackTest):
         tasks.refresh_instance_backend_metadata()
 
         mock_import_instance_metadata.assert_called_once_with(resource)
+
+
+class TerminateChildResourcesOfTerminatedTenantsTest(BaseOpenStackTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = OpenStackFixture()
+        self.tenant = self.fixture.tenant
+        self.instance = self.fixture.instance
+        self.volume = self.fixture.volume
+
+        # Parent tenant offering + its (already) TERMINATED marketplace resource.
+        self.tenant_offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant, type=OPENSTACK_TENANT_OFFERING
+        )
+        self.tenant_resource = marketplace_factories.ResourceFactory(
+            offering=self.tenant_offering,
+            scope=self.tenant,
+            state=ResourceStates.TERMINATED,
+        )
+
+        # Per-tenant child offerings scoped to the tenant.
+        self.instance_offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant, type=OPENSTACK_INSTANCE_OFFERING
+        )
+        self.volume_offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant, type=OPENSTACK_VOLUME_OFFERING
+        )
+
+    def test_orphaned_child_resources_are_terminated(self):
+        instance_resource = marketplace_factories.ResourceFactory(
+            offering=self.instance_offering,
+            scope=self.instance,
+            state=ResourceStates.OK,
+        )
+        volume_resource = marketplace_factories.ResourceFactory(
+            offering=self.volume_offering,
+            scope=self.volume,
+            state=ResourceStates.ERRED,
+        )
+
+        tasks.terminate_child_resources_of_terminated_tenants()
+
+        instance_resource.refresh_from_db()
+        volume_resource.refresh_from_db()
+        self.assertEqual(instance_resource.state, ResourceStates.TERMINATED)
+        self.assertEqual(volume_resource.state, ResourceStates.TERMINATED)
+
+    def test_a_completed_terminate_order_is_recorded_with_reason(self):
+        instance_resource = marketplace_factories.ResourceFactory(
+            offering=self.instance_offering,
+            scope=self.instance,
+            state=ResourceStates.OK,
+        )
+
+        tasks.terminate_child_resources_of_terminated_tenants()
+
+        order = marketplace_models.Order.objects.get(
+            resource=instance_resource, type=OrderTypes.TERMINATE
+        )
+        self.assertEqual(order.state, OrderStates.DONE)
+        self.assertIsNone(order.created_by)
+        self.assertIn("reason", order.attributes)
+
+    def test_plugin_rows_are_not_deleted(self):
+        marketplace_factories.ResourceFactory(
+            offering=self.instance_offering,
+            scope=self.instance,
+            state=ResourceStates.OK,
+        )
+
+        tasks.terminate_child_resources_of_terminated_tenants()
+
+        # Mark-only: the plugin Instance/Tenant rows must survive.
+        self.instance.refresh_from_db()
+        self.tenant.refresh_from_db()
+
+    def test_child_resources_of_active_tenant_are_untouched(self):
+        active_tenant = openstack_factories.TenantFactory(
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+        )
+        active_tenant_offering = marketplace_factories.OfferingFactory(
+            scope=active_tenant, type=OPENSTACK_TENANT_OFFERING
+        )
+        marketplace_factories.ResourceFactory(
+            offering=active_tenant_offering,
+            scope=active_tenant,
+            state=ResourceStates.OK,
+        )
+        active_instance = openstack_factories.InstanceFactory(
+            project=self.fixture.project,
+            tenant=active_tenant,
+        )
+        active_instance_offering = marketplace_factories.OfferingFactory(
+            scope=active_tenant, type=OPENSTACK_INSTANCE_OFFERING
+        )
+        active_resource = marketplace_factories.ResourceFactory(
+            offering=active_instance_offering,
+            scope=active_instance,
+            state=ResourceStates.OK,
+        )
+
+        tasks.terminate_child_resources_of_terminated_tenants()
+
+        active_resource.refresh_from_db()
+        self.assertEqual(active_resource.state, ResourceStates.OK)
+
+    def test_already_terminated_child_resources_are_left_as_is(self):
+        terminated_resource = marketplace_factories.ResourceFactory(
+            offering=self.instance_offering,
+            scope=self.instance,
+            state=ResourceStates.TERMINATED,
+        )
+
+        tasks.terminate_child_resources_of_terminated_tenants()
+
+        terminated_resource.refresh_from_db()
+        self.assertEqual(terminated_resource.state, ResourceStates.TERMINATED)
+
+    def test_termination_is_recorded_in_the_audit_log(self):
+        instance_resource = marketplace_factories.ResourceFactory(
+            offering=self.instance_offering,
+            scope=self.instance,
+            state=ResourceStates.OK,
+        )
+
+        tasks.terminate_child_resources_of_terminated_tenants()
+
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="marketplace_resource_terminate_succeeded",
+                message__contains=instance_resource.name,
+            ).exists()
+        )
+
+    @mock.patch(
+        "waldur_mastermind.marketplace_openstack.tasks.marketplace_callbacks.resource_deletion_succeeded"
+    )
+    def test_failure_on_one_resource_is_isolated_and_rolled_back(self, mock_callback):
+        mock_callback.side_effect = Exception("boom")
+        instance_resource = marketplace_factories.ResourceFactory(
+            offering=self.instance_offering,
+            scope=self.instance,
+            state=ResourceStates.OK,
+        )
+
+        # The task must swallow the per-resource error and not propagate it.
+        tasks.terminate_child_resources_of_terminated_tenants()
+
+        # The resource is left untouched and the order creation is rolled back
+        # together with the failed callback (per-resource transaction.atomic).
+        instance_resource.refresh_from_db()
+        self.assertEqual(instance_resource.state, ResourceStates.OK)
+        self.assertFalse(
+            marketplace_models.Order.objects.filter(
+                resource=instance_resource, type=OrderTypes.TERMINATE
+            ).exists()
+        )
 
 
 @unittest.skip("Mock does not work correctly for backend")
