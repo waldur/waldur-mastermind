@@ -596,6 +596,30 @@ class PermissionSerializer(serializers.ModelSerializer):
         return None
 
 
+class MePermissionSerializer(PermissionSerializer):
+    """Trimmed permission projection for the ``/api/users/me`` endpoint.
+
+    Keeps only the fields the frontend reads for the current user, dropping
+    the ones that are redundant (per-row user identity) or moot for the
+    active-only roles returned here. Roughly halves the ``permissions`` array,
+    which dominates the ``me`` response.
+    """
+
+    class Meta(PermissionSerializer.Meta):
+        fields = (
+            "role_name",
+            "role_uuid",
+            "scope_type",
+            "scope_uuid",
+            "scope_name",
+            "customer_uuid",
+            "customer_name",
+            "project_uuid",
+            "resource_uuid",
+            "expiration_time",
+        )
+
+
 class UserRoleMutateSerializer(serializers.Serializer):
     role = serializers.CharField()
     user = serializers.UUIDField()

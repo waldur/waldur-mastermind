@@ -1290,6 +1290,7 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
         "auth_token", "changeemailrequest"
     )
     serializer_class = serializers.UserSerializer
+    me_serializer_class = serializers.UserMeSerializer
     lookup_field = "uuid"
     permission_classes = (
         rf_permissions.IsAuthenticated,

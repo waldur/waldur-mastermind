@@ -33,7 +33,10 @@ from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.serializers import PermissionSerializer
+from waldur_core.permissions.serializers import (
+    MePermissionSerializer,
+    PermissionSerializer,
+)
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import managers, models, utils
 from waldur_core.structure.enums import ProjectKind
@@ -2003,6 +2006,9 @@ class UserSerializer(
 
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, user: core_models.User):
+        return self._serialize_permissions(user, PermissionSerializer)
+
+    def _serialize_permissions(self, user: core_models.User, serializer_class):
         # Use prefetched permissions if available (from UserViewSet.get_queryset)
         # to avoid N+1 queries. Fall back to query for backwards compatibility.
         if hasattr(user, "prefetched_permissions"):
@@ -2015,7 +2021,7 @@ class UserSerializer(
             )
 
         # Batch-load scope objects (Project, Customer) to avoid N+1 queries
-        # when PermissionSerializer accesses scope.uuid, scope.customer.uuid, etc.
+        # when the permission serializer accesses scope.uuid, scope.customer.uuid, etc.
         scope_ids_by_ct = {}
         for perm in perms:
             if perm.content_type_id and perm.object_id:
@@ -2042,7 +2048,7 @@ class UserSerializer(
                 perm.scope = scope
                 valid_perms.append(perm)
 
-        serializer = PermissionSerializer(instance=valid_perms, many=True)
+        serializer = serializer_class(instance=valid_perms, many=True)
         return serializer.data
 
     def get_requested_email(self, user: core_models.User) -> str | None:
@@ -2473,6 +2479,12 @@ class ProfileCompletenessSerializer(serializers.Serializer):
 class UserMeSerializer(UserSerializer):
     ip_address = serializers.CharField(read_only=True)
     profile_completeness = ProfileCompletenessSerializer(read_only=True)
+
+    @extend_schema_field(MePermissionSerializer(many=True))
+    def get_permissions(self, user: core_models.User):
+        # The me endpoint describes the current user, so it only needs the
+        # trimmed permission projection (see MePermissionSerializer).
+        return self._serialize_permissions(user, MePermissionSerializer)
 
     class Meta(UserSerializer.Meta):
         fields = UserSerializer.Meta.fields + (
