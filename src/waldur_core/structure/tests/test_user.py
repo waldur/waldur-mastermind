@@ -1291,6 +1291,103 @@ class UserPermissionsFieldTest(test.APITestCase):
         self.assertEqual(len(multi_role_data["permissions"]), 2)
 
 
+class MeSlimPermissionsTest(test.APITestCase):
+    """The /api/users/me endpoint returns a trimmed permissions projection
+    (MePermissionSerializer / WAL-8015), dropping fields that are redundant or
+    unused for the current user, while /api/users/ keeps the full projection.
+    """
+
+    # The complete whitelist the me endpoint may expose per role. Fields sourced
+    # through a nullable relation (e.g. customer_uuid on a customer-scoped role,
+    # where scope.customer does not exist) are dropped by DRF, so the actual
+    # keys are always a subset of this set.
+    SLIM_FIELDS = {
+        "role_name",
+        "role_uuid",
+        "scope_type",
+        "scope_uuid",
+        "scope_name",
+        "customer_uuid",
+        "customer_name",
+        "project_uuid",
+        "resource_uuid",
+        "expiration_time",
+    }
+
+    # Dropped fields that the full projection emits unconditionally (they do not
+    # depend on a nullable relation), so they are reliable to assert on.
+    ALWAYS_PRESENT_DROPPED_FIELDS = {
+        "uuid",
+        "user_uuid",
+        "user_name",
+        "user_slug",
+        "created",
+        "is_active",
+        "revoke_reason",
+        "role_description",
+        "scope_is_removed",
+    }
+
+    def setUp(self):
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.owner = factories.UserFactory()
+        self.customer.add_user(self.owner, CustomerRole.OWNER)
+
+    def get_me_permissions(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(factories.UserFactory.get_list_url("me"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("permissions", response.data)
+        return response.data["permissions"]
+
+    def test_me_permissions_only_expose_whitelisted_fields(self):
+        # A project role resolves the full slim whitelist (project.customer and
+        # the method fields all yield keys), so this is the strictest case.
+        user = factories.UserFactory()
+        self.project.add_user(user, ProjectRole.MANAGER)
+
+        permission = self.get_me_permissions(user)[0]
+        self.assertLessEqual(set(permission.keys()), self.SLIM_FIELDS)
+        for field in ("role_name", "scope_type", "scope_uuid", "scope_name"):
+            self.assertIn(field, permission)
+        # customer_uuid resolves for a project scope (via scope.customer).
+        self.assertEqual(permission["customer_uuid"], self.customer.uuid.hex)
+
+    def test_me_permissions_omit_dropped_fields(self):
+        permission = self.get_me_permissions(self.owner)[0]
+        for field in self.ALWAYS_PRESENT_DROPPED_FIELDS:
+            self.assertNotIn(field, permission)
+
+    def test_me_permissions_retain_role_and_scope_data(self):
+        permission = self.get_me_permissions(self.owner)[0]
+        self.assertEqual(permission["role_name"], CustomerRole.OWNER.name)
+        self.assertEqual(permission["scope_type"], "customer")
+        self.assertEqual(permission["scope_uuid"], self.customer.uuid.hex)
+        self.assertEqual(permission["scope_name"], self.customer.name)
+
+    def test_me_returns_all_roles(self):
+        user = factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.SUPPORT)
+        self.project.add_user(user, ProjectRole.MANAGER)
+
+        permissions = self.get_me_permissions(user)
+        self.assertEqual(len(permissions), 2)
+        role_names = {p["role_name"] for p in permissions}
+        self.assertEqual(
+            role_names, {CustomerRole.SUPPORT.name, ProjectRole.MANAGER.name}
+        )
+
+    def test_user_detail_keeps_full_permission_fields(self):
+        """Regression guard: /api/users/{uuid}/ still uses the full projection."""
+        self.client.force_authenticate(self.owner)
+        response = self.client.get(factories.UserFactory.get_url(self.owner))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        permission = response.data["permissions"][0]
+        for field in self.ALWAYS_PRESENT_DROPPED_FIELDS:
+            self.assertIn(field, permission)
+
+
 class UserIdentityBridgeFieldsVisibilityTest(test.APITestCase):
     """Identity Bridge fields (is_identity_manager, managed_isds, active_isds)
     are visible read-only on own profile but hidden when viewing other users."""
