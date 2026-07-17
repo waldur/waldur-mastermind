@@ -8,6 +8,7 @@ classDiagram
         +bool is_system_role
         +bool is_active
         +ContentType content_type [FK]
+        +Role template [FK]
     }
     class UserRole {
         +int id [PK]
@@ -29,6 +30,7 @@ classDiagram
         +Role role [FK]
         +string permission
     }
+    Role "*" -- "1" Role : template
     RolePermission "*" -- "1" Role : role
     UserRole "*" -- "1" Role : role
     UserRole "*" -- "1" User : created_by

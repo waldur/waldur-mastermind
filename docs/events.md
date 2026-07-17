@@ -5,6 +5,9 @@
 - access_subnet_creation_succeeded
 - access_subnet_deletion_succeeded
 - access_subnet_update_succeeded
+- offering_access_subnet_creation_succeeded
+- offering_access_subnet_deletion_succeeded
+- offering_access_subnet_update_succeeded
 - resource_access_subnet_creation_succeeded
 - resource_access_subnet_deletion_succeeded
 - resource_access_subnet_update_succeeded
@@ -221,6 +224,14 @@
 
 ## Providers
 
+- maintenance_announcement_cancelled
+- maintenance_announcement_completed
+- maintenance_announcement_created
+- maintenance_announcement_deleted
+- maintenance_announcement_scheduled
+- maintenance_announcement_started
+- maintenance_announcement_unscheduled
+- maintenance_announcement_updated
 - marketplace_resource_create_canceled
 - marketplace_resource_create_failed
 - marketplace_resource_create_requested

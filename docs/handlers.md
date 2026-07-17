@@ -430,6 +430,7 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_vmware.Disk` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_firecrest.Job` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
+| `rename_clones_on_customer_slug_change` | `Django Signal (post_save)` | `structure.Customer` | Keep an organization's cloned role names in sync with its slug. |
 | `revoke_roles_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | When project is deleted, capture user role snapshots before revoking them. |
 | `revoke_user_pats_on_deactivation` | `Django Signal (pre_save)` | `core.User` | Revoke all active PATs when a user is deactivated. |
 | `revoke_user_roles_on_availability_removal` | `Django Signal (post_delete)` | `permissions.RoleAvailability` | Schedule async revocation when a RoleAvailability row is removed. |
@@ -440,6 +441,7 @@ td:nth-child(4) {
 | `schedule_user_sync` | `Custom Signal (role_granted)` | `—` | No description |
 | `schedule_user_sync` | `Custom Signal (role_revoked)` | `—` | No description |
 | `set_default_token_lifetime` | `Django Signal (post_save)` | `core.User` | Set the default token lifetime for a new user. |
+| `stash_customer_slug` | `Django Signal (pre_save)` | `structure.Customer` | Remember the persisted slug before save so the change can be detected. |
 | `update_customer_users_count` | `Custom Signal (recalculate_quotas)` | `—` | Update the user count for all customers. |
 | `update_resource_start_time` | `Django Signal (post_save)` | `waldur_aws.Instance` | Update the start time of a resource when its runtime state changes. |
 | `update_resource_start_time` | `Django Signal (post_save)` | `waldur_azure.VirtualMachine` | Update the start time of a resource when its runtime state changes. |
@@ -628,6 +630,10 @@ td:nth-child(4) {
 | `log_invoice_state_transition` | `Django Signal (post_save)` | `invoices.Invoice` | No description |
 | `log_issue_delete` | `Django Signal (post_delete)` | `support.Issue` | No description |
 | `log_issue_save` | `Django Signal (post_save)` | `support.Issue` | No description |
+| `log_maintenance_announcement_deleted` | `Django Signal (pre_delete)` | `marketplace.MaintenanceAnnouncement` | Log audit event when a MaintenanceAnnouncement is deleted. |
+| `log_maintenance_announcement_events` | `Django Signal (post_save)` | `marketplace.MaintenanceAnnouncement` | Log audit events for MaintenanceAnnouncement CRUD and state transitions. |
+| `log_offering_access_subnet_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingAccessSubnet` | Log successful offering default access subnet deletion. |
+| `log_offering_access_subnet_save` | `Django Signal (post_save)` | `marketplace.OfferingAccessSubnet` | Log offering default access subnet creation and updates. |
 | `log_offering_user_created` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Log offering user creation. |
 | `log_offering_user_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Log offering user deletion. |
 | `log_offering_user_username_updated` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
@@ -882,14 +888,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 803
+Total unique handlers found: 809
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 412 handlers
+- **waldur_core**: 414 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 333 handlers
+- **waldur_mastermind**: 337 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
