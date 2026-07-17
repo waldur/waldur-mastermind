@@ -108,7 +108,7 @@ def get_or_create_project(customer: Customer, user: User, wrong_customer: Custom
         project = cast(
             Project, Project.objects.create(customer=customer, name=user.username)
         )
-        project.add_user(user, ProjectRole.ADMIN)
+        project.add_user_or_skip(user, ProjectRole.ADMIN)
         return project
 
 
@@ -252,7 +252,7 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
             return
         # assure that user has permissions connected with the project
         if not project.has_user(user, ProjectRole.ADMIN):
-            project.add_user(user, ProjectRole.ADMIN)
+            project.add_user_or_skip(user, ProjectRole.ADMIN)
 
         order, order_created = get_or_create_order(
             project,
@@ -275,7 +275,7 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
 
         # assure that user has permissions connected with the project
         if not project.has_user(user, ProjectRole.ADMIN):
-            project.add_user(user, ProjectRole.ADMIN)
+            project.add_user_or_skip(user, ProjectRole.ADMIN)
 
         order, order_created = get_or_create_order(
             project,

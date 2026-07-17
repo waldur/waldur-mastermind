@@ -78,7 +78,7 @@ def get_or_create_project(rule: Rule, user: User) -> Project | None:
         )
 
         if not project.has_user(user, project_role):
-            project.add_user(user, project_role)
+            project.add_user_or_skip(user, project_role)
 
     except Project.MultipleObjectsReturned:
         logger.warning("Multiple projects with the same name %s exist.", project_name)
@@ -87,7 +87,7 @@ def get_or_create_project(rule: Rule, user: User) -> Project | None:
             Project,
             Project.available_objects.create(customer=customer, name=project_name),
         )
-        project.add_user(user, project_role)
+        project.add_user_or_skip(user, project_role)
 
     return project
 

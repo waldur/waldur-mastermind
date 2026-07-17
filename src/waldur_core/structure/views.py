@@ -1125,15 +1125,18 @@ class ProjectViewSet(
                         role_data["original_expiration_time"]
                     )
 
-                # Recreate the UserRole
-                user_role = UserRole.objects.create(
-                    user=user,
-                    role=role,
-                    scope=project,
+                # Recreate the UserRole through the grant primitive so the
+                # org-scoping policy is respected: a role that is now concealed or
+                # unavailable for this organization is skipped (logged), not
+                # silently re-granted on restore.
+                user_role = project.add_user_or_skip(
+                    user,
+                    role,
                     created_by=created_by,
                     expiration_time=expiration_time,
-                    is_active=True,
                 )
+                if user_role is None:
+                    continue
 
                 # Mark as restored in metadata
                 role_data["is_restored"] = True

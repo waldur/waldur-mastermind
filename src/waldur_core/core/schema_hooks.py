@@ -796,7 +796,7 @@ def validate_waldur_operation_ids(result, generator, **kwargs):
     errors = []
     # These fields are exempt because they usually refer to the object itself
     # or are part of a Generic Foreign Key (GFK) structure.
-    whitelist = ["uuid", "scope_uuid", "scope", "parent_uuid"]
+    whitelist = ["uuid", "scope_uuid", "scope", "parent_uuid", "available_for_customer"]
 
     paths = result.get("paths", {})
 

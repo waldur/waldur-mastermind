@@ -1,6 +1,7 @@
 import logging
 
 from constance import config
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
 
@@ -8,11 +9,56 @@ from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
-from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import get_active_roles
+from waldur_core.permissions.models import Role, UserRole
+from waldur_core.permissions.utils import (
+    build_org_role_name,
+    ensure_unique_role_name,
+    get_active_roles,
+)
 from waldur_core.structure.permissions import _get_customer
 
 logger = logging.getLogger(__name__)
+
+
+def stash_customer_slug(sender, instance, **kwargs):
+    """Remember the persisted slug before save so the change can be detected."""
+    if instance.pk:
+        instance._old_slug = (
+            sender.objects.filter(pk=instance.pk).values_list("slug", flat=True).first()
+        )
+
+
+def rename_clones_on_customer_slug_change(sender, instance, created, **kwargs):
+    """Keep an organization's cloned role names in sync with its slug.
+
+    The clone name embeds the owning organization's slug
+    (``CUSTOMER.<slug>.OWNER``); when the slug changes the clones are renamed so
+    the name stays meaningful and cannot collide with a slug later reused by
+    another organization.
+    """
+    if created:
+        return
+    old_slug = getattr(instance, "_old_slug", None)
+    if not old_slug or old_slug == instance.slug:
+        return
+    customer_ct = ContentType.objects.get_for_model(sender)
+    clones = (
+        Role.objects.filter(
+            template__isnull=False,
+            availability__content_type=customer_ct,
+            availability__object_id=instance.id,
+        )
+        .select_related("template")
+        .distinct()
+    )
+    for clone in clones:
+        new_name = ensure_unique_role_name(
+            build_org_role_name(clone.template, instance.slug),
+            exclude_id=clone.id,
+        )
+        if clone.name != new_name:
+            clone.name = new_name
+            clone.save(update_fields=["name"])
 
 
 def get_deactivation_reason(user: User) -> str | None:

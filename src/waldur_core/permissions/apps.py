@@ -6,7 +6,9 @@ class PermissionsConfig(AppConfig):
     verbose_name = "Permissions"
 
     def ready(self):
-        from django.db.models.signals import post_delete
+        from django.db.models.signals import post_delete, post_save, pre_save
+
+        from waldur_core.structure.models import Customer
 
         from . import handlers, models, signals
 
@@ -39,6 +41,18 @@ class PermissionsConfig(AppConfig):
             handlers.revoke_user_roles_on_availability_removal,
             sender=models.RoleAvailability,
             dispatch_uid="waldur_core.permissions.revoke_user_roles_on_availability_removal",
+        )
+
+        pre_save.connect(
+            handlers.stash_customer_slug,
+            sender=Customer,
+            dispatch_uid="waldur_core.permissions.stash_customer_slug",
+        )
+
+        post_save.connect(
+            handlers.rename_clones_on_customer_slug_change,
+            sender=Customer,
+            dispatch_uid="waldur_core.permissions.rename_clones_on_customer_slug_change",
         )
 
         # Register per-model rules for the scoped-PAT list filter.

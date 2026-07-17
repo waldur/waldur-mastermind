@@ -6,6 +6,7 @@ from uuid import uuid4
 from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
@@ -17,8 +18,13 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole, ProposalRole
-from waldur_core.permissions.models import Role
+from waldur_core.permissions.models import (
+    CustomerRoleConcealment,
+    Role,
+    RoleAvailability,
+)
 from waldur_core.permissions.utils import get_permissions
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.enums import InvitationState
@@ -2799,3 +2805,64 @@ class InvitationWebhookScopeTest(test.APITestCase):
             tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
             mock_webhook.assert_not_called()
             mock_email.assert_called_once()
+
+
+class InvitationOrgScopedRoleTest(test.APITestCase):
+    """Invitation creation respects per-organization role availability/concealment.
+
+    Plain APITestCase (not the APITransactionTestCase-based BaseInvitationTest):
+    these are ordinary request/response assertions with no transaction-boundary
+    semantics, so they don't need table truncation between tests.
+    """
+
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.customer = structure_factories.CustomerFactory()
+        self.second_customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+
+    def _project_clone_for(self, customer):
+        customer_ct = ContentType.objects.get_for_model(Customer)
+        role = Role.objects.create(
+            name=f"PROJECT.{customer.uuid.hex}.CLONE",
+            content_type=ContentType.objects.get_for_model(Project),
+            is_system_role=False,
+        )
+        RoleAvailability.objects.create(
+            role=role, content_type=customer_ct, object_id=customer.id
+        )
+        return role
+
+    def _post_invitation(self, role):
+        self.client.force_authenticate(user=self.staff)
+        payload = {
+            "email": f"invite-{uuid4().hex}@example.com",
+            "scope": structure_factories.ProjectFactory.get_url(self.project),
+            "role": role.uuid.hex,
+        }
+        return self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+
+    def test_cannot_invite_with_another_orgs_clone(self):
+        clone = self._project_clone_for(self.second_customer)
+        response = self._post_invitation(clone)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_invite_with_own_orgs_clone(self):
+        clone = self._project_clone_for(self.customer)
+        response = self._post_invitation(clone)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_cannot_invite_with_concealed_role(self):
+        CustomerRoleConcealment.objects.create(
+            role=ProjectRole.ADMIN,
+            content_type=ContentType.objects.get_for_model(Customer),
+            object_id=self.customer.id,
+        )
+        response = self._post_invitation(ProjectRole.ADMIN)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_system_role_invitation_still_works(self):
+        response = self._post_invitation(ProjectRole.MANAGER)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

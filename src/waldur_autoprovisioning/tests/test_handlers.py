@@ -261,3 +261,48 @@ class ProjectProvisionByOrganizationTest(TestCase):
             project.has_user(user, ProjectRole.ADMIN),
             "User should have ADMIN role in the project",
         )
+
+
+class GetOrCreateProjectPolicyTest(TestCase):
+    """The org-scoping policy is respected when auto-provisioning grants a role,
+    on both the existing-project and the newly-created-project branches."""
+
+    def _make_user(self):
+        # Email does not match the rule pattern, so the post_save signal does not
+        # auto-provision — the handler is exercised directly instead.
+        return User.objects.create(username="npuser", email="npuser@nowhere.test")
+
+    def _concealed_rule(self):
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.permissions.models import CustomerRoleConcealment
+        from waldur_core.structure.models import Customer
+
+        rule = autoprovisioning_factories.RuleFactory(
+            project_role=ProjectRole.ADMIN,
+            user_email_patterns=[".+@example.com"],
+        )
+        CustomerRoleConcealment.objects.create(
+            role=ProjectRole.ADMIN,
+            content_type=ContentType.objects.get_for_model(Customer),
+            object_id=rule.customer.id,
+        )
+        return rule
+
+    def test_concealed_role_skipped_when_creating_project(self):
+        rule = self._concealed_rule()
+        user = self._make_user()
+        # No project exists yet -> exercises the Project.DoesNotExist branch.
+        project = handlers.get_or_create_project(rule, user)
+        self.assertIsNotNone(project)
+        self.assertFalse(project.has_user(user, ProjectRole.ADMIN))
+
+    def test_concealed_role_skipped_for_existing_project(self):
+        rule = self._concealed_rule()
+        user = self._make_user()
+        project = structure_models.Project.available_objects.create(
+            name=rule.resolve_project_name(user), customer=rule.customer
+        )
+        result = handlers.get_or_create_project(rule, user)
+        self.assertEqual(result.pk, project.pk)
+        self.assertFalse(project.has_user(user, ProjectRole.ADMIN))
