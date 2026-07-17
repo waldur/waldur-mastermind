@@ -472,8 +472,9 @@ class OnboardingVerification(
         self.customer = structure_models.Customer.objects.create(**customer_data)
         self.save(update_fields=["customer"])
 
-        # Add user as customer owner
-        self.customer.add_user(self.user, RoleEnum.CUSTOMER_OWNER)
+        # Add user as customer owner. force=True: the creator must own the new
+        # organization even if that role is concealed for it.
+        self.customer.add_user(self.user, RoleEnum.CUSTOMER_OWNER, force=True)
 
         logger.info(
             "Customer (ID=%s) created from onboarding verification (UUID=%s)",

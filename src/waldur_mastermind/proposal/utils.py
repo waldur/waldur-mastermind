@@ -88,7 +88,7 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
         users = get_users(proposal, mapping.proposal_role.name)
         for user in users:
             if mapping.project_role:
-                project.add_user(user, mapping.project_role)
+                project.add_user_or_skip(user, mapping.project_role)
             else:
                 continue
 

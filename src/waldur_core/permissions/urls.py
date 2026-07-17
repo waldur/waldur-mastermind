@@ -12,4 +12,9 @@ def register_in(router):
         views.RoleAvailabilityViewSet,
         basename="role-availability",
     )
+    router.register(
+        r"customer-role-concealments",
+        views.CustomerRoleConcealmentViewSet,
+        basename="customer-role-concealment",
+    )
     router.register(r"user-permissions", views.UserPermissionViewSet)

@@ -2,7 +2,8 @@ import logging
 import uuid
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q, QuerySet
+from django.db.models import Count, Q, QuerySet, Value
+from django.db.models.functions import Coalesce, Lower, NullIf
 from django.utils.translation import gettext_lazy as _
 from django_filters import utils as django_filters_utils
 from django_filters.rest_framework.backends import DjangoFilterBackend
@@ -39,6 +40,10 @@ from waldur_core.permissions.utils import (
     update_user,
 )
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_core.structure.permissions import _get_customer
 
 from . import enums, filters, models, serializers
@@ -90,6 +95,48 @@ class RoleViewSet(ActionsViewSet):
     permission_classes = [IsAdminOrReadOnly]
     filterset_class = filters.RoleFilter
     destroy_validators = [can_destroy_role]
+
+    def get_queryset(self):
+        # Sort/search operate on the displayed name (the description, falling
+        # back to the machine name), so ordering by "name" groups roles the way
+        # the UI shows them (e.g. an org clone next to the system role it copies).
+        qs = (
+            super()
+            .get_queryset()
+            .annotate(
+                display_name=Lower(Coalesce(NullIf("description", Value("")), "name")),
+                # Active assignment count, exposed for server-side ordering.
+                assigned_users_count=Count(
+                    "userrole", filter=Q(userrole__is_active=True)
+                ),
+            )
+        )
+        user = self.request.user
+        if getattr(user, "is_authenticated", False) and (
+            user.is_staff or user.is_support
+        ):
+            return qs
+        # A non-staff user must not see other organizations' private roles (which
+        # would leak the org's existence and role structure). Hide only
+        # customer-scoped roles bound to an organization the user does not belong
+        # to; public/system roles and offering-scoped roles stay visible (an
+        # anonymous user sees the public roles, none of the org-private ones).
+        customer_ids = set()
+        if getattr(user, "is_authenticated", False):
+            customer_ids.update(get_connected_customers(user))
+            customer_ids.update(
+                structure_models.Project.objects.filter(
+                    id__in=get_connected_projects(user)
+                ).values_list("customer_id", flat=True)
+            )
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        customer_scoped = models.RoleAvailability.objects.filter(
+            content_type=customer_ct
+        ).values_list("role_id", flat=True)
+        mine = models.RoleAvailability.objects.filter(
+            content_type=customer_ct, object_id__in=customer_ids
+        ).values_list("role_id", flat=True)
+        return qs.exclude(Q(id__in=customer_scoped) & ~Q(id__in=mine)).distinct()
 
     @extend_schema(
         summary="Create a new role",
@@ -246,6 +293,66 @@ class RoleViewSet(ActionsViewSet):
             {"detail": _(message)},
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        summary="Clone a role into an organization",
+        description="Staff-only. Creates an organization-private copy of this "
+        "role (customer or project scope), bound to the given customer and "
+        "usable only within that organization and its projects. Cloning the "
+        "same template into the same organization twice is rejected.",
+        request=serializers.RoleCloneSerializer,
+        responses=serializers.RoleDetailsSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def clone_to_customer(self, request, uuid=None):
+        template: models.Role = self.get_object()
+        serializer = serializers.RoleCloneSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        role = serializers.clone_role_for_customer(
+            template,
+            serializer.validated_data["customer"],
+            serializer.validated_data.get("description"),
+            conceal_template=serializer.validated_data["conceal_template"],
+        )
+        logger.info(
+            "Role %s cloned into customer %s as %s",
+            template.name,
+            serializer.validated_data["customer"].uuid.hex,
+            role.name,
+        )
+        return Response(
+            serializers.RoleDetailsSerializer(role, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    clone_to_customer_serializer_class = serializers.RoleCloneSerializer
+
+
+class CustomerRoleConcealmentViewSet(ActionsViewSet):
+    """Staff-only management of per-organization role concealments (deny-list).
+
+    Concealing a role hides it from the organization's role pickers and blocks
+    new grants of it within the organization; existing grants are untouched.
+    Deleting a concealment reveals the role again. A lockout guard refuses to
+    conceal the last role that can grant access at its own scope.
+    """
+
+    queryset = models.CustomerRoleConcealment.objects.select_related(
+        "role", "content_type"
+    ).order_by("role__name")
+    serializer_class = serializers.CustomerRoleConcealmentSerializer
+    lookup_field = "uuid"
+    permission_classes = [IsAdminOrReadOnly]
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.CustomerRoleConcealmentFilter
+    disabled_actions = ["update", "partial_update"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not (user and user.is_authenticated and user.is_staff):
+            return qs.none()
+        return qs
 
 
 class RoleAvailabilityViewSet(ActionsViewSet):

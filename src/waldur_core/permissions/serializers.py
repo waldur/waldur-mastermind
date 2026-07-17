@@ -1,4 +1,7 @@
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -12,12 +15,15 @@ from waldur_core.core.serializers import (
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import TYPE_KEYS, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import (
+    build_org_role_name,
+    ensure_unique_role_name,
     get_create_permission,
     get_delete_permission,
     get_update_permission,
     has_permission,
     validate_role_grant,
 )
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
 
 from . import models
@@ -35,12 +41,57 @@ class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializer
             "is_active",
             "users_count",
             "content_type",
+            "template_uuid",
+            "template_name",
+            "customer_uuid",
+            "customer_name",
         )
         extra_kwargs = {"is_system_role": {"read_only": True}}
 
     permissions = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
+    template_uuid = serializers.SerializerMethodField()
+    template_name = serializers.CharField(
+        source="template.name", read_only=True, allow_null=True
+    )
+    customer_uuid = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+
+    def get_template_uuid(self, role: models.Role) -> str | None:
+        return role.template.uuid.hex if role.template_id else None
+
+    def _owning_customers(self) -> dict:
+        # role_id -> owning Customer, for org-scoped clones. Built once per
+        # serializer instance (two queries total) so listing roles stays free of
+        # an N+1, since the app bootstraps ENV.roles from this endpoint.
+        if hasattr(self, "_owning_customers_map"):
+            return self._owning_customers_map
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        availabilities = list(
+            models.RoleAvailability.objects.filter(
+                content_type=customer_ct
+            ).values_list("role_id", "object_id")
+        )
+        customers_by_id = structure_models.Customer.objects.in_bulk(
+            {object_id for _, object_id in availabilities}
+        )
+        self._owning_customers_map = {
+            role_id: customers_by_id[object_id]
+            for role_id, object_id in availabilities
+            if object_id in customers_by_id
+        }
+        return self._owning_customers_map
+
+    @extend_schema_field(serializers.UUIDField(allow_null=True))
+    def get_customer_uuid(self, role: models.Role) -> str | None:
+        customer = self._owning_customers().get(role.id)
+        return customer.uuid.hex if customer else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_customer_name(self, role: models.Role) -> str | None:
+        customer = self._owning_customers().get(role.id)
+        return customer.name if customer else None
 
     def get_permissions(self, role: models.Role) -> list[str]:
         return list(
@@ -83,7 +134,24 @@ class RoleModifySerializer(RoleDetailsSerializer):
         if self.instance and self.instance.is_system_role:
             if attrs.get("name") != self.instance.name:
                 raise ValidationError("Changing name for system role is not possible.")
+        # An organization-scoped role's name encodes its owning organization
+        # (CUSTOMER.<uuid>.SUFFIX) and its scope binds it to that organization, so
+        # neither may change — only the description and permissions are editable.
+        if self.instance and self._is_org_scoped(self.instance):
+            if attrs.get("name") != self.instance.name:
+                raise ValidationError(
+                    "Changing name of an organization role is not possible."
+                )
+            if attrs.get("content_type") != self.instance.content_type:
+                raise ValidationError(
+                    "Changing scope of an organization role is not possible."
+                )
         return attrs
+
+    @staticmethod
+    def _is_org_scoped(role: models.Role) -> bool:
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        return role.availability.filter(content_type=customer_ct).exists()
 
     def validate_content_type(self, type_name):
         if type_name not in TYPE_MAP:
@@ -204,6 +272,186 @@ class RoleAvailabilityDetailsSerializer(serializers.ModelSerializer):
         return profile.name if profile else None
 
 
+def clone_role_for_customer(
+    template, customer, description=None, conceal_template=True
+):
+    """Create an organization-private copy of ``template`` bound to ``customer``.
+
+    The clone keeps ``template``'s content type and permission set (including its
+    translated descriptions). Its name is ``{SCOPE}.{customer_slug}.{suffix}`` —
+    scope prefix first, so the ``name__startswith="PROJECT."`` filters still see
+    project clones, and the organization slug keeps the name human-readable
+    (it is re-synced when the slug changes, and a collision suffix guards global
+    uniqueness). Availability is bound to the customer so the clone is usable
+    only within that organization and its projects.
+
+    When ``conceal_template`` is set, the source system role is also concealed for
+    the organization so the clone supersedes it (avoiding two identically-labelled
+    entries in the pickers). The freshly-created clone counts as the surviving
+    grantable role, so the concealment lockout guard passes.
+    """
+    if template.content_type.model not in ("customer", "project"):
+        raise ValidationError(
+            "Only customer and project roles can be cloned into an organization."
+        )
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    already_cloned = models.Role.objects.filter(
+        template=template,
+        availability__content_type=customer_ct,
+        availability__object_id=customer.id,
+    ).exists()
+    if already_cloned:
+        raise ValidationError(
+            "This template has already been cloned into this organization."
+        )
+    new_name = ensure_unique_role_name(build_org_role_name(template, customer.slug))
+    with transaction.atomic():
+        role = models.Role(
+            name=new_name,
+            content_type=template.content_type,
+            is_system_role=False,
+            description=description or template.description,
+            template=template,
+        )
+        # Preserve the template's per-language descriptions (modeltranslation).
+        # Skipped when an explicit override is given (it wins for the base field).
+        if not description:
+            for lang in settings.LANGUAGE_CHOICES:
+                field = f"description_{lang}"
+                if hasattr(template, field):
+                    setattr(role, field, getattr(template, field))
+        try:
+            role.save()
+        except DjangoValidationError:
+            raise ValidationError(
+                "This template has already been cloned into this organization."
+            )
+        for permission in template.permissions.values_list("permission", flat=True):
+            role.add_permission(permission)
+        models.RoleAvailability.objects.create(
+            role=role, content_type=customer_ct, object_id=customer.id
+        )
+        if conceal_template:
+            validate_concealment_allowed(customer, template)
+            models.CustomerRoleConcealment.objects.get_or_create(
+                role=template, content_type=customer_ct, object_id=customer.id
+            )
+    return role
+
+
+class RoleCloneSerializer(serializers.Serializer):
+    customer = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=structure_models.Customer.objects.all(),
+    )
+    description = serializers.CharField(required=False, allow_blank=True)
+    conceal_template = serializers.BooleanField(default=True)
+
+
+def validate_concealment_allowed(customer, role):
+    """Lockout guard for concealment.
+
+    Refuse to conceal the last grantable role that can add members at the role's
+    own scope (e.g. the last customer OWNER-capable role), which would otherwise
+    make the organization ungovernable. A role that does not itself carry the
+    scope's create-permission is always safe to conceal.
+    """
+    create_permission = get_create_permission(role.content_type.model_class())
+    if create_permission is None:
+        return
+    if not role.permissions.filter(permission=create_permission.value).exists():
+        return
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    concealed_ids = set(
+        models.CustomerRoleConcealment.objects.filter(
+            content_type=customer_ct, object_id=customer.id
+        ).values_list("role_id", flat=True)
+    )
+    concealed_ids.add(role.id)
+    candidates = (
+        models.Role.objects.filter(
+            content_type=role.content_type,
+            is_active=True,
+            permissions__permission=create_permission.value,
+        )
+        .exclude(id__in=concealed_ids)
+        .distinct()
+    )
+    for candidate in candidates:
+        if not candidate.availability.exists():
+            return  # a system (globally available) role remains
+        if candidate.availability.filter(
+            content_type=customer_ct, object_id=customer.id
+        ).exists():
+            return  # an org-private role remains
+    raise ValidationError(
+        "Cannot conceal the last role that can grant access for this organization."
+    )
+
+
+class CustomerRoleConcealmentSerializer(serializers.ModelSerializer):
+    role = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Role.objects.all()
+    )
+    customer = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=structure_models.Customer.objects.all(),
+        write_only=True,
+    )
+    role_name = serializers.CharField(read_only=True, source="role.name")
+    customer_uuid = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.CustomerRoleConcealment
+        fields = (
+            "uuid",
+            "role",
+            "role_name",
+            "customer",
+            "customer_uuid",
+            "customer_name",
+        )
+
+    def get_customer_uuid(self, obj) -> str | None:
+        scope = obj.scope
+        return scope.uuid.hex if scope and getattr(scope, "uuid", None) else None
+
+    def get_customer_name(self, obj) -> str | None:
+        scope = obj.scope
+        return getattr(scope, "name", None) if scope else None
+
+    def validate(self, attrs):
+        role = attrs["role"]
+        customer = attrs["customer"]
+        if role.content_type.model not in ("customer", "project"):
+            raise ValidationError(
+                "Only customer and project roles can be concealed for an organization."
+            )
+        # The role must actually be grantable in this organization: a system
+        # role (no availability records) or this organization's own clone.
+        # Another organization's private clone is not available here and must not
+        # be concealable — nor is there anything to conceal.
+        if role.availability.exists():
+            customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+            available_here = role.availability.filter(
+                content_type=customer_ct, object_id=customer.id
+            ).exists()
+            if not available_here:
+                raise ValidationError("Role is not available in this organization.")
+        validate_concealment_allowed(customer, role)
+        return attrs
+
+    def create(self, validated_data):
+        role = validated_data["role"]
+        customer = validated_data["customer"]
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        concealment, _ = models.CustomerRoleConcealment.objects.get_or_create(
+            role=role, content_type=customer_ct, object_id=customer.id
+        )
+        return concealment
+
+
 class UserRoleDetailsSerializer(serializers.ModelSerializer):
     role_name = serializers.ReadOnlyField(source="role.name")
     role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
@@ -239,6 +487,8 @@ class PermissionSerializer(serializers.ModelSerializer):
     user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_name = serializers.CharField(read_only=True, source="user.full_name")
     user_slug = serializers.CharField(read_only=True, source="user.slug")
+    user_username = serializers.CharField(read_only=True, source="user.username")
+    user_email = serializers.CharField(read_only=True, source="user.email")
     created_by_full_name = serializers.CharField(
         read_only=True, source="created_by.full_name"
     )
@@ -270,6 +520,8 @@ class PermissionSerializer(serializers.ModelSerializer):
             "user_uuid",
             "user_name",
             "user_slug",
+            "user_username",
+            "user_email",
             "created",
             "expiration_time",
             "is_active",

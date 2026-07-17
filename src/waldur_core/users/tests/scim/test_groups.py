@@ -1,11 +1,13 @@
 """Integration tests for the inbound SCIM ``/Groups`` endpoint."""
 
 from constance.test.unittest import override_config
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.models import CustomerRoleConcealment, UserRole
 from waldur_core.permissions.utils import add_user
+from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.tests.scim.conftest import make_staff_token
 
@@ -123,6 +125,37 @@ class GroupsEndpointTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(
+            UserRole.objects.filter(
+                user=self.bob, role=CustomerRole.OWNER, is_active=True
+            ).exists()
+        )
+
+    def test_patch_add_member_skips_concealed_role(self):
+        # A role concealed for the organization must not be granted via SCIM,
+        # and the rejection must not abort the whole group sync.
+        add_user(self.customer, self.alice, CustomerRole.OWNER)
+        CustomerRoleConcealment.objects.create(
+            role=CustomerRole.OWNER,
+            content_type=ContentType.objects.get_for_model(Customer),
+            object_id=self.customer.id,
+        )
+        body = {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [
+                {
+                    "op": "add",
+                    "path": "members",
+                    "value": [{"value": self.bob.uuid.hex}],
+                }
+            ],
+        }
+        response = self.client.patch(
+            f"/scim/v2/Groups/{self._customer_owner_display()}",
+            data=body,
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(
             UserRole.objects.filter(
                 user=self.bob, role=CustomerRole.OWNER, is_active=True
             ).exists()

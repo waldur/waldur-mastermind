@@ -12,10 +12,13 @@ customers and projects doesn't surface a cartesian-product catalogue.
 
 from __future__ import annotations
 
+import logging
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -49,6 +52,27 @@ from waldur_core.users.scim.server.renderers import (
 )
 
 CORE_GROUP_URN = "urn:ietf:params:scim:schemas:core:2.0:Group"
+
+logger = logging.getLogger(__name__)
+
+
+def _grant_membership(resolved, user, request_user) -> None:
+    """Grant the group's role, respecting the org-scoping policy.
+
+    A role that is concealed or not available for the scope's organization is
+    skipped (logged) rather than aborting the whole group sync — one policy
+    rejection must not fail provisioning for every other member.
+    """
+    try:
+        add_user(resolved.scope, user, resolved.role, created_by=request_user)
+    except ValidationError as exc:
+        logger.warning(
+            "SCIM: skipped granting role %s to user %s on %s: %s",
+            resolved.role,
+            user.uuid.hex,
+            resolved.scope,
+            exc,
+        )
 
 
 class _GroupsBaseView(APIView):
@@ -159,7 +183,7 @@ def _sync_members(resolved: ResolvedGroup, member_ids: list[str], request_user) 
     existing_ids = set(_members_qs(resolved).values_list("user_id", flat=True))
     for user in users:
         if user.id not in existing_ids:
-            add_user(resolved.scope, user, resolved.role, created_by=request_user)
+            _grant_membership(resolved, user, request_user)
 
 
 def _replace_members(
@@ -194,7 +218,7 @@ def _replace_members(
             )
     for uuid_hex, user in target_user_objs.items():
         if uuid_hex not in current_user_map:
-            add_user(resolved.scope, user, resolved.role, created_by=request_user)
+            _grant_membership(resolved, user, request_user)
 
 
 def _remove_members(

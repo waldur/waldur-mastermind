@@ -50,6 +50,15 @@ class Role(DescribableMixin, UuidMixin):
         blank=False,
         related_name="+",
     )
+    # The role this one was cloned from (organization-scoped clones only).
+    # SET_NULL so removing a template never cascades away its clones.
+    template = models.ForeignKey(
+        to="self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="clones",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -98,6 +107,34 @@ class RoleAvailability(UuidMixin):
 
     role = models.ForeignKey(
         Role, on_delete=models.CASCADE, related_name="availability"
+    )
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name="+"
+    )
+    object_id = models.PositiveIntegerField()
+    scope = GenericForeignKey("content_type", "object_id")
+
+    class Meta:
+        unique_together = ("role", "content_type", "object_id")
+
+
+class CustomerRoleConcealment(UuidMixin):
+    """Hides a role within a specific scope (deny-list).
+
+    :class:`RoleAvailability` is an allow-list and cannot subtract a
+    globally-available (system) role from a single organization. A concealment
+    record does exactly that: when one exists for ``(role, scope)``, the role can
+    no longer be granted on that scope or its descendants, and it is hidden from
+    that scope's role pickers. Existing grants are left untouched
+    (block-new-only).
+
+    The scope is generic (mirroring :class:`RoleAvailability`) to keep the
+    permissions app independent of ``structure``; in practice it is always a
+    Customer.
+    """
+
+    role = models.ForeignKey(
+        Role, on_delete=models.CASCADE, related_name="concealments"
     )
     content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE, related_name="+"

@@ -11,6 +11,7 @@ from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import (
+    check_grant_policy,
     get_valid_models,
     validate_only_one_project_manager,
 )
@@ -112,6 +113,22 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
             return name
 
 
+def _enforce_role_available_for_scope(scope, role, project_role=None):
+    """Reject invitation roles not usable within the scope's organization.
+
+    Mirrors the grant-time policy (RoleAvailability allow-list + concealment
+    deny-list) at invitation create/update time, so an organization's private
+    clone or a concealed role cannot be selected for another organization
+    (which would otherwise only fail later, at accept time). ``project_role``
+    (auto_create_project) is evaluated against the customer, since it will be
+    granted on a project created under it.
+    """
+    if role is not None:
+        check_grant_policy(scope, role)
+    if project_role is not None:
+        check_grant_policy(_get_customer(scope) or scope, project_role)
+
+
 class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
     scope = GenericRelatedField(
         get_valid_models,
@@ -148,6 +165,7 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
                 "Role and scope should belong to the same content type."
             )
 
+        _enforce_role_available_for_scope(scope, role)
         validate_only_one_project_manager(scope, role)
         return attrs
 
@@ -317,6 +335,7 @@ class GroupInvitationSerializer(
         if isinstance(scope, Project):
             validate_only_one_project_manager(scope, role)
 
+        _enforce_role_available_for_scope(scope, role, attrs.get("project_role"))
         return attrs
 
     def to_representation(self, instance):
@@ -461,6 +480,7 @@ class GroupInvitationUpdateSerializer(
         if (attrs.get("role") or attrs.get("scope")) and isinstance(scope, Project):
             validate_only_one_project_manager(scope, role)
 
+        _enforce_role_available_for_scope(scope, role, project_role)
         return attrs
 
     def update(self, instance, validated_data):
@@ -628,6 +648,7 @@ class InvitationUpdateSerializer(serializers.ModelSerializer):
         new_role = attrs.get("role")
         if new_role:
             validate_only_one_project_manager(invitation.scope, new_role)
+            _enforce_role_available_for_scope(invitation.scope, new_role)
 
         return attrs
 

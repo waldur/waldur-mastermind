@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING
 
 from constance import config
@@ -11,6 +12,8 @@ from rest_framework.exceptions import ValidationError
 from waldur_core.core.models import User, UserDetailsMatchMixin
 
 from . import enums, models, signals
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from django.db.models import Model
@@ -415,7 +418,9 @@ def get_scope_ancestors(scope):
             ancestors.append(scope.project.customer)
     if hasattr(scope, "customer"):  # Project -> Customer
         ancestors.append(scope.customer)
-    return ancestors
+    # Nullable parent FKs (e.g. an offering with no customer) append None;
+    # drop them so callers can safely resolve each ancestor's content type.
+    return [ancestor for ancestor in ancestors if ancestor is not None]
 
 
 def count_active_project_managers(project):
@@ -446,6 +451,48 @@ def validate_only_one_project_manager(scope, role):
         raise ValidationError("Project already has an active project manager.")
 
 
+def check_grant_policy(scope, role):
+    """Enforce the org-scoping policy for granting ``role`` on ``scope``.
+
+    Two rules, both resolved by walking ``get_scope_ancestors(scope)`` so a
+    record bound to a Customer also governs its Projects:
+
+    - **RoleAvailability** (allow-list): if the role has any availability
+      records, the scope or an ancestor must match one, else the role is not
+      usable here.
+    - **CustomerRoleConcealment** (deny-list): if an ancestor conceals the role,
+      the grant is refused.
+
+    Raises ``ValidationError`` on violation. Shared by ``validate_role_grant``
+    (rich, early errors on the DRF/invitation paths) and ``add_user`` (the
+    backstop that also covers direct callers).
+    """
+    ancestors = get_scope_ancestors(scope)
+
+    if role.availability.exists():
+        has_valid = any(
+            models.RoleAvailability.objects.filter(
+                role=role,
+                content_type=ContentType.objects.get_for_model(ancestor),
+                object_id=ancestor.id,
+            ).exists()
+            for ancestor in ancestors
+        )
+        if not has_valid:
+            raise ValidationError("Role is not available for this scope.")
+
+    is_concealed = any(
+        models.CustomerRoleConcealment.objects.filter(
+            role=role,
+            content_type=ContentType.objects.get_for_model(ancestor),
+            object_id=ancestor.id,
+        ).exists()
+        for ancestor in ancestors
+    )
+    if is_concealed:
+        raise ValidationError("Role is concealed for this organization.")
+
+
 def validate_role_grant(scope, user, role, expiration_time=None):
     """Validate a role can be granted to a user on scope.
 
@@ -463,24 +510,56 @@ def validate_role_grant(scope, user, role, expiration_time=None):
     if not role.is_active:
         raise ValidationError("Role is not active.")
 
-    if role.availability.exists():
-        ancestors = get_scope_ancestors(scope)
-        has_valid = any(
-            models.RoleAvailability.objects.filter(
-                role=role,
-                content_type=ContentType.objects.get_for_model(ancestor),
-                object_id=ancestor.id,
-            ).exists()
-            for ancestor in ancestors
-        )
-        if not has_valid:
-            raise ValidationError("Role is not available for this scope.")
+    check_grant_policy(scope, role)
 
     validate_only_one_project_manager(scope, role)
     validate_user_restrictions(scope, user)
 
 
-def add_user(scope, user, role, created_by=None, expiration_time=None):
+def build_org_role_name(template, slug):
+    """Build the ``PREFIX.<slug>.SUFFIX`` name for a customer-scoped clone.
+
+    The owning organization's slug is embedded (instead of an opaque UUID) so the
+    name is human-readable; it is kept in sync when the slug changes (see the
+    Customer slug-change handler). The scope prefix stays first so
+    ``name__startswith="PROJECT."`` filters keep working.
+    """
+    base = template.name
+    if "." in base:
+        prefix, suffix = base.split(".", 1)
+    else:
+        prefix, suffix = template.content_type.model.upper(), base
+    return f"{prefix}.{slug}.{suffix}"
+
+
+def ensure_unique_role_name(name, exclude_id=None):
+    """Return ``name``, or ``name-2``/``name-3``/... if it collides.
+
+    Role names must be globally unique. Since a slug is not database-unique and
+    can be freed up and reused by another organization, this guards the embedded
+    slug against name clashes.
+    """
+    qs = models.Role.objects.all()
+    if exclude_id is not None:
+        qs = qs.exclude(id=exclude_id)
+    if not qs.filter(name=name).exists():
+        return name
+    index = 2
+    while qs.filter(name=f"{name}-{index}").exists():
+        index += 1
+    return f"{name}-{index}"
+
+
+def add_user(scope, user, role, created_by=None, expiration_time=None, force=False):
+    """Grant ``role`` to ``user`` on ``scope`` (low-level write primitive).
+
+    Enforces the org-scoping policy (:func:`check_grant_policy`) so direct
+    callers that bypass ``validate_role_grant`` still respect availability and
+    concealment. Pass ``force=True`` for the few internal grants that must bypass
+    the policy (e.g. onboarding's initial owner grant).
+    """
+    if not force:
+        check_grant_policy(scope, role)
     content_type = ContentType.objects.get_for_model(scope)
     permission = models.UserRole.objects.create(
         user=user,
@@ -496,6 +575,29 @@ def add_user(scope, user, role, created_by=None, expiration_time=None):
         current_user=created_by,
     )
     return permission
+
+
+def add_user_or_skip(scope, user, role, created_by=None, expiration_time=None):
+    """Grant ``role`` respecting the org-scoping policy, skipping on rejection.
+
+    For non-interactive callers — signal handlers, auto-provisioning, group sync,
+    team-restore — where one policy rejection (concealed or org-unavailable role)
+    must not abort the whole operation. The grant is skipped and logged instead of
+    raising. Returns the created ``UserRole`` or ``None`` if it was skipped.
+    """
+    try:
+        return add_user(
+            scope, user, role, created_by=created_by, expiration_time=expiration_time
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "Skipped granting role %s to user %s on %s: %s",
+            role,
+            getattr(user, "uuid", user),
+            scope,
+            exc,
+        )
+        return None
 
 
 def update_user(
