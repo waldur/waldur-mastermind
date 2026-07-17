@@ -3,9 +3,17 @@ from typing import cast
 
 from celery import shared_task
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from waldur_core.core import utils as core_utils
+from waldur_mastermind.marketplace import callbacks as marketplace_callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
+    OrderStates,
+    OrderTypes,
+    ResourceStates,
+)
 from waldur_openstack import models as openstack_models
 
 from . import utils
@@ -107,3 +115,100 @@ def refresh_instance_backend_metadata():
             # or imported instance not yet linked). Skip silently.
             continue
         utils.import_instance_metadata(resource)
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace_openstack.terminate_child_resources_of_terminated_tenants"
+)
+def terminate_child_resources_of_terminated_tenants():
+    """Reconcile Instance/Volume marketplace resources orphaned under a terminated tenant.
+
+    When a tenant's marketplace Resource is force-terminated without the backend
+    teardown completing (e.g. a staff ``force_destroy`` on an unreachable/erred
+    site, ``marketplace/utils.py`` ``process_order``), the per-tenant
+    Instance/Volume child resources are left non-terminated even though their
+    parent tenant is gone. A terminated tenant can never legitimately have live
+    instances or volumes, so this task marks those child resources TERMINATED to
+    keep the marketplace state consistent.
+
+    Mark-only by design: it does NOT delete plugin rows, release quota, or call
+    the OpenStack backend (which may be unreachable). The child offerings are
+    non-billable, so no invoicing is affected.
+
+    Traceability: for each reconciled resource it records a completed TERMINATE
+    ``Order`` (created directly in the DONE state, so no processing/executor and
+    no backend call is triggered) carrying a ``reason`` in its attributes, and
+    routes the state change through ``callbacks.resource_deletion_succeeded`` so
+    the standard ``MARKETPLACE_RESOURCE_TERMINATE_SUCCEEDED`` event appears in the
+    resource's audit log.
+    """
+    tenant_ct = ContentType.objects.get_for_model(openstack_models.Tenant)
+
+    # Tenant marketplace Resources that are TERMINATED (scope = the plugin Tenant).
+    terminated_tenant_ids = marketplace_models.Resource.objects.filter(
+        offering__type=OPENSTACK_TENANT_OFFERING,
+        content_type=tenant_ct,
+        state=ResourceStates.TERMINATED,
+    ).values_list("object_id", flat=True)
+
+    # Per-tenant Instance/Volume child offerings scoped to those terminated tenants.
+    child_offerings = marketplace_models.Offering.objects.filter(
+        type__in=utils.PER_TENANT_OFFERING_TYPES,
+        content_type=tenant_ct,
+        object_id__in=terminated_tenant_ids,
+    )
+
+    orphaned_resources = (
+        marketplace_models.Resource.objects.filter(
+            offering__in=child_offerings,
+        )
+        .exclude(state=ResourceStates.TERMINATED)
+        # Avoid N+1: the loop below reads resource.project, project.customer
+        # (audit scopes) and resource.offering (order + logging).
+        .select_related("project", "project__customer", "offering")
+    )
+
+    reason = (
+        "Automatically terminated by the "
+        "terminate_child_resources_of_terminated_tenants reconciliation task "
+        "because the parent tenant's marketplace resource is already terminated."
+    )
+
+    count = 0
+    for resource in orphaned_resources.iterator():
+        try:
+            with transaction.atomic():
+                # DONE state => no order processing / executor / backend call is
+                # triggered (see marketplace.handlers order post_save handlers).
+                marketplace_models.Order.objects.create(
+                    project=resource.project,
+                    resource=resource,
+                    offering=resource.offering,
+                    type=OrderTypes.TERMINATE,
+                    state=OrderStates.DONE,
+                    created_by=None,
+                    cost=0,
+                    attributes={"reason": reason},
+                )
+                # Flips the resource to TERMINATED and emits the audit event.
+                marketplace_callbacks.resource_deletion_succeeded(resource)
+        except Exception:
+            logger.exception(
+                "Failed to terminate orphaned child resource %s (%s).",
+                resource.uuid,
+                resource.name,
+            )
+            continue
+        count += 1
+        logger.info(
+            "Terminated orphaned marketplace resource %s (%s) left under terminated tenant offering %s.",
+            resource.uuid,
+            resource.name,
+            resource.offering.name,
+        )
+
+    if count:
+        logger.info(
+            "terminate_child_resources_of_terminated_tenants terminated %s orphaned resource(s).",
+            count,
+        )

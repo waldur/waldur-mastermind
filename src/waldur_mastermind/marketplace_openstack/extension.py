@@ -56,6 +56,11 @@ class MarketplaceOpenStackExtension(WaldurExtension):
                 "schedule": timedelta(hours=24),
                 "args": (),
             },
+            "marketplace-openstack.terminate-child-resources-of-terminated-tenants": {
+                "task": "waldur_mastermind.marketplace_openstack.terminate_child_resources_of_terminated_tenants",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
         }
 
     @staticmethod
