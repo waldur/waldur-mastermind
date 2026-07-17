@@ -4827,7 +4827,7 @@ class MaintenanceAnnouncement(
     def get_log_fields(self):
         return (
             "uuid",
-            "title",
+            "name",
             "maintenance_type",
             "state",
             "scheduled_start",

@@ -39,6 +39,26 @@ CANCELLED   IN_PROGRESS → COMPLETED
 - **COMPLETED**: Maintenance has finished successfully
 - **CANCELLED**: Maintenance was cancelled before completion
 
+### Audit Events
+
+CRUD and lifecycle changes emit standard Waldur audit events (scoped to the
+maintenance announcement and the service provider customer). Actor details
+(`user_uuid`, etc.) are included in the event context for API-driven actions.
+
+| Action | Event type |
+|--------|------------|
+| Create | `maintenance_announcement_created` |
+| Update | `maintenance_announcement_updated` |
+| Delete | `maintenance_announcement_deleted` |
+| Schedule | `maintenance_announcement_scheduled` |
+| Unschedule | `maintenance_announcement_unscheduled` |
+| Start | `maintenance_announcement_started` |
+| Complete | `maintenance_announcement_completed` |
+| Cancel | `maintenance_announcement_cancelled` |
+
+These appear under the `providers` event group and can be queried via
+`/api/events/?scope=.../maintenance-announcements/{uuid}/`.
+
 ## REST API Operations
 
 ### Standard CRUD Operations

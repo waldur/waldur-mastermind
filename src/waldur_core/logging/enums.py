@@ -125,6 +125,14 @@ class EventType(StrEnum):
     MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_REJECTED = (
         "marketplace_resource_limit_change_request_rejected"
     )
+    MAINTENANCE_ANNOUNCEMENT_CANCELLED = "maintenance_announcement_cancelled"
+    MAINTENANCE_ANNOUNCEMENT_COMPLETED = "maintenance_announcement_completed"
+    MAINTENANCE_ANNOUNCEMENT_CREATED = "maintenance_announcement_created"
+    MAINTENANCE_ANNOUNCEMENT_DELETED = "maintenance_announcement_deleted"
+    MAINTENANCE_ANNOUNCEMENT_SCHEDULED = "maintenance_announcement_scheduled"
+    MAINTENANCE_ANNOUNCEMENT_STARTED = "maintenance_announcement_started"
+    MAINTENANCE_ANNOUNCEMENT_UNSCHEDULED = "maintenance_announcement_unscheduled"
+    MAINTENANCE_ANNOUNCEMENT_UPDATED = "maintenance_announcement_updated"
     NOTIFY_EXTERNAL_USER = "notify_external_user"
     NOTIFY_ORGANIZATION_OWNERS = "notify_organization_owners"
     NOTIFY_PROJECT_TEAM = "notify_project_team"
@@ -580,6 +588,14 @@ EVENT_GROUP_MAPPING = {
         EventType.RESOURCE_ROBOT_ACCOUNT_DELETED,
         EventType.RESOURCE_ROBOT_ACCOUNT_STATE_CHANGED,
         EventType.RESOURCE_ROBOT_ACCOUNT_UPDATED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_CREATED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_UPDATED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_DELETED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_SCHEDULED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_UNSCHEDULED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_STARTED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_COMPLETED,
+        EventType.MAINTENANCE_ANNOUNCEMENT_CANCELLED,
     ],
     EventGroup.RESOURCES: [
         EventType.MARKETPLACE_ORDER_APPROVED,
