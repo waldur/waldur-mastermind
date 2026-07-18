@@ -1903,12 +1903,25 @@ class MarketplaceCategorySerializer(
         except rf_exceptions.ValidationError:
             shared = None
 
+        try:
+            accessible = forms.NullBooleanField().to_python(
+                request.GET.get("accessible")
+            )
+        except rf_exceptions.ValidationError:
+            accessible = None
+
         # counting available offerings for resource order.
         offerings = (
             models.Offering.objects.filter(category=category)
             .filter_by_ordering_availability_for_user(request.user)
             .order_by()
         )
+
+        # When accessible=true, exclude restricted offerings the user cannot
+        # order (even consumed ones), matching the `accessible` offerings filter
+        # so quick-add category counts do not include non-orderable offerings.
+        if accessible:
+            offerings = offerings.filter_accessible_for_user(request.user)
 
         allowed_customer_uuid = request.query_params.get("allowed_customer_uuid")
         if allowed_customer_uuid and core_utils.is_uuid_like(allowed_customer_uuid):

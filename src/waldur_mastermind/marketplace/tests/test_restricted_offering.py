@@ -124,6 +124,105 @@ class RestrictedOfferingVisibilityTest(test.APITestCase):
         self.assertTrue(response.data["is_accessible"])
 
 
+class RestrictedOfferingCategoryCountTest(test.APITestCase):
+    """The `accessible` filter on the categories endpoint must keep category
+    offering_count (and the category list itself) in sync with the offerings
+    catalog, so the "Add resource" quick-add does not surface restricted
+    offerings the user cannot order."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.fixture.manager
+        self.fixture.member
+        # Mixed category: one restricted + one normal offering. It survives the
+        # accessible category filter (it has an orderable offering), so its
+        # offering_count can be inspected on retrieve.
+        self.mixed_category = factories.CategoryFactory()
+        self.restricted_offering = factories.OfferingFactory(
+            category=self.mixed_category,
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            billable=True,
+            plugin_options={"restricted_to_roles": SENIOR_ROLES},
+        )
+        factories.PlanFactory(offering=self.restricted_offering)
+        factories.OfferingFactory(
+            category=self.mixed_category,
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            billable=True,
+        )
+        # Restricted-only category: no orderable offering for the member.
+        self.restricted_only_offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            billable=True,
+            plugin_options={"restricted_to_roles": SENIOR_ROLES},
+        )
+        factories.PlanFactory(offering=self.restricted_only_offering)
+        self.restricted_only_category = self.restricted_only_offering.category
+        # The member's project already consumes both restricted offerings, so
+        # the default (carve-out) queryset keeps counting them.
+        factories.ResourceFactory(
+            project=self.fixture.project, offering=self.restricted_offering
+        )
+        factories.ResourceFactory(
+            project=self.fixture.project, offering=self.restricted_only_offering
+        )
+
+    def get_offering_count(self, category, user, accessible=None):
+        self.client.force_authenticate(user)
+        params = {"field": ["uuid", "offering_count"]}
+        if accessible is not None:
+            params["accessible"] = accessible
+        response = self.client.get(factories.CategoryFactory.get_url(category), params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["offering_count"]
+
+    def list_category_uuids(self, user, accessible=None):
+        self.client.force_authenticate(user)
+        params = {} if accessible is None else {"accessible": accessible}
+        response = self.client.get(factories.CategoryFactory.get_list_url(), params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {category["uuid"] for category in response.data}
+
+    def test_member_count_includes_consumed_restricted_offering(self):
+        # Default behaviour: the carve-out keeps the consumed offering counted.
+        self.assertEqual(
+            self.get_offering_count(self.mixed_category, self.fixture.member), 2
+        )
+
+    def test_accessible_count_excludes_restricted_offering_for_member(self):
+        # Only the normal offering remains orderable for the member.
+        self.assertEqual(
+            self.get_offering_count(
+                self.mixed_category, self.fixture.member, accessible=True
+            ),
+            1,
+        )
+
+    def test_accessible_count_keeps_restricted_offering_for_manager(self):
+        self.assertEqual(
+            self.get_offering_count(
+                self.mixed_category, self.fixture.manager, accessible=True
+            ),
+            2,
+        )
+
+    def test_accessible_filter_drops_restricted_only_category_for_member(self):
+        uuids = self.list_category_uuids(self.fixture.member, accessible=True)
+        self.assertNotIn(self.restricted_only_category.uuid.hex, uuids)
+        self.assertIn(self.mixed_category.uuid.hex, uuids)
+
+    def test_accessible_filter_keeps_restricted_only_category_for_manager(self):
+        uuids = self.list_category_uuids(self.fixture.manager, accessible=True)
+        self.assertIn(self.restricted_only_category.uuid.hex, uuids)
+
+    def test_category_list_unfiltered_keeps_consumed_category_for_member(self):
+        uuids = self.list_category_uuids(self.fixture.member)
+        self.assertIn(self.restricted_only_category.uuid.hex, uuids)
+
+
 class RestrictedOfferingOrderTest(BaseOrderCreateTest):
     def setUp(self):
         super().setUp()

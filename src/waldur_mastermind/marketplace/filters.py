@@ -2513,6 +2513,10 @@ class CategoryFilter(django_filters.FilterSet):
         method="filter_resource_project_uuid",
         label="Resource project UUID",
     )
+    accessible = django_filters.BooleanFilter(
+        method="filter_accessible",
+        label="Only categories with offerings the current user can order",
+    )
 
     def filter_customer_uuid(self, queryset, name, value):
         states = self.request.GET.getlist("customers_offerings_state")
@@ -2551,6 +2555,20 @@ class CategoryFilter(django_filters.FilterSet):
             .distinct()
         )
         return queryset.filter(id__in=valid_ids)
+
+    def filter_accessible(self, queryset, name, value):
+        # When True, drop categories that have no offering the current user can
+        # order (e.g. only restricted offerings whose roles the user does not
+        # hold, even if their project already consumes one). Mirrors the
+        # `accessible` filter on offerings so the "Add resource" quick-add and
+        # catalog agree. The per-category offering_count is filtered to match in
+        # MarketplaceCategorySerializer.get_offering_count.
+        if not value:
+            return queryset
+        accessible_offerings = models.Offering.objects.all().filter_accessible_for_user(
+            self.request.user
+        )
+        return queryset.filter(offerings__in=accessible_offerings).distinct()
 
 
 class AttributeFilter(django_filters.FilterSet):
