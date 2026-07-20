@@ -2380,7 +2380,7 @@ def add_maintenance_fields_to_admin_announcement_serializer(sender, fields, **kw
     def get_maintenance_service_provider(self, obj) -> str | None:
         try:
             return (
-                obj.maintenance_announcement.service_provider.name
+                obj.maintenance_announcement.service_provider.customer.name
                 if hasattr(obj, "maintenance_announcement")
                 and obj.maintenance_announcement
                 and obj.maintenance_announcement.service_provider

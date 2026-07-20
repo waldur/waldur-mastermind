@@ -1,5 +1,8 @@
 """Utilities for MaintenanceAnnouncement -> AdminAnnouncement integration."""
 
+from django.utils import timezone
+from django.utils.formats import date_format
+
 from waldur_mastermind.marketplace.enums import MaintenanceType
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
@@ -20,7 +23,18 @@ class MaintenanceAnnouncementTemplate:
     def generate_announcement_content(cls, maintenance):
         """Generate simple AdminAnnouncement content using message as-is with type prefix."""
         prefix = cls.TYPE_PREFIXES.get(maintenance.maintenance_type, "🔧 Maintenance")
-        return f"{prefix}: {maintenance.message}"
+        return f"{prefix}: {maintenance.message}{cls._format_window(maintenance)}"
+
+    @staticmethod
+    def _format_window(maintenance):
+        """Render the scheduled window, mirroring the public maintenance banner."""
+        if not (maintenance.scheduled_start and maintenance.scheduled_end):
+            return ""
+        start, end = (
+            date_format(timezone.localtime(value), "SHORT_DATETIME_FORMAT")
+            for value in (maintenance.scheduled_start, maintenance.scheduled_end)
+        )
+        return f" (Scheduled {start} – {end})"
 
     @classmethod
     def get_announcement_priority(cls, maintenance):
