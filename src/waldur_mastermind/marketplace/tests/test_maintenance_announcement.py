@@ -4,6 +4,7 @@ from ddt import data, ddt
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
@@ -17,6 +18,17 @@ from waldur_mastermind.marketplace.tests import (
 from waldur_mastermind.marketplace.tests import (
     fixtures as marketplace_fixtures,
 )
+
+MANAGE_DENIED_DETAIL = (
+    "You do not have permission to manage maintenance announcements "
+    "for this service provider."
+)
+ACTION_DENIED_DETAIL = "You do not have permission to perform this action."
+
+
+def _assert_permission_denied(response, detail):
+    assert response.status_code == status.HTTP_403_FORBIDDEN, response.data
+    assert response.data.get("detail") == detail, response.data
 
 
 @ddt
@@ -114,7 +126,14 @@ class MaintenanceAnnouncementCreateTest(test.APITestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.url, self._get_payload())
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
+
+    def test_creation_forbidden_for_related_user_without_permission(self):
+        user = structure_factories.UserFactory()
+        self.fixture.offering_customer.add_user(user, CustomerRole.SUPPORT)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url, self._get_payload())
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
 
     def test_creation_forbidden_for_unauthenticated(self):
         response = self.client.post(self.url, self._get_payload())
@@ -140,11 +159,141 @@ class MaintenanceAnnouncementCreateTest(test.APITestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.offering_url, self._get_offering_payload())
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
 
     def test_offering_creation_forbidden_for_unauthenticated(self):
         response = self.client.post(self.offering_url, self._get_offering_payload())
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class MaintenanceAnnouncementPermissionTest(test.APITestCase):
+    """Cover MANAGE_MAINTENANCE_ANNOUNCEMENT paths for connected users."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.announcement = self.fixture.maintenance_announcement
+        self.offering_link = self.fixture.maintenance_announcement_offering
+        self.list_url = (
+            marketplace_factories.MaintenanceAnnouncementFactory.get_list_url()
+        )
+        self.detail_url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement
+        )
+        self.offering_list_url = (
+            marketplace_factories.MaintenanceAnnouncementOfferingFactory.get_list_url()
+        )
+        self.offering_detail_url = (
+            marketplace_factories.MaintenanceAnnouncementOfferingFactory.get_url(
+                self.offering_link
+            )
+        )
+        self.related_without_perm = structure_factories.UserFactory()
+        self.fixture.offering_customer.add_user(
+            self.related_without_perm, CustomerRole.SUPPORT
+        )
+
+    def _create_payload(self):
+        return {
+            "name": "Permission test maintenance",
+            "message": "Test message",
+            "scheduled_start": "2030-01-01T10:00:00Z",
+            "scheduled_end": "2030-01-01T12:00:00Z",
+            "service_provider": marketplace_factories.ServiceProviderFactory.get_url(
+                self.fixture.service_provider
+            ),
+        }
+
+    def _offering_payload(self):
+        return {
+            "maintenance": marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+                self.announcement
+            ),
+            "offering": marketplace_factories.OfferingFactory.get_url(
+                self.fixture.offering
+            ),
+            "impact_level": ImpactLevel.FULL_OUTAGE,
+            "impact_description": "Impact",
+        }
+
+    def test_related_user_without_permission_can_list_and_retrieve(self):
+        self.client.force_authenticate(self.related_without_perm)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            any(a["uuid"] == str(self.announcement.uuid) for a in response.json())
+        )
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_related_user_without_permission_cannot_update(self):
+        self.client.force_authenticate(self.related_without_perm)
+        response = self.client.patch(self.detail_url, {"message": "Nope"})
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+    def test_related_user_without_permission_cannot_delete(self):
+        self.client.force_authenticate(self.related_without_perm)
+        response = self.client.delete(self.detail_url)
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+    @data(
+        "schedule",
+        "unschedule",
+        "start_maintenance",
+        "complete_maintenance",
+        "cancel_maintenance",
+    )
+    def test_related_user_without_permission_cannot_change_state(self, action):
+        state_by_action = {
+            "schedule": MaintenanceState.DRAFT,
+            "unschedule": MaintenanceState.SCHEDULED,
+            "start_maintenance": MaintenanceState.SCHEDULED,
+            "complete_maintenance": MaintenanceState.IN_PROGRESS,
+            "cancel_maintenance": MaintenanceState.DRAFT,
+        }
+        self.announcement.state = state_by_action[action]
+        self.announcement.save()
+        self.client.force_authenticate(self.related_without_perm)
+        url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement, action=action
+        )
+        response = self.client.post(url)
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+    def test_related_user_without_permission_cannot_manage_offering_link(self):
+        self.client.force_authenticate(self.related_without_perm)
+        response = self.client.post(self.offering_list_url, self._offering_payload())
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
+
+        response = self.client.patch(
+            self.offering_detail_url, {"impact_description": "Nope"}
+        )
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+        response = self.client.delete(self.offering_detail_url)
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+    @data("service_owner", "service_manager")
+    def test_permitted_roles_can_create_and_update(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.list_url, self._create_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        response = self.client.patch(self.detail_url, {"message": "Updated"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    @data("service_owner", "service_manager")
+    def test_permitted_roles_can_schedule(self, user):
+        user = getattr(self.fixture, user)
+        self.announcement.state = MaintenanceState.DRAFT
+        self.announcement.save()
+        self.client.force_authenticate(user)
+        url = marketplace_factories.MaintenanceAnnouncementFactory.get_url(
+            self.announcement, action="schedule"
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @ddt
@@ -840,17 +989,8 @@ class MaintenanceAnnouncementInternalNotesTest(test.APITestCase):
 
         list_url = marketplace_factories.MaintenanceAnnouncementFactory.get_list_url()
         response = self.client.post(list_url, payload)
-        # Support users might not have permission to create announcements for arbitrary service providers
-        # This depends on the existing permission system
-        if response.status_code == status.HTTP_400_BAD_REQUEST:
-            # Support users may not be allowed to create announcements - this is expected
-            return
-        elif response.status_code == status.HTTP_201_CREATED:
-            # If creation is allowed, verify internal_notes is present
-            self.assertIn("internal_notes", response.json())
-            self.assertEqual(response.json()["internal_notes"], "Support user notes")
-        else:
-            self.fail(f"Unexpected status code: {response.status_code}")
+        # Global support is not staff and has no manage permission on the SP.
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
 
     @data("staff", "service_owner")
     def test_internal_notes_can_be_updated_by_authorized_users(self, user):
@@ -872,17 +1012,13 @@ class MaintenanceAnnouncementInternalNotesTest(test.APITestCase):
         self.assertEqual(self.announcement.internal_notes, "Updated internal notes")
 
     def test_internal_notes_can_be_updated_by_support_users(self):
-        """Support users should be able to update internal_notes."""
+        """Support users without manage permission cannot update announcements."""
         self.client.force_authenticate(self.support_user)
 
         response = self.client.patch(
             self.url, {"internal_notes": "Support updated notes"}
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify updated internal_notes
-        self.assertIn("internal_notes", response.json())
-        self.assertEqual(response.json()["internal_notes"], "Support updated notes")
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
 
     def test_internal_notes_in_list_view_for_authorized_users(self):
         """Internal notes should be included in list view for authorized users."""

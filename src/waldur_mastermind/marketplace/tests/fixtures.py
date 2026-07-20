@@ -1,5 +1,6 @@
 from django.utils.functional import cached_property
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
     OfferingRole,
@@ -109,6 +110,10 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     def service_owner(self):
         user = structure_factories.UserFactory()
         self.offering_customer.add_user(user, CustomerRole.OWNER)
+        # service_owner bypasses CustomerFixture.owner, so grant OWNER defaults here.
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT
+        )
         return user
 
     @cached_property

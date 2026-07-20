@@ -48,6 +48,9 @@ class CustomerFixture(UserFixture):
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_CUSTOMER_USERS)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT
+        )
         return user
 
     @cached_property
@@ -64,6 +67,9 @@ class CustomerFixture(UserFixture):
     def service_manager(self):
         user = factories.UserFactory()
         self.customer.add_user(user, ServiceProviderRole.MANAGER)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT
+        )
         return user
 
 

@@ -433,3 +433,48 @@ def can_manage_offering_lifecycle(request, view, obj=None):
         return
     if not config.ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT:
         raise exceptions.PermissionDenied()
+
+
+def has_maintenance_announcement_permission(request, service_provider) -> bool:
+    """True if the user may manage maintenance announcements for this SP."""
+    return has_permission(
+        request,
+        PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+        service_provider.customer,
+    ) or has_permission(
+        request,
+        PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+        service_provider,
+    )
+
+
+def check_maintenance_announcement_create_permissions(request, view, obj=None):
+    serializer = view.get_serializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    service_provider = serializer.validated_data.get("service_provider")
+    if not service_provider or not has_maintenance_announcement_permission(
+        request, service_provider
+    ):
+        raise exceptions.PermissionDenied()
+
+
+def check_maintenance_announcement_offering_create_permissions(request, view, obj=None):
+    serializer = view.get_serializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    maintenance = serializer.validated_data.get("maintenance")
+    if not maintenance or not has_maintenance_announcement_permission(
+        request, maintenance.service_provider
+    ):
+        raise exceptions.PermissionDenied()
+
+
+def check_maintenance_announcement_offering_template_create_permissions(
+    request, view, obj=None
+):
+    serializer = view.get_serializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    maintenance_template = serializer.validated_data.get("maintenance_template")
+    if not maintenance_template or not has_maintenance_announcement_permission(
+        request, maintenance_template.service_provider
+    ):
+        raise exceptions.PermissionDenied()

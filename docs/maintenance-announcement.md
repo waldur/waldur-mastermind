@@ -542,11 +542,13 @@ GET /api/maintenance-announcements/{uuid}/
 
 ### Authorization Model
 
-MaintenanceAnnouncement uses Waldur's standard permission system:
+Maintenance announcements use Waldur's permission system:
 
-- **Service Provider Path**: `service_provider__customer`
-- **Automatic Filtering**: `GenericRoleFilter` handles visibility
-- **Role-Based Access**: Permissions tied to service provider ownership
+- **Permission**: `SERVICE_PROVIDER.MANAGE_MAINTENANCE_ANNOUNCEMENT`
+- **Default roles**: Organization Owner (`CUSTOMER.OWNER`) and Service Provider Manager (`CUSTOMER.MANAGER`)
+- **Service Provider Path**: `service_provider__customer` (and the service provider itself for managers)
+- **List/retrieve**: any user connected to the service provider's customer (via `GenericRoleFilter`)
+- **Create/update/delete/state transitions**: require `MANAGE_MAINTENANCE_ANNOUNCEMENT`
 
 ### User Permissions
 
@@ -556,16 +558,26 @@ MaintenanceAnnouncement uses Waldur's standard permission system:
 - Can perform all state transitions
 - Can create/update/delete any announcement
 
-**Service Provider Owners:**
+**Service Provider Owners / Managers (with manage permission):**
 
-- Full access to their service provider's maintenance announcements
+- Full write access to their service provider's maintenance announcements
 - Can perform all state transitions on their announcements
 - Can create/update/delete their announcements
 
-**Other Users:**
+**Other users connected to the SP customer (without manage permission):**
 
-- No access to maintenance announcements (404 Not Found)
-- Cannot view or modify any maintenance data
+- Can list and retrieve announcements for that service provider
+- Cannot create, update, delete, or change state
+
+**Unrelated Users:**
+
+- No access to private maintenance announcement endpoints (empty list / 404)
+- Public scheduled announcements remain available via the public endpoint
+
+**Personal Access Tokens:**
+
+- A PAT can restrict API access to `SERVICE_PROVIDER.MANAGE_MAINTENANCE_ANNOUNCEMENT` only,
+  so automation can manage announcements without broader Owner permissions.
 
 ## Key Points
 
