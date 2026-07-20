@@ -316,14 +316,14 @@ graph TD
     end
 
     subgraph "2. Signal Handling"
-        TR_SaveResource -- emits `post_save` signal --> SH_ResourceHandler(`process_billing_on_resource_save`)
-        TR_SaveUsage -- emits `post_save` signal --> SH_UsageHandler(`BillingUsageProcessor.update_invoice_when_usage_is_reported`)
+        TR_SaveResource -->|emits post_save signal| SH_ResourceHandler(`process_billing_on_resource_save`)
+        TR_SaveUsage -->|emits post_save signal| SH_UsageHandler(`BillingUsageProcessor.update_invoice_when_usage_is_reported`)
     end
 
     subgraph "3. Billing Orchestration & Logic"
         MBS[MarketplaceBillingService]
 
-        SH_ResourceHandler -- calls appropriate method based on change --> MBS
+        SH_ResourceHandler -->|calls appropriate method based on change| MBS
 
         MBS -->|_process_resource loops through plan components| Decision_BillingType{What is component.billing_type?}
 
@@ -340,22 +340,22 @@ graph TD
     end
 
     Logic_Simple --> Action_CreateItem(Create New `InvoiceItem`)
-    Logic_Limit -- process_creation/process_update --> Action_CreateOrUpdateItem(Create or Update `InvoiceItem`)
-    Logic_Usage -- _create_or_update_usage_invoice_item --> Action_CreateOrUpdateItem
+    Logic_Limit -->|process_creation/process_update| Action_CreateOrUpdateItem(Create or Update `InvoiceItem`)
+    Logic_Usage -->|_create_or_update_usage_invoice_item| Action_CreateOrUpdateItem
 
     Action_CreateItem --> InvoiceItem
     Action_CreateOrUpdateItem --> InvoiceItem
 
     %% Styling
-    classDef trigger fill:#e6f3ff,stroke:#0066cc,stroke-width:2px;
-    classDef handler fill:#fff2e6,stroke:#ff8c1a,stroke-width:2px;
-    classDef service fill:#e6fffa,stroke:#00997a,stroke-width:2px;
-    classDef outcome fill:#f0f0f0,stroke:#666,stroke-width:2px;
+    classDef trigger fill:#e6f3ff,stroke:#0066cc,stroke-width:2px
+    classDef handler fill:#fff2e6,stroke:#ff8c1a,stroke-width:2px
+    classDef service fill:#e6fffa,stroke:#00997a,stroke-width:2px
+    classDef outcome fill:#f0f0f0,stroke:#666,stroke-width:2px
 
-    class TR_Action,TR_Usage,TR_SaveResource,TR_SaveUsage trigger;
-    class SH_ResourceHandler,SH_UsageHandler handler;
-    class MBS,Decision_BillingType,Logic_Simple,Logic_Limit,Logic_Usage service;
-    class Invoice,InvoiceItem,Action_CreateItem,Action_CreateOrUpdateItem outcome;
+    class TR_Action,TR_Usage,TR_SaveResource,TR_SaveUsage trigger
+    class SH_ResourceHandler,SH_UsageHandler handler
+    class MBS,Decision_BillingType,Logic_Simple,Logic_Limit,Logic_Usage service
+    class Invoice,InvoiceItem,Action_CreateItem,Action_CreateOrUpdateItem outcome
 ```
 
 ---
