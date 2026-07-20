@@ -11479,9 +11479,14 @@ class MaintenanceAnnouncementOfferingSerializer(serializers.HyperlinkedModelSeri
 
     def validate_maintenance(self, value):
         user = self.context["request"].user
-        if not (user.is_staff or value.service_provider.customer.has_user(user)):
-            raise serializers.ValidationError(
-                "You are not related to this service provider's customer."
+        if user.is_staff:
+            return value
+        if not permissions.has_maintenance_announcement_permission(
+            self.context["request"], value.service_provider
+        ):
+            raise PermissionDenied(
+                "You do not have permission to manage maintenance announcements "
+                "for this service provider."
             )
         return value
 
@@ -11582,9 +11587,14 @@ class MaintenanceAnnouncementSerializer(serializers.HyperlinkedModelSerializer):
 
     def validate_service_provider(self, value):
         user = self.context["request"].user
-        if not (user.is_staff or value.customer.has_user(user)):
-            raise serializers.ValidationError(
-                "You are not related to this service provider's customer."
+        if user.is_staff:
+            return value
+        if not permissions.has_maintenance_announcement_permission(
+            self.context["request"], value
+        ):
+            raise PermissionDenied(
+                "You do not have permission to manage maintenance announcements "
+                "for this service provider."
             )
         return value
 
@@ -11680,9 +11690,14 @@ class MaintenanceAnnouncementOfferingTemplateSerializer(
 
     def validate_maintenance_template(self, value):
         user = self.context["request"].user
-        if not (user.is_staff or value.service_provider.customer.has_user(user)):
-            raise serializers.ValidationError(
-                "You are not related to this service provider's customer."
+        if user.is_staff:
+            return value
+        if not permissions.has_maintenance_announcement_permission(
+            self.context["request"], value.service_provider
+        ):
+            raise PermissionDenied(
+                "You do not have permission to manage maintenance announcements "
+                "for this service provider."
             )
         return value
 

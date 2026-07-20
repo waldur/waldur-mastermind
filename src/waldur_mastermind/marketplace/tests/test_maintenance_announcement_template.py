@@ -1,9 +1,16 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import ImpactLevel
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.marketplace.tests.test_maintenance_announcement import (
+    ACTION_DENIED_DETAIL,
+    MANAGE_DENIED_DETAIL,
+    _assert_permission_denied,
+)
 
 
 @ddt
@@ -142,7 +149,7 @@ class MaintenanceAnnouncementTemplateCreateTest(test.APITestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.url, self._get_payload())
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
 
     def test_creation_forbidden_for_unauthenticated(self):
         response = self.client.post(self.url, self._get_payload())
@@ -168,11 +175,97 @@ class MaintenanceAnnouncementTemplateCreateTest(test.APITestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.offering_url, self._get_offering_payload())
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
 
     def test_offering_creation_forbidden_for_unauthenticated(self):
         response = self.client.post(self.offering_url, self._get_offering_payload())
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class MaintenanceAnnouncementTemplatePermissionTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.template = self.fixture.maintenance_announcement_template
+        self.offering_template = self.fixture.maintenance_announcement_offering_template
+        self.list_url = (
+            marketplace_factories.MaintenanceAnnouncementTemplateFactory.get_list_url()
+        )
+        self.detail_url = (
+            marketplace_factories.MaintenanceAnnouncementTemplateFactory.get_url(
+                self.template
+            )
+        )
+        self.offering_list_url = marketplace_factories.MaintenanceAnnouncementOfferingTemplateFactory.get_list_url()
+        self.offering_detail_url = marketplace_factories.MaintenanceAnnouncementOfferingTemplateFactory.get_url(
+            self.offering_template
+        )
+        self.related_without_perm = structure_factories.UserFactory()
+        self.fixture.offering_customer.add_user(
+            self.related_without_perm, CustomerRole.SUPPORT
+        )
+
+    def _create_payload(self):
+        return {
+            "name": "Permission test template",
+            "message": "Template message",
+            "service_provider": marketplace_factories.ServiceProviderFactory.get_url(
+                self.fixture.service_provider
+            ),
+        }
+
+    def _offering_payload(self):
+        return {
+            "maintenance_template": marketplace_factories.MaintenanceAnnouncementTemplateFactory.get_url(
+                self.template
+            ),
+            "offering": marketplace_factories.OfferingFactory.get_url(
+                self.fixture.offering
+            ),
+            "impact_level": ImpactLevel.FULL_OUTAGE,
+            "impact_description": "Template impact",
+        }
+
+    def test_related_user_without_permission_can_list_template(self):
+        self.client.force_authenticate(self.related_without_perm)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            any(a["uuid"] == str(self.template.uuid) for a in response.json())
+        )
+
+    def test_related_user_without_permission_cannot_create_update_delete_template(self):
+        self.client.force_authenticate(self.related_without_perm)
+        response = self.client.post(self.list_url, self._create_payload())
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
+
+        response = self.client.patch(self.detail_url, {"message": "Nope"})
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+        response = self.client.delete(self.detail_url)
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+    def test_related_user_without_permission_cannot_manage_offering_template(self):
+        self.client.force_authenticate(self.related_without_perm)
+        response = self.client.post(self.offering_list_url, self._offering_payload())
+        _assert_permission_denied(response, MANAGE_DENIED_DETAIL)
+
+        response = self.client.patch(
+            self.offering_detail_url, {"impact_description": "Nope"}
+        )
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+        response = self.client.delete(self.offering_detail_url)
+        _assert_permission_denied(response, ACTION_DENIED_DETAIL)
+
+    @data("service_owner", "service_manager")
+    def test_permitted_roles_can_manage_template(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.list_url, self._create_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        response = self.client.patch(self.detail_url, {"message": "Updated"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @ddt

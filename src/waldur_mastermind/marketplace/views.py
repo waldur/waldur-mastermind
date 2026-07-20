@@ -15386,6 +15386,20 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
     filterset_class = filters.MaintenanceAnnouncementFilter
     serializer_class = serializers.MaintenanceAnnouncementSerializer
 
+    create_permissions = [
+        marketplace_permissions.check_maintenance_announcement_create_permissions
+    ]
+    update_permissions = partial_update_permissions = destroy_permissions = (
+        schedule_permissions
+    ) = unschedule_permissions = start_maintenance_permissions = (
+        complete_maintenance_permissions
+    ) = cancel_maintenance_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+            ["service_provider.customer", "service_provider"],
+        )
+    ]
+
     update_validators = partial_update_validators = [
         core_validators.StateValidator(
             MaintenanceState.DRAFT,
@@ -15802,6 +15816,19 @@ class MaintenanceAnnouncementOfferingViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.MaintenanceAnnouncementOfferingSerializer
 
+    create_permissions = [
+        marketplace_permissions.check_maintenance_announcement_offering_create_permissions
+    ]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+            [
+                "maintenance.service_provider.customer",
+                "maintenance.service_provider",
+            ],
+        )
+    ]
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -15842,6 +15869,16 @@ class MaintenanceAnnouncementTemplateViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.MaintenanceAnnouncementTemplateFilter
     serializer_class = serializers.MaintenanceAnnouncementTemplateSerializer
+
+    create_permissions = [
+        marketplace_permissions.check_maintenance_announcement_create_permissions
+    ]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+            ["service_provider.customer", "service_provider"],
+        )
+    ]
 
 
 @extend_schema_view(
@@ -15887,6 +15924,19 @@ class MaintenanceAnnouncementOfferingTemplateViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.MaintenanceAnnouncementOfferingTemplateFilter
     serializer_class = serializers.MaintenanceAnnouncementOfferingTemplateSerializer
+
+    create_permissions = [
+        marketplace_permissions.check_maintenance_announcement_offering_template_create_permissions
+    ]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_MAINTENANCE_ANNOUNCEMENT,
+            [
+                "maintenance_template.service_provider.customer",
+                "maintenance_template.service_provider",
+            ],
+        )
+    ]
 
 
 @extend_schema_view(
