@@ -56,7 +56,11 @@ def normalize_mapped_claim_value(user_field: str, value):
             value = value[0]
         else:
             logger.warning(
-                "Skipping multi-value claim for user field %s. Value: %s",
+                "Skipping multi-value claim for user field %s.",
+                user_field,
+            )
+            logger.debug(
+                "Skipped multi-value claim for user field %s. Value: %s",
                 user_field,
                 value,
             )
@@ -451,12 +455,9 @@ def sync_user_ssh_keys(user, eduteams_keys, username):
         logger.info("%s key is added to user %s", new_key, username)
 
     for key in stale_keys:
-        logger.info(
-            "Deleting stale keys for user %s. Keys: %s",
-            username,
-            ", ".join([key for key in stale_keys]),
-        )
-        existing_keys_map[key].delete()
+        ssh_key = existing_keys_map[key]
+        logger.info("Deleting stale key %s for user %s", ssh_key, username)
+        ssh_key.delete()
 
 
 def pull_remote_eduteams_user(username):

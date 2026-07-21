@@ -44,9 +44,14 @@ class PollTask(tasks.Task):
             auth_result.details = response.details
             auth_result.save(update_fields=["state", "details"])
             logger.info(
-                "PKI login failed for user with phone %s, details: %s.",
-                auth_result.phone,
+                "PKI login failed for auth result %s, details: %s.",
+                auth_result.uuid.hex,
                 auth_result.details,
+            )
+            logger.debug(
+                "PKI login failure phone for auth result %s: %s",
+                auth_result.uuid.hex,
+                auth_result.phone,
             )
 
     def _associate_with_user(self, auth_result, civil_number):
@@ -62,7 +67,12 @@ class PollTask(tasks.Task):
             auth_result.details = "User is not registered."
             auth_result.set_canceled()
             logger.info(
-                "PKI login failed for user with civil number %s - user record does not exist in Waldur.",
+                "PKI login failed for auth result %s - user record does not exist in Waldur.",
+                auth_result.uuid.hex,
+            )
+            logger.debug(
+                "PKI login failure civil number for auth result %s: %s",
+                auth_result.uuid.hex,
                 civil_number,
             )
         auth_result.save()
