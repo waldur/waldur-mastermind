@@ -538,9 +538,9 @@ class UserRoleMixin:
             ),
             OpenApiParameter(
                 name="role",
-                type=uuid.UUID,
+                type=build_array_type(build_basic_type(OpenApiTypes.STR)),
                 location=OpenApiParameter.QUERY,
-                description="Role UUID or name",
+                description="Role UUID or name. Repeat to filter by several roles.",
                 extensions={"x-waldur-operation-id": "roles_retrieve"},
             ),
             OpenApiParameter(
@@ -626,7 +626,11 @@ class UserRoleMixin:
 
         queryset = filterset.qs
 
-        role = request.query_params.get("role")
+        # A scope's Team tab may request several roles at once (e.g. the call
+        # team lists both call managers and panel members), sent as a repeated
+        # "role" query param. getlist honours all of them; a single value is
+        # simply a list of one, so callers passing one role are unaffected.
+        roles = request.query_params.getlist("role")
         search_string = request.query_params.get("search_string")
         if search_string:
             queryset = queryset.filter(
@@ -635,11 +639,15 @@ class UserRoleMixin:
                 | Q(user__email__icontains=search_string)
                 | Q(user__username__icontains=search_string)
             ).distinct()
-        if role:
-            if is_uuid_like(role):
-                queryset = queryset.filter(role__uuid=role)
-            else:
-                queryset = queryset.filter(role__name=role)
+        if roles:
+            uuid_roles = [role for role in roles if is_uuid_like(role)]
+            name_roles = [role for role in roles if not is_uuid_like(role)]
+            role_query = Q()
+            if uuid_roles:
+                role_query |= Q(role__uuid__in=uuid_roles)
+            if name_roles:
+                role_query |= Q(role__name__in=name_roles)
+            queryset = queryset.filter(role_query)
         queryset = self.paginate_queryset(queryset)
         if request.method == "HEAD":
             # Count-only request (the `_count` companion): the X-Result-Count
