@@ -478,6 +478,92 @@ class ProjectCreateTest(test.APITestCase):
                 project3.start_date, datetime.datetime(year=2021, month=6, day=1).date()
             )
 
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_project_name_regex_rejects_too_long_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "x" * 33
+
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("name", response.data)
+        self.assertFalse(Project.objects.filter(name=payload["name"]).exists())
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_project_name_regex_allows_matching_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "x" * 32
+
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(Project.objects.filter(name=payload["name"]).exists())
+
+    def test_project_name_regex_disabled_by_default(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "x" * 100
+
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @override_config(
+        PROJECT_NAME_REGEX=r"^.{1,32}$",
+        PROJECT_NAME_REGEX_ERROR_MESSAGE="Name must be at most 32 characters.",
+    )
+    def test_project_name_regex_uses_custom_error_message(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "x" * 33
+
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Name must be at most 32 characters.", str(response.data))
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_project_name_regex_applies_on_rename(self):
+        self.client.force_authenticate(self.fixture.staff)
+        project = self.fixture.project
+
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(project),
+            {"name": "x" * 33},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_patch_not_changing_name_is_allowed_for_existing_long_name(self):
+        # A project whose name predates the rule must remain editable as long as
+        # the PATCH does not touch the name.
+        self.client.force_authenticate(self.fixture.staff)
+        project = self.fixture.project
+        project.name = "x" * 100
+        project.save()
+
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(project),
+            {"description": "updated"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    @override_config(PROJECT_NAME_REGEX="[")
+    def test_invalid_regex_is_ignored(self):
+        # A malformed pattern is an admin misconfiguration and must not block
+        # project creation.
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload["name"] = "x" * 100
+
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
     def _get_valid_project_payload(self, customer):
         return {
             "name": "New project name",

@@ -8,6 +8,7 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.models import UserDetailsMatchMixin
 from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.core.validators import get_project_name_regex_error
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import (
@@ -800,6 +801,15 @@ class SubmitRequestSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Custom project description",
     )
+
+    def validate_project_name(self, value):
+        # A custom name here becomes the created project's name, so it must
+        # honour the same configurable pattern as the main project API. A blank
+        # value falls back to the invitation's template and is left untouched.
+        error = get_project_name_regex_error(value)
+        if error:
+            raise serializers.ValidationError(error)
+        return value
 
 
 class SubmitRequestResponseSerializer(serializers.Serializer):

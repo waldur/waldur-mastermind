@@ -1,6 +1,7 @@
 import datetime
 from unittest import mock
 
+from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
@@ -102,6 +103,17 @@ class ProposalCreateTest(test.APITestCase):
         )
         proposal = models.Proposal.objects.get(uuid=response.data["uuid"])
         self.assertFalse(proposal.project)
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_proposal_name_exceeding_pattern_is_rejected(self):
+        response = self.create_proposal("staff", name="x" * 33)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("name", response.data)
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_proposal_name_matching_pattern_is_accepted(self):
+        response = self.create_proposal("staff", name="x" * 32)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def create_proposal(self, user, **kwargs):
         user = getattr(self.fixture, user)

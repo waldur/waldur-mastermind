@@ -2,6 +2,7 @@ import ipaddress
 import logging
 import re
 
+from constance import config
 from cryptography import x509
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat import backends as hazmat_backends
@@ -31,6 +32,33 @@ def validate_name(value):
         raise ValidationError(
             _("Ensure that name has at least one non-whitespace character.")
         )
+
+
+def get_project_name_regex_error(value):
+    """Check a user-supplied project name against the configurable pattern.
+
+    Returns an error message if ``PROJECT_NAME_REGEX`` is set and the whole name
+    does not match it, otherwise ``None``. The check is intentionally applied
+    only to user-facing project create/rename paths; system-generated project
+    names (auto-provisioning, imports, proposal/Rancher composed names) are not
+    subject to it. A malformed pattern is treated as an admin misconfiguration
+    and skipped rather than blocking project creation.
+    """
+    pattern = config.PROJECT_NAME_REGEX
+    if not pattern or not value:
+        return None
+    try:
+        matches = re.fullmatch(pattern, value)
+    except re.error:
+        logger.warning(
+            "PROJECT_NAME_REGEX is not a valid regular expression: %r", pattern
+        )
+        return None
+    if matches:
+        return None
+    return config.PROJECT_NAME_REGEX_ERROR_MESSAGE or _(
+        "Project name does not match the required pattern."
+    )
 
 
 class StateValidator:
