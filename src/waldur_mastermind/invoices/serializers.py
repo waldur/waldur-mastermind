@@ -819,7 +819,11 @@ class SAFReportSerializer(serializers.Serializer):
 class PaymentProfileAttributesSerializer(serializers.Serializer):
     end_date = serializers.CharField(required=False)
     agreement_number = serializers.CharField(required=False)
-    contract_sum = serializers.IntegerField(required=False)
+    # Declared IntegerField previously, but every contract_sum value in
+    # production is actually a string (e.g. "111") -- this is a documentation-
+    # only field (see PaymentProfileAttributesField below), so make it match
+    # what's really stored instead of a type that's never actually observed.
+    contract_sum = serializers.CharField(required=False)
 
 
 @extend_schema_field(PaymentProfileAttributesSerializer)
@@ -1156,7 +1160,8 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, many=True, source="project.customer.customercredit.offerings"
     )
 
-    def get_allocated_customer_credit(self, project_credit) -> float:
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_allocated_customer_credit(self, project_credit) -> Decimal | None:
         return models.ProjectCredit.objects.filter(
             project__customer=project_credit.project.customer
         ).aggregate(sum=Sum("value"))["sum"]
@@ -1387,7 +1392,8 @@ core_signals.pre_serializer_fields.connect(
 )
 
 
-def get_customer_credit(serializer, customer) -> float | None:
+@extend_schema_field(serializers.CharField(allow_null=True))
+def get_customer_credit(serializer, customer) -> Decimal | None:
     # 1. Check bulk context
     bulk_credits = serializer.context.get("bulk_data", {}).get("customer_credits")
     if bulk_credits and customer.id in bulk_credits:
@@ -1417,7 +1423,8 @@ def add_customer_credit(sender, fields, **kwargs):
     setattr(sender, "get_customer_credit", get_customer_credit)
 
 
-def get_customer_unallocated_credit(serializer, customer) -> float | None:
+@extend_schema_field(serializers.CharField(allow_null=True))
+def get_customer_unallocated_credit(serializer, customer) -> Decimal | None:
     # 1. Get customer credit (using bulk context if available)
     customer_credit = get_customer_credit(serializer, customer)
     if customer_credit is None:

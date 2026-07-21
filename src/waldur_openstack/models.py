@@ -1938,7 +1938,11 @@ class Instance(
 
     @property
     def external_address(self) -> set[str]:
-        return set(self.floating_ips.values_list("external_address", flat=True))
+        return set(
+            self.floating_ips.exclude(external_address__isnull=True).values_list(
+                "external_address", flat=True
+            )
+        )
 
     @property
     def internal_ips(self):
