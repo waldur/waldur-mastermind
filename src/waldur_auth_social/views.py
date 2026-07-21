@@ -248,7 +248,7 @@ class OAuthViewComplete(BaseOAuthView):
 
         refresh_token = token_data.get("refresh_token", "")
         user_info = self.get_user_info(access_token)
-        logger.info("Received user info: %s", user_info)
+        logger.debug("Received user info: %s", user_info)
 
         user, created = create_or_update_oauth_user(self.config, user_info)
 
