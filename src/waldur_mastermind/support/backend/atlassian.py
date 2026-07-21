@@ -130,7 +130,7 @@ class AttachmentSynchronizer:
 
     @cached_property
     def backend_attachments_map(self):
-        if not config.ATLASSIAN_USE_OLD_API:
+        if self.backend.api_version != 2:
             attachments = self.backend.get(
                 f"rest/servicedeskapi/request/{self.current_issue.key}/attachment/"
             ).get("values", [])
@@ -306,21 +306,33 @@ class CommentSynchronizer:
 class ServiceDeskBackend(SupportBackend):
     backend_name = SupportBackendType.ATLASSIAN
 
-    def __init__(self):
+    def __init__(self, settings_override=None):
+        self._settings_override = settings_override or {}
         self.settings = Settings(
-            backend_url=config.ATLASSIAN_API_URL
-            + ("/" if not config.ATLASSIAN_API_URL.endswith("/") else ""),
-            username=config.ATLASSIAN_USERNAME,
-            password=config.ATLASSIAN_PASSWORD,
-            email=config.ATLASSIAN_EMAIL,
-            token=config.ATLASSIAN_TOKEN,
-            personal_access_token=config.ATLASSIAN_PERSONAL_ACCESS_TOKEN,
-            oauth2_client_id=config.ATLASSIAN_OAUTH2_CLIENT_ID,
-            oauth2_access_token=config.ATLASSIAN_OAUTH2_ACCESS_TOKEN,
-            oauth2_token_type=config.ATLASSIAN_OAUTH2_TOKEN_TYPE,
+            backend_url=self._get_config("ATLASSIAN_API_URL")
+            + ("/" if not self._get_config("ATLASSIAN_API_URL").endswith("/") else ""),
+            username=self._get_config("ATLASSIAN_USERNAME"),
+            password=self._get_config("ATLASSIAN_PASSWORD"),
+            email=self._get_config("ATLASSIAN_EMAIL"),
+            token=self._get_config("ATLASSIAN_TOKEN"),
+            personal_access_token=self._get_config("ATLASSIAN_PERSONAL_ACCESS_TOKEN"),
+            oauth2_client_id=self._get_config("ATLASSIAN_OAUTH2_CLIENT_ID"),
+            oauth2_access_token=self._get_config("ATLASSIAN_OAUTH2_ACCESS_TOKEN"),
+            oauth2_token_type=self._get_config("ATLASSIAN_OAUTH2_TOKEN_TYPE"),
         )
-        self.verify = config.ATLASSIAN_VERIFY_SSL
-        self.api_version = 2 if config.ATLASSIAN_USE_OLD_API else 3
+        self.verify = self._get_config("ATLASSIAN_VERIFY_SSL")
+        self.api_version = 2 if self._get_config("ATLASSIAN_USE_OLD_API") else 3
+
+    def _get_config(self, key, default=None):
+        """Get config value from provider settings override or Constance."""
+        if key in self._settings_override:
+            return self._settings_override[key]
+        return getattr(config, key, default)
+
+    @classmethod
+    def from_settings(cls, settings_dict):
+        """Create a ServiceDeskBackend with provider-specific settings."""
+        return cls(settings_override=settings_dict)
 
     @cached_property
     def manager(self):
@@ -544,13 +556,13 @@ class ServiceDeskBackend(SupportBackend):
     @reraise_exceptions
     def get_service_desk_id(self):
         try:
-            return int(config.ATLASSIAN_PROJECT_ID)
+            return int(self._get_config("ATLASSIAN_PROJECT_ID"))
         except ValueError:
             try:
                 # Try Service Desk API first
                 return int(
                     self.manager.get_service_desk_by_id(
-                        config.ATLASSIAN_PROJECT_ID
+                        self._get_config("ATLASSIAN_PROJECT_ID")
                     ).get("id")
                 )
             except (ApiPermissionError, ApiError, requests.exceptions.HTTPError) as e:
@@ -561,19 +573,21 @@ class ServiceDeskBackend(SupportBackend):
                     )
                     try:
                         sd_info = self._get_service_desk_by_id_fallback(
-                            config.ATLASSIAN_PROJECT_ID
+                            self._get_config("ATLASSIAN_PROJECT_ID")
                         )
                         return int(sd_info.get("id"))
                     except Exception as fe:
                         logger.warning(f"Jira REST API fallback also failed: {fe}")
+                        project_id = self._get_config("ATLASSIAN_PROJECT_ID")
                         raise ServiceBackendError(
-                            f"Service desk ID not found for key {config.ATLASSIAN_PROJECT_ID}. "
+                            f"Service desk ID not found for key {project_id}. "
                             f"Both Service Desk API and Jira REST API failed."
                         )
                 raise
             except ValueError:
+                project_id = self._get_config("ATLASSIAN_PROJECT_ID")
                 raise ServiceBackendError(
-                    f"Service desk ID not found for key {config.ATLASSIAN_PROJECT_ID}."
+                    f"Service desk ID not found for key {project_id}."
                 )
 
     @reraise_exceptions
@@ -635,7 +649,7 @@ class ServiceDeskBackend(SupportBackend):
 
         values_dict = {"summary": issue.summary, "description": issue.description}
 
-        if config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED:
+        if self._get_config("ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED"):
             logger.debug("Custom field mapping is enabled, setting custom fields")
             custom_fields = self._get_custom_fields(issue)
             values_dict.update(custom_fields)
@@ -676,19 +690,19 @@ class ServiceDeskBackend(SupportBackend):
         args = {}
 
         if issue.reporter:
-            args[self.get_field_id_by_name(config.ATLASSIAN_REPORTER_FIELD)] = (
-                issue.reporter.name
-            )
+            args[
+                self.get_field_id_by_name(self._get_config("ATLASSIAN_REPORTER_FIELD"))
+            ] = issue.reporter.name
         if issue.impact:
-            args[self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)] = (
-                issue.impact
-            )
+            args[
+                self.get_field_id_by_name(self._get_config("ATLASSIAN_IMPACT_FIELD"))
+            ] = issue.impact
         if issue.priority:
             args["priority"] = {"name": issue.priority}
 
         def set_custom_field(field_name, value):
-            if value and getattr(config, field_name):
-                field_id = self.get_field_id_by_name(getattr(config, field_name))
+            if value and self._get_config(field_name):
+                field_id = self.get_field_id_by_name(self._get_config(field_name))
                 if field_id:
                     args[field_id] = value
 
@@ -728,10 +742,10 @@ class ServiceDeskBackend(SupportBackend):
             "Creating user in JIRA. Username: %s, Email: %s, Shared username mode: %s",
             user.username,
             user.email,
-            config.ATLASSIAN_SHARED_USERNAME,
+            self._get_config("ATLASSIAN_SHARED_USERNAME"),
         )
         # in case usernames are shared, skip lookups and create SupportCustomer if it is missing
-        if config.ATLASSIAN_SHARED_USERNAME:
+        if self._get_config("ATLASSIAN_SHARED_USERNAME"):
             try:
                 user.supportcustomer
                 logger.info(
@@ -754,7 +768,10 @@ class ServiceDeskBackend(SupportBackend):
 
         while True:
             response = self._search_customers_hybrid(
-                config.ATLASSIAN_PROJECT_ID, user.email, start=start, limit=limit
+                self._get_config("ATLASSIAN_PROJECT_ID"),
+                user.email,
+                start=start,
+                limit=limit,
             )
             batch = response.get("values", [])
             if not batch:
@@ -792,7 +809,9 @@ class ServiceDeskBackend(SupportBackend):
         See Sentry CSCS-PY.
         """
         try:
-            response = self._get_request_types_fallback(config.ATLASSIAN_PROJECT_ID)
+            response = self._get_request_types_fallback(
+                self._get_config("ATLASSIAN_PROJECT_ID")
+            )
             request_types = response.get("values", [])
         except Exception as e:
             raise ServiceBackendError(f"Failed to retrieve request types: {e}")
@@ -830,7 +849,9 @@ class ServiceDeskBackend(SupportBackend):
                         backend_id=backend_id,
                         defaults={
                             "name": name,
-                            "backend_name": config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE,
+                            "backend_name": self._get_config(
+                                "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE"
+                            ),
                             "fields": request_type_fields,
                             "issue_type_name": request_type.get("name", "Task"),
                         },
@@ -856,7 +877,7 @@ class ServiceDeskBackend(SupportBackend):
             raise
 
     def get_issue_details(self):
-        return {"type": config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE}
+        return {"type": self._get_config("ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE")}
 
     @reraise_exceptions
     def _add_comment(self, issue_key, body, is_internal):
@@ -1040,7 +1061,7 @@ class ServiceDeskBackend(SupportBackend):
         # issue.resolution_date = backend_issue.fields.resolutiondate or None
         issue.feedback_request = (
             self.get_request_feedback_field(backend_issue)
-            if config.ATLASSIAN_REQUEST_FEEDBACK_FIELD
+            if self._get_config("ATLASSIAN_REQUEST_FEEDBACK_FIELD")
             else True
         )
 
@@ -1050,7 +1071,9 @@ class ServiceDeskBackend(SupportBackend):
             if backend_user:
                 return self.get_or_create_support_user(backend_user)
 
-        impact_field_id = self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)
+        impact_field_id = self.get_field_id_by_name(
+            self._get_config("ATLASSIAN_IMPACT_FIELD")
+        )
         impact = _get_field_value(impact_field_id)
         if impact:
             issue.impact = impact
@@ -1097,7 +1120,7 @@ class ServiceDeskBackend(SupportBackend):
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
         attachment.created = dateutil.parser.parse(
             backend_attachment["created"].get("iso8601")
-            if not config.ATLASSIAN_USE_OLD_API
+            if not self._get_config("ATLASSIAN_USE_OLD_API")
             else backend_attachment["created"]
         )
         attachment.author = self.get_or_create_support_user(
@@ -1157,7 +1180,7 @@ class ServiceDeskBackend(SupportBackend):
     @reraise_exceptions
     def update_comment(self, comment):
         try:
-            if config.ATLASSIAN_USE_OLD_API:
+            if self._get_config("ATLASSIAN_USE_OLD_API"):
                 payload = {"body": comment.prepare_message()}
             else:
                 payload = {"body": adf_from_text(comment.prepare_message())}
@@ -1224,7 +1247,7 @@ class ServiceDeskBackend(SupportBackend):
             batch = self.manager.get(
                 f"/rest/api/{self.api_version}/user/assignable/search",
                 params={
-                    "project": config.ATLASSIAN_PROJECT_ID,
+                    "project": self._get_config("ATLASSIAN_PROJECT_ID"),
                     "maxResults": max_results,
                     "startAt": start_at,
                 },
@@ -1303,7 +1326,7 @@ class ServiceDeskBackend(SupportBackend):
     @reraise_exceptions
     def create_issue_links(self, issue, linked_issues):
         for linked_issue in linked_issues:
-            link_type = config.ATLASSIAN_LINKED_ISSUE_TYPE
+            link_type = self._get_config("ATLASSIAN_LINKED_ISSUE_TYPE")
 
             payload = {
                 "type": {"name": link_type},
@@ -1326,7 +1349,9 @@ class ServiceDeskBackend(SupportBackend):
             self.create_comment(comment)
 
         if feedback.evaluation:
-            field_name = self.get_field_id_by_name(config.ATLASSIAN_SATISFACTION_FIELD)
+            field_name = self.get_field_id_by_name(
+                self._get_config("ATLASSIAN_SATISFACTION_FIELD")
+            )
             kwargs = {field_name: feedback.get_evaluation_display()}
             self.manager.post(
                 f"/rest/api/{self.api_version}/issue/{feedback.issue.backend_id}",
@@ -1336,7 +1361,7 @@ class ServiceDeskBackend(SupportBackend):
     def get_request_feedback_field(self, backend_issue):
         try:
             field_name = self.get_field_id_by_name(
-                config.ATLASSIAN_REQUEST_FEEDBACK_FIELD
+                self._get_config("ATLASSIAN_REQUEST_FEEDBACK_FIELD")
             )
         except JiraBackendError:
             logger.warning("Field request_feedback is not defined in Jira support.")
@@ -1430,7 +1455,7 @@ class ServiceDeskBackend(SupportBackend):
         from waldur_mastermind.marketplace import models as marketplace_models
 
         # Only proceed if custom field mapping is enabled
-        if not config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED:
+        if not self._get_config("ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED"):
             return
 
         # Check if issue is connected to a resource via generic foreign key
@@ -1471,7 +1496,9 @@ class ServiceDeskBackend(SupportBackend):
                 waldur_backend_id_field = self.get_field_id_by_name("waldur_backend_id")
             except JiraBackendError:
                 # Field doesn't exist, try configured fallback field ID
-                waldur_backend_id_field = config.ATLASSIAN_WALDUR_BACKEND_ID_FIELD
+                waldur_backend_id_field = self._get_config(
+                    "ATLASSIAN_WALDUR_BACKEND_ID_FIELD"
+                )
 
             if waldur_backend_id_field and waldur_backend_id_field in fields:
                 waldur_backend_id_value = fields[waldur_backend_id_field]

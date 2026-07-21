@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class SupportBackendType:
+    BASIC = "basic"
     ATLASSIAN = "atlassian"
     ZAMMAD = "zammad"
     SMAX = "smax"
@@ -27,6 +28,8 @@ def get_active_backend() -> "SupportBackend":
         path = "waldur_mastermind.support.backend.zammad:ZammadServiceBackend"
     elif backend_type == SupportBackendType.SMAX:
         path = "waldur_mastermind.support.backend.smax:SmaxServiceBackend"
+    elif backend_type == SupportBackendType.BASIC:
+        path = "waldur_mastermind.support.backend.basic:BasicBackend"
     else:
         path = "waldur_mastermind.support.backend.basic:BasicBackend"
 
@@ -142,3 +145,38 @@ class SupportBackend:
 
     def create_confirmation_comment(self, issue, comment_tmpl=""):
         return
+
+
+def get_backend_for_provider(provider_helpdesk) -> SupportBackend:
+    """Factory to create a backend instance for a given ProviderHelpdesk.
+
+    For each backend type, creates a provider-scoped backend using the
+    provider's settings dict. If settings are empty/incomplete, backends
+    fall back to global Constance settings — so a provider with no custom
+    settings effectively uses the operator's global backend config.
+    """
+    backend_type = provider_helpdesk.backend_type
+    settings_dict = provider_helpdesk.settings or {}
+
+    if backend_type == "basic":
+        from .basic import BasicBackend
+
+        return BasicBackend.from_settings(settings_dict)
+    elif backend_type == "email":
+        from .email_backend import EmailSupportBackend
+
+        return EmailSupportBackend.from_settings(settings_dict, provider_helpdesk)
+    elif backend_type == SupportBackendType.ATLASSIAN:
+        from .atlassian import ServiceDeskBackend
+
+        return ServiceDeskBackend.from_settings(settings_dict)
+    elif backend_type == SupportBackendType.ZAMMAD:
+        from .zammad import ZammadServiceBackend
+
+        return ZammadServiceBackend.from_settings(settings_dict)
+    elif backend_type == SupportBackendType.SMAX:
+        from .smax import SmaxServiceBackend
+
+        return SmaxServiceBackend.from_settings(settings_dict)
+    else:
+        raise SupportBackendError(f"Unknown provider backend type: {backend_type}")

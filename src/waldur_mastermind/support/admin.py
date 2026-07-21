@@ -176,3 +176,56 @@ admin.site.register(models.Priority, PriorityAdmin)
 admin.site.register(models.IssueStatus, IssueStatusAdmin)
 admin.site.register(models.TemplateConfirmationComment)
 admin.site.register(models.Feedback, FeedbackAdmin)
+
+
+class IssueStatusTransitionAdmin(admin.ModelAdmin):
+    list_display = ("from_status", "to_status")
+    list_filter = ("from_status", "to_status")
+    search_fields = ("from_status", "to_status")
+
+
+admin.site.register(models.IssueStatusTransition, IssueStatusTransitionAdmin)
+
+
+class ProviderHelpdeskAdmin(admin.ModelAdmin):
+    list_display = (
+        "service_provider",
+        "backend_type",
+        "is_active",
+        "notification_email",
+        "last_health_status",
+    )
+    list_filter = ("backend_type", "is_active")
+    search_fields = ("service_provider__customer__name", "notification_email")
+
+
+admin.site.register(models.ProviderHelpdesk, ProviderHelpdeskAdmin)
+
+
+class ProviderSupportUserAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "provider_helpdesk",
+        "role",
+        "is_active",
+        "max_open_tickets",
+    )
+    list_filter = ("role", "is_active")
+    search_fields = ("user__first_name", "user__last_name", "user__email")
+
+
+admin.site.register(models.ProviderSupportUser, ProviderSupportUserAdmin)
+
+
+class ProviderCannedResponseAdmin(admin.ModelAdmin):
+    list_display = ("name", "provider_helpdesk", "category", "usage_count")
+    list_filter = ("category",)
+    search_fields = ("name", "text")
+
+
+admin.site.register(models.ProviderCannedResponse, ProviderCannedResponseAdmin)
+
+admin.site.register(models.IssueTag)
+admin.site.register(models.IssueLink)
+admin.site.register(models.SavedFilter)
+admin.site.register(models.CannedResponse)

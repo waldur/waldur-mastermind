@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
@@ -180,9 +182,11 @@ class CommentDeleteTest(base.BaseTest):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_user_can_delete_new_comment_if_zammad_is_used(self):
-        self.mock_get_active_backend().comment_destroy_is_available = lambda x: (
-            ZammadServiceBackend.comment_destroy_is_available(None, x)
+    @patch("waldur_mastermind.support.backend.zammad.ZammadBackend")
+    def test_user_can_delete_new_comment_if_zammad_is_used(self, mock_zammad_backend):
+        zammad_backend = ZammadServiceBackend()
+        self.mock_get_active_backend().comment_destroy_is_available = (
+            zammad_backend.comment_destroy_is_available
         )
         self.client.force_authenticate(self.fixture.staff)
 
@@ -197,9 +201,13 @@ class CommentDeleteTest(base.BaseTest):
                 response.status_code, status.HTTP_204_NO_CONTENT, response.data
             )
 
-    def test_user_can_not_delete_old_comment_if_zammad_is_used(self):
-        self.mock_get_active_backend().comment_destroy_is_available = lambda x: (
-            ZammadServiceBackend.comment_destroy_is_available(None, x)
+    @patch("waldur_mastermind.support.backend.zammad.ZammadBackend")
+    def test_user_can_not_delete_old_comment_if_zammad_is_used(
+        self, mock_zammad_backend
+    ):
+        zammad_backend = ZammadServiceBackend()
+        self.mock_get_active_backend().comment_destroy_is_available = (
+            zammad_backend.comment_destroy_is_available
         )
         self.client.force_authenticate(self.fixture.staff)
 

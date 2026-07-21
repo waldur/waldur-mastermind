@@ -1,0 +1,9 @@
+A new support ticket has been routed to your helpdesk.
+
+Ticket: {{ issue.key }}
+Summary: {{ issue.summary }}
+Type: {{ issue.type }}
+Priority: {{ issue.priority }}
+
+Description:
+{{ issue.description }}

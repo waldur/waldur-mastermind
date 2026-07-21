@@ -48,6 +48,46 @@ def register_in(router):
         views.IssueStatusViewSet,
         basename="support-issue-status",
     )
+    router.register(
+        r"provider-helpdesks",
+        views.ProviderHelpdeskViewSet,
+        basename="provider-helpdesk",
+    )
+    router.register(
+        r"provider-tickets",
+        views.ProviderTicketViewSet,
+        basename="provider-ticket",
+    )
+    router.register(
+        r"provider-support-users",
+        views.ProviderSupportUserViewSet,
+        basename="provider-support-user",
+    )
+    router.register(
+        r"provider-canned-responses",
+        views.ProviderCannedResponseViewSet,
+        basename="provider-canned-response",
+    )
+    router.register(
+        r"support-issue-tags",
+        views.IssueTagViewSet,
+        basename="support-issue-tag",
+    )
+    router.register(
+        r"support-issue-links",
+        views.IssueLinkViewSet,
+        basename="support-issue-link",
+    )
+    router.register(
+        r"support-saved-filters",
+        views.SavedFilterViewSet,
+        basename="support-saved-filter",
+    )
+    router.register(
+        r"support-canned-responses",
+        views.CannedResponseViewSet,
+        basename="support-canned-response",
+    )
 
 
 urlpatterns = [
@@ -87,5 +127,20 @@ urlpatterns = [
         r"^api/support-statistics/$",
         views.SupportStatsViewSet.as_view(),
         name="support-statistics",
+    ),
+    re_path(
+        r"^api/helpdesk-stats/$",
+        views.HelpdeskStatsViewSet.as_view(),
+        name="helpdesk-stats",
+    ),
+    re_path(
+        r"^api/helpdesk-health/$",
+        views.HelpdeskHealthViewSet.as_view(),
+        name="helpdesk-health",
+    ),
+    re_path(
+        r"^api/support-provider-webhook/(?P<provider_uuid>[a-f0-9]+)/(?P<backend_type>[a-z_]+)/$",
+        views.ProviderWebhookView.as_view(),
+        name="provider-webhook",
     ),
 ]

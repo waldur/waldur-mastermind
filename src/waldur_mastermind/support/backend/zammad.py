@@ -44,10 +44,22 @@ def reraise_exceptions(msg=None):
 
 
 class ZammadServiceBackend(SupportBackend):
-    def __init__(self):
-        self.manager = ZammadBackend()
+    def __init__(self, settings_override=None):
+        self._settings_override = settings_override or {}
+        self.manager = ZammadBackend(settings_override=self._settings_override)
 
     backend_name = SupportBackendType.ZAMMAD
+
+    def _get_config(self, key, default=None):
+        """Get config value from provider settings override or Constance."""
+        if key in self._settings_override:
+            return self._settings_override[key]
+        return getattr(config, key, default)
+
+    @classmethod
+    def from_settings(cls, settings_dict):
+        """Create a ZammadServiceBackend with provider-specific settings."""
+        return cls(settings_override=settings_dict)
 
     def comment_destroy_is_available(self, comment):
         if not comment.backend_id:
@@ -57,7 +69,7 @@ class ZammadServiceBackend(SupportBackend):
             return False
 
         if now() - comment.created < datetime.timedelta(
-            minutes=config.ZAMMAD_COMMENT_COOLDOWN_DURATION
+            minutes=self._get_config("ZAMMAD_COMMENT_COOLDOWN_DURATION")
         ):
             return True
 
@@ -66,7 +78,7 @@ class ZammadServiceBackend(SupportBackend):
             return True
 
         if now() - attachment.created < datetime.timedelta(
-            minutes=config.ZAMMAD_COMMENT_COOLDOWN_DURATION
+            minutes=self._get_config("ZAMMAD_COMMENT_COOLDOWN_DURATION")
         ):
             return True
 
@@ -89,13 +101,11 @@ class ZammadServiceBackend(SupportBackend):
             issue.description,
             support_user.backend_id,
             support_user.user.email,  # support user in this case is always connected to a waldur user
-            tags=[config.SITE_NAME],
+            tags=[self._get_config("SITE_NAME")],
         )
         issue.backend_id = zammad_issue.id
         issue.key = zammad_issue.id
-        issue.link = (
-            f"{config.ZAMMAD_API_URL.strip('/')}/#ticket/zoom/{zammad_issue.id}"
-        )
+        issue.link = f"{self._get_config('ZAMMAD_API_URL').strip('/')}/#ticket/zoom/{zammad_issue.id}"
         issue.backend_name = self.backend_name
         issue.status = zammad_issue.status
         issue.set_ok()

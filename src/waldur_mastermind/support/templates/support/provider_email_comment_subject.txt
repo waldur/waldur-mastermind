@@ -1,0 +1,1 @@
+[{{ issue.key }}] New comment on ticket: {{ issue.summary }}

@@ -1,0 +1,4 @@
+A customer has added a comment to ticket {{ issue.key }}.
+
+Comment:
+{{ comment.description }}

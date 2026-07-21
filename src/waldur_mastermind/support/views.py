@@ -5,9 +5,10 @@ from datetime import date, datetime
 from constance import config
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
@@ -54,7 +55,14 @@ class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
 
 
 class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
-    queryset = models.Issue.objects.all()
+    queryset = models.Issue.objects.prefetch_related(
+        Prefetch(
+            "child_issues",
+            queryset=models.Issue.objects.select_related(
+                "provider_helpdesk__service_provider__customer"
+            ),
+        )
+    )
     lookup_field = "uuid"
     filter_backends = (
         filters.IssueCallerOrRoleFilterBackend,
@@ -135,6 +143,14 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             or issue.project.has_user(user, ProjectRole.MANAGER)
         ):
             return
+        # Provider support users can comment on tickets routed to their helpdesk.
+        if (
+            issue.provider_helpdesk
+            and issue.provider_helpdesk.support_users.filter(
+                user=user, is_active=True
+            ).exists()
+        ):
+            return
         raise rf_exceptions.PermissionDenied()
 
     def _comment_create_is_available_validator(issue):
@@ -163,6 +179,129 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     sync_permissions = [structure_permissions.is_staff_or_support]
+
+    @extend_schema(
+        summary="Escalate an issue",
+        request=serializers.EscalateIssueSerializer,
+        responses={200: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def escalate(self, request, uuid=None):
+        issue = self.get_object()
+        ser = serializers.EscalateIssueSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        reason = ser.validated_data["reason"]
+
+        from django.utils import timezone as tz
+
+        issue.is_escalated = True
+        issue.escalated_at = tz.now()
+        issue.escalation_reason = reason
+        issue.save(update_fields=["is_escalated", "escalated_at", "escalation_reason"])
+
+        # Create escalation comment on the issue
+        from . import models as support_models
+
+        author_user = request.user
+        support_user, _ = support_models.SupportUser.objects.get_or_create_from_user(
+            author_user
+        )
+        support_models.Comment.objects.create(
+            issue=issue,
+            author=support_user,
+            description=f"[ESCALATED] {reason}",
+            is_public=True,
+        )
+
+        # Notify
+        issue_id = issue.id
+        transaction.on_commit(
+            lambda: tasks.notify_ticket_escalated.delay(issue_id, reason)
+        )
+        transaction.on_commit(
+            lambda: tasks.notify_provider_escalation.delay(issue_id, reason)
+        )
+
+        return response.Response(
+            {"status": "escalated", "reason": reason},
+            status=status.HTTP_200_OK,
+        )
+
+    def _escalate_permission(request, view, obj=None):
+        user = request.user
+        if user.is_staff or user.is_support:
+            return
+        if obj and obj.caller == user:
+            return
+        raise rf_exceptions.PermissionDenied()
+
+    escalate_permissions = [_escalate_permission]
+    escalate_serializer_class = serializers.EscalateIssueSerializer
+
+    @extend_schema(
+        summary="Bulk update multiple issues",
+        request=serializers.BulkUpdateIssueSerializer,
+        responses={200: None},
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def bulk_update(self, request):
+        ser = serializers.BulkUpdateIssueSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        issues = models.Issue.objects.filter(uuid__in=data["issue_uuids"])
+        found_count = issues.count()
+        if found_count == 0:
+            raise ValidationError("No issues found with the given UUIDs.")
+
+        if "status" in data:
+            issues.update(status=data["status"])
+        if "priority" in data:
+            issues.update(priority=data["priority"])
+        if "assignee" in data:
+            issues.update(assignee=data["assignee"])
+
+        return response.Response(
+            {"updated_count": found_count},
+            status=status.HTTP_200_OK,
+        )
+
+    bulk_update_permissions = [structure_permissions.is_staff_or_support]
+    bulk_update_serializer_class = serializers.BulkUpdateIssueSerializer
+
+    @extend_schema(
+        summary="Attach a marketplace resource to an issue",
+        request=serializers.AttachResourceSerializer,
+        responses={200: serializers.IssueSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def attach_resource(self, request, uuid=None):
+        issue = self.get_object()
+
+        if issue.resource_object_id:
+            return response.Response(
+                {"detail": "Issue already has a resource attached."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ser = serializers.AttachResourceSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        ser.is_valid(raise_exception=True)
+        resource = ser.validated_data["resource"]
+
+        issue.resource = resource
+        issue.save(update_fields=["resource_content_type", "resource_object_id"])
+
+        return response.Response(
+            serializers.IssueSerializer(
+                issue, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    attach_resource_permissions = [structure_permissions.is_staff_or_support]
+    attach_resource_serializer_class = serializers.AttachResourceSerializer
 
 
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
@@ -304,6 +443,627 @@ class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.SupportUserFilter
+
+
+class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    """Provider's view of tickets routed to their helpdesk."""
+
+    queryset = models.Issue.objects.filter(parent_issue__isnull=False)
+    serializer_class = serializers.ProviderTicketSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ProviderTicketFilter
+    disabled_actions = ["create", "destroy"]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset
+
+        from waldur_core.structure.managers import get_connected_customers
+
+        provider_customers = get_connected_customers(user, CustomerRole.OWNER)
+        support_helpdesks = models.ProviderSupportUser.objects.filter(
+            user=user, is_active=True
+        ).values_list("provider_helpdesk_id", flat=True)
+
+        return self.queryset.filter(
+            Q(provider_helpdesk__service_provider__customer__in=provider_customers)
+            | Q(provider_helpdesk__id__in=support_helpdesks)
+        ).distinct()
+
+    @extend_schema(responses={status.HTTP_201_CREATED: None})
+    @decorators.action(detail=True, methods=["post"])
+    def comment(self, request, uuid=None):
+        issue = self.get_object()
+        ser = serializers.ProviderCommentSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        support_user, _ = models.SupportUser.objects.get_or_create_from_user(
+            request.user
+        )
+        with transaction.atomic():
+            comment = models.Comment.objects.create(
+                issue=issue,
+                author=support_user,
+                description=ser.validated_data["description"],
+                is_public=ser.validated_data.get("is_public", True),
+            )
+            backend.get_active_backend().create_comment(comment)
+
+        return response.Response(
+            {"uuid": comment.uuid.hex, "description": comment.description},
+            status=status.HTTP_201_CREATED,
+        )
+
+    comment_serializer_class = serializers.ProviderCommentSerializer
+
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer}, request=None)
+    @decorators.action(detail=True, methods=["post"])
+    def resolve(self, request, uuid=None):
+        issue = self.get_object()
+        issue.set_resolved()
+
+        # Surface the resolution on the parent (operator) ticket WITHOUT
+        # auto-closing it: log it and post a public comment so the operator
+        # and caller are notified and can decide when to close the parent.
+        # is_forwarded=True keeps the note from looping back to the child.
+        if issue.parent_issue:
+            parent = issue.parent_issue
+            parent.append_processing_log(
+                "child_resolved",
+                {"child_key": issue.key},
+            )
+            parent.save(update_fields=["processing_log"])
+
+            support_user, _created = models.SupportUser.objects.get_or_create_from_user(
+                request.user
+            )
+            provider_name = (
+                str(issue.provider_helpdesk.service_provider)
+                if issue.provider_helpdesk
+                else ""
+            )
+            models.Comment.objects.create(
+                issue=parent,
+                author=support_user,
+                description=gettext(
+                    "Provider %(provider)s resolved the routed ticket %(key)s."
+                )
+                % {"provider": provider_name, "key": issue.key},
+                is_public=True,
+                is_forwarded=True,
+            )
+
+        return response.Response({"status": "resolved"})
+
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer})
+    @decorators.action(detail=True, methods=["post"])
+    def assign(self, request, uuid=None):
+        issue = self.get_object()
+        ser = serializers.ProviderAssignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        provider_user = ser.validated_data["provider_support_user"]
+
+        if provider_user.provider_helpdesk != issue.provider_helpdesk:
+            raise ValidationError(
+                "Support user does not belong to this issue's provider helpdesk."
+            )
+
+        issue.provider_assignee = provider_user
+        issue.save(update_fields=["provider_assignee"])
+        return response.Response({"status": "assigned"})
+
+    assign_serializer_class = serializers.ProviderAssignSerializer
+
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer})
+    @decorators.action(detail=True, methods=["post"])
+    def claim(self, request, uuid=None):
+        issue = self.get_object()
+        provider_user = models.ProviderSupportUser.objects.filter(
+            user=request.user,
+            provider_helpdesk=issue.provider_helpdesk,
+            is_active=True,
+        ).first()
+        if not provider_user:
+            raise ValidationError(
+                "You are not a support user in this provider's helpdesk."
+            )
+        issue.provider_assignee = provider_user
+        issue.save(update_fields=["provider_assignee"])
+        return response.Response({"status": "claimed"})
+
+    @extend_schema(
+        summary="Get customer context for this ticket",
+        responses={200: serializers.CustomerContextSerializer},
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def customer_context(self, request, uuid=None):
+        issue = self.get_object()
+        parent = issue.parent_issue
+
+        caller_data = {
+            "full_name": "",
+            "email": "",
+            "organization": "",
+        }
+        if parent and parent.caller:
+            caller_data = {
+                "full_name": parent.caller.full_name or "",
+                "email": parent.caller.email or "",
+                "organization": parent.customer.name if parent.customer else "",
+            }
+
+        resource_data = None
+        if parent and parent.resource:
+            resource_data = {
+                "name": getattr(parent.resource, "name", str(parent.resource)),
+                "type": getattr(parent.resource, "type", ""),
+            }
+
+        # Recent tickets from same caller
+        recent_tickets = []
+        if parent and parent.caller:
+            recent = (
+                models.Issue.objects.filter(caller=parent.caller)
+                .exclude(pk=parent.pk)
+                .order_by("-created")[:5]
+            )
+            recent_tickets = [
+                {
+                    "uuid": i.uuid,
+                    "key": i.key,
+                    "summary": i.summary,
+                    "status": i.status,
+                    "created": i.created,
+                }
+                for i in recent
+            ]
+
+        data = {
+            "caller": caller_data,
+            "resource": resource_data,
+            "recent_tickets": recent_tickets,
+        }
+        return response.Response(data)
+
+    @extend_schema(
+        summary="Get statistics for provider tickets",
+        responses={200: serializers.ProviderStatsSerializer},
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def stats(self, request):
+        from django.db.models import Avg, ExpressionWrapper, F, fields
+
+        qs = self.get_queryset()
+        open_qs = qs.filter(resolution_date__isnull=True)
+
+        resolved_qs = qs.filter(resolution_date__isnull=False).annotate(
+            resolve_time=ExpressionWrapper(
+                F("resolution_date") - F("created"),
+                output_field=fields.DurationField(),
+            )
+        )
+        avg_resolve = resolved_qs.aggregate(avg=Avg("resolve_time"))["avg"]
+
+        by_status = dict(
+            open_qs.values_list("status")
+            .annotate(count=Count("id"))
+            .values_list("status", "count")
+        )
+
+        data = {
+            "total_open": open_qs.count(),
+            "total_resolved": qs.filter(resolution_date__isnull=False).count(),
+            "total_escalated": qs.filter(is_escalated=True).count(),
+            "sla_breach_count": qs.filter(sla_breached=True).count(),
+            "avg_resolution_hours": (
+                avg_resolve.total_seconds() / 3600 if avg_resolve else None
+            ),
+            "by_status": by_status,
+        }
+        return response.Response(data)
+
+
+class ProviderHelpdeskViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.ProviderHelpdesk.objects.all()
+    serializer_class = serializers.ProviderHelpdeskSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ProviderHelpdeskFilter
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset
+        from waldur_core.structure.managers import get_connected_customers
+
+        provider_customers = get_connected_customers(user, CustomerRole.OWNER)
+        return self.queryset.filter(service_provider__customer__in=provider_customers)
+
+    def _is_owner_or_staff(request, view, obj=None):
+        if request.user.is_staff:
+            return
+        # DRF invokes permissions at view-level with obj=None before the object
+        # is loaded; defer to the object-level check instead of rejecting owners.
+        if obj is None:
+            return
+        if obj.service_provider.customer.has_user(request.user, CustomerRole.OWNER):
+            return
+        raise rf_exceptions.PermissionDenied()
+
+    # Creation has no object-level stage, so it stays staff-only; the owner
+    # object-level check only makes sense for detail actions below.
+    create_permissions = [structure_permissions.is_staff]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        _is_owner_or_staff
+    ]
+
+    @extend_schema(
+        summary="Validate provider helpdesk backend connectivity",
+        request=None,
+        responses={200: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def validate(self, request, uuid=None):
+        from django.utils import timezone
+
+        from .backend import get_backend_for_provider
+
+        helpdesk = self.get_object()
+        try:
+            get_backend_for_provider(helpdesk)
+            helpdesk.last_health_check = timezone.now()
+            helpdesk.last_health_status = "healthy"
+            helpdesk.save(update_fields=["last_health_check", "last_health_status"])
+            return response.Response(
+                {"status": "healthy", "backend_type": helpdesk.backend_type}
+            )
+        except Exception as e:
+            helpdesk.last_health_check = timezone.now()
+            helpdesk.last_health_status = "unhealthy"
+            helpdesk.save(update_fields=["last_health_check", "last_health_status"])
+            return response.Response(
+                {"status": "unhealthy", "error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    validate_permissions = [_is_owner_or_staff]
+
+
+class ProviderSupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.ProviderSupportUser.objects.all()
+    serializer_class = serializers.ProviderSupportUserSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ProviderSupportUserFilter
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset
+        from waldur_core.structure.managers import get_connected_customers
+
+        provider_customers = get_connected_customers(user, CustomerRole.OWNER)
+        return self.queryset.filter(
+            provider_helpdesk__service_provider__customer__in=provider_customers
+        )
+
+    def _is_owner_or_staff(request, view, obj=None):
+        if request.user.is_staff:
+            return
+        # DRF invokes permissions at view-level with obj=None before the object
+        # is loaded; defer to the object-level check instead of rejecting owners.
+        if obj is None:
+            return
+        if obj.provider_helpdesk.service_provider.customer.has_user(
+            request.user, CustomerRole.OWNER
+        ):
+            return
+        raise rf_exceptions.PermissionDenied()
+
+    # Creation has no object-level stage, so it stays staff-only; the owner
+    # object-level check only makes sense for detail actions below.
+    create_permissions = [structure_permissions.is_staff]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        _is_owner_or_staff
+    ]
+
+    @extend_schema(
+        summary="Get workload for all team members",
+        responses={200: serializers.TeamWorkloadSerializer(many=True)},
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def team_workload(self, request):
+        queryset = self.get_queryset().filter(is_active=True)
+        data = [
+            {
+                "uuid": su.uuid,
+                "user_full_name": su.user.full_name,
+                "open_ticket_count": su.open_ticket_count,
+                "max_open_tickets": su.max_open_tickets,
+                "has_capacity": su.has_capacity,
+            }
+            for su in queryset.select_related("user")
+        ]
+        return response.Response(data)
+
+
+class ProviderCannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.ProviderCannedResponse.objects.all()
+    serializer_class = serializers.ProviderCannedResponseSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ProviderCannedResponseFilter
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset
+        from waldur_core.structure.managers import get_connected_customers
+
+        provider_customers = get_connected_customers(user, CustomerRole.OWNER)
+        return self.queryset.filter(
+            provider_helpdesk__service_provider__customer__in=provider_customers
+        )
+
+    def _is_owner_or_staff(request, view, obj=None):
+        if request.user.is_staff:
+            return
+        # DRF invokes permissions at view-level with obj=None before the object
+        # is loaded; defer to the object-level check instead of rejecting owners.
+        if obj is None:
+            return
+        if obj.provider_helpdesk.service_provider.customer.has_user(
+            request.user, CustomerRole.OWNER
+        ):
+            return
+        raise rf_exceptions.PermissionDenied()
+
+    # Creation has no object-level stage, so it stays staff-only; the owner
+    # object-level check only makes sense for detail actions below.
+    create_permissions = [structure_permissions.is_staff]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        _is_owner_or_staff
+    ]
+
+    @extend_schema(responses={status.HTTP_200_OK: None})
+    @decorators.action(detail=True, methods=["post"])
+    def render(self, request, uuid=None):
+        canned_response = self.get_object()
+        context_data = request.data.get("context", {})
+        rendered = canned_response.render(context_data)
+        canned_response.usage_count += 1
+        canned_response.save(update_fields=["usage_count"])
+        return response.Response({"rendered_text": rendered})
+
+
+class IssueTagViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.IssueTag.objects.all()
+    serializer_class = serializers.IssueTagSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.IssueTagFilter
+
+    list_permissions = retrieve_permissions = [
+        structure_permissions.is_staff_or_support
+    ]
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff_or_support]
+
+
+class IssueLinkViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.IssueLink.objects.all()
+    serializer_class = serializers.IssueLinkSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.IssueLinkFilter
+
+    list_permissions = retrieve_permissions = [
+        structure_permissions.is_staff_or_support
+    ]
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff_or_support]
+
+
+class SavedFilterViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.SavedFilter.objects.all()
+    serializer_class = serializers.SavedFilterSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.SavedFilterFilter
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset.filter(Q(user=user) | Q(is_shared=True))
+        return self.queryset.filter(user=user)
+
+    list_permissions = retrieve_permissions = create_permissions = [
+        structure_permissions.is_staff_or_support
+    ]
+
+    def _is_owner_or_staff(request, view, obj=None):
+        if request.user.is_staff:
+            return
+        if obj and obj.user == request.user:
+            return
+        raise rf_exceptions.PermissionDenied()
+
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        _is_owner_or_staff
+    ]
+
+
+class CannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    queryset = models.CannedResponse.objects.all()
+    serializer_class = serializers.CannedResponseSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.CannedResponseFilter
+
+    list_permissions = retrieve_permissions = [
+        structure_permissions.is_staff_or_support
+    ]
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff_or_support]
+
+    @extend_schema(
+        summary="Render a canned response with context variables",
+        request=serializers.CannedResponseRenderSerializer,
+        responses={200: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def render(self, request, uuid=None):
+        canned_response = self.get_object()
+        context_data = request.data.get("context", {})
+        rendered = canned_response.render(context_data)
+        return response.Response({"rendered_text": rendered})
+
+    render_permissions = [structure_permissions.is_staff_or_support]
+    render_serializer_class = serializers.CannedResponseRenderSerializer
+
+
+class ProviderWebhookView(views.APIView):
+    """Webhook endpoint for provider helpdesk backends.
+
+    No authentication — validates via X-Webhook-Secret header
+    matched against provider_helpdesk.webhook_secret.
+    URL pattern: /api/support-provider-webhook/<uuid>/<backend_type>/
+    """
+
+    authentication_classes = ()
+    permission_classes = ()
+    serializer_class = serializers.WebhookPayloadSerializer
+
+    def post(self, request, provider_uuid, backend_type):
+        helpdesk = get_object_or_404(
+            models.ProviderHelpdesk,
+            uuid=provider_uuid,
+            backend_type=backend_type,
+            is_active=True,
+        )
+
+        secret = request.headers.get("X-Webhook-Secret", "")
+        if not helpdesk.webhook_secret or secret != helpdesk.webhook_secret:
+            return response.Response(
+                {"error": "Invalid webhook secret"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        payload = request.data
+        event_type = payload.get("event_type", "")
+
+        if event_type == "comment_added":
+            self._handle_comment(helpdesk, payload)
+        elif event_type == "status_changed":
+            self._handle_status_change(helpdesk, payload)
+        else:
+            logger.info(
+                "Provider webhook received unknown event_type=%s for helpdesk=%s",
+                event_type,
+                helpdesk.uuid.hex,
+            )
+
+        helpdesk.last_health_check = date.today()
+        helpdesk.last_health_status = "ok"
+        helpdesk.save(update_fields=["last_health_check", "last_health_status"])
+
+        return response.Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+    def _handle_comment(self, helpdesk, payload):
+        issue_backend_id = payload.get("issue_backend_id")
+        if not issue_backend_id:
+            return
+        try:
+            child_issue = models.Issue.objects.get(
+                backend_id=issue_backend_id,
+                provider_helpdesk=helpdesk,
+            )
+        except models.Issue.DoesNotExist:
+            logger.warning(
+                "Webhook comment for unknown issue backend_id=%s", issue_backend_id
+            )
+            return
+
+        comment_text = payload.get("comment", "")
+        if comment_text and child_issue.parent_issue:
+            support_user = None
+            if helpdesk.service_provider.customer:
+                su = models.SupportUser.objects.filter(
+                    user__customerrole__customer=helpdesk.service_provider.customer
+                ).first()
+                if su:
+                    support_user = su
+
+            models.Comment.objects.create(
+                issue=child_issue,
+                author=support_user,
+                description=comment_text,
+                is_public=True,
+                is_forwarded=False,
+            )
+
+    def _handle_status_change(self, helpdesk, payload):
+        issue_backend_id = payload.get("issue_backend_id")
+        new_status = payload.get("new_status")
+        if not issue_backend_id or not new_status:
+            return
+        try:
+            child_issue = models.Issue.objects.get(
+                backend_id=issue_backend_id,
+                provider_helpdesk=helpdesk,
+            )
+        except models.Issue.DoesNotExist:
+            return
+
+        child_issue.status = new_status
+        child_issue.save(update_fields=["status"])
+
+
+class HelpdeskStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
+    """Comprehensive helpdesk statistics for staff/support users."""
+
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+    serializer_class = serializers.HelpdeskStatsSerializer
+    pagination_class = None
+
+    @extend_schema(responses={200: serializers.HelpdeskStatsSerializer})
+    def get(self, request, format=None):
+        from .utils import get_helpdesk_stats
+
+        stats = get_helpdesk_stats()
+        return response.Response(stats)
+
+
+class HelpdeskHealthViewSet(CheckExtensionMixin, generics.GenericAPIView):
+    """Per-provider connectivity status."""
+
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+    serializer_class = serializers.HelpdeskHealthSerializer
+    queryset = models.ProviderHelpdesk.objects.none()
+    pagination_class = None
+
+    @extend_schema(responses={200: serializers.HelpdeskHealthSerializer(many=True)})
+    def get(self, request, format=None):
+        helpdesks = models.ProviderHelpdesk.objects.select_related(
+            "service_provider__customer"
+        ).all()
+        data = [
+            {
+                "provider_name": str(h.service_provider),
+                "backend_type": h.backend_type,
+                "is_active": h.is_active,
+                "health_status": h.health_status,
+                "last_health_check": h.last_health_check,
+                "failed_routing_count": h.failed_routing_count,
+            }
+            for h in helpdesks
+        ]
+        return response.Response(data)
 
 
 class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):

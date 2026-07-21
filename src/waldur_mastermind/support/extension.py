@@ -48,4 +48,14 @@ class SupportExtension(WaldurExtension):
                 "schedule": timedelta(hours=24),
                 "args": (),
             },
+            "check-sla-breaches": {
+                "task": "waldur_mastermind.support.check_sla_breaches",
+                "schedule": timedelta(minutes=15),
+                "args": (),
+            },
+            "check-sla-warnings": {
+                "task": "waldur_mastermind.support.check_sla_warnings",
+                "schedule": timedelta(minutes=30),
+                "args": (),
+            },
         }

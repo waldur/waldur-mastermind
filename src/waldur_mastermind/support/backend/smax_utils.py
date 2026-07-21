@@ -106,15 +106,25 @@ class Category:
 
 
 class SmaxBackend:
-    def __init__(self):
-        if not config.SMAX_API_URL.endswith("/"):
-            self.api_url = f"{config.SMAX_API_URL}/"
-        else:
-            self.api_url = f"{config.SMAX_API_URL}"
+    def __init__(self, settings_override=None):
+        self._settings_override = settings_override or {}
+        api_url = self._get_config("SMAX_API_URL")
+        tenant_id = self._get_config("SMAX_TENANT_ID")
 
-        self.rest_api = f"{self.api_url}rest/{config.SMAX_TENANT_ID}/"
+        if not api_url.endswith("/"):
+            self.api_url = f"{api_url}/"
+        else:
+            self.api_url = f"{api_url}"
+
+        self.rest_api = f"{self.api_url}rest/{tenant_id}/"
         self.lwsso_cookie_key = None
         self._status_mappings = None
+
+    def _get_config(self, key, default=None):
+        """Get config value from provider settings override or Constance."""
+        if key in self._settings_override:
+            return self._settings_override[key]
+        return getattr(config, key, default)
 
     def _smax_response_to_user(self, response):
         entities = response.json()["entities"]
@@ -171,17 +181,19 @@ class SmaxBackend:
                         e["properties"]["Id"],
                     ),
                     organisation_name=e["properties"].get(
-                        config.SMAX_ORGANISATION_FIELD
+                        self._get_config("SMAX_ORGANISATION_FIELD")
                     )
-                    if config.SMAX_ORGANISATION_FIELD
+                    if self._get_config("SMAX_ORGANISATION_FIELD")
                     else None,
-                    project_name=e["properties"].get(config.SMAX_PROJECT_FIELD)
-                    if config.SMAX_PROJECT_FIELD
+                    project_name=e["properties"].get(
+                        self._get_config("SMAX_PROJECT_FIELD")
+                    )
+                    if self._get_config("SMAX_PROJECT_FIELD")
                     else None,
                     resource_name=e["properties"].get(
-                        config.SMAX_AFFECTED_RESOURCE_FIELD
+                        self._get_config("SMAX_AFFECTED_RESOURCE_FIELD")
                     )
-                    if config.SMAX_AFFECTED_RESOURCE_FIELD
+                    if self._get_config("SMAX_AFFECTED_RESOURCE_FIELD")
                     else None,
                 )
             )
@@ -296,8 +308,11 @@ class SmaxBackend:
     def auth(self):
         response = requests.post(
             f"{self.api_url}auth/authentication-endpoint/"
-            f"authenticate/login?TENANTID={config.SMAX_TENANT_ID}",
-            json={"login": config.SMAX_LOGIN, "password": config.SMAX_PASSWORD},
+            f"authenticate/login?TENANTID={self._get_config('SMAX_TENANT_ID')}",
+            json={
+                "login": self._get_config("SMAX_LOGIN"),
+                "password": self._get_config("SMAX_PASSWORD"),
+            },
             verify=get_smax_verify_ssl(),
         )
 
@@ -314,7 +329,7 @@ class SmaxBackend:
         params = params or {}
         self.lwsso_cookie_key or self.auth()
 
-        params["TENANTID"] = config.SMAX_TENANT_ID
+        params["TENANTID"] = self._get_config("SMAX_TENANT_ID")
         headers = {
             "Cookie": f"LWSSO_COOKIE_KEY={self.lwsso_cookie_key}",
             "Content-Type": "application/json",
@@ -356,7 +371,7 @@ class SmaxBackend:
 
         headers.update(user_headers)
 
-        url = self.rest_api + path + f"?TENANTID={config.SMAX_TENANT_ID}"
+        url = self.rest_api + path + f"?TENANTID={self._get_config('SMAX_TENANT_ID')}"
         response = getattr(requests, method)(
             url=url,
             headers=headers,
@@ -499,20 +514,26 @@ class SmaxBackend:
             "CreationSource": "CreationSourceExternal",  # to avoid any internal SMAX notification logic
         }
 
-        if config.SMAX_ORGANISATION_FIELD and issue.organisation_name:
-            properties[config.SMAX_ORGANISATION_FIELD] = issue.organisation_name
+        if self._get_config("SMAX_ORGANISATION_FIELD") and issue.organisation_name:
+            properties[self._get_config("SMAX_ORGANISATION_FIELD")] = (
+                issue.organisation_name
+            )
 
-        if config.SMAX_PROJECT_FIELD and issue.project_name:
-            properties[config.SMAX_PROJECT_FIELD] = issue.project_name
+        if self._get_config("SMAX_PROJECT_FIELD") and issue.project_name:
+            properties[self._get_config("SMAX_PROJECT_FIELD")] = issue.project_name
 
-        if config.SMAX_AFFECTED_RESOURCE_FIELD and issue.resource_name:
-            properties[config.SMAX_AFFECTED_RESOURCE_FIELD] = issue.resource_name
+        if self._get_config("SMAX_AFFECTED_RESOURCE_FIELD") and issue.resource_name:
+            properties[self._get_config("SMAX_AFFECTED_RESOURCE_FIELD")] = (
+                issue.resource_name
+            )
 
-        if config.SMAX_CREATION_SOURCE_NAME:
-            properties["CreationSourceName_c"] = config.SMAX_CREATION_SOURCE_NAME
+        if self._get_config("SMAX_CREATION_SOURCE_NAME"):
+            properties["CreationSourceName_c"] = self._get_config(
+                "SMAX_CREATION_SOURCE_NAME"
+            )
 
-        if config.SMAX_REQUESTS_OFFERING:
-            properties["RequestsOffering"] = config.SMAX_REQUESTS_OFFERING
+        if self._get_config("SMAX_REQUESTS_OFFERING"):
+            properties["RequestsOffering"] = self._get_config("SMAX_REQUESTS_OFFERING")
 
         if issue.category_id:
             properties["Category"] = issue.category_id
@@ -717,11 +738,11 @@ class SmaxBackend:
     def wait_result(self, func, *args, **kwargs):
         result = None
 
-        for i in range(config.SMAX_TIMES_TO_PULL):
+        for i in range(self._get_config("SMAX_TIMES_TO_PULL")):
             result = func(*args, **kwargs)
             if result:
                 break
             else:
-                time.sleep(config.SMAX_SECONDS_TO_WAIT)
+                time.sleep(self._get_config("SMAX_SECONDS_TO_WAIT"))
 
         return result
