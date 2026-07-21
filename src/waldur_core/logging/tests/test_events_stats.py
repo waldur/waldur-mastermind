@@ -114,6 +114,136 @@ class EventsFilteringTest(test.APITestCase):
         self.assertEqual(len(response.data), 0)
 
 
+class RelatedUserUuidFilterTest(test.APITestCase):
+    """Tests for related_user_uuid: OR of Feed scope, actor, and affected user."""
+
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.target_user = structure_factories.UserFactory()
+        self.other_user = structure_factories.UserFactory()
+        self.client.force_authenticate(user=self.staff)
+        self.url = factories.EventFactory.get_list_url()
+        self.target_uuid = self.target_user.uuid.hex
+
+        self.feed_event = factories.EventFactory(
+            event_type="user_update_succeeded",
+            context={"affected_user_uuid": "unrelated"},
+        )
+        factories.FeedFactory(scope=self.target_user, event=self.feed_event)
+
+        self.actor_event = factories.EventFactory(
+            event_type="marketplace_resource_create_succeeded",
+            context={"user_uuid": self.target_uuid},
+        )
+
+        self.affected_event = factories.EventFactory(
+            event_type="user_password_updated_by_staff",
+            context={
+                "user_uuid": self.staff.uuid.hex,
+                "affected_user_uuid": self.target_uuid,
+            },
+        )
+
+        self.unrelated_event = factories.EventFactory(
+            event_type="marketplace_resource_update_succeeded",
+            context={"user_uuid": self.other_user.uuid.hex},
+        )
+        factories.FeedFactory(scope=self.other_user, event=self.unrelated_event)
+
+    def _messages(self, response):
+        return {event["message"] for event in response.data}
+
+    def test_returns_union_of_feed_actor_and_affected(self):
+        response = self.client.get(self.url, {"related_user_uuid": self.target_uuid})
+
+        self.assertEqual(200, response.status_code)
+        messages = self._messages(response)
+        self.assertIn(self.feed_event.message, messages)
+        self.assertIn(self.actor_event.message, messages)
+        self.assertIn(self.affected_event.message, messages)
+        self.assertNotIn(self.unrelated_event.message, messages)
+
+    def test_does_not_duplicate_event_matching_multiple_criteria(self):
+        overlap = factories.EventFactory(
+            event_type="user_activated",
+            context={
+                "user_uuid": self.target_uuid,
+                "affected_user_uuid": self.target_uuid,
+            },
+        )
+        factories.FeedFactory(scope=self.target_user, event=overlap)
+
+        response = self.client.get(self.url, {"related_user_uuid": self.target_uuid})
+
+        self.assertEqual(200, response.status_code)
+        matching = [e for e in response.data if e["message"] == overlap.message]
+        self.assertEqual(len(matching), 1)
+
+    def test_invalid_uuid_returns_empty(self):
+        response = self.client.get(self.url, {"related_user_uuid": "not-a-uuid"})
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(len(response.data), 0)
+
+    def test_unknown_user_returns_empty(self):
+        response = self.client.get(
+            self.url, {"related_user_uuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(len(response.data), 0)
+
+    def test_support_user_can_filter(self):
+        support = structure_factories.UserFactory(is_support=True)
+        self.client.force_authenticate(user=support)
+
+        response = self.client.get(self.url, {"related_user_uuid": self.target_uuid})
+
+        self.assertEqual(200, response.status_code)
+        messages = self._messages(response)
+        self.assertIn(self.feed_event.message, messages)
+        self.assertIn(self.actor_event.message, messages)
+        self.assertIn(self.affected_event.message, messages)
+
+    def test_regular_user_cannot_see_peer_related_events(self):
+        """Visible peers must not get another user's cross-scope audit trail."""
+        regular = structure_factories.UserFactory()
+        self.client.force_authenticate(user=regular)
+
+        response = self.client.get(self.url, {"related_user_uuid": self.target_uuid})
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(len(response.data), 0)
+
+    def test_regular_user_can_see_own_related_events(self):
+        self.client.force_authenticate(user=self.target_user)
+
+        response = self.client.get(self.url, {"related_user_uuid": self.target_uuid})
+
+        self.assertEqual(200, response.status_code)
+        messages = self._messages(response)
+        self.assertIn(self.feed_event.message, messages)
+        self.assertIn(self.actor_event.message, messages)
+        self.assertIn(self.affected_event.message, messages)
+
+    def test_broader_than_user_uuid_alone(self):
+        """user_uuid only matches actor; related_user_uuid also matches feed/affected."""
+        by_actor = self.client.get(self.url, {"user_uuid": self.target_uuid})
+        by_related = self.client.get(self.url, {"related_user_uuid": self.target_uuid})
+
+        self.assertEqual(200, by_actor.status_code)
+        self.assertEqual(200, by_related.status_code)
+        actor_messages = self._messages(by_actor)
+        related_messages = self._messages(by_related)
+        self.assertIn(self.actor_event.message, actor_messages)
+        self.assertNotIn(self.feed_event.message, actor_messages)
+        self.assertNotIn(self.affected_event.message, actor_messages)
+        self.assertTrue(related_messages.issuperset(actor_messages))
+        self.assertIn(self.feed_event.message, related_messages)
+        self.assertIn(self.affected_event.message, related_messages)
+        self.assertGreater(len(related_messages), len(actor_messages))
+
+
 class EventGroupsAPITest(test.APITestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory(is_staff=True)
