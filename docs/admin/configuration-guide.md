@@ -1372,6 +1372,18 @@ If true, project end date field becomes mandatory when creating or updating proj
 
 If true, the affiliation field is required when creating or updating projects.
 
+#### PROJECT_NAME_REGEX
+
+**Type:** str
+
+Regular expression that a project name must fully match when creating or renaming a project. The whole name has to match the pattern. Leave empty to disable the check. Examples: '^.{1,32}$' limits the name to at most 32 characters; '^[A-Za-z0-9 _-]{1,32}$' also restricts it to letters, digits, spaces, underscores and hyphens; '^[A-Za-z].{0,31}$' additionally requires it to start with a letter.
+
+#### PROJECT_NAME_REGEX_ERROR_MESSAGE
+
+**Type:** str
+
+Custom validation error shown when a project name does not match PROJECT_NAME_REGEX. Leave empty to use the default message.
+
 ### Telemetry
 
 #### TELEMETRY_URL
@@ -1704,7 +1716,7 @@ Toggler for support plugin.
 
 **Default value:** atlassian
 
-Type of support backend.
+Type of support backend. Possible values: basic, atlassian, zammad, smax.
 
 #### WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE
 
@@ -1713,6 +1725,48 @@ Type of support backend.
 **Default value:** True
 
 Toggler for request type displaying
+
+#### WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED
+
+**Type:** bool
+
+Enable automatic routing of tickets to provider helpdesks.
+
+#### WALDUR_SUPPORT_AUTO_ASSIGN
+
+**Type:** bool
+
+Enable automatic assignment of tickets to support users.
+
+#### WALDUR_SUPPORT_AUTO_ASSIGN_STRATEGY
+
+**Type:** str
+
+**Default value:** least_loaded
+
+Strategy for auto-assignment. Possible values: least_loaded, round_robin.
+
+#### WALDUR_SUPPORT_SLA_ENABLED
+
+**Type:** bool
+
+Enable SLA deadline tracking for the basic support backend.
+
+#### WALDUR_SUPPORT_SLA_RESPONSE_HOURS
+
+**Type:** <class 'int'>
+
+**Default value:** 4
+
+SLA deadline for first response in hours.
+
+#### WALDUR_SUPPORT_SLA_RESOLUTION_HOURS
+
+**Type:** <class 'int'>
+
+**Default value:** 24
+
+SLA deadline for issue resolution in hours.
 
 ### Atlassian settings
 

@@ -4095,6 +4095,50 @@ This is an automated message from {{ site_name }}. Please do not reply to this e
 
 ```
 
+### provider_email_new_ticket_message.html (waldur_mastermind.support)
+
+```html
+
+<p>A new support ticket has been routed to your helpdesk.</p>
+<p><strong>Ticket:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary }}<br>
+<strong>Type:</strong> {{ issue.type }}<br>
+<strong>Priority:</strong> {{ issue.priority }}</p>
+<p><strong>Description:</strong></p>
+<p>{{ issue.description }}</p>
+
+```
+
+### provider_escalation_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] ESCALATED: {{ issue.summary }}
+
+```
+
+### provider_sla_warning_message.html (waldur_mastermind.support)
+
+```html
+
+<p>Ticket <strong>{{ issue.key }}</strong> is approaching its SLA deadline.</p>
+<p><strong>Summary:</strong> {{ issue.summary }}<br>
+<strong>Priority:</strong> {{ issue.priority }}</p>
+<p>Please take action to avoid an SLA breach.</p>
+
+```
+
+### provider_email_comment_message.txt (waldur_mastermind.support)
+
+```txt
+
+A new comment has been added to ticket {{ issue.key }}.
+
+Comment by {{ comment.author.name }}:
+{{ comment.description }}
+
+```
+
 ### description.txt (waldur_mastermind.support)
 
 ```txt
@@ -4118,6 +4162,25 @@ Additional Info:
 
 ```
 
+### provider_customer_comment_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] Customer comment: {{ issue.summary }}
+
+```
+
+### provider_customer_comment_message.txt (waldur_mastermind.support)
+
+```txt
+
+A customer has added a comment to ticket {{ issue.key }}.
+
+Comment:
+{{ comment.description }}
+
+```
+
 ### notification_comment_added_message.txt (waldur_mastermind.support)
 
 ```txt
@@ -4125,6 +4188,24 @@ Additional Info:
 Hello!
 
 The issue you have created has a new comment. Please go to {{issue_url}} to see it.
+
+```
+
+### provider_email_comment_message.html (waldur_mastermind.support)
+
+```html
+
+<p>A new comment has been added to ticket <strong>{{ issue.key }}</strong>.</p>
+<p><strong>Comment by {{ comment.author.name }}:</strong></p>
+<p>{{ comment.description }}</p>
+
+```
+
+### provider_new_ticket_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] New ticket: {{ issue.summary }}
 
 ```
 
@@ -4153,6 +4234,14 @@ The issue you have created has a new comment. Please go to {{issue_url}} to see 
 </div>
 </body>
 </html>
+
+```
+
+### provider_email_new_ticket_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] New support ticket: {{ issue.summary }}
 
 ```
 
@@ -4189,6 +4278,27 @@ Please go to {{issue_url}} to see it.
 
 ```
 
+### provider_sla_warning_message.txt (waldur_mastermind.support)
+
+```txt
+
+Ticket {{ issue.key }} is approaching its SLA deadline.
+
+Summary: {{ issue.summary }}
+Priority: {{ issue.priority }}
+
+Please take action to avoid an SLA breach.
+
+```
+
+### provider_email_comment_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] New comment on ticket: {{ issue.summary }}
+
+```
+
 ### notification_comment_added_subject.txt (waldur_mastermind.support)
 
 ```txt
@@ -4215,6 +4325,14 @@ The comment has been updated. Please go to {{issue_url}} to see it.
 
 ```
 
+### provider_sla_warning_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] SLA Warning: {{ issue.summary }}
+
+```
+
 ### notification_issue_updated_subject.txt (waldur_mastermind.support)
 
 ```txt
@@ -4223,11 +4341,80 @@ Updated issue: {{issue.key}} {{issue.summary}}
 
 ```
 
+### provider_new_ticket_message.html (waldur_mastermind.support)
+
+```html
+
+<p>A new support ticket has been assigned to your helpdesk.</p>
+<p><strong>Ticket:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary }}<br>
+<strong>Type:</strong> {{ issue.type }}<br>
+<strong>Priority:</strong> {{ issue.priority }}</p>
+<p><strong>Description:</strong></p>
+<p>{{ issue.description }}</p>
+
+```
+
+### provider_customer_comment_message.html (waldur_mastermind.support)
+
+```html
+
+<p>A customer has added a comment to ticket <strong>{{ issue.key }}</strong>.</p>
+<p><strong>Comment:</strong></p>
+<p>{{ comment.description }}</p>
+
+```
+
+### provider_escalation_message.txt (waldur_mastermind.support)
+
+```txt
+
+Ticket {{ issue.key }} has been escalated.
+
+Reason: {{ reason }}
+
+Summary: {{ issue.summary }}
+Priority: {{ issue.priority }}
+
+```
+
+### provider_email_new_ticket_message.txt (waldur_mastermind.support)
+
+```txt
+
+A new support ticket has been routed to your helpdesk.
+
+Ticket: {{ issue.key }}
+Summary: {{ issue.summary }}
+Type: {{ issue.type }}
+Priority: {{ issue.priority }}
+
+Description:
+{{ issue.description }}
+
+```
+
 ### notification_issue_feedback_subject.txt (waldur_mastermind.support)
 
 ```txt
 
 Please share your feedback: {{issue.key}} {{issue.summary}}
+
+```
+
+### provider_new_ticket_message.txt (waldur_mastermind.support)
+
+```txt
+
+A new support ticket has been assigned to your helpdesk.
+
+Ticket: {{ issue.key }}
+Summary: {{ issue.summary }}
+Type: {{ issue.type }}
+Priority: {{ issue.priority }}
+
+Description:
+{{ issue.description }}
 
 ```
 
@@ -4244,5 +4431,16 @@ Click on the evaluations below to provide the feedback.
 {% for link in feedback_links%}
     {{link.label}}: {{link.link}}
 {% endfor %}
+
+```
+
+### provider_escalation_message.html (waldur_mastermind.support)
+
+```html
+
+<p>Ticket <strong>{{ issue.key }}</strong> has been escalated.</p>
+<p><strong>Reason:</strong> {{ reason }}</p>
+<p><strong>Summary:</strong> {{ issue.summary }}<br>
+<strong>Priority:</strong> {{ issue.priority }}</p>
 
 ```

@@ -39,6 +39,7 @@ td:nth-child(4) {
 | `change_email_has_been_requested` | `Django Signal (post_save)` | `core.ChangeEmailRequest` | Send a notification when a user requests to change their email. |
 | `change_users_quota` | `Custom Signal (role_granted)` | `—` | Update the user count quota for a customer when a user's role is changed. |
 | `change_users_quota` | `Custom Signal (role_revoked)` | `—` | Update the user count quota for a customer when a user's role is changed. |
+| `cleanup_event_consumer_queue` | `Django Signal (pre_delete)` | `logging.EventConsumer` | Tear down the RabbitMQ queue + user when an EventConsumer is deleted. |
 | `cleanup_rabbitmq_queue_on_delete` | `Django Signal (pre_delete)` | `logging.EventSubscriptionQueue` | Delete the corresponding RabbitMQ queue when an EventSubscriptionQueue record is deleted. |
 | `constance_updated` | `Custom Signal (config_updated)` | `—` | Clear the API configuration cache when a Constance setting is updated. |
 | `create_auth_token` | `Django Signal (post_save)` | `core.User` | Create a token for a new user. |
@@ -157,6 +158,11 @@ td:nth-child(4) {
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_vmware.Disk` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_firecrest.Job` | If VM that contains service settings were deleted - all settings |
 | `delete_stale_event_subscriptions` | `Django Signal (post_delete)` | `authtoken.Token` | Delete stale event subscriptions for a user when their token is deleted. |
+| `emit_user_lifecycle` | `Django Signal (post_save)` | `core.User` | No description |
+| `emit_user_lifecycle_delete` | `Django Signal (pre_delete)` | `core.User` | No description |
+| `emit_user_profile` | `Django Signal (post_save)` | `core.User` | No description |
+| `emit_user_ssh_key_delete` | `Django Signal (post_delete)` | `core.SshPublicKey` | No description |
+| `emit_user_ssh_key_save` | `Django Signal (post_save)` | `core.SshPublicKey` | No description |
 | `handle_aggregated_quotas` | `Django Signal (post_save)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
 | `handle_aggregated_quotas` | `Django Signal (pre_delete)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
 | `log_access_subnet_deletion_succeeded` | `Django Signal (post_delete)` | `structure.AccessSubnet` | Log successful access subnet deletion. |
@@ -339,6 +345,8 @@ td:nth-child(4) {
 | `log_user_delete` | `Django Signal (post_delete)` | `core.User` | Log user deletion events. |
 | `log_user_save` | `Django Signal (post_save)` | `core.User` | Log user creation, update, and activation/deactivation events. |
 | `log_verification_deleted` | `Django Signal (pre_delete)` | `onboarding.OnboardingVerification` | Log when an onboarding verification is deleted. |
+| `on_role_granted` | `Custom Signal (role_granted)` | `—` | No description |
+| `on_role_revoked` | `Custom Signal (role_revoked)` | `—` | No description |
 | `permissions_request_approved` | `Custom Signal (permissions_request_approved)` | `users.PermissionRequest` | Send a notification when a permission request has been approved. |
 | `preserve_fields_before_update` | `Django Signal (pre_save)` | `core.User` | Preserve fields of a user instance before it is updated. |
 | `process_hook` | `Unknown Signal` | `—` | Process a hook for a given event. |
@@ -552,6 +560,7 @@ td:nth-child(4) {
 | `change_order_state` | `Django Signal (post_save)` | `waldur_slurm.Allocation` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_vmware.VirtualMachine` | Change the state of an order based on resource state changes. |
 | `cleanup_admin_announcement_on_maintenance_deletion` | `Django Signal (pre_delete)` | `marketplace.MaintenanceAnnouncement` | Ensure AdminAnnouncement is cleaned up when MaintenanceAnnouncement is deleted. |
+| `cleanup_agent_identity_queue` | `Django Signal (pre_delete)` | `marketplace_site_agent.AgentIdentity` | Delete the linked EventConsumer when an AgentIdentity is deleted. |
 | `close_course_accounts_after_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `close_customer_service_accounts_on_customer_deletion` | `Django Signal (pre_delete)` | `structure.Customer` | Close service accounts associated with a customer when the customer is deleted. |
 | `close_resource_plan_period_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Handle case when resource has been terminated by service provider. |
@@ -599,6 +608,7 @@ td:nth-child(4) {
 | `delete_stale_price_estimate` | `Django Signal (pre_delete)` | `structure.Customer` | Delete price estimates when customer or project is deleted. |
 | `disable_archived_service_settings_without_existing_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Disable archived service settings if there are no existing resources. |
 | `disable_service_settings_without_existing_resource_when_archived` | `Django Signal (post_save)` | `marketplace.Offering` | Disable service settings without existing resources when an offering is archived. |
+| `dispatch_routing_on_issue_create` | `Django Signal (post_save)` | `support.Issue` | Dispatch routing task when an issue is created or a resource is attached. |
 | `drop_offering_user_for_openportal_remote_user` | `Custom Signal (openportal_remote_association_deleted)` | `waldur_openportal.RemoteAllocation` | No description |
 | `drop_offering_user_for_openportal_user` | `Custom Signal (openportal_association_deleted)` | `waldur_openportal.Allocation` | No description |
 | `drop_offering_user_for_rancher_user` | `Django Signal (pre_delete)` | `waldur_rancher.RancherUser` | No description |
@@ -609,6 +619,7 @@ td:nth-child(4) {
 | `evaluate_usage_limit_on_component_change` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Re-evaluate an offering's resources when a component's limit_amount changes. |
 | `evaluate_usage_limit_on_resource_limit_change` | `Django Signal (post_save)` | `marketplace.Resource` | Re-evaluate a resource's usage-limit restriction when its limits change. |
 | `evaluate_usage_limit_on_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Pause or downscale a resource when reported usage reaches a component limit. |
+| `forward_comment_to_children` | `Django Signal (post_save)` | `support.Comment` | Forward new public comments from parent issues to child issues. |
 | `handle_openstack_tenant_order_creation` | `Django Signal (post_save)` | `marketplace.Order` | No description |
 | `handle_openstack_tenant_order_termination` | `Django Signal (post_save)` | `marketplace.Order` | No description |
 | `handle_user_role_revoked` | `Custom Signal (role_revoked)` | `—` | Handle user role revocation by removing users from robot accounts |
@@ -665,8 +676,6 @@ td:nth-child(4) {
 | `offering_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Offering` | Log offering creation and updates. |
 | `on_order_state_changed` | `Django Signal (post_save)` | `marketplace.Order` | Notify the project's Matrix room when an order is approved, completed, or rejected. |
 | `on_project_pre_delete` | `Django Signal (pre_delete)` | `structure.Project` | When a project is about to be deleted, disable room (kick members, export, archive). |
-| `on_role_granted` | `Custom Signal (role_granted)` | `—` | When a role is granted, invite the user to the project's Matrix room. |
-| `on_role_revoked` | `Custom Signal (role_revoked)` | `—` | When a role is revoked, kick the user from the project's Matrix room if they have no remaining roles. |
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
 | `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
@@ -676,6 +685,7 @@ td:nth-child(4) {
 | `process_invoice_item` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Process invoice item changes and update related price estimates. |
 | `project_credit_changed_handler` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `project_estimated_cost_policy_trigger_handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Evaluate project cost policies when invoice items are updated. |
+| `propagate_comment_to_parent` | `Django Signal (post_save)` | `support.Comment` | Propagate new public comments from child issues back to parent issues. |
 | `purge_offering_role_groups_on_scope_delete` | `Django Signal (post_delete)` | `marketplace.Resource` | Drop OfferingRoleGroup rows that pointed at a now-deleted scope. |
 | `purge_offering_role_groups_on_scope_delete` | `Django Signal (post_delete)` | `marketplace.ResourceProject` | Drop OfferingRoleGroup rows that pointed at a now-deleted scope. |
 | `reconcile_offering_profile_on_offering_changed` | `Django Signal (post_save)` | `marketplace.Offering` | When an Offering is saved, schedule a reconciliation task. Cheap |
@@ -888,14 +898,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 809
+Total unique handlers found: 819
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 414 handlers
+- **waldur_core**: 422 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 337 handlers
+- **waldur_mastermind**: 339 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

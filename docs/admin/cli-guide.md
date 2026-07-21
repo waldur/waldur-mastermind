@@ -165,6 +165,10 @@ options:
 
 ```
 
+## check_provider_helpdesks
+
+Check connectivity of all active provider helpdesks.
+
 ## clean_celery_results
 
 Clean up old Celery task results from the database to prevent bloat.
@@ -608,6 +612,10 @@ options:
   --disable-fields      Don't show fields, only model names and relationships.
 
 ```
+
+## helpdesk_stats
+
+Display helpdesk statistics summary.
 
 ## import_ami_catalog
 
@@ -1236,6 +1244,20 @@ options:
   -o, --output OUTPUT   Specifies file to which the merged subnets will be
                         written. The output will be printed to stdout by
                         default.
+
+```
+
+## retry_failed_routing
+
+Retry routing for issues that failed to be routed to a provider.
+
+```bash
+
+usage: waldur retry_failed_routing [--dry-run]
+
+options:
+  --dry-run  Only list issues that would be retried, without actually
+             retrying.
 
 ```
 
