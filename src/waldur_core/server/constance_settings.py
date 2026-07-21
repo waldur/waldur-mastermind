@@ -477,6 +477,20 @@ CONSTANCE_CONFIG = {
         False,
         "If true, the affiliation field is required when creating or updating projects.",
     ),
+    "PROJECT_NAME_REGEX": (
+        "",
+        "Regular expression that a project name must fully match when creating or "
+        "renaming a project. The whole name has to match the pattern. Leave empty to "
+        "disable the check. Examples: '^.{1,32}$' limits the name to at most 32 "
+        "characters; '^[A-Za-z0-9 _-]{1,32}$' also restricts it to letters, digits, "
+        "spaces, underscores and hyphens; '^[A-Za-z].{0,31}$' additionally requires it "
+        "to start with a letter.",
+    ),
+    "PROJECT_NAME_REGEX_ERROR_MESSAGE": (
+        "",
+        "Custom validation error shown when a project name does not match "
+        "PROJECT_NAME_REGEX. Leave empty to use the default message.",
+    ),
     "ENABLE_ORDER_START_DATE": (
         False,
         "Allow setting start date to control when resource creation order is processed.",
@@ -1674,6 +1688,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Project": (
         "PROJECT_END_DATE_MANDATORY",
         "AFFILIATION_REQUIRED_AT_PROJECT_CREATION",
+        "PROJECT_NAME_REGEX",
+        "PROJECT_NAME_REGEX_ERROR_MESSAGE",
     ),
     "Telemetry": (
         "TELEMETRY_URL",
@@ -2062,6 +2078,10 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "MARKETPLACE_LAYOUT_MODE",
     "MARKETPLACE_CARD_STYLE",
     "ENABLE_ORDER_START_DATE",
+    # Project name validation — exposed so the create/rename form can show the
+    # configured naming rule and validate it client-side.
+    "PROJECT_NAME_REGEX",
+    "PROJECT_NAME_REGEX_ERROR_MESSAGE",
     "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
     "AI_ASSISTANT_ENABLED",
     "AI_ASSISTANT_ENABLED_ROLES",

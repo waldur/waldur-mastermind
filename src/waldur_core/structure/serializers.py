@@ -27,6 +27,7 @@ from waldur_core.checklist.utils import serialize_completion_answers
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.core.models import DESCRIPTION_LENGTH
@@ -874,6 +875,16 @@ class ProjectSerializer(
 
         if config.AFFILIATION_REQUIRED_AT_PROJECT_CREATION:
             _require_on_create("affiliation", response_key="affiliation_uuid")
+
+        # Enforce the configurable project-name pattern only when the name is
+        # actually being set (on create, or on an update that changes it), so
+        # unrelated PATCHes to projects whose existing name predates the rule
+        # are not blocked.
+        name = attrs.get("name")
+        if name is not None:
+            name_error = core_validators.get_project_name_regex_error(name)
+            if name_error:
+                raise serializers.ValidationError({"name": name_error})
 
         affiliation = attrs.get("affiliation")
         if affiliation is not None:

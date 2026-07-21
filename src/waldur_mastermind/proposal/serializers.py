@@ -18,6 +18,7 @@ from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.validators import get_project_name_regex_error
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
@@ -1696,6 +1697,16 @@ class ProposalSerializer(
             "approved_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "project": {"lookup_field": "uuid", "view_name": "project-detail"},
         }
+
+    def validate_name(self, value):
+        # The proposal name is the applicant-controlled part of the project name
+        # created on approval (call_prefix - date - name), so hold it to the same
+        # configurable pattern as the main project API. Validated on both create
+        # and rename since the field-level check runs regardless of ``validate``.
+        error = get_project_name_regex_error(value)
+        if error:
+            raise serializers.ValidationError(error)
+        return value
 
     def validate(self, attrs):
         if self.instance:

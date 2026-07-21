@@ -2,6 +2,7 @@
 Test for auto project creation functionality in group invitations
 """
 
+from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -9,6 +10,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.models import GroupInvitation, PermissionRequest
+from waldur_core.users.serializers import SubmitRequestSerializer
 
 
 class AutoProjectCreationTest(TestCase):
@@ -166,3 +168,27 @@ class AutoProjectCreationTest(TestCase):
         self.assertTrue(
             Project.objects.filter(name=expected_name, customer=self.customer).exists()
         )
+
+
+class SubmitRequestProjectNameValidationTest(TestCase):
+    """The custom project name provided at invitation acceptance must honour
+    the same configurable pattern as the main project API, so it cannot be used
+    to bypass the limit."""
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_custom_project_name_exceeding_pattern_is_rejected(self):
+        serializer = SubmitRequestSerializer(data={"project_name": "x" * 33})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("project_name", serializer.errors)
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_custom_project_name_matching_pattern_is_accepted(self):
+        serializer = SubmitRequestSerializer(data={"project_name": "x" * 32})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    @override_config(PROJECT_NAME_REGEX=r"^.{1,32}$")
+    def test_blank_custom_project_name_is_accepted(self):
+        # Blank falls back to the invitation's template; the pattern must not
+        # reject the empty value.
+        serializer = SubmitRequestSerializer(data={"project_name": ""})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
