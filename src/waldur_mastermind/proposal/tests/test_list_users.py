@@ -43,6 +43,44 @@ class ProtectedCallListUsersPermissionTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
+    def test_multiple_role_filter_returns_all_requested_roles(self):
+        # The Team tab requests several roles at once as a repeated query param
+        # (role=CALL.MANAGER&role=CALL.PANEL_MEMBER). list_users must honour all
+        # of them; previously ``query_params.get("role")`` kept only the last
+        # value, so call managers were dropped from the roster while still
+        # appearing in the Permissions/events log (WAL-10149).
+        manager = structure_factories.UserFactory()
+        self.call.add_user(manager, CallRole.MANAGER)
+        panel_member = structure_factories.UserFactory()
+        self.call.add_user(panel_member, CallRole.PANEL_MEMBER)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"role": [CallRole.MANAGER.name, CallRole.PANEL_MEMBER.name]}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        returned = {
+            (str(entry["user_uuid"]), entry["role_name"]) for entry in response.data
+        }
+        self.assertIn((str(manager.uuid), CallRole.MANAGER.name), returned)
+        self.assertIn((str(panel_member.uuid), CallRole.PANEL_MEMBER.name), returned)
+
+    def test_single_role_filter_still_works(self):
+        # A single role value must keep filtering to exactly that role — the
+        # getlist change is a strict superset of the previous single-value path.
+        manager = structure_factories.UserFactory()
+        self.call.add_user(manager, CallRole.MANAGER)
+        panel_member = structure_factories.UserFactory()
+        self.call.add_user(panel_member, CallRole.PANEL_MEMBER)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"role": CallRole.MANAGER.name})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        returned_roles = {entry["role_name"] for entry in response.data}
+        self.assertEqual(returned_roles, {CallRole.MANAGER.name})
+
 
 class ProposalListUsersPermissionTest(test.APITestCase):
     """The proposal-aware list_users override allows call managers.
