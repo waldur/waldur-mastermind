@@ -171,19 +171,27 @@ class ExplainInvoiceCompensationsToolTest(TestCase):
         )
         self.assertEqual(result["type"], "error")
 
-    def test_project_member_without_customer_role_denied_items(self):
-        # InvoiceItem is customer-role scoped. A project-only member resolves
-        # the project but must see no invoice activity — no compensation or
-        # refund line items leak through project membership.
+    def test_project_member_item_visibility_follows_billing_info_flag(self):
+        # A project-only member sees their project's invoice activity while
+        # the customer displays billing info in projects (the default), and
+        # nothing once the customer opts out.
         r = self._make_resource()
         self._add_charge(r, 200, 1)
         self._add_compensation(r, 80)
-        # Staff sees the invoice summary...
+        result = self.tool.execute(
+            self.fixture.admin, {"project_uuid": str(self.fixture.project.uuid)}
+        )
+        self.assertEqual(result["type"], "success")
+        self.assertIsNotNone(result["data"]["invoice_summary"])
+
+        self.fixture.customer.display_billing_info_in_projects = False
+        self.fixture.customer.save(update_fields=["display_billing_info_in_projects"])
+        # Staff still sees the invoice summary...
         staff_result = self.tool.execute(
             self.fixture.staff, {"project_uuid": str(self.fixture.project.uuid)}
         )
         self.assertIsNotNone(staff_result["data"]["invoice_summary"])
-        # ...but a project-only member (no customer role) sees nothing.
+        # ...but the project-only member (no customer role) sees nothing.
         result = self.tool.execute(
             self.fixture.admin, {"project_uuid": str(self.fixture.project.uuid)}
         )

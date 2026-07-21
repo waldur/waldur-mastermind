@@ -778,3 +778,70 @@ class InvoiceItemModelTest(test.APITestCase):
 
         result = invoice_item.get_plan_component()
         self.assertIsNone(result)
+
+
+class InvoiceItemProjectScopeVisibilityTest(test.APITestCase):
+    """Project-scope roles see invoice items / costs of their project only
+    when the owning customer displays billing info in projects."""
+
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.item = self.fixture.invoice_item  # unit_price=10, quantity=30
+        self.costs_url = factories.InvoiceItemFactory.get_list_url("costs")
+        self.list_url = factories.InvoiceItemFactory.get_list_url()
+
+    def get_costs(self, user, project=None):
+        project = project or self.fixture.project
+        self.client.force_authenticate(user)
+        return self.client.get(self.costs_url, {"project_uuid": project.uuid.hex})
+
+    def hide_billing_info(self):
+        self.fixture.customer.display_billing_info_in_projects = False
+        self.fixture.customer.save(update_fields=["display_billing_info_in_projects"])
+
+    def test_project_user_sees_costs_when_billing_info_is_displayed(self):
+        for user in (self.fixture.admin, self.fixture.manager, self.fixture.member):
+            response = self.get_costs(user)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data), 1)
+            self.assertEqual(response.data[0]["price"], "300.00")
+
+    def test_project_user_does_not_see_costs_when_billing_info_is_hidden(self):
+        self.hide_billing_info()
+        response = self.get_costs(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_owner_sees_costs_regardless_of_billing_info_flag(self):
+        self.hide_billing_info()
+        response = self.get_costs(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["price"], "300.00")
+
+    def test_project_user_does_not_see_costs_of_other_project(self):
+        other_project = structure_factories.ProjectFactory(
+            customer=self.fixture.customer
+        )
+        factories.InvoiceItemFactory(
+            invoice=self.fixture.invoice,
+            project=other_project,
+            unit_price=5,
+            quantity=1,
+        )
+        response = self.get_costs(self.fixture.admin, project=other_project)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_project_user_can_list_invoice_items_when_billing_info_is_displayed(self):
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.item.uuid.hex, [item["uuid"] for item in response.data])
+
+    def test_project_user_can_not_list_invoice_items_when_billing_info_is_hidden(self):
+        self.hide_billing_info()
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(self.item.uuid.hex, [item["uuid"] for item in response.data])

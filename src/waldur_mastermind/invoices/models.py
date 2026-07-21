@@ -24,6 +24,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import get_connected_projects
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import quantize_price
@@ -286,6 +287,15 @@ def get_quantity(unit, start, end) -> decimal.Decimal:
         return quantize_price(decimal.Decimal(use_days) / month_days)
 
 
+def filter_project_invoice_items(user):
+    """Project-scope roles see invoice items of their projects as long as
+    the customer displays billing info in projects."""
+    return models.Q(
+        project__in=get_connected_projects(user),
+        invoice__customer__display_billing_info_in_projects=True,
+    )
+
+
 class InvoiceItem(
     structure_models.StructureLoggableMixin,
     core_models.UuidMixin,
@@ -310,6 +320,7 @@ class InvoiceItem(
 
     class Permissions:
         customer_path = "invoice__customer"
+        build_query = filter_project_invoice_items
 
     invoice = models.ForeignKey(
         on_delete=models.CASCADE, to=Invoice, related_name="items"
