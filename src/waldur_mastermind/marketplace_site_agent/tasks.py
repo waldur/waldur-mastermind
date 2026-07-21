@@ -3,14 +3,18 @@ import logging
 
 from celery import shared_task
 from constance import config
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import PersonalAccessToken
+from waldur_core.logging import backend as logging_backend
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
+from waldur_core.structure.managers import get_active_tokens
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
@@ -42,6 +46,34 @@ def get_offering_ids_for_active_subscriptions(observable_object_type: str):
             .values_list("id", flat=True)
         )
         offering_ids.update(user_offerings)
+
+    # Also count offerings covered by a UNIFIED consumer bound directly to them
+    # (how register_queue binds a migrated site agent). Without this, an operator
+    # following the migration runbook — which DELETEs the legacy EventSubscription
+    # after cut-over — would silently drop the migrated offering from these hourly
+    # safety-net tasks (stale-resource resync, pending-order reminders).
+    offering_ct = ContentType.objects.get_for_model(marketplace_models.Offering)
+    site_agent_offering_ids = set(
+        marketplace_models.Offering.objects.filter(
+            type=SITE_AGENT_OFFERING
+        ).values_list("id", flat=True)
+    )
+    consumer_scopes = (
+        logging_models.EventConsumerScope.objects.filter(
+            content_type=offering_ct,
+            consumer__queue_created=True,
+            consumer__user__is_active=True,
+        )
+        .exclude(consumer__rmq_username="")
+        .select_related("consumer")
+    )
+    for scope in consumer_scopes:
+        if scope.object_id not in site_agent_offering_ids:
+            continue
+        consumer_types = scope.consumer.object_types
+        # Empty object_types means "all types".
+        if not consumer_types or observable_object_type in consumer_types:
+            offering_ids.add(scope.object_id)
 
     return offering_ids
 
@@ -218,3 +250,92 @@ def cleanup_site_agent_logs():
                 total_count,
                 max_rows,
             )
+
+
+@shared_task(name="waldur_mastermind.marketplace_site_agent.cleanup_stale_agent_queues")
+def cleanup_stale_agent_queues() -> None:
+    """Tear down unified-queue RMQ state for consumers whose owner is inactive.
+
+    Mirrors `waldur_core.logging.delete_stale_event_subscriptions` for the
+    EventConsumer-backed path: when the owner's credential is no longer active
+    (or the user is gone), drop the RMQ queue and user and flip the consumer
+    back to an unregistered state.
+
+    An owner counts as active if they hold a live DRF token OR a live Personal
+    Access Token. The PAT arm is essential: a PAT-backed agent typically
+    has no DRF token at all, so keying off DRF tokens alone would reap every
+    PAT-backed agent on the next run.
+    """
+    active_user_ids = set(get_active_tokens().values_list("user_id", flat=True))
+    active_user_ids |= set(
+        PersonalAccessToken.objects.filter(
+            is_active=True, expires_at__gt=timezone.now()
+        ).values_list("user_id", flat=True)
+    )
+
+    stale = (
+        logging_models.EventConsumer.objects.filter(queue_created=True)
+        .exclude(rmq_username="")
+        .exclude(user_id__in=active_user_ids)
+        .select_related("user")
+    )
+
+    rmq_backend = logging_backend.RabbitMQManagementBackend()
+    for consumer in stale.iterator():
+        queue_name = consumer.queue_name
+        try:
+            rmq_backend.delete_queue(consumer.user.uuid.hex, queue_name)
+        except Exception as e:
+            logger.warning(
+                "Failed to delete stale RabbitMQ queue %s: %s", queue_name, e
+            )
+
+        try:
+            rmq_backend.delete_rabbitmq_user(consumer.rmq_username)
+        except Exception as e:
+            logger.warning(
+                "Failed to delete stale RabbitMQ user %s for consumer %s: %s",
+                consumer.rmq_username,
+                consumer,
+                e,
+            )
+
+        consumer.rmq_username = ""
+        consumer.queue_created = False
+        consumer.save(update_fields=["rmq_username", "queue_created"])
+        logger.info("Cleared stale consumer queue state for %s", consumer)
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace_site_agent.cleanup_dangling_agent_queues"
+)
+def cleanup_dangling_agent_queues() -> None:
+    """Sync queue_created with RMQ reality when the RMQ user has vanished.
+
+    Mirrors `waldur_core.logging.delete_dangling_event_subscriptions`: if
+    the RMQ user backing an EventConsumer has been removed out of band, the
+    queue is already gone — flip `queue_created` so the pre_delete handler
+    and re-registrations behave correctly.
+    """
+    rmq_backend = logging_backend.RabbitMQManagementBackend()
+
+    candidates = logging_models.EventConsumer.objects.filter(
+        queue_created=True
+    ).exclude(rmq_username="")
+    for consumer in candidates.iterator():
+        try:
+            rmq_user_info = rmq_backend.get_user(consumer.rmq_username)
+        except Exception as exc:
+            logger.exception(
+                "Unable to query RabbitMQ user for consumer %s: %s", consumer, exc
+            )
+            continue
+        if rmq_user_info is None:
+            logger.info(
+                "Clearing dangling consumer queue state for %s (RMQ user %s missing)",
+                consumer,
+                consumer.rmq_username,
+            )
+            consumer.rmq_username = ""
+            consumer.queue_created = False
+            consumer.save(update_fields=["rmq_username", "queue_created"])

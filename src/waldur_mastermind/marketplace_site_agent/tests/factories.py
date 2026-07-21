@@ -1,6 +1,7 @@
 import factory
 from rest_framework.reverse import reverse
 
+from waldur_core.logging.tests.factories import EventConsumerFactory
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
 from waldur_mastermind.marketplace_site_agent import models
 
@@ -25,6 +26,37 @@ class AgentIdentityFactory(factory.django.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("marketplace-site-agent-identity-list")
         return url if action is None else url + action + "/"
+
+
+def make_agent_with_consumer(
+    offering=None,
+    user=None,
+    name=None,
+    rmq_username="",
+    queue_created=False,
+    object_types=None,
+):
+    """Build an AgentIdentity linked to an EventConsumer (offering-scoped).
+
+    Mirrors the post-registration state: the pub/sub fields live on the
+    consumer, not on the agent identity.
+    """
+    identity_kwargs = {}
+    if offering is not None:
+        identity_kwargs["offering"] = offering
+    if name is not None:
+        identity_kwargs["name"] = name
+    identity = AgentIdentityFactory(**identity_kwargs)
+    consumer = EventConsumerFactory.for_offering(
+        identity.offering,
+        user=user,
+        rmq_username=rmq_username,
+        queue_created=queue_created,
+        object_types=object_types or [],
+    )
+    identity.event_consumer = consumer
+    identity.save(update_fields=["event_consumer"])
+    return identity
 
 
 class AgentServiceFactory(factory.django.DjangoModelFactory):

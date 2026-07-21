@@ -33,3 +33,8 @@ pyrightconfig.json
 
 # Local Matrix appservice registration (contains dev tokens)
 docker/matrix-dev/appservices/
+
+# Local scratch and generated artifacts (never commit to this repo)
+scratchpad/
+waldur-typescript-sdk/
+waldur-openapi-schema.yaml

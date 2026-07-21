@@ -918,6 +918,10 @@ class ObservableObjectType(Enum):
     COURSE_ACCOUNT = "course_account"
     RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
     OFFERING_RESOURCES_SYNC = "offering_resources_sync"
+    # User-centric events for global (empty-scope) consumers — IdM/IGA sync.
+    USER_PROFILE = "user_profile"
+    USER_SSH_KEY = "user_ssh_key"
+    USER_LIFECYCLE = "user_lifecycle"
 
     @classmethod
     def choices(cls):

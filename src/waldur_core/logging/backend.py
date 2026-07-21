@@ -848,9 +848,12 @@ class RabbitMQManagementBackend:
 
             try:
                 queues = self.list_queues(vhost)
-                # Filter to only subscription queues
+                # Filter to subscription and consumer queues
                 subscription_queues = [
-                    q for q in queues if q["name"].startswith("subscription_")
+                    q
+                    for q in queues
+                    if q["name"].startswith("subscription_")
+                    or q["name"].startswith("consumer_")
                 ]
                 if subscription_queues:
                     total_messages = sum(q["messages"] for q in subscription_queues)

@@ -42,21 +42,6 @@ LOGGING = {
         "handlers": ["console", "database"],
     },
     "loggers": {
-        "django": {
-            "level": "INFO",
-            "handlers": ["console", "database"],
-            "propagate": False,
-        },
-        "django.server": {
-            "level": "INFO",
-            "handlers": ["console"],
-            "propagate": False,
-        },
-        "axes": {
-            "level": "WARNING",
-            "handlers": ["console"],
-            "propagate": False,
-        },
         "celery": {
             "level": "INFO",
             "handlers": ["console", "database"],

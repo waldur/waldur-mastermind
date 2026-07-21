@@ -3,7 +3,7 @@ import logging
 from django.db import transaction
 from rest_framework.authtoken.models import Token
 
-from waldur_core.logging import models, tasks, utils
+from waldur_core.logging import backend, models, tasks, utils
 from waldur_core.logging.models import Event, EventSubscriptionQueue, SystemNotification
 from waldur_core.logging.tasks import get_matching_hooks
 
@@ -47,5 +47,35 @@ def cleanup_rabbitmq_queue_on_delete(
             "Failed to delete RabbitMQ queue %s in vhost %s: %s",
             instance.queue_name,
             instance.vhost,
+            e,
+        )
+
+
+def cleanup_event_consumer_queue(sender, instance, **kwargs):
+    """Tear down the RabbitMQ queue + user when an EventConsumer is deleted.
+
+    Covers standalone (non-agent) consumers, which have no AgentIdentity
+    pre_delete handler. A no-op for consumers that never provisioned a queue.
+    """
+    if not instance.queue_created or not instance.rmq_username:
+        return
+
+    rmq_backend = backend.RabbitMQManagementBackend()
+    try:
+        rmq_backend.delete_queue(instance.vhost, instance.queue_name)
+    except Exception as e:
+        logger.warning(
+            "Failed to delete RabbitMQ queue %s for consumer %s: %s",
+            instance.queue_name,
+            instance,
+            e,
+        )
+    try:
+        rmq_backend.delete_rabbitmq_user(instance.rmq_username)
+    except Exception as e:
+        logger.warning(
+            "Failed to delete RabbitMQ user %s for consumer %s: %s",
+            instance.rmq_username,
+            instance,
             e,
         )

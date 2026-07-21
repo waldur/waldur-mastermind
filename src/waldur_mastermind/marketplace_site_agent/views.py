@@ -1,6 +1,9 @@
 import logging
+from collections import defaultdict
 from datetime import timedelta
 
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -15,8 +18,10 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.permissions import IsStaff, IsSupport
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import backend as logging_backend
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import serializers as logging_serializers
+from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import permissions as structure_permissions
@@ -28,6 +33,27 @@ from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.marketplace_site_agent.utils import push_user_role_sync_message
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_agent_rmq_password(request) -> str:
+    """Return the RabbitMQ password for the agent queue (credentials).
+
+    When the caller authenticated with a Personal Access Token, use that PAT as
+    the RMQ password: the agent presents the same PAT string as the STOMP
+    passcode, and a long-lived PAT is not invalidated by a browser logout or
+    session-token rotation — fixing the "logout kills the agent" hazard. The
+    raw secret is only in the request header (the DB stores just its hash), so
+    it is read from there.
+
+    Fallback (no gate): a caller still using a plain session token keeps the
+    previous behaviour — ``refresh_token`` get-or-creates the DRF token,
+    avoiding the ``Token.DoesNotExist`` a bare ``request.user.auth_token``
+    would raise. cleanup_stale_agent_queues is PAT-aware to match (see tasks).
+
+    Delegates to the shared core resolver so the agent and standalone
+    EventConsumer paths cannot resolve the same RMQ credential differently.
+    """
+    return logging_utils.resolve_consumer_rmq_password(request)
 
 
 def _can_manage_offering_agent(request, offering, agent_identity=None):
@@ -157,12 +183,23 @@ class AgentIdentityViewSet(ActionsViewSet):
         if not _can_manage_offering_agent(request, obj.offering, agent_identity=obj):
             raise PermissionDenied()
 
-    partial_update_permissions = destroy_permissions = (
+    # `update` (PUT) is included: without it, ActionsPermission finds no
+    # `update_permissions`, falls back to an empty `unsafe_methods_permissions`,
+    # and PUT is gated only by IsAuthenticated + get_queryset — weaker than the
+    # `_can_manage_offering_agent` check the sibling actions enforce. The
+    # serializer additionally pins `offering` on update (see validate_offering).
+    partial_update_permissions = update_permissions = destroy_permissions = (
         register_event_subscription_permissions
-    ) = register_service_permissions = [_check_agent_identity_permission]
+    ) = register_service_permissions = register_queue_permissions = [
+        _check_agent_identity_permission
+    ]
 
     @extend_schema(
-        description="Register an event subscription for the specified agent identity and observable object type. Returns existing subscription if already exists.",
+        deprecated=True,
+        description="DEPRECATED: use register_queue instead, which creates a "
+        "single unified consumer queue. This per-object-type subscription path is "
+        "kept only for the deprecation window; removal is tracked in WAL-10111. "
+        "Register an event subscription for the specified agent identity and observable object type. Returns existing subscription if already exists.",
         request=serializers.AgentEventSubscriptionCreateSerializer,
         responses={
             200: logging_serializers.EventSubscriptionSerializer,
@@ -263,6 +300,185 @@ class AgentIdentityViewSet(ActionsViewSet):
         )
 
         return Response(subscription_serializer.data, status=status.HTTP_201_CREATED)
+
+    register_queue_serializer_class = serializers.AgentQueueRegistrationSerializer
+
+    @extend_schema(
+        description="Register a unified event-consumer queue for this agent "
+        "identity. Creates a single RabbitMQ queue that receives all event "
+        "types. Returns the existing queue if already registered.",
+        request=serializers.AgentQueueRegistrationSerializer,
+        responses={
+            200: serializers.AgentQueueRegistrationResponseSerializer,
+            201: serializers.AgentQueueRegistrationResponseSerializer,
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def register_queue(self, request, uuid=None):
+        """Register a unified event-consumer queue for this agent identity.
+
+        The pub/sub state lives on a generic ``EventConsumer`` (linked via
+        ``agent_identity.event_consumer``), not on the site-agent model. Creates
+        a single RabbitMQ queue named consumer_{consumer_uuid} that receives all
+        event types, replacing per-object-type queues.
+
+        Ownership is one-user-at-a-time: a second user cannot take over a
+        consumer registered by someone else. The current owner must deregister
+        first (handled by deletion or a future deregister_queue action).
+        """
+        agent_identity = self.get_object()
+        vhost = request.user.uuid.hex
+        consumer = agent_identity.event_consumer
+
+        if consumer is not None and consumer.user_id != request.user.id:
+            return Response(
+                {
+                    "detail": (
+                        f"Queue is already registered by user "
+                        f"{consumer.user}; ask them to "
+                        f"deregister before taking over."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        input_serializer = serializers.AgentQueueRegistrationSerializer(
+            data=request.data
+        )
+        input_serializer.is_valid(raise_exception=True)
+
+        # None = omitted = keep the consumer's current filter; [] = all types.
+        requested_object_types = input_serializer.validated_data.get("object_types")
+        all_object_types = [
+            member.value for member in logging_enums.ObservableObjectType
+        ]
+
+        # Ensure a consumer exists for this agent, bound to its offering and
+        # owned by the caller. A registration failure below leaves it in an
+        # unregistered state (queue_created=False) that re-registration reuses.
+        #
+        # The consumer, its offering binding and the link are created in ONE
+        # transaction: a consumer with zero bindings IS a global (all-user PII)
+        # consumer, so a half-created one would fail *open*.
+        offering_ct = ContentType.objects.get_for_model(marketplace_models.Offering)
+        if consumer is None:
+            with transaction.atomic():
+                # `consumer` was read outside any lock, so two concurrent
+                # register_queue calls (an agent restart racing a retried request)
+                # could both see None and each create an EventConsumer bound to
+                # the same offering — only one wins the SET_NULL-linked FK; the
+                # other becomes an orphan that neither cleanup_agent_identity_queue
+                # (follows the link) nor the stale sweeps (owner token still valid)
+                # ever reap, duplicating every event for the offering indefinitely.
+                # Lock the AgentIdentity row and RE-READ its consumer under the
+                # lock: the loser then reuses the winner's consumer.
+                agent_identity = models.AgentIdentity.objects.select_for_update().get(
+                    pk=agent_identity.pk
+                )
+                consumer = agent_identity.event_consumer
+                if consumer is None:
+                    consumer = logging_models.EventConsumer.objects.create(
+                        user=request.user,
+                        object_types=requested_object_types or [],
+                    )
+                    logging_models.EventConsumerScope.objects.create(
+                        consumer=consumer,
+                        content_type=offering_ct,
+                        object_id=agent_identity.offering_id,
+                    )
+                    agent_identity.event_consumer = consumer
+                    agent_identity.save(update_fields=["event_consumer"])
+        else:
+            # Reconcile the binding against the agent's CURRENT offering.
+            # `offering` is writable on AgentIdentitySerializer, so an agent can
+            # be repointed after registration; without this the consumer would
+            # keep receiving events for the old offering and none for the new
+            # one, silently and forever.
+            wanted = (offering_ct.id, agent_identity.offering_id)
+            existing = {(s.content_type_id, s.object_id) for s in consumer.scopes.all()}
+            if existing != {wanted}:
+                with transaction.atomic():
+                    consumer.scopes.all().delete()
+                    logging_models.EventConsumerScope.objects.create(
+                        consumer=consumer,
+                        content_type=offering_ct,
+                        object_id=agent_identity.offering_id,
+                    )
+
+        # Applied once here rather than separately on each exit path, so the
+        # fast path and the full-provision path can never disagree.
+        if (
+            requested_object_types is not None
+            and consumer.object_types != requested_object_types
+        ):
+            consumer.object_types = requested_object_types
+            consumer.save(update_fields=["object_types"])
+        effective_object_types = consumer.object_types or all_object_types
+
+        queue_name = consumer.queue_name
+
+        # Check if already registered and valid
+        if consumer.rmq_username and consumer.queue_created:
+            rmq_backend = logging_backend.RabbitMQManagementBackend()
+
+            rmq_user_info = rmq_backend.get_user(consumer.rmq_username)
+            if rmq_user_info is not None:
+                rmq_vhost_users = rmq_backend.list_rabbitmq_vhost_permissions(vhost)
+                if consumer.rmq_username in rmq_vhost_users:
+                    # PUT /api/users/{username} is an upsert; refresh the RMQ
+                    # password so it keeps matching the presented credential.
+                    password_refreshed = rmq_backend.create_rabbitmq_user(
+                        consumer.rmq_username,
+                        _resolve_agent_rmq_password(request),
+                    )
+                    if password_refreshed:
+                        response_data = {
+                            "rmq_username": consumer.rmq_username,
+                            "queue_name": queue_name,
+                            "vhost": vhost,
+                            "observable_object_types": effective_object_types,
+                        }
+                        output_serializer = (
+                            serializers.AgentQueueRegistrationResponseSerializer(
+                                data=response_data
+                            )
+                        )
+                        output_serializer.is_valid(raise_exception=True)
+                        return Response(
+                            output_serializer.data, status=status.HTTP_200_OK
+                        )
+                    logger.warning(
+                        "Failed to refresh RMQ password for consumer %s, "
+                        "falling back to full recreate",
+                        consumer,
+                    )
+
+            # Stale RMQ state — clean up and recreate
+            logger.info(
+                "Stale RMQ state for consumer %s, recreating",
+                consumer,
+            )
+            rmq_backend.delete_rabbitmq_user(consumer.rmq_username)
+            consumer.rmq_username = ""
+            consumer.queue_created = False
+            consumer.save(update_fields=["rmq_username", "queue_created"])
+
+        # Fresh provision of the RMQ vhost/user/queue. Shared with the standalone
+        # EventConsumer path (logging.views) via one helper so the two cannot
+        # drift — it raises ValidationError (400) on any RMQ failure, tearing
+        # down a half-created user first. object_types was already reconciled
+        # above. The side effects are external and non-transactional, so any
+        # partial state from a mid-way failure is reconciled by
+        # cleanup_dangling_agent_queues.
+        result = logging_utils.provision_consumer_queue(
+            consumer, _resolve_agent_rmq_password(request)
+        )
+        response_data = {**result, "observable_object_types": effective_object_types}
+        output_serializer = serializers.AgentQueueRegistrationResponseSerializer(
+            data=response_data
+        )
+        output_serializer.is_valid(raise_exception=True)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         description="Register a new processor or get the existing one for the agent service",
@@ -739,12 +955,13 @@ Requires support user permissions.""",
 
         # Get all subscription queues for lookup
         queues_by_offering = {}
+        agent_queues_by_consumer = {}
         try:
+            from waldur_core.logging import utils as logging_utils
+
             vhost_data = rmq_backend.list_all_subscription_queues()
             for vhost in vhost_data:
                 for queue in vhost.get("queues", []):
-                    from waldur_core.logging import utils as logging_utils
-
                     parsed = logging_utils.parse_subscription_queue_name(queue["name"])
                     if parsed and parsed.get("offering_uuid"):
                         offering_uuid = parsed["offering_uuid"]
@@ -758,6 +975,16 @@ Requires support user permissions.""",
                                 "object_type": parsed.get("object_type"),
                             }
                         )
+                    consumer_uuid = logging_utils.parse_consumer_queue_name(
+                        queue["name"]
+                    )
+                    if consumer_uuid:
+                        agent_queues_by_consumer[consumer_uuid] = {
+                            "name": queue["name"],
+                            "messages": queue.get("messages", 0),
+                            "consumers": queue.get("consumers", 0),
+                            "object_type": None,
+                        }
         except Exception as e:
             logger.warning("Failed to get RMQ queues: %s", e)
 
@@ -766,8 +993,39 @@ Requires support user permissions.""",
         total_queued_messages = 0
         connected_count = 0
 
+        # Group legacy subscriptions by owning user once. Previously this query
+        # ran inside the per-identity loop (O(identities x subscriptions)) and,
+        # because it was unfiltered, showed every subscription on every agent
+        # and set agent_connected from any connection at all. Scope each agent's
+        # list to its own owner instead.
+        subs_by_user = defaultdict(list)
+        for subscription in logging_models.EventSubscription.objects.all():
+            subs_by_user[subscription.user_id].append(subscription)
+
+        # Legacy subscriptions attach to an agent by OFFERING (via their queues),
+        # the only reliable link. Keying a legacy agent's list on
+        # identity.created_by misattributed it: created_by differs from the
+        # subscription's actual user whenever a staff/customer-owner/offering
+        # manager registered on an identity they didn't create, and is SET_NULL
+        # once the creator is deleted — either way the list came back wrongly
+        # empty for a healthy unmigrated agent.
+        subs_by_offering = defaultdict(list)
+        seen_by_offering = defaultdict(set)
+        for queue in logging_models.EventSubscriptionQueue.objects.select_related(
+            "event_subscription"
+        ):
+            off_hex = (
+                queue.offering_uuid.hex
+                if hasattr(queue.offering_uuid, "hex")
+                else str(queue.offering_uuid).replace("-", "")
+            )
+            sub = queue.event_subscription
+            if sub.id not in seen_by_offering[off_hex]:
+                seen_by_offering[off_hex].add(sub.id)
+                subs_by_offering[off_hex].append(sub)
+
         agent_identities = models.AgentIdentity.objects.select_related(
-            "offering"
+            "offering", "event_consumer__user"
         ).prefetch_related("agentservice_set")
 
         for identity in agent_identities:
@@ -789,12 +1047,20 @@ Requires support user permissions.""",
             event_subscriptions_data = []
             agent_connected = False
 
-            # Get subscriptions for users who have registered this agent
-            # Since agents register subscriptions via register_event_subscription action,
-            # we look for subscriptions that match the pattern
-            subscriptions = logging_models.EventSubscription.objects.all()
+            # Migrated agent: its unified consumer owns delivery, so any legacy
+            # subscriptions still around are the consumer owner's (transition
+            # window). Legacy agent: match by the agent's offering, the reliable
+            # link (see subs_by_offering above).
+            if identity.event_consumer:
+                identity_subscriptions = subs_by_user.get(
+                    identity.event_consumer.user_id, []
+                )
+            else:
+                identity_subscriptions = subs_by_offering.get(
+                    identity.offering.uuid.hex, []
+                )
 
-            for subscription in subscriptions:
+            for subscription in identity_subscriptions:
                 rmq_username = subscription.uuid.hex
                 connections = rmq_connections_by_user.get(rmq_username, [])
 
@@ -832,9 +1098,16 @@ Requires support user permissions.""",
             if agent_connected:
                 connected_count += 1
 
-            # Get queues for this offering
+            # Get queues for this offering (legacy path)
             offering_uuid_hex = identity.offering.uuid.hex
-            queues = queues_by_offering.get(offering_uuid_hex, [])
+            queues = list(queues_by_offering.get(offering_uuid_hex, []))
+
+            # Add consumer queue if present (unified path)
+            if identity.event_consumer:
+                consumer_uuid_hex = identity.event_consumer.uuid.hex
+                if consumer_uuid_hex in agent_queues_by_consumer:
+                    queues.append(agent_queues_by_consumer[consumer_uuid_hex])
+
             for queue in queues:
                 total_queued_messages += queue.get("messages", 0)
 

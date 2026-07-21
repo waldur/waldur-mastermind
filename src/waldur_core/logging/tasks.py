@@ -165,6 +165,8 @@ def cleanup_orphan_subscription_queues() -> None:
     - The pre_delete signal failed to clean up a queue
     - DB records were deleted manually without triggering signals
     - Data corruption left orphaned queues in RabbitMQ
+
+    Handles both subscription_ and consumer_ prefixed queues.
     """
     rmq_backend = backend.RabbitMQManagementBackend()
     all_vhost_data = rmq_backend.list_all_subscription_queues()
@@ -174,14 +176,42 @@ def cleanup_orphan_subscription_queues() -> None:
         vhost = vhost_info["vhost"]
         for queue_info in vhost_info["queues"]:
             queue_name = queue_info["name"]
-            # Check if a matching DB record exists
+
+            # Handle consumer_ queues (unified EventConsumer path)
+            if queue_name.startswith("consumer_"):
+                consumer_uuid = utils.parse_consumer_queue_name(queue_name)
+                if consumer_uuid:
+                    has_consumer = models.EventConsumer.objects.filter(
+                        uuid=consumer_uuid,
+                        queue_created=True,
+                    ).exists()
+                    if has_consumer:
+                        continue
+                # Orphan consumer queue
+                logger.info(
+                    "Deleting orphan consumer queue %s in vhost %s",
+                    queue_name,
+                    vhost,
+                )
+                try:
+                    rmq_backend.delete_queue(vhost, queue_name)
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(
+                        "Failed to delete orphan queue %s in vhost %s: %s",
+                        queue_name,
+                        vhost,
+                        e,
+                    )
+                continue
+
+            # Handle subscription_ queues (existing logic)
             has_db_record = models.EventSubscriptionQueue.objects.filter(
                 event_subscription__user__uuid=vhost,
                 offering_uuid__isnull=False,
             ).exists()
 
             if has_db_record:
-                # More precise check: verify this exact queue_name matches a record
                 matching = any(
                     q.queue_name == queue_name
                     for q in models.EventSubscriptionQueue.objects.filter(
@@ -191,7 +221,6 @@ def cleanup_orphan_subscription_queues() -> None:
                 if matching:
                     continue
 
-            # No matching DB record - this is an orphan queue
             logger.info(
                 "Deleting orphan subscription queue %s in vhost %s",
                 queue_name,

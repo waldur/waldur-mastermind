@@ -760,3 +760,70 @@ def validate_user_restrictions(scope, user):
             raise ValidationError(
                 f"User assurance level does not match the {scope_name} restrictions."
             )
+
+
+# --- Pub/sub scope bindings (scope bindings / dispatch) ---------------------------------------
+# One rule for BOTH "what you may bind a consumer to" (registration) and "who
+# may still receive an event" (delivery): the user must hold an active role on
+# the entity or one of its ancestors. get_scope_ancestors(offering) yields
+# [offering, offering.project, project.customer, offering.customer], which is
+# exactly what OfferingQuerySet.filter_for_user ORs over — so the unified path
+# is never narrower than the legacy path it replaces.
+
+
+def scope_keys_for(scope) -> list[tuple[int, int]]:
+    """(content_type_id, object_id) for `scope` and each of its ancestors."""
+    keys = []
+    for ancestor in get_scope_ancestors(scope):
+        ct = ContentType.objects.get_for_model(ancestor.__class__)
+        keys.append((ct.id, ancestor.id))
+    return keys
+
+
+def scope_keys_q(
+    scope_keys, content_type_field="content_type_id", object_id_field="object_id"
+):
+    """OR of one Q per content_type, each with an ``object_id IN (...)``.
+
+    Index-friendly on a (content_type, object_id) index and plain public API —
+    deliberately not Django's private tuple-lookup machinery.
+    """
+    by_ct: dict[int, list[int]] = {}
+    for ct_id, object_id in scope_keys:
+        by_ct.setdefault(ct_id, []).append(object_id)
+    query = Q()
+    for ct_id, object_ids in by_ct.items():
+        query |= Q(**{content_type_field: ct_id, f"{object_id_field}__in": object_ids})
+    return query
+
+
+def holds_any_role_on_scope_or_ancestor(user, scope) -> bool:
+    """Registration guard: may this user bind a consumer to `scope`?"""
+    if not user.is_active:
+        return False
+    if user.is_staff or user.is_support:
+        return True
+    keys = scope_keys_for(scope)
+    if not keys:
+        return False
+    return (
+        models.UserRole.objects.filter(user=user, is_active=True)
+        .filter(scope_keys_q(keys))
+        .exists()
+    )
+
+
+def users_with_role_on_any_scope_key(user_ids, scope_keys) -> set[int]:
+    """Delivery re-auth, batched: which of `user_ids` still hold an active role
+    somewhere in this event's scope chain. ONE query for the whole fan-out.
+
+    Because `scope_keys` are the keys of a single event (entity + ancestors), a
+    role on an unrelated binding cannot grant access to this event.
+    """
+    if not user_ids or not scope_keys:
+        return set()
+    return set(
+        models.UserRole.objects.filter(is_active=True, user_id__in=list(user_ids))
+        .filter(scope_keys_q(scope_keys))
+        .values_list("user_id", flat=True)
+    )

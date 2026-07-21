@@ -65,3 +65,49 @@ class EventsConfig(AppConfig):
             sender=models.EventSubscriptionQueue,
             dispatch_uid="waldur_core.logging.handlers.cleanup_rabbitmq_queue_on_delete",
         )
+
+        # --- Global (empty-scope) EventConsumer: user-centric event emitters ---
+        from waldur_core.core.models import SshPublicKey, User
+        from waldur_core.logging import event_dispatch
+        from waldur_core.permissions import signals as permission_signals
+
+        signals.post_save.connect(
+            event_dispatch.emit_user_profile,
+            sender=User,
+            dispatch_uid="waldur_core.logging.event_dispatch.emit_user_profile",
+        )
+        signals.post_save.connect(
+            event_dispatch.emit_user_lifecycle,
+            sender=User,
+            dispatch_uid="waldur_core.logging.event_dispatch.emit_user_lifecycle",
+        )
+        signals.pre_delete.connect(
+            event_dispatch.emit_user_lifecycle_delete,
+            sender=User,
+            dispatch_uid="waldur_core.logging.event_dispatch.emit_user_lifecycle_delete",
+        )
+        signals.post_save.connect(
+            event_dispatch.emit_user_ssh_key_save,
+            sender=SshPublicKey,
+            dispatch_uid="waldur_core.logging.event_dispatch.emit_user_ssh_key_save",
+        )
+        signals.post_delete.connect(
+            event_dispatch.emit_user_ssh_key_delete,
+            sender=SshPublicKey,
+            dispatch_uid="waldur_core.logging.event_dispatch.emit_user_ssh_key_delete",
+        )
+        permission_signals.role_granted.connect(
+            event_dispatch.on_role_granted,
+            dispatch_uid="waldur_core.logging.event_dispatch.on_role_granted",
+        )
+        permission_signals.role_revoked.connect(
+            event_dispatch.on_role_revoked,
+            dispatch_uid="waldur_core.logging.event_dispatch.on_role_revoked",
+        )
+
+        # Standalone (non-agent) consumer queue teardown on delete.
+        signals.pre_delete.connect(
+            handlers.cleanup_event_consumer_queue,
+            sender=models.EventConsumer,
+            dispatch_uid="waldur_core.logging.handlers.cleanup_event_consumer_queue",
+        )
