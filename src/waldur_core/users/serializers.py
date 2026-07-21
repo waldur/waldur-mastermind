@@ -41,6 +41,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True,
         source="created_by.image",
         help_text="Profile image of the user who created this invitation",
+        allow_null=True,
     )
     scope_uuid = serializers.UUIDField(
         read_only=True,
@@ -713,10 +714,10 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
     )
     created_by_email = serializers.EmailField(read_only=True, source="created_by.email")
     reviewed_by_full_name = serializers.CharField(
-        read_only=True, source="reviewed_by.full_name"
+        read_only=True, source="reviewed_by.full_name", allow_null=True
     )
     reviewed_by_username = serializers.CharField(
-        read_only=True, source="reviewed_by.username"
+        read_only=True, source="reviewed_by.username", allow_null=True
     )
     state = serializers.CharField(read_only=True, source="get_state_display")
     scope_uuid = serializers.UUIDField(read_only=True, source="invitation.scope.uuid")
