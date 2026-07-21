@@ -19,6 +19,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail, validate_outbound_url
+from waldur_core.logging.enums import ObservableObjectType
 
 logger = logging.getLogger(__name__)
 
@@ -245,6 +246,12 @@ class Feed(models.Model):
         return f"{self.event} for {self.scope}"
 
 
+# DEPRECATED: EventSubscription + EventSubscriptionQueue are the legacy
+# per-(subscription x offering x object_type) queue model, superseded by the
+# unified EventConsumer path (one consumer_{uuid} queue, demultiplexed on the
+# envelope's object_type). Kept running untouched during the deprecation window.
+# Removal is tracked in WAL-10111 and gated on drain telemetry, not a date.
+# See "The legacy path" in docs/design/pubsub-architecture.md.
 class EventSubscription(UuidMixin, TimeStampedModel, core_models.DescribableMixin):
     user = models.ForeignKey(to=core_models.User, on_delete=models.CASCADE)
     source_ip = models.GenericIPAddressField(protocol="IPv4", null=True, blank=True)
@@ -295,6 +302,107 @@ class EventSubscriptionQueue(UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return self.queue_name
+
+
+def validate_observable_object_types(value):
+    valid_values = {member.value for member in ObservableObjectType}
+    for item in value:
+        if item not in valid_values:
+            raise DjangoValidationError(
+                f"Invalid object type '{item}'. Valid types: {sorted(valid_values)}"
+            )
+
+
+class EventConsumer(UuidMixin, TimeStampedModel):
+    """A generic pub/sub consumer draining a single unified queue.
+
+    One RabbitMQ queue (``consumer_{uuid}``) per consumer. Scope is expressed as
+    a *list* of entity bindings in :class:`EventConsumerScope` (PAT-style) —
+    a consumer may be bound to several projects, a customer, an offering, etc.
+    Bindings are GenericForeignKeys so ``waldur_core`` stays free of marketplace
+    imports. Any external integration (a site agent, an IdM/IGA sync, the
+    keycloak operator) owns an EventConsumer; the site-agent case links it from
+    ``AgentIdentity.event_consumer``.
+
+    **An empty ``scopes`` set means global (unrestricted) and is staff/support
+    only** — it receives the all-user PII firehose, so a consumer must never be
+    left bindingless by accident. Create the consumer and its bindings in one
+    transaction.
+    """
+
+    user = models.ForeignKey(
+        to=core_models.User,
+        on_delete=models.CASCADE,
+        related_name="event_consumers",
+        help_text=_("Owner/registrant; the RabbitMQ vhost is the user UUID hex."),
+    )
+    rmq_username = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text=_("RabbitMQ username (UUID hex) for the consumer queue."),
+    )
+    queue_created = models.BooleanField(default=False)
+    object_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of observable object types this consumer receives. "
+            "Empty list means all types."
+        ),
+        validators=[validate_observable_object_types],
+    )
+
+    @property
+    def queue_name(self) -> str:
+        return f"consumer_{self.uuid.hex}"
+
+    @property
+    def vhost(self) -> str:
+        return self.user.uuid.hex
+
+    @property
+    def is_global(self) -> bool:
+        """No bindings = unrestricted (staff/support only)."""
+        return not self.scopes.exists()
+
+    def __str__(self):
+        return f"EventConsumer {self.uuid.hex} (user={self.user_id})"
+
+
+class EventConsumerScope(models.Model):
+    """One entity binding of an :class:`EventConsumer`.
+
+    Normalized rather than JSON (which is how ``PersonalAccessToken`` stores
+    ``allowed_scopes``) because pub/sub fan-out is the inverse problem: one
+    event is matched against *many* consumers, so the dispatcher needs an
+    indexed ``(content_type, object_id)`` to intersect against the event's
+    scope-keys.
+    """
+
+    consumer = models.ForeignKey(
+        EventConsumer,
+        on_delete=models.CASCADE,
+        related_name="scopes",
+    )
+    content_type = models.ForeignKey(
+        on_delete=models.CASCADE, to=ct_models.ContentType, db_index=True
+    )
+    object_id = models.PositiveIntegerField(db_index=True)
+    scope = ct_fields.GenericForeignKey("content_type", "object_id")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["consumer", "content_type", "object_id"],
+                name="unique_event_consumer_scope",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.consumer} -> {self.scope}"
 
 
 class EmailLog(UuidMixin):

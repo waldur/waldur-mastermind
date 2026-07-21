@@ -44,10 +44,11 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.core.validators import is_potentially_dangerous_regex
-from waldur_core.logging import event_logger
+from waldur_core.logging import event_dispatch, event_logger
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.enums import EventType, ObservableObjectType
+from waldur_core.permissions import utils as permission_utils
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -4246,6 +4247,13 @@ def _identity_manager_matches_offering_user(
 
     Returns True when the subscriber is an identity manager whose managed_isds
     overlap with the offering user's linked user's active_isds.
+
+    NOTE (WAL-10115): this access rule exists ONLY on the legacy path. The
+    unified EventConsumer path authorizes bindings via UserRole on the scope
+    chain, which an identity manager does not hold — so they currently cannot
+    migrate, and deleting the legacy block (WAL-10111) would cut their
+    OFFERING_USER delivery with no route forward. WAL-10111 must not land
+    before WAL-10115.
     """
     if not subscriber.is_identity_manager:
         return False
@@ -4264,6 +4272,126 @@ def _identity_manager_matches_offering_user(
 
     active_isds = target_user.active_isds or []
     return bool(set(managed_isds) & set(active_isds))
+
+
+def _enrich_order_payload(payload: dict) -> dict:
+    """Add full order context to reduce agent API lookups."""
+    order_uuid = payload.get("order_uuid")
+    if not order_uuid:
+        return payload
+    try:
+        order = models.Order.objects.select_related(
+            "resource", "resource__offering", "resource__plan", "project"
+        ).get(uuid=order_uuid)
+    except models.Order.DoesNotExist:
+        return payload
+    payload["order_type"] = order.get_type_display()
+    payload["resource_uuid"] = order.resource.uuid.hex
+    payload["resource_backend_id"] = order.resource.backend_id
+    payload["resource_name"] = order.resource.name
+    payload["project_uuid"] = order.project.uuid.hex
+    payload["project_name"] = order.project.name
+    payload["attributes"] = order.safe_attributes
+    payload["limits"] = order.resource.limits or {}
+    if order.resource.plan:
+        payload["plan_uuid"] = order.resource.plan.uuid.hex
+    return payload
+
+
+def _enrich_resource_payload(payload: dict) -> dict:
+    """Add project + resource context to resource update messages."""
+    resource_uuid = payload.get("resource_uuid")
+    if not resource_uuid:
+        return payload
+    try:
+        resource = models.Resource.objects.select_related("project").get(
+            uuid=resource_uuid
+        )
+    except models.Resource.DoesNotExist:
+        return payload
+    payload["resource_name"] = resource.name
+    payload["resource_state"] = resource.get_state_display()
+    payload["project_uuid"] = resource.project.uuid.hex
+    payload["project_name"] = resource.project.name
+    payload["limits"] = resource.limits or {}
+    return payload
+
+
+def _enrich_user_role_payload(payload: dict) -> dict:
+    """Add user profile basics to reduce user detail lookups."""
+    user_uuid = payload.get("user_uuid")
+    if not user_uuid:
+        return payload
+    try:
+        # all_objects, not objects: User.objects is UserActiveManager and hides
+        # inactive users. Offboarding typically deactivates the user and revokes
+        # their roles together, so filtering them out would strip the email and
+        # full name from exactly the role_revoked event a backend needs in order
+        # to deprovision the account.
+        user = User.all_objects.get(uuid=user_uuid)
+    except User.DoesNotExist:
+        return payload
+    payload["user_email"] = user.email
+    payload["user_full_name"] = user.full_name
+    return payload
+
+
+AGENT_PAYLOAD_ENRICHERS = {
+    ObservableObjectType.ORDER: _enrich_order_payload,
+    ObservableObjectType.RESOURCE: _enrich_resource_payload,
+    ObservableObjectType.USER_ROLE: _enrich_user_role_payload,
+}
+
+
+def _resolve_event_project(message_payload):
+    """The consumer-side project this event concerns, if the payload names one.
+
+    Note (deliberate divergence from the legacy consumer-access rule): the
+    legacy path only resolved a customer when the project still had a
+    NON-terminated resource on the offering. Deriving the project straight from
+    the order/resource is simpler and more accurate — it means a project-bound
+    consumer also hears about its LAST resource being terminated, which the
+    legacy narrowing dropped. See docs/design/pubsub-architecture.md.
+    """
+    project_uuid = message_payload.get("project_uuid")
+    if project_uuid:
+        return structure_models.Project.objects.filter(uuid=project_uuid).first()
+
+    order_uuid = message_payload.get("order_uuid")
+    if order_uuid:
+        order = (
+            models.Order.objects.filter(uuid=order_uuid)
+            .select_related("project")
+            .first()
+        )
+        return order.project if order else None
+
+    resource_uuid = message_payload.get("resource_uuid")
+    if resource_uuid:
+        resource = (
+            models.Resource.objects.filter(uuid=resource_uuid)
+            .select_related("project")
+            .first()
+        )
+        return resource.project if resource else None
+
+    return None
+
+
+def _resolve_event_scope_keys(offering, message_payload, affected_object):
+    """(content_type_id, object_id) pairs this event belongs to.
+
+    Always the offering's own chain — offering, its project, that project's
+    customer, the offering's customer — which is exactly what
+    ``OfferingQuerySet.filter_for_user`` ORs over, so a consumer bound anywhere
+    in that chain matches. Plus the consumer-side project (and its customer)
+    when the payload identifies one.
+    """
+    keys = set(permission_utils.scope_keys_for(offering))
+    project = _resolve_event_project(message_payload)
+    if project is not None:
+        keys.update(permission_utils.scope_keys_for(project))
+    return list(keys)
 
 
 # Event types where consumer access is determined by payload content.
@@ -4403,27 +4531,78 @@ def prepare_messages(
         affected_object.value,
         offering,
     )
-    event_subscriptions = logging_models.EventSubscription.objects.filter(
+    messages_to_send = []
+
+    # Cheap no-op short-circuit. prepare_messages fires on essentially every
+    # marketplace signal across every tenant; on an install (or object type) with
+    # nothing listening on EITHER path, skip the several-query scope-key
+    # resolution below and return immediately. Two indexed EXISTS replace ~5-7
+    # queries when idle. Any unified consumer (global or bound) has
+    # queue_created=True, so a single EXISTS covers them all.
+    legacy_subscriptions = logging_models.EventSubscription.objects.filter(
         observable_objects__contains=[{"object_type": affected_object.value}]
     )
+    has_unified_consumer = (
+        logging_models.EventConsumer.objects.filter(queue_created=True)
+        .exclude(rmq_username="")
+        .exists()
+    )
+    if not has_unified_consumer and not legacy_subscriptions.exists():
+        return messages_to_send
 
-    if not event_subscriptions.exists():
-        logger.debug(
-            "No event subscriptions exist for %s, skipping message sending",
-            affected_object.value,
-        )
-        return []
+    # --- Unified consumer queues (scope bindings / dispatch) ---
+    # Resolved FIRST because the legacy loop below must skip any user already
+    # covered here (no double-delivery). Marketplace resolves the event's
+    # scope-keys; waldur_core matches them against the indexed bindings and
+    # re-authorizes each recipient — core stays free of marketplace imports.
+    scope_keys = _resolve_event_scope_keys(offering, message_payload, affected_object)
+
+    def _build_consumer_payload():
+        payload = dict(message_payload)
+        payload["offering_uuid"] = offering.uuid.hex
+        payload["object_type"] = affected_object.value
+        enricher = AGENT_PAYLOAD_ENRICHERS.get(affected_object)
+        return enricher(payload) if enricher else payload
+
+    # Global (bindingless, staff/support) consumers receive marketplace events
+    # through this path too — an empty scope means "everything", so an IdM/IGA
+    # sync account gets orders, resources, offering users, etc. USER_ROLE is the
+    # single exception: it is a user-centric event the CORE dispatcher already
+    # delivers to globals on the role_granted/revoked signal, and this path emits
+    # USER_ROLE only on a manual project re-sync — so including globals here as
+    # well would deliver it to them twice. Core owns USER_ROLE for globals; this
+    # path owns the marketplace object types for them. (All other marketplace
+    # types are emitted ONLY here, so a global receives each exactly once.)
+    dispatch_result = event_dispatch.build_messages(
+        scope_keys,
+        _build_consumer_payload,
+        affected_object,
+        include_global=affected_object != ObservableObjectType.USER_ROLE,
+    )
+    messages_to_send.extend(dispatch_result.messages)
+    consumer_covered_user_ids = dispatch_result.user_ids
+
+    # --- Legacy: per-offering subscription queues (DEPRECATED) ---
+    # Superseded by the unified EventConsumer path above; left untouched so
+    # existing consumers keep working. Users already covered by a unified queue
+    # are skipped below (no double-delivery). Delete this whole block, and the
+    # suppression it needs, when the legacy path is retired — WAL-10111.
+    event_subscriptions = legacy_subscriptions  # queryset built for the short-circuit
 
     # Resolve the event's target customer for consumer access checks.
-    # This is computed once (outside the loop) since it depends only on the
-    # payload, not the subscribing user.
-    event_consumer_customer = _resolve_event_consumer_customer(
-        offering, message_payload, affected_object
+    # Computed once (outside the loop) since it depends only on the payload,
+    # not the subscribing user. Skipped when there are no legacy subscriptions.
+    event_consumer_customer = (
+        _resolve_event_consumer_customer(offering, message_payload, affected_object)
+        if event_subscriptions.exists()
+        else None
     )
 
-    messages_to_send = []
     for event_subscription in event_subscriptions:
         user = event_subscription.user
+        if user.id in consumer_covered_user_ids:
+            # A unified consumer queue supersedes the legacy path for this user.
+            continue
         logger.info("Processing subscription for user %s", user)
 
         # Check if user has access to offering

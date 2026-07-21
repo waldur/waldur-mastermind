@@ -172,6 +172,18 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     )
     dependencies = AgentDependencySerializer(many=True, required=False)
 
+    def validate_offering(self, value):
+        # An agent identity's offering is fixed at creation. The field's queryset
+        # is not scoped to the caller, and update (PUT) only gates on managing
+        # the CURRENT offering — so allowing a change would let an offering
+        # manager repoint the record onto an offering they don't control. A PUT
+        # that re-sends the same offering (a full round-trip) is still fine.
+        if self.instance is not None and value != self.instance.offering:
+            raise serializers.ValidationError(
+                "Offering cannot be changed after the agent identity is created."
+            )
+        return value
+
     class Meta:
         model = models.AgentIdentity
         fields = (
@@ -209,6 +221,46 @@ class AgentEventSubscriptionCreateSerializer(serializers.Serializer):
         max_length=500,
         required=False,
         help_text="Optional description for the event subscription",
+    )
+
+
+class AgentQueueRegistrationSerializer(serializers.Serializer):
+    # No `description` field: unlike the legacy EventSubscription, EventConsumer
+    # has nowhere to store it and register_queue never read it — exposing it in
+    # the schema implied a persistence that never happened.
+    object_types = serializers.ListField(
+        child=serializers.ChoiceField(
+            choices=[
+                (member.value, member.value)
+                for member in logging_enums.ObservableObjectType
+            ],
+        ),
+        required=False,
+        # No default: an omitted field means "keep the current filter", an
+        # explicit [] means "all types". With default=list an agent that simply
+        # stopped sending the field on restart would silently widen its queue
+        # from a narrow set back to the full firehose.
+        help_text=(
+            "List of observable object types to receive. An explicit empty list "
+            "means all types; omitting the field leaves the current filter "
+            "unchanged."
+        ),
+    )
+
+
+class AgentQueueRegistrationResponseSerializer(serializers.Serializer):
+    rmq_username = serializers.CharField(
+        help_text="RabbitMQ username (UUID hex) for STOMP authentication",
+    )
+    queue_name = serializers.CharField(
+        help_text="RabbitMQ queue name (consumer_{consumer_uuid})",
+    )
+    vhost = serializers.CharField(
+        help_text="RabbitMQ virtual host (user UUID)",
+    )
+    observable_object_types = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="List of observable object types routed to this queue",
     )
 
 

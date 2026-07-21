@@ -257,6 +257,22 @@ processor = marketplace_site_agent_services_register_processor.sync(
 - **Processor Tracking**: Monitor individual processors and their backend versions
 - **Configuration Management**: Store and version configuration files
 - **Statistics**: Collect and report agent performance metrics
+- **Unified Queue**: Single queue per agent via `register_queue` with enriched payloads
+
+**Unified Queue Registration:**
+
+A site agent can register a unified queue where one RabbitMQ queue receives all event types. This is the recommended approach for new agents. The queue's state lives on a generic `EventConsumer` (in `waldur_core.logging`) that the `AgentIdentity` links to, bound to the agent's offering:
+
+```python
+# Register a unified queue (one call replaces multiple create_queue calls)
+result = marketplace_site_agent_identities_register_queue.sync(
+    uuid=agent_identity.uuid.hex,
+    client=waldur_rest_client
+)
+# result contains: rmq_username, queue_name, vhost, observable_object_types
+```
+
+For the complete guide on unified queues, see [Unified Agent Queue](../guides/agent-pubsub.md).
 
 ### Message Processing (Consumer Side)
 
@@ -330,7 +346,8 @@ The event notification system provides REST API endpoints for managing event-bas
 - **PATCH /api/marketplace-site-agent-identities/{uuid}/** - Update agent identity
 - **DELETE /api/marketplace-site-agent-identities/{uuid}/** - Delete agent identity
 - **POST /api/marketplace-site-agent-identities/{uuid}/register_service/** - Register service within agent
-- **POST /api/marketplace-site-agent-identities/{uuid}/register_event_subscription/** - Register event subscription for agent
+- **POST /api/marketplace-site-agent-identities/{uuid}/register_event_subscription/** - Register event subscription for agent (legacy)
+- **POST /api/marketplace-site-agent-identities/{uuid}/register_queue/** - Register unified agent queue (recommended)
 
 #### Agent Identity Permissions
 
@@ -385,12 +402,17 @@ Staff, customer owners, and offering managers are not restricted by `created_by`
 1. **WebSocket Transport**: The system uses STOMP over WebSockets for communication
 2. **TLS Security**: Connections can be secured with TLS
 3. **User Authentication**: Each subscription has its own credentials and permissions in RabbitMQ
-4. **Queue Structure**: Queue names follow the pattern `/queue/subscription_{subscription_uuid}_offering_{offering_uuid}_{observable_object_type}`
+4. **Queue Structure**: Two queue naming patterns are supported:
 
-   Example queue names:
-   - `/queue/subscription_abc123_offering_def456_order`
-   - `/queue/subscription_abc123_offering_def456_user_role`
-   - `/queue/subscription_abc123_offering_def456_resource_periodic_limits`
+   **Legacy (per-offering, per-object-type):**
+   - Pattern: `/queue/subscription_{subscription_uuid}_offering_{offering_uuid}_{object_type}`
+   - Example: `/queue/subscription_abc123_offering_def456_order`
+
+   **Unified (single queue per consumer):**
+   - Pattern: `/queue/consumer_{consumer_uuid}`
+   - Example: `/queue/consumer_a1b2c3d4e5f67890...`
+   - All event types delivered to one queue; agent routes by `object_type` in payload
+   - See [Unified Agent Queue guide](../guides/agent-pubsub.md) for details
 
 ## Error Handling and Resilience
 

@@ -1,4 +1,18 @@
-# Event Subscription Queues
+# Event Subscription Queues (Legacy — DEPRECATED)
+
+> **DEPRECATED.** This documents the legacy per-offering, per-object-type queue
+> approach. Its API endpoints are marked `deprecated` in the OpenAPI schema (and
+> therefore in the generated SDKs). It still runs unchanged, so existing
+> consumers keep working, but **no new integration should use it**.
+>
+> Use the [Unified Agent Queue](agent-pubsub.md) instead: one queue per consumer,
+> bound to the entities you have access to, with enriched payloads.
+>
+> Removal is tracked in **WAL-10111** and gated on drain telemetry (zero legacy
+> queues, sustained) rather than a date — see "The legacy path" in
+> `docs/design/pubsub-architecture.md`. A consumer that already owns a unified
+> queue is automatically suppressed from this path, so the two never
+> double-deliver.
 
 This guide explains the `EventSubscriptionQueue` system for managing RabbitMQ queues
 used by event subscriptions, including queue lifecycle management and cleanup mechanisms.
@@ -379,4 +393,6 @@ SUBSCRIPTION_QUEUE_ARGUMENTS = {
 
 ## Related Documentation
 
+- [Unified Agent Queue](agent-pubsub.md) - The recommended approach for new agents
+- [Event-Based Order Processing](../core-concepts/event-based-order-processing.md)
 - [Waldur Architecture](waldur-architecture.md)

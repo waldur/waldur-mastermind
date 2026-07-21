@@ -175,8 +175,14 @@ class DocValidator:
 
         lines = content.split("\n")
 
+        in_code_block = False
         for line_num, line in enumerate(lines, start=1):
-            self._check_markdown_links(file_path, line_num, line)
+            if line.strip().startswith("```"):
+                in_code_block = not in_code_block
+                continue
+
+            if not in_code_block:
+                self._check_markdown_links(file_path, line_num, line)
             self._check_file_paths(file_path, line_num, line)
             self._check_python_references(file_path, line_num, line, content)
 

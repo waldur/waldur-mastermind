@@ -8,6 +8,41 @@ from waldur_core.logging.event_logger import get_valid_events
 from waldur_core.structure.tests import factories as structure_factories
 
 
+class EventConsumerFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.EventConsumer],
+):
+    class Meta:
+        model = models.EventConsumer
+
+    user = factory.SubFactory(structure_factories.UserFactory)
+
+    @classmethod
+    def with_scopes(cls, *instances, user=None, **kwargs):
+        """Create an EventConsumer bound to the given entities.
+
+        No instances = a global (unrestricted) consumer.
+        """
+        params = dict(kwargs)
+        if user is not None:
+            params["user"] = user
+        consumer = cls.create(**params)
+        for instance in instances:
+            models.EventConsumerScope.objects.create(
+                consumer=consumer,
+                content_type=ct_models.ContentType.objects.get_for_model(
+                    instance.__class__
+                ),
+                object_id=instance.id,
+            )
+        return consumer
+
+    @classmethod
+    def for_offering(cls, offering, user=None, **kwargs):
+        """Create an EventConsumer bound to a single offering."""
+        return cls.with_scopes(offering, user=user, **kwargs)
+
+
 class EventFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Event]
 ):

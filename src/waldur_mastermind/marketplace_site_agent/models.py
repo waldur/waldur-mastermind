@@ -38,6 +38,15 @@ class AgentIdentity(
     )
     config_file_content = models.TextField(blank=True, null=True)
     last_restarted = models.DateTimeField(_("Last restarted at"), default=timezone.now)
+    # Pub/sub state lives on the generic EventConsumer (waldur_core.logging), not
+    # on this site-agent model. A site agent owns at most one consumer.
+    event_consumer = models.OneToOneField(
+        "logging.EventConsumer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agent_identity",
+    )
 
     class Meta:
         verbose_name = _("Agent identity")

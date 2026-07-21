@@ -4,12 +4,14 @@ import logging
 import re
 import threading
 import time
+import uuid as uuid_mod
 
 import stomp
 from django.apps import apps
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import QuerySet
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.logging import backend, models
 from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
@@ -289,6 +291,123 @@ def parse_subscription_queue_name(queue_name: str) -> dict | None:
             "object_type": match.group(3),
         }
     return None
+
+
+def parse_consumer_queue_name(queue_name: str) -> str | None:
+    """Parse a consumer queue name and return the EventConsumer UUID.
+
+    Queue names follow the pattern: consumer_{event_consumer_uuid}
+
+    Args:
+        queue_name: The queue name to parse
+
+    Returns:
+        The event_consumer_uuid string or None if not a valid consumer queue.
+    """
+    pattern = r"^consumer_([a-f0-9]{32})$"
+    match = re.match(pattern, queue_name)
+    if match:
+        return match.group(1)
+    return None
+
+
+def resolve_consumer_rmq_password(request) -> str:
+    """RabbitMQ password for a consumer queue.
+
+    Uses the presented Personal Access Token when the caller authenticated with
+    one (the client presents the same PAT string as its STOMP passcode, and a
+    long-lived PAT survives a session-token logout/rotation); otherwise falls
+    back to the get-or-created DRF token (avoiding the Token.DoesNotExist a bare
+    ``request.user.auth_token`` would raise). No hard gate. cleanup_stale is
+    PAT-aware to match.
+    """
+    # Kept lazy deliberately: importing waldur_core.core.authentication /
+    # core.models at this module's top raises AppRegistryNotReady, because
+    # logging.utils is imported early during app loading (before the core app's
+    # models are ready). Not the optional-backend-SDK carve-out, but the same
+    # app-initialization-order hazard the CLAUDE.md rule exists to avoid.
+    from waldur_core.core.authentication import (
+        parse_token_from_request,
+        refresh_token,
+    )
+    from waldur_core.core.models import PersonalAccessToken
+
+    if isinstance(request.auth, PersonalAccessToken):
+        raw_pat = parse_token_from_request(request, b"bearer")
+        if raw_pat:
+            return raw_pat
+    return refresh_token(request.user).key
+
+
+def provision_consumer_queue(consumer, password: str) -> dict:
+    """Create the RMQ vhost/user/queue for an EventConsumer and mark it created.
+
+    These are external, non-transactional side effects and must run OUTSIDE any
+    DB transaction. Raises rest_framework ValidationError on failure, tearing
+    down a just-created user first. Idempotency / ownership / stale-recreate
+    stay with the caller; this is only the fresh-provision step.
+    """
+    vhost = consumer.user.uuid.hex
+    queue_name = consumer.queue_name
+    rmq_backend = backend.RabbitMQManagementBackend()
+    new_rmq_username = uuid_mod.uuid4().hex
+
+    if not rmq_backend.create_rabbitmq_virtual_host(vhost):
+        logger.error("Failed to create RabbitMQ virtual host: %s", vhost)
+        raise ValidationError("Failed to create RabbitMQ virtual host")
+    if not rmq_backend.create_rabbitmq_user(new_rmq_username, password):
+        logger.error("Failed to create RabbitMQ user: %s", new_rmq_username)
+        raise ValidationError("Failed to create RabbitMQ user")
+    permissions = {"configure": ".*", "write": ".*", "read": ".*"}
+    if not rmq_backend.assign_rabbitmq_vhost_permissions(
+        new_rmq_username, vhost, permissions
+    ):
+        logger.error(
+            "Failed to assign RabbitMQ permissions for user: %s", new_rmq_username
+        )
+        rmq_backend.delete_rabbitmq_user(new_rmq_username)
+        raise ValidationError("Failed to assign RabbitMQ permissions")
+    # arguments= must be a keyword — see the site-agent register_queue note.
+    if not rmq_backend.create_queue(
+        vhost, queue_name, arguments=backend.SUBSCRIPTION_QUEUE_ARGUMENTS
+    ):
+        logger.error("Failed to create RabbitMQ queue: %s", queue_name)
+        rmq_backend.delete_rabbitmq_user(new_rmq_username)
+        raise ValidationError("Failed to create RabbitMQ queue")
+
+    consumer.rmq_username = new_rmq_username
+    consumer.queue_created = True
+    consumer.save(update_fields=["rmq_username", "queue_created"])
+    return {
+        "rmq_username": new_rmq_username,
+        "queue_name": queue_name,
+        "vhost": vhost,
+    }
+
+
+# Advisory-lock namespace for consumer registration (arbitrary constant, "EVNT").
+_REGISTRATION_LOCK_NAMESPACE = 0x45564E54
+
+
+def lock_user_registration(user_id: int) -> None:
+    """Serialize a user's concurrent consumer registrations within the current
+    transaction (must be called inside ``transaction.atomic()``).
+
+    ``select_for_update`` cannot lock rows that do not exist yet, so two
+    concurrent FIRST-time registrations both see an empty candidate set and both
+    insert — creating duplicate consumers + RMQ queues. A per-user Postgres
+    transaction-level advisory lock covers first-time AND re-registration; it is
+    released automatically at transaction end. No-op on non-PostgreSQL backends.
+    """
+    from django.db import connection
+
+    if connection.vendor != "postgresql":
+        return
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(%s, %s)",
+            [_REGISTRATION_LOCK_NAMESPACE, user_id],
+        )
 
 
 def get_loggable_models():

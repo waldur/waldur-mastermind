@@ -17,6 +17,7 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_mastermind.marketplace_site_agent import (
             executors,
             handlers,
+            models,
             processor,
         )
 
@@ -87,6 +88,12 @@ class MarketplaceSlurmConfig(AppConfig):
             handlers.send_course_account_deletion_info,
             sender=marketplace_models.CourseAccount,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_course_account_deletion_info",
+        )
+
+        signals.pre_delete.connect(
+            handlers.cleanup_agent_identity_queue,
+            sender=models.AgentIdentity,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.cleanup_agent_identity_queue",
         )
 
         structure_signals.project_moved.connect(

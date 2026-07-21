@@ -307,6 +307,31 @@ def send_course_account_deletion_info(
     send_account_message(instance, created=False)
 
 
+def cleanup_agent_identity_queue(sender, instance, **kwargs):
+    """Delete the linked EventConsumer when an AgentIdentity is deleted.
+
+    Deleting the row (rather than only tearing down RabbitMQ) matters: the FK is
+    SET_NULL, so a surviving consumer keeps `queue_created=True` and an intact
+    offering binding, and the dispatcher goes on publishing every event for that
+    offering into a queue that no longer exists — until the hourly
+    `cleanup_dangling_agent_queues` sweep notices. Re-registering meanwhile
+    would stack a second consumer alongside the dangling one.
+
+    The RabbitMQ teardown itself is done by `cleanup_event_consumer_queue`, the
+    pre_delete handler on EventConsumer, so there is exactly one implementation
+    of it.
+    """
+    consumer = instance.event_consumer
+    if consumer is None:
+        return
+    # Clear the in-memory reference so the about-to-be-deleted AgentIdentity
+    # object doesn't hold a stale pointer to a deleted consumer. (consumer.delete()
+    # still issues its own SET_NULL UPDATE against the DB row, which is harmless
+    # here since the row is deleted moments later.)
+    instance.event_consumer = None
+    consumer.delete()
+
+
 def send_resource_messages_on_project_move(
     sender, project, old_customer, new_customer, **kwargs
 ):
