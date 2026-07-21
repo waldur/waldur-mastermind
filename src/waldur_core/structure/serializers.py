@@ -17,6 +17,7 @@ from django.template import Template, TemplateSyntaxError
 from django.utils import timezone
 from django.utils import timezone as django_timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 from rest_framework.authtoken import models as authtoken_models
@@ -496,13 +497,25 @@ class ProjectListSerializer(serializers.ListSerializer):
         )
 
 
+@extend_schema_field(OpenApiTypes.ANY)
+class ProjectMetadataAnswerValueField(serializers.JSONField):
+    """A checklist answer's value: shape depends on the question's type
+    (bool for boolean questions, str for text/date/etc., list[str] for
+    single/multi-select once option UUIDs are resolved to labels, ...).
+    Declared as a plain JSONField, drf-spectacular renders it as a generic
+    `{type: object, additionalProperties: true}`, which strictly-typed SDK
+    clients can't deserialize non-object answers (a bool, a string) into.
+    OpenApiTypes.ANY documents it honestly as "could be anything" instead.
+    """
+
+
 class ProjectMetadataAnswerSerializer(serializers.Serializer):
     """Shape of a single project-metadata checklist answer (read-only)."""
 
     question_uuid = serializers.CharField()
     question = serializers.CharField(help_text="Question description.")
     question_type = serializers.CharField()
-    answer = serializers.JSONField(
+    answer = ProjectMetadataAnswerValueField(
         help_text=(
             "Human-readable answer value; select-type option UUIDs are resolved "
             "to their labels."
