@@ -494,6 +494,20 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             super().get_queryset(), self.request.user
         ).order_by("created")
 
+    def can_view_scope_team(self, user, call):
+        # Core walks the call's customer/project tree (customer_path =
+        # "manager__customer"), which never reaches the CallManagingOrganisation
+        # where a Call organizer's CUSTOMER.CALL_ORGANIZER role is actually bound.
+        # Without this, an organiser opening the "Team" tab of a call they can
+        # edit gets a 403 on list_users while staff/owners pass. The call creator
+        # is covered explicitly for preset/imported calls where the role grant
+        # never ran.
+        if call.created_by_id == user.id:
+            return True
+        if super().can_view_scope_team(user, call):
+            return True
+        return call.manager_id in get_connected_call_organizers(user)
+
     @extend_schema(
         methods=["get"],
         operation_id="proposal_protected_calls_offerings_list",

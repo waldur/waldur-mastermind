@@ -5,6 +5,45 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
+class ProtectedCallListUsersPermissionTest(test.APITestCase):
+    """The call "Team" tab lists the call team via
+    ``proposal-protected-calls/<uuid>/list_users`` (``ProtectedCallViewSet``).
+
+    A Call organizer holds ``CUSTOMER.CALL_ORGANIZER`` only on the managing
+    organisation (``CallManagingOrganisation``, scope ``call_organizer``) — not
+    on the customer or a project. The generic ``UserRoleMixin.list_users`` walks
+    Call -> Customer -> Projects and never reaches that binding, so the organiser
+    gets 403 on the Team tab of a call they can otherwise open for editing,
+    while staff/owners pass. ``ProtectedCallViewSet`` (unlike ``ProposalViewSet``)
+    does not override ``can_view_scope_team`` to add the call-organiser path.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.url = factories.CallFactory.get_protected_url(
+            self.call, action="list_users"
+        )
+
+    def _organizer_bound_only_to_managing_organisation(self):
+        # Faithful to the production grant flow: CallManagingOrganisation.add_user
+        # binds CUSTOMER.CALL_ORGANIZER to the managing organisation only.
+        user = structure_factories.UserFactory()
+        self.fixture.manager.add_user(user, self.fixture.call_organizer_role)
+        return user
+
+    def test_staff_can_list_call_users(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_call_organizer_can_list_call_users(self):
+        organizer = self._organizer_bound_only_to_managing_organisation()
+        self.client.force_authenticate(organizer)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+
 class ProposalListUsersPermissionTest(test.APITestCase):
     """The proposal-aware list_users override allows call managers.
 
