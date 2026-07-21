@@ -8,7 +8,9 @@ from rest_framework import filters
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import utils as core_utils
 from waldur_core.core.mixins import ScopeMixin
+from waldur_core.core.models import User
 from waldur_core.logging import models, utils
 from waldur_core.logging.event_logger import expand_event_groups
 
@@ -98,7 +100,16 @@ class EventFilterBackend(filters.BaseFilterBackend):
         if features:
             queryset = queryset.filter(event_type__in=expand_event_groups(features))
 
+        has_scope_filter = False
+
+        if "related_user_uuid" in request.query_params:
+            has_scope_filter = True
+            queryset = self._filter_related_user(
+                request, queryset, request.query_params["related_user_uuid"]
+            )
+
         if "scope" in request.query_params:
+            has_scope_filter = True
             field = core_serializers.GenericRelatedField(
                 related_models=utils.get_loggable_models()
             )
@@ -122,12 +133,45 @@ class EventFilterBackend(filters.BaseFilterBackend):
 
             queryset = queryset.filter(subquery)
 
-        elif not request.user.is_staff and not request.user.is_support:
+        if (
+            not has_scope_filter
+            and not request.user.is_staff
+            and not request.user.is_support
+        ):
             # If user is not staff nor support, he is allowed to see
             # events related to particular scope only.
             queryset = queryset.none()
 
         return queryset
+
+    def _filter_related_user(self, request, queryset, related_user_uuid):
+        """
+        List of events linked to the user via Feed, user_uuid, or
+        affected_user_uuid.
+        """
+        if not core_utils.is_uuid_like(related_user_uuid):
+            return queryset.none()
+
+        try:
+            related_user = User.objects.get(uuid=related_user_uuid)
+        except User.DoesNotExist:
+            return queryset.none()
+
+        requester = request.user
+        if not (
+            requester.is_staff
+            or requester.is_support
+            or related_user.pk == requester.pk
+        ):
+            return queryset.none()
+
+        content_type = ContentType.objects.get_for_model(User)
+        uuid_hex = related_user.uuid.hex
+        return queryset.filter(
+            Q(feed__content_type=content_type, feed__object_id=related_user.id)
+            | Q(context__user_uuid=uuid_hex)
+            | Q(context__affected_user_uuid=uuid_hex)
+        ).distinct()
 
     def get_schema_operation_parameters(self, view):
         return [
@@ -151,6 +195,19 @@ class EventFilterBackend(filters.BaseFilterBackend):
                 location=OpenApiParameter.QUERY,
                 required=False,
                 description="Filter by scope URL.",
+            ),
+            build_parameter_type(
+                name="related_user_uuid",
+                schema={"type": "string", "format": "uuid"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "Filter events related to a user: Feed scope, actor "
+                    "(context.user_uuid), or affected user "
+                    "(context.affected_user_uuid). Combined with OR. "
+                    "Staff/support may target any user; others only themselves."
+                ),
+                extensions={"x-waldur-operation-id": "users_retrieve"},
             ),
         ]
 
