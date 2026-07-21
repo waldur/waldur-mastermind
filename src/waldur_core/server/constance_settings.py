@@ -616,12 +616,38 @@ CONSTANCE_CONFIG = {
     ),
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": (
         "atlassian",
-        "Type of support backend.",
+        "Type of support backend. Possible values: basic, atlassian, zammad, smax.",
         "choice_field",
     ),
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE": (
         True,
         "Toggler for request type displaying",
+    ),
+    "WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED": (
+        False,
+        "Enable automatic routing of tickets to provider helpdesks.",
+    ),
+    "WALDUR_SUPPORT_AUTO_ASSIGN": (
+        False,
+        "Enable automatic assignment of tickets to support users.",
+    ),
+    "WALDUR_SUPPORT_AUTO_ASSIGN_STRATEGY": (
+        "least_loaded",
+        "Strategy for auto-assignment. Possible values: least_loaded, round_robin.",
+    ),
+    "WALDUR_SUPPORT_SLA_ENABLED": (
+        False,
+        "Enable SLA deadline tracking for the basic support backend.",
+    ),
+    "WALDUR_SUPPORT_SLA_RESPONSE_HOURS": (
+        4,
+        "SLA deadline for first response in hours.",
+        int,
+    ),
+    "WALDUR_SUPPORT_SLA_RESOLUTION_HOURS": (
+        24,
+        "SLA deadline for issue resolution in hours.",
+        int,
     ),
     # Atlassian settings
     "ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS": (
@@ -1737,6 +1763,12 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "WALDUR_SUPPORT_ENABLED",
         "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE",
         "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
+        "WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED",
+        "WALDUR_SUPPORT_AUTO_ASSIGN",
+        "WALDUR_SUPPORT_AUTO_ASSIGN_STRATEGY",
+        "WALDUR_SUPPORT_SLA_ENABLED",
+        "WALDUR_SUPPORT_SLA_RESPONSE_HOURS",
+        "WALDUR_SUPPORT_SLA_RESOLUTION_HOURS",
     ),
     "Atlassian settings": (
         "ATLASSIAN_API_URL",
@@ -2072,6 +2104,12 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE",
+    "WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED",
+    "WALDUR_SUPPORT_AUTO_ASSIGN",
+    "WALDUR_SUPPORT_AUTO_ASSIGN_STRATEGY",
+    "WALDUR_SUPPORT_SLA_ENABLED",
+    "WALDUR_SUPPORT_SLA_RESPONSE_HOURS",
+    "WALDUR_SUPPORT_SLA_RESOLUTION_HOURS",
     "USER_TABLE_COLUMNS",
     # FreeIPA
     "FREEIPA_ENABLED",

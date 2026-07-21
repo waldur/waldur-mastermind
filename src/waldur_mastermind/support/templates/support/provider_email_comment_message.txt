@@ -1,0 +1,4 @@
+A new comment has been added to ticket {{ issue.key }}.
+
+Comment by {{ comment.author.name }}:
+{{ comment.description }}

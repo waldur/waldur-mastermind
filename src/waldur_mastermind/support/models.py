@@ -145,6 +145,72 @@ class Issue(
         help_text="Internal processing log for debugging order lifecycle events. Visible only to staff.",
     )
 
+    # Routing fields
+    parent_issue = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="child_issues",
+        on_delete=models.SET_NULL,
+        help_text=_("Parent issue if this is a provider-routed child issue."),
+    )
+    provider_helpdesk = models.ForeignKey(
+        "ProviderHelpdesk",
+        null=True,
+        blank=True,
+        related_name="issues",
+        on_delete=models.SET_NULL,
+        help_text=_("Provider helpdesk this issue was routed to."),
+    )
+    is_escalated = models.BooleanField(
+        default=False,
+        help_text=_("Whether this issue has been escalated."),
+    )
+    escalated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("When the issue was escalated."),
+    )
+    escalation_reason = models.TextField(
+        blank=True,
+        help_text=_("Reason for escalation."),
+    )
+    provider_assignee = models.ForeignKey(
+        "ProviderSupportUser",
+        null=True,
+        blank=True,
+        related_name="assigned_issues",
+        on_delete=models.SET_NULL,
+        help_text=_("Provider support user assigned to this issue."),
+    )
+
+    tags = models.ManyToManyField(
+        "IssueTag",
+        blank=True,
+        related_name="issues",
+    )
+
+    # SLA fields
+    first_response_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Deadline for first response from support staff."),
+    )
+    resolution_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Deadline for issue resolution."),
+    )
+    first_response_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Timestamp of first response from support staff."),
+    )
+    sla_breached = models.BooleanField(
+        default=False,
+        help_text=_("Whether SLA has been breached for this issue."),
+    )
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @property
@@ -336,6 +402,10 @@ class Comment(
     )
     description = models.TextField()
     is_public = models.BooleanField(default=True)
+    is_forwarded = models.BooleanField(
+        default=False,
+        help_text=_("Whether this comment was forwarded from a parent/child issue."),
+    )
     backend_id = models.CharField(max_length=255, blank=True, null=True)
     remote_id = models.CharField(max_length=255, blank=True, null=True)
     tracker = cast(FieldInstanceTracker, FieldTracker())
@@ -662,3 +732,322 @@ class Feedback(
     @classmethod
     def get_url_name(cls):
         return "support-feedback"
+
+
+class IssueStatusTransition(core_models.UuidMixin, models.Model):
+    """Defines allowed status transitions for issues.
+
+    When populated, only transitions listed here are permitted.
+    When empty, all transitions are allowed (backwards compatibility).
+    """
+
+    from_status = models.CharField(max_length=255)
+    to_status = models.CharField(max_length=255)
+
+    class Meta:
+        unique_together = ("from_status", "to_status")
+        ordering = ["from_status", "to_status"]
+
+    @classmethod
+    def is_transition_allowed(cls, from_status, to_status):
+        """Check if a transition is allowed.
+
+        If no transitions are defined, all transitions are allowed.
+        """
+        if not cls.objects.exists():
+            return True
+        return cls.objects.filter(from_status=from_status, to_status=to_status).exists()
+
+    def __str__(self):
+        return f"{self.from_status} -> {self.to_status}"
+
+
+class ProviderHelpdesk(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    class BackendTypes:
+        BASIC = "basic"
+        EMAIL = "email"
+        ATLASSIAN = "atlassian"
+        ZAMMAD = "zammad"
+        SMAX = "smax"
+
+        CHOICES = (
+            (BASIC, "Basic (built-in)"),
+            (EMAIL, "Email"),
+            (ATLASSIAN, "Atlassian JIRA"),
+            (ZAMMAD, "Zammad"),
+            (SMAX, "SMAX"),
+        )
+
+    service_provider = models.OneToOneField(
+        "marketplace.ServiceProvider",
+        on_delete=models.CASCADE,
+        related_name="provider_helpdesk",
+    )
+    backend_type = models.CharField(
+        max_length=50,
+        choices=BackendTypes.CHOICES,
+        default=BackendTypes.BASIC,
+    )
+    settings = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Backend-specific configuration."),
+    )
+    is_active = models.BooleanField(default=True)
+    webhook_secret = models.CharField(max_length=255, blank=True)
+    notification_email = models.EmailField(
+        blank=True,
+        help_text=_("Primary email for notifications."),
+    )
+    notify_on_new_ticket = models.BooleanField(default=True)
+    notify_on_comment = models.BooleanField(default=True)
+    notify_on_escalation = models.BooleanField(default=True)
+    notify_on_sla_warning = models.BooleanField(default=True)
+
+    # Monitoring fields
+    last_health_check = models.DateTimeField(null=True, blank=True)
+    last_health_status = models.CharField(max_length=50, blank=True)
+    failed_routing_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created"]
+        verbose_name = _("Provider helpdesk")
+        verbose_name_plural = _("Provider helpdesks")
+
+    def get_notification_emails(self):
+        emails = []
+        if self.notification_email:
+            emails.append(self.notification_email)
+        # Also include service provider lead email
+        if self.service_provider.lead_email:
+            emails.append(self.service_provider.lead_email)
+        return list(set(emails))
+
+    @property
+    def health_status(self):
+        if not self.last_health_check:
+            return "unknown"
+        return self.last_health_status or "unknown"
+
+    @classmethod
+    def get_url_name(cls):
+        return "provider-helpdesk"
+
+    def __str__(self):
+        return f"Helpdesk for {self.service_provider}"
+
+
+class ProviderSupportUser(core_models.UuidMixin, TimeStampedModel):
+    class Roles:
+        AGENT = "agent"
+        MANAGER = "manager"
+
+        CHOICES = (
+            (AGENT, "Agent"),
+            (MANAGER, "Manager"),
+        )
+
+    provider_helpdesk = models.ForeignKey(
+        ProviderHelpdesk,
+        on_delete=models.CASCADE,
+        related_name="support_users",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="provider_support_roles",
+    )
+    role = models.CharField(
+        max_length=50,
+        choices=Roles.CHOICES,
+        default=Roles.AGENT,
+    )
+    is_active = models.BooleanField(default=True)
+    skills = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("List of skill tags for routing."),
+    )
+    max_open_tickets = models.PositiveIntegerField(
+        default=20,
+        help_text=_("Maximum number of open tickets this user can handle."),
+    )
+
+    class Meta:
+        unique_together = ("provider_helpdesk", "user")
+        ordering = ["user__first_name", "user__last_name"]
+
+    @property
+    def open_ticket_count(self):
+        return Issue.objects.filter(
+            provider_assignee=self,
+            resolution_date__isnull=True,
+        ).count()
+
+    @property
+    def has_capacity(self):
+        return self.open_ticket_count < self.max_open_tickets
+
+    @classmethod
+    def get_url_name(cls):
+        return "provider-support-user"
+
+    def __str__(self):
+        return f"{self.user.full_name} ({self.provider_helpdesk})"
+
+
+class ProviderCannedResponse(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    TimeStampedModel,
+):
+    provider_helpdesk = models.ForeignKey(
+        ProviderHelpdesk,
+        on_delete=models.CASCADE,
+        related_name="canned_responses",
+    )
+    text = models.TextField(
+        help_text=_("Template text. Supports Django template syntax.")
+    )
+    category = models.CharField(max_length=255, blank=True)
+    usage_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-usage_count", "name"]
+
+    def render(self, context_dict=None):
+        from django.template import Context, Template
+
+        template = Template(self.text)
+        context = Context(context_dict or {})
+        return template.render(context)
+
+    @classmethod
+    def get_url_name(cls):
+        return "provider-canned-response"
+
+    def __str__(self):
+        return self.name
+
+
+class IssueTag(core_models.UuidMixin, core_models.NameMixin, models.Model):
+    color = models.CharField(
+        max_length=7,
+        blank=True,
+        help_text=_("Hex color code, e.g. #FF0000."),
+    )
+
+    class Meta:
+        ordering = ["name"]
+
+    @classmethod
+    def get_url_name(cls):
+        return "support-issue-tag"
+
+    def __str__(self):
+        return self.name
+
+
+class IssueLink(core_models.UuidMixin, models.Model):
+    class LinkTypes:
+        RELATED = "related"
+        BLOCKED_BY = "blocked_by"
+        DUPLICATES = "duplicates"
+
+        CHOICES = (
+            (RELATED, "Related"),
+            (BLOCKED_BY, "Blocked by"),
+            (DUPLICATES, "Duplicates"),
+        )
+
+    source = models.ForeignKey(
+        Issue,
+        on_delete=models.CASCADE,
+        related_name="outgoing_links",
+    )
+    target = models.ForeignKey(
+        Issue,
+        on_delete=models.CASCADE,
+        related_name="incoming_links",
+    )
+    link_type = models.CharField(
+        max_length=50,
+        choices=LinkTypes.CHOICES,
+        default=LinkTypes.RELATED,
+    )
+
+    class Meta:
+        unique_together = ("source", "target")
+        ordering = ["source", "target"]
+
+    @classmethod
+    def get_url_name(cls):
+        return "support-issue-link"
+
+    def __str__(self):
+        return f"{self.source.key} -> {self.target.key} ({self.link_type})"
+
+
+class SavedFilter(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="saved_filters",
+    )
+    filter_params = models.JSONField(
+        default=dict,
+        help_text=_("Saved filter parameters as JSON."),
+    )
+    is_shared = models.BooleanField(
+        default=False,
+        help_text=_("If True, visible to all staff/support users."),
+    )
+
+    class Meta:
+        ordering = ["-modified"]
+
+    @classmethod
+    def get_url_name(cls):
+        return "support-saved-filter"
+
+    def __str__(self):
+        return self.name
+
+
+class CannedResponse(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    TimeStampedModel,
+):
+    text = models.TextField(
+        help_text=_("Template text. Supports Django template syntax.")
+    )
+    category = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        ordering = ["category", "name"]
+
+    def render(self, context_dict=None):
+        from django.template import Context, Template
+
+        template = Template(self.text)
+        context = Context(context_dict or {})
+        return template.render(context)
+
+    @classmethod
+    def get_url_name(cls):
+        return "support-canned-response"
+
+    def __str__(self):
+        return self.name

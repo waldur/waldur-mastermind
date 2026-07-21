@@ -1,0 +1,6 @@
+Ticket {{ issue.key }} has been escalated.
+
+Reason: {{ reason }}
+
+Summary: {{ issue.summary }}
+Priority: {{ issue.priority }}

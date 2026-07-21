@@ -1,0 +1,6 @@
+Ticket {{ issue.key }} is approaching its SLA deadline.
+
+Summary: {{ issue.summary }}
+Priority: {{ issue.priority }}
+
+Please take action to avoid an SLA breach.

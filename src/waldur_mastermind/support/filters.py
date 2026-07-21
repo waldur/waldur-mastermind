@@ -91,6 +91,18 @@ class IssueFilter(django_filters.FilterSet):
         lookup_expr="icontains", field_name="remote_id"
     )
 
+    sla_breached = django_filters.BooleanFilter(field_name="sla_breached")
+    is_routed = django_filters.BooleanFilter(
+        method="filter_by_is_routed", label="Has been routed to provider"
+    )
+    is_escalated = django_filters.BooleanFilter(field_name="is_escalated")
+    is_parent = django_filters.BooleanFilter(
+        method="filter_by_is_parent", label="Is a parent issue"
+    )
+    provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="provider-helpdesk-detail", field_name="provider_helpdesk__uuid"
+    )
+
     resolution_year_month = django_filters.CharFilter(
         field_name="resolution_date", method="filter_by_resolution_year_month"
     )
@@ -115,6 +127,18 @@ class IssueFilter(django_filters.FilterSet):
 
     def filter_by_resource_attribute(self, queryset, name, value):
         return filter_by_resource_attribute(queryset, name, value)
+
+    def filter_by_is_routed(self, queryset, name, value):
+        if value:
+            return queryset.filter(child_issues__isnull=False).distinct()
+        return queryset.filter(child_issues__isnull=True)
+
+    def filter_by_is_parent(self, queryset, name, value):
+        if value:
+            return queryset.filter(
+                parent_issue__isnull=True, child_issues__isnull=False
+            ).distinct()
+        return queryset.exclude(parent_issue__isnull=True, child_issues__isnull=False)
 
     def filter_by_query(self, queryset, name, value):
         return queryset.filter(
@@ -186,7 +210,15 @@ class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
     def filter_queryset(self, request, queryset, view):
         return (
             super().filter_queryset(request, queryset, view).distinct()
-            | queryset.filter(caller=request.user).distinct()
+            # A caller sees their own top-level tickets, but not the internal
+            # provider-routed child issues (those are visible to staff/support
+            # and to the provider's own support users below).
+            | queryset.filter(caller=request.user, parent_issue__isnull=True).distinct()
+            # Provider support users can see issues routed to their helpdesk.
+            | queryset.filter(
+                provider_helpdesk__support_users__user=request.user,
+                provider_helpdesk__support_users__is_active=True,
+            ).distinct()
         )
 
 
@@ -195,6 +227,12 @@ class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter)
         return (
             super().filter_queryset(request, queryset, view).distinct()
             | queryset.filter(issue__caller=request.user).distinct()
+            # Provider support users can see comments on issues routed to their
+            # helpdesk.
+            | queryset.filter(
+                issue__provider_helpdesk__support_users__user=request.user,
+                issue__provider_helpdesk__support_users__is_active=True,
+            ).distinct()
         )
 
 
@@ -250,6 +288,115 @@ class AttachmentFilter(django_filters.FilterSet):
     class Meta:
         model = models.Attachment
         fields = ("issue", "issue_uuid")
+
+
+class ProviderTicketFilter(django_filters.FilterSet):
+    status = django_filters.CharFilter()
+    priority = django_filters.CharFilter()
+    is_escalated = django_filters.BooleanFilter()
+    sla_breached = django_filters.BooleanFilter()
+    provider_assignee = core_filters.RelatedUUIDFilter(
+        view_name="provider-support-user-detail",
+        field_name="provider_assignee__uuid",
+    )
+    summary = django_filters.CharFilter(lookup_expr="icontains")
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("created", "created"),
+            ("modified", "modified"),
+            ("priority", "priority"),
+            ("status", "status"),
+        )
+    )
+
+    class Meta:
+        model = models.Issue
+        fields = ["status", "priority", "is_escalated", "sla_breached"]
+
+
+class ProviderSupportUserFilter(django_filters.FilterSet):
+    provider_helpdesk_uuid = core_filters.RelatedUUIDFilter(
+        view_name="provider-helpdesk-detail", field_name="provider_helpdesk__uuid"
+    )
+    is_active = django_filters.BooleanFilter()
+    role = django_filters.CharFilter()
+    user_full_name = django_filters.CharFilter(
+        method="filter_by_full_name", label="User full name contains"
+    )
+
+    def filter_by_full_name(self, queryset, name, value):
+        return core_filters.filter_by_full_name(queryset, value, "user")
+
+    class Meta:
+        model = models.ProviderSupportUser
+        fields = ["is_active", "role"]
+
+
+class ProviderCannedResponseFilter(django_filters.FilterSet):
+    provider_helpdesk_uuid = core_filters.RelatedUUIDFilter(
+        view_name="provider-helpdesk-detail", field_name="provider_helpdesk__uuid"
+    )
+    category = django_filters.CharFilter(lookup_expr="icontains")
+    name = django_filters.CharFilter(lookup_expr="icontains")
+
+    class Meta:
+        model = models.ProviderCannedResponse
+        fields = ["category"]
+
+
+class ProviderHelpdeskFilter(django_filters.FilterSet):
+    service_provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-service-provider-detail",
+        field_name="service_provider__uuid",
+    )
+    is_active = django_filters.BooleanFilter()
+    backend_type = django_filters.CharFilter()
+
+    class Meta:
+        model = models.ProviderHelpdesk
+        fields = ["is_active", "backend_type"]
+
+
+class IssueTagFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr="icontains")
+
+    class Meta:
+        model = models.IssueTag
+        fields = ["name"]
+
+
+class IssueLinkFilter(django_filters.FilterSet):
+    source_uuid = core_filters.RelatedUUIDFilter(
+        view_name="support-issue-detail", field_name="source__uuid"
+    )
+    target_uuid = core_filters.RelatedUUIDFilter(
+        view_name="support-issue-detail", field_name="target__uuid"
+    )
+    link_type = django_filters.CharFilter()
+
+    class Meta:
+        model = models.IssueLink
+        fields = ["link_type"]
+
+
+class SavedFilterFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    is_shared = django_filters.BooleanFilter()
+
+    class Meta:
+        model = models.SavedFilter
+        fields = ["name", "is_shared"]
+
+
+class CannedResponseFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    category = django_filters.CharFilter(lookup_expr="icontains")
+    is_active = django_filters.BooleanFilter()
+
+    class Meta:
+        model = models.CannedResponse
+        fields = ["name", "category", "is_active"]
 
 
 class FeedbackFilter(django_filters.FilterSet):

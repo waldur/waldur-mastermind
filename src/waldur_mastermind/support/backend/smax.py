@@ -24,10 +24,23 @@ logger = logging.getLogger(__name__)
 
 
 class SmaxServiceBackend(SupportBackend):
-    def __init__(self):
-        self.manager = SmaxBackend()
+    def __init__(self, settings_override=None):
+        self._settings_override = settings_override or {}
+        self.manager = SmaxBackend(settings_override=self._settings_override)
 
     backend_name = SupportBackendType.SMAX
+
+    def _get_config(self, key, default=None):
+        """Get config value from provider settings override or Constance."""
+        if key in self._settings_override:
+            return self._settings_override[key]
+        return getattr(config, key, default)
+
+    @classmethod
+    def from_settings(cls, settings_dict):
+        """Create a SmaxServiceBackend with provider-specific settings."""
+        return cls(settings_override=settings_dict)
+
     summary_max_length = 140
     message_format = SupportedFormat.HTML
 
@@ -494,7 +507,9 @@ class SmaxServiceBackend(SupportBackend):
         # SMAX doesn't support new lines
         body = text2html(body)
 
-        integration_user_upn = self.manager.get_user_by_upn(config.SMAX_LOGIN)
+        integration_user_upn = self.manager.get_user_by_upn(
+            self._get_config("SMAX_LOGIN")
+        )
         comment = Comment(
             description=body,
             backend_user_id=integration_user_upn.id,

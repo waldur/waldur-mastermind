@@ -798,6 +798,21 @@ The support module provides several extension points:
 4. **Webhook Processors**: Custom webhook payload processing
 5. **Feedback Collectors**: Alternative feedback mechanisms
 
+## Multi-Tenant Provider Helpdesk
+
+The support module includes a multi-tenant provider helpdesk system that enables service providers to register their own helpdesk backends. Tickets are automatically routed to the correct provider, with bidirectional comment forwarding between operator and provider via parent/child issue pairs.
+
+Key capabilities:
+
+- Per-provider helpdesk backends (Atlassian, Zammad, SMAX, Basic, Email)
+- Automatic ticket routing based on resource/offering/provider chain
+- SLA management with configurable deadlines and breach detection
+- Auto-assignment with least-loaded and round-robin strategies
+- Escalation workflow with provider notifications
+- Provider team management and canned responses
+
+See [Provider Helpdesk Documentation](provider-helpdesk.md) for details.
+
 ## Appendix
 
 ### Database Schema

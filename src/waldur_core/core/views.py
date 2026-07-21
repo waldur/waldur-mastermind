@@ -628,7 +628,12 @@ def get_public_settings(request=None):
     public_settings["WALDUR_SUPPORT"] = get_constance_plugin_settings(
         all_constance_values,
         "WALDUR_SUPPORT",
-        ["ENABLED", "DISPLAY_REQUEST_TYPE", "ACTIVE_BACKEND_TYPE"],
+        [
+            "ENABLED",
+            "DISPLAY_REQUEST_TYPE",
+            "ACTIVE_BACKEND_TYPE",
+            "PROVIDER_ROUTING_ENABLED",
+        ],
     )
     cache.set(
         "API_CONFIGURATION", public_settings, None

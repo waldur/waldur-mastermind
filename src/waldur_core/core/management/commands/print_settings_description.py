@@ -20,11 +20,20 @@ class Command(BaseCommand):
             for key in keys:
                 default = settings.CONSTANCE_CONFIG[key][0]
                 description = settings.CONSTANCE_CONFIG[key][1].replace("'", "\\'")
-                value_type = (
-                    len(settings.CONSTANCE_CONFIG[key]) >= 3
-                    and f"'{settings.CONSTANCE_CONFIG[key][2]}'"
-                    or None
-                )
+                value_type = None
+                if len(settings.CONSTANCE_CONFIG[key]) >= 3:
+                    raw_type = settings.CONSTANCE_CONFIG[key][2]
+                    if isinstance(raw_type, type):
+                        type_map = {
+                            int: "integer",
+                            float: "float",
+                            bool: "boolean",
+                            str: "string",
+                            list: "list_field",
+                        }
+                        value_type = f"'{type_map.get(raw_type, raw_type.__name__)}'"
+                    else:
+                        value_type = f"'{raw_type}'"
                 formatted_default = (
                     isinstance(default, str)
                     and f"'{default}'"

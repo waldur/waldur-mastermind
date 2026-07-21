@@ -1,3 +1,4 @@
+from constance import config
 from django.conf import settings
 from django.db import transaction
 
@@ -142,6 +143,10 @@ def send_comment_added_notification(
     if not comment.is_public:
         return
 
+    # Skip notifications for forwarded comments (they are system-generated)
+    if comment.is_forwarded:
+        return
+
     # Skip notifications about comments added to an issue by caller himself
     if comment.author.user == comment.issue.caller:
         return
@@ -197,6 +202,103 @@ def send_issue_updated_notification(
     transaction.on_commit(
         lambda: tasks.send_issue_updated_notification.delay(serialized_issue, changed)
     )
+
+
+def forward_comment_to_children(
+    sender, instance: models.Comment, created=False, **kwargs
+):
+    """Forward new public comments from parent issues to child issues."""
+    if not created:
+        return
+
+    # Skip forwarded comments to prevent infinite loops
+    if instance.is_forwarded:
+        return
+
+    if not instance.is_public:
+        return
+
+    parent_issue = instance.issue
+    # Only forward if the issue has children (it's a parent)
+    if not parent_issue.child_issues.exists():
+        return
+
+    comment_id = instance.id
+    transaction.on_commit(lambda: tasks.forward_comment_to_child.delay(comment_id))
+
+
+def propagate_comment_to_parent(
+    sender, instance: models.Comment, created=False, **kwargs
+):
+    """Propagate new public comments from child issues back to parent issues."""
+    if not created:
+        return
+
+    # Skip forwarded comments to prevent infinite loops
+    if instance.is_forwarded:
+        return
+
+    if not instance.is_public:
+        return
+
+    child_issue = instance.issue
+    if not child_issue.parent_issue_id:
+        return
+
+    comment_id = instance.id
+    transaction.on_commit(lambda: tasks.propagate_comment_to_parent.delay(comment_id))
+
+
+def dispatch_routing_on_issue_create(
+    sender, instance: models.Issue, created=False, **kwargs
+):
+    """Dispatch routing task when an issue is created or a resource is attached.
+
+    Routing is triggered in two scenarios:
+    1. Issue creation — the basic backend creates the issue in two saves
+       (first without backend_id, second with it), so we trigger when
+       backend_id is first populated.
+    2. Resource attachment — operator connects a resource to an existing
+       issue that had no resource, enabling provider routing.
+    """
+    if not config.WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED:
+        return
+
+    # Skip child issues (already routed)
+    if instance.parent_issue_id is not None:
+        return
+
+    # Skip if already routed
+    if instance.child_issues.exists():
+        return
+
+    # Skip if no backend_id yet (issue not fully created)
+    if not instance.backend_id:
+        return
+
+    should_route = False
+
+    # Scenario 1: backend_id first populated (issue creation)
+    if created or (
+        instance.tracker.has_changed("backend_id")
+        and not instance.tracker.previous("backend_id")
+    ):
+        # Only route if resource is already attached
+        if instance.resource_object_id:
+            should_route = True
+
+    # Scenario 2: resource first attached to existing issue
+    if (
+        not created
+        and instance.resource_object_id
+        and instance.tracker.has_changed("resource_object_id")
+        and not instance.tracker.previous("resource_object_id")
+    ):
+        should_route = True
+
+    if should_route:
+        issue_id = instance.id
+        transaction.on_commit(lambda: tasks.route_issue_to_provider.delay(issue_id))
 
 
 def create_feedback_if_issue_has_been_resolved(

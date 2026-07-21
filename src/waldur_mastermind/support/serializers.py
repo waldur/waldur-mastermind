@@ -103,6 +103,16 @@ class IssueSerializer(
         required=False,
         allow_null=True,
     )
+    parent_issue = serializers.HyperlinkedRelatedField(
+        view_name="support-issue-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+    provider_helpdesk = serializers.HyperlinkedRelatedField(
+        view_name="provider-helpdesk-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.CharField(read_only=True, source="resource.name")
     type = serializers.CharField()
@@ -121,6 +131,9 @@ class IssueSerializer(
     order_project_uuid = serializers.SerializerMethodField()
     order_customer_uuid = serializers.SerializerMethodField()
     order_resource_name = serializers.SerializerMethodField()
+    sla_status = serializers.SerializerMethodField()
+    is_routed = serializers.SerializerMethodField()
+    provider_ticket_info = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Issue
@@ -171,6 +184,18 @@ class IssueSerializer(
             "order_project_uuid",
             "order_customer_uuid",
             "order_resource_name",
+            "first_response_deadline",
+            "resolution_deadline",
+            "first_response_at",
+            "sla_breached",
+            "sla_status",
+            "parent_issue",
+            "provider_helpdesk",
+            "is_escalated",
+            "escalated_at",
+            "escalation_reason",
+            "is_routed",
+            "provider_ticket_info",
         )
         read_only_fields = (
             "key",
@@ -181,6 +206,18 @@ class IssueSerializer(
             "link",
             "feedback",
             "processing_log",
+            "first_response_deadline",
+            "resolution_deadline",
+            "first_response_at",
+            "sla_breached",
+            "sla_status",
+            "parent_issue",
+            "provider_helpdesk",
+            "is_escalated",
+            "escalated_at",
+            "escalation_reason",
+            "is_routed",
+            "provider_ticket_info",
         )
         protected_fields = (
             "customer",
@@ -292,6 +329,71 @@ class IssueSerializer(
 
     def get_add_attachment_is_available(self, obj: models.Issue) -> bool:
         return backend.get_active_backend().attachment_create_is_available(obj)
+
+    def get_is_routed(self, obj: models.Issue) -> bool:
+        # Consume the prefetch cache (see IssueViewSet.get_queryset).
+        return bool(obj.child_issues.all())
+
+    def get_provider_ticket_info(self, obj: models.Issue) -> dict | None:
+        # Consume the prefetch cache (see IssueViewSet.get_queryset).
+        children = obj.child_issues.all()
+        child = children[0] if children else None
+        if child and child.provider_helpdesk:
+            service_provider = child.provider_helpdesk.service_provider
+            return {
+                "child_issue_uuid": child.uuid.hex,
+                "child_ticket_key": child.key,
+                "child_ticket_status": child.status,
+                "provider_name": str(service_provider),
+                "provider_customer_uuid": service_provider.customer.uuid.hex,
+                "backend_type": child.provider_helpdesk.backend_type,
+            }
+        return None
+
+    def _can_view_routing(self, obj: models.Issue) -> bool:
+        """Routing internals (provider identity, child ticket, parent link) are
+        visible only to staff/support and to the provider's own support users.
+        For a plain caller the provider relationship stays hidden."""
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or user.is_anonymous:
+            return False
+        if user.is_staff or user.is_support:
+            return True
+        helpdesk = obj.provider_helpdesk
+        # `helpdesk` is None for non-routed / parent issues, so this short-circuits
+        # without a query for the common caller case.
+        return bool(
+            helpdesk
+            and helpdesk.support_users.filter(user=user, is_active=True).exists()
+        )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not self._can_view_routing(instance):
+            for field in (
+                "is_routed",
+                "provider_ticket_info",
+                "provider_helpdesk",
+                "parent_issue",
+            ):
+                data.pop(field, None)
+        return data
+
+    def get_sla_status(self, obj: models.Issue) -> str:
+        if obj.sla_breached:
+            return "breached"
+        if obj.resolution_date:
+            return "met"
+        from django.utils import timezone as tz
+
+        now = tz.now()
+        if obj.first_response_deadline and obj.first_response_at is None:
+            if now > obj.first_response_deadline:
+                return "breached"
+        if obj.resolution_deadline and now > obj.resolution_deadline:
+            return "breached"
+        return "on_track"
 
     def get_order_uuid(self, obj: models.Issue) -> str | None:
         """Return order UUID if the issue's resource is an Order."""
@@ -883,6 +985,424 @@ class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
             "issue_key",
             "issue_summary",
         )
+
+
+class EscalateIssueSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=True, help_text="Reason for escalation.")
+
+
+class AttachResourceSerializer(serializers.Serializer):
+    resource = core_serializers.GenericRelatedField(
+        related_models=structure_models.BaseResource.get_all_models()
+        + [marketplace_models.Resource],
+        required=True,
+        help_text="URL of the marketplace resource to attach to this issue.",
+    )
+
+
+class ProviderHelpdeskSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    service_provider = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=marketplace_models.ServiceProvider.objects.all(),
+    )
+    service_provider_name = serializers.ReadOnlyField(
+        source="service_provider.customer.name"
+    )
+    health_status = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField())
+    def get_health_status(self, obj):
+        return obj.health_status
+
+    class Meta:
+        model = models.ProviderHelpdesk
+        fields = (
+            "url",
+            "uuid",
+            "service_provider",
+            "service_provider_name",
+            "backend_type",
+            "settings",
+            "is_active",
+            "webhook_secret",
+            "notification_email",
+            "notify_on_new_ticket",
+            "notify_on_comment",
+            "notify_on_escalation",
+            "notify_on_sla_warning",
+            "health_status",
+            "last_health_check",
+            "failed_routing_count",
+            "created",
+            "modified",
+        )
+        read_only_fields = (
+            "health_status",
+            "last_health_check",
+            "failed_routing_count",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "provider-helpdesk-detail",
+            },
+        }
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Mask webhook secret in output
+        if data.get("webhook_secret"):
+            data["webhook_secret"] = "***"
+        return data
+
+
+class ProviderTicketSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    parent_issue_key = serializers.ReadOnlyField(source="parent_issue.key")
+    parent_issue_uuid = serializers.ReadOnlyField(source="parent_issue.uuid")
+    provider_assignee_name = serializers.ReadOnlyField(
+        source="provider_assignee.user.full_name"
+    )
+    provider_assignee = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = models.Issue
+        fields = (
+            "url",
+            "uuid",
+            "key",
+            "summary",
+            "description",
+            "type",
+            "status",
+            "priority",
+            "created",
+            "modified",
+            "parent_issue_key",
+            "parent_issue_uuid",
+            "is_escalated",
+            "escalated_at",
+            "provider_assignee",
+            "provider_assignee_name",
+            "first_response_deadline",
+            "resolution_deadline",
+            "first_response_at",
+            "sla_breached",
+            "customer",
+            "customer_uuid",
+            "customer_name",
+            "project",
+            "project_uuid",
+            "project_name",
+        )
+        read_only_fields = (
+            "key",
+            "summary",
+            "description",
+            "type",
+            "status",
+            "priority",
+            "parent_issue_key",
+            "parent_issue_uuid",
+            "is_escalated",
+            "first_response_deadline",
+            "resolution_deadline",
+            "first_response_at",
+            "sla_breached",
+        )
+        extra_kwargs = dict(
+            url={"lookup_field": "uuid", "view_name": "provider-ticket-detail"},
+            customer={"lookup_field": "uuid", "view_name": "customer-detail"},
+            project={"lookup_field": "uuid", "view_name": "project-detail"},
+        )
+        related_paths = dict(
+            customer=("uuid", "name"),
+            project=("uuid", "name"),
+        )
+
+
+class ProviderCommentSerializer(serializers.Serializer):
+    description = serializers.CharField(required=True)
+    is_public = serializers.BooleanField(default=True)
+
+
+class ProviderAssignSerializer(serializers.Serializer):
+    provider_support_user = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ProviderSupportUser.objects.all(),
+    )
+
+
+class CallerContextSerializer(serializers.Serializer):
+    full_name = serializers.CharField()
+    email = serializers.EmailField()
+    organization = serializers.CharField(allow_blank=True)
+
+
+class ResourceContextSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    type = serializers.CharField()
+
+
+class RecentTicketSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    key = serializers.CharField()
+    summary = serializers.CharField()
+    status = serializers.CharField()
+    created = serializers.DateTimeField()
+
+
+class CustomerContextSerializer(serializers.Serializer):
+    caller = CallerContextSerializer()
+    resource = ResourceContextSerializer(allow_null=True)
+    recent_tickets = RecentTicketSerializer(many=True)
+
+
+class ProviderSupportUserSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    user = serializers.HyperlinkedRelatedField(
+        view_name="user-detail",
+        lookup_field="uuid",
+        queryset=User.objects.all(),
+    )
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_email = serializers.ReadOnlyField(source="user.email")
+    provider_helpdesk = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ProviderHelpdesk.objects.all(),
+    )
+    open_ticket_count = serializers.SerializerMethodField()
+    has_capacity = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_open_ticket_count(self, obj):
+        return obj.open_ticket_count
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_has_capacity(self, obj):
+        return obj.has_capacity
+
+    class Meta:
+        model = models.ProviderSupportUser
+        fields = (
+            "url",
+            "uuid",
+            "user",
+            "user_full_name",
+            "user_email",
+            "provider_helpdesk",
+            "role",
+            "is_active",
+            "skills",
+            "max_open_tickets",
+            "open_ticket_count",
+            "has_capacity",
+            "created",
+            "modified",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "provider-support-user-detail",
+            },
+        }
+
+
+class TeamWorkloadSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    user_full_name = serializers.CharField()
+    open_ticket_count = serializers.IntegerField()
+    max_open_tickets = serializers.IntegerField()
+    has_capacity = serializers.BooleanField()
+
+
+class ProviderCannedResponseSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    provider_helpdesk = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ProviderHelpdesk.objects.all(),
+    )
+
+    class Meta:
+        model = models.ProviderCannedResponse
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "provider_helpdesk",
+            "text",
+            "category",
+            "usage_count",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("usage_count",)
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "provider-canned-response-detail",
+            },
+        }
+
+
+class ProviderStatsSerializer(serializers.Serializer):
+    total_open = serializers.IntegerField()
+    total_resolved = serializers.IntegerField()
+    total_escalated = serializers.IntegerField()
+    sla_breach_count = serializers.IntegerField()
+    avg_resolution_hours = serializers.FloatField(allow_null=True)
+    by_status = serializers.DictField()
+
+
+class IssueTagSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    class Meta:
+        model = models.IssueTag
+        fields = ("url", "uuid", "name", "color")
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "support-issue-tag-detail"},
+        }
+
+
+class IssueLinkSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    source = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Issue.objects.all()
+    )
+    target = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Issue.objects.all()
+    )
+    source_key = serializers.ReadOnlyField(source="source.key")
+    target_key = serializers.ReadOnlyField(source="target.key")
+
+    class Meta:
+        model = models.IssueLink
+        fields = (
+            "url",
+            "uuid",
+            "source",
+            "source_key",
+            "target",
+            "target_key",
+            "link_type",
+        )
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "support-issue-link-detail"},
+        }
+
+
+class SavedFilterSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    class Meta:
+        model = models.SavedFilter
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "filter_params",
+            "is_shared",
+            "created",
+            "modified",
+        )
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "support-saved-filter-detail"},
+        }
+
+    def create(self, validated_data):
+        validated_data["user"] = self.context["request"].user
+        return super().create(validated_data)
+
+
+class CannedResponseSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    class Meta:
+        model = models.CannedResponse
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "text",
+            "category",
+            "is_active",
+            "created",
+            "modified",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "support-canned-response-detail",
+            },
+        }
+
+    def create(self, validated_data):
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
+
+
+class CannedResponseRenderSerializer(serializers.Serializer):
+    context = serializers.DictField(required=False, default=dict)
+
+
+class BulkUpdateIssueSerializer(serializers.Serializer):
+    issue_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        help_text="List of issue UUIDs to update.",
+    )
+    status = serializers.CharField(required=False)
+    priority = serializers.CharField(required=False)
+    assignee = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.SupportUser.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    def validate(self, attrs):
+        if not any(k in attrs for k in ("status", "priority", "assignee")):
+            raise serializers.ValidationError(
+                "At least one of status, priority, or assignee must be provided."
+            )
+        return attrs
+
+
+class HelpdeskStatsSerializer(serializers.Serializer):
+    total_open = serializers.IntegerField()
+    total_closed_this_month = serializers.IntegerField()
+    total_routed = serializers.IntegerField()
+    total_escalated = serializers.IntegerField()
+    sla_breach_count = serializers.IntegerField()
+    avg_first_response_hours = serializers.FloatField(allow_null=True)
+    avg_resolution_hours = serializers.FloatField(allow_null=True)
+    by_status = serializers.DictField()
+    by_priority = serializers.DictField()
+
+
+class WebhookPayloadSerializer(serializers.Serializer):
+    event_type = serializers.CharField()
+    issue_backend_id = serializers.CharField(required=False)
+    comment = serializers.CharField(required=False)
+    new_status = serializers.CharField(required=False)
+
+
+class HelpdeskHealthSerializer(serializers.Serializer):
+    provider_name = serializers.CharField()
+    backend_type = serializers.CharField()
+    is_active = serializers.BooleanField()
+    health_status = serializers.CharField()
+    last_health_check = serializers.DateTimeField(allow_null=True)
+    failed_routing_count = serializers.IntegerField()
 
 
 class SupportStatsSerializer(serializers.Serializer):

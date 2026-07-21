@@ -1,0 +1,1 @@
+[{{ issue.key }}] New support ticket: {{ issue.summary }}
