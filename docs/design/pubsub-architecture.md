@@ -247,12 +247,14 @@ introducing `SUBSCRIBE_*` permissions that would have to be kept in sync.
 - **Envelope** — marketplace events do not carry `event_type` (only the core
   dispatcher stamps it); they do carry `object_type`, `offering_uuid` and
   `schema_version`.
-- **Bindings inherited from a PAT** — a consumer registered with a PAT could
-  default its bindings to that token's `allowed_scopes`, making API access and
-  event delivery share one definition. Unblocked now that bindings exist; not
-  built.
-- **`call` bindings** work by construction (any `TYPE_MAP` entity is bindable)
-  but are untested.
+- **`call` / `proposal` bindings** are accepted at registration — any
+  `TYPE_MAP` entity is bindable and `scope_keys_for` resolves it — but **no
+  event source currently emits an event scoped to a call or proposal**. Every
+  dispatched event is either offering/project/customer-scoped (marketplace) or a
+  user-centric event delivered to globals, so a call/proposal-bound consumer
+  receives nothing today. Effectively inert until a proposal-domain event is
+  wired into the dispatcher (WAL-10155: proposal submission + proposal/call
+  state-change events); untested for the same reason.
 - **`AgentIdentity` retirement** — the site-agent model still exists alongside
   its consumer; collapsing it is only worthwhile once the legacy path is gone.
 
