@@ -344,6 +344,89 @@ are staff/support. Profile events only carry the attributes the platform
 currently exposes via `ENABLED_USER_PROFILE_ATTRIBUTES`, so a field an operator
 disabled is never broadcast.
 
+**User-centric events only, globally (the IdM/IGA case).** Combine an empty
+scope set with an `object_types` allow-list — the type filter applies to global
+consumers too, so marketplace events are dropped:
+
+```json
+POST /api/event-consumers/register/
+{
+    "scopes": [],
+    "object_types": ["user_profile", "user_ssh_key", "user_lifecycle", "user_role"]
+}
+```
+
+This one queue then receives every user's profile, SSH-key, lifecycle and
+role-change events platform-wide, and nothing else. (Still staff/support only —
+the empty scope set is what makes it global, and that is the PII boundary.)
+
+### Integration recipes
+
+Concrete `POST /api/event-consumers/register/` bodies for the common
+integrations. In every case the response is `{rmq_username, queue_name, vhost,
+observable_object_types}`; connect over STOMP as in [STOMP Connection](#stomp-connection).
+The rule of thumb: **`object_types` picks *what kinds*, `scopes` picks *whose*.**
+
+**IdM / IGA identity sync** — mirror all users' identity state to an external
+directory. Global, user-centric only (staff/support):
+
+```json
+{ "scopes": [], "object_types": ["user_profile", "user_ssh_key", "user_lifecycle", "user_role"] }
+```
+
+**Keycloak / access-management operator** — react to role grants/revokes and
+account activation/deactivation platform-wide (staff/support):
+
+```json
+{ "scopes": [], "object_types": ["user_role", "user_lifecycle"] }
+```
+
+**SSH-key provisioning** — push public keys to a bastion/HPC login node as they
+change (staff/support; SSH keys are user-centric so only a global queue carries
+them):
+
+```json
+{ "scopes": [], "object_types": ["user_ssh_key"] }
+```
+
+**Per-customer reporting / monitoring** — one tenant's order and resource
+activity. Non-staff: you must hold a role on the customer (or an ancestor):
+
+```json
+{
+    "scopes": [{"type": "customer", "uuid": "<customer-uuid>"}],
+    "object_types": ["order", "resource"]
+}
+```
+
+**External provisioning processor for specific projects** — drive an external
+system from orders and offering-user changes in a fixed set of projects:
+
+```json
+{
+    "scopes": [
+        {"type": "project", "uuid": "<project-a-uuid>"},
+        {"type": "project", "uuid": "<project-b-uuid>"}
+    ],
+    "object_types": ["order", "resource", "offering_user"]
+}
+```
+
+**Single-offering integration** — everything happening on one offering (its
+whole scope chain), e.g. a billing or usage exporter for one service:
+
+```json
+{
+    "scopes": [{"type": "offering", "uuid": "<offering-uuid>"}],
+    "object_types": ["order", "resource", "service_account"]
+}
+```
+
+Omit `object_types` (or send `[]`) in any of these to receive **all** event
+kinds for the chosen scope. Delivery stays dynamic: if the integration's owner
+later loses their role on a bound scope, delivery for that scope stops on the
+next event — no re-registration needed.
+
 ## Migration from Legacy to Unified
 
 This section is a practical runbook for moving an existing site agent off the legacy multi-queue path onto the unified `consumer_{uuid}` queue. The two paths coexist at the server, so migration is one agent at a time — no cross-agent coordination required.
