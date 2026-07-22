@@ -3,6 +3,7 @@ import os
 import uuid
 from unittest import mock
 
+import httpx
 import respx
 from rest_framework import test
 
@@ -125,6 +126,65 @@ class RemoteOfferingsSyncTest(test.APITestCase):
         )
         self.assertEqual(
             "Internal Server Error", self.fixture.remote_synchronisation.error_message
+        )
+
+    def test_sync_continues_when_screenshots_endpoint_unreachable(self):
+        respx.get(f"{self.api_url}/api/marketplace-screenshots/").mock(
+            side_effect=httpx.ConnectError("tlsv1 alert internal error")
+        )
+        self.mock_public_offerings([self.remote_offering])
+        offering = self._create_local_offering()
+
+        tasks.remote_offerings_sync()
+
+        offering.refresh_from_db()
+        self.fixture.remote_synchronisation.refresh_from_db()
+        self.assertEqual(
+            self.fixture.remote_synchronisation.state,
+            models.RemoteSynchronisation.States.OK,
+        )
+        self.assertEqual(offering.name, self.remote_offering["name"])
+
+    def test_sync_refreshes_stale_offering_credentials(self):
+        self.mock_marketplace_screenshots()
+        self.mock_public_offerings([self.remote_offering])
+        offering = self._create_local_offering(
+            secret_options={
+                "api_url": "http://old.example.com",
+                "token": "stale-token",
+                "customer_uuid": self.fixture.remote_synchronisation.remote_organization_uuid.hex,
+            }
+        )
+
+        tasks.remote_offerings_sync()
+
+        offering.refresh_from_db()
+        self.assertEqual(offering.secret_options["api_url"], self.api_url)
+        self.assertEqual(
+            offering.secret_options["token"],
+            self.fixture.remote_synchronisation.token,
+        )
+        self.fixture.remote_synchronisation.refresh_from_db()
+        self.assertEqual(
+            self.fixture.remote_synchronisation.state,
+            models.RemoteSynchronisation.States.OK,
+        )
+
+    def test_sync_erred_when_remote_unreachable(self):
+        respx.get(f"{self.api_url}/api/marketplace-public-offerings/").mock(
+            side_effect=httpx.ConnectError("tlsv1 alert internal error")
+        )
+
+        tasks.remote_offerings_sync()
+
+        self.fixture.remote_synchronisation.refresh_from_db()
+        self.assertEqual(
+            self.fixture.remote_synchronisation.state,
+            models.RemoteSynchronisation.States.ERRED,
+        )
+        self.assertIn(
+            "tlsv1 alert internal error",
+            self.fixture.remote_synchronisation.error_message,
         )
 
     def test_sync_removes_stale_offerings(self):

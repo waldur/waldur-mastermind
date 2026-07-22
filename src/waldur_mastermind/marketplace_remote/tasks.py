@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
 from django.utils import dateparse, timezone
-from httpx import TimeoutException
+from httpx import TransportError
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
 from waldur_api_client.api.maintenance_announcements import (
@@ -1249,7 +1249,7 @@ def sync_remote_project_permissions():
             ).uuid.hex
             remote_user_uuid_cache[cache_key] = remote_user_uuid
             return remote_user_uuid
-        except (UnexpectedStatus, TimeoutException):
+        except (UnexpectedStatus, TransportError):
             return None
 
     for project, offerings in utils.get_projects_with_remote_offerings().items():
@@ -1279,7 +1279,7 @@ def sync_remote_project_permissions():
                     f"Unable to fetch remote project {project} in offering {offering}: {e}"
                 )
                 continue
-            except (UnexpectedStatus, TimeoutException) as e:
+            except (UnexpectedStatus, TransportError) as e:
                 logger.warning(
                     f"Unable to create remote project {project} in offering {offering}: {e}"
                 )
@@ -1291,7 +1291,7 @@ def sync_remote_project_permissions():
                 remote_permissions = projects_list_users_list.sync_all(
                     client=client, uuid=remote_project_uuid
                 )
-            except (UnexpectedStatus, TimeoutException) as e:
+            except (UnexpectedStatus, TransportError) as e:
                 logger.warning(
                     f"Unable to get project permissions for project {project} in offering {offering}: {e}"
                 )
@@ -1333,7 +1333,7 @@ def sync_remote_project_permissions():
                                 expiration_time=new_expiration_time,
                             ),
                         )
-                    except (UnexpectedStatus, TimeoutException) as e:
+                    except (UnexpectedStatus, TransportError) as e:
                         logger.warning(
                             f"Unable to create permission for user [{remote_user_uuid}] "
                             f"with role {new_role} (until {new_expiration_time}) "
@@ -1352,7 +1352,7 @@ def sync_remote_project_permissions():
                                 user=remote_user_uuid, role=old_role
                             ),
                         )
-                    except (UnexpectedStatus, TimeoutException) as e:
+                    except (UnexpectedStatus, TransportError) as e:
                         logger.warning(
                             f"Unable to remove permission for user [{remote_user_uuid}] with role {old_role} "
                             f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
@@ -1367,7 +1367,7 @@ def sync_remote_project_permissions():
                                 expiration_time=new_expiration_time,
                             ),
                         )
-                    except (UnexpectedStatus, TimeoutException) as e:
+                    except (UnexpectedStatus, TransportError) as e:
                         logger.warning(
                             f"Unable to create permission for user [{remote_user_uuid}] "
                             f"with role {new_role} (until {new_expiration_time}) "
@@ -1386,7 +1386,7 @@ def sync_remote_project_permissions():
                                 expiration_time=new_expiration_time,
                             ),
                         )
-                    except (UnexpectedStatus, TimeoutException) as e:
+                    except (UnexpectedStatus, TransportError) as e:
                         logger.warning(
                             f"Unable to update permission for user [{remote_user_uuid}] "
                             f"with role {old_role} (until {new_expiration_time}) "
@@ -1407,7 +1407,7 @@ def sync_remote_project_permissions():
                             role=role_name,
                         ),
                     )
-                except (UnexpectedStatus, TimeoutException) as e:
+                except (UnexpectedStatus, TransportError) as e:
                     logger.warning(
                         f"Unable to remove permission [{role_name}] "
                         f"for user [{username}] in offering [{offering}]: {e}"
@@ -1427,7 +1427,7 @@ def sync_remote_project(serialized_request):
     request = deserialize_instance(serialized_request)
     try:
         utils.update_remote_project(request)
-    except (UnexpectedStatus, TimeoutException):
+    except (UnexpectedStatus, TransportError):
         logger.exception(
             f"Unable to update remote project {request.project} in offering {request.offering}"
         )
@@ -1483,7 +1483,7 @@ def delete_remote_project(serialized_project):
             if len(remote_projects) != 1:
                 continue
 
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             logger.debug(
                 f"Unable to get remote project (backend_id: {backend_id}): {e}"
             )
@@ -1492,7 +1492,7 @@ def delete_remote_project(serialized_project):
         try:
             remote_project = remote_projects[0]
             projects_destroy.sync_detailed(client=client, uuid=remote_project.uuid.hex)
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             logger.debug(
                 f"Unable to delete remote project {remote_project.uuid} (api_url: {api_url}): {e}"
             )
@@ -1535,7 +1535,7 @@ def clean_remote_projects():
 
         try:
             remote_projects = projects_list.sync_all(client=client)
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             logger.debug(f"Unable to get remote projects (api_url: {api_url}): {e}")
             continue
 
@@ -1545,7 +1545,7 @@ def clean_remote_projects():
                     projects_destroy.sync_detailed(
                         client=client, uuid=remote_project.uuid.hex
                     )
-                except (UnexpectedStatus, TimeoutException) as e:
+                except (UnexpectedStatus, TransportError) as e:
                     logger.debug(
                         f"Unable to delete remote project "
                         f"(backend_id: {remote_project.backend_id}, api_url: {api_url}): {e}"
@@ -1677,7 +1677,7 @@ class RemoteProjectDataPushTask(BackgroundPullTask):
                     new_is_industry=project.is_industry,
                 )
                 utils.update_remote_project(request)
-            except (UnexpectedStatus, TimeoutException) as exc:
+            except (UnexpectedStatus, TransportError) as exc:
                 logger.error("Unable to push project data: %s", exc)
 
 

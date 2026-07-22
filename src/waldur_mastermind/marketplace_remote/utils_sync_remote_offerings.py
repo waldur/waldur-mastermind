@@ -2,7 +2,7 @@ import logging
 
 from django.db.models.query import QuerySet
 from django.utils import timezone
-from httpx import TimeoutException
+from httpx import TransportError
 from waldur_api_client.api.marketplace_categories import marketplace_categories_list
 from waldur_api_client.errors import UnexpectedStatus
 from waldur_api_client.models.marketplace_category_field_enum import (
@@ -29,7 +29,7 @@ class RemoteSynchronisationRunner:
             self._process_sync()
             self.sync.state = remote_models.RemoteSynchronisation.States.OK
 
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             self._handle_sync_error(e)
             self.sync.state = remote_models.RemoteSynchronisation.States.ERRED
 
@@ -97,6 +97,7 @@ class RemoteSynchronisationRunner:
                 ).first()
 
                 if local_offering:
+                    self._refresh_offering_credentials(local_offering)
                     updated_local_offering = utils.upsert_offering(
                         remote_offering=remote_offering,
                         local_category=category_mapping.local_category,
@@ -121,6 +122,26 @@ class RemoteSynchronisationRunner:
             )
 
         self._archive_stale_offerings(existing_offerings, processed_offering_ids)
+
+    def _refresh_offering_credentials(self, offering: models.Offering) -> None:
+        # Offerings keep their own copy of the remote credentials in
+        # secret_options; propagate changes made to the synchronisation
+        # settings so that offering-scoped clients don't use stale values.
+        expected = {"api_url": self.sync.api_url, "token": self.sync.token}
+        updates = {
+            key: value
+            for key, value in expected.items()
+            if offering.secret_options.get(key) != value
+        }
+        if not updates:
+            return
+        offering.secret_options.update(updates)
+        offering.save(update_fields=["secret_options"])
+        message = (
+            f"Updated {' and '.join(updates)} in secret options of offering {offering}."
+        )
+        self.sync.last_output += f"\t{message}\n"
+        logger.info(message)
 
     def _create_new_offering(
         self,
