@@ -111,6 +111,16 @@ class ListOfferingUsersTest(test.APITestCase):
         self.assertEqual(1, len(response.data))
         self.assertEqual("user", response.data[0]["username"])
 
+    @data("user_first_name", "-user_first_name", "user_last_name", "-user_last_name")
+    def test_user_can_order_offering_users_by_name(self, ordering):
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            OfferingUserFactory.get_list_url(),
+            {"o": ordering},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(2, len(response.data))
+
     def test_query_search_by_uid_and_gid(self):
         OfferingUser.objects.filter(username="user").update(
             backend_metadata={"uidnumber": 100042, "primarygroup": 200042}
