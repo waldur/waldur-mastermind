@@ -1,3 +1,5 @@
+from unittest import mock
+
 import httpx
 import jwt
 import respx
@@ -5,6 +7,7 @@ from constance.test.unittest import override_config
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import IntegrityError
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
@@ -124,6 +127,31 @@ class TokenAuthenticationTest(test.APITestCase):
         with freeze_time(next_time):
             token = refresh_token(self.user)
         self.assertLess(token.created, timezone.now())
+
+    def test_refresh_token_tolerates_concurrent_rotation(self):
+        """A concurrent request/task may rotate an expired token between our
+        read and our write. Because Token.user is unique, the racing create()
+        raises IntegrityError; refresh_token must recover by reusing the
+        surviving token instead of bubbling up a 500 on the
+        authtoken_token_user_id_key unique constraint."""
+        self.user.token_lifetime = 10
+        self.user.save()
+        original, _ = Token.objects.get_or_create(user=self.user)
+
+        expired_time = timezone.now() + timezone.timedelta(seconds=20)
+        with freeze_time(expired_time):
+            # Simulate losing the rotation race: our create() collides on the
+            # unique user constraint. The atomic savepoint rolls back our
+            # delete, so the surviving token is returned.
+            with mock.patch.object(
+                Token.objects,
+                "create",
+                side_effect=IntegrityError("duplicate key value"),
+            ):
+                token = refresh_token(self.user)
+
+        self.assertEqual(Token.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(token.key, original.key)
 
     def test_token_not_refreshed_within_half_lifetime(self):
         """When user has token_lifetime set, the debounce interval is

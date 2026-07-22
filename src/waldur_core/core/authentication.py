@@ -7,6 +7,7 @@ import jwt
 from constance import config
 from django.conf import settings
 from django.core.cache import cache
+from django.db import IntegrityError, transaction
 from django.db.models.functions import Now
 from django.http import HttpRequest
 from django.utils import timezone
@@ -49,9 +50,20 @@ def refresh_token(user: models.User) -> Token:
         lifetime = timezone.timedelta(seconds=user.token_lifetime)
 
         if token.created < timezone.now() - lifetime:
-            token.delete()
-            token = Token.objects.create(user=user)
-            created = True
+            # Rotate the expired token. Wrap in a savepoint and tolerate a
+            # concurrent rotation: another request/Celery task may have already
+            # deleted and recreated the token for this user between our read and
+            # our write. Since Token.user is unique (OneToOneField), the racing
+            # create() would otherwise raise IntegrityError and bubble up as a
+            # 500. On collision we roll back the savepoint and reuse the token
+            # the winning request created.
+            try:
+                with transaction.atomic():
+                    token.delete()
+                    token = Token.objects.create(user=user)
+                created = True
+            except IntegrityError:
+                token = Token.objects.get(user=user)
 
     if not created:
         # Token is updated for each request therefore it may become bottleneck.
