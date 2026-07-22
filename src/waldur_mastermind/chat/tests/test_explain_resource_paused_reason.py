@@ -154,11 +154,12 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         self.assertTrue(proj["is_in_grace_period"])
         self.assertIn("grace period", result["summary"])
 
-    def test_project_member_without_customer_role_sees_no_spend(self):
+    def test_project_member_spend_visibility_follows_billing_info_flag(self):
         # The resource and its paused attribution are project-scoped, so a
-        # project member may legitimately see them. But current_spend is summed
-        # from customer-scoped InvoiceItems — that billing total must not leak
-        # to a member who has no customer role.
+        # project member may legitimately see them. current_spend is summed
+        # from InvoiceItems, whose project-scope visibility is gated by the
+        # customer's display_billing_info_in_projects flag: visible by
+        # default, hidden once the customer opts out.
         invoices_factories.CustomerCreditFactory(
             customer=self.fixture.customer, value=Decimal("10000")
         )
@@ -185,7 +186,19 @@ class ExplainResourcePausedReasonToolTest(TestCase):
             self.fixture.staff, {"resource_uuid": str(resource.uuid)}
         )["data"]["policy_details"]
         self.assertEqual(Decimal(staff_details["current_spend"]), Decimal("250"))
-        # Project-only member sees the resource + cause, but spend does not leak.
+        # With the default flag the project-only member sees the spend too.
+        result = self.tool.execute(
+            self.fixture.admin, {"resource_uuid": str(resource.uuid)}
+        )
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(
+            Decimal(result["data"]["policy_details"]["current_spend"]), Decimal("250")
+        )
+
+        self.fixture.customer.display_billing_info_in_projects = False
+        self.fixture.customer.save(update_fields=["display_billing_info_in_projects"])
+        # Once the customer opts out, the member still sees the resource +
+        # cause, but the billing total no longer leaks.
         result = self.tool.execute(
             self.fixture.admin, {"resource_uuid": str(resource.uuid)}
         )
