@@ -2281,7 +2281,15 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
         widget=BooleanWidget,
     )
 
-    o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
+    o = django_filters.OrderingFilter(
+        fields=(
+            "created",
+            "modified",
+            "username",
+            ("user__first_name", "user_first_name"),
+            ("user__last_name", "user_last_name"),
+        )
+    )
     query = django_filters.CharFilter(
         method="filter_query",
         label="Search by offering name, username, user name, UID or primary GID",
