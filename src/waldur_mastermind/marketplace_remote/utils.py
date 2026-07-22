@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from httpx import TimeoutException
+from httpx import TransportError
 from rest_framework.exceptions import ValidationError
 from waldur_api_client.api.marketplace_orders import (
     marketplace_orders_list,
@@ -393,7 +393,7 @@ def sync_project_permission(
         try:
             remote_user_uuid = get_remote_user_uuid(client, user.username)
 
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             logger.debug(
                 f"Unable to fetch remote user {user.username} in offering {offering}: {e}"
             )
@@ -402,7 +402,7 @@ def sync_project_permission(
         try:
             remote_project, _ = get_or_create_remote_project(offering, project, client)
             remote_project_uuid = remote_project.uuid.hex
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             logger.debug(
                 f"Unable to create remote project {project} in offering {offering}: {e}"
             )
@@ -417,7 +417,7 @@ def sync_project_permission(
                     role_name,
                     expiration_time,
                 )
-            except (UnexpectedStatus, TimeoutException) as e:
+            except (UnexpectedStatus, TransportError) as e:
                 logger.debug(
                     f"Unable to create permission for user [{remote_user_uuid}] with role {role_name} (until {expiration_time}) "
                     f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
@@ -427,7 +427,7 @@ def sync_project_permission(
                 remove_project_permission(
                     client, remote_project_uuid, remote_user_uuid, role_name
                 )
-            except (UnexpectedStatus, TimeoutException) as e:
+            except (UnexpectedStatus, TransportError) as e:
                 logger.debug(
                     f"Unable to remove permission for user [{remote_user_uuid}] with role {role_name} "
                     f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
@@ -446,7 +446,7 @@ def push_project_users(
     for username, (role_name, expiration_time) in permissions.items():
         try:
             remote_user_uuid = get_remote_user_uuid(client, username)
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             logger.debug(
                 f"Unable to fetch remote user {username} in offering {offering}: {e}"
             )
@@ -460,7 +460,7 @@ def push_project_users(
                 role_name,
                 expiration_time,
             )
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             logger.debug(
                 f"Unable to create permission for user [{remote_user_uuid}] with role {role_name} "
                 f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
@@ -677,7 +677,7 @@ def push_resource_options(local_resource: marketplace_models.Resource):
             uuid=local_resource.backend_id,
             body=ResourceOptionsRequest(options=local_resource.options),
         )
-    except (UnexpectedStatus, TimeoutException) as exc:
+    except (UnexpectedStatus, TransportError) as exc:
         logger.error("Unable to push resource options: %s", exc)
 
 
@@ -706,7 +706,7 @@ def push_resource_end_date(local_resource: marketplace_models.Resource):
             uuid=uuid.UUID(local_resource.backend_id),
             body=PatchedResourceUpdateRequest(end_date=local_resource.end_date),
         )
-    except (UnexpectedStatus, TimeoutException) as exc:
+    except (UnexpectedStatus, TransportError) as exc:
         logger.error("Unable to push resource end date: %s", exc)
 
 
@@ -734,7 +734,7 @@ def reconcile_resource_end_date(local_resource: marketplace_models.Resource):
         remote_resource = marketplace_resources_retrieve.sync(
             client=client, uuid=uuid.UUID(local_resource.backend_id)
         )
-    except (UnexpectedStatus, TimeoutException) as exc:
+    except (UnexpectedStatus, TransportError) as exc:
         logger.error(
             "Unable to fetch remote resource end date reconciliation for resource %s: %s",
             local_resource,
@@ -797,7 +797,7 @@ def reconcile_resource_end_date(local_resource: marketplace_models.Resource):
             body=PatchedResourceUpdateRequest(end_date=local_resource.end_date),
         )
         return
-    except (UnexpectedStatus, TimeoutException) as exc:
+    except (UnexpectedStatus, TransportError) as exc:
         logger.error(
             "Unable to push local resource end date %s for resource %s to remote: %s",
             local_resource.end_date,
@@ -969,7 +969,7 @@ def import_offering_screenshots(local_offering: marketplace_models.Offering):
             client=client,
             offering_uuid=[uuid.UUID(remote_offering_uuid)],
         )
-    except (UnexpectedStatus, TimeoutException) as e:
+    except (UnexpectedStatus, TransportError) as e:
         logger.error(
             "Error fetching screenshots for offering %s: %s",
             remote_offering_uuid,

@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from httpx import TimeoutException
+from httpx import TransportError
 from rest_framework import exceptions, status
 from rest_framework import permissions as rf_permissions
 from rest_framework.decorators import action
@@ -124,7 +124,7 @@ class CustomersView(RemoteView):
                     CustomerFieldEnum.EMAIL,
                 ],
             )
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
         return Response([customer.to_dict() for customer in customers])
 
@@ -139,7 +139,7 @@ class СategoriesView(RemoteView):
         client = self.get_client(request)
         try:
             сategories = marketplace_categories_list.sync_all(client=client)
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
         return Response([category.to_dict() for category in сategories])
 
@@ -175,7 +175,7 @@ class OfferingsListView(RemoteView):
                     PublicOfferingDetailsFieldEnum.CATEGORY_TITLE,
                 ],
             )
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
         local_offerings = list(
@@ -220,7 +220,7 @@ class OfferingCreateView(RemoteView):
             remote_offering = marketplace_public_offerings_retrieve.sync(
                 client=client, uuid=remote_offering_uuid.hex
             )
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TransportError) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
         secret_options = {
@@ -349,7 +349,7 @@ class CancelTerminationOrderView(GenericAPIView):
             marketplace_orders_reject_by_consumer.sync_detailed(
                 client=client, uuid=order.backend_id
             )
-        except (UnexpectedStatus, TimeoutException) as exc:
+        except (UnexpectedStatus, TransportError) as exc:
             raise ValidationError(exc)
         callbacks.sync_order_state(order, OrderStates.CANCELED)
 
