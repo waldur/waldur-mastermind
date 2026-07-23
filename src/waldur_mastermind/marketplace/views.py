@@ -7460,7 +7460,15 @@ class OrderViewSet(
                         resource.set_state_ok()
                         resource.save(update_fields=["state"])
                 else:
-                    if resource.state != ResourceStates.ERRED:
+                    # update_resource_state_on_order_rejection_error_or_cancellation
+                    # already ran as a side effect of order.save() above and may have
+                    # resolved a failed Create order to Terminated (when the resource
+                    # never got a backend_id, i.e. nothing was ever provisioned).
+                    # Don't clobber that decision back to Erred.
+                    if resource.state not in (
+                        ResourceStates.ERRED,
+                        ResourceStates.TERMINATED,
+                    ):
                         resource.set_state_erred()
                         resource.save(update_fields=["state"])
 
