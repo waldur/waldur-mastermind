@@ -247,12 +247,35 @@ class OrderSetStateErredTest(BaseOrderSetStateTest):
 
         resource = self.order.resource
         resource.state = ResourceStates.CREATING
+        resource.backend_id = "backend-id-1"
         resource.save()
 
         self.item_set_state_erred("staff", "fail", "trace")
 
         resource.refresh_from_db()
         self.assertEqual(resource.state, ResourceStates.ERRED)
+
+    def test_set_state_erred_transitions_resource_to_terminated_for_create_without_backend_id(
+        self,
+    ):
+        """
+        Resources without a backend_id were never actually provisioned, so a failed
+        Create order should terminate them directly rather than leaving them stuck
+        in Erred pending manual recovery.
+        """
+        self.order.type = OrderTypes.CREATE
+        self.order.state = OrderStates.EXECUTING
+        self.order.save()
+
+        resource = self.order.resource
+        resource.state = ResourceStates.CREATING
+        resource.backend_id = ""
+        resource.save()
+
+        self.item_set_state_erred("staff", "fail", "trace")
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.TERMINATED)
 
     def test_set_state_erred_transitions_resource_to_ok_for_terminate(self):
         self.order.type = OrderTypes.TERMINATE
