@@ -88,6 +88,8 @@ project = serializers.SlugRelatedField(slug_field="uuid", queryset=Project.objec
 created_by = serializers.SlugRelatedField(slug_field="uuid", read_only=True, allow_null=True)
 ```
 
+**Adding an offering `plugin_options` / `secret_options` key:** these are validated by strict nested serializers (`MergedPluginOptionsSerializer` / `MergedSecretOptionsSerializer`), NOT free-form `JSONField`. You **must** declare the new field on the relevant `*PluginOptionsSerializer` — DRF silently drops undeclared keys, so the write returns 200 but never persists (Homeport toggles "stay disabled"). Reading the key in the model/validator/views is not enough. See the **backend-conventions** skill for the full rule and the frontend↔serializer cross-check.
+
 ### Testing
 
 ```python
