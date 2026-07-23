@@ -6050,6 +6050,23 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     renewal_date = serializers.SerializerMethodField()
     offering_state = serializers.SerializerMethodField()
     offering_components = serializers.SerializerMethodField()
+    # Declared explicitly (rather than auto-derived from the model CharField) so
+    # the blank state — "" when no restriction is active — is surfaced in the
+    # OpenAPI schema as a BlankEnum member. Without allow_blank the generated
+    # enum is only {paused, downscaled}, and SDK clients raise
+    # (ValueError: '' is not a valid UsageLimitRestrictionEnum) on the empty
+    # string the API returns for every unrestricted resource (WAL-10158).
+    usage_limit_restriction = serializers.ChoiceField(
+        choices=UsageLimitAction.FLAG_CHOICES,
+        read_only=True,
+        allow_blank=True,
+        help_text=(
+            "Which restriction (paused or downscaled) was automatically applied "
+            "because reported usage reached a component limit. Empty when no such "
+            "restriction is active. Used so the automatic lift never clears a "
+            "restriction that was set for another reason."
+        ),
+    )
 
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
@@ -6130,7 +6147,6 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "error_traceback",
             "options",
             "restrict_member_access",
-            "usage_limit_restriction",
             "last_sync",
             "project_slug",
             "customer_slug",
