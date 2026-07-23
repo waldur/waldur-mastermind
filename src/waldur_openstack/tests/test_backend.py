@@ -2034,3 +2034,65 @@ class PushTenantQuotasTest(BaseBackendTest):
     def test_nova_not_called_when_only_volume_type_quotas(self):
         self._push({"gigabytes_ssd": 100})
         self.mocked_nova.quotas.update.assert_not_called()
+
+
+class PushInstancePortsTest(BaseBackendTest):
+    def _prepare_new_port(self):
+        instance = self.fixture.instance
+        port = self.fixture.port
+        # A port pulled from the backend carries the concrete fixed IP but has
+        # not yet been (re)created in Neutron.
+        port.backend_id = ""
+        port.fixed_ips = [
+            {"subnet_id": self.fixture.subnet.backend_id, "ip_address": "10.0.0.5"}
+        ]
+        port.save()
+        return instance, port
+
+    def test_new_port_is_created_via_admin_session(self):
+        instance, port = self._prepare_new_port()
+
+        tenant_neutron = mock.Mock()
+        tenant_neutron.list_ports.return_value = {"ports": []}
+        admin_neutron = mock.Mock()
+        admin_neutron.create_port.return_value = {
+            "port": {
+                "id": "created-port-id",
+                "mac_address": "fa:16:3e:00:00:01",
+                "fixed_ips": port.fixed_ips,
+            }
+        }
+
+        def fake_get_neutron_client(session):
+            return admin_neutron if session == "ADMIN" else tenant_neutron
+
+        with (
+            mock.patch(
+                "waldur_openstack.backend.get_tenant_session", return_value="TENANT"
+            ),
+            mock.patch.object(
+                OpenStackBackend,
+                "admin_session",
+                new_callable=mock.PropertyMock,
+                return_value="ADMIN",
+            ),
+            mock.patch(
+                "waldur_openstack.backend.get_neutron_client",
+                side_effect=fake_get_neutron_client,
+            ),
+            mock.patch("waldur_openstack.backend.get_nova_client") as mock_nova,
+        ):
+            self.backend.push_instance_ports(instance)
+
+        # Specifying an explicit fixed ip_address on create is admin-only in
+        # Neutron, so the port must be created through the admin session and
+        # never the tenant one.
+        admin_neutron.create_port.assert_called_once()
+        tenant_neutron.create_port.assert_not_called()
+
+        payload = admin_neutron.create_port.call_args[0][0]["port"]
+        self.assertEqual(payload["fixed_ips"], port.fixed_ips)
+
+        mock_nova.return_value.servers.interface_attach.assert_called_once()
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "created-port-id")

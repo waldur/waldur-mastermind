@@ -5785,6 +5785,12 @@ class OpenStackBackend(ServiceBackend):
         # we assume that port subnet cannot be changed
         neutron = get_neutron_client(session)
         nova = get_nova_client(session)
+        # Port creation is done through the admin session, consistent with
+        # create_port() and create_instance_port(). A stored port carries the
+        # concrete fixed IP pulled from the backend, and specifying an explicit
+        # ip_address on create is admin-only in Neutron
+        # (create_port:fixed_ips:ip_address), so the tenant session is refused.
+        admin_neutron = get_neutron_client(self.admin_session)
 
         try:
             backend_ports = neutron.list_ports(device_id=instance.backend_id)["ports"]
@@ -5842,7 +5848,9 @@ class OpenStackBackend(ServiceBackend):
                         instance.backend_id,
                         new_port.subnet.backend_id,
                     )
-                    created_port = neutron.create_port({"port": port_payload})["port"]
+                    created_port = admin_neutron.create_port({"port": port_payload})[
+                        "port"
+                    ]
                     nova.servers.interface_attach(
                         instance.backend_id, created_port["id"], None, None
                     )
