@@ -282,6 +282,9 @@ Run demo presets tests:
         - src/waldur_mastermind/marketplace/demo_presets/**/*
         - src/waldur_mastermind/marketplace/management/commands/import_structure.py
         - src/waldur_mastermind/marketplace/management/commands/cleanup_structure.py
+        # Also validate edits to this job's own CI config (cheap now that the
+        # migration replay is skipped — see --no-migrations below).
+        - .gitlab-ci.yml
   script:
     - |
       echo "[+] Setting up test database configuration..."
@@ -304,7 +307,12 @@ Run demo presets tests:
           }
       }
       EOF
-    - uv run pytest src/waldur_mastermind/marketplace/tests/test_demo_presets.py::DemoPresetLoadTest -v
+    # --no-migrations builds the schema directly from models (as the sharded unit
+    # suite does) instead of replaying the full migration history. Profiling showed
+    # ~1278s of this job's ~1408s was that one-time migration replay — the actual
+    # preset loads take ~90s. The test only exercises the ORM against the current
+    # schema, so skipping migrations is safe and mirrors the rest of the test infra.
+    - uv run pytest --no-migrations src/waldur_mastermind/marketplace/tests/test_demo_presets.py::DemoPresetLoadTest -v
   services:
     - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
       alias: postgres
