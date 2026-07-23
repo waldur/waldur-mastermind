@@ -729,13 +729,119 @@ class CommentSerializer(
 class SupportUserSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_email = serializers.ReadOnlyField(source="user.email")
+    reported_issues_count = serializers.SerializerMethodField()
+    assigned_issues_count = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
+    attachments_count = serializers.SerializerMethodField()
+
     class Meta:
         model = models.SupportUser
-        fields = ("url", "uuid", "name", "backend_id", "user", "backend_name")
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "backend_id",
+            "backend_name",
+            "is_active",
+            "user",
+            "user_full_name",
+            "user_email",
+            "reported_issues_count",
+            "assigned_issues_count",
+            "comments_count",
+            "attachments_count",
+        )
         extra_kwargs = dict(
             url={"lookup_field": "uuid"},
-            user={"lookup_field": "uuid", "view_name": "user-detail"},
+            user={
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+                "allow_null": True,
+                "required": False,
+            },
         )
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_reported_issues_count(self, obj):
+        return obj.reported_issues.count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_assigned_issues_count(self, obj):
+        return obj.issues.count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_comments_count(self, obj):
+        return obj.comments.count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_attachments_count(self, obj):
+        return obj.attachments.count()
+
+
+class SupportUserIssueBriefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Issue
+        fields = ("uuid", "key", "type", "summary", "status", "created", "modified")
+
+
+class SupportUserCommentBriefSerializer(serializers.ModelSerializer):
+    issue_key = serializers.ReadOnlyField(source="issue.key")
+    issue_uuid = serializers.ReadOnlyField(source="issue.uuid")
+
+    class Meta:
+        model = models.Comment
+        fields = (
+            "uuid",
+            "description",
+            "is_public",
+            "created",
+            "issue_key",
+            "issue_uuid",
+        )
+
+
+class SupportUserAttachmentBriefSerializer(serializers.ModelSerializer):
+    issue_key = serializers.ReadOnlyField(source="issue.key")
+    issue_uuid = serializers.ReadOnlyField(source="issue.uuid")
+    file_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.Attachment
+        fields = ("uuid", "file_name", "created", "issue_key", "issue_uuid")
+
+    @extend_schema_field(serializers.CharField())
+    def get_file_name(self, obj):
+        return obj.file.name.split("/")[-1] if obj.file else None
+
+
+class SupportUserConnectionsSerializer(serializers.Serializer):
+    """Objects a support user is connected to, for the management UI drill-down."""
+
+    reported_issues = SupportUserIssueBriefSerializer(many=True, read_only=True)
+    assigned_issues = SupportUserIssueBriefSerializer(many=True, read_only=True)
+    comments = SupportUserCommentBriefSerializer(many=True, read_only=True)
+    attachments = SupportUserAttachmentBriefSerializer(many=True, read_only=True)
+
+
+class SupportUserMergeSerializer(serializers.Serializer):
+    source_users = serializers.SlugRelatedField(
+        slug_field="uuid",
+        many=True,
+        allow_empty=False,
+        queryset=models.SupportUser.objects.all(),
+        help_text="Support users to merge into this one. They will be deleted "
+        "and their issues, comments and attachments re-pointed to this user.",
+    )
+
+    def validate_source_users(self, value):
+        keeper = self.context["view"].get_object()
+        if any(user.pk == keeper.pk for user in value):
+            raise serializers.ValidationError(
+                "A support user cannot be merged into itself."
+            )
+        return value
 
 
 class JiraCommentSerializer(serializers.Serializer):

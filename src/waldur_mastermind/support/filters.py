@@ -271,10 +271,14 @@ class CommentFilter(django_filters.FilterSet):
 
 class SupportUserFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr="icontains")
+    backend_name = django_filters.CharFilter()
+    o = django_filters.OrderingFilter(
+        fields=("name", "backend_name", "backend_id", "is_active")
+    )
 
     class Meta:
         model = models.SupportUser
-        fields = ("name", "user", "backend_id")
+        fields = ("name", "user", "backend_id", "backend_name", "is_active")
 
 
 class AttachmentFilter(django_filters.FilterSet):

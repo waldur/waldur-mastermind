@@ -46,6 +46,165 @@ class SupportUserRetrieveTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
 
+@ddt
+class SupportUserWriteTest(base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.support_user = factories.SupportUserFactory()
+        self.url = factories.SupportUserFactory.get_url(self.support_user)
+        self.list_url = factories.SupportUserFactory.get_list_url()
+
+    @data("staff")
+    def test_staff_can_create_support_user(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.list_url, {"name": "New agent"})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.SupportUser.objects.filter(name="New agent").exists())
+
+    @data("global_support", "user")
+    def test_non_staff_can_not_create_support_user(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.list_url, {"name": "New agent"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("staff")
+    def test_staff_can_toggle_is_active(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.patch(self.url, {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.support_user.refresh_from_db()
+        self.assertFalse(self.support_user.is_active)
+
+    @data("global_support", "user")
+    def test_non_staff_can_not_update_support_user(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.patch(self.url, {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("staff")
+    def test_staff_can_delete_support_user(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            models.SupportUser.objects.filter(pk=self.support_user.pk).exists()
+        )
+
+    @data("global_support", "user")
+    def test_non_staff_can_not_delete_support_user(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class SupportUserMergeTest(base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.keeper = factories.SupportUserFactory(
+            backend_id="dup", backend_name="smax"
+        )
+        self.duplicate = factories.SupportUserFactory(
+            backend_id="dup", backend_name="smax", user=None
+        )
+        self.url = factories.SupportUserFactory.get_url(self.keeper, action="merge")
+
+    def _payload(self, *sources):
+        sources = sources or (self.duplicate,)
+        return {"source_users": [s.uuid.hex for s in sources]}
+
+    @data("global_support", "user")
+    def test_non_staff_can_not_merge(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, self._payload())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_merge_repoints_dependents_and_deletes_duplicate(self):
+        comment = factories.CommentFactory(author=self.duplicate)
+        attachment = factories.AttachmentFactory(author=self.duplicate)
+        reported = factories.IssueFactory(reporter=self.duplicate)
+        assigned = factories.IssueFactory(assignee=self.duplicate)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, self._payload())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # The duplicate is gone and every dependent now points at the keeper,
+        # including the PROTECT-guarded Issue.reporter (no ProtectedError).
+        self.assertFalse(
+            models.SupportUser.objects.filter(pk=self.duplicate.pk).exists()
+        )
+        for obj in (comment, attachment, reported, assigned):
+            obj.refresh_from_db()
+        self.assertEqual(comment.author, self.keeper)
+        self.assertEqual(attachment.author, self.keeper)
+        self.assertEqual(reported.reporter, self.keeper)
+        self.assertEqual(assigned.assignee, self.keeper)
+
+    def test_can_not_merge_user_into_itself(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, self._payload(self.keeper))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_merge_is_logged(self):
+        self.client.force_authenticate(self.fixture.staff)
+        with self.assertLogs("waldur_mastermind.support.views", level="INFO") as logs:
+            response = self.client.post(self.url, self._payload())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            any(
+                self.duplicate.uuid.hex in message and "merged into" in message
+                for message in logs.output
+            )
+        )
+
+
+@ddt
+class SupportUserConnectionsTest(base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.support_user = factories.SupportUserFactory()
+        self.reported = factories.IssueFactory(reporter=self.support_user)
+        self.assigned = factories.IssueFactory(assignee=self.support_user)
+        self.comment = factories.CommentFactory(author=self.support_user)
+        self.attachment = factories.AttachmentFactory(author=self.support_user)
+        self.url = factories.SupportUserFactory.get_url(
+            self.support_user, action="connections"
+        )
+
+    @data("staff", "global_support")
+    def test_staff_or_support_can_view_connections(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        reported_uuids = [i["uuid"] for i in response.data["reported_issues"]]
+        assigned_uuids = [i["uuid"] for i in response.data["assigned_issues"]]
+        comment_uuids = [c["uuid"] for c in response.data["comments"]]
+        attachment_uuids = [a["uuid"] for a in response.data["attachments"]]
+        self.assertIn(self.reported.uuid.hex, reported_uuids)
+        self.assertIn(self.assigned.uuid.hex, assigned_uuids)
+        self.assertIn(self.comment.uuid.hex, comment_uuids)
+        self.assertIn(self.attachment.uuid.hex, attachment_uuids)
+
+    @data("user")
+    def test_regular_user_can_not_view_connections(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_list_exposes_connection_counts(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.SupportUserFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(
+            item for item in response.data if item["uuid"] == self.support_user.uuid.hex
+        )
+        self.assertEqual(row["reported_issues_count"], 1)
+        self.assertEqual(row["assigned_issues_count"], 1)
+        self.assertEqual(row["comments_count"], 1)
+        self.assertEqual(row["attachments_count"], 1)
+
+
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 @mock.patch("waldur_mastermind.support.backend.get_active_backend")
 class SupportUserPullTest(base.BaseTest):
