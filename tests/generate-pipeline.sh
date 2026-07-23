@@ -190,6 +190,19 @@ run_unit_tests:
   image: registry.hpc.ut.ee/mirror/\${WALDUR_MASTERMIND_TEST_IMAGE}
   interruptible: true
 
+  # Auto-recover a shard that failed on infrastructure noise or a flaky test
+  # instead of reding the whole sharded suite and the parent MR pipeline. A
+  # single flaky shard was the dominant false-red source (~30% of MR pipeline
+  # failures self-healed on an unchanged re-run). max=1 bounds the extra cost on
+  # a genuinely broken shard to one rerun.
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - api_failure
+      - script_failure
+
   # This rule ensures the job only runs when triggered as part of a child pipeline.
   # The '\$' is escaped to prevent expansion now and let GitLab expand it in the child pipeline.
   rules:
