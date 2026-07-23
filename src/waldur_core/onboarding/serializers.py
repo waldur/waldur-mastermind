@@ -249,6 +249,24 @@ class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
             "modified",
         ]
 
+    def get_fields(self):
+        fields = super().get_fields()
+        # `raw_response` is the unredacted upstream API payload. For the D&B
+        # Right to Sign backends it carries the national identifiers, birth
+        # dates and names of *every* company signatory — not just the
+        # requesting user. It exists only for staff debugging/auditing (see
+        # admin.py); a regular user reading back their own verification (via
+        # StaffOrUserFilter) must never receive it, or they could enumerate
+        # third-party signatory PII for arbitrary companies.
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            # Schema generation must advertise every possible field.
+            return fields
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not (user and user.is_authenticated and user.is_staff):
+            fields.pop("raw_response", None)
+        return fields
+
     def get_onboarding_metadata(self, obj) -> dict:
         """Get onboarding-specific metadata with human-readable labels (UUIDs resolved to labels)."""
         return obj.get_onboarding_metadata_display()

@@ -166,6 +166,11 @@ class SwedenRegisterBackend(CompanyRegistryBackend):
                 else f"User {request.person_identifier} is not listed as authorized representative",
             )
 
+        except ValueError:
+            # Configuration errors (e.g. missing credentials) must propagate
+            # to BackendRegistry.validate_company so the fallback chain can
+            # treat them as retryable CONFIGURATION_ERROR.
+            raise
         except Exception as e:
             if isinstance(e, SwedenRegisterError):
                 logger.error(f"Sweden Business Register API request error: {str(e)}")

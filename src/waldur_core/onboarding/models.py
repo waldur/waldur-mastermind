@@ -439,6 +439,7 @@ class OnboardingVerification(
         # These should be pre-normalized by the backend (e.g., Estonian backend)
         address_from_api = self.verified_company_data.get("address")
         postal_from_api = self.verified_company_data.get("postal")
+        vat_number_from_api = self.verified_company_data.get("vat_number")
 
         # Prioritize API data from verified_company_data, fallback to checklist answers
         customer_data = {
@@ -462,6 +463,8 @@ class OnboardingVerification(
             customer_data["address"] = address_from_api
         if postal_from_api:
             customer_data["postal"] = postal_from_api
+        if vat_number_from_api:
+            customer_data["vat_code"] = vat_number_from_api
 
         # Add any additional fields from checklist answers
         for key, value in extracted["customer_data"].items():

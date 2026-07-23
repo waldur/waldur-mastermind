@@ -119,6 +119,10 @@ ONBOARDING_VALIDATION_CHOICES = [
     ("ariregister", "ariregister"),
     ("wirtschaftscompass", "wirtschaftscompass"),
     ("bolagsverket", "bolagsverket"),
+    ("dnb_se", "dnb_se"),
+    ("dnb_no", "dnb_no"),
+    ("dnb_dk", "dnb_dk"),
+    ("dnb_fi", "dnb_fi"),
 ]
 
 DEACTIVATION_POLICY_CHOICES = [
@@ -1222,6 +1226,30 @@ CONSTANCE_CONFIG = {
         "Norway Business Register API server URL",
         "url_field",
     ),
+    "ONBOARDING_DNB_API_URL": (
+        "https://sandbox-api.bisnode.com/credit-data-companies/v2",
+        "Dun & Bradstreet (Bisnode) Credit Data API base URL",
+        "url_field",
+    ),
+    "ONBOARDING_DNB_RTS_API_URL": (
+        "https://sandbox-api.bisnode.com/nordic-rts/v1",
+        "Dun & Bradstreet (Bisnode) Nordic Right to Sign API base URL",
+        "url_field",
+    ),
+    "ONBOARDING_DNB_TOKEN_URL": (
+        "https://login.bisnode.com/as/token.oauth2",
+        "Dun & Bradstreet OAuth2 token endpoint URL",
+        "url_field",
+    ),
+    "ONBOARDING_DNB_CLIENT_ID": (
+        "",
+        "Dun & Bradstreet API client identifier",
+    ),
+    "ONBOARDING_DNB_CLIENT_SECRET": (
+        "",
+        "Dun & Bradstreet API client secret",
+        "secret_field",
+    ),
     # AI assistant settings
     "AI_ASSISTANT_ENABLED": (
         False,
@@ -1949,6 +1977,11 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ONBOARDING_BOLAGSVERKET_CLIENT_ID",
         "ONBOARDING_BOLAGSVERKET_CLIENT_SECRET",
         "ONBOARDING_BREG_API_URL",
+        "ONBOARDING_DNB_API_URL",
+        "ONBOARDING_DNB_RTS_API_URL",
+        "ONBOARDING_DNB_TOKEN_URL",
+        "ONBOARDING_DNB_CLIENT_ID",
+        "ONBOARDING_DNB_CLIENT_SECRET",
     ),
     "AI assistant settings": (
         "AI_ASSISTANT_NAME",

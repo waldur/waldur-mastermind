@@ -33,6 +33,11 @@ class ValidationRequest:
 
 class ErrorCode:
     NOT_AUTHORIZED = "NOT_AUTHORIZED"
+    PERSON_NOT_LISTED = "PERSON_NOT_LISTED"
+    # More than one signatory matched the queried person (e.g. two board
+    # members with the same name) and the backend can't tell them apart on
+    # the identifiers available — escalate rather than guess.
+    AMBIGUOUS_MATCH = "AMBIGUOUS_MATCH"
     API_ERROR = "API_ERROR"
     UNKNOWN_ERROR = "UNKNOWN_ERROR"
     COMPANY_NOT_FOUND = "COMPANY_NOT_FOUND"
