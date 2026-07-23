@@ -19,6 +19,15 @@ class SupportUserFactory(
     backend_id = factory.Sequence(lambda n: "TST-%s" % n)
 
     @classmethod
+    def get_url(cls, support_user=None, action=None):
+        if support_user is None:
+            support_user = SupportUserFactory()
+        url = "http://testserver" + reverse(
+            "support-user-detail", kwargs={"uuid": support_user.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("support-user-list")
 

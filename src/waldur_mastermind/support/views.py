@@ -545,16 +545,78 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         return queryset
 
 
-class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
+class SupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.SupportUser.objects.all()
     lookup_field = "uuid"
-    permission_classes = (
-        permissions.IsAuthenticated,
-        structure_permissions.IsStaffOrSupportUser,
-    )
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.SupportUserFilter
+    # Reads stay available to staff and support; all writes are staff-only.
+    safe_methods_permissions = [structure_permissions.is_staff_or_support]
+    unsafe_methods_permissions = [structure_permissions.is_staff]
+
+    merge_serializer_class = serializers.SupportUserMergeSerializer
+    merge_permissions = [structure_permissions.is_staff]
+
+    connections_serializer_class = serializers.SupportUserConnectionsSerializer
+
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.SupportUserConnectionsSerializer},
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def connections(self, request, uuid=None):
+        support_user = self.get_object()
+        data = {
+            "reported_issues": support_user.reported_issues.all(),
+            "assigned_issues": support_user.issues.all(),
+            "comments": support_user.comments.select_related("issue"),
+            "attachments": support_user.attachments.select_related("issue"),
+        }
+        serializer = self.get_serializer(data)
+        return response.Response(serializer.data)
+
+    @extend_schema(
+        request=serializers.SupportUserMergeSerializer,
+        responses={status.HTTP_200_OK: serializers.SupportUserSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def merge(self, request, uuid=None):
+        keeper = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sources = serializer.validated_data["source_users"]
+        with transaction.atomic():
+            for source in sources:
+                source_id = source.uuid.hex
+                # Issue.reporter / Issue.assignee are PROTECT: re-point before delete.
+                reported = source.reported_issues.update(reporter=keeper)
+                assigned = source.issues.update(assignee=keeper)
+                # Comment.author / Attachment.author are CASCADE: re-point to
+                # avoid silently deleting the merged user's comments and attachments.
+                comments = source.comments.update(author=keeper)
+                attachments = source.attachments.update(author=keeper)
+                source.delete()
+                # Audit trail for this destructive staff action; django-structlog
+                # attaches the acting user and request id to the record.
+                logger.info(
+                    "Support user %s (backend_id=%s, backend_name=%s) merged into "
+                    "%s by staff user %s. Re-pointed %d reported issue(s), "
+                    "%d assigned issue(s), %d comment(s), %d attachment(s).",
+                    source_id,
+                    source.backend_id,
+                    source.backend_name,
+                    keeper.uuid.hex,
+                    request.user.username,
+                    reported,
+                    assigned,
+                    comments,
+                    attachments,
+                )
+        return response.Response(
+            serializers.SupportUserSerializer(
+                keeper, context=self.get_serializer_context()
+            ).data
+        )
 
 
 class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
