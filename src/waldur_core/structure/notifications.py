@@ -770,6 +770,33 @@ class IssueUpdatedContext(BaseIssueContext):
     )
 
 
+class ProviderTicketContext(BaseModel):
+    issue: Any = Field(
+        description="The Issue model instance routed to (or withdrawn from) the provider helpdesk."
+    )
+    provider_helpdesk: Any = Field(
+        description="The ProviderHelpdesk model instance the ticket relates to."
+    )
+
+
+class ProviderCommentContext(BaseModel):
+    issue: Any = Field(description="The Issue model instance.")
+    comment: Any = Field(
+        description="The Comment model instance added by the customer."
+    )
+    provider_helpdesk: Any = Field(
+        description="The ProviderHelpdesk model instance the ticket relates to."
+    )
+
+
+class ProviderEscalationContext(BaseModel):
+    issue: Any = Field(description="The parent (operator) Issue that was escalated.")
+    child_issue: Any = Field(
+        description="The child Issue routed to the provider helpdesk."
+    )
+    reason: str = Field(description="The escalation reason.")
+
+
 class SupportSection(NotificationSection):
     class Meta:
         key = "support"
@@ -805,6 +832,31 @@ class SupportSection(NotificationSection):
         description="A template used for generating the issue summary field during issue creation.",
         templates=[NotificationTemplate(path="summary.txt", name="summary")],
         context_model=IssueGenerationContext,
+    )
+    provider_new_ticket = Notification(
+        key="provider_new_ticket",
+        description="Notify a provider helpdesk about a new ticket routed to them.",
+        context_model=ProviderTicketContext,
+    )
+    provider_ticket_withdrawn = Notification(
+        key="provider_ticket_withdrawn",
+        description="Notify a provider helpdesk that a ticket previously routed to them was rerouted away.",
+        context_model=ProviderTicketContext,
+    )
+    provider_escalation = Notification(
+        key="provider_escalation",
+        description="Notify a provider helpdesk that a routed ticket has been escalated.",
+        context_model=ProviderEscalationContext,
+    )
+    provider_email_new_ticket = Notification(
+        key="provider_email_new_ticket",
+        description="Email a provider a new ticket via the email support backend.",
+        context_model=ProviderTicketContext,
+    )
+    provider_email_comment = Notification(
+        key="provider_email_comment",
+        description="Email a provider a customer comment via the email support backend.",
+        context_model=ProviderCommentContext,
     )
 
 

@@ -357,7 +357,29 @@ def route_issue_to_provider(self, issue_id):
         logger.info("No active provider helpdesk for issue %s.", issue.key)
         return
 
-    # Build enriched description
+    try:
+        child_issue = create_provider_child_issue(issue, provider_helpdesk, resource)
+        logger.info(
+            "Successfully routed issue %s to provider %s (child: %s).",
+            issue.key,
+            service_provider,
+            child_issue.key,
+        )
+        notify_provider_new_ticket.delay(child_issue.id)
+    except Exception as exc:
+        provider_helpdesk.failed_routing_count += 1
+        provider_helpdesk.save(update_fields=["failed_routing_count"])
+        logger.exception("Failed to route issue %s to provider.", issue.key)
+        raise self.retry(exc=exc)
+
+
+def create_provider_child_issue(issue, provider_helpdesk, resource=None):
+    """Create a child issue routed to the given provider helpdesk and push it to the provider backend.
+
+    Shared by automatic routing (route_issue_to_provider) and manual routing
+    (IssueViewSet.route_to_provider). Raises on backend failure; the caller decides
+    how to handle it (retry vs. surfacing an error).
+    """
     from .utils import build_provider_context
 
     context = build_provider_context(issue, resource)
@@ -369,47 +391,89 @@ def route_issue_to_provider(self, issue_id):
         f"{issue.description}"
     )
 
-    # Create child issue
-    try:
-        child_issue = models.Issue.objects.create(
-            summary=issue.summary,
-            description=enriched_description,
-            type=issue.type,
-            priority=issue.priority,
-            status=issue.status,
-            caller=issue.caller,
-            customer=issue.customer,
-            project=issue.project,
-            parent_issue=issue,
-            provider_helpdesk=provider_helpdesk,
-        )
+    child_issue = models.Issue.objects.create(
+        summary=issue.summary,
+        description=enriched_description,
+        type=issue.type,
+        priority=issue.priority,
+        status=issue.status,
+        caller=issue.caller,
+        customer=issue.customer,
+        project=issue.project,
+        parent_issue=issue,
+        provider_helpdesk=provider_helpdesk,
+    )
 
-        # Call provider backend to create the issue
-        from .backend import get_backend_for_provider
+    # Call provider backend to create the issue
+    from .backend import get_backend_for_provider
 
-        provider_backend = get_backend_for_provider(provider_helpdesk)
-        provider_backend.create_issue(child_issue)
+    provider_backend = get_backend_for_provider(provider_helpdesk)
+    provider_backend.create_issue(child_issue)
 
-        issue.append_processing_log(
-            "routed_to_provider",
-            {
-                "child_issue_uuid": child_issue.uuid.hex,
-                "provider": str(service_provider),
-            },
-        )
-        issue.save(update_fields=["processing_log"])
+    issue.append_processing_log(
+        "routed_to_provider",
+        {
+            "child_issue_uuid": child_issue.uuid.hex,
+            "provider": str(provider_helpdesk.service_provider),
+        },
+    )
+    issue.save(update_fields=["processing_log"])
 
-        logger.info(
-            "Successfully routed issue %s to provider %s (child: %s).",
-            issue.key,
-            service_provider,
-            child_issue.key,
-        )
-    except Exception as exc:
-        provider_helpdesk.failed_routing_count += 1
-        provider_helpdesk.save(update_fields=["failed_routing_count"])
-        logger.exception("Failed to route issue %s to provider.", issue.key)
-        raise self.retry(exc=exc)
+    return child_issue
+
+
+def reroute_issue_to_provider(issue, new_helpdesk):
+    """Move an already-routed issue from its current provider helpdesk to a new one.
+
+    Tears down the existing child issue(s) through the ORIGINAL provider's backend
+    (a real delete for jira/zammad; a no-op for the basic backend, where the child
+    row is the whole ticket), then creates a fresh child for ``new_helpdesk``.
+    Returns ``(new_child_issue, old_helpdesks)``. The caller runs this inside a
+    transaction and dispatches notifications on commit.
+    """
+    from .backend import get_backend_for_provider
+
+    # Create the new child FIRST. An already-deleted external ticket
+    # (jira/zammad) cannot be restored by an ORM rollback, so tearing the old
+    # one down before the new routing succeeds would risk losing it when
+    # create_provider_child_issue fails. Creating first leaves the original
+    # ticket intact on failure.
+    new_child = create_provider_child_issue(issue, new_helpdesk, issue.resource)
+
+    old_helpdesks = []
+    for child in (
+        issue.child_issues.select_related("provider_helpdesk")
+        .exclude(id=new_child.id)
+        .all()
+    ):
+        old_helpdesk = child.provider_helpdesk
+        if old_helpdesk:
+            old_helpdesks.append(old_helpdesk)
+            try:
+                get_backend_for_provider(old_helpdesk).delete_issue(child)
+            except Exception:
+                # Best-effort teardown: a backend that cannot retract the ticket
+                # (email/smax) leaves an external artifact; the withdrawal
+                # notification tells the old provider to drop it.
+                logger.exception(
+                    "Failed to remove child issue %s from provider %s during "
+                    "reroute; the external ticket may be orphaned.",
+                    child.key,
+                    old_helpdesk,
+                )
+        child.delete()
+
+    issue.append_processing_log(
+        "rerouted_to_provider",
+        {
+            "child_issue_uuid": new_child.uuid.hex,
+            "from": [str(h.service_provider) for h in old_helpdesks],
+            "to": str(new_helpdesk.service_provider),
+        },
+    )
+    issue.save(update_fields=["processing_log"])
+
+    return new_child, old_helpdesks
 
 
 @shared_task(name="waldur_mastermind.support.notify_provider_new_ticket")
@@ -438,6 +502,38 @@ def notify_provider_new_ticket(issue_id):
         except Exception:
             logger.exception(
                 "Failed to send new ticket notification for issue %s", issue.key
+            )
+
+
+@shared_task(name="waldur_mastermind.support.notify_provider_ticket_withdrawn")
+def notify_provider_ticket_withdrawn(issue_id, helpdesk_id):
+    """Notify a provider that a ticket previously routed to them was rerouted away.
+
+    Sent to the OLD helpdesk after a reroute, so backends that cannot retract the
+    external ticket (email/smax) know to drop it. The child issue has already been
+    removed, so this references the operator (parent) issue.
+    """
+    try:
+        issue = models.Issue.objects.get(id=issue_id)
+        helpdesk = models.ProviderHelpdesk.objects.get(id=helpdesk_id)
+    except (models.Issue.DoesNotExist, models.ProviderHelpdesk.DoesNotExist):
+        return
+
+    if not helpdesk.notify_on_new_ticket:
+        return
+
+    recipients = helpdesk.get_notification_emails()
+    if recipients:
+        try:
+            broadcast_mail(
+                "support",
+                "provider_ticket_withdrawn",
+                {"issue": issue, "provider_helpdesk": helpdesk},
+                recipients,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send ticket withdrawn notification for issue %s", issue.key
             )
 
 
