@@ -303,6 +303,118 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     attach_resource_permissions = [structure_permissions.is_staff_or_support]
     attach_resource_serializer_class = serializers.AttachResourceSerializer
 
+    @extend_schema(
+        summary="Manually route an issue to a provider helpdesk",
+        request=serializers.RouteToProviderSerializer,
+        responses={200: serializers.IssueSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def route_to_provider(self, request, uuid=None):
+        issue = self.get_object()
+
+        if issue.child_issues.exists():
+            return response.Response(
+                {"detail": "Issue is already routed to a provider."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ser = serializers.RouteToProviderSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        provider_helpdesk = ser.validated_data["provider_helpdesk"]
+
+        try:
+            with transaction.atomic():
+                child_issue = tasks.create_provider_child_issue(
+                    issue, provider_helpdesk, issue.resource
+                )
+        except Exception:
+            logger.exception(
+                "Failed to manually route issue %s to provider %s.",
+                issue.key,
+                provider_helpdesk,
+            )
+            return response.Response(
+                {"detail": "Failed to route issue to the selected provider."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        child_issue_id = child_issue.id
+        transaction.on_commit(
+            lambda: tasks.notify_provider_new_ticket.delay(child_issue_id)
+        )
+
+        return response.Response(
+            serializers.IssueSerializer(
+                issue, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    route_to_provider_permissions = [structure_permissions.is_staff_or_support]
+    route_to_provider_serializer_class = serializers.RouteToProviderSerializer
+
+    @extend_schema(
+        summary="Re-route an already-routed issue to a different provider helpdesk",
+        request=serializers.RouteToProviderSerializer,
+        responses={200: serializers.IssueSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def reroute(self, request, uuid=None):
+        issue = self.get_object()
+
+        if not issue.child_issues.exists():
+            return response.Response(
+                {"detail": "Issue is not routed to a provider yet."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ser = serializers.RouteToProviderSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        new_helpdesk = ser.validated_data["provider_helpdesk"]
+
+        if issue.child_issues.filter(provider_helpdesk=new_helpdesk).exists():
+            return response.Response(
+                {"detail": "Issue is already routed to this provider."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with transaction.atomic():
+                new_child, old_helpdesks = tasks.reroute_issue_to_provider(
+                    issue, new_helpdesk
+                )
+        except Exception:
+            logger.exception(
+                "Failed to reroute issue %s to provider %s.", issue.key, new_helpdesk
+            )
+            return response.Response(
+                {"detail": "Failed to reroute issue to the selected provider."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        issue_id = issue.id
+        new_child_id = new_child.id
+        old_helpdesk_ids = [helpdesk.id for helpdesk in old_helpdesks]
+        transaction.on_commit(
+            lambda: tasks.notify_provider_new_ticket.delay(new_child_id)
+        )
+        for helpdesk_id in old_helpdesk_ids:
+            transaction.on_commit(
+                lambda helpdesk_id=helpdesk_id: tasks.notify_provider_ticket_withdrawn.delay(
+                    issue_id, helpdesk_id
+                )
+            )
+
+        return response.Response(
+            serializers.IssueSerializer(
+                issue, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    reroute_permissions = [structure_permissions.is_staff_or_support]
+    reroute_serializer_class = serializers.RouteToProviderSerializer
+
 
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Priority.objects.all().order_by("name")

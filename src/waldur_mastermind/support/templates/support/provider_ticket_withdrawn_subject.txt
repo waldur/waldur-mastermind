@@ -1,0 +1,1 @@
+[{{ issue.key }}] Ticket withdrawn: {{ issue.summary }}

@@ -15,12 +15,14 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like, text2html
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
@@ -1000,6 +1002,14 @@ class AttachResourceSerializer(serializers.Serializer):
     )
 
 
+class RouteToProviderSerializer(serializers.Serializer):
+    provider_helpdesk = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ProviderHelpdesk.objects.filter(is_active=True),
+        help_text="UUID of the provider helpdesk to route this issue to.",
+    )
+
+
 class ProviderHelpdeskSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -1689,3 +1699,26 @@ class AtlassianSettingsSaveSerializer(AtlassianSettingsPreviewSerializer):
                 "You must set confirm_save to True to save settings."
             )
         return value
+
+
+def get_has_active_helpdesk(serializer, customer) -> bool:
+    # Lets the UI hide the provider Helpdesk workspace tab for providers that
+    # have not configured a helpdesk yet. Only meaningful when provider routing
+    # is enabled, so the common case costs no query.
+    if not config.WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED:
+        return False
+    return models.ProviderHelpdesk.objects.filter(
+        service_provider__customer=customer, is_active=True
+    ).exists()
+
+
+def add_has_active_helpdesk(sender, fields, **kwargs):
+    """Add a flag telling whether the customer's provider has an active helpdesk."""
+    fields["has_active_helpdesk"] = serializers.SerializerMethodField()
+    setattr(sender, "get_has_active_helpdesk", get_has_active_helpdesk)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_has_active_helpdesk,
+)

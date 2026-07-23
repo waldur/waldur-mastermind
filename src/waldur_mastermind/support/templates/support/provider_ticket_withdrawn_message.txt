@@ -1,0 +1,6 @@
+A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.
+
+Ticket: {{ issue.key }}
+Summary: {{ issue.summary }}
+
+No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.
