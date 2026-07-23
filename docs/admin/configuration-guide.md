@@ -2722,6 +2722,42 @@ Sweden Business Register API client secret
 
 Norway Business Register API server URL
 
+#### ONBOARDING_DNB_API_URL
+
+**Type:** url_field
+
+**Default value:** <https://sandbox-api.bisnode.com/credit-data-companies/v2>
+
+Dun & Bradstreet (Bisnode) Credit Data API base URL
+
+#### ONBOARDING_DNB_RTS_API_URL
+
+**Type:** url_field
+
+**Default value:** <https://sandbox-api.bisnode.com/nordic-rts/v1>
+
+Dun & Bradstreet (Bisnode) Nordic Right to Sign API base URL
+
+#### ONBOARDING_DNB_TOKEN_URL
+
+**Type:** url_field
+
+**Default value:** <https://login.bisnode.com/as/token.oauth2>
+
+Dun & Bradstreet OAuth2 token endpoint URL
+
+#### ONBOARDING_DNB_CLIENT_ID
+
+**Type:** str
+
+Dun & Bradstreet API client identifier
+
+#### ONBOARDING_DNB_CLIENT_SECRET
+
+**Type:** secret_field
+
+Dun & Bradstreet API client secret
+
 ### AI assistant settings
 
 #### AI_ASSISTANT_NAME

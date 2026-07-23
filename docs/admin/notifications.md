@@ -2780,6 +2780,205 @@ Notification about an update in the issue. The recipient is issue caller.
 
 ```
 
+### support.provider_email_comment
+
+Email a provider a customer comment via the email support backend.
+
+#### Templates
+
+=== "support/provider_email_comment_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] New comment on ticket: {{ issue.summary }}
+
+```
+
+=== "support/provider_email_comment_message.txt"
+
+```txt
+
+    A new comment has been added to ticket {{ issue.key }}.
+
+    Comment by {{ comment.author.name }}:
+    {{ comment.description }}
+
+```
+
+=== "support/provider_email_comment_message.html"
+
+```txt
+
+    <p>A new comment has been added to ticket <strong>{{ issue.key }}</strong>.</p>
+    <p><strong>Comment by {{ comment.author.name }}:</strong></p>
+    <p>{{ comment.description }}</p>
+
+```
+
+### support.provider_email_new_ticket
+
+Email a provider a new ticket via the email support backend.
+
+#### Templates
+
+=== "support/provider_email_new_ticket_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] New support ticket: {{ issue.summary }}
+
+```
+
+=== "support/provider_email_new_ticket_message.txt"
+
+```txt
+
+    A new support ticket has been routed to your helpdesk.
+
+    Ticket: {{ issue.key }}
+    Summary: {{ issue.summary }}
+    Type: {{ issue.type }}
+    Priority: {{ issue.priority }}
+
+    Description:
+    {{ issue.description }}
+
+```
+
+=== "support/provider_email_new_ticket_message.html"
+
+```txt
+
+    <p>A new support ticket has been routed to your helpdesk.</p>
+    <p><strong>Ticket:</strong> {{ issue.key }}<br>
+    <strong>Summary:</strong> {{ issue.summary }}<br>
+    <strong>Type:</strong> {{ issue.type }}<br>
+    <strong>Priority:</strong> {{ issue.priority }}</p>
+    <p><strong>Description:</strong></p>
+    <p>{{ issue.description }}</p>
+
+```
+
+### support.provider_escalation
+
+Notify a provider helpdesk that a routed ticket has been escalated.
+
+#### Templates
+
+=== "support/provider_escalation_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] ESCALATED: {{ issue.summary }}
+
+```
+
+=== "support/provider_escalation_message.txt"
+
+```txt
+
+    Ticket {{ issue.key }} has been escalated.
+
+    Reason: {{ reason }}
+
+    Summary: {{ issue.summary }}
+    Priority: {{ issue.priority }}
+
+```
+
+=== "support/provider_escalation_message.html"
+
+```txt
+
+    <p>Ticket <strong>{{ issue.key }}</strong> has been escalated.</p>
+    <p><strong>Reason:</strong> {{ reason }}</p>
+    <p><strong>Summary:</strong> {{ issue.summary }}<br>
+    <strong>Priority:</strong> {{ issue.priority }}</p>
+
+```
+
+### support.provider_new_ticket
+
+Notify a provider helpdesk about a new ticket routed to them.
+
+#### Templates
+
+=== "support/provider_new_ticket_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] New ticket: {{ issue.summary }}
+
+```
+
+=== "support/provider_new_ticket_message.txt"
+
+```txt
+
+    A new support ticket has been assigned to your helpdesk.
+
+    Ticket: {{ issue.key }}
+    Summary: {{ issue.summary }}
+    Type: {{ issue.type }}
+    Priority: {{ issue.priority }}
+
+    Description:
+    {{ issue.description }}
+
+```
+
+=== "support/provider_new_ticket_message.html"
+
+```txt
+
+    <p>A new support ticket has been assigned to your helpdesk.</p>
+    <p><strong>Ticket:</strong> {{ issue.key }}<br>
+    <strong>Summary:</strong> {{ issue.summary }}<br>
+    <strong>Type:</strong> {{ issue.type }}<br>
+    <strong>Priority:</strong> {{ issue.priority }}</p>
+    <p><strong>Description:</strong></p>
+    <p>{{ issue.description }}</p>
+
+```
+
+### support.provider_ticket_withdrawn
+
+Notify a provider helpdesk that a ticket previously routed to them was rerouted away.
+
+#### Templates
+
+=== "support/provider_ticket_withdrawn_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] Ticket withdrawn: {{ issue.summary }}
+
+```
+
+=== "support/provider_ticket_withdrawn_message.txt"
+
+```txt
+
+    A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.
+
+    Ticket: {{ issue.key }}
+    Summary: {{ issue.summary }}
+
+    No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.
+
+```
+
+=== "support/provider_ticket_withdrawn_message.html"
+
+```txt
+
+    <p>A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.</p>
+    <p><strong>Ticket:</strong> {{ issue.key }}<br>
+    <strong>Summary:</strong> {{ issue.summary }}</p>
+    <p>No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.</p>
+
+```
+
 ### support.summary
 
 A template used for generating the issue summary field during issue creation.

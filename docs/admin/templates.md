@@ -4181,6 +4181,17 @@ Comment:
 
 ```
 
+### provider_ticket_withdrawn_message.html (waldur_mastermind.support)
+
+```html
+
+<p>A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.</p>
+<p><strong>Ticket:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary }}</p>
+<p>No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.</p>
+
+```
+
 ### notification_comment_added_message.txt (waldur_mastermind.support)
 
 ```txt
@@ -4242,6 +4253,27 @@ The issue you have created has a new comment. Please go to {{issue_url}} to see 
 ```txt
 
 [{{ issue.key }}] New support ticket: {{ issue.summary }}
+
+```
+
+### provider_ticket_withdrawn_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] Ticket withdrawn: {{ issue.summary }}
+
+```
+
+### provider_ticket_withdrawn_message.txt (waldur_mastermind.support)
+
+```txt
+
+A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.
+
+Ticket: {{ issue.key }}
+Summary: {{ issue.summary }}
+
+No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.
 
 ```
 
