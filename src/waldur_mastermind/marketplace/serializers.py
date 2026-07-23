@@ -317,6 +317,29 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Enable sub-project management within resources.",
     )
+    enable_resource_access_subnets = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, an Access subnets tab is shown on resource "
+        "detail pages, letting consumers curate the IPs allowed to reach the "
+        "backend entity. The list is advisory data for external firewalls.",
+    )
+    conceal_subnet_restricted_resources = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, a resource of this offering that has access "
+        "subnets is hidden from the consumer API unless the caller's IP is in the "
+        "resource's allow-list. Staff and support are exempt; resources without "
+        "any subnet stay visible.",
+    )
+    resource_projects_limit_policy = serializers.ChoiceField(
+        choices=["none", "per_project", "aggregate"],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="How parent resource limits are enforced on child resource "
+        "projects: 'none' (accepted as-is, default), 'per_project' (each resource "
+        "project limit must be within the parent resource limit), or 'aggregate' "
+        "(the sum of all resource project limits must be within the parent limit).",
+    )
     auto_ok_resource_projects = serializers.BooleanField(
         required=False,
         help_text=(
