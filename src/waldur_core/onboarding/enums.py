@@ -46,12 +46,20 @@ class ValidationMethod:
     WIRTSCHAFTSCOMPASS = "wirtschaftscompass"
     BOLAGSVERKET = "bolagsverket"
     BRREG = "breg"
+    DNB_SE = "dnb_se"
+    DNB_NO = "dnb_no"
+    DNB_DK = "dnb_dk"
+    DNB_FI = "dnb_fi"
 
     CHOICES = (
         (ARIREGISTER, "Estonian Business Register (ariregister)"),
         (WIRTSCHAFTSCOMPASS, "Austrian Business Register (WirtschaftsCompass)"),
         (BOLAGSVERKET, "Swedish Business Register (Bolagsverket)"),
         (BRREG, "Norwegian Business Register (Brreg)"),
+        (DNB_SE, "Dun & Bradstreet Sweden"),
+        (DNB_NO, "Dun & Bradstreet Norway"),
+        (DNB_DK, "Dun & Bradstreet Denmark"),
+        (DNB_FI, "Dun & Bradstreet Finland"),
     )
 
     VALUES = [val for (val, _) in CHOICES]
