@@ -12,6 +12,7 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     ResourceStates,
 )
+from waldur_mastermind.marketplace.serializers import ResourceSerializer
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.utils import evaluate_usage_limit_restriction
 
@@ -506,3 +507,32 @@ class UsageLimitRestrictionResourceLimitWiringTest(test.APITestCase):
             )
 
         mock_delay.assert_not_called()
+
+
+class UsageLimitRestrictionSerializerTest(test.APITestCase):
+    """Regression coverage for WAL-10158.
+
+    The resource serializer must declare ``usage_limit_restriction`` with
+    ``allow_blank`` so the generated OpenAPI enum carries the empty-string
+    member the API returns for every unrestricted resource. Without it the enum
+    is only ``{paused, downscaled}`` and generated SDK clients raise
+    ``ValueError: '' is not a valid UsageLimitRestrictionEnum`` on the common
+    read path.
+    """
+
+    def _field(self):
+        # Use the class-level declared field: building a bound instance runs
+        # get_fields(), which needs a request/view in context we don't have here.
+        return ResourceSerializer._declared_fields["usage_limit_restriction"]
+
+    def test_field_declares_blank_and_stays_read_only(self):
+        field = self._field()
+        self.assertTrue(field.allow_blank)
+        self.assertTrue(field.read_only)
+
+    def test_blank_and_active_states_serialize(self):
+        field = self._field()
+        # The empty state (no active restriction) must round-trip, not raise.
+        self.assertEqual(field.to_representation(""), "")
+        self.assertEqual(field.to_representation("paused"), "paused")
+        self.assertEqual(field.to_representation("downscaled"), "downscaled")
