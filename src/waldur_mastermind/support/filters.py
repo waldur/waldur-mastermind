@@ -8,6 +8,7 @@ from waldur_core.core.resolvers import filter_by_resource_attribute
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.support.backend import SupportBackendType
 
 from . import models
 
@@ -271,10 +272,31 @@ class CommentFilter(django_filters.FilterSet):
 
 class SupportUserFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr="icontains")
-    backend_name = django_filters.CharFilter()
+    backend_name = django_filters.ChoiceFilter(
+        choices=[
+            (SupportBackendType.ATLASSIAN, "Atlassian"),
+            (SupportBackendType.ZAMMAD, "Zammad"),
+            (SupportBackendType.SMAX, "SMAX"),
+            (SupportBackendType.BASIC, "Basic"),
+        ],
+        label="Helpdesk",
+    )
+    query = django_filters.CharFilter(
+        method="filter_by_query",
+        label="Search by name, backend ID or linked user name/email",
+    )
     o = django_filters.OrderingFilter(
         fields=("name", "backend_name", "backend_id", "is_active")
     )
+
+    def filter_by_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(backend_id__icontains=value)
+            | Q(user__first_name__icontains=value)
+            | Q(user__last_name__icontains=value)
+            | Q(user__email__icontains=value)
+        )
 
     class Meta:
         model = models.SupportUser
