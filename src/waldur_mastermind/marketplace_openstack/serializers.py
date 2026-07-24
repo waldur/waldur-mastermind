@@ -223,3 +223,50 @@ class DuplicateOfferingGroupSerializer(serializers.Serializer):
     recommended_keeper_id = serializers.IntegerField()
     orphan_count = serializers.IntegerField()
     candidates = DuplicateOfferingCandidateSerializer(many=True)
+
+
+class DuplicateOfferingRemediateSerializer(serializers.Serializer):
+    """Request to collapse one duplicate group onto its keeper.
+
+    The keeper is deliberately not accepted from the client: it is resolved
+    server-side from the same helpers that build the report.
+    """
+
+    tenant_id = serializers.IntegerField()
+    offering_type = serializers.CharField()
+    dry_run = serializers.BooleanField(
+        default=True,
+        help_text="Preview the changes without applying them. Mirrors the "
+        "dry-run-by-default behaviour of the dedupe_tenant_offerings command.",
+    )
+
+
+class DuplicateOfferingMergePlanSerializer(serializers.Serializer):
+    """What resolving a single duplicate would move onto the keeper."""
+
+    duplicate_id = serializers.IntegerField()
+    duplicate_name = serializers.CharField()
+    keeper_id = serializers.IntegerField()
+    keeper_name = serializers.CharField()
+    action = serializers.CharField(
+        help_text="delete (nothing attached), merge, or skip."
+    )
+    is_empty = serializers.BooleanField()
+    resource_count = serializers.IntegerField()
+    order_count = serializers.IntegerField()
+    plan_period_count = serializers.IntegerField()
+    component_usage_count = serializers.IntegerField()
+    component_quota_count = serializers.IntegerField()
+    blockers = serializers.ListField(child=serializers.CharField())
+
+
+class DuplicateOfferingRemediationSerializer(serializers.Serializer):
+    """Result of a remediation, whether previewed or applied."""
+
+    tenant_id = serializers.IntegerField()
+    offering_type = serializers.CharField()
+    keeper_id = serializers.IntegerField()
+    keeper_name = serializers.CharField()
+    dry_run = serializers.BooleanField()
+    duplicates = DuplicateOfferingMergePlanSerializer(many=True)
+    blockers = serializers.ListField(child=serializers.CharField())
