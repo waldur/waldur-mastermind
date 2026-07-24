@@ -9108,8 +9108,17 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
     resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.ReadOnlyField(source="resource.name")
     state = serializers.CharField(source="get_state_display", read_only=True)
-    removed_by_username = serializers.ReadOnlyField(source="removed_by.username")
-    termination_metadata = serializers.JSONField(read_only=True)
+    # default=None is required: without it DRF raises SkipField when
+    # removed_by is NULL and drops the key from the payload entirely, while
+    # the OpenAPI schema still declares it required — generated SDK clients
+    # then crash with KeyError on every project that has not been removed.
+    # allow_null keeps the declared type in sync with that null value.
+    removed_by_username = serializers.CharField(
+        source="removed_by.username", read_only=True, allow_null=True, default=None
+    )
+    # The model field is nullable; without allow_null the OpenAPI schema
+    # declares it non-nullable and generated SDK clients call from_dict(None).
+    termination_metadata = serializers.JSONField(read_only=True, allow_null=True)
 
     class Meta:
         model = models.ResourceProject
