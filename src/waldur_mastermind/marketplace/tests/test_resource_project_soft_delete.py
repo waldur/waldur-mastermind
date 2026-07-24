@@ -132,6 +132,50 @@ class SoftDeleteTest(_Base):
         self.assertNotEqual(new_rp.pk, rp.pk)
 
 
+class NullableAuditFieldsAlwaysSerializedTest(_Base):
+    """The audit fields are declared required in the OpenAPI schema, so they
+    must be present (as null) even when nothing has been removed. Generated
+    SDK clients pop them unconditionally and crash on a missing key."""
+
+    REQUIRED_KEYS = (
+        "is_removed",
+        "removed_date",
+        "removed_by",
+        "removed_by_username",
+        "termination_metadata",
+    )
+
+    def test_list_includes_audit_keys_for_live_project(self):
+        self._create_rp()
+        response = self.client.get(
+            _list_url(), {"resource_uuid": self.resource.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        for key in self.REQUIRED_KEYS:
+            self.assertIn(key, response.data[0])
+        self.assertIsNone(response.data[0]["removed_by_username"])
+        self.assertIsNone(response.data[0]["termination_metadata"])
+
+    def test_detail_includes_audit_keys_for_live_project(self):
+        rp = self._create_rp()
+        response = self.client.get(_detail_url(rp))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for key in self.REQUIRED_KEYS:
+            self.assertIn(key, response.data)
+        self.assertIsNone(response.data["removed_by_username"])
+
+    def test_removed_by_username_populated_after_delete(self):
+        rp = self._create_rp()
+        self.client.delete(_detail_url(rp))
+        response = self.client.get(
+            _list_url(),
+            {"resource_uuid": self.resource.uuid.hex, "include_removed": True},
+        )
+        payload = next(item for item in response.data if item["uuid"] == rp.uuid.hex)
+        self.assertEqual(payload["removed_by_username"], self.staff.username)
+
+
 class ForceDeleteTest(_Base):
     def test_staff_can_hard_delete_with_force_true(self):
         rp = self._create_rp()
