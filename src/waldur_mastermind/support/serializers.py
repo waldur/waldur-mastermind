@@ -729,8 +729,12 @@ class CommentSerializer(
 class SupportUserSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    user_full_name = serializers.ReadOnlyField(source="user.full_name")
-    user_email = serializers.ReadOnlyField(source="user.email")
+    # SerializerMethodField, not source="user.full_name": a dotted source over a
+    # null FK raises SkipField, which drops the key from the payload entirely
+    # instead of returning null. Support users pulled from a backend commonly
+    # have no linked user, so the field must stay present and nullable.
+    user_full_name = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
     reported_issues_count = serializers.SerializerMethodField()
     assigned_issues_count = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()
@@ -762,6 +766,14 @@ class SupportUserSerializer(
                 "required": False,
             },
         )
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_user_full_name(self, obj):
+        return obj.user.full_name if obj.user else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_user_email(self, obj):
+        return obj.user.email if obj.user else None
 
     @extend_schema_field(serializers.IntegerField())
     def get_reported_issues_count(self, obj):

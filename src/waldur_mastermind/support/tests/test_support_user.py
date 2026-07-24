@@ -160,6 +160,47 @@ class SupportUserMergeTest(base.BaseTest):
 
 
 @ddt
+class SupportUserSearchTest(base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.user = structure_factories.UserFactory(
+            first_name="Marvin", last_name="Martinson", email="marvin@example.com"
+        )
+        self.matching = factories.SupportUserFactory(
+            name="Agent one", backend_id="11915", backend_name="smax", user=self.user
+        )
+        self.other = factories.SupportUserFactory(
+            name="Someone else", backend_id="42", backend_name="zammad", user=None
+        )
+        self.url = factories.SupportUserFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def _uuids(self, response):
+        return [item["uuid"] for item in response.data]
+
+    @data("11915", "Marvin", "Martinson", "marvin@example.com", "Agent one")
+    def test_query_matches_backend_id_name_and_linked_user(self, term):
+        response = self.client.get(self.url, {"query": term})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.matching.uuid.hex, self._uuids(response))
+        self.assertNotIn(self.other.uuid.hex, self._uuids(response))
+
+    def test_filter_by_backend_name(self):
+        response = self.client.get(self.url, {"backend_name": "zammad"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._uuids(response), [self.other.uuid.hex])
+
+    def test_unlinked_user_still_exposes_null_name_and_email(self):
+        response = self.client.get(self.url, {"backend_name": "zammad"})
+        row = response.data[0]
+        # The keys must be present and null rather than omitted.
+        self.assertIn("user_full_name", row)
+        self.assertIn("user_email", row)
+        self.assertIsNone(row["user_full_name"])
+        self.assertIsNone(row["user_email"])
+
+
+@ddt
 class SupportUserConnectionsTest(base.BaseTest):
     def setUp(self):
         super().setUp()
