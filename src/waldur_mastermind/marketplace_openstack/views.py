@@ -1,3 +1,5 @@
+import logging
+
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -7,6 +9,7 @@ from drf_spectacular.utils import (
     OpenApiTypes,
     extend_schema,
 )
+from rest_framework import exceptions as rf_exceptions
 from rest_framework import response, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -17,12 +20,18 @@ from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters
-from waldur_core.structure.permissions import is_administrator, is_staff_or_support
+from waldur_core.structure.permissions import (
+    is_administrator,
+    is_staff,
+    is_staff_or_support,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_openstack import serializers, utils
 from waldur_openstack import models as openstack_models
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.executors import TenantCreateExecutor, TenantDeleteExecutor
+
+logger = logging.getLogger(__name__)
 
 
 class MarketplaceTenantViewSet(ExecutorMixin, core_views.ActionsViewSet):
@@ -270,3 +279,45 @@ class DuplicateTenantOfferingViewSet(core_views.ReadOnlyActionsViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(report, many=True)
         return response.Response(serializer.data)
+
+    # Reading the report is staff-or-support, but collapsing a group deletes
+    # offerings, so it is staff-only.
+    remediate_serializer_class = serializers.DuplicateOfferingRemediateSerializer
+    remediate_permissions = [is_staff]
+
+    @extend_schema(
+        request=serializers.DuplicateOfferingRemediateSerializer,
+        responses={200: serializers.DuplicateOfferingRemediationSerializer},
+        description="Collapse one duplicate per-tenant offering group onto its "
+        "keeper. Previews by default; pass dry_run=false to apply. Refuses to "
+        "run when history (billing periods, usage records) cannot be re-pointed.",
+    )
+    @action(detail=False, methods=["post"])
+    def remediate(self, request, *args, **kwargs):
+        # detail=False: the queryset is Offering.objects.none() and retrieve is
+        # disabled, so there is no detail route to hang this on. The group is
+        # addressed by (tenant_id, offering_type) instead.
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            result = utils.remediate_duplicate_offering_group(
+                tenant_id=serializer.validated_data["tenant_id"],
+                offering_type=serializer.validated_data["offering_type"],
+                dry_run=serializer.validated_data["dry_run"],
+            )
+        except utils.OfferingMergeBlocked as e:
+            raise rf_exceptions.ValidationError(e.blockers)
+
+        if not result["dry_run"]:
+            logger.info(
+                "Staff user %s remediated duplicate %s offerings for tenant %s "
+                "onto keeper id=%s.",
+                request.user.username,
+                result["offering_type"],
+                result["tenant_id"],
+                result["keeper_id"],
+            )
+        return response.Response(
+            serializers.DuplicateOfferingRemediationSerializer(result).data,
+            status=status.HTTP_200_OK,
+        )

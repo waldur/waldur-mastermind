@@ -23,15 +23,17 @@ naive delete would take resources and orders with it):
   but nothing ever attached to it" case;
 * a duplicate that still owns resources or orders is left untouched and
   reported unless ``--merge`` is also given, which re-points its resources,
-  orders and plans onto the keeper inside a transaction before deleting it.
+  orders, plans, billing periods and usage records onto the keeper inside a
+  transaction before deleting it.
+
+The merge itself lives in ``utils.merge_duplicate_offering`` so the staff API
+action and this command cannot drift apart.
 """
 
 import logging
 
 from django.core.management.base import BaseCommand
-from django.db import transaction
 
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_openstack import utils
 
 logger = logging.getLogger(__name__)
@@ -111,23 +113,18 @@ class Command(BaseCommand):
         )
 
         for duplicate in duplicates:
-            resource_count = marketplace_models.Resource.objects.filter(
-                offering=duplicate
-            ).count()
-            order_count = marketplace_models.Order.objects.filter(
-                offering=duplicate
-            ).count()
-            empty = resource_count == 0 and order_count == 0
+            plan = utils.plan_offering_merge(duplicate, keeper)
 
-            if empty:
+            if plan["is_empty"]:
                 self._delete_empty_duplicate(duplicate, apply_changes)
             elif merge:
-                self._merge_duplicate(duplicate, keeper, apply_changes)
+                self._merge_duplicate(duplicate, keeper, plan, apply_changes)
             else:
                 self.stdout.write(
                     self.style.ERROR(
                         f"  SKIP duplicate id={duplicate.id}: still owns "
-                        f"{resource_count} resource(s) and {order_count} order(s). "
+                        f"{plan['resource_count']} resource(s) and "
+                        f"{plan['order_count']} order(s). "
                         f"Re-run with --apply --merge to re-point them onto the keeper."
                     )
                 )
@@ -139,66 +136,50 @@ class Command(BaseCommand):
                 f"(name={duplicate.name!r})"
             )
             return
-        logger.info(
-            "dedupe_tenant_offerings: deleting empty duplicate offering "
-            "id=%s name=%r for tenant %s",
-            duplicate.id,
-            duplicate.name,
-            duplicate.object_id,
-        )
-        duplicate.delete()
+        try:
+            utils.delete_empty_duplicate_offering(duplicate)
+        except utils.OfferingMergeBlocked as e:
+            self.stdout.write(
+                self.style.ERROR(f"  SKIP duplicate id={duplicate.id}: {e}")
+            )
+            return
         self.stdout.write(
             self.style.SUCCESS(f"  deleted empty duplicate id={duplicate.id}")
         )
 
-    def _merge_duplicate(self, duplicate, keeper, apply_changes):
-        resources = marketplace_models.Resource.objects.filter(offering=duplicate)
-        orders = marketplace_models.Order.objects.filter(offering=duplicate)
-        resource_count = resources.count()
-        order_count = orders.count()
+    def _merge_duplicate(self, duplicate, keeper, plan, apply_changes):
+        if plan["blockers"]:
+            self.stdout.write(
+                self.style.ERROR(
+                    f"  SKIP duplicate id={duplicate.id}: cannot merge without "
+                    f"losing history — {'; '.join(plan['blockers'])}"
+                )
+            )
+            return
 
         if not apply_changes:
             self.stdout.write(
                 f"  would merge duplicate id={duplicate.id} into keeper "
-                f"id={keeper.id}: re-point {resource_count} resource(s) and "
-                f"{order_count} order(s), then delete."
+                f"id={keeper.id}: re-point {plan['resource_count']} resource(s), "
+                f"{plan['order_count']} order(s), {plan['plan_period_count']} billing "
+                f"period(s), {plan['component_usage_count']} usage(s) and "
+                f"{plan['component_quota_count']} quota(s), then delete."
             )
             return
 
-        # Map each duplicate plan to a keeper plan with the same name so
-        # re-pointed resources/orders keep a consistent offering<->plan pair.
-        # Resource.plan / Order.plan are nullable, so an unmatched plan falls
-        # back to null rather than leaving a dangling cross-offering reference.
-        keeper_plans_by_name = {plan.name: plan for plan in keeper.plans.all()}
-
-        def remap_plan(plan):
-            if plan is None:
-                return None
-            return keeper_plans_by_name.get(plan.name)
-
-        with transaction.atomic():
-            for resource in resources.select_related("plan"):
-                resource.offering = keeper
-                resource.plan = remap_plan(resource.plan)
-                resource.save(update_fields=["offering", "plan"])
-            for order in orders.select_related("plan"):
-                order.offering = keeper
-                order.plan = remap_plan(order.plan)
-                order.save(update_fields=["offering", "plan"])
-            logger.info(
-                "dedupe_tenant_offerings: merged duplicate offering id=%s into "
-                "keeper id=%s for tenant %s (%s resources, %s orders re-pointed)",
-                duplicate.id,
-                keeper.id,
-                duplicate.object_id,
-                resource_count,
-                order_count,
+        try:
+            result = utils.merge_duplicate_offering(duplicate, keeper)
+        except utils.OfferingMergeBlocked as e:
+            self.stdout.write(
+                self.style.ERROR(f"  SKIP duplicate id={duplicate.id}: {e}")
             )
-            duplicate.delete()
+            return
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"  merged duplicate id={duplicate.id} into keeper id={keeper.id} "
-                f"({resource_count} resources, {order_count} orders re-pointed)"
+                f"({result['resource_count']} resources, {result['order_count']} orders, "
+                f"{result['plan_period_count']} billing periods, "
+                f"{result['component_usage_count']} usages re-pointed)"
             )
         )

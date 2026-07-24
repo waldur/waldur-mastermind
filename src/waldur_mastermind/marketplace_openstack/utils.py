@@ -542,6 +542,273 @@ def build_duplicate_offering_report(tenant_id: int | None = None) -> list[dict]:
     return report
 
 
+def _duplicate_is_empty(duplicate: marketplace_models.Offering) -> bool:
+    """A duplicate nothing ever attached to — safe to delete outright."""
+    return (
+        not marketplace_models.Resource.objects.filter(offering=duplicate).exists()
+        and not marketplace_models.Order.objects.filter(offering=duplicate).exists()
+    )
+
+
+def plan_offering_merge(
+    duplicate: marketplace_models.Offering,
+    keeper: marketplace_models.Offering,
+) -> dict:
+    """Preflight a merge of ``duplicate`` into ``keeper``. Performs no writes.
+
+    Every FK to Offering is ``on_delete=CASCADE``, so deleting the duplicate
+    also destroys rows that belong to the resources being moved. Re-pointing
+    only Resource/Order (what this used to do) silently discarded billing and
+    usage history:
+
+    * ``Plan.offering`` -> ``ResourcePlanPeriod.plan`` (billing periods)
+    * ``OfferingComponent.offering`` -> ``ComponentUsage`` / ``ComponentQuota``
+
+    Those two need a counterpart on the keeper, and ``ResourcePlanPeriod.plan``
+    is not nullable, so an unmatched plan cannot simply be dropped. Anything
+    that cannot be re-pointed is returned as a blocker and the caller must
+    refuse rather than delete history.
+    """
+    resources = marketplace_models.Resource.objects.filter(offering=duplicate)
+    orders = marketplace_models.Order.objects.filter(offering=duplicate)
+    resource_ids = list(resources.values_list("id", flat=True))
+
+    plan_periods = marketplace_models.ResourcePlanPeriod.objects.filter(
+        resource_id__in=resource_ids, plan__offering=duplicate
+    )
+    usages = marketplace_models.ComponentUsage.objects.filter(
+        resource_id__in=resource_ids, component__offering=duplicate
+    )
+    quotas = marketplace_models.ComponentQuota.objects.filter(
+        resource_id__in=resource_ids, component__offering=duplicate
+    )
+
+    keeper_plan_names = set(keeper.plans.values_list("name", flat=True))
+    keeper_component_types = set(keeper.components.values_list("type", flat=True))
+
+    blockers = []
+    missing_plan_names = sorted(
+        set(plan_periods.values_list("plan__name", flat=True)) - keeper_plan_names
+    )
+    for name in missing_plan_names:
+        blockers.append(
+            f"Keeper has no plan named {name!r}, required by "
+            f"{plan_periods.filter(plan__name=name).count()} billing period(s)."
+        )
+    missing_component_types = sorted(
+        (
+            set(usages.values_list("component__type", flat=True))
+            | set(quotas.values_list("component__type", flat=True))
+        )
+        - keeper_component_types
+    )
+    for component_type in missing_component_types:
+        blockers.append(
+            f"Keeper has no component of type {component_type!r}, required by "
+            "usage or quota records."
+        )
+
+    return {
+        "duplicate_id": duplicate.id,
+        "duplicate_name": duplicate.name,
+        "keeper_id": keeper.id,
+        "keeper_name": keeper.name,
+        "is_empty": not resource_ids and not orders.exists(),
+        "resource_count": len(resource_ids),
+        "order_count": orders.count(),
+        "plan_period_count": plan_periods.count(),
+        "component_usage_count": usages.count(),
+        "component_quota_count": quotas.count(),
+        "blockers": blockers,
+    }
+
+
+class OfferingMergeBlocked(Exception):
+    """Raised when a merge would discard history that cannot be re-pointed."""
+
+    def __init__(self, blockers: list[str]):
+        self.blockers = blockers
+        super().__init__("; ".join(blockers))
+
+
+def merge_duplicate_offering(
+    duplicate: marketplace_models.Offering,
+    keeper: marketplace_models.Offering,
+) -> dict:
+    """Re-point everything owned by ``duplicate`` onto ``keeper``, then delete it.
+
+    Raises ``OfferingMergeBlocked`` if the preflight found history that cannot
+    be preserved. Everything happens in one transaction, and the preflight is
+    re-run inside it: the caller may have previewed the merge minutes earlier
+    and a resource could have attached since (TOCTOU).
+    """
+    with transaction.atomic():
+        # Lock the pair so a concurrent merge/attach cannot race this one.
+        marketplace_models.Offering.objects.select_for_update().filter(
+            id__in=[duplicate.id, keeper.id]
+        ).exists()
+
+        result = plan_offering_merge(duplicate, keeper)
+        if result["blockers"]:
+            raise OfferingMergeBlocked(result["blockers"])
+
+        keeper_plans_by_name = {plan.name: plan for plan in keeper.plans.all()}
+        keeper_components_by_type = {
+            component.type: component for component in keeper.components.all()
+        }
+
+        resources = marketplace_models.Resource.objects.filter(offering=duplicate)
+        resource_ids = list(resources.values_list("id", flat=True))
+
+        # Re-point the history first: it is selected via the duplicate's plans
+        # and components, which stop matching once the resources have moved.
+        for plan_period in marketplace_models.ResourcePlanPeriod.objects.filter(
+            resource_id__in=resource_ids, plan__offering=duplicate
+        ).select_related("plan"):
+            plan_period.plan = keeper_plans_by_name[plan_period.plan.name]
+            plan_period.save(update_fields=["plan"])
+
+        for usage in marketplace_models.ComponentUsage.objects.filter(
+            resource_id__in=resource_ids, component__offering=duplicate
+        ).select_related("component"):
+            usage.component = keeper_components_by_type[usage.component.type]
+            usage.save(update_fields=["component"])
+
+        for quota in marketplace_models.ComponentQuota.objects.filter(
+            resource_id__in=resource_ids, component__offering=duplicate
+        ).select_related("component"):
+            target = keeper_components_by_type[quota.component.type]
+            # (resource, component) is unique: if the resource already carries a
+            # quota for the keeper's component, the duplicate's row is redundant.
+            if (
+                marketplace_models.ComponentQuota.objects.filter(
+                    resource_id=quota.resource_id, component=target
+                )
+                .exclude(id=quota.id)
+                .exists()
+            ):
+                quota.delete()
+                continue
+            quota.component = target
+            quota.save(update_fields=["component"])
+
+        # Resource.plan / Order.plan are nullable, so an unmatched plan falls
+        # back to null rather than leaving a dangling cross-offering reference.
+        def remap_plan(plan):
+            if plan is None:
+                return None
+            return keeper_plans_by_name.get(plan.name)
+
+        for resource in resources.select_related("plan"):
+            resource.offering = keeper
+            resource.plan = remap_plan(resource.plan)
+            resource.save(update_fields=["offering", "plan"])
+
+        for order in marketplace_models.Order.objects.filter(
+            offering=duplicate
+        ).select_related("plan"):
+            order.offering = keeper
+            order.plan = remap_plan(order.plan)
+            order.save(update_fields=["offering", "plan"])
+
+        logger.info(
+            "Merged duplicate offering id=%s into keeper id=%s for tenant %s "
+            "(%s resources, %s orders, %s plan periods, %s usages, %s quotas "
+            "re-pointed).",
+            duplicate.id,
+            keeper.id,
+            duplicate.object_id,
+            result["resource_count"],
+            result["order_count"],
+            result["plan_period_count"],
+            result["component_usage_count"],
+            result["component_quota_count"],
+        )
+        duplicate.delete()
+
+    return result
+
+
+def delete_empty_duplicate_offering(duplicate: marketplace_models.Offering) -> None:
+    """Delete a duplicate that owns nothing. Re-checks emptiness under lock."""
+    with transaction.atomic():
+        marketplace_models.Offering.objects.select_for_update().filter(
+            id=duplicate.id
+        ).exists()
+        if not _duplicate_is_empty(duplicate):
+            raise OfferingMergeBlocked(
+                [
+                    f"Offering id={duplicate.id} is no longer empty; "
+                    "re-run the report and merge instead."
+                ]
+            )
+        logger.info(
+            "Deleting empty duplicate offering id=%s name=%r for tenant %s.",
+            duplicate.id,
+            duplicate.name,
+            duplicate.object_id,
+        )
+        duplicate.delete()
+
+
+def remediate_duplicate_offering_group(
+    tenant_id: int,
+    offering_type: str,
+    dry_run: bool = True,
+    merge: bool = True,
+) -> dict:
+    """Resolve one (tenant, offering type) duplicate group down to its keeper.
+
+    The keeper is resolved server-side from the same helpers that build the
+    report, so a caller cannot direct the merge at a different offering.
+    """
+    groups = collect_duplicate_offering_groups(tenant_id)
+    offerings = groups.get((tenant_id, offering_type))
+    if not offerings:
+        raise OfferingMergeBlocked(
+            [
+                f"No duplicate {offering_type} offerings found for tenant "
+                f"{tenant_id}; the report may be out of date."
+            ]
+        )
+
+    keeper = pick_keeper_offering(offerings)
+    duplicates = [o for o in offerings if o.id != keeper.id]
+    plans = [plan_offering_merge(duplicate, keeper) for duplicate in duplicates]
+
+    for plan in plans:
+        if plan["is_empty"]:
+            plan["action"] = "delete"
+        elif not merge:
+            plan["action"] = "skip"
+            plan["blockers"] = plan["blockers"] or [
+                "Still owns resources or orders; merging is required to resolve it."
+            ]
+        else:
+            plan["action"] = "merge"
+
+    blocked = [plan for plan in plans if plan["blockers"]]
+    result = {
+        "tenant_id": tenant_id,
+        "offering_type": offering_type,
+        "keeper_id": keeper.id,
+        "keeper_name": keeper.name,
+        "dry_run": dry_run,
+        "duplicates": plans,
+        "blockers": [b for plan in blocked for b in plan["blockers"]],
+    }
+    if dry_run or blocked:
+        return result
+
+    for plan in plans:
+        duplicate = next(o for o in duplicates if o.id == plan["duplicate_id"])
+        if plan["action"] == "delete":
+            delete_empty_duplicate_offering(duplicate)
+        elif plan["action"] == "merge":
+            merge_duplicate_offering(duplicate, keeper)
+    return result
+
+
 def self_heal_tenant_offerings(tenant: openstack_models.Tenant) -> dict:
     """Ensure per-tenant Instance/Volume offerings exist and are usable.
 
