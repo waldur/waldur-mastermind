@@ -4,7 +4,11 @@ import socket
 from urllib.parse import urlparse
 
 from django.conf import settings
-from waldur_api_client.client import AuthenticatedClient
+
+# The waldur_api_client SDK pulls in a large generated attrs/pydantic model graph
+# (~70 MB resident). Import it lazily inside get_waldur_client so it only loads in
+# processes that actually build a remote client, not at Django startup. See the
+# "Lazy imports for heavy optional backends" section of CLAUDE.md.
 
 logger = logging.getLogger(__name__)
 
@@ -38,5 +42,7 @@ def check_url(url):
 
 
 def get_waldur_client(api_url, token):
+    from waldur_api_client.client import AuthenticatedClient
+
     check_url(api_url)
     return AuthenticatedClient(base_url=api_url.rstrip("/api"), token=token)

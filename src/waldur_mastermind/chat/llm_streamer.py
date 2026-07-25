@@ -5,7 +5,6 @@ import threading
 import time
 
 import httpx
-import openai
 from constance import config
 from django.db import connections, transaction
 from django.db.models import Max
@@ -32,18 +31,48 @@ from waldur_mastermind.chat.tools.tool_sets import (
 
 logger = logging.getLogger(__name__)
 
-# Maps specific OpenAI exception types to user-facing error messages.
-# Looked up by exact type in the `except openai.APIError` handler;
-# unmatched subclasses fall back to a generic message.
-_LLM_ERROR_MESSAGES: dict[type, str] = {
-    openai.AuthenticationError: "AI service authentication failed. Please contact your administrator.",
-    openai.RateLimitError: "AI service rate limit reached. Please wait and try again.",
-    openai.APITimeoutError: "AI service request timed out. Please try again.",
-    openai.APIConnectionError: "Could not connect to AI service. Please try again later.",
-    openai.InternalServerError: "AI service is temporarily unavailable. Please try again later.",
-    openai.NotFoundError: "AI model not found. Please check the configured model name.",
-    openai.BadRequestError: "AI service rejected the request. Please try again or contact your administrator.",
-}
+# The openai SDK (~6.5 MB) is imported lazily — this module is loaded during
+# URLconf resolution at Django startup, but the AI chat is an optional integration
+# only exercised when a chat request is served. See the "Lazy imports for heavy
+# optional backends" section of CLAUDE.md.
+_LLM_ERROR_MESSAGES: dict[type, str] | None = None
+
+
+def _llm_error_messages() -> dict[type, str]:
+    """Map specific OpenAI exception types to user-facing error messages.
+
+    Built lazily (and cached) so importing this module does not pull the openai
+    SDK in at startup. Looked up by exact type in the ``except openai.APIError``
+    handler; unmatched subclasses fall back to a generic message.
+    """
+    global _LLM_ERROR_MESSAGES
+    if _LLM_ERROR_MESSAGES is None:
+        import openai
+
+        _LLM_ERROR_MESSAGES = {
+            openai.AuthenticationError: "AI service authentication failed. Please contact your administrator.",
+            openai.RateLimitError: "AI service rate limit reached. Please wait and try again.",
+            openai.APITimeoutError: "AI service request timed out. Please try again.",
+            openai.APIConnectionError: "Could not connect to AI service. Please try again later.",
+            openai.InternalServerError: "AI service is temporarily unavailable. Please try again later.",
+            openai.NotFoundError: "AI model not found. Please check the configured model name.",
+            openai.BadRequestError: "AI service rejected the request. Please try again or contact your administrator.",
+        }
+    return _LLM_ERROR_MESSAGES
+
+
+def __getattr__(name):
+    # PEP 562: expose ``llm_streamer.openai`` as a lazily-imported attribute so
+    # the openai SDK is not pulled in at module import (i.e. at Django startup),
+    # while callers and tests that reference the module attribute (e.g.
+    # ``mock.patch("...llm_streamer.openai.OpenAI")``) still resolve the real
+    # module. Bare ``openai.*`` uses inside functions import it locally instead.
+    if name == "openai":
+        import openai
+
+        return openai
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # Maximum time (seconds) the consumer loop waits for the worker to finish.
 _WORKER_TIMEOUT = 300
@@ -144,6 +173,8 @@ class LLMStreamer:
         worker_timeout: int | None = None,
         tool_choice_override: str | None = None,
     ):
+        import openai
+
         self.messages = messages
         self.client = openai.OpenAI(
             api_key=token,
@@ -739,10 +770,12 @@ class LLMStreamer:
         handled here in the ``finally`` block, keeping persistence in a
         single code path regardless of whether the client is still connected.
         """
+        import openai
+
         try:
             self._run_llm_workflow()
         except openai.APIError as e:
-            user_msg = _LLM_ERROR_MESSAGES.get(
+            user_msg = _llm_error_messages().get(
                 type(e),
                 "AI service encountered an error. Please try again later.",
             )

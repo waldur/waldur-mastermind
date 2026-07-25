@@ -37,11 +37,13 @@ from waldur_core.structure import (
     permissions as structure_permissions,
 )
 from waldur_mastermind.notifications.models import BroadcastMessage
-from waldur_mastermind.support.backend.atlassian_discovery import (
-    AtlassianDiscoveryError,
-    AtlassianDiscoveryService,
-    TemporaryCredentials,
-)
+
+# The Atlassian discovery service imports atlassian-python-api, which eagerly pulls
+# its whole API surface (~43 modules) at import. Atlassian is one of several optional
+# support backends, so its symbols are imported lazily inside the discovery ViewSet
+# methods below to keep it out of startup memory in deployments running a different
+# (or no) support backend. See the "Lazy imports for heavy optional backends" section
+# of CLAUDE.md.
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 
@@ -1703,6 +1705,11 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
 
     def _get_discovery_service(self, credentials_data: dict):
         """Create discovery service from validated credentials."""
+        from waldur_mastermind.support.backend.atlassian_discovery import (
+            AtlassianDiscoveryService,
+            TemporaryCredentials,
+        )
+
         creds = TemporaryCredentials(
             api_url=credentials_data["api_url"],
             auth_method=credentials_data["auth_method"],
@@ -1742,6 +1749,10 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     @decorators.action(detail=False, methods=["post"])
     def discover_projects(self, request):
         """Discover available Service Desk projects."""
+        from waldur_mastermind.support.backend.atlassian_discovery import (
+            AtlassianDiscoveryError,
+        )
+
         serializer = serializers.DiscoverProjectsRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -1769,6 +1780,10 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     @decorators.action(detail=False, methods=["post"])
     def discover_request_types(self, request):
         """Discover request types for a selected project."""
+        from waldur_mastermind.support.backend.atlassian_discovery import (
+            AtlassianDiscoveryError,
+        )
+
         serializer = serializers.DiscoverRequestTypesRequestSerializer(
             data=request.data
         )
@@ -1802,6 +1817,10 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     @decorators.action(detail=False, methods=["post"])
     def discover_custom_fields(self, request):
         """Discover available custom fields."""
+        from waldur_mastermind.support.backend.atlassian_discovery import (
+            AtlassianDiscoveryError,
+        )
+
         serializer = serializers.DiscoverCustomFieldsRequestSerializer(
             data=request.data
         )
@@ -1836,6 +1855,10 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
     @decorators.action(detail=False, methods=["post"])
     def discover_priorities(self, request):
         """Discover available priorities."""
+        from waldur_mastermind.support.backend.atlassian_discovery import (
+            AtlassianDiscoveryError,
+        )
+
         serializer = serializers.DiscoverPrioritiesRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

@@ -25,7 +25,13 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+
+# The Atlassian ServiceDesk backend imports atlassian-python-api, which eagerly
+# pulls its whole API surface (~43 modules) at import. It is one of several
+# optional support backends, so ServiceDeskBackend is imported lazily inside the
+# method that uses it to keep it out of startup memory in deployments that run a
+# different (or no) support backend. See the "Lazy imports for heavy optional
+# backends" section of CLAUDE.md.
 from waldur_mastermind.support.enums import (
     JIRA_WEBHOOK_EVENT_MAP,
     SupportWebhookEvent,
@@ -893,6 +899,8 @@ class WebHookReceiverSerializer(serializers.Serializer):
     )  # For old Jira's version
 
     def create(self, validated_data):
+        from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+
         logger.debug("Processing webhook with data: %s", validated_data)
 
         webhook_event = validated_data["webhookEvent"]

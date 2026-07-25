@@ -1,16 +1,20 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from django.db.models.query import QuerySet
 from django.utils import timezone
 from httpx import TransportError
-from waldur_api_client.api.marketplace_categories import marketplace_categories_list
-from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.marketplace_category_field_enum import (
-    MarketplaceCategoryFieldEnum,
-)
-from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 
+# waldur_api_client pulls in a large generated attrs/pydantic model graph
+# (~70 MB resident). Its symbols are imported lazily inside the methods below so
+# the SDK does not load at Django startup. See the "Lazy imports for heavy
+# optional backends" section of CLAUDE.md.
 from waldur_core.core.client import get_waldur_client
+
+if TYPE_CHECKING:
+    from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING, OfferingStates
 from waldur_mastermind.marketplace_remote import models as remote_models
@@ -24,6 +28,8 @@ class RemoteSynchronisationRunner:
         self.sync: remote_models.RemoteSynchronisation = sync
 
     def run(self) -> None:
+        from waldur_api_client.errors import UnexpectedStatus
+
         try:
             self._initialize_sync()
             self._process_sync()
@@ -44,6 +50,13 @@ class RemoteSynchronisationRunner:
         self.sync.save()
 
     def _process_sync(self) -> None:
+        from waldur_api_client.api.marketplace_categories import (
+            marketplace_categories_list,
+        )
+        from waldur_api_client.models.marketplace_category_field_enum import (
+            MarketplaceCategoryFieldEnum,
+        )
+
         existing_offerings = models.Offering.objects.filter(
             type=REMOTE_OFFERING,
             customer=self.sync.local_service_provider.customer,
@@ -167,6 +180,8 @@ class RemoteSynchronisationRunner:
         return local_offering
 
     def _handle_sync_error(self, error: Exception) -> None:
+        from waldur_api_client.errors import UnexpectedStatus
+
         if isinstance(error, UnexpectedStatus):
             self.sync.error_message = error.content.decode("utf-8")
         else:

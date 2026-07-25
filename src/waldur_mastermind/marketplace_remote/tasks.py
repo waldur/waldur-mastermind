@@ -1,8 +1,15 @@
+from __future__ import annotations
+
+# SDK (waldur_api_client) imports are deferred to function-local scope (and a
+# TYPE_CHECKING block for annotation-only symbols) to keep the heavy SDK out of
+# process startup — see the "Lazy imports for heavy optional backends" section
+# of CLAUDE.md.
 import collections
 import logging
+import threading
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from uuid import UUID
 
 import requests
@@ -15,62 +22,6 @@ from django.utils import dateparse, timezone
 from httpx import TransportError
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
-from waldur_api_client.api.maintenance_announcements import (
-    maintenance_announcements_list,
-)
-from waldur_api_client.api.marketplace_component_usages import (
-    marketplace_component_usages_list,
-)
-from waldur_api_client.api.marketplace_component_user_usages import (
-    marketplace_component_user_usages_list,
-)
-from waldur_api_client.api.marketplace_offering_terms_of_service import (
-    marketplace_offering_terms_of_service_list,
-)
-from waldur_api_client.api.marketplace_offering_users import (
-    marketplace_offering_users_list,
-)
-from waldur_api_client.api.marketplace_orders import marketplace_orders_retrieve
-from waldur_api_client.api.marketplace_public_offerings import (
-    marketplace_public_offerings_retrieve,
-)
-from waldur_api_client.api.marketplace_resources import (
-    marketplace_resources_retrieve,
-)
-from waldur_api_client.api.marketplace_robot_accounts import (
-    marketplace_robot_accounts_list,
-)
-from waldur_api_client.api.projects import (
-    projects_add_user,
-    projects_delete_user,
-    projects_destroy,
-    projects_list,
-    projects_list_users_list,
-    projects_update_user,
-)
-from waldur_api_client.api.remote_eduteams import (
-    remote_eduteams as get_remote_eduteams_user,
-)
-from waldur_api_client.client import AuthenticatedClient
-from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.base_public_plan import BasePublicPlan
-from waldur_api_client.models.maintenance_announcement import (
-    MaintenanceAnnouncement as RemoteMaintenanceAnnouncement,
-)
-from waldur_api_client.models.maintenance_announcement_state_enum import (
-    MaintenanceAnnouncementStateEnum,
-)
-from waldur_api_client.models.offering_component import OfferingComponent
-from waldur_api_client.models.public_offering_details import PublicOfferingDetails
-from waldur_api_client.models.remote_eduteams_request_request import (
-    RemoteEduteamsRequestRequest as RemoteEduteamsRequest,
-)
-from waldur_api_client.models.robot_account_states import (
-    RobotAccountStates as ApiRobotAccountStates,
-)
-from waldur_api_client.models.user_role_create_request import UserRoleCreateRequest
-from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
-from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
 
 from waldur_core.core.client import ClientValidationError, get_waldur_client
 from waldur_core.core.enums import ReviewStates
@@ -117,6 +68,15 @@ from waldur_mastermind.marketplace_remote.utils import (
     sync_project_permission,
 )
 
+if TYPE_CHECKING:
+    from waldur_api_client.client import AuthenticatedClient
+    from waldur_api_client.models.base_public_plan import BasePublicPlan
+    from waldur_api_client.models.maintenance_announcement import (
+        MaintenanceAnnouncement as RemoteMaintenanceAnnouncement,
+    )
+    from waldur_api_client.models.offering_component import OfferingComponent
+    from waldur_api_client.models.public_offering_details import PublicOfferingDetails
+
 logger = logging.getLogger(__name__)
 
 # For logging purposes only
@@ -137,6 +97,11 @@ DEFAULT_TOVERSION = "1.0"
 
 class OfferingPullTask(BackgroundPullTask):
     def pull(self, local_offering: models.Offering):
+        from waldur_api_client.api.marketplace_public_offerings import (
+            marketplace_public_offerings_retrieve,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+
         if not local_offering.backend_id:
             logger.warning(
                 "Skipping pull for offering %s because its backend_id is empty.",
@@ -172,6 +137,11 @@ class OfferingPullTask(BackgroundPullTask):
         client: AuthenticatedClient,
     ):
         """Backwards compatibility for old-style ToS of remote offerings."""
+        from waldur_api_client.api.marketplace_offering_terms_of_service import (
+            marketplace_offering_terms_of_service_list,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+
         terms_of_service = getattr(remote_offering_data, "terms_of_service", "") or ""
         terms_of_service_link = (
             getattr(remote_offering_data, "terms_of_service_link", "") or ""
@@ -469,6 +439,10 @@ class OfferingListPullTask(BackgroundListPullTask):
 
 class OfferingUserPullTask(BackgroundPullTask):
     def pull(self, local_offering: models.Offering):
+        from waldur_api_client.api.marketplace_offering_users import (
+            marketplace_offering_users_list,
+        )
+
         client = get_client_for_offering(local_offering)
         remote_offering_users = {
             remote_offering_user.user_username: remote_offering_user.username
@@ -564,6 +538,10 @@ class OfferingUserListPullTask(BackgroundListPullTask):
 
 class ResourcePullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
+        from waldur_api_client.api.marketplace_resources import (
+            marketplace_resources_retrieve,
+        )
+
         client = get_client_for_offering(local_resource.offering)
         remote_resource = marketplace_resources_retrieve.sync(
             client=client, uuid=local_resource.backend_id
@@ -701,6 +679,10 @@ def pull_offering_resources(serialized_offering):
 
 class OrderPullTask(BackgroundPullTask):
     def pull(self, local_order: models.Order):
+        from waldur_api_client.api.marketplace_orders import (
+            marketplace_orders_retrieve,
+        )
+
         if not local_order.backend_id:
             return
         client = get_client_for_offering(local_order.offering)
@@ -777,6 +759,10 @@ class ErredOrderPullTask(OrderPullTask):
     """
 
     def pull(self, local_order: models.Order):
+        from waldur_api_client.api.marketplace_orders import (
+            marketplace_orders_retrieve,
+        )
+
         if not local_order.backend_id:
             return
         client = get_client_for_offering(local_order.offering)
@@ -879,6 +865,13 @@ class UsagePullTask(BackgroundPullTask):
         Previously, this method made N+1 API calls per resource (1 for component usages,
         N for user usages per component). Now it makes only 2 API calls total.
         """
+        from waldur_api_client.api.marketplace_component_usages import (
+            marketplace_component_usages_list,
+        )
+        from waldur_api_client.api.marketplace_component_user_usages import (
+            marketplace_component_user_usages_list,
+        )
+
         client = get_client_for_offering(local_resource.offering)
         today = datetime.today()
         if from_creation_date:
@@ -1036,8 +1029,16 @@ def pull_offering_usage(serialized_offering):
 # Monkey-patch the API client's RobotAccountStates to handle different enum versions
 # Some versions use IntEnum with integer values (VALUE_1=1, VALUE_2=2, etc.)
 # Other versions use StrEnum with string values (OK="OK", CREATING="Creating", etc.)
-_original_new = ApiRobotAccountStates.__new__
-_is_int_enum = issubclass(ApiRobotAccountStates, int)
+# The SDK enum is imported and patched lazily (see "Lazy imports for heavy optional
+# backends" in CLAUDE.md) rather than at module import time.
+_original_new = None
+_is_int_enum = False
+_robot_account_states_patched = False
+# Serialise the lazy patch: unlike the previous import-time patch (which ran under
+# the import lock), first-use installation can be reached by two threads at once
+# under a threaded/gevent Celery pool. Without this, the second thread could
+# capture the already-patched __new__ as _original_new and recurse infinitely.
+_patch_lock = threading.Lock()
 
 # Mapping from display strings to both integer and string enum values
 _STATE_DISPLAY_TO_INT = {
@@ -1079,11 +1080,36 @@ def _patched_new(cls, value):
     return _original_new(cls, value)
 
 
-ApiRobotAccountStates.__new__ = _patched_new
+def _patch_robot_account_states():
+    """Lazily install the RobotAccountStates ``__new__`` patch on first use.
+
+    Deferred so importing this module does not pull the SDK enum in at process
+    startup — see "Lazy imports for heavy optional backends" in CLAUDE.md.
+    """
+    global _original_new, _is_int_enum, _robot_account_states_patched
+    if _robot_account_states_patched:
+        return
+    with _patch_lock:
+        # Double-checked: another thread may have installed it while we waited.
+        if _robot_account_states_patched:
+            return
+        from waldur_api_client.models.robot_account_states import (
+            RobotAccountStates as ApiRobotAccountStates,
+        )
+
+        _original_new = ApiRobotAccountStates.__new__
+        _is_int_enum = issubclass(ApiRobotAccountStates, int)
+        ApiRobotAccountStates.__new__ = _patched_new
+        _robot_account_states_patched = True
 
 
 class ResourceRobotAccountPullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
+        from waldur_api_client.api.marketplace_robot_accounts import (
+            marketplace_robot_accounts_list,
+        )
+
+        _patch_robot_account_states()
         client = get_client_for_offering(local_resource.offering)
         remote_accounts = marketplace_robot_accounts_list.sync_all(
             client=client, resource_uuid=local_resource.backend_id
@@ -1230,6 +1256,23 @@ def sync_remote_project_permissions():
     Optimization: Caches remote user UUIDs per API endpoint to avoid
     redundant lookups when the same user appears across multiple projects/offerings.
     """
+    from waldur_api_client.api.projects import (
+        projects_add_user,
+        projects_delete_user,
+        projects_list_users_list,
+        projects_update_user,
+    )
+    from waldur_api_client.api.remote_eduteams import (
+        remote_eduteams as get_remote_eduteams_user,
+    )
+    from waldur_api_client.errors import UnexpectedStatus
+    from waldur_api_client.models.remote_eduteams_request_request import (
+        RemoteEduteamsRequestRequest as RemoteEduteamsRequest,
+    )
+    from waldur_api_client.models.user_role_create_request import UserRoleCreateRequest
+    from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
+    from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
+
     if not settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
         return
 
@@ -1424,6 +1467,8 @@ def sync_remote_project(serialized_request):
     Args:
         serialized_request: Serialized ProjectUpdateRequest instance
     """
+    from waldur_api_client.errors import UnexpectedStatus
+
     request = deserialize_instance(serialized_request)
     try:
         utils.update_remote_project(request)
@@ -1443,6 +1488,9 @@ def delete_remote_project(serialized_project):
     Args:
         serialized_project: Serialized project instance
     """
+    from waldur_api_client.api.projects import projects_destroy, projects_list
+    from waldur_api_client.errors import UnexpectedStatus
+
     _, pk = serialized_project.split(":")
     try:
         local_project = structure_models.Project.objects.get(pk=pk)
@@ -1506,6 +1554,9 @@ def clean_remote_projects():
     This task removes projects from remote Waldur instances that correspond
     to locally removed projects, helping maintain consistency.
     """
+    from waldur_api_client.api.projects import projects_destroy, projects_list
+    from waldur_api_client.errors import UnexpectedStatus
+
     clients = {}
     projects_backend_ids = set(
         map(
@@ -1657,6 +1708,8 @@ def notify_about_project_details_update(serialized_project_update):
 
 class RemoteProjectDataPushTask(BackgroundPullTask):
     def pull(self, instance: models.Offering):
+        from waldur_api_client.errors import UnexpectedStatus
+
         offering = instance
         project_ids = (
             models.Resource.objects.filter(offering=offering)
@@ -1723,6 +1776,14 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
     """
 
     def pull(self, service_provider: models.ServiceProvider):
+        from waldur_api_client.api.maintenance_announcements import (
+            maintenance_announcements_list,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+        from waldur_api_client.models.maintenance_announcement_state_enum import (
+            MaintenanceAnnouncementStateEnum,
+        )
+
         try:
             offering = models.Offering.objects.filter(
                 customer=service_provider.customer,
