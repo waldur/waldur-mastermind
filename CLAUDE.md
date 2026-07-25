@@ -18,8 +18,9 @@ This is a Django-based cloud orchestration platform. When working on this codeba
 - Commit code that doesn't compile
 - Make assumptions - verify with existing code
 - Import modules inside functions - all imports must be at the top of the file
-  (narrow exception: lazy imports of heavy optional backend SDKs — see
-  "Lazy imports for heavy optional backends" below)
+  (narrow exception: lazy imports of heavy dependencies of optional features that
+  would otherwise load at startup — see "Lazy imports for heavy optional
+  dependencies" below)
 
 **ALWAYS**:
 
@@ -30,37 +31,78 @@ This is a Django-based cloud orchestration platform. When working on this codeba
 
 ## Key Waldur Patterns
 
-### Lazy imports for heavy optional backends
+### Lazy imports for heavy optional dependencies
 
 The default rule is imports-at-top-of-file. The **only** sanctioned exception is
-the heavy SDK of an optional provider backend that most deployments never use.
-Such SDKs (e.g. `azure-mgmt-*` ≈ 37 MB, `apache-libcloud`, large cloud clients)
-get imported in **every** process at Django startup if referenced at module top —
-because the provider's `apps.py` `ready()` registers the backend, which imports
-`backend.py` → `client.py`. That permanently inflates the resident memory of API
-and Celery pods for a feature they don't exercise.
+a heavy dependency of an **optional** feature that most deployments never exercise
+but which loads in **every** process at Django startup. Referenced at module top,
+such a dependency is pulled in via one of the startup import paths — `apps.py`
+`ready()` (signal/plugin registration), URLconf resolution (`urls.py` → `views.py`
+→ `serializers.py`), or a `WaldurExtension`. That permanently inflates the resident
+memory of API and Celery pods for a feature they don't run.
 
-When (and only when) **all** of these hold, defer the SDK import:
+When (and only when) **all** of these hold, defer the import:
 
-- the dependency is large and belongs to an **optional** provider backend;
-- it is used only inside `client.py` / `backend.py` methods (never in
-  `models.py` / `serializers.py` / `views.py` / `urls.py` / `apps.py`);
-- deployments that don't use the provider should not pay for it.
+- the dependency is large (rule of thumb ≳ 3 MB resident or a big transitive graph);
+- the feature is **optional** — gated by config/Constance, an optional provider
+  backend, or an integration many deployments disable;
+- deployments that don't use it should not pay for it.
 
-How to defer (keep it disciplined — this is not licence for ad-hoc local imports):
+Scope note: this is **not** limited to `client.py` / `backend.py`. It legitimately
+applies to `views.py`, `serializers.py`, `handlers.py`, and app `extension.py`
+whenever they sit on a startup import path — that is exactly where the wins in the
+`-102 MB` startup sweep came from (see reference implementations below).
 
-- Put the `from azure... import X` **inside the method** that uses it.
-- For symbols used in many `except` clauses, add one module-level helper that
-  imports lazily, e.g. `def _azure_exceptions(): from azure.core.exceptions
-  import AzureError, HttpResponseError; return AzureError, HttpResponseError`,
-  then `except _azure_exceptions() as exc:`.
-- Add `from __future__ import annotations` so SDK types used only in annotations
-  stay lazy; put those imports under `if TYPE_CHECKING:` for the type checker.
+**How to defer** (keep it disciplined — this is not licence for ad-hoc local imports):
+
+- **Function-local import** — put `from heavy_pkg import X` inside the method that
+  uses it. This is the default; prefer it.
+- **`except` clauses across many methods** — add one lazy helper returning the
+  exception tuple: `def _azure_exceptions(): from azure.core.exceptions import
+  AzureError, HttpResponseError; return AzureError, HttpResponseError`.
+- **Annotation-only symbols** — add `from __future__ import annotations` and import
+  them under `if TYPE_CHECKING:` (also silences ruff `F821` for the runtime names).
+- **A symbol used pervasively across one module** (dozens of names) — a single
+  idempotent loader that populates module globals on first use, plus a
+  `TYPE_CHECKING` import block so the linter sees the names as bound. Ref:
+  `matrix_chat/matrix_client.py` (`_load_nio()`).
+- **A module-level data structure keyed by the dep's types** (e.g. an
+  `exc-type -> message` map) — build it lazily in a cached function. Ref:
+  `chat/llm_streamer.py` (`_llm_error_messages()`).
+- **A base class, or a module attribute referenced by string / mocked in tests**,
+  that cannot be a function-local import — use a PEP 562 module `__getattr__` that
+  imports on attribute access. Refs: `waldur_auth_saml2/utils.py`
+  (`DatabaseMetadataLoader` base class) and `chat/llm_streamer.py` (exposes
+  `llm_streamer.openai` for `mock.patch(...)` without a startup import).
 - Leave a comment at the top of the file pointing back to this section.
 
-Reference implementation: `src/waldur_azure/client.py` and `backend.py`. Measure
-the before/after with `scripts/measure_startup_memory.py` (the per-component
-heatmap shows whether the SDK still loads at startup).
+**Two gotchas that will bite you:**
+
+- **Thread-safety.** A patch/singleton installed at *module import* is implicitly
+  serialised by the import lock; moving it to lazy first-use loses that. Under a
+  threaded/gevent Celery pool two callers can race. Guard it with a module-level
+  `threading.Lock` + double-checked flag. Ref: `_patch_robot_account_states()` in
+  `marketplace_remote/tasks.py` — without the lock a second thread captured the
+  already-patched `__new__` and recursed infinitely.
+- **Test mocks.** `mock.patch("some.module.Symbol")` breaks once `Symbol` is no
+  longer imported at that module's top. Either retarget the mock to the symbol's
+  **source** module (the function-local import resolves there — ref the
+  `support/tests/test_jira_web_hooks.py` change), or expose the name via a PEP 562
+  `__getattr__` so the patch target still resolves (ref `llm_streamer.openai`).
+- Note: module `__getattr__` is **not** consulted for bare-name lookups inside the
+  module's own functions — those still need a function-local import.
+
+**Verify.** After the change, no module of the dep may load at startup. Run
+`waldur check`, then assert the dep is absent from `sys.modules` (e.g. no
+`waldur_api_client*` / `nio*` / `openai*` entries). Measure before/after with
+`scripts/measure_startup_memory.py` — the per-component CSV/heatmap shows whether
+the dep still loads. The `Check startup memory budget` CI job runs this and can
+gate on `MEMORY_BUDGET_MB`.
+
+Reference implementations: `src/waldur_azure/client.py` + `backend.py` (original);
+and the startup sweep — `marketplace_remote` (`waldur_api_client`),
+`waldur_auth_saml2` (`pysaml2`/`xmlschema`), `support` (`atlassian-python-api`),
+`matrix_chat` (`matrix-nio`), `chat/llm_streamer.py` (`openai`).
 
 ### Permissions
 

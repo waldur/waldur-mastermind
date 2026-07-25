@@ -2097,6 +2097,16 @@ class RobotAccountStatesTest(testcases.TestCase):
     Fixes PUHURI-PORTALS-DC4: ValueError: 3 is not a valid RobotAccountStates
     """
 
+    def setUp(self):
+        # The patch is installed lazily on first robot-account pull (so importing
+        # tasks.py does not load the SDK enum at process startup). These tests
+        # exercise the patched enum in isolation, so apply it explicitly here.
+        from waldur_mastermind.marketplace_remote.tasks import (
+            _patch_robot_account_states,
+        )
+
+        _patch_robot_account_states()
+
     def test_robot_account_states_enum_handles_string_display_values(self):
         """Test that display string values like 'OK' work."""
         from waldur_api_client.models.robot_account_states import RobotAccountStates

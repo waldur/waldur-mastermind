@@ -1,47 +1,15 @@
+from __future__ import annotations
+
 import asyncio
 import hashlib
 import hmac
 import logging
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import httpx
 from constance import config
 from markdown_it import MarkdownIt
-from nio import (
-    AsyncClient,
-    CallAnswerEvent,
-    CallHangupEvent,
-    CallInviteEvent,
-    DownloadError,
-    InviteMemberEvent,
-    MemoryDownloadResponse,
-    PowerLevelsEvent,
-    ReactionEvent,
-    RedactedEvent,
-    RedactionEvent,
-    RoomCreateError,
-    RoomCreateResponse,
-    RoomGetEventError,
-    RoomInviteError,
-    RoomInviteResponse,
-    RoomKickError,
-    RoomKickResponse,
-    RoomMemberEvent,
-    RoomMessageAudio,
-    RoomMessageFile,
-    RoomMessageImage,
-    RoomMessagesError,
-    RoomMessagesResponse,
-    RoomMessageVideo,
-    RoomNameEvent,
-    RoomPutStateError,
-    RoomPutStateResponse,
-    RoomSendError,
-    RoomSendResponse,
-    RoomTopicEvent,
-    RoomVisibility,
-    StickerEvent,
-)
 
 from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.clean_html import clean_html
@@ -50,6 +18,103 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Project
 
 from .models import MatrixUserProfile
+
+# matrix-nio is imported lazily via _load_nio() rather than at module top —
+# see the "Lazy imports for heavy optional backends" section of CLAUDE.md.
+# nio drags in pycryptodome -> cffi -> pycparser (~10 MB) at import, and Matrix
+# chat is an optional, Constance-gated feature (MATRIX_ENABLED), so that cost
+# must not be paid at Django startup. Every function that references a nio
+# symbol calls _load_nio() first, which populates these names into globals().
+# The TYPE_CHECKING import below binds the names for the linter/type-checker only;
+# it does not execute at runtime, so nio stays unimported until first use.
+if TYPE_CHECKING:
+    from nio import (
+        AsyncClient,
+        CallAnswerEvent,
+        CallHangupEvent,
+        CallInviteEvent,
+        DownloadError,
+        InviteMemberEvent,
+        MemoryDownloadResponse,
+        PowerLevelsEvent,
+        ReactionEvent,
+        RedactedEvent,
+        RedactionEvent,
+        RoomCreateError,
+        RoomCreateResponse,
+        RoomGetEventError,
+        RoomInviteError,
+        RoomInviteResponse,
+        RoomKickError,
+        RoomKickResponse,
+        RoomMemberEvent,
+        RoomMessageAudio,
+        RoomMessageFile,
+        RoomMessageImage,
+        RoomMessagesError,
+        RoomMessagesResponse,
+        RoomMessageVideo,
+        RoomNameEvent,
+        RoomPutStateError,
+        RoomPutStateResponse,
+        RoomSendError,
+        RoomSendResponse,
+        RoomTopicEvent,
+        RoomVisibility,
+        StickerEvent,
+    )
+
+_NIO_NAMES = (
+    "AsyncClient",
+    "CallAnswerEvent",
+    "CallHangupEvent",
+    "CallInviteEvent",
+    "DownloadError",
+    "InviteMemberEvent",
+    "MemoryDownloadResponse",
+    "PowerLevelsEvent",
+    "ReactionEvent",
+    "RedactedEvent",
+    "RedactionEvent",
+    "RoomCreateError",
+    "RoomCreateResponse",
+    "RoomGetEventError",
+    "RoomInviteError",
+    "RoomInviteResponse",
+    "RoomKickError",
+    "RoomKickResponse",
+    "RoomMemberEvent",
+    "RoomMessageAudio",
+    "RoomMessageFile",
+    "RoomMessageImage",
+    "RoomMessagesError",
+    "RoomMessagesResponse",
+    "RoomMessageVideo",
+    "RoomNameEvent",
+    "RoomPutStateError",
+    "RoomPutStateResponse",
+    "RoomSendError",
+    "RoomSendResponse",
+    "RoomTopicEvent",
+    "RoomVisibility",
+    "StickerEvent",
+)
+
+
+def _load_nio():
+    """Import matrix-nio symbols into module globals on first use (idempotent).
+
+    nio drags in pycryptodome -> cffi -> pycparser (~10 MB) at import; deferring
+    it keeps that out of startup memory for the optional Matrix feature.
+    """
+    if "AsyncClient" in globals():
+        return
+    import nio
+
+    g = globals()
+    for _name in _NIO_NAMES:
+        g[_name] = getattr(nio, _name)
+
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +223,7 @@ async def _register_bot_user_async(homeserver_url, as_token, localpart):
 
 def _make_client(homeserver_url, bot_user_id, access_token=None):
     """Create an AsyncClient from pre-read config values."""
+    _load_nio()
     client = AsyncClient(homeserver_url, bot_user_id)
     if access_token:
         client.access_token = access_token
@@ -181,6 +247,7 @@ async def _create_room_async(
     alias_localpart=None,
     is_private=True,
 ):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         response = await client.room_create(
@@ -295,6 +362,7 @@ def create_room(name, alias_localpart=None, is_private=True):
 async def _invite_user_async(
     homeserver_url, bot_user_id, access_token, room_id, user_id
 ):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         response = await client.room_invite(room_id, user_id)
@@ -395,6 +463,7 @@ def leave_room_as_self(room_id, access_token):
 async def _kick_user_async(
     homeserver_url, bot_user_id, access_token, room_id, user_id, reason=""
 ):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         response = await client.room_kick(room_id, user_id, reason=reason)
@@ -422,6 +491,7 @@ def kick_user(room_id, user_id, reason=""):
 async def _set_power_level_async(
     homeserver_url, bot_user_id, access_token, room_id, user_id, power_level
 ):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         # Get current power levels
@@ -499,6 +569,7 @@ def build_text_content(body, msgtype="m.text", reply_to=None):
 async def _send_message_async(
     homeserver_url, bot_user_id, access_token, room_id, body, msgtype="m.text"
 ):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         response = await client.room_send(
@@ -530,6 +601,7 @@ def send_message(room_id, body, msgtype="m.text"):
 async def _send_reply_async(
     homeserver_url, bot_user_id, access_token, room_id, event_id, body
 ):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         content = build_text_content(body, reply_to=event_id)
@@ -573,6 +645,7 @@ def _build_media_message(event):
 
 def _build_event_message(event):
     """Build a message dict for a generic Matrix event, dispatching by type."""
+    _load_nio()
     # Media messages
     if isinstance(
         event, RoomMessageImage | RoomMessageVideo | RoomMessageAudio | RoomMessageFile
@@ -698,6 +771,7 @@ def _build_event_message(event):
 async def _get_room_messages_async(
     homeserver_url, bot_user_id, access_token, room_id, limit=100, from_token=None
 ):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         response = await client.room_messages(
@@ -732,6 +806,7 @@ def get_room_messages(room_id, limit=100, from_token=None):
 
 
 async def _download_media_async(homeserver_url, bot_user_id, access_token, mxc_uri):
+    _load_nio()
     client = _make_client(homeserver_url, bot_user_id, access_token)
     try:
         response = await client.download(mxc=mxc_uri)

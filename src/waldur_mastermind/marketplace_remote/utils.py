@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+# SDK (waldur_api_client) imports are deferred to keep this heavy optional
+# backend out of the process startup path — see the "Lazy imports for heavy
+# optional backends" section of CLAUDE.md. Runtime-used symbols are imported
+# locally inside the functions that use them; annotation-only symbols live in
+# the TYPE_CHECKING block below.
 import datetime
 import io
 import logging
@@ -5,6 +12,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterable
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import httpx
 from django.core.files.base import ContentFile
@@ -13,60 +21,6 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from httpx import TransportError
 from rest_framework.exceptions import ValidationError
-from waldur_api_client.api.marketplace_orders import (
-    marketplace_orders_list,
-    marketplace_orders_retrieve,
-)
-from waldur_api_client.api.marketplace_public_offerings import (
-    marketplace_public_offerings_list,
-)
-from waldur_api_client.api.marketplace_resources import (
-    marketplace_resources_partial_update,
-    marketplace_resources_retrieve,
-    marketplace_resources_team_list,
-    marketplace_resources_update_options,
-)
-from waldur_api_client.api.marketplace_screenshots import marketplace_screenshots_list
-from waldur_api_client.api.projects import (
-    projects_add_user,
-    projects_create,
-    projects_delete_user,
-    projects_list,
-    projects_list_users_list,
-    projects_partial_update,
-    projects_update_user,
-)
-from waldur_api_client.api.remote_eduteams import (
-    remote_eduteams as get_remote_eduteams_user,
-)
-from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.base_public_plan import BasePublicPlan
-from waldur_api_client.models.offering_component import OfferingComponent
-from waldur_api_client.models.order_details import (
-    OrderDetails,
-)
-from waldur_api_client.models.order_details_field_enum import (
-    OrderDetailsFieldEnum,
-)
-from waldur_api_client.models.patched_project_request import (
-    PatchedProjectRequest,
-)
-from waldur_api_client.models.patched_resource_update_request import (
-    PatchedResourceUpdateRequest,
-)
-from waldur_api_client.models.project import Project
-from waldur_api_client.models.project_request import (
-    ProjectRequest,
-)
-from waldur_api_client.models.public_offering_details import PublicOfferingDetails
-from waldur_api_client.models.remote_eduteams_request_request import (
-    RemoteEduteamsRequestRequest as RemoteEduteamsRequest,
-)
-from waldur_api_client.models.resource_options_request import ResourceOptionsRequest
-from waldur_api_client.models.user_role_create_request import UserRoleCreateRequest
-from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
-from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
-from waldur_api_client.types import UNSET
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_core.core.client import get_waldur_client
@@ -94,6 +48,13 @@ from waldur_mastermind.marketplace_remote.constants import (
 )
 from waldur_mastermind.marketplace_remote.exceptions import RemoteStatusSyncFailed
 
+if TYPE_CHECKING:
+    from waldur_api_client.models.base_public_plan import BasePublicPlan
+    from waldur_api_client.models.offering_component import OfferingComponent
+    from waldur_api_client.models.order_details import OrderDetails
+    from waldur_api_client.models.project import Project
+    from waldur_api_client.models.public_offering_details import PublicOfferingDetails
+
 logger = logging.getLogger(__name__)
 
 INVALID_RESOURCE_STATES = (
@@ -111,6 +72,13 @@ def get_client_for_offering(offering: marketplace_models.Offering):
 
 
 def get_remote_user_uuid(client, username: str) -> str:
+    from waldur_api_client.api.remote_eduteams import (
+        remote_eduteams as get_remote_eduteams_user,
+    )
+    from waldur_api_client.models.remote_eduteams_request_request import (
+        RemoteEduteamsRequestRequest as RemoteEduteamsRequest,
+    )
+
     return get_remote_eduteams_user.sync(
         client=client, body=RemoteEduteamsRequest(cuid=username)
     ).uuid.hex
@@ -218,6 +186,8 @@ def get_remote_project(
     project: structure_models.Project,
     client=None,
 ) -> Project | None:
+    from waldur_api_client.api.projects import projects_list
+
     if not client:
         client = get_client_for_offering(offering)
     remote_project_uuid = get_project_backend_id(project)
@@ -235,6 +205,9 @@ def create_remote_project(
     project: structure_models.Project,
     client=None,
 ):
+    from waldur_api_client.api.projects import projects_create
+    from waldur_api_client.models.project_request import ProjectRequest
+
     if not client:
         client = get_client_for_offering(offering)
     options = offering.secret_options
@@ -271,6 +244,9 @@ def get_or_create_remote_project(
 
 
 def update_remote_project(request: models.ProjectUpdateRequest):
+    from waldur_api_client.api.projects import projects_list, projects_partial_update
+    from waldur_api_client.models.patched_project_request import PatchedProjectRequest
+
     client = get_client_for_offering(request.offering)
     remote_project_name = f"{request.project.customer.name} / {request.new_name}"
     remote_project_uuid = get_project_backend_id(request.project)
@@ -293,6 +269,10 @@ def update_remote_project(request: models.ProjectUpdateRequest):
 
 
 def sync_resource_team(resource: marketplace_models.Resource):
+    from waldur_api_client.api.marketplace_resources import (
+        marketplace_resources_team_list,
+    )
+
     offering = resource.offering
     client = get_client_for_offering(resource.offering)
     project: structure_models.Project = resource.project
@@ -338,6 +318,14 @@ def create_or_update_project_permission(
     role_name: str,
     expiration_time: datetime.datetime,
 ):
+    from waldur_api_client.api.projects import (
+        projects_add_user,
+        projects_list_users_list,
+        projects_update_user,
+    )
+    from waldur_api_client.models.user_role_create_request import UserRoleCreateRequest
+    from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
+
     permissions = projects_list_users_list.sync(
         client=client, uuid=remote_project_uuid, user=remote_user_uuid, role=role_name
     )
@@ -365,6 +353,12 @@ def create_or_update_project_permission(
 def remove_project_permission(
     client, remote_project_uuid: str, remote_user_uuid: str, role_name: str
 ):
+    from waldur_api_client.api.projects import (
+        projects_delete_user,
+        projects_list_users_list,
+    )
+    from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
+
     remote_permissions = projects_list_users_list.sync(
         client=client, uuid=remote_project_uuid, user=remote_user_uuid, role=role_name
     )
@@ -388,6 +382,8 @@ def sync_project_permission(
     user,
     expiration_time: datetime.datetime,
 ):
+    from waldur_api_client.errors import UnexpectedStatus
+
     for offering in get_remote_offerings_for_project(project):
         client = get_client_for_offering(offering)
         try:
@@ -439,6 +435,8 @@ def push_project_users(
     project: structure_models.Project,
     remote_project_uuid: str,
 ):
+    from waldur_api_client.errors import UnexpectedStatus
+
     client = get_client_for_offering(offering)
 
     permissions = collect_local_permissions(offering, project)
@@ -538,6 +536,9 @@ def import_order(
 
 
 def get_new_order_ids(client, backend_id):
+    from waldur_api_client.api.marketplace_orders import marketplace_orders_list
+    from waldur_api_client.models.order_details_field_enum import OrderDetailsFieldEnum
+
     remote_orders = marketplace_orders_list.sync_all(
         client=client,
         resource_uuid=backend_id,
@@ -555,6 +556,8 @@ def get_new_order_ids(client, backend_id):
 def import_resource_orders(
     resource: marketplace_models.Resource,
 ) -> list[marketplace_models.Order]:
+    from waldur_api_client.api.marketplace_orders import marketplace_orders_retrieve
+
     if not resource.backend_id:
         return []
     client = get_client_for_offering(resource.offering)
@@ -568,6 +571,10 @@ def import_resource_orders(
 
 
 def pull_resource_state(local_resource: marketplace_models.Resource):
+    from waldur_api_client.api.marketplace_resources import (
+        marketplace_resources_retrieve,
+    )
+
     if not local_resource.backend_id:
         return
     client = get_client_for_offering(local_resource.offering)
@@ -665,6 +672,12 @@ def import_offering_thumbnail(
 
 
 def push_resource_options(local_resource: marketplace_models.Resource):
+    from waldur_api_client.api.marketplace_resources import (
+        marketplace_resources_update_options,
+    )
+    from waldur_api_client.errors import UnexpectedStatus
+    from waldur_api_client.models.resource_options_request import ResourceOptionsRequest
+
     offering = local_resource.offering
     client = get_client_for_offering(offering)
     try:
@@ -682,6 +695,14 @@ def push_resource_options(local_resource: marketplace_models.Resource):
 
 
 def push_resource_end_date(local_resource: marketplace_models.Resource):
+    from waldur_api_client.api.marketplace_resources import (
+        marketplace_resources_partial_update,
+    )
+    from waldur_api_client.errors import UnexpectedStatus
+    from waldur_api_client.models.patched_resource_update_request import (
+        PatchedResourceUpdateRequest,
+    )
+
     offering = local_resource.offering
     if (
         local_resource.end_date
@@ -718,6 +739,16 @@ def reconcile_resource_end_date(local_resource: marketplace_models.Resource):
     pull the remote date instead of pushing the stale local one.
     Otherwise, push the local value to the remote if they differ.
     """
+    from waldur_api_client.api.marketplace_resources import (
+        marketplace_resources_partial_update,
+        marketplace_resources_retrieve,
+    )
+    from waldur_api_client.errors import UnexpectedStatus
+    from waldur_api_client.models.patched_resource_update_request import (
+        PatchedResourceUpdateRequest,
+    )
+    from waldur_api_client.types import UNSET
+
     if (
         local_resource.offering.type != REMOTE_OFFERING
         or not local_resource.backend_id
@@ -837,6 +868,10 @@ def fetch_resource_events_from_remote(resource):
 def get_remote_offerings(
     client, remote_customer_uuid: str, category_uuid=None, fields=None
 ):
+    from waldur_api_client.api.marketplace_public_offerings import (
+        marketplace_public_offerings_list,
+    )
+
     whitelist_types = [
         offering_type
         for offering_type in plugins.manager.get_offering_types()
@@ -962,6 +997,11 @@ def _download_image(url: str) -> bytes:
 
 def import_offering_screenshots(local_offering: marketplace_models.Offering):
     """Import offering screenshots from remote offering"""
+    from waldur_api_client.api.marketplace_screenshots import (
+        marketplace_screenshots_list,
+    )
+    from waldur_api_client.errors import UnexpectedStatus
+
     remote_offering_uuid = local_offering.backend_id
     client = get_client_for_offering(local_offering)
     try:
@@ -1078,6 +1118,10 @@ def get_resource_sync_status(resource):
     """
     Get resource sync status. To show the resource state in local and remote instances.
     """
+    from waldur_api_client.api.marketplace_resources import (
+        marketplace_resources_retrieve,
+    )
+    from waldur_api_client.errors import UnexpectedStatus
 
     try:
         client = get_client_for_offering(resource.offering)
@@ -1112,6 +1156,10 @@ def get_resource_team(resource: marketplace_models.Resource):
     """
     Get remote resource team. To show the resource team in local and remote instances.
     """
+    from waldur_api_client.api.marketplace_resources import (
+        marketplace_resources_team_list,
+    )
+    from waldur_api_client.errors import UnexpectedStatus
 
     try:
         client = get_client_for_offering(resource.offering)
@@ -1180,6 +1228,8 @@ def get_resource_order_sync_status(resource: marketplace_models.Resource):
     """
     Get remote resource order sync status. To show the resource order state in local and remote instances.
     """
+    from waldur_api_client.api.marketplace_orders import marketplace_orders_list
+    from waldur_api_client.errors import UnexpectedStatus
 
     try:
         client = get_client_for_offering(resource.offering)

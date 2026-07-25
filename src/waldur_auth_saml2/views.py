@@ -1,3 +1,10 @@
+# The pysaml2 client/metadata/config machinery (djangosaml2.conf, saml2.client,
+# saml2.metadata, saml2.response, djangosaml2.utils/views and waldur_auth_saml2.utils)
+# transitively imports `xmlschema`, a ~13 MB XSD validator, at module load. This
+# module is pulled in during URLconf resolution in *every* process (API and Celery),
+# so those imports are deferred into the request-handling methods below to keep the
+# validator out of startup memory. See the "Lazy imports for heavy optional backends"
+# section of CLAUDE.md.
 import base64
 import logging
 
@@ -8,16 +15,10 @@ from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from djangosaml2.cache import IdentityCache, OutstandingQueriesCache, StateCache
-from djangosaml2.conf import get_config
 from djangosaml2.signals import post_authenticated
-from djangosaml2.utils import get_custom_setting, get_location
-from djangosaml2.views import _get_subject_id, _set_subject_id
 from rest_framework.authtoken.models import Token
 from rest_framework.generics import GenericAPIView, ListAPIView
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT, md
-from saml2.client import Saml2Client
-from saml2.metadata import do_extensions, entity_descriptor
-from saml2.response import StatusRequestDenied
 from saml2.xmldsig import DIGEST_SHA1, SIG_RSA_SHA1
 from six import text_type
 
@@ -37,7 +38,7 @@ from waldur_core.core.views import (
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 
-from . import filters, models, serializers, utils
+from . import filters, models, serializers
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,9 @@ def metadata(request, config_loader_path=None, valid_for=None):
     """Returns an XML with the SAML 2.0 metadata for this
     SP as configured in the settings.py file.
     """
+    from djangosaml2.conf import get_config
+    from saml2.metadata import do_extensions, entity_descriptor
+
     conf = get_config(config_loader_path, request)
     metadata = entity_descriptor(conf)
     if conf.extensions:
@@ -85,6 +89,12 @@ class Saml2LoginView(BaseSaml2View):
 
     @validate_saml2
     def post(self, request):
+        from djangosaml2.conf import get_config
+        from djangosaml2.utils import get_location
+        from saml2.client import Saml2Client
+
+        from . import utils
+
         if not self.request.user.is_anonymous:
             error_message = _("This endpoint is for anonymous users only.")
             return JsonResponse({"error_message": error_message}, status=400)
@@ -176,6 +186,12 @@ class Saml2LoginCompleteView(BaseSaml2View):
 
     @validate_saml2
     def post(self, request):
+        from djangosaml2.conf import get_config
+        from djangosaml2.utils import get_custom_setting
+        from djangosaml2.views import _set_subject_id
+        from saml2.client import Saml2Client
+        from saml2.response import StatusRequestDenied
+
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -284,6 +300,11 @@ class Saml2LogoutView(BaseSaml2View):
 
     @validate_saml2
     def get(self, request):
+        from djangosaml2.conf import get_config
+        from djangosaml2.utils import get_location
+        from djangosaml2.views import _get_subject_id
+        from saml2.client import Saml2Client
+
         state = StateCache(request.session)
         conf = get_config(request=request)
 
@@ -337,6 +358,11 @@ class Saml2LogoutCompleteView(BaseSaml2View):
         return self.logout(request, serializer.validated_data, BINDING_HTTP_POST)
 
     def logout(self, request, data, binding):
+        from djangosaml2.conf import get_config
+        from djangosaml2.utils import get_location
+        from djangosaml2.views import _get_subject_id
+        from saml2.client import Saml2Client
+
         conf = get_config(request=request)
 
         state = StateCache(request.session)

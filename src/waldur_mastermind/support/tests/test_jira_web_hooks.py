@@ -23,7 +23,9 @@ from waldur_mastermind.support.tests import factories
 JIRA_WEBHOOK_TEST_SECRET = "jira-test-secret"  # noqa: S105
 
 
-@mock.patch("waldur_mastermind.support.serializers.ServiceDeskBackend")
+# ServiceDeskBackend is imported lazily inside the webhook serializer's create(),
+# so patch it at its source module (the lazy `from ... import` resolves there).
+@mock.patch("waldur_mastermind.support.backend.atlassian.ServiceDeskBackend")
 @override_constance_config(
     WALDUR_SUPPORT_ENABLED=True,
     WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",

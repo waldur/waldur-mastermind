@@ -10,20 +10,12 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.generics import GenericAPIView
 from rest_framework.request import Request
 from rest_framework.response import Response
-from waldur_api_client.api.customers import customers_list
-from waldur_api_client.api.marketplace_categories import marketplace_categories_list
-from waldur_api_client.api.marketplace_orders import (
-    marketplace_orders_reject_by_consumer,
-)
-from waldur_api_client.api.marketplace_public_offerings import (
-    marketplace_public_offerings_retrieve,
-)
-from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.customer_field_enum import CustomerFieldEnum
-from waldur_api_client.models.public_offering_details_field_enum import (
-    PublicOfferingDetailsFieldEnum,
-)
 
+# waldur_api_client pulls in a large generated attrs/pydantic model graph
+# (~70 MB resident). Its symbols are imported lazily inside the view methods
+# below so the SDK does not load at Django startup (this module is imported
+# during URLconf resolution in every process). See the "Lazy imports for heavy
+# optional backends" section of CLAUDE.md.
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.core.client import get_waldur_client
@@ -111,6 +103,10 @@ class CustomersView(RemoteView):
         description="List remote customers owned by current user",
     )
     def post(self, request, *args, **kwargs):
+        from waldur_api_client.api.customers import customers_list
+        from waldur_api_client.errors import UnexpectedStatus
+        from waldur_api_client.models.customer_field_enum import CustomerFieldEnum
+
         client = self.get_client(request)
         try:
             customers = customers_list.sync_all(
@@ -136,6 +132,11 @@ class СategoriesView(RemoteView):
         description="List remote marketplace categories",
     )
     def post(self, request, *args, **kwargs):
+        from waldur_api_client.api.marketplace_categories import (
+            marketplace_categories_list,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+
         client = self.get_client(request)
         try:
             сategories = marketplace_categories_list.sync_all(client=client)
@@ -156,6 +157,11 @@ class OfferingsListView(RemoteView):
         description="List remote importable offerings for particular customer",
     )
     def post(self, request, *args, **kwargs):
+        from waldur_api_client.errors import UnexpectedStatus
+        from waldur_api_client.models.public_offering_details_field_enum import (
+            PublicOfferingDetailsFieldEnum,
+        )
+
         client = self.get_client(request)
         if "customer_uuid" not in request.query_params:
             raise ValidationError(
@@ -199,6 +205,11 @@ class OfferingCreateView(RemoteView):
         description="Create local offering from remote",
     )
     def post(self, request, *args, **kwargs):
+        from waldur_api_client.api.marketplace_public_offerings import (
+            marketplace_public_offerings_retrieve,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+
         serializer = serializers.RemoteOfferingCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         client = self.get_client(request)
@@ -337,6 +348,11 @@ class CancelTerminationOrderView(GenericAPIView):
 
     @extend_schema(description="Cancel termination order")
     def post(self, request, *args, **kwargs):
+        from waldur_api_client.api.marketplace_orders import (
+            marketplace_orders_reject_by_consumer,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+
         order = self.get_order()
         if not has_permission(
             request, PermissionEnum.APPROVE_ORDER, order.offering.customer

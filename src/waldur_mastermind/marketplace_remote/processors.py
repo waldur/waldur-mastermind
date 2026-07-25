@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import cast
 from uuid import UUID
@@ -7,30 +9,12 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
-from waldur_api_client.api.marketplace_orders import marketplace_orders_create
-from waldur_api_client.api.marketplace_resources import (
-    marketplace_resources_list,
-    marketplace_resources_retrieve,
-    marketplace_resources_terminate,
-    marketplace_resources_update_limits,
-)
-from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.order_create_request import OrderCreateRequest
-from waldur_api_client.models.order_create_request_limits import (
-    OrderCreateRequestLimits,
-)
-from waldur_api_client.models.resource_state import (
-    ResourceState,
-)
-from waldur_api_client.models.resource_terminate_request import ResourceTerminateRequest
-from waldur_api_client.models.resource_update_limits_request import (
-    ResourceUpdateLimitsRequest,
-)
-from waldur_api_client.models.resource_update_limits_request_limits import (
-    ResourceUpdateLimitsRequestLimits,
-)
-from waldur_api_client.types import UNSET
 
+# waldur_api_client pulls in a large generated attrs/pydantic model graph
+# (~70 MB resident). Its symbols are imported lazily inside the processor
+# methods below so the SDK does not load at Django startup in processes that
+# never provision remote resources. See the "Lazy imports for heavy optional
+# backends" section of CLAUDE.md.
 from waldur_core.core.models import User
 from waldur_core.core.utils import serialize_instance
 from waldur_mastermind.marketplace import models, processors
@@ -77,6 +61,17 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
                 )
 
     def process_order(self, user: User):
+        from waldur_api_client.api.marketplace_orders import marketplace_orders_create
+        from waldur_api_client.api.marketplace_resources import (
+            marketplace_resources_list,
+        )
+        from waldur_api_client.models.order_create_request import OrderCreateRequest
+        from waldur_api_client.models.order_create_request_limits import (
+            OrderCreateRequestLimits,
+        )
+        from waldur_api_client.models.resource_state import ResourceState
+        from waldur_api_client.types import UNSET
+
         client = utils.get_client_for_offering(self.order.offering)
         remote_project, _ = utils.get_or_create_remote_project(
             self.order.offering, self.order.project, client
@@ -144,6 +139,18 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
 
 class RemoteUpdateResourceProcessor(processors.BasicUpdateResourceProcessor):
     def update_limits_process(self, user: User):
+        from waldur_api_client.api.marketplace_resources import (
+            marketplace_resources_retrieve,
+            marketplace_resources_update_limits,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+        from waldur_api_client.models.resource_update_limits_request import (
+            ResourceUpdateLimitsRequest,
+        )
+        from waldur_api_client.models.resource_update_limits_request_limits import (
+            ResourceUpdateLimitsRequestLimits,
+        )
+
         client = utils.get_client_for_offering(self.order.offering)
         # Check if limits are already set on the remote side
         try:
@@ -205,6 +212,14 @@ class RemoteUpdateResourceProcessor(processors.BasicUpdateResourceProcessor):
 
 class RemoteDeleteResourceProcessor(processors.BasicDeleteResourceProcessor):
     def send_request(self, user, resource: models.Resource):
+        from waldur_api_client.api.marketplace_resources import (
+            marketplace_resources_terminate,
+        )
+        from waldur_api_client.errors import UnexpectedStatus
+        from waldur_api_client.models.resource_terminate_request import (
+            ResourceTerminateRequest,
+        )
+
         # Resource is switched to terminated state by caller method
         if not resource.backend_id:
             logger.warning(
