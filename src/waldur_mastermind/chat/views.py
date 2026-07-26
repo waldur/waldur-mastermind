@@ -895,6 +895,65 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
         )
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(
+        summary="Get statistics for visible chat threads",
+        responses={200: serializers.ChatThreadStatsResponseSerializer},
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def stats(self, request):
+        """Summary statistics for the visible chat threads.
+
+        Aggregates over a clean base queryset rather than ``get_queryset`` —
+        the per-row token/count annotations there would collide with these
+        aggregates. Visibility mirrors the list: staff/support see all, other
+        users only their own.
+        """
+        qs = models.ThreadSession.objects.all()
+        if not (request.user.is_staff or request.user.is_support):
+            qs = qs.filter(chat_session__user=request.user)
+        qs = self.filterset_class(request.GET, queryset=qs, request=request).qs
+
+        thread_agg = qs.aggregate(
+            threads_total=Count("uuid", distinct=True),
+            sessions_total=Count("chat_session", distinct=True),
+            users_total=Count("chat_session__user", distinct=True),
+            flagged_total=Count(
+                "uuid", distinct=True, filter=Q(messages__is_flagged=True)
+            ),
+        )
+
+        messages = models.Message.objects.filter(thread__in=qs)
+        msg_agg = messages.aggregate(
+            messages_total=Count("id"),
+            input_tokens_total=Sum("input_tokens"),
+            output_tokens_total=Sum("output_tokens"),
+            # feedback_score is a nullable boolean: True=up, False=down.
+            feedback_positive=Count("id", filter=Q(feedback_score=True)),
+            feedback_negative=Count("id", filter=Q(feedback_score=False)),
+        )
+
+        positive = msg_agg["feedback_positive"] or 0
+        negative = msg_agg["feedback_negative"] or 0
+        total_human = positive + negative
+        input_tokens_total = msg_agg["input_tokens_total"] or 0
+        output_tokens_total = msg_agg["output_tokens_total"] or 0
+
+        payload = {
+            "threads_total": thread_agg["threads_total"] or 0,
+            "sessions_total": thread_agg["sessions_total"] or 0,
+            "users_total": thread_agg["users_total"] or 0,
+            "messages_total": msg_agg["messages_total"] or 0,
+            "input_tokens_total": input_tokens_total,
+            "output_tokens_total": output_tokens_total,
+            "total_tokens": input_tokens_total + output_tokens_total,
+            "flagged_total": thread_agg["flagged_total"] or 0,
+            "feedback_positive": positive,
+            "feedback_negative": negative,
+            "satisfaction_rate": (positive / total_human) if total_human else None,
+        }
+        serializer = serializers.ChatThreadStatsResponseSerializer(payload)
+        return Response(serializer.data)
+
 
 class MessageViewSet(LLMConfigurationMixin, ActionsViewSet):
     """

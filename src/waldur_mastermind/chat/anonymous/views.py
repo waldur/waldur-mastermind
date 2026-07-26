@@ -7,12 +7,13 @@ force us to fight those defaults at every step.
 
 import json
 import logging
+import re
 import uuid as _uuid
 from datetime import timedelta
 
 from constance import config
 from django.db import transaction
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Sum
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -216,6 +217,10 @@ def _wrap_stream_with_anon_finalization(
                 )
                 interaction_locked.result_count = len(interaction_locked.offering_uuids)
                 interaction_locked.last_active_at = timezone.now()
+                # Kept per-turn: the budget counters below collapse input and
+                # output into one total, so the split survives only on the row.
+                interaction_locked.input_tokens = streamer.input_tokens
+                interaction_locked.output_tokens = streamer.output_tokens
                 if detection_action != DetectionAction.ALLOW:
                     interaction_locked.action_taken = detection_action.value
                 if detection_warning:
@@ -226,6 +231,8 @@ def _wrap_stream_with_anon_finalization(
                         "offering_uuids",
                         "result_count",
                         "last_active_at",
+                        "input_tokens",
+                        "output_tokens",
                         "action_taken",
                         "warning",
                     ]
@@ -258,21 +265,52 @@ def _wrap_stream_with_anon_finalization(
         )
 
 
+# Offerings surface as ``homeport_nav`` link blocks (search_offerings / get_offering
+# render marketplace-public-offering URLs); the UUID lives in the link path. Matches
+# the same UUID the frontend click attribution reads from the href.
+_OFFERING_URL_RE = re.compile(r"/marketplace-public-offering/([0-9a-fA-F-]{32,36})/")
+
+
+def _harvest_offering_uuids(block: dict, uuids: list[str]) -> None:
+    """Collect offering UUIDs from one block, whatever shape it carries."""
+    # Navigation link blocks — the assistant's button-styled offering links.
+    for link in block.get("links") or []:
+        if isinstance(link, dict):
+            match = _OFFERING_URL_RE.search(link.get("url") or "")
+            if match:
+                uuids.append(match.group(1))
+    # Prose that embeds marketplace URLs. The assistant often answers with plain
+    # markdown links instead of a nav block, and the frontend reports a click on
+    # any anchor alike; skipping these made those clicks fail validation.
+    content = block.get("content")
+    if isinstance(content, str):
+        uuids.extend(_OFFERING_URL_RE.findall(content))
+    # Defensive: some tools may return structured ``data`` instead.
+    data = block.get("data")
+    if isinstance(data, dict):
+        if data.get("uuid"):
+            uuids.append(str(data["uuid"]))
+        for entry in data.get("offerings") or []:
+            if isinstance(entry, dict) and entry.get("uuid"):
+                uuids.append(str(entry["uuid"]))
+
+
 def _extract_offering_uuids(blocks: list[dict]) -> list[str]:
-    """Best-effort UUID extraction — better to undercount than seed junk into the column the click validator reads."""
+    """Offering UUIDs the visitor was actually shown, in render order.
+
+    This column is what the click endpoint validates against, so it has to cover
+    every surface that renders an offering link — nav blocks and markdown prose
+    alike. Anything rendered but not harvested makes that click unattributable.
+    """
     uuids: list[str] = []
     for block in blocks:
-        if block.get("key") != "tool":
+        if not isinstance(block, dict):
             continue
-        result = block.get("result") or {}
-        data = result.get("data") if isinstance(result, dict) else None
-        if isinstance(data, dict):
-            offering_uuid = data.get("uuid")
-            if offering_uuid:
-                uuids.append(str(offering_uuid))
-            for entry in data.get("offerings") or []:
-                if isinstance(entry, dict) and entry.get("uuid"):
-                    uuids.append(str(entry["uuid"]))
+        _harvest_offering_uuids(block, uuids)
+        # Tool blocks wrap their payload one level down.
+        result = block.get("result")
+        if isinstance(result, dict):
+            _harvest_offering_uuids(result, uuids)
     seen: set[str] = set()
     deduped: list[str] = []
     for u in uuids:
@@ -588,6 +626,7 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
     by_user_detail_permissions = [structure_permissions.is_staff_or_support]
     by_user_list_permissions = [structure_permissions.is_staff_or_support]
     by_session_permissions = [structure_permissions.is_staff_or_support]
+    conversations_permissions = [structure_permissions.is_staff_or_support]
     kpi_permissions = [structure_permissions.is_staff_or_support]
     budget_snapshot_permissions = [structure_permissions.is_staff_or_support]
 
@@ -620,7 +659,15 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
         url_path=r"by-session/(?P<session_id>[^/.]+)",
     )
     def by_session(self, request, session_id=None):
-        rows = self.get_queryset().filter(session_id=session_id).order_by("created")
+        # Annotated here rather than on get_queryset(): ``conversations`` runs
+        # .values().annotate() over the same base queryset, and a pre-existing
+        # annotation would join into that GROUP BY and skew the aggregates.
+        rows = (
+            self.get_queryset()
+            .filter(session_id=session_id)
+            .annotate(click_count=Count("clicks"))
+            .order_by("created")
+        )
         return Response(self.get_serializer(rows, many=True).data)
 
     @extend_schema(
@@ -666,6 +713,28 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
         return Response(self.get_serializer(rows, many=True).data)
 
     @extend_schema(
+        summary="Conversations grouped by session",
+        description=(
+            "One row per anonymous conversation (``session_id``) with "
+            "aggregate counters, mirroring the authenticated threads table. "
+            "Honours the same filters as the list endpoint. Read a "
+            "conversation's transcript via ``by-session/{session_id}``."
+        ),
+        responses={
+            200: anonymous_serializers.AnonymousChatConversationSerializer(many=True)
+        },
+    )
+    @decorators.action(detail=False, methods=["get"], url_path="conversations")
+    def conversations(self, request):
+        qs = self.filter_queryset(self.get_queryset())
+        rows = aggregates.session_aggregates(qs)
+        return Response(
+            anonymous_serializers.AnonymousChatConversationSerializer(
+                rows, many=True
+            ).data
+        )
+
+    @extend_schema(
         summary="Aggregate KPI roll-up",
         description=(
             "Returns aggregate counters and rates for the anonymous "
@@ -689,6 +758,11 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             flagged_total=Count("uuid", filter=Q(is_flagged=True)),
             feedback_positive=Count("uuid", filter=Q(feedback__score=1)),
             feedback_negative=Count("uuid", filter=Q(feedback__score=-1)),
+            # Safe to sum in the same call only because the sole join here is
+            # the 1:1 feedback row. The many-side clicks stay in their own
+            # query below precisely to keep this GROUP BY from multiplying.
+            input_tokens_total=Sum("input_tokens"),
+            output_tokens_total=Sum("output_tokens"),
         )
 
         positive = agg["feedback_positive"] or 0
@@ -714,6 +788,9 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             "satisfaction_rate": satisfaction_rate,
             "clicks_total": clicks_total,
             "click_through_rate": click_through_rate,
+            # Null on an empty set, and on turns predating token capture.
+            "input_tokens_total": agg["input_tokens_total"] or 0,
+            "output_tokens_total": agg["output_tokens_total"] or 0,
         }
 
         reviewed_qs = anonymous_models.AnonymousChatFeedback.objects.filter(
@@ -726,8 +803,19 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             hallucinations=Count(
                 "interaction", filter=Q(llm_hallucination_detected=True)
             ),
+            # Kept out of the visitor totals above on purpose: the judge draws
+            # on its own budget so review can't starve user-facing traffic, and
+            # one merged number would hide exactly that split.
+            judge_input_tokens=Sum("llm_judge_input_tokens"),
+            judge_output_tokens=Sum("llm_judge_output_tokens"),
         )
         reviewed_total = review_agg["reviewed_total"] or 0
+        # Unlike the rates below, these three stay in the payload at zero — a
+        # review row that disappears when nothing has been judged is how a dead
+        # nightly pass goes unnoticed.
+        payload["reviewed_total"] = reviewed_total
+        payload["review_input_tokens_total"] = review_agg["judge_input_tokens"] or 0
+        payload["review_output_tokens_total"] = review_agg["judge_output_tokens"] or 0
         if reviewed_total:
             intent_distribution = dict(
                 reviewed_qs.exclude(llm_intent_category="")

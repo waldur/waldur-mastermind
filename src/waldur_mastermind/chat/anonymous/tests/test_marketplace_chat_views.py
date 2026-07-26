@@ -14,11 +14,13 @@ here we only exercise the anon-specific guards and persistence.
 from unittest import mock
 
 from constance.test.unittest import override_config as override_constance_config
+from django.test import SimpleTestCase
 from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous.helpers import compute_feedback_token
+from waldur_mastermind.chat.anonymous.views import _extract_offering_uuids
 from waldur_mastermind.chat.models import GlobalAssistantBudget
 from waldur_mastermind.chat.tests.utils import (
     SYNC_THREAD_PATCH,
@@ -144,6 +146,28 @@ class StreamHappyPathTest(test.APITestCase):
         self.assertEqual(anonymous_models.AnonymousChatInteraction.objects.count(), 1)
         # SessionBinding row was created on first use
         self.assertEqual(anonymous_models.SessionBinding.objects.count(), 1)
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE)
+    def test_persists_the_token_split_on_the_interaction(self, mock_openai_cls):
+        mock_openai_cls.return_value = _mock_openai_client(
+            [_make_content_chunk("Hello!"), _make_usage_chunk(10, 20)]
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "input": "what HPC services do you have?",
+                "session_id": "session-abc",
+            },
+        )
+        b"".join(response.streaming_content)
+
+        # The budget counters collapse these to a single total, so the row is
+        # the only place the input/output split survives.
+        interaction = anonymous_models.AnonymousChatInteraction.objects.get()
+        self.assertEqual(interaction.input_tokens, 10)
+        self.assertEqual(interaction.output_tokens, 20)
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(**_ANONYMOUS_LIVE)
@@ -518,3 +542,89 @@ class ClickTest(test.APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ExtractOfferingUuidsTest(SimpleTestCase):
+    """Offerings surface as homeport_nav links or as markdown prose links; the
+    UUID lives in the URL either way, and the frontend reports a click on both."""
+
+    def test_extracts_uuids_from_markdown_prose_links(self):
+        # The assistant frequently answers with plain markdown links and no nav
+        # block at all. Those were skipped, so clicking them failed validation
+        # and the conversation reported zero offerings shown.
+        blocks = [
+            {
+                "key": "markdown",
+                "content": (
+                    "- Access: [View offering]"
+                    "(http://localhost:8001/marketplace-public-offering/"
+                    "f3000000000000000000000000000041/)\n"
+                    "- Access: [View offering]"
+                    "(http://localhost:8001/marketplace-public-offering/"
+                    "f3000000000000000000000000000042/)"
+                ),
+            }
+        ]
+        self.assertEqual(
+            _extract_offering_uuids(blocks),
+            [
+                "f3000000000000000000000000000041",
+                "f3000000000000000000000000000042",
+            ],
+        )
+
+    def test_dedupes_across_markdown_and_nav_surfaces(self):
+        uuid = "f3000000000000000000000000000001"
+        url = f"http://localhost:8001/marketplace-public-offering/{uuid}/"
+        blocks = [
+            {"key": "markdown", "content": f"see [it]({url})"},
+            {"key": "tool", "result": {"key": "homeport_nav", "links": [{"url": url}]}},
+        ]
+        self.assertEqual(_extract_offering_uuids(blocks), [uuid])
+
+    def test_extracts_uuids_from_homeport_nav_links(self):
+        blocks = [
+            {
+                "key": "tool",
+                "tool": {"name": "search_offerings"},
+                "result": {
+                    "key": "homeport_nav",
+                    "links": [
+                        {
+                            "url": "http://localhost:8001/marketplace-public-offering/f3000000000000000000000000000001/"
+                        },
+                        {
+                            "url": "http://localhost:8001/marketplace-public-offering/8adeda2b89624706b1b217d42f3cc64e/"
+                        },
+                    ],
+                },
+            }
+        ]
+        self.assertEqual(
+            _extract_offering_uuids(blocks),
+            [
+                "f3000000000000000000000000000001",
+                "8adeda2b89624706b1b217d42f3cc64e",
+            ],
+        )
+
+    def test_dedupes_and_skips_non_offering_blocks(self):
+        url = "http://localhost:8001/marketplace-public-offering/f3000000000000000000000000000001/"
+        blocks = [
+            {"key": "markdown", "content": "hi"},
+            {"key": "tool", "result": {"key": "ask_user_form", "questions": []}},
+            {
+                "key": "tool",
+                "result": {
+                    "key": "homeport_nav",
+                    "links": [{"url": url}, {"url": url}],
+                },
+            },
+        ]
+        self.assertEqual(
+            _extract_offering_uuids(blocks), ["f3000000000000000000000000000001"]
+        )
+
+    def test_falls_back_to_structured_data(self):
+        blocks = [{"key": "tool", "result": {"data": {"uuid": "abc-123"}}}]
+        self.assertEqual(_extract_offering_uuids(blocks), ["abc-123"])
