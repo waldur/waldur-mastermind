@@ -389,6 +389,15 @@ def resource_deletion_succeeded(resource: models.Resource, validate=False):
             "Resource %s is already in terminated state, skip transition", resource
         )
 
+    # Terminated resources keep their row, so the ResourceApiKey FK cascade never
+    # fires. Delete the key rows explicitly (the agent's delete_resource already
+    # removed the gateway Secret entries) so no orphan OK keys remain revealable.
+    deleted, _ = resource.api_keys.all().delete()
+    if deleted:
+        logger.info(
+            "Deleted %s API key row(s) of terminated resource %s", deleted, resource
+        )
+
     signals.resource_deletion_succeeded.send(models.Resource, instance=resource)
     event_logger.emit(
         "Resource {resource_name} has been deleted.",

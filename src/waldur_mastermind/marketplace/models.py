@@ -61,6 +61,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingUserStates,
     OrderStates,
     OrderTypes,
+    ResourceApiKeyStates,
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
@@ -4674,6 +4675,68 @@ class BackendResourceRequest(
     @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         self.finished = timezone.now()
+
+
+class ResourceApiKey(
+    core_models.UuidMixin, TimeStampedModel, core_models.ErrorMessageMixin
+):
+    """One of a site-agent resource's API keys (e.g. an inference gateway key).
+
+    A resource owns many keys. The site agent generates each key, applies it to
+    the backend (e.g. a Kubernetes Secret entry keyed by client_id), and only
+    then pushes the value here Fernet-encrypted — so a stored key is always one
+    the backend already accepts. The state reuses the resource state vocabulary
+    so the portal renders it with the standard StateIndicator.
+    """
+
+    States = ResourceApiKeyStates
+
+    resource = models.ForeignKey(
+        to=Resource, on_delete=models.CASCADE, related_name="api_keys"
+    )
+    # The backend identity for this key (one gateway Secret entry). Assigned by
+    # the agent, e.g. "<resource_backend_id>-1".
+    client_id = models.CharField(max_length=255, blank=True, db_index=True)
+    key_ciphertext = models.TextField(blank=True)
+    fingerprint = models.CharField(max_length=64, blank=True)
+    state = FSMField(choices=States.CHOICES, default=States.CREATING)
+
+    class Meta:
+        verbose_name = _("Resource API key")
+        unique_together = (("resource", "client_id"),)
+
+    @transition(
+        field=state,
+        source=[States.CREATING, States.UPDATING, States.ERRED],
+        target=States.OK,
+    )
+    def set_ok(self):
+        pass
+
+    # Rotate/revoke are also allowed from Erred so a failed apply can be retried
+    # from the portal instead of leaving the key stuck.
+    @transition(field=state, source=[States.OK, States.ERRED], target=States.UPDATING)
+    def set_updating(self):
+        pass
+
+    @transition(
+        field=state, source=[States.OK, States.ERRED], target=States.TERMINATING
+    )
+    def set_terminating(self):
+        pass
+
+    # Only from the transitional states (not OK): a late/duplicate erred report
+    # must not flip a key that has since been applied successfully back to red.
+    @transition(
+        field=state,
+        source=[States.CREATING, States.UPDATING, States.TERMINATING, States.ERRED],
+        target=States.ERRED,
+    )
+    def set_erred(self):
+        pass
+
+    def __str__(self) -> str:
+        return f"API key {self.client_id or self.uuid.hex} of {self.resource}"
 
 
 reversion.register(Screenshot)

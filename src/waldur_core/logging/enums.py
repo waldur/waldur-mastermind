@@ -114,6 +114,8 @@ class EventType(StrEnum):
     MARKETPLACE_RESOURCE_UPDATE_END_DATE_SUCCEEDED = (
         "marketplace_resource_update_end_date_succeeded"
     )
+    MARKETPLACE_RESOURCE_API_KEY_ROTATED = "marketplace_resource_api_key_rotated"
+    MARKETPLACE_RESOURCE_API_KEY_REVEALED = "marketplace_resource_api_key_revealed"
     MARKETPLACE_RESOURCE_UPDATE_FAILED = "marketplace_resource_update_failed"
     MARKETPLACE_RESOURCE_UPDATE_LIMITS_FAILED = (
         "marketplace_resource_update_limits_failed"
@@ -636,6 +638,8 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_RESOURCE_TERMINATE_REQUESTED,
         EventType.MARKETPLACE_RESOURCE_TERMINATE_SUCCEEDED,
         EventType.MARKETPLACE_RESOURCE_UNLINKED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_ROTATED,
         EventType.MARKETPLACE_RESOURCE_UPDATE_CANCELED,
         EventType.MARKETPLACE_RESOURCE_UPDATE_END_DATE_SUCCEEDED,
         EventType.MARKETPLACE_RESOURCE_UPDATE_FAILED,
@@ -918,6 +922,7 @@ class ObservableObjectType(Enum):
     COURSE_ACCOUNT = "course_account"
     RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
     OFFERING_RESOURCES_SYNC = "offering_resources_sync"
+    RESOURCE_API_KEY_ROTATION = "resource_api_key_rotation"
     # User-centric events for global (empty-scope) consumers — IdM/IGA sync.
     USER_PROFILE = "user_profile"
     USER_SSH_KEY = "user_ssh_key"

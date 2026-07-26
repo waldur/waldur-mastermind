@@ -224,6 +224,22 @@ RABBITMQ = {
 
 globals().update(WaldurConfiguration().dict())
 
+# Field-level encryption at rest (see docs/resource-api-keys.md).
+# FIELD_ENCRYPTION_KEY is the primary Fernet key used to encrypt/decrypt secret
+# columns. It is deliberately a separate setting from SECRET_KEY: leaking Django
+# settings must not, by itself, unlock encrypted DB fields.
+FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+# Rotating the encryption key: to replace FIELD_ENCRYPTION_KEY, set the new key
+# as the primary and move the OLD key(s) here (comma-separated). New writes use
+# the primary; reads still succeed against any fallback, so existing rows stay
+# readable without a re-encrypt migration. Once every row has been re-written
+# under the new primary, the old key can be dropped from this list.
+FIELD_ENCRYPTION_KEY_FALLBACKS = [
+    key
+    for key in os.environ.get("FIELD_ENCRYPTION_KEY_FALLBACKS", "").split(",")
+    if key
+]
+
 for ext in WaldurExtension.get_extensions():
     INSTALLED_APPS += (ext.django_app(),)
 

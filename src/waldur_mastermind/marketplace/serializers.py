@@ -32,6 +32,7 @@ from rest_framework.permissions import SAFE_METHODS
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
+from waldur_core.core import encryption
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -6073,6 +6074,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     renewal_date = serializers.SerializerMethodField()
     offering_state = serializers.SerializerMethodField()
     offering_components = serializers.SerializerMethodField()
+    has_api_keys = serializers.SerializerMethodField(
+        help_text="Whether the resource owns any API keys, so the portal can offer "
+        "key management without knowing which backend serves the resource."
+    )
     # Declared explicitly (rather than auto-derived from the model CharField) so
     # the blank state — "" when no restriction is active — is surfaced in the
     # OpenAPI schema as a BlankEnum member. Without allow_blank the generated
@@ -6154,9 +6159,11 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "renewal_date",
             "offering_state",
             "offering_components",
+            "has_api_keys",
         )
         read_only_fields = (
             "backend_metadata",
+            "has_api_keys",
             "scope",
             "current_usages",
             "backend_id",
@@ -6346,6 +6353,16 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     @extend_schema_field(BackendMetadataSerializer)
     def get_backend_metadata(self, resource: models.Resource):
         return resource.backend_metadata
+
+    def get_has_api_keys(self, resource: models.Resource) -> bool:
+        # ConsumerResourceViewSet annotates this, so listing resources costs one
+        # subquery instead of a query per row. The fallback is required rather than
+        # defensive: this serializer is also instantiated on un-annotated instances
+        # (marketplace_script tasks, action responses), where the attribute is absent.
+        annotated = getattr(resource, "has_api_keys_annotation", None)
+        if annotated is not None:
+            return annotated
+        return resource.api_keys.exists()
 
     def get_user_requires_reconsent(self, resource: models.Resource) -> bool:
         """Check if the current user needs to re-consent for this resource's offering."""
@@ -6910,6 +6927,61 @@ class ResourceBackendMetadataSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
         fields = ("backend_metadata",)
+
+
+class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
+    """Non-secret view of a resource API key — safe for listing/polling."""
+
+    resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
+
+    class Meta:
+        model = models.ResourceApiKey
+        fields = (
+            "uuid",
+            "resource_uuid",
+            "client_id",
+            "fingerprint",
+            "state",
+            "modified",
+            "error_message",
+        )
+
+
+class ResourceApiKeySerializer(ResourceApiKeyStatusSerializer):
+    """Reveal view — includes the decrypted key value."""
+
+    api_key = serializers.SerializerMethodField()
+
+    class Meta(ResourceApiKeyStatusSerializer.Meta):
+        fields = ResourceApiKeyStatusSerializer.Meta.fields + ("api_key",)
+
+    @extend_schema_field(serializers.CharField())
+    def get_api_key(self, api_key: models.ResourceApiKey) -> str:
+        return encryption.decrypt_value(api_key.key_ciphertext)
+
+
+class ResourceApiKeyReportCreatedSerializer(serializers.Serializer):
+    """Agent push: a freshly-applied key value (provision / add fulfilment)."""
+
+    resource = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Resource.objects.all()
+    )
+    client_id = serializers.CharField()
+    api_key = serializers.CharField()
+
+
+class ResourceApiKeySetKeySerializer(serializers.Serializer):
+    """Agent push: a rotated key value for an existing key."""
+
+    api_key = serializers.CharField()
+    # Backends whose public identifier rotates together with the secret (an S3
+    # access key) report the new one here. Backends with a stable client_id
+    # (Envoy's "<backend_id>-<n>" slot) omit it and keep the one they were given.
+    client_id = serializers.CharField(required=False, allow_blank=True)
+
+
+class ResourceApiKeySetErredSerializer(serializers.Serializer):
+    error_message = serializers.CharField()
 
 
 class ResourceEndpointSerializer(serializers.Serializer):

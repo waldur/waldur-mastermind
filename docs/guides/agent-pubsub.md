@@ -116,7 +116,8 @@ POST /api/marketplace-site-agent-identities/{uuid}/register_queue/
         "importable_resources",
         "service_account",
         "course_account",
-        "resource_periodic_limits"
+        "resource_periodic_limits",
+        "resource_api_key_rotation"
     ]
 }
 ```
@@ -204,7 +205,7 @@ Enricher: `_enrich_user_role_payload` adds user profile details.
 
 ### Other Message Types
 
-`offering_user`, `service_account`, `course_account`, `importable_resources`, and `resource_periodic_limits` messages are delivered without enrichment. They include only the original handler payload plus `offering_uuid` and `object_type`.
+`offering_user`, `service_account`, `course_account`, `importable_resources`, `resource_periodic_limits`, and `resource_api_key_rotation` messages are delivered without enrichment. They include only the original handler payload plus `offering_uuid` and `object_type`. The `resource_api_key_rotation` payload is deliberately slim — resource/key identifiers, `client_id`, and the `rotate`/`revoke` action, never key material (see [Resource API keys](../resource-api-keys.md)).
 
 ## Cleanup Mechanisms
 
