@@ -4401,6 +4401,7 @@ _CONSUMER_ORDER_EVENTS = {ObservableObjectType.ORDER}
 _CONSUMER_RESOURCE_EVENTS = {
     ObservableObjectType.RESOURCE,
     ObservableObjectType.RESOURCE_PERIODIC_LIMITS,
+    ObservableObjectType.RESOURCE_API_KEY_ROTATION,
 }
 # Scoped via project_uuid in payload
 _CONSUMER_PROJECT_SCOPED_EVENTS = {
@@ -4681,6 +4682,63 @@ def publish_offering_resources_sync_request(offering: models.Offering, user) -> 
     if not messages:
         return False
     logging_tasks.publish_messages.delay(messages)
+    return True
+
+
+def api_key_fingerprint(plaintext: str) -> str:
+    """A display fingerprint that recognizes a key without revealing it."""
+    # For a short value, head[:7] + tail[-4:] would overlap and expose most of the
+    # key, so only show head+tail when a masked middle remains between them.
+    if len(plaintext) < 15:
+        return f"{plaintext[:3]}..."
+    return f"{plaintext[:7]}...{plaintext[-4:]}"
+
+
+def _log_api_key_action(
+    resource: models.Resource, action: str, extra: str = ""
+) -> None:
+    """Log an API key action with the identifiers useful for support triage."""
+    project = resource.project
+    customer = project.customer
+    logger.info(
+        "API key %s requested for resource %s (%s), project %s (%s), "
+        "organization %s (%s)%s",
+        action,
+        resource.name,
+        resource.uuid.hex,
+        project.name,
+        project.uuid.hex,
+        customer.name,
+        customer.uuid.hex,
+        extra,
+    )
+
+
+def publish_api_key_event(api_key: models.ResourceApiKey, action: str) -> bool:
+    """Ask connected site agents to reconcile a resource API key.
+
+    The agent owns key generation: this only sends a slim command (no key
+    material). ``action`` is one of ``rotate`` / ``revoke`` / ``add``. The agent
+    performs the backend change and reports back via the provider endpoints.
+    Returns True if at least one agent subscription received the command.
+    """
+    resource = api_key.resource
+    _log_api_key_action(resource, action, extra=f", key {api_key.uuid.hex}")
+    payload = {
+        "resource_uuid": resource.uuid.hex,
+        "resource_backend_id": resource.backend_id,
+        "api_key_uuid": api_key.uuid.hex,
+        "client_id": api_key.client_id,
+        "action": action,
+    }
+    messages = prepare_messages(
+        resource.offering,
+        payload,
+        ObservableObjectType.RESOURCE_API_KEY_ROTATION,
+    )
+    if not messages:
+        return False
+    transaction.on_commit(lambda: logging_tasks.publish_messages.delay(messages))
     return True
 
 

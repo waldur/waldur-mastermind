@@ -12,6 +12,7 @@ import reversion
 import tomli_w
 import yaml
 from constance import config
+from cryptography.fernet import InvalidToken
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.prefetch import GenericPrefetch
@@ -23,6 +24,7 @@ from django.db.models import (
     CharField,
     Count,
     DurationField,
+    Exists,
     ExpressionWrapper,
     F,
     Func,
@@ -78,6 +80,7 @@ from rest_framework.serializers import Serializer
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
+from waldur_core.core import encryption
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
@@ -8641,6 +8644,13 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             "project__customer",
             "plan",
         )
+        # Lets the portal offer key management without knowing the backend, at the
+        # cost of one subquery rather than a query per row.
+        queryset = queryset.annotate(
+            has_api_keys_annotation=Exists(
+                models.ResourceApiKey.objects.filter(resource=OuterRef("pk"))
+            )
+        )
         return queryset
 
     @extend_schema(
@@ -9161,7 +9171,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
 class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def get_queryset(self):
         # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
-        return self.queryset.filter_for_service_provider(
+        queryset = self.queryset.filter_for_service_provider(
             self.request.user
         ).select_related(
             "offering",
@@ -9171,6 +9181,14 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             "project",
             "project__customer",
             "plan",
+        )
+        # Same annotation as the consumer viewset: this list shares
+        # ResourceSerializer, so without it every row falls back to a per-instance
+        # api_keys.exists() query.
+        return queryset.annotate(
+            has_api_keys_annotation=Exists(
+                models.ResourceApiKey.objects.filter(resource=OuterRef("pk"))
+            )
         )
 
     @extend_schema(
@@ -14406,6 +14424,341 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
     ]
 
     rotate_api_key_validators = [core_validators.StateValidator(ServiceAccountState.OK)]
+
+
+def check_provider_api_key_permissions(request, view, obj=None):
+    serializer = view.get_serializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    resource = serializer.validated_data["resource"]
+    if not has_permission(
+        request, PermissionEnum.MANAGE_RESOURCE_API_KEY, resource.offering.customer
+    ):
+        raise PermissionDenied()
+
+
+class ResourceApiKeyViewSet(core_views.ActionsViewSet):
+    """Manage the API keys a site-agent resource exposes.
+
+    A resource owns many keys. The site agent generates each key, applies it to
+    the backend, then reports it here (encrypted). Members reveal keys; managers
+    rotate / revoke them. Portal actions are commands — the agent does the
+    backend change and reports back through the provider actions.
+    """
+
+    queryset = models.ResourceApiKey.objects.select_related(
+        "resource__project__customer",
+        "resource__offering__customer",
+    ).order_by("created")
+    lookup_field = "uuid"
+    serializer_class = serializers.ResourceApiKeyStatusSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ResourceApiKeyFilter
+    disabled_actions = ["create", "update", "partial_update"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        customers = get_connected_customers(user)
+        projects = get_connected_projects(user)
+        return qs.filter(
+            Q(resource__project__in=projects)
+            | Q(resource__project__customer__in=customers)
+            | Q(resource__offering__customer__in=customers)
+        )
+
+    # --- consumer actions ------------------------------------------------------
+
+    @extend_schema(
+        summary="Reveal an API key",
+        description="Returns the decrypted key value. Available to users with "
+        "resource access (except minimal-visibility viewers). Audit-logged.",
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeySerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def reveal(self, request, uuid=None):
+        api_key = self.get_object()
+        user = request.user
+        resource = api_key.resource
+        # Reveal exposes a live secret. The shared queryset also admits the
+        # provider org (so the agent can reach the write actions), but a
+        # provider-org member must NOT read a consumer's key — restrict reveal to
+        # consumer-side access (project or its customer), plus staff/support.
+        if not (
+            user.is_staff
+            or user.is_support
+            or resource.project_id in get_connected_projects(user)
+            or resource.project.customer_id in get_connected_customers(user)
+        ):
+            raise PermissionDenied(
+                "Only members of the resource's project or organization can "
+                "reveal its API key."
+            )
+        if utils.is_resource_project_only_viewer(user, resource):
+            raise PermissionDenied(
+                "Minimal-visibility viewers cannot reveal the resource API key."
+            )
+        # Only an OK key is guaranteed live at the backend; a transitional key's
+        # stored value may not match the gateway.
+        if api_key.state != models.ResourceApiKey.States.OK:
+            raise IncorrectStateException(
+                f"The API key is {api_key.state}; it can only be revealed when OK."
+            )
+        try:
+            data = serializers.ResourceApiKeySerializer(api_key).data
+        except InvalidToken:
+            raise IncorrectStateException(
+                "The stored API key cannot be decrypted with the configured "
+                "encryption keys; check FIELD_ENCRYPTION_KEY and "
+                "FIELD_ENCRYPTION_KEY_FALLBACKS."
+            )
+        log.log_resource_api_key_revealed(api_key, user)
+        response = Response(data)
+        # The body carries a live secret; no cache may retain it.
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @staticmethod
+    def _require_resource_live(resource):
+        """Reject key commands on a resource that is not live.
+
+        Rotating / revoking / adding a key makes no sense once the resource is on
+        its way out; a command emitted for a terminating resource races the
+        termination cleanup (which deletes the key rows) at the agent.
+        """
+        dead = (
+            models.Resource.States.TERMINATING,
+            models.Resource.States.TERMINATED,
+        )
+        if resource.state in dead:
+            raise IncorrectStateException(
+                f"The resource is {resource.get_state_display()}; its API keys "
+                f"can no longer be managed."
+            )
+
+    @staticmethod
+    def _locked_transition(obj, transition: str, **updates):
+        """Lock the row, apply an FSM transition plus field updates, save —
+        atomic against a concurrent duplicate command that would otherwise both
+        read the same source state."""
+        with transaction.atomic():
+            api_key = models.ResourceApiKey.objects.select_for_update().get(pk=obj.pk)
+            getattr(api_key, transition)()
+            for field, value in updates.items():
+                setattr(api_key, field, value)
+            api_key.save()
+        return api_key
+
+    @extend_schema(
+        summary="Rotate an API key",
+        description="Asks the site agent to replace this key's value at the "
+        "backend. The other keys are untouched (zero downtime).",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def rotate(self, request, uuid=None):
+        obj = self.get_object()
+        self._require_resource_live(obj.resource)
+        try:
+            api_key = self._locked_transition(obj, "set_updating")
+        except TransitionNotAllowed:
+            raise IncorrectStateException(
+                "An API key can only be rotated from the OK state."
+            )
+        utils.publish_api_key_event(api_key, "rotate")
+        log.log_resource_api_key_rotated(api_key, request.user)
+        return Response(
+            {"status": _("API key rotation has been requested.")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    rotate_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_RESOURCE_USERS,
+            ["resource.project", "resource.project.customer"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Revoke an API key",
+        description="Asks the site agent to remove this key from the backend. "
+        "The other keys keep working.",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def revoke(self, request, uuid=None):
+        obj = self.get_object()
+        self._require_resource_live(obj.resource)
+        try:
+            api_key = self._locked_transition(obj, "set_terminating")
+        except TransitionNotAllowed:
+            raise IncorrectStateException(
+                "An API key can only be revoked from the OK state."
+            )
+        utils.publish_api_key_event(api_key, "revoke")
+        return Response(
+            {"status": _("API key revocation has been requested.")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    revoke_permissions = rotate_permissions
+
+    # --- provider (site-agent) actions -----------------------------------------
+
+    @extend_schema(
+        summary="Report a freshly-applied API key",
+        description="Used by the site agent after it generated and applied a key "
+        "to the backend. Stores the value encrypted and marks the key OK.",
+        request=serializers.ResourceApiKeyReportCreatedSerializer,
+        responses={status.HTTP_201_CREATED: serializers.ResourceApiKeyStatusSerializer},
+    )
+    @action(detail=False, methods=["post"])
+    def report_created(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        resource = data["resource"]
+        # A late report against a terminating/terminated resource must not
+        # recreate rows the termination cleanup deletes.
+        self._require_resource_live(resource)
+        plaintext = data["api_key"]
+        # Idempotent upsert on (resource, client_id): a retried or duplicated
+        # report must not 500 on the unique constraint, and a re-applied key just
+        # overwrites the stored value. New rows land OK (the agent already applied
+        # the key to the backend before reporting). The existing row is locked and
+        # checked first: a stale duplicate must not resurrect a key whose revoke
+        # is in flight.
+        with transaction.atomic():
+            existing = (
+                models.ResourceApiKey.objects.select_for_update()
+                .filter(resource=resource, client_id=data["client_id"])
+                .first()
+            )
+            if existing and existing.state == models.ResourceApiKey.States.TERMINATING:
+                raise IncorrectStateException(
+                    "A revoke is in flight for this key; a key value can no "
+                    "longer be reported for it."
+                )
+            api_key, _ = models.ResourceApiKey.objects.update_or_create(
+                resource=resource,
+                client_id=data["client_id"],
+                defaults={
+                    "key_ciphertext": encryption.encrypt_value(plaintext),
+                    "fingerprint": utils.api_key_fingerprint(plaintext),
+                    "state": models.ResourceApiKey.States.OK,
+                    "error_message": "",
+                },
+            )
+        return Response(
+            serializers.ResourceApiKeyStatusSerializer(api_key).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    report_created_permissions = [check_provider_api_key_permissions]
+    report_created_serializer_class = serializers.ResourceApiKeyReportCreatedSerializer
+
+    @extend_schema(
+        summary="Report a rotated API key value",
+        description="Used by the site agent after it applied a rotated key. "
+        "Replaces the stored value and marks the key OK.",
+        request=serializers.ResourceApiKeySetKeySerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_key(self, request, uuid=None):
+        obj = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plaintext = serializer.validated_data["api_key"]
+        updates = {
+            "key_ciphertext": encryption.encrypt_value(plaintext),
+            "fingerprint": utils.api_key_fingerprint(plaintext),
+            "error_message": "",
+        }
+        # A backend whose public identifier rotates together with the secret (an S3
+        # access key) reports the new one; one with a stable client_id omits it. The
+        # collision check runs before the transition so a rejected rename leaves the
+        # key exactly as it was.
+        client_id = serializer.validated_data.get("client_id")
+        if client_id and client_id != obj.client_id:
+            if (
+                models.ResourceApiKey.objects.filter(
+                    resource=obj.resource, client_id=client_id
+                )
+                .exclude(pk=obj.pk)
+                .exists()
+            ):
+                raise ValidationError(
+                    f"Another API key of this resource already uses client_id {client_id}."
+                )
+            updates["client_id"] = client_id
+        # Transition under lock, persist only if it is legal: a value must never
+        # be written to a Terminating key (revoke in flight) or overwrite an
+        # already applied OK key with a late/stale duplicate.
+        try:
+            api_key = self._locked_transition(obj, "set_ok", **updates)
+        except TransitionNotAllowed:
+            raise IncorrectStateException(
+                f"A key value can only be applied to a Creating or Updating key, "
+                f"not {obj.state}."
+            )
+        except IntegrityError:
+            # The collision check above runs outside the row lock, so a concurrent
+            # writer can claim the client_id between check and save; surface the
+            # constraint violation as the same 400 instead of a 500.
+            raise ValidationError(
+                f"Another API key of this resource already uses client_id {client_id}."
+            )
+        return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
+
+    set_key_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_RESOURCE_API_KEY, ["resource.offering.customer"]
+        )
+    ]
+    set_key_serializer_class = serializers.ResourceApiKeySetKeySerializer
+
+    @extend_schema(
+        summary="Mark an API key as erred",
+        description="Used by the site agent to report that applying the key "
+        "failed. Stores the error message for the UI.",
+        request=serializers.ResourceApiKeySetErredSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_erred(self, request, uuid=None):
+        obj = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            api_key = self._locked_transition(
+                obj,
+                "set_erred",
+                error_message=serializer.validated_data["error_message"],
+            )
+        except TransitionNotAllowed:
+            # A newer set_key already landed the key OK; ignore the stale erred.
+            raise IncorrectStateException(f"Cannot mark a {obj.state} key erred.")
+        return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
+
+    set_erred_permissions = set_key_permissions
+    set_erred_serializer_class = serializers.ResourceApiKeySetErredSerializer
+
+    def perform_destroy(self, instance):
+        # destroy is the agent's revoke-confirmation; a row may only be deleted
+        # after a revoke put it into Terminating. Guards against a stray/duplicate
+        # destroy removing an OK row while its key still serves at the gateway.
+        if instance.state != models.ResourceApiKey.States.TERMINATING:
+            raise IncorrectStateException(
+                f"An API key row can only be deleted while Terminating, "
+                f"not {instance.state}."
+            )
+        instance.delete()
+
+    destroy_permissions = set_key_permissions
 
 
 @extend_schema_view(

@@ -22,6 +22,8 @@ The recommended approach for Docker-based deployments is to use environment vari
 | `POSTGRESQL_PASSWORD` | Database password |
 | `SENTRY_DSN` | Sentry error tracking DSN |
 | `AUTH_TOKEN_LIFETIME` | Token lifetime in seconds |
+| `FIELD_ENCRYPTION_KEY` | Fernet key for encrypting secret DB columns (e.g. resource API keys); falls back to a SECRET_KEY-derived key with a warning |
+| `FIELD_ENCRYPTION_KEY_FALLBACKS` | Comma-separated previous encryption keys, kept readable during key rotation |
 
 See the [Configuration Guide](admin/configuration-guide.md) for a complete list.
 

@@ -1845,6 +1845,18 @@ class ProjectServiceAccountFilter(BaseScopedServiceAccountFilter):
         fields = BaseScopedServiceAccountFilter.Meta.fields
 
 
+class ResourceApiKeyFilter(django_filters.FilterSet):
+    resource_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-resource-detail",
+        field_name="resource__uuid",
+        label="Resource UUID",
+    )
+
+    class Meta:
+        model = models.ResourceApiKey
+        fields = ("resource_uuid",)
+
+
 class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.FilterSet):
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail",

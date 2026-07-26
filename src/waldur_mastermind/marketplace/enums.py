@@ -406,6 +406,27 @@ class ServiceAccountState:
     VALUES = [val for (_, val) in CHOICES]
 
 
+class ResourceApiKeyStates:
+    # Reuses the resource state vocabulary so the portal renders keys with the
+    # standard StateIndicator: Creating/Updating/Terminating show a spinner,
+    # OK is green, Erred is red.
+    CREATING = "Creating"
+    OK = "OK"
+    UPDATING = "Updating"
+    TERMINATING = "Terminating"
+    ERRED = "Erred"
+
+    CHOICES = (
+        (CREATING, CREATING),
+        (OK, OK),
+        (UPDATING, UPDATING),
+        (TERMINATING, TERMINATING),
+        (ERRED, ERRED),
+    )
+
+    VALUES = [val for (_, val) in CHOICES]
+
+
 ServiceAccountStatesType = Literal[
     "OK",
     "Closed",

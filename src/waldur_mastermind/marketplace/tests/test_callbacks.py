@@ -96,6 +96,27 @@ class CallbacksTest(test.APITestCase):
         period.refresh_from_db()
         self.assertEqual(period.end, end)
 
+    def test_terminate_deletes_api_key_rows(self):
+        # The Resource row survives termination (state=Terminated), so the
+        # ResourceApiKey FK cascade never fires. The callback must delete the key
+        # rows so no orphan OK key stays revealable after the gateway secret is gone.
+        resource = factories.ResourceFactory()
+        factories.OrderFactory(
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.TERMINATE,
+            resource=resource,
+        )
+        models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-1", state=models.ResourceApiKey.States.OK
+        )
+        models.ResourceApiKey.objects.create(
+            resource=resource, client_id="cid-2", state=models.ResourceApiKey.States.OK
+        )
+
+        callbacks.resource_deletion_succeeded(resource)
+
+        self.assertEqual(resource.api_keys.count(), 0)
+
     def test_when_resource_is_terminated_directly_old_period_is_closed(self):
         # Arrange
         start = parse_datetime("2018-10-01")

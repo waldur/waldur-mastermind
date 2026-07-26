@@ -261,6 +261,7 @@ This ISD manager access path enables federated agents to subscribe to events wit
 - `course_account`
 - `importable_resources`
 - `resource_periodic_limits`
+- `resource_api_key_rotation`
 - `offering_user`
 
 ## Monitoring

@@ -26,6 +26,29 @@ def log_resource_limit_update_succeeded(resource: models.Resource):
     )
 
 
+def log_resource_api_key_rotated(api_key: models.ResourceApiKey, user):
+    # A resource owns many keys — the audit event must identify which one.
+    resource = api_key.resource
+    event_logger.emit(
+        f"API key {api_key.client_id or api_key.uuid.hex} of resource "
+        f"{resource.name} has been rotated by {user}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_ROTATED,
+        event_context={"resource": resource},
+        scopes=get_resource_scopes(resource),
+    )
+
+
+def log_resource_api_key_revealed(api_key: models.ResourceApiKey, user):
+    resource = api_key.resource
+    event_logger.emit(
+        f"API key {api_key.client_id or api_key.uuid.hex} of resource "
+        f"{resource.name} has been revealed to {user}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED,
+        event_context={"resource": resource},
+        scopes=get_resource_scopes(resource),
+    )
+
+
 def log_resource_end_date_has_been_updated(resource, user, template=None):
     template = template or (
         "End date of marketplace resource %(resource_name)s has been updated."

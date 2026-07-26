@@ -178,6 +178,11 @@ def register_in(router):
         basename="marketplace-robot-account",
     )
     router.register(
+        r"marketplace-resource-api-keys",
+        views.ResourceApiKeyViewSet,
+        basename="marketplace-resource-api-key",
+    )
+    router.register(
         r"marketplace-project-service-accounts",
         views.ProjectServiceAccountViewSet,
         basename="marketplace-project-service-account",
