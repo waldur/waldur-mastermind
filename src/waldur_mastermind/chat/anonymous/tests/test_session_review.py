@@ -470,6 +470,53 @@ class KpiReviewFieldsTest(test.APITestCase):
         self.assertIsNone(response.data.get("hallucination_rate"))
         self.assertIsNone(response.data.get("review_coverage"))
 
+    def test_reviewed_total_reports_zero_rather_than_dropping_out(self):
+        anonymous_models.AnonymousChatInteraction.objects.create(
+            session_id="s-1",
+            user_input="hello",
+            ip_address="1.2.3.4",
+        )
+        response = self.client.get(self.url)
+        # The rate fields drop out when nothing is judged, but the count has to
+        # survive: a dashboard that hides its review row when coverage is zero
+        # is exactly how a dead nightly task goes unnoticed.
+        self.assertEqual(response.data["reviewed_total"], 0)
+        self.assertEqual(response.data["review_input_tokens_total"], 0)
+        self.assertEqual(response.data["review_output_tokens_total"], 0)
+
+    def test_judge_token_totals_are_kept_apart_from_visitor_spend(self):
+        i1 = anonymous_models.AnonymousChatInteraction.objects.create(
+            session_id="s-judged",
+            user_input="hi",
+            ip_address="1.2.3.4",
+            input_tokens=11,
+            output_tokens=3,
+        )
+        i2 = anonymous_models.AnonymousChatInteraction.objects.create(
+            session_id="s-judged-too",
+            user_input="hi",
+            ip_address="1.2.3.5",
+            input_tokens=7,
+            output_tokens=2,
+        )
+        for interaction, judge_in, judge_out in ((i1, 4000, 120), (i2, 2500, 80)):
+            anonymous_models.AnonymousChatFeedback.objects.create(
+                interaction=interaction,
+                llm_resolution_score=4,
+                llm_reviewed_at=timezone.now(),
+                llm_judge_input_tokens=judge_in,
+                llm_judge_output_tokens=judge_out,
+            )
+        response = self.client.get(self.url)
+        self.assertEqual(response.data["reviewed_total"], 2)
+        self.assertEqual(response.data["review_input_tokens_total"], 6500)
+        self.assertEqual(response.data["review_output_tokens_total"], 200)
+        # Judge spend draws on its own budget so review can't starve visitor
+        # traffic. Folding it into the visitor totals would hide the very split
+        # that budget separation exists to preserve.
+        self.assertEqual(response.data["input_tokens_total"], 18)
+        self.assertEqual(response.data["output_tokens_total"], 5)
+
     def test_review_fields_present_when_reviewed(self):
         # Two sessions, only one is judged
         i1 = anonymous_models.AnonymousChatInteraction.objects.create(

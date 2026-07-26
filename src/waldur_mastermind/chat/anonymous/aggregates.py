@@ -7,9 +7,20 @@ HTTP plumbing and reused by other admin surfaces if needed.
 import datetime as dt
 from collections import OrderedDict
 
-from django.db.models import Count, Max, Q
+from django.db.models import (
+    Case,
+    Count,
+    IntegerField,
+    Max,
+    Min,
+    Q,
+    Sum,
+    Value,
+    When,
+)
 from django.utils import timezone
 
+from waldur_mastermind.chat.anonymous import models
 from waldur_mastermind.chat.input_guards.base import SeverityLevel
 
 SEVERITIES = tuple(s.name for s in SeverityLevel)
@@ -94,3 +105,78 @@ def user_aggregates(qs):
             }
         )
     return enriched
+
+
+# Ordinal for reducing a conversation's per-interaction severities to the single
+# highest level; kept here so the SQL rank and the label lookup can't drift.
+_SEVERITY_RANK = {
+    SeverityLevel.CRITICAL.value: 4,
+    SeverityLevel.HIGH.value: 3,
+    SeverityLevel.MEDIUM.value: 2,
+    SeverityLevel.LOW.value: 1,
+}
+_RANK_TO_SEVERITY = {rank: value for value, rank in _SEVERITY_RANK.items()}
+
+
+def session_aggregates(qs):
+    """Per-session aggregate rows — one row per anonymous conversation.
+
+    Mirrors the authenticated ThreadSession table: a conversation is a
+    ``session_id`` group. Severity collapses to the highest level seen in the
+    conversation, and feedback/flagged collapse to booleans.
+    """
+    grouped = (
+        qs.exclude(session_id="")
+        .values("session_id")
+        .annotate(
+            message_count=Count("uuid"),
+            user_slug=Max("user_slug"),
+            flagged_count=Count("uuid", filter=Q(is_flagged=True)),
+            positive_feedback=Count("uuid", filter=Q(feedback__score=1)),
+            negative_feedback=Count("uuid", filter=Q(feedback__score=-1)),
+            offerings_shown=Sum("result_count"),
+            severity_rank=Max(
+                Case(
+                    *[
+                        When(severity=level, then=Value(rank))
+                        for level, rank in _SEVERITY_RANK.items()
+                    ],
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            ),
+            started=Min("created"),
+            last_active=Max("created"),
+        )
+        .order_by("-last_active")
+    )
+    # Counted in its own query rather than as another annotate(): clicks is a
+    # non-unique FK, so joining it here would multiply the interaction rows and
+    # silently inflate message_count and offerings_shown.
+    click_counts = dict(
+        models.AnonymousChatClick.objects.filter(interaction__in=qs)
+        .values("interaction__session_id")
+        .annotate(clicked=Count("id"))
+        .values_list("interaction__session_id", "clicked")
+    )
+
+    rows = []
+    for row in grouped:
+        rows.append(
+            {
+                "session_id": row["session_id"],
+                "user_slug": row["user_slug"],
+                "message_count": row["message_count"],
+                "is_flagged": row["flagged_count"] > 0,
+                "max_severity": _RANK_TO_SEVERITY.get(
+                    row["severity_rank"], SeverityLevel.NONE.value
+                ),
+                "has_feedback": (row["positive_feedback"] + row["negative_feedback"])
+                > 0,
+                "offerings_shown": row["offerings_shown"] or 0,
+                "offerings_clicked": click_counts.get(row["session_id"], 0),
+                "started": row["started"],
+                "last_active": row["last_active"],
+            }
+        )
+    return rows

@@ -129,6 +129,15 @@ class AnonymousChatInteractionSerializer(serializers.ModelSerializer):
     """``feedback`` is nested to avoid a round-trip — the queryset already has ``select_related("feedback")``."""
 
     feedback = AnonymousChatFeedbackSerializer(read_only=True)
+    click_count = serializers.SerializerMethodField(
+        help_text="Offering click-throughs on this interaction. Populated by the "
+        "by-session transcript, which annotates it; 0 elsewhere."
+    )
+
+    def get_click_count(self, obj) -> int:
+        # Read the annotation rather than obj.clicks.count() — the latter would
+        # issue one query per interaction on every transcript.
+        return getattr(obj, "click_count", 0)
 
     class Meta:
         model = anonymous_models.AnonymousChatInteraction
@@ -137,6 +146,9 @@ class AnonymousChatInteractionSerializer(serializers.ModelSerializer):
             "user_slug",
             "user_input",
             "assistant_blocks",
+            "click_count",
+            "input_tokens",
+            "output_tokens",
             "offering_uuids",
             "result_count",
             "is_flagged",
@@ -187,6 +199,33 @@ class AnonymousChatKpiResponseSerializer(serializers.Serializer):
     clicks_total = serializers.IntegerField()
     click_through_rate = serializers.FloatField(
         help_text="clicks / interactions; null when no interactions."
+    )
+    input_tokens_total = serializers.IntegerField(
+        help_text=(
+            "Prompt tokens summed over the filtered turns. Turns recorded "
+            "before per-interaction token capture contribute nothing, so this "
+            "understates spend on historical data."
+        )
+    )
+    output_tokens_total = serializers.IntegerField(
+        help_text="Completion tokens summed over the filtered turns."
+    )
+
+    reviewed_total = serializers.IntegerField(
+        help_text=(
+            "Threads carrying a judge verdict. Always present, unlike the "
+            "review rates below — zero here is the signal that the nightly "
+            "pass is off or stalled, so consumers can keep showing the row."
+        )
+    )
+    review_input_tokens_total = serializers.IntegerField(
+        help_text=(
+            "Prompt tokens spent by the LLM judge. Tracked apart from "
+            "``input_tokens_total`` because review runs on its own budget."
+        )
+    )
+    review_output_tokens_total = serializers.IntegerField(
+        help_text="Completion tokens spent by the LLM judge."
     )
 
     # Null when no judge review has run on the filtered set. Consumers branch on ``review_coverage is not None``.
@@ -239,6 +278,23 @@ class AnonymousChatUserAggregateSerializer(serializers.Serializer):
     negative_feedback = serializers.IntegerField()
     no_feedback = serializers.IntegerField()
     injection_strikes = serializers.IntegerField()
+
+
+class AnonymousChatConversationSerializer(serializers.Serializer):
+    """One row per anonymous conversation (session), mirroring the thread table."""
+
+    session_id = serializers.CharField()
+    user_slug = serializers.CharField()
+    message_count = serializers.IntegerField()
+    is_flagged = serializers.BooleanField()
+    max_severity = serializers.CharField()
+    has_feedback = serializers.BooleanField()
+    offerings_shown = serializers.IntegerField()
+    offerings_clicked = serializers.IntegerField(
+        help_text="Click-throughs on recommended offerings; repeat clicks count separately."
+    )
+    started = serializers.DateTimeField(allow_null=True)
+    last_active = serializers.DateTimeField(allow_null=True)
 
 
 class AnonymousChatBudgetSnapshotSerializer(serializers.Serializer):

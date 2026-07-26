@@ -205,6 +205,13 @@ class AnonymousChatInteraction(models.Model):
     offering_uuids = models.JSONField(default=list)
     result_count = models.PositiveIntegerField(default=0)
 
+    # Per-turn usage, mirroring Message.input_tokens/output_tokens on the
+    # authenticated side. The budget counters these also feed are collapsed to a
+    # single total for rate limiting, so the split is only recoverable here.
+    # Null on rows written before this was tracked.
+    input_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
+    output_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
+
     # Scrypt(salt, ip) — irreversible pseudonym so admin UI shows a stable per-actor key without exposing raw IP.
     user_slug = models.CharField(max_length=128, db_index=True, blank=True, default="")
 

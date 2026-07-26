@@ -173,21 +173,30 @@ class StaffListAndActionsTest(test.APITestCase):
             "anonymous-chat-interaction-by-session", args=["session-A"]
         )
         self.user_url = reverse("anonymous-chat-interaction-by-user", args=["slug-X"])
+        self.conversations_url = reverse("anonymous-chat-interaction-conversations")
 
         self.s1_a = _make_interaction(
             session_id="session-A",
             user_slug="slug-X",
+            input_tokens=10,
+            output_tokens=20,
         )
         self.s1_b = _make_interaction(
             session_id="session-A",
             user_slug="slug-X",
+            input_tokens=5,
+            output_tokens=7,
         )
         self.s2 = _make_interaction(
             session_id="session-B",
             user_slug="slug-X",
             is_flagged=True,
             severity="high",
+            input_tokens=100,
+            output_tokens=1,
         )
+        # Deliberately left without token columns — stands in for turns recorded
+        # before per-interaction token capture existed.
         self.other_user = _make_interaction(session_id="session-C", user_slug="slug-Y")
 
         _make_feedback(self.s1_a, score=1)
@@ -224,11 +233,46 @@ class StaffListAndActionsTest(test.APITestCase):
         # Ordered chronologically — s1_a before s1_b
         self.assertEqual(response.data[0]["uuid"], str(self.s1_a.uuid))
 
+    def test_by_session_reports_click_count_without_skewing_conversations(self):
+        anonymous_models.AnonymousChatClick.objects.create(
+            interaction=self.s1_a,
+            offering_uuid="11111111-1111-1111-1111-111111111111",
+        )
+        anonymous_models.AnonymousChatClick.objects.create(
+            interaction=self.s1_a,
+            offering_uuid="22222222-2222-2222-2222-222222222222",
+        )
+
+        turns = {row["uuid"]: row for row in self.client.get(self.session_url).data}
+        self.assertEqual(turns[str(self.s1_a.uuid)]["click_count"], 2)
+        self.assertEqual(turns[str(self.s1_b.uuid)]["click_count"], 0)
+
+        # The clicks join must stay inside by_session — conversations groups over
+        # the same base queryset and would otherwise count each turn twice.
+        rows = {
+            row["session_id"]: row
+            for row in self.client.get(self.conversations_url).data
+        }
+        self.assertEqual(rows["session-A"]["message_count"], 2)
+
     def test_by_user_groups_across_sessions(self):
         response = self.client.get(self.user_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # slug-X owns session-A (2 interactions) + session-B (1) = 3
         self.assertEqual(len(response.data), 3)
+
+    def test_conversations_groups_by_session(self):
+        response = self.client.get(self.conversations_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = {row["session_id"]: row for row in response.data}
+        # One row per conversation — sessions A, B, C.
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows["session-A"]["message_count"], 2)
+        self.assertTrue(rows["session-A"]["has_feedback"])
+        self.assertFalse(rows["session-A"]["is_flagged"])
+        self.assertEqual(rows["session-A"]["max_severity"], "none")
+        self.assertTrue(rows["session-B"]["is_flagged"])
+        self.assertEqual(rows["session-B"]["max_severity"], "high")
 
     def test_kpi_aggregates(self):
         response = self.client.get(self.kpi_url)
@@ -245,6 +289,20 @@ class StaffListAndActionsTest(test.APITestCase):
         # No clicks recorded → CTR is 0/4 = 0.0
         self.assertEqual(body["clicks_total"], 0)
         self.assertAlmostEqual(body["click_through_rate"], 0.0)
+
+    def test_kpi_sums_tokens_skipping_unrecorded_turns(self):
+        body = self.client.get(self.kpi_url).data
+        # other_user carries NULL columns; Sum has to skip it rather than
+        # nulling the whole roll-up, so the totals cover s1_a + s1_b + s2.
+        self.assertEqual(body["input_tokens_total"], 115)
+        self.assertEqual(body["output_tokens_total"], 28)
+
+    def test_kpi_token_totals_are_zero_without_interactions(self):
+        anonymous_models.AnonymousChatInteraction.objects.all().delete()
+        body = self.client.get(self.kpi_url).data
+        # Sum over an empty set is NULL — the tile needs a number, not None.
+        self.assertEqual(body["input_tokens_total"], 0)
+        self.assertEqual(body["output_tokens_total"], 0)
 
     def test_kpi_returns_403_for_non_staff(self):
         # Switch to a non-staff user; the kpi action must not return 200

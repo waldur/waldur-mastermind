@@ -531,6 +531,29 @@ class ThreadSessionSerializer(
         return obj.flags.get("max_severity", SeverityLevel.NONE.value)
 
 
+class ChatThreadStatsResponseSerializer(serializers.Serializer):
+    """Summary statistics for authenticated chat threads (mirrors the anonymous KPI)."""
+
+    threads_total = serializers.IntegerField()
+    sessions_total = serializers.IntegerField()
+    users_total = serializers.IntegerField(
+        help_text="Distinct owners of the threads in the filtered window."
+    )
+    messages_total = serializers.IntegerField()
+    input_tokens_total = serializers.IntegerField()
+    output_tokens_total = serializers.IntegerField()
+    total_tokens = serializers.IntegerField()
+    flagged_total = serializers.IntegerField(
+        help_text="Threads carrying at least one flagged message."
+    )
+    feedback_positive = serializers.IntegerField()
+    feedback_negative = serializers.IntegerField()
+    satisfaction_rate = serializers.FloatField(
+        allow_null=True,
+        help_text="positive / (positive + negative); null when no human feedback.",
+    )
+
+
 class ChatSessionSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
 ):
