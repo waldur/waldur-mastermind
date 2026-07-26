@@ -4,6 +4,7 @@ from enum import StrEnum
 
 import httpx
 import jwt
+import reversion
 from constance import config
 from django.conf import settings
 from django.core.cache import cache
@@ -333,6 +334,12 @@ class PATAuthentication(BaseAuthentication):
 
 
 class OIDCAuthentication(BaseAuthentication):
+    # Marker stored on `User.registration_method` for accounts governed by
+    # this OIDC backend. A username collision with an account carrying a
+    # different marker triggers an audited adoption (see `_adopt_local_account`)
+    # rather than a silent, unrecorded takeover.
+    REGISTRATION_METHOD = "oidc"
+
     def authenticate(self, request):
         raw_token = parse_token_from_request(request, b"bearer")
         if not raw_token:
@@ -393,12 +400,95 @@ class OIDCAuthentication(BaseAuthentication):
                 f"Token does not contain required user identifier field: '{user_field}'"
             )
 
-        # Use all_objects so the lookup also matches deactivated users; otherwise
-        # the active-only default manager hides an existing inactive row and the
-        # subsequent create() collides on the unique username constraint (500).
-        user, _ = models.User.all_objects.get_or_create(username=user_identifier)
-        if not user.is_active:
-            raise AuthenticationFailed("User inactive or deleted.")
+        user = self._get_or_provision_user(user_identifier, parsed_token)
         set_user_context(user)
 
         return (user, parsed_token)
+
+    def _get_or_provision_user(
+        self, user_identifier: str, parsed_token: dict
+    ) -> models.User:
+        """
+        Look up or create the local user for an OIDC token.
+
+        An OIDC token whose `username` claim matches a pre-existing local
+        account (e.g. a `default`/SAML/social user, or an OIDC user created
+        before we started tagging them) is allowed to *adopt* that account:
+        the account is re-tagged with `registration_method="oidc"` so future
+        logins bind cleanly. This is a deliberate design choice — it keeps
+        existing users working across the OIDC rollout rather than locking
+        them out.
+
+        Because adoption of a non-OIDC account is also the shape of a
+        username-takeover attempt (a trusted IdP asserting the username of a
+        local staff account), every adoption is loud: it emits a WARNING log
+        and records a django-reversion snapshot of the pre-adoption state, so
+        operators can audit — and, if it was illegitimate, revert — the change.
+
+        Uses `User.all_objects.get_or_create` so that (a) a disabled account is
+        discovered — and rejected — rather than being hidden by the active-only
+        default manager and then re-created into a unique-username collision,
+        and (b) two concurrent first-time logins for the same new username race
+        safely: `get_or_create` retries the lookup on `IntegrityError` instead
+        of surfacing a 500.
+        """
+        existing, created = models.User.all_objects.get_or_create(
+            username=user_identifier,
+            defaults={"registration_method": self.REGISTRATION_METHOD},
+        )
+        if created:
+            return existing
+
+        if not existing.is_active:
+            raise AuthenticationFailed("User inactive or deleted.")
+
+        if existing.registration_method != self.REGISTRATION_METHOD:
+            self._adopt_local_account(existing, parsed_token)
+
+        return existing
+
+    def _adopt_local_account(self, user: models.User, parsed_token: dict) -> None:
+        """
+        Re-tag a pre-existing non-OIDC account as OIDC-governed, leaving a
+        durable audit trail (WARNING log + reversion snapshot of the pre-change
+        state). Called only on a username collision; see
+        `_get_or_provision_user` for the rationale.
+        """
+        previous_method = user.registration_method
+        token_sub = parsed_token.get("sub")
+        token_iss = parsed_token.get("iss")
+
+        logger.warning(
+            "OIDC is adopting pre-existing local account %r "
+            "(previous registration_method=%r, is_staff=%s, is_superuser=%s) "
+            "for token sub=%r iss=%r. Re-tagging as %r and recording a "
+            "reversion snapshot of the pre-adoption state. If this account was "
+            "not meant to be governed by OIDC, treat it as a takeover attempt "
+            "and revert via the recorded revision.",
+            user.username,
+            previous_method,
+            user.is_staff,
+            user.is_superuser,
+            token_sub,
+            token_iss,
+            self.REGISTRATION_METHOD,
+        )
+
+        # Snapshot the pre-adoption state first so an operator can revert the
+        # account (e.g. after a suspected takeover) to its original
+        # registration_method.
+        with reversion.create_revision():
+            reversion.add_to_revision(user)
+            reversion.set_comment(
+                f"Pre-OIDC-adoption snapshot: account was registered via "
+                f"'{previous_method}' before an OIDC token (sub={token_sub!r}, "
+                f"iss={token_iss!r}) adopted it."
+            )
+
+        user.registration_method = self.REGISTRATION_METHOD
+        with reversion.create_revision():
+            user.save(update_fields=["registration_method"])
+            reversion.set_comment(
+                f"OIDC adopted account previously registered via "
+                f"'{previous_method}' (token sub={token_sub!r})."
+            )
