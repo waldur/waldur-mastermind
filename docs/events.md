@@ -17,8 +17,11 @@
 - auth_logged_in_with_username
 - auth_logged_out
 - auth_login_failed_with_username
+- pat_access_denied_from_ip
+- pat_authentication_rejected
 - pat_created
 - pat_expired
+- pat_network_acl_updated
 - pat_revoked
 - pat_rotated
 - pat_used_from_new_ip
@@ -239,6 +242,9 @@
 - marketplace_resource_limit_change_request_approved
 - marketplace_resource_limit_change_request_created
 - marketplace_resource_limit_change_request_rejected
+- marketplace_resource_project_created
+- marketplace_resource_project_recovered
+- marketplace_resource_project_removed
 - marketplace_resource_terminate_failed
 - marketplace_resource_terminate_requested
 - marketplace_resource_terminate_succeeded
@@ -272,6 +278,9 @@
 - marketplace_resource_limit_change_request_created
 - marketplace_resource_limit_change_request_rejected
 - marketplace_resource_paused
+- marketplace_resource_project_created
+- marketplace_resource_project_recovered
+- marketplace_resource_project_removed
 - marketplace_resource_terminate_canceled
 - marketplace_resource_terminate_failed
 - marketplace_resource_terminate_requested

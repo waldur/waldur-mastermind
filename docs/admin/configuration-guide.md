@@ -3414,6 +3414,22 @@ Maximum PAT lifetime in days.
 
 Maximum number of active PATs per user.
 
+#### PAT_MAX_ACL_ENTRIES
+
+**Type:** int
+
+**Default value:** 20
+
+Maximum number of network ACL entries per personal access token.
+
+#### PAT_MAX_AUDIT_EVENTS_PER_HOUR
+
+**Type:** int
+
+**Default value:** 50
+
+Maximum audit events a single personal access token may generate per hour, counted separately for source-address changes and for rejections. Bounds the event table against a caller who holds one valid token and rotates source addresses.
+
 ### Site Agent Logs
 
 #### SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY

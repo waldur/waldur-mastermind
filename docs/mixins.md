@@ -46,6 +46,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`LookupMixin`](#lookupmixin) | `waldur_core.core.nested_routers` | Deprecated |
 | [`NestedMixin`](#nestedmixin) | `waldur_core.core.nested_routers` | Mixin for creating nested routers that handle hierarchical URL structures |
 | [`AugmentedSerializerMixin`](#augmentedserializermixin) | `waldur_core.core.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
+| [`NetworkAclValidationMixin`](#networkaclvalidationmixin) | `waldur_core.core.serializers` | Validate + canonicalise ``allowed_networks`` and enforce the entry cap |
 | [`RestrictedSerializerMixin`](#restrictedserializermixin) | `waldur_core.core.serializers` | This mixin allows to specify list of fields to be rendered by serializer |
 | [`SlugSerializerMixin`](#slugserializermixin) | `waldur_core.core.serializers` | Ensures that slug is editable only by staff |
 | [`TranslatedModelSerializerMixin`](#translatedmodelserializermixin) | `waldur_core.core.serializers` | A `ModelSerializer` is just a regular `Serializer`, except that:  * A set of ... |
@@ -93,6 +94,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`CostEstimateMixin`](#costestimatemixin) | `waldur_mastermind.marketplace.models` | Mixin for cost estimation functionality |
 | [`ResourceDetailsMixin`](#resourcedetailsmixin) | `waldur_mastermind.marketplace.models` | Mixin combining resource details with cost estimation |
 | [`SafeAttributesMixin`](#safeattributesmixin) | `waldur_mastermind.marketplace.models` | Mixin for safe attribute handling |
+| [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
 | [`ConnectedOfferingDetailsMixin`](#connectedofferingdetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide offering details action for connected resources |
 | [`ConnectedResourceDetailsMixin`](#connectedresourcedetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide resource details action for connected resources |
 | [`OfferingUsageMixin`](#offeringusagemixin) | `waldur_mastermind.marketplace.views` | Shared logic for customer/project per-offering usage ViewSets |
@@ -695,6 +697,14 @@ Example:
 
 or uses URL name specified in a model of serialized object.
 
+### NetworkAclValidationMixin
+
+**Module:** `waldur_core.core.serializers`
+
+**Description:**
+
+Validate + canonicalise ``allowed_networks`` and enforce the entry cap.
+
 ### RestrictedSerializerMixin
 
 **Module:** `waldur_core.core.serializers`
@@ -1291,6 +1301,24 @@ Used for secure attribute access that filters out sensitive
 information like passwords and credentials.
 
 **Base classes:** `Model`
+
+### MemberSyncFieldsMixin
+
+**Module:** `waldur_mastermind.marketplace.serializers`
+
+**Description:**
+
+Adds agent-reported sync fields to a UserRole-shaped serializer.
+
+The fields are emitted only when the view put a ``member_sync_index``
+into the context (i.e. the offering opted in via
+``enable_membership_sync_status`` and the view prefetched the rows).
+Otherwise they are dropped from the payload entirely, so opted-out
+offerings keep today's exact response shape. An index hit of None
+serializes as null — "the agent has not reported on this grant",
+which is distinct from any real state.
+
+**Base classes:** `Serializer`
 
 ### ConnectedOfferingDetailsMixin
 
