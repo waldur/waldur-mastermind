@@ -86,6 +86,42 @@ def push_resource_update_message(
         logging_tasks.publish_messages.delay(messages)
 
 
+def push_resource_user_role_sync_message(
+    resource: marketplace_models.Resource,
+) -> None:
+    """Send a user role sync message scoped to a single resource.
+
+    Same channel as the project-level trigger (USER_ROLE observable),
+    with resource_uuid added to the payload so agents that understand
+    it re-sync just this resource; older agents fall back to their
+    project-wide handling of the same message.
+    """
+    # Consistent with push_user_role_sync_message: pubsub messages are
+    # only published for site-agent offerings.
+    if resource.offering.type != SITE_AGENT_OFFERING:
+        logger.debug(
+            "Resource %s offering is not a site-agent offering; skipping sync message",
+            resource,
+        )
+        return
+    logger.info("Sending user role sync message for resource %s", resource)
+    payload = {
+        "project_uuid": resource.project.uuid.hex,
+        "project_name": resource.project.name,
+        "resource_uuid": resource.uuid.hex,
+    }
+    messages = marketplace_utils.prepare_messages(
+        resource.offering, payload, logging_enums.ObservableObjectType.USER_ROLE
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+        logger.info(
+            "Sent %d user role sync messages for resource %s", len(messages), resource
+        )
+    else:
+        logger.debug("No messages to send for resource %s", resource)
+
+
 def push_user_role_sync_message(project: structure_models.Project) -> None:
     """
     Send user role sync message for a project.

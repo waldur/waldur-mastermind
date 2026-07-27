@@ -5899,7 +5899,8 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
             resource.project.customer,
         ):
             raise PermissionDenied()
-        serializer.save()
+        resource_project = serializer.save(created_by=self.request.user)
+        log.log_resource_project_created(resource_project)
 
     @extend_schema(
         parameters=[
@@ -5929,9 +5930,11 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
                 raise PermissionDenied(
                     "Force-delete (?force=true) requires staff permissions."
                 )
+            log.log_resource_project_removed(instance)
             instance.delete(soft=False)
         else:
             instance.delete(soft=True, terminated_by=self.request.user)
+            log.log_resource_project_removed(instance)
 
     @extend_schema(
         request=serializers.ResourceProjectRecoverySerializer,
@@ -6084,6 +6087,7 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
             len(restored_user_roles),
             len(sent_invitations),
         )
+        log.log_resource_project_recovered(rp)
 
         body = serializers.ResourceProjectSerializer(
             rp, context={"request": request}
@@ -6120,7 +6124,10 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     unsafe_methods_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING,
-            ["resource.offering.customer"],
+            # Offering-scoped roles (e.g. a site agent running as
+            # OFFERING.MANAGER) manage sub-project state, so accept the
+            # offering scope alongside the owning customer.
+            ["resource.offering", "resource.offering.customer"],
         )
     ]
 
@@ -8719,11 +8726,11 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             )
         resource_ct = ContentType.objects.get_for_model(models.Resource)
         rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
-        rp_ids = list(
-            models.ResourceProject.available_objects.filter(
-                resource=resource
-            ).values_list("id", flat=True)
-        )
+        rp_by_id = {
+            rp.id: rp
+            for rp in models.ResourceProject.available_objects.filter(resource=resource)
+        }
+        rp_ids = list(rp_by_id)
         users = (
             User.objects.filter(
                 Q(
@@ -8751,10 +8758,73 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
                 | Q(username__icontains=search_string)
             ).distinct()
         page = self.paginate_queryset(users)
+        context = {**self.get_serializer_context(), "resource": resource}
+
+        # Bulk-load every role grant for the page's users in two queries
+        # (resource scope + resource_project scope) grouped by user, so the
+        # per-member serializer fields resolve from these maps instead of
+        # querying UserRole once per member (mirrors
+        # utils.build_resource_team_response). Priming each RP grant's
+        # generic-FK scope from rp_by_id keeps the nested serializer's
+        # scope.* reads from fanning out too.
+        page_user_ids = [user.id for user in page]
+        resource_roles_by_user: dict = {}
+        for grant in (
+            UserRole.objects.filter(
+                content_type=resource_ct,
+                object_id=resource.id,
+                user_id__in=page_user_ids,
+                is_active=True,
+            )
+            .select_related("role")
+            .order_by("role__name")
+        ):
+            # Prime the generic-FK scope (all these grants point at this
+            # resource) so MemberSyncFieldsMixin._sync_row's scope check
+            # doesn't fetch the Resource once per grant.
+            grant.scope = resource
+            resource_roles_by_user.setdefault(grant.user_id, []).append(grant)
+
+        rp_roles_by_user: dict = {}
+        for grant in (
+            UserRole.objects.filter(
+                content_type=rp_ct,
+                object_id__in=rp_ids,
+                user_id__in=page_user_ids,
+                is_active=True,
+            )
+            .select_related("role")
+            .order_by("role__name")
+        ):
+            grant.scope = rp_by_id.get(grant.object_id)
+            rp_roles_by_user.setdefault(grant.user_id, []).append(grant)
+
+        context["resource_roles_by_user"] = resource_roles_by_user
+        context["rp_roles_by_user"] = rp_roles_by_user
+
+        # Agent-reported per-grant sync state, opt-in per offering. The
+        # index is keyed exactly like MemberSyncFieldsMixin._sync_row
+        # looks it up; when the flag is off the context key stays absent
+        # and the serializer omits the sync fields entirely, keeping the
+        # opted-out response shape (and query cost) unchanged.
+        if (resource.offering.plugin_options or {}).get(
+            "enable_membership_sync_status"
+        ):
+            context["member_sync_index"] = {
+                (
+                    row.user_id,
+                    row.scope_type,
+                    row.resource_project_id,
+                    row.role_name,
+                ): row
+                for row in models.ResourceMemberSyncStatus.objects.filter(
+                    resource=resource
+                )
+            }
         serializer = serializers.ResourceTeamMemberSerializer(
             page,
             many=True,
-            context={**self.get_serializer_context(), "resource": resource},
+            context=context,
         )
         return self.get_paginated_response(serializer.data)
 
@@ -9415,7 +9485,9 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_state_ok_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
-            ["offering.customer"],
+            # A site agent runs as OFFERING.MANAGER (offering-scoped role),
+            # so accept the offering scope alongside the owning customer.
+            ["offering", "offering.customer"],
         )
     ]
     set_state_ok_validators = [
@@ -9456,6 +9528,113 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
 
     set_backend_metadata_serializer_class = (
         serializers.ResourceBackendMetadataSerializer
+    )
+
+    @extend_schema(
+        summary="Report per-member sync statuses for a resource",
+        description=(
+            "Full-replace report from the site agent: replaces every "
+            "previously stored member sync status of this resource with "
+            "the submitted set. Requires the offering to opt in via the "
+            "enable_membership_sync_status plugin option. Entries whose "
+            "user cannot be resolved are skipped and echoed back in the "
+            "response instead of failing the whole report."
+        ),
+        request=serializers.MemberSyncStatusReportSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.MemberSyncStatusReportResultSerializer,
+            status.HTTP_409_CONFLICT: serializers.DetailResponseSerializer,
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def set_membership_sync_statuses(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+        if not (resource.offering.plugin_options or {}).get(
+            "enable_membership_sync_status"
+        ):
+            return Response(
+                {"detail": "Membership sync status is not enabled for this offering."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        rp_by_uuid = {
+            rp.uuid.hex: rp
+            for rp in models.ResourceProject.available_objects.filter(resource=resource)
+        }
+
+        # Resolve every referenced user up front with two bulk queries
+        # (by UUID, then by username) rather than one or two User lookups
+        # per reported entry.
+        statuses = serializer.validated_data["statuses"]
+        users_by_uuid = {
+            user.uuid.hex: user
+            for user in User.objects.filter(
+                uuid__in={e["user_uuid"].hex for e in statuses if e.get("user_uuid")}
+            )
+        }
+        users_by_username = {
+            user.username: user
+            for user in User.objects.filter(
+                username__in={e["username"] for e in statuses if e.get("username")}
+            )
+        }
+
+        rows = []
+        skipped = []
+        for entry in statuses:
+            user = None
+            if entry.get("user_uuid"):
+                user = users_by_uuid.get(entry["user_uuid"].hex)
+            if user is None and entry.get("username"):
+                user = users_by_username.get(entry["username"])
+            if user is None:
+                skipped.append(entry.get("username") or entry["user_uuid"].hex)
+                continue
+            resource_project = None
+            if (
+                entry["scope_type"]
+                == models.ResourceMemberSyncStatus.ScopeTypes.RESOURCE_PROJECT
+            ):
+                resource_project = rp_by_uuid.get(entry["resource_project_uuid"].hex)
+                if resource_project is None:
+                    skipped.append(entry["resource_project_uuid"].hex)
+                    continue
+            rows.append(
+                models.ResourceMemberSyncStatus(
+                    resource=resource,
+                    user=user,
+                    scope_type=entry["scope_type"],
+                    resource_project=resource_project,
+                    role_name=entry["role_name"],
+                    state=entry["state"],
+                    message=entry.get("message", ""),
+                )
+            )
+
+        with transaction.atomic():
+            models.ResourceMemberSyncStatus.objects.filter(resource=resource).delete()
+            models.ResourceMemberSyncStatus.objects.bulk_create(rows)
+
+        result = serializers.MemberSyncStatusReportResultSerializer(
+            {"stored": len(rows), "skipped": skipped}
+        )
+        return Response(result.data, status=status.HTTP_200_OK)
+
+    # Reuses the backend-metadata permission at both offering and
+    # customer scope: sync statuses are agent-reported backend state,
+    # and the offering path lets an OFFERING.MANAGER-scoped agent
+    # identity report without customer-wide rights.
+    set_membership_sync_statuses_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
+            ["offering", "offering.customer"],
+        )
+    ]
+
+    set_membership_sync_statuses_serializer_class = (
+        serializers.MemberSyncStatusReportSerializer
     )
 
     @extend_schema(
@@ -9525,7 +9704,9 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_as_erred_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
-            ["offering.customer"],
+            # A site agent runs as OFFERING.MANAGER (offering-scoped role),
+            # so accept the offering scope alongside the owning customer.
+            ["offering", "offering.customer"],
         )
     ]
 

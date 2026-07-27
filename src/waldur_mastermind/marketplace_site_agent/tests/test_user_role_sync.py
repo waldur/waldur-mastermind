@@ -146,3 +146,67 @@ class UserRoleSyncAPITest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mocked_publish_messages.assert_not_called()
+
+
+class ResourceUserRoleSyncPubSubGateTest(test.APITestCase):
+    """The resource-scoped resync trigger publishes a USER_ROLE message
+    with resource_uuid, but — like the project trigger — only for
+    site-agent offerings."""
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+        self.staff_user = structure_factories.UserFactory(is_staff=True)
+
+    def _make_resource(self, offering_type):
+        offering = marketplace_factories.OfferingFactory(
+            type=offering_type,
+            project=self.project,
+            customer=self.customer,
+            plugin_options={"enable_membership_sync_status": True},
+        )
+        resource = marketplace_factories.ResourceFactory(
+            offering=offering, project=self.project, state=ResourceStates.OK
+        )
+        event_subscription = logging_factories.EventSubscriptionFactory(
+            user=self.staff_user,
+            observable_objects=[
+                {"object_type": logging_enums.ObservableObjectType.USER_ROLE.value}
+            ],
+        )
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=event_subscription,
+            offering_uuid=offering.uuid,
+            object_type=logging_enums.ObservableObjectType.USER_ROLE.value,
+        )
+        return resource
+
+    def _url(self, resource):
+        return reverse(
+            "marketplace-provider-resource-sync-user-roles",
+            kwargs={"uuid": resource.uuid.hex},
+        )
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_site_agent_offering_publishes_with_resource_uuid(self, mocked_publish):
+        resource = self._make_resource(SITE_AGENT_OFFERING)
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self._url(resource))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mocked_publish.assert_called_once()
+        payload = json.loads(mocked_publish.call_args[0][0][0]["payload"])
+        self.assertEqual(payload["resource_uuid"], resource.uuid.hex)
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_non_site_agent_offering_publishes_nothing(self, mocked_publish):
+        # A non-site-agent offering (e.g. Marketplace.Basic) is gated out —
+        # the endpoint still returns 200 but no pubsub message is sent.
+        resource = self._make_resource("Marketplace.Basic")
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self._url(resource))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mocked_publish.assert_not_called()

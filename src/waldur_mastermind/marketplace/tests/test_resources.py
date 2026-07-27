@@ -2342,6 +2342,53 @@ class ResourceDetailsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class ResourceTeamMembersMultiRoleTest(test.APITestCase):
+    """team_members deduplicates by user, so a user holding several
+    resource-scope roles must expose all of them via roles[]; the scalar
+    role_name reflects only the first grant and is kept for
+    backward compatibility."""
+
+    def setUp(self) -> None:
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.permissions.models import Role
+
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.resource = factories.ResourceFactory(
+            project=self.fixture.project, offering=self.offering
+        )
+        self.user = UserFactory()
+        resource_ct = ContentType.objects.get_for_model(models.Resource)
+        self.role_a = Role.objects.create(
+            name="custom_role_a", content_type=resource_ct, is_system_role=False
+        )
+        self.role_b = Role.objects.create(
+            name="custom_role_b", content_type=resource_ct, is_system_role=False
+        )
+        self.resource.add_user(self.user, self.role_a)
+        self.resource.add_user(self.user, self.role_b)
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, action="team_members"
+        )
+
+    def test_all_resource_scope_roles_are_returned(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"field": ["full_name", "role_name", "roles"]}
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        rows = [row for row in response.data if row["full_name"] == self.user.full_name]
+        self.assertEqual(1, len(rows))
+        row = rows[0]
+        self.assertEqual(
+            {"custom_role_a", "custom_role_b"},
+            {grant["role_name"] for grant in row["roles"]},
+        )
+        # The legacy scalar still carries one of the grants.
+        self.assertIn(row["role_name"], {"custom_role_a", "custom_role_b"})
+
+
 class ResourceGetTeamTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ProjectFixture()

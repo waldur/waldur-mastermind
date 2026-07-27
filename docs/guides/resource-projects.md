@@ -6,6 +6,8 @@ Resource Projects represent sub-entities within a marketplace Resource. For exam
 
 This feature is opt-in per offering via the `enable_resource_projects` plugin option.
 
+See also [Membership Sync Status](membership-sync-status.md) for agent-reported per-member propagation state built on top of resource projects.
+
 ## Models
 
 ### ResourceProject
