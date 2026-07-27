@@ -1211,9 +1211,13 @@ class CustomerInetFilterTest(test.APITestCase):
             customer=self.customer, inet="128.0.0.0/16"
         )
 
-        self.patcher = mock.patch("waldur_core.structure.managers.core_utils")
+        # Patch only get_ip_address; normalize_ip_address must run for real so
+        # the filter receives a canonical IP string (or None), matching production.
+        self.patcher = mock.patch(
+            "waldur_core.structure.managers.core_utils.get_ip_address"
+        )
         self.mock = self.patcher.start()
-        self.mock.get_ip_address.return_value = "127.0.0.1"
+        self.mock.return_value = "127.0.0.1"
 
         self.url = factories.CustomerFactory.get_list_url()
 
@@ -1244,7 +1248,7 @@ class CustomerInetFilterTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
 
     def test_filter_breaks_if_ip_address_is_not_defined(self):
-        self.mock.get_ip_address.return_value = None
+        self.mock.return_value = None
 
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)

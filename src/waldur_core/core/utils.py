@@ -541,6 +541,87 @@ def get_ip_address(request: HttpRequest) -> str | None:
     return None
 
 
+def _strip_port(value: str) -> str:
+    """Drop a ``host:port`` suffix, leaving a bare address.
+
+    Azure Application Gateway writes ``1.2.3.4:5678`` into X-Forwarded-For, and
+    under fail-closed enforcement an unparseable hop denies a valid token. Only
+    the two unambiguous forms are stripped: a bracketed IPv6 literal, and a
+    single-colon IPv4 pair — a bare IPv6 address is itself full of colons, so
+    the colon count is what stops us truncating one into garbage. A non-numeric
+    port is left in place so the address fails to parse rather than being
+    silently accepted.
+    """
+    if value.startswith("["):
+        host, separator, port = value.partition("]:")
+        if separator and port.isdigit():
+            return host[1:]
+        return value
+    if value.count(":") == 1:
+        host, _, port = value.partition(":")
+        try:
+            ipaddress.IPv4Address(host)
+        except ValueError:
+            return value
+        if port.isdigit():
+            return host
+    return value
+
+
+def _normalize_ip(
+    value: str | None,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Parse an address, unwrapping IPv4-mapped IPv6, or return None.
+
+    A dual-stack listener reports IPv4 clients as ``::ffff:203.0.113.5``.
+    Unwrapping means such a client matches an IPv4 ACL entry and gets logged
+    under its real address, instead of being denied on a version mismatch.
+    """
+    if not value:
+        return None
+    try:
+        addr = ipaddress.ip_address(_strip_port(value))
+    except ValueError:
+        return None
+    if addr.version == 6 and addr.ipv4_mapped:
+        addr = addr.ipv4_mapped
+    return addr
+
+
+def ip_in_networks(address: str | None, networks: list[str]) -> bool:
+    """Return True when ``address`` falls inside any of ``networks``.
+
+    Malformed input never matches — this backs an allowlist, so anything we
+    cannot parse must not be treated as permitted.
+    """
+    if not address or not networks:
+        return False
+    addr = _normalize_ip(address)
+    if addr is None:
+        return False
+    for entry in networks:
+        try:
+            if addr in ipaddress.ip_network(entry, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def normalize_ip_address(value: str | None) -> str | None:
+    """Canonical string form of an IP address, or None if it does not parse.
+
+    Unwraps IPv4-mapped IPv6 and strips a ``host:port`` suffix, so the
+    ingress-provided address is stored and logged in one canonical form.
+    Anything unparseable becomes None — callers treat that as "no address"
+    and, for a security control, fail closed. Keeping the value clean also
+    matters because it flows on into event-message ``.format()`` templates,
+    cache keys and ``last_used_ip`` (an inet column) unescaped.
+    """
+    address = _normalize_ip(value)
+    return str(address) if address is not None else None
+
+
 def merge_access_subnets(inet_values):
     """Collapse CIDR strings into the minimal list of networks.
 

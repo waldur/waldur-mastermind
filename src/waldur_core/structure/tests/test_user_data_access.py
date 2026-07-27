@@ -303,6 +303,51 @@ class GetClientIpTest(test.APITestCase):
         request.META["HTTP_X_FORWARDED_FOR"] = "10.0.0.1, 192.168.1.1"
         self.assertEqual(get_client_ip(request), "10.0.0.1")
 
+    def test_ipv6_is_canonicalised(self):
+        """One client must not reach the audit log under two spellings.
+
+        ``ip_address`` is queried to answer "every access from X"; a raw
+        mixed-case value and its canonical form are different strings, so the
+        same accessor would split across rows the query cannot join.
+        """
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "2001:DB8::1"
+        self.assertEqual(get_client_ip(request), "2001:db8::1")
+
+    def test_ipv4_mapped_ipv6_is_unwrapped(self):
+        """A dual-stack listener reports IPv4 clients as ``::ffff:10.0.0.1``."""
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "::ffff:10.0.0.1"
+        self.assertEqual(get_client_ip(request), "10.0.0.1")
+
+    def test_host_port_suffix_is_stripped(self):
+        """Azure Application Gateway writes ``host:port`` into X-Forwarded-For.
+
+        Rejecting it outright loses the accessor's address from the GDPR audit
+        record entirely, which is worse than recording the host part.
+        """
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "10.0.0.1:5678"
+        self.assertEqual(get_client_ip(request), "10.0.0.1")
+
+    def test_unparseable_address_is_logged(self):
+        """Dropping the address silently hides a misconfigured proxy."""
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "not-an-ip-at-all"
+        with self.assertLogs(
+            "waldur_core.structure.utils_data_access", level="WARNING"
+        ) as cm:
+            self.assertIsNone(get_client_ip(request))
+        self.assertIn("not-an-ip-at-all", "".join(cm.output))
+
 
 class LogUserDataAccessTransactionSafetyTest(test.APITestCase):
     """Test that data access logging does not corrupt the outer DB transaction."""

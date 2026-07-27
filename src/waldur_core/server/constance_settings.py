@@ -1690,6 +1690,17 @@ CONSTANCE_CONFIG = {
         20,
         "Maximum number of active PATs per user.",
     ),
+    "PAT_MAX_ACL_ENTRIES": (
+        20,
+        "Maximum number of network ACL entries per personal access token.",
+    ),
+    "PAT_MAX_AUDIT_EVENTS_PER_HOUR": (
+        50,
+        "Maximum audit events a single personal access token may generate per "
+        "hour, counted separately for source-address changes and for "
+        "rejections. Bounds the event table against a caller who holds one "
+        "valid token and rotates source addresses.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -2093,6 +2104,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "PAT_ENABLED",
         "PAT_MAX_LIFETIME_DAYS",
         "PAT_MAX_TOKENS_PER_USER",
+        "PAT_MAX_ACL_ENTRIES",
+        "PAT_MAX_AUDIT_EVENTS_PER_HOUR",
     ),
     "Site Agent Logs": ("SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY",),
 }

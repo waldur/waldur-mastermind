@@ -7,7 +7,9 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import (
     chunked_queryset,
     get_ip_address,
+    ip_in_networks,
     merge_access_subnets,
+    normalize_ip_address,
 )
 
 
@@ -127,3 +129,71 @@ class MergeAccessSubnetsTest(TestCase):
 
     def test_empty_input(self):
         self.assertEqual(merge_access_subnets([]), [])
+
+
+class IpInNetworksTest(TestCase):
+    def test_address_inside_network(self):
+        self.assertTrue(ip_in_networks("203.0.113.5", ["203.0.113.0/24"]))
+
+    def test_address_outside_network(self):
+        self.assertFalse(ip_in_networks("198.51.100.5", ["203.0.113.0/24"]))
+
+    def test_ipv6_match(self):
+        self.assertTrue(ip_in_networks("2001:db8::1", ["2001:db8::/32"]))
+
+    def test_version_mismatch_does_not_match(self):
+        self.assertFalse(ip_in_networks("203.0.113.5", ["2001:db8::/32"]))
+
+    def test_ipv4_mapped_ipv6_matches_ipv4_network(self):
+        # A dual-stack listener reports IPv4 clients as ::ffff:203.0.113.5.
+        # Without unwrapping, the version mismatch would deny a legitimate
+        # client under fail-closed enforcement.
+        self.assertTrue(ip_in_networks("::ffff:203.0.113.5", ["203.0.113.0/24"]))
+
+    def test_ipv4_mapped_ipv6_outside_network_does_not_match(self):
+        self.assertFalse(ip_in_networks("::ffff:198.51.100.9", ["203.0.113.0/24"]))
+
+    def test_none_never_matches(self):
+        self.assertFalse(ip_in_networks(None, ["203.0.113.0/24"]))
+
+    def test_garbage_never_matches(self):
+        self.assertFalse(ip_in_networks("not-an-ip", ["203.0.113.0/24"]))
+
+    def test_address_with_port_is_matched(self):
+        # get_ip_address returns the raw header value; a proxy that appends
+        # host:port to X-Forwarded-For must still resolve to a matching address.
+        self.assertTrue(ip_in_networks("203.0.113.5:5678", ["203.0.113.0/24"]))
+
+    def test_bracketed_ipv6_with_port_is_matched(self):
+        self.assertTrue(ip_in_networks("[2001:db8::1]:5678", ["2001:db8::/32"]))
+
+    def test_garbage_port_never_matches(self):
+        self.assertFalse(ip_in_networks("203.0.113.5:notaport", ["203.0.113.0/24"]))
+
+
+class NormalizeIpAddressTest(TestCase):
+    def test_plain_ipv4(self):
+        self.assertEqual(normalize_ip_address("203.0.113.5"), "203.0.113.5")
+
+    def test_plain_ipv6_is_canonicalised(self):
+        self.assertEqual(normalize_ip_address("2001:DB8::1"), "2001:db8::1")
+
+    def test_ipv4_mapped_ipv6_is_unwrapped(self):
+        self.assertEqual(normalize_ip_address("::ffff:203.0.113.5"), "203.0.113.5")
+
+    def test_host_port_is_stripped(self):
+        self.assertEqual(normalize_ip_address("1.2.3.4:5678"), "1.2.3.4")
+
+    def test_bracketed_ipv6_port_is_stripped(self):
+        self.assertEqual(normalize_ip_address("[2001:db8::1]:5678"), "2001:db8::1")
+
+    def test_garbage_returns_none(self):
+        self.assertIsNone(normalize_ip_address("not-an-ip"))
+
+    def test_braces_return_none(self):
+        # A format-placeholder-looking header must never survive to an event
+        # message .format() template or an inet column.
+        self.assertIsNone(normalize_ip_address("{oops}"))
+
+    def test_none_returns_none(self):
+        self.assertIsNone(normalize_ip_address(None))

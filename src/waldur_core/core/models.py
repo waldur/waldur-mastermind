@@ -32,6 +32,7 @@ from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
     is_potentially_dangerous_regex,
+    normalize_network_acl,
     validate_gender,
     validate_iso_3166_alpha2,
     validate_name,
@@ -1466,6 +1467,10 @@ class PersonalAccessToken(UuidMixin, NameMixin, TimeStampedModel):
     # List of {"content_type_id": int, "object_id": int}.
     # Empty list = no entity restriction (the permission allowlist still applies).
     allowed_scopes = models.JSONField(default=list, blank=True)
+    # List of canonical CIDR strings. Empty list = no network restriction.
+    allowed_networks = models.JSONField(
+        default=list, blank=True, validators=[normalize_network_acl]
+    )
     expires_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)
     last_used_at = models.DateTimeField(null=True, blank=True)

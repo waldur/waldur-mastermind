@@ -137,6 +137,58 @@ def validate_cidr_list(value):
         )
 
 
+def normalize_network_acl(entries: list[str]) -> list[str]:
+    """Validate and canonicalise a list of CIDR strings for a network ACL.
+
+    Bare addresses are widened to /32 or /128. Entries with host bits set are
+    rejected rather than silently masked — in an access-control list, silently
+    turning 203.0.113.5/24 into a whole /24 would grant far more than intended.
+    """
+    if not isinstance(entries, list):
+        raise ValidationError(
+            _("Network ACL must be a list of CIDR strings."),
+            code="invalid_network_acl",
+        )
+
+    normalized = []
+    for entry in entries:
+        if not isinstance(entry, str) or not entry.strip():
+            raise ValidationError(
+                _("Network ACL entries must be non-empty strings."),
+                code="invalid_network_acl",
+            )
+        item = entry.strip()
+        try:
+            network = ipaddress.ip_network(item, strict=True)
+        except ValueError:
+            try:
+                suggestion = ipaddress.ip_network(item, strict=False)
+            except ValueError:
+                raise ValidationError(
+                    _("%(entry)s is not a valid IP address or CIDR network."),
+                    code="invalid_network_acl",
+                    params={"entry": item},
+                ) from None
+            raise ValidationError(
+                _("%(entry)s has host bits set; use %(suggestion)s instead."),
+                code="invalid_network_acl",
+                params={"entry": item, "suggestion": str(suggestion)},
+            ) from None
+
+        if network.prefixlen == 0:
+            raise ValidationError(
+                _("%(entry)s allows every address; leave the list empty instead."),
+                code="invalid_network_acl",
+                params={"entry": item},
+            )
+
+        text = str(network)
+        if text not in normalized:
+            normalized.append(text)
+
+    return normalized
+
+
 @deconstructible
 class BlacklistValidator:
     message = _("This value is blacklisted.")

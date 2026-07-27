@@ -9,6 +9,7 @@ from constance import config
 from django.conf import settings
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
+from django.db.models import F
 from django.db.models.functions import Now
 from django.http import HttpRequest
 from django.utils import timezone
@@ -30,7 +31,10 @@ from rest_framework.exceptions import AuthenticationFailed
 import waldur_core.core.middleware
 import waldur_core.logging.middleware
 from waldur_core.core import models
+from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 
 logger = logging.getLogger(__name__)
 
@@ -265,72 +269,237 @@ class PATAuthentication(BaseAuthentication):
         if not config.PAT_ENABLED:
             return None
 
-        import hashlib as _hashlib
-
-        from waldur_core.core.models import PersonalAccessToken
-
-        token_hash = _hashlib.sha256(raw_token.encode()).hexdigest()
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
 
         try:
-            pat = PersonalAccessToken.objects.select_related("user").get(
+            pat = models.PersonalAccessToken.objects.select_related("user").get(
                 token_hash=token_hash
             )
-        except PersonalAccessToken.DoesNotExist:
+        except models.PersonalAccessToken.DoesNotExist:
             raise AuthenticationFailed("Invalid token.")
 
+        # Resolve the client address once, from the ingress-provided header —
+        # the same resolver AccessSubnet, marketplace filters and the audit
+        # trail use. The ingress is the trust boundary for X-Forwarded-For,
+        # mirroring its whitelistSourceRange. Normalise it: get_ip_address
+        # returns the raw, client-controlled header, and the value flows on
+        # into event-message .format() templates, cache keys and last_used_ip
+        # (an inet column). Anything unparseable becomes None and fails closed.
+        client_ip = core_utils.normalize_ip_address(core_utils.get_ip_address(request))
+
+        # A known token presented after it should no longer work is a credential
+        # replay signal, so each rejection is audited (debounced per token,
+        # reason and IP). The token-not-found branch above is deliberately not
+        # audited: with no token record there is nothing to debounce on, so it
+        # would be an unbounded log-flood vector.
         if not pat.is_active:
+            self._emit_authentication_rejected(pat, "revoked", client_ip)
             raise AuthenticationFailed("Invalid token.")
 
         if not pat.user.is_active:
+            self._emit_authentication_rejected(pat, "user_inactive", client_ip)
             raise AuthenticationFailed("Invalid token.")
 
         if not pat.user.can_use_personal_access_tokens:
+            self._emit_authentication_rejected(pat, "permission_revoked", client_ip)
             raise AuthenticationFailed("Invalid token.")
 
         if pat.is_expired:
             raise AuthenticationFailed("Invalid token.")
 
+        # This block must stay above _update_usage: a denied request must not
+        # record attacker-controlled state (use_count, last_used_ip), and must
+        # not be able to burn the pat_usage debounce key that suppresses the
+        # owner's genuine PAT_USED_FROM_NEW_IP alert.
+        if pat.allowed_networks:
+            if not core_utils.ip_in_networks(client_ip, pat.allowed_networks):
+                self._emit_access_denied(pat, client_ip)
+                # Deliberately the same generic message as every other failure
+                # branch — the response must not confirm the token is valid.
+                raise AuthenticationFailed("Invalid token.")
+
         # Update usage stats with batched writes (debounce via cache)
-        client_ip = self._get_client_ip(request)
         self._update_usage(pat, client_ip)
 
         set_user_context(pat.user, skip_token_check=True)
         return (pat.user, pat)
 
+    # Human-readable reason for each known-token rejection audited by
+    # _emit_authentication_rejected. The key is also stored verbatim in the
+    # event context as `reason`, so the frontend renders without re-deriving it.
+    _REJECTION_PHRASES = {
+        "revoked": "the token has been revoked",
+        "user_inactive": "the owner account is inactive",
+        "permission_revoked": "the owner may no longer use personal access tokens",
+    }
+
     @staticmethod
-    def _get_client_ip(request):
-        xff = request.META.get("HTTP_X_FORWARDED_FOR")
-        if xff:
-            return xff.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR")
+    def _consume_event_budget(pat, bucket: str) -> bool:
+        """Per-token hourly ceiling on audit side effects. True while under it.
+
+        The per-(token, IP) debounces elsewhere in this class bound repeats
+        from one address but not the number of addresses — an IPv6 /64 supplies
+        effectively unlimited ones. Without a ceiling, one valid token is
+        enough to grow the event table, the feed and the notification queue
+        without bound.
+
+        Buckets are counted independently so a rejection flood cannot starve
+        the owner's genuine new-IP audit trail, or the reverse.
+        """
+        key = f"pat_event_budget:{bucket}:{pat.pk}"
+        cache.add(key, 0, timeout=3600)
+        try:
+            used = cache.incr(key)
+        except ValueError:
+            # The key expired between add and incr — start a fresh window.
+            cache.set(key, 1, timeout=3600)
+            used = 1
+
+        ceiling = config.PAT_MAX_AUDIT_EVENTS_PER_HOUR
+        if used == ceiling + 1:
+            # Log exactly once per window: a silent cap reads as "nothing
+            # happened" when the truth is "we stopped recording".
+            logger.warning(
+                "Personal access token %s hit the hourly audit ceiling of %s "
+                "events in bucket %s; further events and usage writes are "
+                "suppressed for the rest of the window.",
+                pat.uuid.hex,
+                ceiling,
+                bucket,
+            )
+        return used <= ceiling
+
+    @staticmethod
+    def _emit_pat_rejection(
+        pat, event_type, message, source_ip, cache_key, extra_context=None
+    ):
+        # Debounce the audit event only — never the denial itself, which is
+        # raised by the caller on every single request. Otherwise a stolen
+        # token hammered from off-network turns each rejection into two hook
+        # queries plus Event/Feed inserts and a notification task, letting an
+        # attacker grow the event table and flood the owner's inbox at will.
+        # Keyed per source IP as well as per token so that a denial from a
+        # genuinely new address still produces a record instead of being
+        # swallowed by an earlier attacker's suppression key.
+        #
+        # cache.add is an atomic set-if-absent: it returns False when the key
+        # already holds a value, so two concurrent rejections collapse to one
+        # audit event. A plain get-then-set would let both requests observe an
+        # empty key and each emit. 10 min debounce.
+        if not cache.add(cache_key, True, timeout=600):
+            return
+
+        # Ceiling checked after the debounce so repeats from one address do not
+        # burn budget that a genuinely new address should get.
+        if not PATAuthentication._consume_event_budget(pat, "reject"):
+            return
+
+        # pat.name is user-controlled and emit() runs .format() over the
+        # template, so it is passed as a context value rather than inlined —
+        # a name containing braces would otherwise raise and turn this 401
+        # into a 500, telling the caller the token is real.
+        context = {
+            "affected_user": pat.user,
+            "pat_uuid": pat.uuid.hex,
+            "pat_name": pat.name,
+            "source_ip": source_ip or "",
+        }
+        if extra_context:
+            context.update(extra_context)
+        event_logger.emit(
+            message,
+            event_type=event_type,
+            event_context=context,
+            scopes=[pat.user],
+        )
+
+    @staticmethod
+    def _emit_access_denied(pat, source_ip):
+        PATAuthentication._emit_pat_rejection(
+            pat,
+            EventType.PAT_ACCESS_DENIED_FROM_IP,
+            "Personal access token {pat_name} for user "
+            "{affected_user_username} was rejected: source address "
+            f"{source_ip or 'unknown'} is outside the token network ACL.",
+            source_ip,
+            f"pat_acl_denied:{pat.pk}:{source_ip or 'unknown'}",
+        )
+
+    @staticmethod
+    def _emit_authentication_rejected(pat, reason, source_ip):
+        phrase = PATAuthentication._REJECTION_PHRASES[reason]
+        PATAuthentication._emit_pat_rejection(
+            pat,
+            EventType.PAT_AUTHENTICATION_REJECTED,
+            "Personal access token {pat_name} for user "
+            "{affected_user_username} was rejected from "
+            f"{source_ip or 'unknown'}: {phrase}.",
+            source_ip,
+            f"pat_auth_rejected:{pat.pk}:{reason}:{source_ip or 'unknown'}",
+            extra_context={"reason": reason},
+        )
 
     @staticmethod
     def _update_usage(pat, client_ip):
-        cache_key = f"pat_usage:{pat.pk}"
-        if not cache.get(cache_key):
-            # Check for new IP before updating
-            if pat.last_used_ip and client_ip and pat.last_used_ip != client_ip:
-                from waldur_core.logging import event_logger as _event_logger
-                from waldur_core.logging.enums import EventType
+        # The new-IP check sits outside the pat_usage debounce below: it is a
+        # cheap in-memory comparison, and gating it on a token-wide key would
+        # hide exactly the replay-from-elsewhere case it exists to catch.
+        ip_changed = bool(
+            pat.last_used_ip and client_ip and pat.last_used_ip != client_ip
+        )
 
-                _event_logger.emit(
-                    f"Personal access token {pat.name} for user "
-                    f"{{affected_user_username}} used from new IP {client_ip} "
-                    f"(previous: {pat.last_used_ip}).",
+        # One budget unit per source-address change, spent whether or not the
+        # change produces an event. It gates the write-through as well as the
+        # emit: both are attacker-triggerable by rotating addresses, and
+        # bounding only the emit would still leave one UPDATE per request.
+        within_budget = ip_changed and PATAuthentication._consume_event_budget(
+            pat, "churn"
+        )
+
+        if within_budget:
+            # Debounce the audit event per (token, IP) so an alternating pair of
+            # addresses lands one event each, not one per request. Keyed per IP
+            # so suppression never extends forward to an address not yet seen.
+            #
+            # cache.add is an atomic set-if-absent returning True only for the
+            # request that actually created the key, so concurrent first-uses
+            # from the same new address emit exactly one event instead of
+            # racing between get and set. 10 min debounce.
+            emit_key = f"pat_new_ip:{pat.pk}:{client_ip}"
+            if cache.add(emit_key, True, timeout=600):
+                # pat.name is user-controlled and emit() runs .format() over the
+                # template, so it is passed as a context value rather than
+                # inlined — a name containing braces would otherwise raise and
+                # turn the owner's first use from a new address into a 500.
+                event_logger.emit(
+                    "Personal access token {pat_name} for user "
+                    "{affected_user_username} used from new IP "
+                    f"{client_ip} (previous: {pat.last_used_ip}).",
                     event_type=EventType.PAT_USED_FROM_NEW_IP,
-                    event_context={"affected_user": pat.user},
+                    event_context={
+                        "affected_user": pat.user,
+                        "pat_uuid": pat.uuid.hex,
+                        "pat_name": pat.name,
+                        "source_ip": client_ip or "",
+                    },
                     scopes=[pat.user],
                 )
 
-            from django.db.models import F
+        cache_key = f"pat_usage:{pat.pk}"
+        # A budgeted IP change writes through the debounce: leaving
+        # last_used_ip stale would make the `previous:` field of the next event
+        # report the address from two hops back. Over budget the write-through
+        # stops and the plain per-token debounce takes over — that is what
+        # bounds the UPDATE rate under address churn.
+        if cache.get(cache_key) and not within_budget:
+            return
 
-            PersonalAccessToken = pat.__class__
-            PersonalAccessToken.objects.filter(pk=pat.pk).update(
-                last_used_at=timezone.now(),
-                last_used_ip=client_ip,
-                use_count=F("use_count") + 1,
-            )
-            cache.set(cache_key, True, timeout=600)  # 10 min debounce
+        models.PersonalAccessToken.objects.filter(pk=pat.pk).update(
+            last_used_at=timezone.now(),
+            last_used_ip=client_ip,
+            use_count=F("use_count") + 1,
+        )
+        cache.set(cache_key, True, timeout=600)  # 10 min debounce
 
 
 class OIDCAuthentication(BaseAuthentication):

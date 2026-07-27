@@ -18,9 +18,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rest_framework.filters import BaseFilterBackend
 
+from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import TYPE_KEY_BY_CT
-from waldur_core.permissions.utils import _is_pat_auth, _pat_allowed_pairs
+from waldur_core.permissions.utils import _pat_allowed_pairs
 
 # Builders return None when no binding matches the model — the caller
 # should treat that as ``queryset.none()`` to deny everything.
@@ -88,7 +89,7 @@ class PATScopeListFilter(BaseFilterBackend):
         if isinstance(request, User):
             return queryset
         auth = getattr(request, "auth", None)
-        if not _is_pat_auth(auth):
+        if not is_pat_auth(auth):
             return queryset
         if not _pat_allowed_pairs(auth):
             # Unscoped PAT — no entity restriction to apply.

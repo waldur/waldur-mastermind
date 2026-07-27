@@ -74,6 +74,12 @@ class EventFilter(django_filters.FilterSet):
     user_uuid = core_filters.RelatedUUIDFilter(
         view_name="user-detail", method="filter_user_uuid", label="User UUID"
     )
+    auth_method = django_filters.CharFilter(
+        method="filter_auth_method", label="Authentication method"
+    )
+    pat_uuid = django_filters.CharFilter(
+        method="filter_pat_uuid", label="Personal access token UUID"
+    )
     o = django_filters.OrderingFilter(fields=("created",))
 
     class Meta:
@@ -88,6 +94,12 @@ class EventFilter(django_filters.FilterSet):
 
     def filter_user_uuid(self, queryset, name, value):
         return queryset.filter(context__user_uuid=value.hex)
+
+    def filter_auth_method(self, queryset, name, value):
+        return queryset.filter(context__auth_method=value)
+
+    def filter_pat_uuid(self, queryset, name, value):
+        return queryset.filter(context__pat_uuid=value)
 
 
 class EventFilterBackend(filters.BaseFilterBackend):

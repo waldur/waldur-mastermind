@@ -75,6 +75,7 @@ from waldur_core.core.serializers import (
     ObtainAuthTokenSerializer,
     PersonalAccessTokenCreatedSerializer,
     PersonalAccessTokenCreateSerializer,
+    PersonalAccessTokenNetworkAclSerializer,
     PersonalAccessTokenSerializer,
     QuerySerializer,
     TableGrowthStatsResponseSerializer,
@@ -2173,7 +2174,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         # Block PAT-via-PAT for management endpoints
-        if self.action in ("create", "destroy", "rotate"):
+        if self.action in ("create", "destroy", "rotate", "set_network_acl"):
             auth = getattr(request, "auth", None)
             if auth and hasattr(auth, "token_hash"):
                 raise exceptions.PermissionDenied(
@@ -2190,10 +2191,15 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         pat = serializer.save()
 
+        # pat.name is user-controlled and emit() runs .format() over the
+        # template, so it is passed as a context value rather than inlined —
+        # a name with braces would otherwise raise inside emit and turn a
+        # succeeded create into a 500.
         event_logger.emit(
-            f"Personal access token {pat.name} has been created for user {{affected_user_username}}.",
+            "Personal access token {pat_name} has been created for user "
+            "{affected_user_username}.",
             event_type=EventType.PAT_CREATED,
-            event_context={"affected_user": request.user},
+            event_context={"affected_user": request.user, "pat_name": pat.name},
             scopes=[request.user],
         )
 
@@ -2204,6 +2210,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 "token": pat._plaintext_token,
                 "scopes": pat.scopes,
                 "allowed_scopes": _serialize_allowed_scopes(pat.allowed_scopes),
+                "allowed_networks": pat.allowed_networks,
                 "expires_at": pat.expires_at,
                 "created": pat.created,
             }
@@ -2222,10 +2229,13 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         pat.is_active = False
         pat.save(update_fields=["is_active"])
 
+        # See the create emitter: name is user-controlled and emit() formats
+        # the template, so it goes through a placeholder, not the template body.
         event_logger.emit(
-            f"Personal access token {pat.name} has been revoked for user {{affected_user_username}}.",
+            "Personal access token {pat_name} has been revoked for user "
+            "{affected_user_username}.",
             event_type=EventType.PAT_REVOKED,
-            event_context={"affected_user": request.user},
+            event_context={"affected_user": request.user, "pat_name": pat.name},
             scopes=[request.user],
         )
 
@@ -2239,11 +2249,9 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     @action(detail=True, methods=["post"])
     def rotate(self, request, uuid=None):
         """Atomically revoke the old token and create a new one with the same scopes and bindings."""
-        from django.db import transaction as db_transaction
-
         old_pat = self.get_object()
 
-        with db_transaction.atomic():
+        with transaction.atomic():
             # Lock the row
             locked = models.PersonalAccessToken.objects.select_for_update().get(
                 pk=old_pat.pk
@@ -2262,6 +2270,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 token_hash=token_hash,
                 scopes=locked.scopes,
                 allowed_scopes=locked.allowed_scopes,
+                allowed_networks=locked.allowed_networks,
                 expires_at=locked.expires_at,
             )
 
@@ -2269,10 +2278,13 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
             locked.is_active = False
             locked.save(update_fields=["is_active"])
 
+        # See the create emitter: name is user-controlled and emit() formats
+        # the template, so it goes through a placeholder, not the template body.
         event_logger.emit(
-            f"Personal access token {new_pat.name} has been rotated for user {{affected_user_username}}.",
+            "Personal access token {pat_name} has been rotated for user "
+            "{affected_user_username}.",
             event_type=EventType.PAT_ROTATED,
-            event_context={"affected_user": request.user},
+            event_context={"affected_user": request.user, "pat_name": new_pat.name},
             scopes=[request.user],
         )
 
@@ -2283,6 +2295,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 "token": full_token,
                 "scopes": new_pat.scopes,
                 "allowed_scopes": _serialize_allowed_scopes(new_pat.allowed_scopes),
+                "allowed_networks": new_pat.allowed_networks,
                 "expires_at": new_pat.expires_at,
                 "created": new_pat.created,
             }
@@ -2291,6 +2304,59 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         response = Response(response_data, status=status.HTTP_201_CREATED)
         response["Cache-Control"] = "no-store"
         return response
+
+    @extend_schema(
+        summary="Replace the network ACL of a personal access token",
+        request=PersonalAccessTokenNetworkAclSerializer,
+        responses={200: PersonalAccessTokenSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_network_acl(self, request, uuid=None):
+        """Replace the token's source-network allowlist.
+
+        A dedicated action rather than PATCH: update/partial_update stay
+        disabled on this viewset, and the change gets its own audit event.
+        """
+        pat = self.get_object()
+        serializer = PersonalAccessTokenNetworkAclSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_networks = serializer.validated_data["allowed_networks"]
+
+        with transaction.atomic():
+            # Same lock rotate takes. Without it a concurrent rotate can copy
+            # the pre-edit ACL onto the new token while the user believes they
+            # tightened it. Serialised, the loser either reads the fresh ACL or
+            # fails cleanly on a token that is no longer active.
+            locked = models.PersonalAccessToken.objects.select_for_update().get(
+                pk=pat.pk
+            )
+            if not locked.is_active:
+                raise ValidationError(
+                    "Cannot change the network ACL of an inactive token."
+                )
+            old_networks = list(locked.allowed_networks or [])
+            locked.allowed_networks = new_networks
+            locked.save(update_fields=["allowed_networks"])
+
+        pat = locked
+
+        # See the create emitter: name is user-controlled and emit() formats
+        # the template, so it goes through a placeholder, not the template body.
+        event_logger.emit(
+            "Network ACL of personal access token {pat_name} has been updated "
+            "for user {affected_user_username}.",
+            event_type=EventType.PAT_NETWORK_ACL_UPDATED,
+            event_context={
+                "affected_user": request.user,
+                "pat_uuid": pat.uuid.hex,
+                "pat_name": pat.name,
+                "old_allowed_networks": old_networks,
+                "new_allowed_networks": new_networks,
+            },
+            scopes=[request.user],
+        )
+
+        return Response(PersonalAccessTokenSerializer(pat).data)
 
     @extend_schema(
         summary="List available scopes for PAT creation",

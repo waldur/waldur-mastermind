@@ -2,38 +2,35 @@
 Utility functions for user data access logging.
 """
 
-import ipaddress
 import logging
 
 from constance import config
 from django.db import transaction
 
+from waldur_core.core import utils as core_utils
+
 logger = logging.getLogger(__name__)
 
 
 def get_client_ip(request):
-    """
-    Extract client IP address from request.
+    """Canonical client IP address for the audit record, or None.
 
-    Handles both direct connections and proxied requests (X-Forwarded-For).
+    Resolution and normalisation are delegated to the platform-wide helpers so
+    this log spells an address the same way every other audit surface does. A
+    mixed-case IPv6 literal, its canonical form and its IPv4-mapped wrapper are
+    three different strings for one client, which would split an accessor
+    across rows that "every access from X" cannot join.
     """
     if request is None:
         return None
 
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0].strip()
-    else:
-        ip = request.META.get("REMOTE_ADDR")
-
-    if ip:
-        try:
-            ipaddress.ip_address(ip)
-        except ValueError:
-            logger.warning("Invalid IP address in request: %s", ip)
-            return None
-
-    return ip
+    raw = core_utils.get_ip_address(request)
+    address = core_utils.normalize_ip_address(raw)
+    if raw and address is None:
+        # Dropping it silently would hide a misconfigured proxy: the column is
+        # nullable, so an unparseable value is indistinguishable from no header.
+        logger.warning("Invalid IP address in request: %s", raw)
+    return address
 
 
 def determine_accessor_type(accessor, target_user):
