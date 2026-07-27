@@ -373,11 +373,7 @@ class ConflictOfInterestFilter(django_filters.FilterSet):
         fields = []
 
     def filter_reviewer_name(self, queryset, name, value):
-        return queryset.filter(
-            Q(reviewer__user__first_name__icontains=value)
-            | Q(reviewer__user__last_name__icontains=value)
-            | Q(reviewer__user__full_name__icontains=value)
-        )
+        return core_filters.filter_by_full_name(queryset, value, "reviewer__user")
 
 
 class COIDisclosureFormFilter(django_filters.FilterSet):
