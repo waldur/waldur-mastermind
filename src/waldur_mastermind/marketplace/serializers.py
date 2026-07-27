@@ -5480,11 +5480,16 @@ class OrderCreateSerializer(
             attributes=attributes,
             name=attributes.get("name") or "",
         )
-        # Set end_date BEFORE init_cost so prepaid duration is included
+        # Set end_date BEFORE init_cost so prepaid duration is included.
+        # Use order start_date as offset base when it is in the future so
+        # max/default termination offsets measure resource lifetime from
+        # provisioning, not from order submission (aligned with Homeport).
         end_date = validate_end_date(
             resource.offering,
             resource.created.date(),
             parse_date(attributes.get("end_date")),
+            start_date=validated_data.get("start_date"),
+            project_end_date=project.end_date,
         )
         if end_date:
             resource.end_date = end_date
@@ -6694,10 +6699,15 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
                 )
 
         # The utility function handles all other cases (max offset, required date, etc.)
+        # Termination offsets are measured from the creation order's start_date
+        # when provisioning was delayed, same as at order creation time.
+        creation_order = resource.creation_order
         end_date = validate_end_date(
             offering=resource.offering,
             created_date=resource.created.date(),
             end_date=end_date,
+            start_date=creation_order.start_date if creation_order else None,
+            project_end_date=resource.project.end_date if resource.project else None,
         )
         return end_date
 
