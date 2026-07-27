@@ -11,7 +11,7 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0252_offeringaccesssubnet"),
+        ("marketplace", "0253_resourceapikey"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
