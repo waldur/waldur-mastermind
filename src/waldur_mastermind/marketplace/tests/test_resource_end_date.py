@@ -126,6 +126,38 @@ class ResourceUpdateTest(test.APITestCase):
             response.data["end_date"], self.fixture.resource.end_date, end_date
         )
 
+    def test_end_date_is_not_updated_if_later_than_project_end_date(self):
+        self.fixture.project.end_date = self.fixture.resource.created.date() + (
+            datetime.timedelta(days=20)
+        )
+        self.fixture.project.save()
+        self.fixture.resource.offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 7,
+            "max_resource_termination_offset_in_days": 100,
+        }
+        self.fixture.resource.offering.save()
+        end_date = self.fixture.project.end_date + datetime.timedelta(days=5)
+        response = self.make_request(self.fixture.staff, {"end_date": end_date})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_end_date_update_measures_max_offset_from_creation_order_start_date(self):
+        created_date = self.fixture.resource.created.date()
+        self.fixture.order.start_date = created_date + datetime.timedelta(days=60)
+        self.fixture.order.save()
+        self.fixture.resource.offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 7,
+            "max_resource_termination_offset_in_days": 120,
+        }
+        self.fixture.resource.offering.save()
+        # beyond created + 120 but within order start_date + 120
+        end_date = created_date + datetime.timedelta(days=150)
+        response = self.make_request(self.fixture.staff, {"end_date": end_date})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(self.fixture.resource.end_date, end_date)
+
     def test_end_date_is_not_updated_if_later_than_latest_date_for_resource_termination(
         self,
     ):

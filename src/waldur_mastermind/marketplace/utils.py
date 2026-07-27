@@ -3365,9 +3365,18 @@ def validate_end_date(
     offering: models.Offering,
     created_date: datetime.date,
     end_date: datetime.date | None = None,
+    *,
+    start_date: datetime.date | None = None,
+    project_end_date: datetime.date | None = None,
 ) -> None | datetime.date:
     """
     Validate or compute the resource end date based on plugin options.
+
+    Offset base is order ``start_date`` when it is later than ``created_date``
+    (delayed provisioning), otherwise ``created_date``. Max and default
+    dates are also capped by ``latest_date_for_resource_termination`` and
+    ``project_end_date`` when set.
+
     Raises ValidationError if constraints are violated or configuration is invalid.
     """
 
@@ -3378,19 +3387,37 @@ def validate_end_date(
     default_offset = options.get("default_resource_termination_offset_in_days")
 
     latest_date = parse_date(options.get("latest_date_for_resource_termination"))
+    today = timezone.now().date()
+    offset_base = (
+        start_date if start_date and start_date > created_date else created_date
+    )
 
     if end_date:
-        if end_date and end_date < timezone.datetime.today().date():
+        if end_date < today:
             raise serializers.ValidationError(
                 {"end_date": _("Cannot be earlier than the current date.")}
+            )
+
+        if start_date and end_date < start_date:
+            raise serializers.ValidationError(
+                {"end_date": _("End date cannot be earlier than the start date.")}
             )
 
         if latest_date and end_date > latest_date:
             raise serializers.ValidationError(
                 {"end_date": _("End date exceeds global termination limit.")}
             )
+        if project_end_date and end_date > project_end_date:
+            raise serializers.ValidationError(
+                {
+                    "end_date": _(
+                        "End date cannot be later than the project end date (%(project_end_date)s)."
+                    )
+                    % {"project_end_date": project_end_date}
+                }
+            )
         if isinstance(max_offset, int):
-            if end_date > created_date + datetime.timedelta(days=max_offset):
+            if end_date > offset_base + datetime.timedelta(days=max_offset):
                 raise serializers.ValidationError(
                     {"end_date": _("End date exceeds maximum allowed offset.")}
                 )
@@ -3404,11 +3431,9 @@ def validate_end_date(
             {"end_date": _("Missing default termination offset configuration.")}
         )
 
-    termination_date = created_date + datetime.timedelta(days=default_offset)
-    if latest_date:
-        return min(termination_date, latest_date)
-    else:
-        return termination_date
+    termination_date = offset_base + datetime.timedelta(days=default_offset)
+    caps = [d for d in (latest_date, project_end_date) if d]
+    return min([termination_date, *caps]) if caps else termination_date
 
 
 def sync_component_user_usage(allocation_user_usage, plugin_name):
