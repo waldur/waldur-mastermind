@@ -397,6 +397,33 @@ class ConflictOfInterestAPITest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
+    def test_manager_can_filter_conflicts_by_reviewer_name(self):
+        """Conflicts can be filtered by the reviewer's name."""
+        alice = structure_factories.UserFactory(
+            first_name="Alice", last_name="Reviewer"
+        )
+        conflict = factories.ConflictOfInterestFactory(
+            reviewer=factories.ReviewerProfileFactory(user=alice),
+            proposal=self.proposal,
+            call=self.call,
+        )
+        factories.ConflictOfInterestFactory(
+            reviewer=self.reviewer,
+            proposal=self.proposal,
+            call=self.call,
+        )
+
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(
+            "http://testserver/api/conflicts-of-interest/",
+            {"reviewer_name": "alice"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], conflict.uuid.hex)
+
     def test_manager_can_dismiss_conflict(self):
         """Call manager can dismiss a conflict."""
         conflict = factories.ConflictOfInterestFactory(
