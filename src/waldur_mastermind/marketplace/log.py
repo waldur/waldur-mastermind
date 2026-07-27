@@ -70,3 +70,52 @@ def log_resource_end_date_has_been_updated(resource, user, template=None):
         },
         scopes=get_resource_scopes(resource),
     )
+
+
+def get_resource_project_scopes(resource_project: models.ResourceProject):
+    resource = resource_project.resource
+    return [
+        resource_project,
+        resource,
+        resource.project,
+        resource.project.customer,
+    ]
+
+
+def log_resource_project_created(resource_project: models.ResourceProject):
+    event_logger.emit(
+        "Resource project {resource_project_name} has been created "
+        "in resource {resource_name}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_PROJECT_CREATED,
+        event_context={
+            "resource_project": resource_project,
+            "resource": resource_project.resource,
+        },
+        scopes=get_resource_project_scopes(resource_project),
+    )
+
+
+def log_resource_project_removed(resource_project: models.ResourceProject):
+    event_logger.emit(
+        "Resource project {resource_project_name} has been removed "
+        "from resource {resource_name}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_PROJECT_REMOVED,
+        event_context={
+            "resource_project": resource_project,
+            "resource": resource_project.resource,
+        },
+        scopes=get_resource_project_scopes(resource_project),
+    )
+
+
+def log_resource_project_recovered(resource_project: models.ResourceProject):
+    event_logger.emit(
+        "Resource project {resource_project_name} has been recovered "
+        "in resource {resource_name}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_PROJECT_RECOVERED,
+        event_context={
+            "resource_project": resource_project,
+            "resource": resource_project.resource,
+        },
+        scopes=get_resource_project_scopes(resource_project),
+    )

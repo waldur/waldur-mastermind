@@ -33,6 +33,11 @@ urlpatterns = [
         name="project-sync-user-roles",
     ),
     re_path(
+        r"^api/marketplace-provider-resources/(?P<uuid>[a-f0-9]+)/sync_user_roles/$",
+        views.ResourceSyncUserRolesView.as_view(),
+        name="marketplace-provider-resource-sync-user-roles",
+    ),
+    re_path(
         r"^api/marketplace-site-agent-stats/$",
         views.AgentStatsViewSet.as_view(),
         name="marketplace-site-agent-stats",

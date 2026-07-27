@@ -4380,6 +4380,15 @@ class ResourceProject(
             "Populated by backend synchronization."
         ),
     )
+    # Creation audit: who created the sub-project via the API. NULL for
+    # rows predating the field or created by system paths.
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_resource_projects",
+    )
     removed_date = models.DateTimeField(null=True, blank=True)
     removed_by = models.ForeignKey(
         User,
@@ -4398,6 +4407,9 @@ class ResourceProject(
     # available_objects is the active-only manager that viewsets use.
     objects = models.Manager()
     available_objects = SoftDeletableManager()
+
+    def get_log_fields(self):
+        return ("uuid", "name", "backend_id", "resource")
 
     class Meta:
         ordering = ["created"]
@@ -4536,6 +4548,75 @@ class ResourceProject(
             self._soft_delete(using=using, terminated_by=terminated_by)
         else:
             return super(SoftDeletableModel, self).delete(using=using, *args, **kwargs)
+
+
+class ResourceMemberSyncStatus(core_models.UuidMixin, TimeStampedModel):
+    """Agent-reported propagation state of a single role grant.
+
+    One row per (resource, user, scope, role name), written by the site
+    agent via ``set_membership_sync_statuses`` with full-replace-per-
+    resource semantics: the agent owns these rows, a report replaces the
+    resource's previous rows atomically, so a revoked grant's row cannot
+    outlive the grant. Enabled per offering via the
+    ``enable_membership_sync_status`` plugin option.
+
+    ``modified`` (TimeStampedModel) doubles as the reported-at
+    timestamp because rows are recreated on every report.
+    """
+
+    class States:
+        SYNCED = "synced"
+        PENDING = "pending"
+        MISSING_IN_IDP = "missing_in_idp"
+        ERROR = "error"
+
+        CHOICES = (
+            (SYNCED, "Synced"),
+            (PENDING, "Pending"),
+            (MISSING_IN_IDP, "Missing in identity provider"),
+            (ERROR, "Error"),
+        )
+
+    class ScopeTypes:
+        RESOURCE = "resource"
+        RESOURCE_PROJECT = "resource_project"
+
+        CHOICES = (
+            (RESOURCE, "Resource"),
+            (RESOURCE_PROJECT, "Resource project"),
+        )
+
+    resource = models.ForeignKey(
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="member_sync_statuses",
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+    scope_type = models.CharField(max_length=32, choices=ScopeTypes.CHOICES)
+    resource_project = models.ForeignKey(
+        ResourceProject,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="member_sync_statuses",
+    )
+    role_name = models.CharField(max_length=150)
+    state = models.CharField(max_length=32, choices=States.CHOICES)
+    message = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "Resource member sync status"
+        verbose_name_plural = "Resource member sync statuses"
+        indexes = [
+            models.Index(fields=["resource", "user"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} @ {self.resource.name} [{self.role_name}]: {self.state}"
 
 
 class IntegrationStatus(core_models.UuidMixin):

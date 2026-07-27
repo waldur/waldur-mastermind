@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -28,9 +29,13 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace_site_agent import filters, models, serializers
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
-from waldur_mastermind.marketplace_site_agent.utils import push_user_role_sync_message
+from waldur_mastermind.marketplace_site_agent.utils import (
+    push_resource_user_role_sync_message,
+    push_user_role_sync_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +108,71 @@ class ProjectSyncUserRolesView(generics.GenericAPIView):
         """
         project = self.get_object()
         push_user_role_sync_message(project)
+        return Response(status=status.HTTP_200_OK)
+
+
+class ResourceSyncUserRolesView(generics.GenericAPIView):
+    """Trigger user role synchronization for one resource.
+
+    Resource-scoped sibling of ProjectSyncUserRolesView: staff or a
+    provider-side user (UPDATE_OFFERING at offering or customer scope)
+    can ask the offering's agent to re-sync this resource's membership.
+    Requires the offering to opt in via enable_membership_sync_status —
+    the flag also gates the UI that exposes this action, so the button
+    and the badges it heals always appear together.
+    """
+
+    # Delivery rides the offering's event subscriptions; polling-only
+    # agents pick the state up on their next cycle regardless, so the
+    # trigger is best-effort by design.
+    THROTTLE_SECONDS = 30
+
+    queryset = marketplace_models.Resource.objects.all()
+    lookup_field = "uuid"
+    permission_classes = [rf_permissions.IsAuthenticated]
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.user.is_staff:
+            return
+        if has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, obj.offering
+        ) or has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, obj.offering.customer
+        ):
+            return
+        raise PermissionDenied()
+
+    @extend_schema(
+        description="Trigger user role sync for this resource. "
+        "Sends a notification to RabbitMQ that this resource needs user "
+        "role synchronization; agents without event subscriptions apply "
+        "the change on their next polling cycle.",
+        request=None,
+        responses={
+            200: None,
+            409: marketplace_serializers.DetailResponseSerializer,
+            429: marketplace_serializers.DetailResponseSerializer,
+        },
+    )
+    def post(self, request, *args, **kwargs):
+        """Trigger a user role sync message for this resource."""
+        resource = self.get_object()
+        if not (resource.offering.plugin_options or {}).get(
+            "enable_membership_sync_status"
+        ):
+            return Response(
+                {"detail": "Membership sync status is not enabled for this offering."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        throttle_key = f"resource-sync-user-roles-{resource.uuid.hex}"
+        if cache.get(throttle_key):
+            return Response(
+                {"detail": "Sync was already requested recently."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        cache.set(throttle_key, True, self.THROTTLE_SECONDS)
+        push_resource_user_role_sync_message(resource)
         return Response(status=status.HTTP_200_OK)
 
 

@@ -318,6 +318,14 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Enable sub-project management within resources.",
     )
+    enable_membership_sync_status = serializers.BooleanField(
+        required=False,
+        help_text=(
+            "Enable per-member sync status reporting by the site agent: "
+            "team views show whether each role grant has propagated to "
+            "the provider backend, and providers can trigger a resync."
+        ),
+    )
     enable_resource_access_subnets = serializers.BooleanField(
         required=False,
         help_text="If set to True, an Access subnets tab is shown on resource "
@@ -9188,6 +9196,9 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
     removed_by_username = serializers.CharField(
         source="removed_by.username", read_only=True, allow_null=True, default=None
     )
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True, allow_null=True, default=None
+    )
     # The model field is nullable; without allow_null the OpenAPI schema
     # declares it non-nullable and generated SDK clients call from_dict(None).
     termination_metadata = serializers.JSONField(read_only=True, allow_null=True)
@@ -9212,6 +9223,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "removed_date",
             "removed_by",
             "removed_by_username",
+            "created_by_username",
             "termination_metadata",
         )
         read_only_fields = (
@@ -9226,6 +9238,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "removed_date",
             "removed_by",
             "removed_by_username",
+            "created_by_username",
             "termination_metadata",
         )
         # Disable DRF auto-validators. The model has a partial UniqueConstraint
@@ -9436,7 +9449,57 @@ class ResourceProjectErrorMessageSerializer(serializers.Serializer):
     )
 
 
-class NestedResourceProjectPermissionSerializer(serializers.ModelSerializer):
+class MemberSyncFieldsMixin(serializers.Serializer):
+    """Adds agent-reported sync fields to a UserRole-shaped serializer.
+
+    The fields are emitted only when the view put a ``member_sync_index``
+    into the context (i.e. the offering opted in via
+    ``enable_membership_sync_status`` and the view prefetched the rows).
+    Otherwise they are dropped from the payload entirely, so opted-out
+    offerings keep today's exact response shape. An index hit of None
+    serializes as null — "the agent has not reported on this grant",
+    which is distinct from any real state.
+    """
+
+    sync_state = serializers.SerializerMethodField()
+    sync_message = serializers.SerializerMethodField()
+    sync_reported_at = serializers.SerializerMethodField()
+
+    def _sync_row(self, user_role):
+        index = self.context.get("member_sync_index")
+        if index is None:
+            return None
+        scope = user_role.scope
+        if isinstance(scope, models.ResourceProject):
+            key = (user_role.user_id, "resource_project", scope.id, user_role.role.name)
+        else:
+            key = (user_role.user_id, "resource", None, user_role.role.name)
+        return index.get(key)
+
+    def get_sync_state(self, user_role) -> str | None:
+        row = self._sync_row(user_role)
+        return row and row.state
+
+    def get_sync_message(self, user_role) -> str | None:
+        row = self._sync_row(user_role)
+        return row and row.message
+
+    @extend_schema_field(serializers.DateTimeField(allow_null=True))
+    def get_sync_reported_at(self, user_role):
+        row = self._sync_row(user_role)
+        return row and row.modified
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self.context.get("member_sync_index") is None:
+            for field in ("sync_state", "sync_message", "sync_reported_at"):
+                data.pop(field, None)
+        return data
+
+
+class NestedResourceProjectPermissionSerializer(
+    MemberSyncFieldsMixin, serializers.ModelSerializer
+):
     """Mirrors NestedProjectPermissionSerializer from waldur_core.structure
     but for ResourceProject scope. Used inside ResourceTeamMemberSerializer
     to expose a user's per-resource_project role grants under one Resource."""
@@ -9461,21 +9524,95 @@ class NestedResourceProjectPermissionSerializer(serializers.ModelSerializer):
             "role_name",
             "role_uuid",
             "expiration_time",
+            "sync_state",
+            "sync_message",
+            "sync_reported_at",
         ]
+
+
+class NestedResourceRolePermissionSerializer(
+    MemberSyncFieldsMixin, serializers.ModelSerializer
+):
+    """A single resource-scope role grant. Used inside
+    ResourceTeamMemberSerializer.roles so users holding several
+    resource-scope roles expose all of them, not just one."""
+
+    role_name = serializers.CharField(read_only=True, source="role.name")
+    role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
+
+    class Meta:
+        model = permission_models.UserRole
+        fields = [
+            "role_name",
+            "role_uuid",
+            "expiration_time",
+            "sync_state",
+            "sync_message",
+            "sync_reported_at",
+        ]
+
+
+class MemberSyncStatusEntrySerializer(serializers.Serializer):
+    """One reported grant in a set_membership_sync_statuses payload."""
+
+    username = serializers.CharField(required=False, allow_blank=True)
+    user_uuid = serializers.UUIDField(required=False)
+    scope_type = serializers.ChoiceField(
+        choices=models.ResourceMemberSyncStatus.ScopeTypes.CHOICES
+    )
+    resource_project_uuid = serializers.UUIDField(required=False)
+    role_name = serializers.CharField()
+    state = serializers.ChoiceField(
+        choices=models.ResourceMemberSyncStatus.States.CHOICES
+    )
+    message = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        if not attrs.get("username") and not attrs.get("user_uuid"):
+            raise rf_exceptions.ValidationError(
+                "Either username or user_uuid is required."
+            )
+        if (
+            attrs["scope_type"]
+            == models.ResourceMemberSyncStatus.ScopeTypes.RESOURCE_PROJECT
+            and not attrs.get("resource_project_uuid")
+        ):
+            raise rf_exceptions.ValidationError(
+                "resource_project_uuid is required for resource_project scope."
+            )
+        return attrs
+
+
+class MemberSyncStatusReportSerializer(serializers.Serializer):
+    """Full-replace report of a resource's member sync statuses."""
+
+    statuses = MemberSyncStatusEntrySerializer(many=True)
+
+
+class MemberSyncStatusReportResultSerializer(serializers.Serializer):
+    """Result of a sync-status report: how many rows landed, what was skipped."""
+
+    stored = serializers.IntegerField()
+    skipped = serializers.ListField(child=serializers.CharField())
 
 
 class ResourceTeamMemberSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
 ):
-    """One row per user with their direct Resource role plus a nested
+    """One row per user with their direct Resource roles plus a nested
     list of their per-ResourceProject grants under THIS resource. Mirrors
     structure.serializers.CustomerUserSerializer.
+
+    ``roles`` carries every resource-scope grant; the scalar
+    ``role_name``/``role_uuid``/``expiration_time`` reflect the first
+    grant only and are kept for backward compatibility.
     """
 
     expiration_time = serializers.SerializerMethodField()
     resource_projects = serializers.SerializerMethodField()
     role_name = serializers.SerializerMethodField()
     role_uuid = serializers.SerializerMethodField()
+    roles = serializers.SerializerMethodField()
 
     class Meta:
         model = core_models.User
@@ -9488,6 +9625,7 @@ class ResourceTeamMemberSerializer(
             "image",
             "role_name",
             "role_uuid",
+            "roles",
             "expiration_time",
             "resource_projects",
         ]
@@ -9495,14 +9633,27 @@ class ResourceTeamMemberSerializer(
             "url": {"lookup_field": "uuid"},
         }
 
-    def _get_resource_permission(self, user):
+    def _get_resource_permissions(self, user):
+        # Prefer the per-user grants the view bulk-loaded into context; fall
+        # back to a per-user query for callers that did not prefetch.
+        by_user = self.context.get("resource_roles_by_user")
+        if by_user is not None:
+            return by_user.get(user.id, [])
         resource = self.context["resource"]
-        return permission_models.UserRole.objects.filter(
-            content_type=ContentType.objects.get_for_model(models.Resource),
-            object_id=resource.id,
-            user=user,
-            is_active=True,
-        ).first()
+        return list(
+            permission_models.UserRole.objects.filter(
+                content_type=ContentType.objects.get_for_model(models.Resource),
+                object_id=resource.id,
+                user=user,
+                is_active=True,
+            )
+            .select_related("role")
+            .order_by("role__name")
+        )
+
+    def _get_resource_permission(self, user):
+        permissions = self._get_resource_permissions(user)
+        return permissions[0] if permissions else None
 
     def get_role_name(self, user) -> str | None:
         permission = self._get_resource_permission(user)
@@ -9512,6 +9663,12 @@ class ResourceTeamMemberSerializer(
         permission = self._get_resource_permission(user)
         return permission and permission.role.uuid.hex
 
+    @extend_schema_field(NestedResourceRolePermissionSerializer(many=True))
+    def get_roles(self, user):
+        return NestedResourceRolePermissionSerializer(
+            self._get_resource_permissions(user), many=True, context=self.context
+        ).data
+
     @extend_schema_field(serializers.DateTimeField(allow_null=True))
     def get_expiration_time(self, user):
         permission = self._get_resource_permission(user)
@@ -9519,16 +9676,22 @@ class ResourceTeamMemberSerializer(
 
     @extend_schema_field(NestedResourceProjectPermissionSerializer(many=True))
     def get_resource_projects(self, user):
-        resource = self.context["resource"]
-        rp_ids = models.ResourceProject.available_objects.filter(
-            resource=resource
-        ).values_list("id", flat=True)
-        grants = permission_models.UserRole.objects.filter(
-            content_type=ContentType.objects.get_for_model(models.ResourceProject),
-            object_id__in=rp_ids,
-            user=user,
-            is_active=True,
-        ).select_related("role")
+        # Prefer the per-user grants the view bulk-loaded (with their
+        # generic-FK scope primed); fall back to a per-user query otherwise.
+        by_user = self.context.get("rp_roles_by_user")
+        if by_user is not None:
+            grants = by_user.get(user.id, [])
+        else:
+            resource = self.context["resource"]
+            rp_ids = models.ResourceProject.available_objects.filter(
+                resource=resource
+            ).values_list("id", flat=True)
+            grants = permission_models.UserRole.objects.filter(
+                content_type=ContentType.objects.get_for_model(models.ResourceProject),
+                object_id__in=rp_ids,
+                user=user,
+                is_active=True,
+            ).select_related("role")
         return NestedResourceProjectPermissionSerializer(
             grants, many=True, context=self.context
         ).data
@@ -10998,6 +11161,17 @@ class StateTransitionErrorSerializer(serializers.Serializer):
     detail = serializers.CharField(
         help_text=_("Error message to be displayed to the user")
     )
+
+
+class DetailResponseSerializer(serializers.Serializer):
+    """A plain ``{"detail": "..."}`` body.
+
+    Declared on non-2xx responses (e.g. 409/429) so the generated SDK
+    clients treat them as known outcomes instead of raising
+    ``UnexpectedStatus``.
+    """
+
+    detail = serializers.CharField(read_only=True)
 
 
 class RobotAccountErrorSerializer(serializers.Serializer):
