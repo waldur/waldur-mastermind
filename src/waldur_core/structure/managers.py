@@ -146,7 +146,11 @@ def filter_customer_by_ip_address(ip_address):
 
 def filter_queryset_by_user_ip(queryset, request):
     user = request.user
-    user_ip = core_utils.get_ip_address(request)
+    # Normalise the raw, client-controlled X-Forwarded-For: an unparseable
+    # value must resolve to None (which the `not user_ip` guard below treats as
+    # "no restriction") rather than reaching the Postgres inet lookup, where it
+    # would raise and 500 the request.
+    user_ip = core_utils.normalize_ip_address(core_utils.get_ip_address(request))
 
     if queryset is None:
         return queryset

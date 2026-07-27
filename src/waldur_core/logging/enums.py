@@ -410,6 +410,9 @@ class EventType(StrEnum):
     PAT_ROTATED = "pat_rotated"
     PAT_EXPIRED = "pat_expired"
     PAT_USED_FROM_NEW_IP = "pat_used_from_new_ip"
+    PAT_ACCESS_DENIED_FROM_IP = "pat_access_denied_from_ip"
+    PAT_NETWORK_ACL_UPDATED = "pat_network_acl_updated"
+    PAT_AUTHENTICATION_REJECTED = "pat_authentication_rejected"
 
 
 class EventGroup(StrEnum):
@@ -468,6 +471,9 @@ EVENT_GROUP_MAPPING = {
         EventType.PAT_ROTATED,
         EventType.PAT_EXPIRED,
         EventType.PAT_USED_FROM_NEW_IP,
+        EventType.PAT_ACCESS_DENIED_FROM_IP,
+        EventType.PAT_NETWORK_ACL_UPDATED,
+        EventType.PAT_AUTHENTICATION_REJECTED,
     ],
     EventGroup.CALL: [
         EventType.CALL_DOCUMENT_ADDED,

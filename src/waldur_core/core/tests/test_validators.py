@@ -38,6 +38,63 @@ class CIDRListValidatorTest(test.APITestCase):
         validators.validate_cidr_list("192.168.1.5/24, 2001:db8::1/64")
 
 
+class NormalizeNetworkAclTest(test.APITestCase):
+    def test_bare_ipv4_is_widened_to_host_route(self):
+        self.assertEqual(
+            validators.normalize_network_acl(["203.0.113.5"]), ["203.0.113.5/32"]
+        )
+
+    def test_bare_ipv6_is_widened_to_host_route(self):
+        self.assertEqual(
+            validators.normalize_network_acl(["2001:db8::1"]), ["2001:db8::1/128"]
+        )
+
+    def test_ipv6_is_case_canonicalised(self):
+        self.assertEqual(
+            validators.normalize_network_acl(["2001:DB8::1"]), ["2001:db8::1/128"]
+        )
+
+    def test_surrounding_whitespace_is_trimmed(self):
+        self.assertEqual(
+            validators.normalize_network_acl([" 203.0.113.0/24 "]), ["203.0.113.0/24"]
+        )
+
+    def test_networks_are_preserved(self):
+        self.assertEqual(
+            validators.normalize_network_acl(["203.0.113.0/24", "2001:db8::/32"]),
+            ["203.0.113.0/24", "2001:db8::/32"],
+        )
+
+    def test_duplicates_are_collapsed_preserving_order(self):
+        self.assertEqual(
+            validators.normalize_network_acl(
+                ["203.0.113.5", "203.0.113.5/32", "198.51.100.0/24"]
+            ),
+            ["203.0.113.5/32", "198.51.100.0/24"],
+        )
+
+    def test_host_bits_set_is_rejected_with_suggestion(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validators.normalize_network_acl(["203.0.113.5/24"])
+        self.assertIn("203.0.113.0/24", str(ctx.exception))
+
+    def test_garbage_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            validators.normalize_network_acl(["not-an-ip"])
+
+    def test_default_route_is_rejected(self):
+        for entry in ("0.0.0.0/0", "::/0"):
+            with self.assertRaises(ValidationError):
+                validators.normalize_network_acl([entry])
+
+    def test_non_list_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            validators.normalize_network_acl("203.0.113.0/24")
+
+    def test_empty_list_is_allowed(self):
+        self.assertEqual(validators.normalize_network_acl([]), [])
+
+
 class NotificationEmailsValidatorTest(test.APITestCase):
     def test_validator_accepts_valid_emails(self):
         validate_notification_emails("user@localhost")

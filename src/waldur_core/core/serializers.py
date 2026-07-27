@@ -14,6 +14,7 @@ from django.core.exceptions import (
     MultipleObjectsReturned,
     ObjectDoesNotExist,
 )
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.core.validators import RegexValidator, URLValidator
 from django.urls import Resolver404, reverse
@@ -30,6 +31,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
 from waldur_core.core.signals import pre_serializer_fields
+from waldur_core.core.validators import normalize_network_acl
 from waldur_core.permissions.enums import TYPE_KEY_BY_CT, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import get_scope_ancestors, has_any_permission
 from waldur_mastermind.common.serializers import StringListSerializer
@@ -1511,7 +1513,26 @@ def _serialize_allowed_scopes(stored):
     return out
 
 
-class PersonalAccessTokenCreateSerializer(serializers.Serializer):
+class NetworkAclValidationMixin:
+    """Validate + canonicalise ``allowed_networks`` and enforce the entry cap."""
+
+    def validate_allowed_networks(self, value):
+        try:
+            normalized = normalize_network_acl(value)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(e.messages)
+
+        max_entries = config.PAT_MAX_ACL_ENTRIES
+        if len(normalized) > max_entries:
+            raise serializers.ValidationError(
+                f"A token can have at most {max_entries} network ACL entries."
+            )
+        return normalized
+
+
+class PersonalAccessTokenCreateSerializer(
+    NetworkAclValidationMixin, serializers.Serializer
+):
     name = serializers.CharField(max_length=150)
     scopes = serializers.ListField(child=serializers.CharField())
     # Use ``Serializer(many=True)`` (a ListSerializer under the hood) rather
@@ -1525,6 +1546,16 @@ class PersonalAccessTokenCreateSerializer(serializers.Serializer):
         help_text=(
             "Optional list of entity bindings restricting where this token "
             "can act. Empty list = no entity restriction."
+        ),
+    )
+    allowed_networks = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+        help_text=(
+            "Optional list of CIDR networks the token may be used from. "
+            "Bare addresses are widened to /32 or /128. Empty list = no "
+            "network restriction."
         ),
     )
     expires_at = serializers.DateTimeField()
@@ -1658,6 +1689,7 @@ class PersonalAccessTokenCreateSerializer(serializers.Serializer):
             token_hash=token_hash,
             scopes=validated_data["scopes"],
             allowed_scopes=validated_data.get("allowed_scopes", []),
+            allowed_networks=validated_data.get("allowed_networks", []),
             expires_at=expires_at,
         )
         # Attach plaintext for one-time response
@@ -1673,6 +1705,7 @@ class PersonalAccessTokenCreatedSerializer(serializers.Serializer):
     token = serializers.CharField(help_text="Plaintext token — shown only once.")
     scopes = serializers.ListField(child=serializers.CharField())
     allowed_scopes = AllowedScopeOutputSerializer(many=True)
+    allowed_networks = serializers.ListField(child=serializers.CharField())
     expires_at = serializers.DateTimeField()
     created = serializers.DateTimeField()
 
@@ -1685,6 +1718,7 @@ class PersonalAccessTokenSerializer(serializers.Serializer):
     token_prefix = serializers.CharField()
     scopes = serializers.ListField(child=serializers.CharField())
     allowed_scopes = serializers.SerializerMethodField()
+    allowed_networks = serializers.ListField(child=serializers.CharField())
     expires_at = serializers.DateTimeField()
     is_active = serializers.BooleanField()
     last_used_at = serializers.DateTimeField()
@@ -1695,6 +1729,14 @@ class PersonalAccessTokenSerializer(serializers.Serializer):
     @extend_schema_field(AllowedScopeOutputSerializer(many=True))
     def get_allowed_scopes(self, obj):
         return _serialize_allowed_scopes(getattr(obj, "allowed_scopes", []) or [])
+
+
+class PersonalAccessTokenNetworkAclSerializer(
+    NetworkAclValidationMixin, serializers.Serializer
+):
+    allowed_networks = serializers.ListField(
+        child=serializers.CharField(), allow_empty=True
+    )
 
 
 class AvailableScopeSerializer(serializers.Serializer):

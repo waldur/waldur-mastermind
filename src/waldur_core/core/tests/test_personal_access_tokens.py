@@ -4,6 +4,7 @@ import pathlib
 from datetime import timedelta
 
 from constance.test import override_config
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
@@ -13,7 +14,14 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.tests import fixtures
 
 
-def _create_pat(user, scopes=None, expires_at=None, name="test-pat", is_active=True):
+def _create_pat(
+    user,
+    scopes=None,
+    expires_at=None,
+    name="test-pat",
+    is_active=True,
+    allowed_networks=None,
+):
     """Helper: create a PAT directly in the DB."""
     if scopes is None:
         scopes = [PermissionEnum.LIST_ORDERS.value]
@@ -28,6 +36,7 @@ def _create_pat(user, scopes=None, expires_at=None, name="test-pat", is_active=T
         scopes=scopes,
         expires_at=expires_at,
         is_active=is_active,
+        allowed_networks=allowed_networks or [],
     )
     pat._plaintext_token = full_token
     return pat
@@ -161,20 +170,39 @@ class PersonalAccessTokenAuthenticationTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_all_failure_modes_return_same_message(self):
-        """All failure modes should return 'Invalid token.' to avoid info leakage."""
-        pat = _create_pat(self.user, is_active=False)
+        """Every failure mode must be indistinguishable from a nonexistent token.
 
-        # Revoked
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
-        resp = self.client.get("/api/customers/")
-        self.assertEqual(resp.data["detail"], "Invalid token.")
+        Not just the message: an attacker probing with a stolen token learns it
+        is real if any branch differs in status, headers or response length.
+        New failure branches belong here so they inherit the check.
+        """
+        responses = {}
 
-        # Non-existent
+        revoked = _create_pat(self.user, is_active=False)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {revoked._plaintext_token}")
+        responses["revoked"] = self.client.get("/api/customers/")
+
+        # Valid token presented from an address outside its network ACL.
+        off_network = _create_pat(self.user, allowed_networks=["198.51.100.0/24"])
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {off_network._plaintext_token}"
+        )
+        responses["outside_network_acl"] = self.client.get(
+            "/api/customers/", REMOTE_ADDR="203.0.113.5"
+        )
+
         self.client.credentials(
             HTTP_AUTHORIZATION="Bearer w_9999999999_doesnotexist12345678901234567890"
         )
-        resp = self.client.get("/api/customers/")
-        self.assertEqual(resp.data["detail"], "Invalid token.")
+        baseline = self.client.get("/api/customers/")
+        self.assertEqual(baseline.data["detail"], "Invalid token.")
+
+        for failure_mode, response in responses.items():
+            with self.subTest(failure_mode=failure_mode):
+                self.assertEqual(response.data["detail"], "Invalid token.")
+                self.assertEqual(response.status_code, baseline.status_code)
+                self.assertEqual(dict(response.headers), dict(baseline.headers))
+                self.assertEqual(response.content, baseline.content)
 
     @override_config(PAT_ENABLED=False)
     def test_kill_switch_rejects_all_pats(self):
@@ -429,6 +457,47 @@ class PersonalAccessTokenModelTest(test.APITestCase):
             expires_at=timezone.now() + timedelta(days=1),
         )
         self.assertFalse(pat2.is_expired)
+
+
+class PersonalAccessTokenNetworkAclCleanTest(test.APITestCase):
+    """Guard the ACL error messages that reach `full_clean()` (i.e. the admin).
+
+    `Field.run_validators` replaces a validator's message with the field's own
+    whenever their `code`s match, and `JSONField` claims the code "invalid" for
+    "Value must be valid JSON." An ACL validator raising that same code would
+    still reject the value, but every reason would be masked by the JSON message.
+    """
+
+    def _allowed_networks_errors(self, value):
+        pat = PersonalAccessToken(allowed_networks=value)
+        exclude = [
+            field.name
+            for field in PersonalAccessToken._meta.fields
+            if field.name != "allowed_networks"
+        ]
+        with self.assertRaises(ValidationError) as ctx:
+            pat.full_clean(
+                exclude=exclude, validate_unique=False, validate_constraints=False
+            )
+        messages = ctx.exception.message_dict["allowed_networks"]
+        self.assertNotIn("Value must be valid JSON.", messages)
+        return " ".join(messages)
+
+    def test_default_route_reports_why_it_is_rejected(self):
+        message = self._allowed_networks_errors(["0.0.0.0/0"])
+        self.assertIn("allows every address", message)
+
+    def test_host_bits_report_the_suggested_network(self):
+        message = self._allowed_networks_errors(["203.0.113.5/24"])
+        self.assertIn("203.0.113.0/24", message)
+
+    def test_malformed_entry_reports_the_offending_value(self):
+        message = self._allowed_networks_errors(["not-an-ip"])
+        self.assertIn("not-an-ip", message)
+
+    def test_non_list_value_reports_the_expected_shape(self):
+        message = self._allowed_networks_errors("203.0.113.0/24")
+        self.assertIn("must be a list", message)
 
 
 @override_config(PAT_ENABLED=True)

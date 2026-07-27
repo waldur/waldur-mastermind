@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework import exceptions
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.models import User, UserDetailsMatchMixin
 
 from . import enums, models, signals
@@ -36,14 +37,6 @@ def register_expiration_guard(predicate) -> None:
 def is_expiration_exempt(user_role) -> bool:
     """True if any registered guard opts this role out of auto-expiry."""
     return any(guard(user_role) for guard in _expiration_guards)
-
-
-def _is_pat_auth(auth) -> bool:
-    """Check if auth object is a PersonalAccessToken instance.
-
-    Uses class name check to avoid circular imports.
-    """
-    return auth is not None and type(auth).__name__ == "PersonalAccessToken"
 
 
 def _pat_allowed_pairs(auth) -> frozenset:
@@ -104,7 +97,7 @@ def _pat_scope_check(
     if isinstance(request, User):
         return None
     auth = getattr(request, "auth", None)
-    if not _is_pat_auth(auth):
+    if not is_pat_auth(auth):
         return None
     if permission.value not in auth.scopes:
         return False
@@ -120,7 +113,7 @@ def check_pat_staff_scope(request) -> bool:
     STAFF_ACCESS scope.
     """
     auth = getattr(request, "auth", None)
-    if not _is_pat_auth(auth):
+    if not is_pat_auth(auth):
         return True
     return enums.PermissionEnum.STAFF_ACCESS.value in auth.scopes
 
@@ -132,7 +125,7 @@ def check_pat_support_scope(request) -> bool:
     STAFF_ACCESS or SUPPORT_ACCESS scope.
     """
     auth = getattr(request, "auth", None)
-    if not _is_pat_auth(auth):
+    if not is_pat_auth(auth):
         return True
     return (
         enums.PermissionEnum.STAFF_ACCESS.value in auth.scopes
@@ -190,7 +183,7 @@ def has_any_permission(
         # PAT ceiling — narrow the permission set to what the PAT carries
         # and reject if the scope falls outside the PAT's entity bindings.
         auth = getattr(request, "auth", None)
-        if _is_pat_auth(auth):
+        if is_pat_auth(auth):
             permissions = [p for p in permissions if p.value in auth.scopes]
             if not permissions:
                 return False

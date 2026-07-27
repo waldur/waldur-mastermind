@@ -1,11 +1,27 @@
 from unittest import mock
 
 from ddt import data, ddt
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories, fixtures
+
+
+class AccessSubnetIpFilterTest(test.APITestCase):
+    """The customer-visibility IP filter must not crash on a non-IP header."""
+
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+
+    def test_non_ip_forwarded_header_does_not_500(self):
+        # filter_queryset_by_user_ip feeds the resolved client IP into a
+        # Postgres inet lookup. A non-IP X-Forwarded-For must normalise to None
+        # (which takes the existing "no IP -> no restriction" path) instead of
+        # crashing query construction with a 500.
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get("/api/customers/", HTTP_X_FORWARDED_FOR="not-an-ip")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 @ddt
