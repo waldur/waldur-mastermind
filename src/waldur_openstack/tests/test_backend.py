@@ -2092,6 +2092,10 @@ class PushInstancePortsTest(BaseBackendTest):
 
         payload = admin_neutron.create_port.call_args[0][0]["port"]
         self.assertEqual(payload["fixed_ips"], port.fixed_ips)
+        # An admin-created port without explicit ownership lands in the admin
+        # project and the tenant-scoped interface_attach 404s on it.
+        self.assertEqual(payload["tenant_id"], port.tenant.backend_id)
+        self.assertEqual(payload["project_id"], port.tenant.backend_id)
 
         mock_nova.return_value.servers.interface_attach.assert_called_once()
         port.refresh_from_db()

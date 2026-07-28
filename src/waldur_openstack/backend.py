@@ -5833,9 +5833,16 @@ class OpenStackBackend(ServiceBackend):
                         instance.backend_id, new_port.backend_id, None, None
                     )
                 else:
-                    # New port — create in OpenStack and attach
+                    # New port — create in OpenStack and attach.
+                    # The port is created via the admin session, so ownership
+                    # must be set explicitly: without tenant_id Neutron places
+                    # the port in the admin project and the tenant-scoped
+                    # interface_attach below fails with 404 (port not visible
+                    # across projects).
                     port_payload = {
                         "network_id": new_port.subnet.network.backend_id,
+                        "tenant_id": new_port.tenant.backend_id,
+                        "project_id": new_port.tenant.backend_id,
                         "fixed_ips": new_port.fixed_ips
                         if new_port.fixed_ips
                         else [
