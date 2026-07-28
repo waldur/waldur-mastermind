@@ -797,6 +797,42 @@ class PullImagesTest(BaseBackendTestCase):
         hidden.refresh_from_db()
         self.assertEqual(hidden.min_ram, 1024)
 
+    def test_global_pull_keeps_tenant_linked_image_missing_from_admin_listing(self):
+        # A tenant-private image may be invisible to the admin session
+        # (restrictive Glance policy) or created concurrently with the
+        # listing snapshot. It must not be deleted while a tenant links it;
+        # only pull_tenant_images may unlink it.
+        image = models.Image.objects.create(
+            backend_id="private-1",
+            name="Tenant private image",
+            min_ram=1024,
+            min_disk=10240,
+            settings=self.fixture.settings,
+        )
+        image.tenants.add(self.tenant)
+
+        self.backend.pull_global_images()
+
+        self.assertTrue(
+            models.Image.all_objects.filter(backend_id="private-1").exists()
+        )
+        self.assertTrue(self.tenant.images.filter(backend_id="private-1").exists())
+
+    def test_global_pull_deletes_orphaned_image_missing_from_admin_listing(self):
+        models.Image.objects.create(
+            backend_id="orphan-1",
+            name="Orphaned image",
+            min_ram=1024,
+            min_disk=10240,
+            settings=self.fixture.settings,
+        )
+
+        self.backend.pull_global_images()
+
+        self.assertFalse(
+            models.Image.all_objects.filter(backend_id="orphan-1").exists()
+        )
+
 
 class PullPortsTest(BaseBackendTestCase):
     def setUp(self):

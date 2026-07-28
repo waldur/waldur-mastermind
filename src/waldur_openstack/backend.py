@@ -777,9 +777,15 @@ class OpenStackBackend(ServiceBackend):
                 parsed = timezone.make_aware(parsed, timezone=UTC)
             return parsed
 
-        models.Image.all_objects.filter(settings=self.settings).exclude(
-            backend_id__in=[image["id"] for image in remote_images]
-        ).delete()
+        # Only garbage-collect rows no tenant claims: tenant-private images
+        # may be invisible to the admin session (restrictive Glance policy),
+        # and a concurrent pull_tenant_images may have just linked a fresh
+        # image created after this listing was snapshotted. Rows for
+        # genuinely deleted images are first unlinked by pull_tenant_images
+        # and removed here once orphaned.
+        models.Image.all_objects.filter(
+            settings=self.settings, tenants__isnull=True
+        ).exclude(backend_id__in=[image["id"] for image in remote_images]).delete()
         for remote_image in remote_images:
             models.Image.all_objects.update_or_create(
                 settings=self.settings,
