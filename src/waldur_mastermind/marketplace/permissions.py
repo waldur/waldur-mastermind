@@ -6,6 +6,7 @@ from rest_framework import exceptions
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.structure import models as structure_models
@@ -26,6 +27,18 @@ def can_register_service_provider(request, customer):
     if has_permission(request, PermissionEnum.REGISTER_SERVICE_PROVIDER, customer):
         return
 
+    raise exceptions.PermissionDenied()
+
+
+def ensure_offering_provider_access(user, offering):
+    """Raise PermissionDenied unless the user is staff/support, a service
+    manager of the offering, or an owner of the offering's customer."""
+    if user.is_staff or user.is_support:
+        return
+    if offering.has_user(user, OfferingRole.MANAGER) or offering.customer.has_user(
+        user, CustomerRole.OWNER
+    ):
+        return
     raise exceptions.PermissionDenied()
 
 

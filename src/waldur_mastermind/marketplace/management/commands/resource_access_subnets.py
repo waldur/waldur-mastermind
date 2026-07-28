@@ -1,7 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from waldur_core.core import utils as core_utils
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import utils
 
 
 class Command(BaseCommand):
@@ -16,8 +15,18 @@ class Command(BaseCommand):
             "-r",
             "--offering",
             dest="offering",
+            action="append",
             default=None,
-            help="Limit the dump to resources of the offering with the given UUID.",
+            help="Limit the dump to resources of the offering with the given UUID. "
+            "May be given multiple times.",
+        )
+        parser.add_argument(
+            "--include-organization-subnets",
+            dest="include_organization_subnets",
+            action="store_true",
+            default=False,
+            help="Also merge in the organization-level access subnets of customers "
+            "owning non-terminated resources of the selected offerings.",
         )
         parser.add_argument(
             "-o",
@@ -28,25 +37,24 @@ class Command(BaseCommand):
             "The output will be printed to stdout by default.",
         )
 
-    def get_merged_subnets(self, offering_uuid=None):
-        resource_subnets = models.ResourceAccessSubnet.objects.exclude(
-            inet__isnull=True
-        )
-        offering_defaults = models.OfferingAccessSubnet.objects.exclude(
-            inet__isnull=True
-        )
-        if offering_uuid:
-            resource_subnets = resource_subnets.filter(
-                resource__offering__uuid=offering_uuid
-            )
-            offering_defaults = offering_defaults.filter(offering__uuid=offering_uuid)
-        inets = list(resource_subnets.values_list("inet", flat=True)) + list(
-            offering_defaults.values_list("inet", flat=True)
-        )
-        return core_utils.merge_access_subnets(inets)
+    def get_merged_subnets(
+        self, offering_uuids=None, include_organization_subnets=False
+    ):
+        return utils.aggregate_access_subnets(
+            offering_uuids=offering_uuids,
+            include_organization_subnets=include_organization_subnets,
+        )["packed"]
 
     def handle(self, *args, **options):
-        merged_subnets = self.get_merged_subnets(options.get("offering"))
+        offering_uuids = options.get("offering")
+        # call_command(..., offering="<uuid>") bypasses argparse, so the append
+        # action never runs and a plain string arrives here.
+        if isinstance(offering_uuids, str):
+            offering_uuids = [offering_uuids]
+        merged_subnets = self.get_merged_subnets(
+            offering_uuids=offering_uuids,
+            include_organization_subnets=options["include_organization_subnets"],
+        )
 
         if options["output"] is None:
             for subnet in merged_subnets:

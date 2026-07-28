@@ -7,6 +7,7 @@ from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -160,6 +161,40 @@ class ResourceAccessSubnetCommandTest(test.APITestCase):
         )
         self.assertIn("192.168.1.5/32", out.value)
 
+    def test_command_accepts_multiple_offerings(self):
+        other = fixtures.MarketplaceFixture()
+        models.ResourceAccessSubnet.objects.create(
+            resource=other.resource, inet="10.1.1.1/32"
+        )
+        out = _CommandCapture()
+        call_command(
+            "resource_access_subnets",
+            offering=[self.fixture.offering.uuid.hex, other.offering.uuid.hex],
+            stdout=out,
+        )
+        self.assertIn("192.168.1.5/32", out.value)
+        self.assertIn("10.1.1.1/32", out.value)
+
+    def test_command_includes_organization_subnets_on_demand(self):
+        structure_models.AccessSubnet.objects.create(
+            customer=self.fixture.resource.project.customer, inet="10.2.2.2/32"
+        )
+        out = _CommandCapture()
+        call_command(
+            "resource_access_subnets",
+            offering=self.fixture.offering.uuid.hex,
+            stdout=out,
+        )
+        self.assertNotIn("10.2.2.2/32", out.value)
+        out = _CommandCapture()
+        call_command(
+            "resource_access_subnets",
+            offering=self.fixture.offering.uuid.hex,
+            include_organization_subnets=True,
+            stdout=out,
+        )
+        self.assertIn("10.2.2.2/32", out.value)
+
 
 class ResourceAccessSubnetAuditLogTest(test.APITestCase):
     def setUp(self):
@@ -231,6 +266,8 @@ class OfferingAccessSubnetsEndpointTest(test.APITestCase):
             row["customer_uuid"], self.fixture.resource.project.customer.uuid.hex
         )
         self.assertIn("project_name", row)
+        self.assertEqual(row["offering_uuid"], self.fixture.offering.uuid.hex)
+        self.assertEqual(row["offering_name"], self.fixture.offering.name)
         # Packed: adjacent /32s collapse into a single /31.
         self.assertEqual(response.data["packed"], ["192.168.1.0/31"])
 
@@ -239,6 +276,136 @@ class OfferingAccessSubnetsEndpointTest(test.APITestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url())
         self.assertEqual(response.status_code, 403, response.data)
+
+
+@ddt
+class AggregatedAccessSubnetsEndpointTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.other = fixtures.MarketplaceFixture()
+        _enable_subnets(self.fixture.offering)
+        _enable_subnets(self.other.offering)
+        # Adjacent single hosts split across the two offerings collapse
+        # into one /31 in the packed list.
+        models.ResourceAccessSubnet.objects.create(
+            resource=self.fixture.resource, inet="192.168.1.0/32"
+        )
+        models.ResourceAccessSubnet.objects.create(
+            resource=self.other.resource, inet="192.168.1.1/32"
+        )
+
+    def url(self):
+        return reverse("marketplace-provider-offering-aggregated-access-subnets")
+
+    def get(self, user, offerings=None, **params):
+        if offerings is None:
+            offerings = [self.fixture.offering, self.other.offering]
+        self.client.force_authenticate(user)
+        return self.client.get(
+            self.url(),
+            {"offering_uuid": [offering.uuid.hex for offering in offerings], **params},
+        )
+
+    def test_staff_can_aggregate_across_offerings(self):
+        response = self.get(self.fixture.staff)
+        self.assertEqual(response.status_code, 200, response.data)
+        expanded = response.data["expanded"]
+        self.assertEqual(len(expanded), 2)
+        self.assertEqual(
+            {row["offering_uuid"] for row in expanded},
+            {self.fixture.offering.uuid.hex, self.other.offering.uuid.hex},
+        )
+        for row in expanded:
+            self.assertIn("offering_name", row)
+        self.assertEqual(response.data["packed"], ["192.168.1.0/31"])
+        self.assertEqual(response.data["organization_subnets"], [])
+
+    def test_provider_of_all_offerings_can_aggregate(self):
+        # offering_owner of fixture A owns only offering A.
+        response = self.get(
+            self.fixture.offering_owner, offerings=[self.fixture.offering]
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(len(response.data["expanded"]), 1)
+
+    def test_provider_of_one_offering_cannot_aggregate_both(self):
+        response = self.get(self.fixture.offering_owner)
+        self.assertEqual(response.status_code, 403, response.data)
+
+    @data("owner", "admin", "manager", "member")
+    def test_consumer_cannot_aggregate(self, user):
+        response = self.get(
+            getattr(self.fixture, user), offerings=[self.fixture.offering]
+        )
+        self.assertEqual(response.status_code, 403, response.data)
+
+    def test_missing_offering_param_is_rejected(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url())
+        self.assertEqual(response.status_code, 400, response.data)
+
+    def test_unknown_offering_uuid_is_rejected(self):
+        unknown = "0" * 32
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url(),
+            {"offering_uuid": [self.fixture.offering.uuid.hex, unknown]},
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn(unknown, str(response.data))
+
+    def test_defaults_carry_offering_context(self):
+        models.OfferingAccessSubnet.objects.create(
+            offering=self.other.offering, inet="203.0.113.0/24"
+        )
+        response = self.get(self.fixture.staff)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            response.data["defaults"],
+            [
+                {
+                    "inet": "203.0.113.0/24",
+                    "description": "",
+                    "offering_uuid": self.other.offering.uuid.hex,
+                    "offering_name": self.other.offering.name,
+                }
+            ],
+        )
+        self.assertIn("203.0.113.0/24", response.data["packed"])
+
+    def test_organization_subnets_are_merged_on_demand(self):
+        customer = self.fixture.resource.project.customer
+        structure_models.AccessSubnet.objects.create(
+            customer=customer, inet="10.2.2.2/32", description="office"
+        )
+        response = self.get(self.fixture.staff)
+        self.assertEqual(response.data["organization_subnets"], [])
+        self.assertNotIn("10.2.2.2/32", response.data["packed"])
+
+        response = self.get(self.fixture.staff, include_organization_subnets="true")
+        self.assertEqual(
+            response.data["organization_subnets"],
+            [
+                {
+                    "inet": "10.2.2.2/32",
+                    "description": "office",
+                    "customer_uuid": customer.uuid.hex,
+                    "customer_name": customer.name,
+                }
+            ],
+        )
+        self.assertIn("10.2.2.2/32", response.data["packed"])
+
+    def test_terminated_resources_do_not_pull_in_organization_subnets(self):
+        structure_models.AccessSubnet.objects.create(
+            customer=self.other.resource.project.customer, inet="10.3.3.3/32"
+        )
+        self.other.resource.state = models.Resource.States.TERMINATED
+        self.other.resource.save(update_fields=["state"])
+        response = self.get(self.fixture.staff, include_organization_subnets="true")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertNotIn("10.3.3.3/32", response.data["packed"])
+        self.assertEqual(response.data["organization_subnets"], [])
 
 
 ALLOWED_IP = "100.100.100.100"
