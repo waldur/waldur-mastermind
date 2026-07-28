@@ -116,6 +116,10 @@ Allow to import resources from service provider to project.
 
 Enabled LEXIS link integrations for offerings.
 
+## marketplace.realtime_updates
+
+Enable push-driven UI updates over the event-consumer WebSocket (experimental). When disabled, the UI relies on polling and manual refresh as before. Requires RabbitMQ web-STOMP to be reachable at /rmqws-stomp on the API host.
+
 ## marketplace.show_call_management_functionality
 
 Enabled display of call management functionality.

@@ -33,18 +33,6 @@ class MarketplaceSlurmConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.send_done_order_to_message_queue,
-            sender=marketplace_models.Order,
-            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_done_order_to_message_queue",
-        )
-
-        signals.post_save.connect(
-            handlers.send_pending_order_to_message_queue,
-            sender=marketplace_models.Order,
-            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_pending_order_to_message_queue",
-        )
-
-        signals.post_save.connect(
             handlers.send_offering_user_username_message,
             sender=marketplace_models.OfferingUser,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_offering_user_username_message",

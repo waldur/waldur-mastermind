@@ -34,6 +34,20 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.process_billing_on_resource_save",
         )
 
+        # Pub/sub state-change events: one emitter per model, every transition,
+        # any offering type. Consumers (site agents, UI clients) demultiplex on
+        # the state carried in the payload.
+        signals.post_save.connect(
+            handlers.send_order_state_change_to_message_queue,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.send_order_state_change_to_message_queue",
+        )
+        signals.post_save.connect(
+            handlers.send_resource_state_change_to_message_queue,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.send_resource_state_change_to_message_queue",
+        )
+
         # OfferingProfile sync — schedule async reconciliation when profile
         # roles change or when an offering is bound/unbound.
         signals.m2m_changed.connect(

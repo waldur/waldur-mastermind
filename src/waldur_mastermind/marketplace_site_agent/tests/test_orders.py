@@ -83,8 +83,11 @@ class SendMessagesAboutPendingOrdersTest(test.APITestCase):
         self.order.complete()
         # Act
         self.order.save(update_fields=["state"])
-        # Assert
-        mocked_publish_messages.assert_called_once()
+        # Assert: every state transition emits (EXECUTING, then DONE); the
+        # final message must carry the done state.
+        self.assertEqual(mocked_publish_messages.call_count, 2)
+        last_messages = mocked_publish_messages.call_args_list[-1].args[0]
+        self.assertIn('"order_state": "done"', last_messages[0]["payload"])
 
 
 class AllocationDeleteTest(test.APITestCase):
