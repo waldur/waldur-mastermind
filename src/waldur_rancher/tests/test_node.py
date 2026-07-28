@@ -308,6 +308,9 @@ class NodePullBackendTest(test.APITestCase):
 
         self.patcher_client = mock.patch("waldur_rancher.backend.RancherBackend.client")
         self.mock_client = self.patcher_client.start()
+        # Class-level patch: without deterministic cleanup it stays active
+        # after this test class and poisons unrelated tests in the same run.
+        self.addCleanup(self.patcher_client.stop)
 
         self.mock_client.get_node.return_value = load_json_resource(
             "backend_node.json", __name__
