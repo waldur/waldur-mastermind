@@ -8716,12 +8716,18 @@ class BaseResourceViewSet(
     def offering_for_subresources(self, request, uuid=None):
         resource: models.Resource = self.get_object()
 
-        try:
-            scope = structure_models.ServiceSettings.objects.get(
-                scope=resource.scope,
-            )
-        except structure_models.ServiceSettings.DoesNotExist:
-            scope = resource.scope
+        # scope is None for unlinked/terminated resources and offerings
+        # without backend integration — GenericKeyMixin managers cannot
+        # filter by scope=None.
+        if not resource.scope:
+            return Response([])
+
+        scope = (
+            structure_models.ServiceSettings.objects.filter(
+                scope=resource.scope
+            ).first()
+            or resource.scope
+        )
 
         offerings = models.Offering.objects.filter(scope=scope)
         result = [
