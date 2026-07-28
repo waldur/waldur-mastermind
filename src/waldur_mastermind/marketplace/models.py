@@ -4333,6 +4333,132 @@ class OfferingPartition(core_models.UuidMixin, TimeStampedModel):
         return f"{self.offering.name} - {self.partition_name}"
 
 
+# QoS names that are all digits collide with SLURM's numeric QoS id namespace
+# and can be mis-resolved by name-or-id lookups; reject them.
+NonNumericQoSNameValidator = RegexValidator(
+    regex=r"^\d+$",
+    inverse_match=True,
+    message=_("QoS name cannot consist only of digits."),
+)
+
+
+class SlurmOfferingQoS(core_models.UuidMixin, TimeStampedModel):
+    """
+    Quality of Service profile for a SLURM offering.
+
+    Cluster-scoped named entity carrying QoS-level limits, mirroring SLURM's
+    slurmdb_qos_rec_t. Not owned by a partition; partitions reference it via
+    the ``SlurmPartitionQoS`` allow-list gate (SLURM AllowQos).
+    """
+
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="qos_profiles"
+    )
+    name = models.CharField(
+        max_length=255,
+        validators=[NonNumericQoSNameValidator],
+        help_text=_("Name of the SLURM QOS."),
+    )
+    description = models.CharField(max_length=255, blank=True)
+
+    # Limit fields (mirror slurmdb_qos_rec_t; nullable = unset).
+    max_nodes = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Maximum nodes per job")
+    )
+    min_nodes = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Minimum nodes per job")
+    )
+    default_time = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Default time limit in minutes")
+    )
+    max_time = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Maximum wall time in minutes")
+    )
+    grace_time = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Preemption grace time in seconds")
+    )
+    priority = models.PositiveIntegerField(
+        null=True, blank=True, help_text=_("Scheduling priority")
+    )
+    grp_tres = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_("Aggregate TRES the QOS may allocate at once (GrpTRES)"),
+    )
+    max_tres_per_job = models.CharField(
+        max_length=255, blank=True, help_text=_("Max TRES per job (MaxTRESPerJob)")
+    )
+    max_tres_per_node = models.CharField(
+        max_length=255, blank=True, help_text=_("Max TRES per node (MaxTRESPerNode)")
+    )
+    max_tres_per_user = models.CharField(
+        max_length=255, blank=True, help_text=_("Max TRES per user (MaxTRESPerUser)")
+    )
+    min_tres_per_job = models.CharField(
+        max_length=255, blank=True, help_text=_("Min TRES per job (MinTRESPerJob)")
+    )
+    flags = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_("Comma-separated QOS flags (e.g. DenyOnLimit, OverPartQOS)"),
+    )
+
+    class Meta:
+        unique_together = ("offering", "name")
+        indexes = [models.Index(fields=["offering", "name"])]
+
+    def __str__(self):
+        return f"{self.offering.name} - {self.name}"
+
+
+class SlurmPartitionQoS(core_models.UuidMixin, TimeStampedModel):
+    """
+    Allow-list link between a partition and a QoS (SLURM AllowQos gate).
+
+    A partition with no ``SlurmPartitionQoS`` rows permits all of the
+    offering's QoS (SLURM AllowQos=ALL). ``is_default`` seeds the association
+    DefaultQOS; its absence models a mandatory ``--qos``.
+    """
+
+    partition = models.ForeignKey(
+        OfferingPartition, on_delete=models.CASCADE, related_name="qos_options"
+    )
+    qos = models.ForeignKey(
+        SlurmOfferingQoS, on_delete=models.CASCADE, related_name="partition_links"
+    )
+    is_default = models.BooleanField(
+        default=False,
+        help_text=_("Default QOS for this partition (seeds SLURM DefaultQOS)."),
+    )
+
+    def clean(self):
+        super().clean()
+        # The partition and the QoS must belong to the same offering. Enforced
+        # at DB level by a trigger (see migration), mirrored here for a clean
+        # ValidationError on the ORM/full_clean path.
+        if (
+            self.partition_id
+            and self.qos_id
+            and (self.partition.offering_id != self.qos.offering_id)
+        ):
+            raise ValidationError(
+                _("Partition and QoS must belong to the same offering.")
+            )
+
+    class Meta:
+        unique_together = ("partition", "qos")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["partition"],
+                condition=Q(is_default=True),
+                name="unique_default_qos_per_partition",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.partition.partition_name} - {self.qos.name}"
+
+
 class ResourceProject(
     PermissionMixin,
     core_models.UuidMixin,

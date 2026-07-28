@@ -782,6 +782,16 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         "carryover logic, and fairshare decay for site-agent managed SLURM offerings.",
         default=False,
     )
+    enforce_qos = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="When enabled, the site agent enforces the offering's QoS "
+        "selection by granting the chosen QoS on the SLURM association "
+        "(QosLevel/DefaultQOS). When disabled (default), QoS is informational "
+        "only — profiles are shown and the selection is recorded on the "
+        "resource, but the agent does not touch SLURM QoS. The agent config "
+        "may override this per deployment.",
+    )
 
 
 class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
@@ -3483,8 +3493,111 @@ class NestedSoftwareCatalogSerializer(serializers.ModelSerializer):
         return obj.catalog.packages.count()
 
 
+QOS_LIMIT_FIELDS = (
+    "name",
+    "description",
+    "max_nodes",
+    "min_nodes",
+    "default_time",
+    "max_time",
+    "grace_time",
+    "priority",
+    "grp_tres",
+    "max_tres_per_job",
+    "max_tres_per_node",
+    "max_tres_per_user",
+    "min_tres_per_job",
+    "flags",
+)
+
+
+class OfferingQoSSerializer(serializers.ModelSerializer):
+    """Serializer for OfferingQoS model."""
+
+    offering_name = serializers.CharField(source="offering.name", read_only=True)
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Offering.objects.all()
+    )
+
+    class Meta:
+        model = models.SlurmOfferingQoS
+        fields = (
+            "uuid",
+            "created",
+            "modified",
+            "offering",
+            "offering_name",
+            *QOS_LIMIT_FIELDS,
+        )
+        read_only_fields = ("uuid", "created", "modified")
+
+
+class OfferingQoSUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating OfferingQoS model."""
+
+    qos_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.SlurmOfferingQoS.objects.all(),
+        write_only=True,
+    )
+
+    class Meta:
+        model = models.SlurmOfferingQoS
+        fields = ("qos_uuid", *QOS_LIMIT_FIELDS)
+
+
+class RemoveQoSSerializer(serializers.Serializer):
+    qos_uuid = serializers.UUIDField()
+
+
+class NestedQoSSerializer(serializers.ModelSerializer):
+    """Nested read serializer exposing the QoS catalog on the offering payload."""
+
+    class Meta:
+        model = models.SlurmOfferingQoS
+        fields = ("uuid", *QOS_LIMIT_FIELDS)
+
+
+class NestedPartitionQoSSerializer(serializers.ModelSerializer):
+    """Nested read serializer for a partition's QoS allow-list entries."""
+
+    qos = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
+    qos_name = serializers.CharField(source="qos.name", read_only=True)
+
+    class Meta:
+        model = models.SlurmPartitionQoS
+        fields = ("uuid", "qos", "qos_name", "is_default")
+
+
+class PartitionQoSItemSerializer(serializers.Serializer):
+    qos_uuid = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.SlurmOfferingQoS.objects.all()
+    )
+    is_default = serializers.BooleanField(default=False)
+
+
+class SetPartitionQoSSerializer(serializers.Serializer):
+    """Replace a partition's QoS allow-list (SLURM AllowQos gate)."""
+
+    partition_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingPartition.objects.all(),
+        write_only=True,
+    )
+    qos_options = PartitionQoSItemSerializer(many=True)
+
+    def validate_qos_options(self, value):
+        if sum(1 for item in value if item["is_default"]) > 1:
+            raise serializers.ValidationError(
+                _("At most one QoS option can be the default.")
+            )
+        return value
+
+
 class NestedPartitionSerializer(serializers.ModelSerializer):
     """Nested serializer for OfferingPartition model."""
+
+    qos_options = NestedPartitionQoSSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.OfferingPartition
@@ -3511,6 +3624,7 @@ class NestedPartitionSerializer(serializers.ModelSerializer):
             "exclusive_user",
             "priority_tier",
             "qos",
+            "qos_options",
             "req_resv",
         )
 
@@ -3568,6 +3682,7 @@ class ProviderOfferingDetailsSerializer(
     )
     software_catalogs = NestedSoftwareCatalogSerializer(many=True, read_only=True)
     partitions = NestedPartitionSerializer(many=True, read_only=True)
+    qos_profiles = NestedQoSSerializer(many=True, read_only=True)
     has_compliance_requirements = serializers.SerializerMethodField()
     billing_type_classification = serializers.SerializerMethodField()
     effective_available_limits = serializers.SerializerMethodField()
@@ -3616,6 +3731,7 @@ class ProviderOfferingDetailsSerializer(
             "default_access_subnets",
             "software_catalogs",
             "partitions",
+            "qos_profiles",
             "customer",
             "customer_uuid",
             "customer_name",
@@ -12915,6 +13031,7 @@ class OfferingPartitionSerializer(serializers.ModelSerializer):
     offering = serializers.SlugRelatedField(
         slug_field="uuid", queryset=models.Offering.objects.all()
     )
+    qos_options = NestedPartitionQoSSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.OfferingPartition
@@ -12945,6 +13062,7 @@ class OfferingPartitionSerializer(serializers.ModelSerializer):
             "exclusive_user",
             "priority_tier",
             "qos",
+            "qos_options",
             "req_resv",
         )
         read_only_fields = ("uuid", "created", "modified")

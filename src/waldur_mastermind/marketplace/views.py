@@ -2318,6 +2318,15 @@ class ProviderOfferingViewSet(
             ).values("total")
             queryset = queryset.annotate(total_cost_estimated=Coalesce(total_cost, 0))
 
+        # Prefetch nested SLURM relations to avoid N+1 when the offering detail
+        # payload includes partitions/qos_profiles — each partition nests a
+        # qos_options -> SlurmOfferingQoS chain and each QoS FKs the offering.
+        if self.detail:
+            queryset = queryset.prefetch_related(
+                "qos_profiles",
+                "partitions__qos_options__qos",
+            )
+
         return queryset
 
     destroy_permissions = [
@@ -4702,6 +4711,145 @@ class ProviderOfferingViewSet(
     remove_partition_serializer_class = serializers.RemovePartitionSerializer
 
     remove_partition_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Add a QoS profile to an offering",
+        description="Adds a new Quality of Service profile to an offering.",
+        request=serializers.OfferingQoSSerializer,
+        responses={201: serializers.OfferingQoSSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def add_qos(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        data = request.data.copy()
+        data["offering"] = offering.uuid.hex
+        serializer = serializers.OfferingQoSSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"uuid": serializer.instance.uuid},
+            status=status.HTTP_201_CREATED,
+        )
+
+    add_qos_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    add_qos_serializer_class = serializers.OfferingQoSSerializer
+
+    @extend_schema(
+        summary="Update a QoS profile of an offering",
+        description="Updates an existing Quality of Service profile of an offering.",
+        request=serializers.OfferingQoSUpdateSerializer,
+        responses={200: serializers.OfferingQoSSerializer},
+    )
+    @action(detail=True, methods=["patch"])
+    def update_qos(self, request, uuid=None):
+        offering = self.get_object()
+        qos_uuid = request.data.get("qos_uuid")
+        try:
+            qos = models.SlurmOfferingQoS.objects.get(uuid=qos_uuid, offering=offering)
+        except models.SlurmOfferingQoS.DoesNotExist:
+            return Response(
+                {"error": "QoS profile not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = serializers.OfferingQoSUpdateSerializer(
+            qos, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_qos = serializer.save()
+        response_serializer = serializers.OfferingQoSSerializer(
+            updated_qos, context=self.get_serializer_context()
+        )
+        return Response(response_serializer.data)
+
+    update_qos_serializer_class = serializers.OfferingQoSUpdateSerializer
+
+    update_qos_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Remove a QoS profile from an offering",
+        description="Removes a Quality of Service profile from an offering.",
+        request=serializers.RemoveQoSSerializer,
+        responses={204: None},
+    )
+    @action(detail=True, methods=["post"])
+    def remove_qos(self, request, uuid=None):
+        offering = self.get_object()
+        qos_uuid = request.data.get("qos_uuid")
+        try:
+            qos = models.SlurmOfferingQoS.objects.get(uuid=qos_uuid, offering=offering)
+        except models.SlurmOfferingQoS.DoesNotExist:
+            return Response(
+                {"error": "QoS profile not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        qos.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    remove_qos_serializer_class = serializers.RemoveQoSSerializer
+
+    remove_qos_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Set the QoS allow-list of a partition",
+        description="Replaces the QoS allow-list (SLURM AllowQos gate) of a "
+        "partition. An empty list permits all of the offering's QoS.",
+        request=serializers.SetPartitionQoSSerializer,
+        responses={200: serializers.OfferingPartitionSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_partition_qos(self, request, uuid=None):
+        offering = self.get_object()
+        serializer = serializers.SetPartitionQoSSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        partition = serializer.validated_data["partition_uuid"]
+        qos_options = serializer.validated_data["qos_options"]
+        if partition.offering_id != offering.id:
+            return Response(
+                {"error": "Partition does not belong to this offering"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        for item in qos_options:
+            if item["qos_uuid"].offering_id != offering.id:
+                return Response(
+                    {"error": "QoS profile does not belong to this offering"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        with transaction.atomic():
+            partition.qos_options.all().delete()
+            for item in qos_options:
+                models.SlurmPartitionQoS.objects.create(
+                    partition=partition,
+                    qos=item["qos_uuid"],
+                    is_default=item["is_default"],
+                )
+        response_serializer = serializers.OfferingPartitionSerializer(
+            partition, context=self.get_serializer_context()
+        )
+        return Response(response_serializer.data)
+
+    set_partition_qos_serializer_class = serializers.SetPartitionQoSSerializer
+
+    set_partition_qos_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING,
             ["*", "customer", "customer.serviceprovider"],

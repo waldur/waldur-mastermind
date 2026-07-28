@@ -185,6 +185,7 @@ class OfferingPartitionSerializerTest(test.APITestCase):
             "exclusive_user",
             "priority_tier",
             "qos",
+            "qos_options",
             "req_resv",
         }
 
