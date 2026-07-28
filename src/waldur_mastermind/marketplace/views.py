@@ -113,7 +113,6 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.fixtures import (
     CustomerRole,
-    OfferingRole,
     ServiceProviderRole,
 )
 from waldur_core.permissions.models import Role, UserRole
@@ -2417,35 +2416,19 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["get"], filter_backends=[])
     def access_subnets(self, request, uuid=None):
         offering: models.Offering = self.get_object()
-        # Only allow staff, support and offering managers/owners.
-        if not (request.user.is_staff or request.user.is_support):
-            if not (
-                offering.has_user(request.user, OfferingRole.MANAGER)
-                or offering.customer.has_user(request.user, CustomerRole.OWNER)
-            ):
-                raise PermissionDenied()
+        marketplace_permissions.ensure_offering_provider_access(request.user, offering)
         subnets = (
             models.ResourceAccessSubnet.objects.filter(resource__offering=offering)
             .exclude(inet__isnull=True)
             .select_related(
-                "resource", "resource__project", "resource__project__customer"
+                "resource",
+                "resource__offering",
+                "resource__project",
+                "resource__project__customer",
             )
             .order_by("inet")
         )
-        expanded = [
-            {
-                "inet": str(subnet.inet),
-                "description": subnet.description,
-                "resource_uuid": subnet.resource.uuid.hex,
-                "resource_name": subnet.resource.name,
-                "resource_backend_id": subnet.resource.backend_id,
-                "project_uuid": subnet.resource.project.uuid.hex,
-                "project_name": subnet.resource.project.name,
-                "customer_uuid": subnet.resource.project.customer.uuid.hex,
-                "customer_name": subnet.resource.project.customer.name,
-            }
-            for subnet in subnets
-        ]
+        expanded = [self._expand_resource_subnet(subnet) for subnet in subnets]
         default_subnets = list(
             models.OfferingAccessSubnet.objects.filter(offering=offering)
             .exclude(inet__isnull=True)
@@ -2466,6 +2449,119 @@ class ProviderOfferingViewSet(
         )
         return Response(serializer.data)
 
+    @staticmethod
+    def _expand_resource_subnet(subnet):
+        return {
+            "inet": str(subnet.inet),
+            "description": subnet.description,
+            "resource_uuid": subnet.resource.uuid.hex,
+            "resource_name": subnet.resource.name,
+            "resource_backend_id": subnet.resource.backend_id,
+            "project_uuid": subnet.resource.project.uuid.hex,
+            "project_name": subnet.resource.project.name,
+            "customer_uuid": subnet.resource.project.customer.uuid.hex,
+            "customer_name": subnet.resource.project.customer.name,
+            "offering_uuid": subnet.resource.offering.uuid.hex,
+            "offering_name": subnet.resource.offering.name,
+        }
+
+    @extend_schema(
+        summary="Aggregate access subnets across offerings",
+        description="Returns the combined access-subnet allow-list of the given "
+        "offerings: 'expanded' — every resource subnet with its resource, project, "
+        "customer and offering context; 'defaults' — the provider-default subnets "
+        "of each offering; 'organization_subnets' — organization-level access "
+        "subnets of customers owning non-terminated resources of the offerings "
+        "(populated only when include_organization_subnets is true); and 'packed' "
+        "— all of the above collapsed into the minimal set of CIDRs. Intended for "
+        "service providers building an external firewall allow-list spanning "
+        "several offerings. The caller must be staff, support, a service manager "
+        "of every requested offering or an owner of its customer.",
+        parameters=[
+            OpenApiParameter(
+                name="offering_uuid",
+                type=OpenApiTypes.UUID,
+                many=True,
+                required=True,
+                location=OpenApiParameter.QUERY,
+                description="UUID of an offering to include. May be repeated.",
+            ),
+            OpenApiParameter(
+                name="include_organization_subnets",
+                type=OpenApiTypes.BOOL,
+                required=False,
+                location=OpenApiParameter.QUERY,
+                description="Also merge in the organization-level access subnets "
+                "of customers owning non-terminated resources of the offerings.",
+            ),
+        ],
+        responses=serializers.AggregatedAccessSubnetsSerializer,
+    )
+    @action(detail=False, methods=["get"], filter_backends=[])
+    def aggregated_access_subnets(self, request):
+        request_serializer = serializers.AggregatedAccessSubnetsRequestSerializer(
+            data={
+                "offering_uuid": request.query_params.getlist("offering_uuid"),
+                "include_organization_subnets": request.query_params.get(
+                    "include_organization_subnets", False
+                ),
+            }
+        )
+        request_serializer.is_valid(raise_exception=True)
+        offering_uuids = request_serializer.validated_data["offering_uuid"]
+        include_organization_subnets = request_serializer.validated_data[
+            "include_organization_subnets"
+        ]
+
+        offerings = list(models.Offering.objects.filter(uuid__in=offering_uuids))
+        missing = {u.hex for u in offering_uuids} - {o.uuid.hex for o in offerings}
+        if missing:
+            raise rf_exceptions.ValidationError(
+                {
+                    "offering_uuid": _("Offerings not found: %s")
+                    % ", ".join(sorted(missing))
+                }
+            )
+        for offering in offerings:
+            marketplace_permissions.ensure_offering_provider_access(
+                request.user, offering
+            )
+
+        data = utils.aggregate_access_subnets(
+            offering_uuids=offering_uuids,
+            include_organization_subnets=include_organization_subnets,
+        )
+        expanded = [
+            self._expand_resource_subnet(subnet) for subnet in data["resource_subnets"]
+        ]
+        defaults = [
+            {
+                "inet": str(subnet.inet),
+                "description": subnet.description,
+                "offering_uuid": subnet.offering.uuid.hex,
+                "offering_name": subnet.offering.name,
+            }
+            for subnet in data["offering_defaults"]
+        ]
+        organization_subnets = [
+            {
+                "inet": str(subnet.inet),
+                "description": subnet.description,
+                "customer_uuid": subnet.customer.uuid.hex,
+                "customer_name": subnet.customer.name,
+            }
+            for subnet in data["organization_subnets"]
+        ]
+        serializer = serializers.AggregatedAccessSubnetsSerializer(
+            {
+                "expanded": expanded,
+                "packed": data["packed"],
+                "defaults": defaults,
+                "organization_subnets": organization_subnets,
+            }
+        )
+        return Response(serializer.data)
+
     @extend_schema(
         summary="List orders for an offering",
         description="Returns a paginated list of orders associated with a specific offering.",
@@ -2475,13 +2571,7 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["get"], filter_backends=[])
     def orders(self, request, uuid=None):
         offering: models.Offering = self.get_object()
-        # Only allow staff, support and offering managers
-        if not (request.user.is_staff or request.user.is_support):
-            if not (
-                offering.has_user(request.user, OfferingRole.MANAGER)
-                or offering.customer.has_user(request.user, CustomerRole.OWNER)
-            ):
-                raise PermissionDenied()
+        marketplace_permissions.ensure_offering_provider_access(request.user, offering)
         queryset = models.Order.objects.filter(offering=offering)
         filterset = filters.OrderFilter(request.query_params, queryset=queryset)
         queryset = filterset.qs
@@ -2499,12 +2589,7 @@ class ProviderOfferingViewSet(
     )
     def order_detail(self, request, uuid=None, order_uuid=None):
         offering: models.Offering = self.get_object()
-        if not (request.user.is_staff or request.user.is_support):
-            if not (
-                offering.has_user(request.user, OfferingRole.MANAGER)
-                or offering.customer.has_user(request.user, CustomerRole.OWNER)
-            ):
-                raise PermissionDenied()
+        marketplace_permissions.ensure_offering_provider_access(request.user, offering)
         try:
             order = models.Order.objects.get(offering=offering, uuid=order_uuid)
         except models.Order.DoesNotExist:

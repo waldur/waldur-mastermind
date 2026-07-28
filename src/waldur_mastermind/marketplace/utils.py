@@ -5639,3 +5639,65 @@ def build_resource_team_response(resource, request, users):
         ).data,
         status=status.HTTP_200_OK,
     )
+
+
+def aggregate_access_subnets(offering_uuids=None, include_organization_subnets=False):
+    """Collect the access-subnet allow-list for the given offerings.
+
+    ``offering_uuids=None`` means all offerings. Returns a dict with the
+    per-resource subnets, the provider-default offering subnets, the
+    organization-level subnets of customers owning non-terminated resources
+    of the offerings (empty unless ``include_organization_subnets``), and
+    ``packed`` — all of the above collapsed into the minimal CIDR list.
+    """
+    resource_subnets = (
+        models.ResourceAccessSubnet.objects.exclude(inet__isnull=True)
+        .select_related(
+            "resource",
+            "resource__offering",
+            "resource__project",
+            "resource__project__customer",
+        )
+        .order_by("inet")
+    )
+    offering_defaults = (
+        models.OfferingAccessSubnet.objects.exclude(inet__isnull=True)
+        .select_related("offering")
+        .order_by("inet")
+    )
+    if offering_uuids is not None:
+        resource_subnets = resource_subnets.filter(
+            resource__offering__uuid__in=offering_uuids
+        )
+        offering_defaults = offering_defaults.filter(offering__uuid__in=offering_uuids)
+
+    if include_organization_subnets:
+        resources = models.Resource.objects.exclude(
+            state=models.Resource.States.TERMINATED
+        )
+        if offering_uuids is not None:
+            resources = resources.filter(offering__uuid__in=offering_uuids)
+        customer_ids = resources.values_list(
+            "project__customer_id", flat=True
+        ).distinct()
+        organization_subnets = (
+            structure_models.AccessSubnet.objects.exclude(inet__isnull=True)
+            .filter(customer_id__in=customer_ids)
+            .select_related("customer")
+            .order_by("inet")
+        )
+    else:
+        organization_subnets = structure_models.AccessSubnet.objects.none()
+
+    inets = (
+        [subnet.inet for subnet in resource_subnets]
+        + [subnet.inet for subnet in offering_defaults]
+        + [subnet.inet for subnet in organization_subnets]
+    )
+    packed = [str(network) for network in core_utils.merge_access_subnets(inets)]
+    return {
+        "resource_subnets": resource_subnets,
+        "offering_defaults": offering_defaults,
+        "organization_subnets": organization_subnets,
+        "packed": packed,
+    }

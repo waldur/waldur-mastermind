@@ -6187,6 +6187,8 @@ class OfferingAccessSubnetExpandedSerializer(serializers.Serializer):
     project_name = serializers.CharField()
     customer_uuid = serializers.CharField()
     customer_name = serializers.CharField()
+    offering_uuid = serializers.CharField()
+    offering_name = serializers.CharField()
 
 
 class OfferingAccessSubnetsSerializer(serializers.Serializer):
@@ -6195,6 +6197,50 @@ class OfferingAccessSubnetsSerializer(serializers.Serializer):
     expanded = OfferingAccessSubnetExpandedSerializer(many=True)
     packed = serializers.ListField(child=serializers.CharField())
     defaults = serializers.ListField(child=serializers.CharField())
+
+
+class AggregatedAccessSubnetsRequestSerializer(serializers.Serializer):
+    """Query parameters of the multi-offering access-subnet aggregation."""
+
+    offering_uuid = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        help_text=_("Repeated query parameter selecting the offerings to aggregate."),
+    )
+    include_organization_subnets = serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Also merge in the organization-level access subnets of customers "
+            "owning non-terminated resources of the selected offerings."
+        ),
+    )
+
+
+class OfferingDefaultAccessSubnetRowSerializer(serializers.Serializer):
+    """A provider-default offering subnet with its offering context."""
+
+    inet = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    offering_uuid = serializers.CharField()
+    offering_name = serializers.CharField()
+
+
+class OrganizationAccessSubnetRowSerializer(serializers.Serializer):
+    """An organization-level access subnet with its customer context."""
+
+    inet = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    customer_uuid = serializers.CharField()
+    customer_name = serializers.CharField()
+
+
+class AggregatedAccessSubnetsSerializer(serializers.Serializer):
+    """Access subnets aggregated across several offerings."""
+
+    expanded = OfferingAccessSubnetExpandedSerializer(many=True)
+    packed = serializers.ListField(child=serializers.CharField())
+    defaults = OfferingDefaultAccessSubnetRowSerializer(many=True)
+    organization_subnets = OrganizationAccessSubnetRowSerializer(many=True)
 
 
 class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerializer):
