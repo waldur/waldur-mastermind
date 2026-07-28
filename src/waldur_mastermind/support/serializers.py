@@ -1490,6 +1490,10 @@ class CannedResponseRenderSerializer(serializers.Serializer):
     context = serializers.DictField(required=False, default=dict)
 
 
+class CannedResponseRenderResponseSerializer(serializers.Serializer):
+    rendered_text = serializers.CharField()
+
+
 class BulkUpdateIssueSerializer(serializers.Serializer):
     issue_uuids = serializers.ListField(
         child=serializers.UUIDField(),
