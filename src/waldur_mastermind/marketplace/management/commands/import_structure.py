@@ -69,6 +69,8 @@ from waldur_mastermind.marketplace.models import (
     ResourceProject,
     RobotAccount,
     ServiceProvider,
+    SlurmOfferingQoS,
+    SlurmPartitionQoS,
     SoftwareCatalog,
 )
 from waldur_mastermind.policy.models import (
@@ -485,6 +487,18 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "slurm_offering_qos": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "slurm_partition_qos": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "offering_software_catalogs": {
                 "created": 0,
                 "updated": 0,
@@ -767,6 +781,20 @@ class Command(BaseCommand):
             "offering_partitions",
             lambda: self.import_offering_partitions(
                 data.get("offering_partitions", [])
+            ),
+        )
+
+        # Import SLURM QoS profiles (depends on offerings)
+        self._safe_import(
+            "slurm_offering_qos",
+            lambda: self.import_slurm_offering_qos(data.get("slurm_offering_qos", [])),
+        )
+
+        # Import partition QoS allow-list links (depends on partitions and QoS)
+        self._safe_import(
+            "slurm_partition_qos",
+            lambda: self.import_slurm_partition_qos(
+                data.get("slurm_partition_qos", [])
             ),
         )
 
@@ -2365,6 +2393,166 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["offering_partitions"]["errors"] += 1
+
+    def import_slurm_offering_qos(self, qos_data):
+        """Import SLURM QoS profiles (offering-scoped QoS catalog)."""
+        self.stdout.write("Importing SLURM QoS profiles...")
+
+        for profile in qos_data:
+            try:
+                uuid = profile.get("uuid")
+                offering_uuid = profile.get("offering_uuid")
+                name = profile.get("name")
+
+                if not uuid or not offering_uuid or not name:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping SLURM QoS without UUID, offering_uuid, or name"
+                        )
+                    )
+                    self.stats["slurm_offering_qos"]["errors"] += 1
+                    continue
+
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping QoS {uuid}: Offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["slurm_offering_qos"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "offering": offering,
+                    "name": name,
+                    "description": profile.get("description", ""),
+                    "max_nodes": profile.get("max_nodes"),
+                    "min_nodes": profile.get("min_nodes"),
+                    "default_time": profile.get("default_time"),
+                    "max_time": profile.get("max_time"),
+                    "grace_time": profile.get("grace_time"),
+                    "priority": profile.get("priority"),
+                    "grp_tres": profile.get("grp_tres", ""),
+                    "max_tres_per_job": profile.get("max_tres_per_job", ""),
+                    "max_tres_per_node": profile.get("max_tres_per_node", ""),
+                    "max_tres_per_user": profile.get("max_tres_per_user", ""),
+                    "min_tres_per_job": profile.get("min_tres_per_job", ""),
+                    "flags": profile.get("flags", ""),
+                }
+
+                if not self.dry_run:
+                    existing = SlurmOfferingQoS.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                SlurmOfferingQoS.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
+                            self.stats["slurm_offering_qos"]["updated"] += 1
+                        else:
+                            self.stats["slurm_offering_qos"]["skipped"] += 1
+                    else:
+                        with transaction.atomic():
+                            SlurmOfferingQoS.objects.create(uuid=uuid, **defaults)
+                        self.stats["slurm_offering_qos"]["created"] += 1
+                else:
+                    existing = SlurmOfferingQoS.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["slurm_offering_qos"]["updated"] += 1
+                        else:
+                            self.stats["slurm_offering_qos"]["skipped"] += 1
+                    else:
+                        self.stats["slurm_offering_qos"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import SLURM QoS {profile.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["slurm_offering_qos"]["errors"] += 1
+
+    def import_slurm_partition_qos(self, links_data):
+        """Import partition QoS allow-list links (SLURM AllowQos gate)."""
+        self.stdout.write("Importing partition QoS links...")
+
+        for link_data in links_data:
+            try:
+                uuid = link_data.get("uuid")
+                partition_uuid = link_data.get("partition_uuid")
+                qos_uuid = link_data.get("qos_uuid")
+
+                if not uuid or not partition_uuid or not qos_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping partition QoS link without UUID, partition_uuid, or qos_uuid"
+                        )
+                    )
+                    self.stats["slurm_partition_qos"]["errors"] += 1
+                    continue
+
+                partition = OfferingPartition.objects.filter(
+                    uuid=partition_uuid
+                ).first()
+                if not partition:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping link {uuid}: Partition {partition_uuid} not found"
+                        )
+                    )
+                    self.stats["slurm_partition_qos"]["errors"] += 1
+                    continue
+
+                qos = SlurmOfferingQoS.objects.filter(uuid=qos_uuid).first()
+                if not qos:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping link {uuid}: QoS {qos_uuid} not found"
+                        )
+                    )
+                    self.stats["slurm_partition_qos"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "partition": partition,
+                    "qos": qos,
+                    "is_default": link_data.get("is_default", False),
+                }
+
+                if not self.dry_run:
+                    existing = SlurmPartitionQoS.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                SlurmPartitionQoS.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
+                            self.stats["slurm_partition_qos"]["updated"] += 1
+                        else:
+                            self.stats["slurm_partition_qos"]["skipped"] += 1
+                    else:
+                        with transaction.atomic():
+                            SlurmPartitionQoS.objects.create(uuid=uuid, **defaults)
+                        self.stats["slurm_partition_qos"]["created"] += 1
+                else:
+                    existing = SlurmPartitionQoS.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["slurm_partition_qos"]["updated"] += 1
+                        else:
+                            self.stats["slurm_partition_qos"]["skipped"] += 1
+                    else:
+                        self.stats["slurm_partition_qos"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import partition QoS link {link_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["slurm_partition_qos"]["errors"] += 1
 
     def import_offering_software_catalogs(self, links_data):
         """Import offering-to-software-catalog links."""

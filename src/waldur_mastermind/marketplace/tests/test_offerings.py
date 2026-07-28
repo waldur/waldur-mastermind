@@ -1122,6 +1122,7 @@ class OfferingCreateTest(test.APITestCase):
             "auto_approve_marketplace_script": True,
             "backend_id_display_label": "Backend ID",
             "enable_display_of_order_actions_for_service_provider": True,
+            "enforce_qos": False,
             "expose_inference_playground": False,
             "highlight_backend_id_display": False,
             "require_effective_id_for_highlighted_display": False,

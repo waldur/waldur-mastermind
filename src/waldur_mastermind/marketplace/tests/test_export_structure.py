@@ -1073,6 +1073,55 @@ class ExportStructureCommandTest(TestCase):
         restored_category = Category.objects.get(uuid=original_category_uuid)
         self.assertEqual(restored_category.title, "Roundtrip Category")
 
+    def test_export_import_slurm_qos_round_trip(self):
+        """SLURM QoS profiles and partition allow-list links survive round-trip."""
+        from waldur_mastermind.marketplace.models import (
+            SlurmOfferingQoS,
+            SlurmPartitionQoS,
+        )
+
+        offering = marketplace_factories.OfferingFactory(name="QoS Offering")
+        partition = marketplace_factories.OfferingPartitionFactory(
+            offering=offering, partition_name="gpu"
+        )
+        qos = marketplace_factories.SlurmOfferingQoSFactory(
+            offering=offering, name="boost", max_nodes=128
+        )
+        link = marketplace_factories.SlurmPartitionQoSFactory(
+            partition=partition, qos=qos, is_default=True
+        )
+        qos_uuid = qos.uuid
+        link_uuid = link.uuid
+
+        # Export
+        self._call_export_command()
+        data = self._load_exported_json()
+        self.assertEqual(len(data["slurm_offering_qos"]), 1)
+        self.assertEqual(data["slurm_offering_qos"][0]["name"], "boost")
+        self.assertEqual(data["slurm_offering_qos"][0]["max_nodes"], 128)
+        self.assertEqual(len(data["slurm_partition_qos"]), 1)
+        self.assertTrue(data["slurm_partition_qos"][0]["is_default"])
+
+        # Drop the QoS rows (partition + offering are kept).
+        SlurmPartitionQoS.objects.all().delete()
+        SlurmOfferingQoS.objects.all().delete()
+
+        # Re-import
+        import_output = StringIO()
+        call_command(
+            "import_structure", "-i", self.output_file_path, stdout=import_output
+        )
+
+        restored_qos = SlurmOfferingQoS.objects.get(uuid=qos_uuid)
+        self.assertEqual(restored_qos.name, "boost")
+        self.assertEqual(restored_qos.max_nodes, 128)
+        self.assertEqual(restored_qos.offering.uuid, offering.uuid)
+
+        restored_link = SlurmPartitionQoS.objects.get(uuid=link_uuid)
+        self.assertTrue(restored_link.is_default)
+        self.assertEqual(restored_link.partition.uuid, partition.uuid)
+        self.assertEqual(restored_link.qos.uuid, restored_qos.uuid)
+
     def test_export_group_invitations(self):
         """Test that export captures group invitation data."""
         from django.contrib.contenttypes.models import ContentType

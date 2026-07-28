@@ -1,12 +1,14 @@
-# Marketplace SLURM Partitions and Software Catalogs
+# Marketplace SLURM Partitions, QoS, and Software Catalogs
 
-This guide covers SLURM partition configuration and their integration with software catalogs in Waldur's marketplace.
+This guide covers SLURM partition and QoS configuration and their integration with software catalogs in Waldur's marketplace.
 
 ## Overview
 
 SLURM partitions represent compute partitions in a cluster that can be associated with marketplace offerings. They define resource limits, scheduling policies, access controls, and optionally link to software catalogs for partition-specific software availability.
 
 `OfferingPartition` records are exposed via the marketplace API for tools like Open OnDemand and are **informational by default**. The Waldur Site Agent can optionally enforce them as access restrictions on the SLURM cluster (`sacctmgr add user … Partitions=…`), enabling per-partition pricing — one offering per partition, each with its own price components — while reusing the same underlying SLURM account hierarchy. Enforcement is opt-in; existing deployments that populated partitions for documentation purposes only continue to behave exactly as before.
+
+SLURM QoS profiles follow the same informational-by-default, opt-in-enforcement model — see [SLURM QoS Profiles](#slurm-qos-profiles) below.
 
 ## SLURM partition assignment by the Site Agent
 
@@ -48,7 +50,7 @@ backend_settings:
 
 - Partition restrictions are applied at **user-level** SLURM associations. SLURM's accounting model does not support partition restrictions at account scope.
 - The agent does **not** modify existing user associations when an offering's partition list changes. To rebalance, an operator must remove and re-add the user, or terminate the resource and re-provision it on the desired offering.
-- Other partition attributes (`max_cpus_per_node`, `max_time`, QoS, etc.) remain informational — they are exposed via the API but are not pushed into SLURM by the agent.
+- Other numeric partition attributes (`max_cpus_per_node`, `max_time`, etc.) remain informational — they are exposed via the API but are not pushed into SLURM by the agent. QoS has its own opt-in enforcement path — see [SLURM QoS Profiles](#slurm-qos-profiles).
 
 ## SLURM Partition Model
 
@@ -92,7 +94,7 @@ The OfferingPartition model maps closely to SLURM's partition_info_t struct and 
 #### Scheduling Configuration
 
 - `priority_tier`: Priority tier for scheduling and preemption
-- `qos`: Quality of Service (QOS) name
+- `qos`: Deprecated single Quality of Service (QOS) name. Superseded by the [SLURM QoS Profiles](#slurm-qos-profiles) catalog and per-partition allow-list (`qos_options`); retained for backward compatibility and backfilled into the new model.
 - `req_resv`: Require reservation for job allocation
 
 ## Partition Management API
@@ -149,6 +151,93 @@ curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings
   -d '{
     "partition_uuid": "partition-uuid"
   }'
+```
+
+## SLURM QoS Profiles
+
+SLURM Quality of Service (QoS) profiles let a provider describe the scheduling profiles available on an offering and gate which QoS jobs may request per partition. Like partitions, QoS is **informational by default** — the profiles are shown in the marketplace and the user's selection is recorded on the resource, but the Site Agent does not touch SLURM QoS unless enforcement is turned on.
+
+### QoS Model
+
+QoS is grounded in SLURM's native model, where a QoS is a **cluster-scoped** entity that carries its own limits — it is *not* owned by a partition:
+
+- **`SlurmOfferingQoS`** — an offering-scoped QoS profile: `name` plus limits (`max_nodes`, `min_nodes`, `default_time`, `max_time`, `grace_time`, `priority`, `grp_tres`, `max_tres_per_job`, `max_tres_per_node`, `max_tres_per_user`, `min_tres_per_job`, `flags`). QoS names cannot be all digits — they would collide with SLURM's numeric QoS id namespace.
+- **`SlurmPartitionQoS`** — the per-partition allow-list gate (SLURM `AllowQos`). A partition with no allow-list entries permits *all* of the offering's QoS (SLURM `AllowQos=ALL`). Exactly one entry may be marked the default (which seeds SLURM `DefaultQOS`); the absence of a default models a mandatory `--qos`.
+
+The catalog is exposed on the offering payload as `qos_profiles`, and each partition's allow-list as `qos_options`. The deprecated single `qos` string on `OfferingPartition` is superseded by this catalog and backfilled into it.
+
+### QoS Management API
+
+QoS is managed through provider-offering actions, mirroring partitions:
+
+- `add_qos`: add a QoS profile to the offering catalog
+- `update_qos`: update a QoS profile
+- `remove_qos`: remove a QoS profile
+- `set_partition_qos`: replace a partition's QoS allow-list (SLURM `AllowQos`), optionally marking one default
+
+```bash
+# Add a QoS profile to the offering catalog
+curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/add_qos/" \
+  -H "Authorization: Token your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "gpu_prod",
+    "max_nodes": 256,
+    "max_time": 2880,
+    "grp_tres": "cpu=512,gres/gpu=8",
+    "priority": 50
+  }'
+
+# Set a partition's QoS allow-list (empty list ⇒ all offering QoS are permitted)
+curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings/{offering_uuid}/set_partition_qos/" \
+  -H "Authorization: Token your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "partition_uuid": "partition-uuid",
+    "qos_options": [
+      {"qos_uuid": "gpu-debug-uuid", "is_default": false},
+      {"qos_uuid": "gpu-prod-uuid",  "is_default": true}
+    ]
+  }'
+```
+
+### Order-time selection
+
+When an offering exposes QoS, the SLURM order form lets the user pick a partition and a QoS. The QoS choices are constrained to the selected partition's allow-list (or all offering QoS when the partition is unrestricted), the partition's default QoS is preselected, and QoS becomes required when the partition restricts QoS without a default. The selection is recorded on the resource as `attributes.partition` / `attributes.qos`, which the Site Agent reads under enforcement.
+
+### Enforcement
+
+Enforcement is opt-in and resolved **per offering**, overridable **per agent**:
+
+- **Per offering** — set `enforce_qos: true` in the offering's `plugin_options` (default `false`, informational).
+- **Per agent** — the SLURM `backend_settings.enforce_offering_qos` is a three-state override: *unset* respects each offering's `enforce_qos` (the normal case), `true` forces enforcement for every offering the agent serves, and `false` forces informational mode regardless of the offering.
+
+The agent override wins when set; otherwise the per-offering flag decides.
+
+When enforcing, the user's selected partition and QoS are granted on the user's SLURM association:
+
+```bash
+sacctmgr add user <username> account=<account> [Partition=<p>] \
+    QosLevel=<qos> DefaultQOS=<qos> Share=parent
+```
+
+The QoS must **also** be permitted by the partition's `AllowQos` gate — that gate is site-admin configuration in `slurm.conf`; the agent only sets the association side.
+
+### Pause / downscale under enforcement
+
+The Site Agent normally pauses or downscales an allocation by swapping the account's QoS. That mechanism is incompatible with per-association QoS grants — overwriting the account QoS would clobber the grant. So **when QoS enforcement is active, the agent uses an orthogonal lever**: it blocks new job submission with `sacctmgr modify account <account> set GrpSubmitJobs=0` (and restores with `GrpSubmitJobs=-1`), leaving the QoS grant untouched. Informational mode keeps the existing QoS-swap behaviour unchanged.
+
+Because these two levers must not overlap, the agent configuration rejects setting `enforce_offering_qos: true` together with the `qos_paused` / `qos_downscaled` swap settings.
+
+### QoS enforcement configuration
+
+```yaml
+backend_settings:
+  # Three-state QoS enforcement override:
+  #   unset — respect each offering's plugin_options.enforce_qos (default)
+  #   true  — force enforcement
+  #   false — force informational mode
+  enforce_offering_qos: true
 ```
 
 ## Partition Software Catalog Associations
@@ -276,6 +365,11 @@ Consider these approaches when associating software catalogs with partitions:
 ### Partition Management (Offering Managers)
 
 - **OfferingPartition**: Offering managers can create/modify SLURM partition configurations through offering actions
+- Requires `UPDATE_OFFERING` permission on the offering
+
+### QoS Management (Offering Managers)
+
+- **SlurmOfferingQoS / SlurmPartitionQoS**: Offering managers can manage the QoS catalog and per-partition allow-lists through the `add_qos` / `update_qos` / `remove_qos` / `set_partition_qos` offering actions
 - Requires `UPDATE_OFFERING` permission on the offering
 
 ### Software Catalog Association (Offering Managers)

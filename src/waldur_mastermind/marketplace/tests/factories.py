@@ -1263,6 +1263,34 @@ class OfferingPartitionFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
+class SlurmOfferingQoSFactory(factory.django.DjangoModelFactory):
+    """Factory for OfferingQoS model."""
+
+    class Meta:
+        model = models.SlurmOfferingQoS
+
+    offering = factory.SubFactory(OfferingFactory)
+    name = factory.Sequence(lambda n: f"qos-{n}")
+    max_nodes = 64
+    max_time = 1440
+
+
+class SlurmPartitionQoSFactory(factory.django.DjangoModelFactory):
+    """Factory for PartitionQoS model."""
+
+    class Meta:
+        model = models.SlurmPartitionQoS
+
+    partition = factory.SubFactory(OfferingPartitionFactory)
+    # Default the QoS to the partition's offering so a factory-built link is
+    # valid by default (partition.offering == qos.offering). Tests that need a
+    # cross-offering mismatch pass ``qos`` explicitly.
+    qos = factory.LazyAttribute(
+        lambda o: SlurmOfferingQoSFactory(offering=o.partition.offering)
+    )
+    is_default = False
+
+
 class ResourceLimitChangeRequestFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.ResourceLimitChangeRequest],

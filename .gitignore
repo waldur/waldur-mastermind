@@ -38,3 +38,6 @@ docker/matrix-dev/appservices/
 scratchpad/
 waldur-typescript-sdk/
 waldur-openapi-schema.yaml
+
+# UI review screenshot artifacts (not for commit)
+.ui-review-shots/
