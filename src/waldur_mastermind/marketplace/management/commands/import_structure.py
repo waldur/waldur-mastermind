@@ -8912,8 +8912,43 @@ class Command(BaseCommand):
                     self.stats["call_coi_configurations"]["errors"] += 1
                     continue
 
+                # This path writes the type-handling rules straight to the ORM,
+                # so the serializer's checks never run. Apply the model's own
+                # invariant here too, otherwise an imported preset can produce a
+                # configuration the API would have rejected.
+                rules = {
+                    field: config_data.get(field, [])
+                    for field in CallCOIConfiguration.RULE_FIELDS
+                }
+                problems = []
+                unknown = CallCOIConfiguration.find_unknown_types(rules)
+                if unknown:
+                    listed = "; ".join(
+                        f"{field}: {', '.join(types)}"
+                        for field, types in sorted(unknown.items())
+                    )
+                    problems.append(f"unknown conflict types ({listed})")
+                overlaps = CallCOIConfiguration.find_rule_overlaps(rules)
+                if overlaps:
+                    listed = "; ".join(
+                        f"{coi_type} in {', '.join(sorted(fields))}"
+                        for coi_type, fields in sorted(overlaps.items())
+                    )
+                    problems.append(
+                        f"each conflict type may only be assigned to one rule ({listed})"
+                    )
+                if problems:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping COI config {uuid}: {'; '.join(problems)}"
+                        )
+                    )
+                    self.stats["call_coi_configurations"]["errors"] += 1
+                    continue
+
                 defaults = {
                     "call": call,
+                    **rules,
                     "coauthorship_lookback_years": config_data.get(
                         "coauthorship_lookback_years", 3
                     ),
@@ -8928,15 +8963,6 @@ class Command(BaseCommand):
                     ),
                     "include_same_institution": config_data.get(
                         "include_same_institution", True
-                    ),
-                    "recusal_required_types": config_data.get(
-                        "recusal_required_types", []
-                    ),
-                    "management_allowed_types": config_data.get(
-                        "management_allowed_types", []
-                    ),
-                    "disclosure_only_types": config_data.get(
-                        "disclosure_only_types", []
                     ),
                     "auto_detect_coauthorship": config_data.get(
                         "auto_detect_coauthorship", True

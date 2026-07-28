@@ -2530,19 +2530,19 @@ class CallCOIConfigurationSerializer(
     call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="call.name")
 
-    # Explicitly type JSON array fields for proper OpenAPI schema generation
+    # Explicitly type JSON array fields for proper OpenAPI schema generation.
     recusal_required_types = serializers.ListField(
-        child=serializers.CharField(),
+        child=serializers.ChoiceField(choices=COITypes.CHOICES),
         required=False,
         help_text="COI types requiring automatic recusal",
     )
     management_allowed_types = serializers.ListField(
-        child=serializers.CharField(),
+        child=serializers.ChoiceField(choices=COITypes.CHOICES),
         required=False,
         help_text="COI types allowing management plan",
     )
     disclosure_only_types = serializers.ListField(
-        child=serializers.CharField(),
+        child=serializers.ChoiceField(choices=COITypes.CHOICES),
         required=False,
         help_text="COI types requiring disclosure only",
     )
@@ -2576,6 +2576,57 @@ class CallCOIConfigurationSerializer(
                 "view_name": "proposal-protected-call-detail",
             },
         }
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        # Combine incoming values with the persisted ones so partial (PATCH)
+        # updates are validated against the effective post-save state.
+        def effective(field):
+            if field in attrs:
+                return attrs[field] or []
+            if self.instance is not None:
+                return getattr(self.instance, field) or []
+            return []
+
+        overlaps = models.CallCOIConfiguration.find_rule_overlaps(
+            {
+                field: effective(field)
+                for field in models.CallCOIConfiguration.RULE_FIELDS
+            }
+        )
+
+        # Block every overlap this request would create, but leave configurations
+        # that already overlapped alone: they predate the rule, and rewriting or
+        # freezing them is out of scope. An overlap can only be introduced by
+        # rewriting one of the rules holding it, so this still makes new ones
+        # impossible while an untouched legacy one stays editable.
+        # Keyed on the value actually changing, not on the field being present.
+        def is_rewritten(field):
+            if field not in attrs:
+                return False
+            if self.instance is None:
+                return True
+            return set(attrs[field] or []) != set(getattr(self.instance, field) or [])
+
+        introduced = {
+            coi_type: fields
+            for coi_type, fields in overlaps.items()
+            if any(is_rewritten(field) for field in fields)
+        }
+        if introduced:
+            listed = "; ".join(
+                "%s (%s)" % (coi_type, ", ".join(sorted(fields)))
+                for coi_type, fields in sorted(introduced.items())
+            )
+            raise serializers.ValidationError(
+                _(
+                    "Each conflict type may only be assigned to one rule. "
+                    "Remove it from all but one of these: %(conflicts)s."
+                )
+                % {"conflicts": listed}
+            )
+        return attrs
 
 
 class ConflictOfInterestSerializer(
@@ -3864,15 +3915,15 @@ class InvitationCOIConfigurationSerializer(serializers.Serializer):
     """COI configuration info for invitation display."""
 
     recusal_required_types = serializers.ListField(
-        child=serializers.CharField(),
+        child=serializers.ChoiceField(choices=COITypes.CHOICES),
         help_text="COI types requiring automatic recusal",
     )
     management_allowed_types = serializers.ListField(
-        child=serializers.CharField(),
+        child=serializers.ChoiceField(choices=COITypes.CHOICES),
         help_text="COI types where a management plan can be submitted",
     )
     disclosure_only_types = serializers.ListField(
-        child=serializers.CharField(),
+        child=serializers.ChoiceField(choices=COITypes.CHOICES),
         help_text="COI types that only need disclosure",
     )
     proposal_disclosure_level = serializers.CharField(

@@ -1479,6 +1479,16 @@ class CallCOIConfiguration(
     Per-call COI detection settings and thresholds.
     """
 
+    # The three type-handling rules must stay mutually exclusive and hold only
+    # known type codes. Both the API serializer and the bulk importer write
+    # these lists, so the invariant lives with the model rather than in either
+    # caller.
+    RULE_FIELDS = (
+        "recusal_required_types",
+        "management_allowed_types",
+        "disclosure_only_types",
+    )
+
     call = models.OneToOneField(
         Call,
         on_delete=models.CASCADE,
@@ -1556,6 +1566,32 @@ class CallCOIConfiguration(
     @classmethod
     def get_url_name(cls):
         return "call-coi-configuration"
+
+    @classmethod
+    def find_rule_overlaps(cls, rules) -> dict[str, set[str]]:
+        """Map each COI type assigned to more than one rule to those rule names."""
+        assignments = {}
+        for field in cls.RULE_FIELDS:
+            for coi_type in rules.get(field) or []:
+                assignments.setdefault(coi_type, set()).add(field)
+        return {
+            coi_type: fields
+            for coi_type, fields in assignments.items()
+            if len(fields) > 1
+        }
+
+    @classmethod
+    def find_unknown_types(cls, rules) -> dict[str, list[str]]:
+        """Map each rule name to the type codes it holds that are not valid COI types."""
+        known = {choice[0] for choice in COITypes.CHOICES}
+        problems = {}
+        for field in cls.RULE_FIELDS:
+            unknown = [
+                coi_type for coi_type in rules.get(field) or [] if coi_type not in known
+            ]
+            if unknown:
+                problems[field] = unknown
+        return problems
 
 
 def filter_conflicts_of_interest(user):

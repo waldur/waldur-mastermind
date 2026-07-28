@@ -31,6 +31,7 @@ from waldur_mastermind.proposal.enums import (
     AssignmentSources,
     CallStates,
     COISeverityLevels,
+    COITypes,
     MatchingAlgorithms,
     ProposalStates,
     RequestedOfferingStates,
@@ -104,6 +105,9 @@ SPECTACULAR_SETTINGS = {
         "MatchingAlgorithm": MatchingAlgorithms.CHOICES,
         # COI severity levels
         "COISeverityLevel": COISeverityLevels.CHOICES,
+        # COI type codes are shared by the ConflictOfInterest.coi_type field and
+        # the three CallCOIConfiguration rule lists;
+        "CoiTypeEnum": COITypes.CHOICES,
         # Assignment batch and item statuses
         "AssignmentBatchStatus": AssignmentBatchStatuses.CHOICES,
         "AssignmentItemStatus": AssignmentItemStatuses.CHOICES,

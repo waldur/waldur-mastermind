@@ -43,7 +43,9 @@ from waldur_mastermind.policy.models import (
     SlurmPeriodicUsagePolicy,
 )
 from waldur_mastermind.policy.tests import factories as policy_factories
+from waldur_mastermind.proposal.enums import COITypes
 from waldur_mastermind.proposal.models import (
+    CallCOIConfiguration,
     CallWorkflowStep,
     ProposalWorkflowStepInstance,
 )
@@ -3487,3 +3489,73 @@ class ImportWorkflowEngineStateTest(TestCase):
         self.assertEqual(
             ProposalWorkflowStepInstance.objects.filter(proposal=proposal).count(), 0
         )
+
+
+class ImportCallCOIConfigurationTest(TestCase):
+    """The importer writes the COI type-handling rules straight to the ORM, so
+    it has to enforce the same invariant the API serializer does (WAL-9601).
+    """
+
+    CONFIG_UUID = "cc100000-0000-0000-0000-000000000001"
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.temp_dir, "test_structure.json")
+        self.call = proposal_factories.CallFactory()
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def _run(self, **rules):
+        data = {
+            "call_coi_configurations": [
+                {
+                    "uuid": self.CONFIG_UUID,
+                    "call_uuid": self.call.uuid.hex,
+                    **rules,
+                }
+            ]
+        }
+        with open(self.test_file_path, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        output = StringIO()
+        call_command("import_structure", input=self.test_file_path, stdout=output)
+        return output.getvalue()
+
+    def test_disjoint_rules_are_imported(self):
+        self._run(
+            recusal_required_types=[COITypes.INST_SAME],
+            management_allowed_types=[COITypes.COMPET],
+        )
+
+        config = CallCOIConfiguration.objects.get(call=self.call)
+        self.assertEqual(config.recusal_required_types, [COITypes.INST_SAME])
+        self.assertEqual(config.management_allowed_types, [COITypes.COMPET])
+
+    def test_type_used_in_two_rules_is_skipped(self):
+        output = self._run(
+            recusal_required_types=[COITypes.INST_SAME],
+            management_allowed_types=[COITypes.INST_SAME],
+        )
+
+        self.assertFalse(CallCOIConfiguration.objects.filter(call=self.call).exists())
+        self.assertIn("only be assigned to one rule", output)
+        self.assertIn(COITypes.INST_SAME, output)
+
+    def test_unknown_conflict_type_is_skipped(self):
+        output = self._run(recusal_required_types=["NOT_A_REAL_COI_TYPE"])
+
+        self.assertFalse(CallCOIConfiguration.objects.filter(call=self.call).exists())
+        self.assertIn("unknown conflict types", output)
+        self.assertIn("NOT_A_REAL_COI_TYPE", output)
+
+    def test_every_problem_is_reported_in_one_pass(self):
+        """A preset author should not have to fix one error to discover the next."""
+        output = self._run(
+            recusal_required_types=[COITypes.INST_SAME, "NOT_A_REAL_COI_TYPE"],
+            management_allowed_types=[COITypes.INST_SAME],
+        )
+
+        self.assertIn("unknown conflict types", output)
+        self.assertIn("only be assigned to one rule", output)

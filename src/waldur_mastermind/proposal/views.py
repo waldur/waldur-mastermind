@@ -1681,23 +1681,32 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         """Get or update COI configuration for a call."""
         call = self.get_object()
 
-        config, created = models.CallCOIConfiguration.objects.get_or_create(call=call)
-
         if request.method == "GET":
+            config, _ = models.CallCOIConfiguration.objects.get_or_create(call=call)
             serializer = serializers.CallCOIConfigurationSerializer(
                 config, context=self.get_serializer_context()
             )
             return response.Response(serializer.data)
 
-        # PATCH - update configuration
-        serializer = serializers.CallCOIConfigurationSerializer(
-            config,
-            data=request.data,
-            partial=True,
-            context=self.get_serializer_context(),
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        # PATCH - update configuration.
+        # The mutual-exclusion rule is validated against the persisted row, so
+        # the read and the write have to be one atomic, locked unit. Two
+        # concurrent PATCHes each writing one half of an overlapping pair would
+        # otherwise both validate against a disjoint snapshot and both commit,
+        # producing the exact state this rule makes unreachable.
+        with transaction.atomic():
+            config, _ = models.CallCOIConfiguration.objects.get_or_create(call=call)
+            config = models.CallCOIConfiguration.objects.select_for_update().get(
+                pk=config.pk
+            )
+            serializer = serializers.CallCOIConfigurationSerializer(
+                config,
+                data=request.data,
+                partial=True,
+                context=self.get_serializer_context(),
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
         return response.Response(serializer.data)
 
     coi_configuration_serializer_class = serializers.CallCOIConfigurationSerializer
