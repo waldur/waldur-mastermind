@@ -851,7 +851,11 @@ class VersionSerializer(serializers.Serializer):
         help_text="Current installed version of the application"
     )
     latest_version = serializers.CharField(
-        help_text="Latest available version from GitHub, if available.", required=False
+        help_text=(
+            "Latest available version from GitHub. Only included for staff or "
+            "support users when update checks are enabled."
+        ),
+        required=False,
     )
 
 
