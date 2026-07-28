@@ -1003,7 +1003,11 @@ class ProviderCannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewS
         _is_owner_or_staff
     ]
 
-    @extend_schema(responses={status.HTTP_200_OK: None})
+    @extend_schema(
+        summary="Render a canned response with context variables",
+        request=serializers.CannedResponseRenderSerializer,
+        responses={200: serializers.CannedResponseRenderResponseSerializer},
+    )
     @decorators.action(detail=True, methods=["post"])
     def render(self, request, uuid=None):
         canned_response = self.get_object()
@@ -1012,6 +1016,8 @@ class ProviderCannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewS
         canned_response.usage_count += 1
         canned_response.save(update_fields=["usage_count"])
         return response.Response({"rendered_text": rendered})
+
+    render_serializer_class = serializers.CannedResponseRenderSerializer
 
 
 class IssueTagViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -1090,7 +1096,7 @@ class CannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     @extend_schema(
         summary="Render a canned response with context variables",
         request=serializers.CannedResponseRenderSerializer,
-        responses={200: None},
+        responses={200: serializers.CannedResponseRenderResponseSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def render(self, request, uuid=None):
