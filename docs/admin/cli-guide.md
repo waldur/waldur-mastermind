@@ -1235,12 +1235,18 @@ Dumps per-resource access subnets for consumption by external firewalls, merging
 
 ```bash
 
-usage: waldur resource_access_subnets [-r OFFERING] [-o OUTPUT]
+usage: waldur resource_access_subnets [-r OFFERING]
+                                      [--include-organization-subnets]
+                                      [-o OUTPUT]
 
 options:
   -r, --offering OFFERING
                         Limit the dump to resources of the offering with the
-                        given UUID.
+                        given UUID. May be given multiple times.
+  --include-organization-subnets
+                        Also merge in the organization-level access subnets of
+                        customers owning non-terminated resources of the
+                        selected offerings.
   -o, --output OUTPUT   Specifies file to which the merged subnets will be
                         written. The output will be printed to stdout by
                         default.
