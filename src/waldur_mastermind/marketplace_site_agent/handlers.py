@@ -11,71 +11,13 @@ from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
-    BASIC_OFFERING,
-    OPENSTACK_TENANT_OFFERING,
-    SCRIPT_OFFERING,
     SITE_AGENT_OFFERING,
-    OrderStates,
     ResourceStates,
 )
-from waldur_mastermind.marketplace.models import OfferingUser, Order
+from waldur_mastermind.marketplace.models import OfferingUser
 from waldur_mastermind.marketplace_site_agent import utils
 
 logger = logging.getLogger(__name__)
-
-
-def send_done_order_to_message_queue(sender, instance: Order, created=False, **kwargs):
-    """Send completed marketplace order to message queue for site agent processing."""
-    if get_skip_side_effects():
-        return
-    order = instance
-    if created:
-        return
-    offering = order.offering
-    if offering.type != SITE_AGENT_OFFERING:
-        return
-
-    if not order.tracker.has_changed("state") or order.state != OrderStates.DONE:
-        return
-
-    payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
-    messages = marketplace_utils.prepare_messages(
-        offering, payload, logging_enums.ObservableObjectType.ORDER
-    )
-    if messages:
-        logging_tasks.publish_messages.delay(messages)
-
-
-def send_pending_order_to_message_queue(
-    sender, instance: Order, created=False, **kwargs
-):
-    """Send pending marketplace order to message queue for site agent processing."""
-    if get_skip_side_effects():
-        return
-
-    order = instance
-
-    offering = order.offering
-    if offering.type not in [
-        SITE_AGENT_OFFERING,
-        SCRIPT_OFFERING,
-        OPENSTACK_TENANT_OFFERING,
-        BASIC_OFFERING,
-    ]:
-        return
-
-    if not order.tracker.has_changed("state") or order.state not in [
-        OrderStates.PENDING_PROVIDER,
-        OrderStates.PENDING_CONSUMER,
-    ]:
-        return
-
-    payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
-    messages = marketplace_utils.prepare_messages(
-        offering, payload, logging_enums.ObservableObjectType.ORDER
-    )
-    if messages:
-        logging_tasks.publish_messages.delay(messages)
 
 
 def send_offering_user_username_message(

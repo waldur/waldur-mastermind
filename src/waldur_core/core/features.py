@@ -155,6 +155,13 @@ class MarketplaceSection(FeatureSection):
         "Enabled display of experimental or mocked components in marketplace."
     )
 
+    realtime_updates = Feature(
+        "Enable push-driven UI updates over the event-consumer WebSocket "
+        "(experimental). When disabled, the UI relies on polling and manual "
+        "refresh as before. Requires RabbitMQ web-STOMP to be reachable at "
+        "/rmqws-stomp on the API host."
+    )
+
     show_call_management_functionality = Feature(
         "Enabled display of call management functionality."
     )

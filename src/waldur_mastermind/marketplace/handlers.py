@@ -3144,3 +3144,55 @@ def log_offering_access_subnet_deletion(sender, instance, **kwargs):
         event_context={"offering_access_subnet": instance},
         scopes=[instance.offering, instance.offering.customer],
     )
+
+
+def send_order_state_change_to_message_queue(
+    sender, instance: Order, created=False, **kwargs
+):
+    """Emit an order event on every state transition, for any offering type.
+
+    The single emitter for order events: site agents demultiplex on
+    order_state and skip non-actionable ones; UI clients use the events as
+    cache-invalidation hints. Payloads are enriched with resource, project
+    and plan context by the ORDER enricher.
+    """
+    if get_skip_side_effects():
+        return
+    order = instance
+    if created:
+        return
+    if not order.tracker.has_changed("state"):
+        return
+
+    payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
+    messages = marketplace_utils.prepare_messages(
+        order.offering, payload, ObservableObjectType.ORDER
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+
+def send_resource_state_change_to_message_queue(
+    sender, instance: Resource, created=False, **kwargs
+):
+    """Emit a resource event on creation and every state transition.
+
+    Does not overlap with the site-agent plugin's flag-change emitter
+    (downscaled/restrict_member_access/paused), which is a different trigger.
+    The enricher adds resource_state, project and limits context.
+    """
+    if get_skip_side_effects():
+        return
+    resource = instance
+    if not created and not resource.tracker.has_changed("state"):
+        return
+
+    payload = {
+        "resource_uuid": resource.uuid.hex,
+        "resource_backend_id": resource.backend_id,
+    }
+    messages = marketplace_utils.prepare_messages(
+        resource.offering, payload, ObservableObjectType.RESOURCE
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
