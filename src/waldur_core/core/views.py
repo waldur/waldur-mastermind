@@ -99,6 +99,7 @@ from waldur_core.permissions.enums import (
     RoleEnum,
 )
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.utils import check_pat_support_scope
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 
 logger = logging.getLogger(__name__)
@@ -1841,17 +1842,16 @@ def get_latest_github_tag(timeout=5):
 
 @extend_schema(
     summary="Get application version",
-    description="Retrieves the current installed version of the application and the latest available version from GitHub (if available). Requires staff or support user permissions.",
+    description=(
+        "Retrieves the current installed version of the application. "
+        "Staff and support users additionally receive the latest available "
+        "version from GitHub when update checks are enabled."
+    ),
     request=None,
     responses=VersionSerializer,
 )
 @api_view(["GET"])
-@permission_classes(
-    (
-        rf_permissions.IsAuthenticated,
-        IsStaffOrSupportUser,
-    )
-)
+@permission_classes((rf_permissions.IsAuthenticated,))
 def version_detail(request):
     """Retrieve version of the application"""
 
@@ -1859,9 +1859,13 @@ def version_detail(request):
         "version": __version__,
     }
 
-    latest_version = get_latest_github_tag()
-    if latest_version:
-        response_data["latest_version"] = latest_version
+    if (request.user.is_staff or request.user.is_support) and check_pat_support_scope(
+        request
+    ):
+        latest_version = get_latest_github_tag()
+        if latest_version:
+            response_data["latest_version"] = latest_version
+
     serializer = VersionSerializer(response_data)
     return Response(serializer.data)
 
