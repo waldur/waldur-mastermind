@@ -188,6 +188,86 @@ class OrgAggregatedVolumeDiscountTest(test.APITestCase):
         self.assertEqual(discount.details["aggregated_usage"], 12.0)
         self.assertFalse(discounts.filter(resource=small.resource).exists())
 
+    def _add_second_plan_component(self, **kwargs):
+        """Second plan of the same offering, sharing the offering component."""
+        other_plan = marketplace_factories.PlanFactory(offering=self.offering)
+        return marketplace_factories.PlanComponentFactory(
+            plan=other_plan,
+            component=self.offering_component,
+            price=Decimal("10"),
+            **kwargs,
+        )
+
+    def test_plan_without_discount_does_not_inherit_another_plans_formula(self):
+        # Discount configured only on plan A; the resource billed under plan B
+        # crosses the threshold but must stay undiscounted.
+        self.plan_component.discount_formula = "20 if usage >= 10 else 0"
+        self.plan_component.save()
+        other_plan_component = self._add_second_plan_component()
+
+        discounted = self._add_resource_item(usage=12)
+        undiscounted = self._add_resource_item(
+            usage=12, plan_component=other_plan_component
+        )
+
+        billing_discount.apply_aggregated_volume_discounts(self.invoice)
+
+        discounts = self._discount_items()
+        self.assertEqual(discounts.count(), 1)
+        self.assertEqual(discounts.get().resource, discounted.resource)
+        self.assertFalse(discounts.filter(resource=undiscounted.resource).exists())
+
+    def test_each_plan_is_discounted_by_its_own_formula(self):
+        self.plan_component.discount_formula = "20 if usage >= 10 else 0"
+        self.plan_component.save()
+        other_plan_component = self._add_second_plan_component(
+            discount_formula="50 if usage >= 10 else 0"
+        )
+
+        item_a = self._add_resource_item(usage=12)
+        item_b = self._add_resource_item(usage=12, plan_component=other_plan_component)
+
+        billing_discount.apply_aggregated_volume_discounts(self.invoice)
+
+        discounts = self._discount_items()
+        self.assertEqual(discounts.count(), 2)
+        self.assertEqual(
+            discounts.get(resource=item_a.resource).details["discount_percent"], 20.0
+        )
+        self.assertEqual(
+            discounts.get(resource=item_b.resource).details["discount_percent"], 50.0
+        )
+
+    def test_aggregation_scope_is_resolved_per_plan(self):
+        # Plan A: per-resource — two resources of 6 each stay below the
+        # threshold individually. Plan B: per-customer — two resources of 6
+        # each cross it together. Plan A's usage must not leak into plan B's
+        # aggregate and vice versa.
+        self.plan_component.discount_formula = "20 if usage >= 10 else 0"
+        self.plan_component.discount_aggregation = DiscountAggregations.PER_RESOURCE
+        self.plan_component.save()
+        other_plan_component = self._add_second_plan_component(
+            discount_formula="50 if usage >= 10 else 0",
+            discount_aggregation=DiscountAggregations.PER_CUSTOMER,
+        )
+
+        self._add_resource_item(usage=6)
+        self._add_resource_item(usage=6)
+        item_b1 = self._add_resource_item(usage=6, plan_component=other_plan_component)
+        item_b2 = self._add_resource_item(usage=6, plan_component=other_plan_component)
+
+        billing_discount.apply_aggregated_volume_discounts(self.invoice)
+
+        discounts = self._discount_items()
+        self.assertEqual(discounts.count(), 2)
+        self.assertEqual(
+            {discount.resource for discount in discounts},
+            {item_b1.resource, item_b2.resource},
+        )
+        for discount in discounts:
+            self.assertEqual(discount.details["discount_percent"], 50.0)
+            self.assertEqual(discount.details["aggregated_usage"], 12.0)
+
 
 @freeze_time("2024-01-15")
 class TotalLimitVolumeDiscountTest(test.APITestCase):

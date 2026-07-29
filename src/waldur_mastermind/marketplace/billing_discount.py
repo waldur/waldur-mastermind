@@ -1,14 +1,16 @@
 """Organization-aggregated volume discounts for offering components.
 
-A volume discount is computed on the TOTAL billed quantity of one offering
-component, summed across every resource of that offering in the customer's
-invoice (bound to the formula variable ``usage``). The resulting percentage is
-distributed back across the component's main invoice items as paired negative
-"discount" line items, so per-resource / per-project cost attribution is
-preserved.
+A volume discount is computed on the TOTAL billed quantity of one plan
+component, summed across every resource billed under that plan component in
+the customer's invoice (bound to the formula variable ``usage``). The
+resulting percentage is distributed back across the component's main invoice
+items as paired negative "discount" line items, so per-resource / per-project
+cost attribution is preserved.
 
-The discount formula is configured by the service provider on the offering's
-plan components (``PlanComponent.discount_formula``).
+The discount formula and its aggregation scope are configured by the service
+provider per plan (``PlanComponent.discount_formula``), so each invoice item
+is discounted only under its own plan's configuration — plans of the same
+offering never share or inherit each other's discounts.
 
 The whole pass runs once at invoice finalization, before credit compensation
 and affiliate-fee accrual, and is idempotent: existing discount items are
@@ -38,25 +40,10 @@ logger = logging.getLogger(__name__)
 DISCOUNT_USAGE_KEY = "discount_usage"
 
 
-def resolve_discount_plan_component(plan_components):
-    """Return the plan component that configures the volume discount for a
-    component group.
-
-    The formula and its aggregation scope are configured by the service
-    provider on the offering's plan components. When several plan components in
-    the group carry a formula, the first non-empty one (ordered by id) is used
-    — aggregation assumes a consistent discount per offering component.
-    """
-    for plan_component in sorted(plan_components, key=lambda pc: pc.id):
-        if (plan_component.discount_formula or "").strip():
-            return plan_component
-    return None
-
-
 def apply_aggregated_volume_discounts(invoice) -> None:
     """Rebuild the invoice's volume-discount line items. The formula and its
     scope (aggregated across the customer's resources or per resource) come
-    from the offering's plan components. Idempotent: clears then recomputes."""
+    from each item's own plan component. Idempotent: clears then recomputes."""
     invoice.items.filter(details__is_discount=True).delete()
 
     main_items = [
@@ -70,23 +57,22 @@ def apply_aggregated_volume_discounts(invoice) -> None:
         and item.details.get(DISCOUNT_USAGE_KEY) is not None
     ]
 
-    # Bucket by offering component; the plan component carries the formula and
-    # the aggregation scope.
-    component_buckets = defaultdict(list)
+    # Bucket by plan component: it carries the formula and the aggregation
+    # scope, so items billed under a plan without a discount configured are
+    # never discounted by another plan's formula.
+    plan_component_buckets = defaultdict(list)
     for item in main_items:
-        component_buckets[item.plan_component.component_id].append(item)
+        plan_component_buckets[item.plan_component_id].append(item)
 
-    for items in component_buckets.values():
-        offering_component = items[0].plan_component.component
-        plan_component = resolve_discount_plan_component(
-            [item.plan_component for item in items]
-        )
-        if plan_component is None:
+    for items in plan_component_buckets.values():
+        plan_component = items[0].plan_component
+        offering_component = plan_component.component
+        formula = (plan_component.discount_formula or "").strip()
+        if not formula:
             continue
-        formula = plan_component.discount_formula.strip()
 
         # Per-resource scope discounts each resource on its own usage; the
-        # per-customer scope treats the whole offering-component bucket as one
+        # per-customer scope treats the whole plan-component bucket as one
         # group.
         if plan_component.discount_aggregation == DiscountAggregations.PER_RESOURCE:
             per_resource = defaultdict(list)
