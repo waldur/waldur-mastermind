@@ -1253,6 +1253,24 @@ class DeadLetterQueueSerializer(serializers.Serializer):
     )
 
 
+# Event-consumer bindings accept one scope type beyond the shared TYPE_MAP: a
+# self-referential "user" binding for a user's own identity events
+# (user_profile, user_ssh_key, user_lifecycle, user_role). Deliberately kept
+# OUT of TYPE_MAP — that map also validates Personal Access Token scopes,
+# invitation targets and role content types, none of which should accept users.
+EVENT_CONSUMER_TYPE_MAP = {**TYPE_MAP, "user": ("core", "user")}
+
+
+class EventConsumerScopeInputSerializer(AllowedScopeInputSerializer):
+    def validate_type(self, value):
+        if value not in EVENT_CONSUMER_TYPE_MAP:
+            raise serializers.ValidationError(
+                f"Unknown scope type '{value}'. Expected one of: "
+                f"{sorted(EVENT_CONSUMER_TYPE_MAP)}."
+            )
+        return value
+
+
 class EventConsumerRegistrationSerializer(serializers.Serializer):
     """Input for registering an event-consumer queue."""
 
@@ -1272,15 +1290,17 @@ class EventConsumerRegistrationSerializer(serializers.Serializer):
             "filter unchanged."
         ),
     )
-    scopes = AllowedScopeInputSerializer(
+    scopes = EventConsumerScopeInputSerializer(
         many=True,
         required=False,
         default=list,
         help_text=(
             "Entity bindings this consumer receives events for — e.g. "
-            "several projects, a customer, an offering. You may only bind to an "
-            "entity you hold a role on. AN EMPTY LIST MEANS GLOBAL (every "
-            "event, including all-user PII) and is staff/support only."
+            "several projects, a customer, an offering, or your own user "
+            "(type 'user', your own UUID) for identity events. You may only "
+            "bind to an entity you hold a role on, or to yourself. AN EMPTY "
+            "LIST MEANS GLOBAL (every event, including all-user PII) and is "
+            "staff/support only."
         ),
     )
 
@@ -1293,7 +1313,7 @@ class EventConsumerRegistrationSerializer(serializers.Serializer):
         for entry in value:
             type_key = entry["type"]
             uuid_value = entry["uuid"]
-            app_label, model_name = TYPE_MAP[type_key]
+            app_label, model_name = EVENT_CONSUMER_TYPE_MAP[type_key]
             try:
                 content_type = ContentType.objects.get_by_natural_key(
                     app_label, model_name
@@ -1341,7 +1361,7 @@ class EventConsumerScopeOutputSerializer(serializers.Serializer):
 
     def get_type(self, scope) -> str | None:
         key = (scope.content_type.app_label, scope.content_type.model)
-        for type_key, natural_key in TYPE_MAP.items():
+        for type_key, natural_key in EVENT_CONSUMER_TYPE_MAP.items():
             if natural_key == key:
                 return type_key
         return scope.content_type.model

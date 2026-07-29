@@ -286,6 +286,7 @@ intersect those bindings.
 |----------|---------|
 | one offering | the classic site-agent case |
 | a project, a customer, several projects | subscribe to a slice you have access to |
+| your own user (`{"type": "user", "uuid": <own>}`) | your own identity events (`user_profile`, `user_ssh_key`, `user_lifecycle`, `user_role`). Any authenticated user may self-bind; binding another user is staff/support only. |
 | **empty** | **GLOBAL — everything platform-wide: user-centric events (all-user PII) AND marketplace events. Staff/support only.** |
 
 An event's scope-keys are the offering's own chain (offering, its project, that
@@ -388,6 +389,32 @@ them):
 
 ```json
 { "scopes": [], "object_types": ["user_ssh_key"] }
+```
+
+**My own identity events (the browser / self-service case)** — a user's own
+profile, SSH-key and role changes, without any staff privilege. Any
+authenticated user, own UUID only:
+
+```json
+{
+    "scopes": [{"type": "user", "uuid": "<own-user-uuid>"}],
+    "object_types": ["user_profile", "user_ssh_key", "user_role"]
+}
+```
+
+**Targeted user monitoring (staff/support)** — identity events for a specific
+set of users, without the global all-user firehose (data minimization: an
+IdM investigation or an admin tool watching three accounts should not receive
+everyone's PII). Staff/support only — non-staff may bind only to themselves:
+
+```json
+{
+    "scopes": [
+        {"type": "user", "uuid": "<user-a-uuid>"},
+        {"type": "user", "uuid": "<user-b-uuid>"}
+    ],
+    "object_types": ["user_profile", "user_ssh_key", "user_lifecycle", "user_role"]
+}
 ```
 
 **Per-customer reporting / monitoring** — one tenant's order and resource

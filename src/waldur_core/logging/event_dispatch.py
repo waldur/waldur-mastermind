@@ -35,6 +35,7 @@ import json
 import logging
 from typing import NamedTuple
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Q
 
@@ -179,8 +180,20 @@ def build_messages(
             if scope_keys
             else set()
         )
+        # Self-referential user scope: identity authorizes delivery — the
+        # consumer's owner IS the affected user (a role can never grant this).
+        # is_active is already enforced by the consumer queryset above.
+        identity_allowed_user_ids = set()
+        if scope_keys:
+            user_ct_id = _user_ct_id()
+            identity_allowed_user_ids = {
+                object_id for ct_id, object_id in scope_keys if ct_id == user_ct_id
+            }
         for consumer in bound:
-            if consumer.user_id not in allowed_user_ids:
+            if (
+                consumer.user_id not in allowed_user_ids
+                and consumer.user_id not in identity_allowed_user_ids
+            ):
                 consumers.pop(consumer.id, None)
 
     if not consumers:
@@ -226,6 +239,39 @@ def dispatch_global_event(
         logging_tasks.publish_messages.delay(result.messages)
 
 
+def _user_ct_id() -> int:
+    # Lazy import: this module deliberately keeps its import surface minimal
+    # (see the module docstring); ContentType.get_for_model is cached.
+    from waldur_core.core.models import User
+
+    return ContentType.objects.get_for_model(User).id
+
+
+def dispatch_user_event(
+    affected_user,
+    payload_builder,
+    object_type: ObservableObjectType,
+    event_type: str | None = None,
+) -> None:
+    """Deliver a user-centric event to global consumers AND to the affected
+    user's self-bound consumers (the self-referential ``user`` scope).
+
+    Global consumers keep receiving everything exactly as with
+    ``dispatch_global_event``; the ``(user_ct, user_id)`` scope-key
+    additionally matches consumers bound to the affected user, authorized by
+    identity rather than by role in ``build_messages``.
+    """
+    result = build_messages(
+        [(_user_ct_id(), affected_user.id)],
+        payload_builder,
+        object_type,
+        event_type,
+        include_global=True,
+    )
+    if result.messages:
+        logging_tasks.publish_messages.delay(result.messages)
+
+
 # --- Emitters (signal handlers) -------------------------------------------
 # Each is connected in logging/apps.py ready(). The get_skip_side_effects()
 # guard suppresses firing during migrations, bulk loads, and imports. Cheap
@@ -257,7 +303,8 @@ def emit_user_profile(sender, instance, created=False, **kwargs):
             changed[field] = [old_value, new_value]
     if not changed:
         return
-    dispatch_global_event(
+    dispatch_user_event(
+        instance,
         lambda: {
             "user_uuid": _hex(instance.uuid),
             "user_username": instance.username,
@@ -280,7 +327,8 @@ def emit_user_lifecycle(sender, instance, created=False, **kwargs):
         if not old or old.get("is_active") == instance.is_active:
             return
         action = "activated" if instance.is_active else "deactivated"
-    dispatch_global_event(
+    dispatch_user_event(
+        instance,
         lambda: {
             "user_uuid": _hex(instance.uuid),
             "user_username": instance.username,
@@ -297,7 +345,8 @@ def emit_user_lifecycle(sender, instance, created=False, **kwargs):
 def emit_user_lifecycle_delete(sender, instance, **kwargs):
     if get_skip_side_effects():
         return
-    dispatch_global_event(
+    dispatch_user_event(
+        instance,
         lambda: {
             "user_uuid": _hex(instance.uuid),
             "user_username": instance.username,
@@ -326,7 +375,8 @@ def emit_user_ssh_key_save(sender, instance, created=False, **kwargs):
     if get_skip_side_effects():
         return
     action = "added" if created else "updated"
-    dispatch_global_event(
+    dispatch_user_event(
+        instance.user,
         lambda: _ssh_key_payload(instance, action),
         ObservableObjectType.USER_SSH_KEY,
         event_type=f"ssh_key_{action}",
@@ -336,7 +386,8 @@ def emit_user_ssh_key_save(sender, instance, created=False, **kwargs):
 def emit_user_ssh_key_delete(sender, instance, **kwargs):
     if get_skip_side_effects():
         return
-    dispatch_global_event(
+    dispatch_user_event(
+        instance.user,
         lambda: _ssh_key_payload(instance, "removed"),
         ObservableObjectType.USER_SSH_KEY,
         event_type="ssh_key_removed",
@@ -362,7 +413,8 @@ def _build_role_payload(permission, granted):
 def _dispatch_role_change(permission, granted):
     if get_skip_side_effects():
         return
-    dispatch_global_event(
+    dispatch_user_event(
+        permission.user,
         lambda: _build_role_payload(permission, granted),
         ObservableObjectType.USER_ROLE,
         event_type="role_granted" if granted else "role_revoked",

@@ -293,3 +293,183 @@ class GlobalEventDispatchTest(test.APITestCase):
         ]
         self.assertEqual(len(profile), 1)
         self.assertEqual(profile[0]["changed"]["birth_date"][1], "1990-01-02")
+
+
+class SelfScopedEventDispatchTest(test.APITestCase):
+    """Delivery to a consumer bound to its own user (the self-referential
+    ``user`` scope): identity authorizes delivery, and only the affected
+    user's own consumer matches."""
+
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        self.consumer = logging_factories.EventConsumerFactory.with_scopes(
+            self.user,
+            user=self.user,
+            queue_created=True,
+            rmq_username="cccc0000000000000000000000000003",
+        )
+        self.topic = f"consumer_{self.consumer.uuid.hex}"
+
+    def _own(self, mock_delay):
+        return [
+            json.loads(m["payload"])
+            for m in _messages(mock_delay)
+            if m["topic"] == self.topic
+        ]
+
+    @mock.patch(DELAY)
+    def test_own_profile_change_delivers(self, mock_delay):
+        self.user.email = "self@example.com"
+        self.user.save()
+        payloads = self._own(mock_delay)
+        self.assertEqual(len(payloads), 1)
+        self.assertEqual(payloads[0]["object_type"], "user_profile")
+        self.assertEqual(payloads[0]["user_uuid"], self.user.uuid.hex)
+
+    @mock.patch(DELAY)
+    def test_other_users_events_are_not_delivered(self, mock_delay):
+        other = structure_factories.UserFactory()
+        mock_delay.reset_mock()
+        other.email = "other@example.com"
+        other.save()
+        self.assertEqual(self._own(mock_delay), [])
+
+    @mock.patch(DELAY)
+    def test_own_ssh_key_delivers(self, mock_delay):
+        key = structure_factories.SshPublicKeyFactory(user=self.user)
+        payloads = [
+            p for p in self._own(mock_delay) if p["object_type"] == "user_ssh_key"
+        ]
+        self.assertEqual(len(payloads), 1)
+        self.assertEqual(payloads[0]["action"], "added")
+        self.assertEqual(payloads[0]["ssh_key_uuid"], key.uuid.hex)
+
+    @mock.patch(DELAY)
+    def test_own_role_grant_delivers(self, mock_delay):
+        project = structure_factories.ProjectFactory()
+        mock_delay.reset_mock()
+        project.add_user(self.user, ProjectRole.MEMBER)
+        payloads = [p for p in self._own(mock_delay) if p["object_type"] == "user_role"]
+        self.assertEqual(len(payloads), 1)
+        self.assertTrue(payloads[0]["granted"])
+
+    @mock.patch(DELAY)
+    def test_object_types_allow_list_applies(self, mock_delay):
+        self.consumer.object_types = ["user_ssh_key"]
+        self.consumer.save(update_fields=["object_types"])
+        self.user.email = "filtered@example.com"
+        self.user.save()
+        self.assertEqual(self._own(mock_delay), [])
+
+    @mock.patch(DELAY)
+    def test_global_consumer_still_receives_alongside_self(self, mock_delay):
+        staff = structure_factories.UserFactory(is_staff=True)
+        global_consumer = logging_factories.EventConsumerFactory(
+            user=staff,
+            queue_created=True,
+            rmq_username="dddd0000000000000000000000000004",
+        )
+        mock_delay.reset_mock()
+        self.user.email = "both@example.com"
+        self.user.save()
+        topics = [m["topic"] for m in _messages(mock_delay)]
+        self.assertIn(self.topic, topics)
+        self.assertIn(f"consumer_{global_consumer.uuid.hex}", topics)
+        # Exactly one message each — no duplicates.
+        self.assertEqual(len(topics), 2)
+
+    @mock.patch(DELAY)
+    def test_mixed_binding_receives_user_events_via_identity(self, mock_delay):
+        """A consumer bound to [project, self] gets the user events through the
+        identity branch even though no UserRole authorizes the user scope-key."""
+        project = structure_factories.ProjectFactory()
+        project.add_user(self.user, ProjectRole.MEMBER)
+        mixed = logging_factories.EventConsumerFactory.with_scopes(
+            project,
+            self.user,
+            user=self.user,
+            queue_created=True,
+            rmq_username="eeee0000000000000000000000000005",
+        )
+        # Two consumers of the same user now exist; drop the plain self one to
+        # isolate the mixed consumer.
+        self.consumer.delete()
+        mock_delay.reset_mock()
+        self.user.email = "mixed@example.com"
+        self.user.save()
+        topics = [m["topic"] for m in _messages(mock_delay)]
+        self.assertEqual(topics, [f"consumer_{mixed.uuid.hex}"])
+
+    @mock.patch(DELAY)
+    def test_deactivated_owner_stops_receiving(self, mock_delay):
+        self.user.is_active = False
+        self.user.save()
+        mock_delay.reset_mock()
+        self.user.email = "gone@example.com"
+        self.user.save()
+        self.assertEqual(self._own(mock_delay), [])
+
+
+class StaffTrackedUserDispatchTest(test.APITestCase):
+    """Staff/support may bind a consumer to OTHER users (a targeted,
+    data-minimized alternative to the global firehose): they receive exactly
+    the tracked users' identity events, and lose delivery on demotion."""
+
+    def setUp(self):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.tracked = structure_factories.UserFactory()
+        self.untracked = structure_factories.UserFactory()
+        self.consumer = logging_factories.EventConsumerFactory.with_scopes(
+            self.tracked,
+            user=self.staff,
+            queue_created=True,
+            rmq_username="ffff0000000000000000000000000006",
+        )
+        self.topic = f"consumer_{self.consumer.uuid.hex}"
+
+    def _own(self, mock_delay):
+        return [
+            json.loads(m["payload"])
+            for m in _messages(mock_delay)
+            if m["topic"] == self.topic
+        ]
+
+    @mock.patch(DELAY)
+    def test_tracked_users_events_are_delivered(self, mock_delay):
+        self.tracked.email = "tracked@example.com"
+        self.tracked.save()
+        payloads = self._own(mock_delay)
+        self.assertEqual(len(payloads), 1)
+        self.assertEqual(payloads[0]["user_uuid"], self.tracked.uuid.hex)
+
+    @mock.patch(DELAY)
+    def test_untracked_users_events_are_not_delivered(self, mock_delay):
+        self.untracked.email = "untracked@example.com"
+        self.untracked.save()
+        self.assertEqual(self._own(mock_delay), [])
+
+    @mock.patch(DELAY)
+    def test_set_of_users_binding(self, mock_delay):
+        multi = logging_factories.EventConsumerFactory.with_scopes(
+            self.tracked,
+            self.untracked,
+            user=self.staff,
+            queue_created=True,
+            rmq_username="0aaa0000000000000000000000000007",
+        )
+        topic = f"consumer_{multi.uuid.hex}"
+        for user in (self.tracked, self.untracked):
+            mock_delay.reset_mock()
+            user.email = f"{user.username}@multi.example.com"
+            user.save()
+            topics = [m["topic"] for m in _messages(mock_delay)]
+            self.assertIn(topic, topics)
+
+    @mock.patch(DELAY)
+    def test_demoted_owner_stops_receiving_tracked_events(self, mock_delay):
+        self.staff.is_staff = False
+        self.staff.save()
+        mock_delay.reset_mock()
+        self.tracked.email = "after-demotion@example.com"
+        self.tracked.save()
+        self.assertEqual(self._own(mock_delay), [])
