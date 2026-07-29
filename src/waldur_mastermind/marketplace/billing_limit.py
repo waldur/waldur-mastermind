@@ -448,6 +448,28 @@ class LimitPeriodProcessor:
             else:
                 invoice_item.quantity = 0
 
+        # Keep the volume-discount basis in sync with the limit change. The
+        # basis is the period-weighted average limit: each sub-period's limit
+        # weighted by its share of the billing period, matching what the
+        # customer is actually charged for (see billing_discount). Only refresh
+        # items that already participate in discounting; when the period length
+        # is zero the previous basis is kept, mirroring the quantity fallback.
+        if billing_discount.DISCOUNT_USAGE_KEY in invoice_item.details:
+            total_days = get_full_days(invoice_item.start, invoice_item.end)
+            if total_days > 0:
+                weighted_limit = sum(
+                    period["quantity"]
+                    * get_full_days(
+                        parse_datetime(period["start"]),
+                        parse_datetime(period["end"]),
+                    )
+                    / total_days
+                    for period in resource_limit_periods
+                )
+                invoice_item.details[billing_discount.DISCOUNT_USAGE_KEY] = float(
+                    weighted_limit
+                )
+
         invoice_item.save(update_fields=["details", "quantity"])
 
     @classmethod
