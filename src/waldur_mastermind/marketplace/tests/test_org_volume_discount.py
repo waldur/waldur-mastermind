@@ -26,6 +26,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
 
 @freeze_time("2024-01-15")
@@ -333,3 +334,84 @@ class TotalLimitVolumeDiscountTest(test.APITestCase):
         # a no-op: discount lines are excluded from the already-billed total.
         LimitPeriodProcessor.process_update(self.resource, self.invoice, "storage", 150)
         self.assertEqual(self._main_items().count(), 1)
+
+
+@freeze_time("2020-01-01")
+class LimitUpdateDiscountBasisTest(test.APITestCase):
+    """Mid-period limit changes must refresh the volume-discount basis.
+
+    The basis follows the invoice item's prorated charge: the period-weighted
+    average of the limits active during the billing period. January 2020 has
+    31 days; a change on the 16th splits the month into 15/16-day (increase)
+    or 16/15-day (decrease) sub-periods.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.component = self.fixture.offering_component
+        self.component.billing_type = BillingTypes.LIMIT
+        self.component.limit_period = LimitPeriods.MONTH
+        self.component.save()
+
+        self.plan_component = self.fixture.plan_component
+        self.plan_component.price = 10
+        self.plan_component.discount_formula = "20 if usage >= 100 else 0"
+        self.plan_component.discount_aggregation = DiscountAggregations.PER_RESOURCE
+        self.plan_component.save()
+
+        self.resource = self.fixture.resource
+
+    def _activate_with_limit(self, limit):
+        self.resource.limits = {self.component.type: limit}
+        self.resource.save()
+        self.resource.set_state_ok()
+        self.resource.save()
+
+    def _get_invoice(self):
+        return invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=1
+        )
+
+    def _discount_items(self):
+        return self._get_invoice().items.filter(details__is_discount=True)
+
+    def test_limit_decrease_below_threshold_removes_discount(self):
+        # Created at 120 (above the 100 tier), lowered to 10 on Jan 16:
+        # weighted basis = (120 * 16 + 10 * 15) / 31 ~= 66.8 < 100.
+        self._activate_with_limit(120)
+
+        with freeze_time("2020-01-16"):
+            self.resource.limits = {self.component.type: 10}
+            self.resource.save()
+
+        item = self._get_invoice().items.get(
+            resource_id=self.resource.id,
+            details__offering_component_type=self.component.type,
+        )
+        self.assertAlmostEqual(
+            item.details[billing_discount.DISCOUNT_USAGE_KEY],
+            (120 * 16 + 10 * 15) / 31,
+            places=2,
+        )
+
+        billing_discount.apply_aggregated_volume_discounts(self._get_invoice())
+        self.assertEqual(self._discount_items().count(), 0)
+
+    def test_limit_increase_above_threshold_adds_discount(self):
+        # Created at 10 (below the 100 tier), raised to 200 on Jan 16:
+        # weighted basis = (10 * 15 + 200 * 16) / 31 ~= 108.1 >= 100.
+        self._activate_with_limit(10)
+
+        with freeze_time("2020-01-16"):
+            self.resource.limits = {self.component.type: 200}
+            self.resource.save()
+
+        billing_discount.apply_aggregated_volume_discounts(self._get_invoice())
+
+        discounts = self._discount_items()
+        self.assertEqual(discounts.count(), 1)
+        self.assertAlmostEqual(
+            discounts.get().details["aggregated_usage"],
+            (10 * 15 + 200 * 16) / 31,
+            places=2,
+        )
