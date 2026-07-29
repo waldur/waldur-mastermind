@@ -189,10 +189,15 @@ class LimitPeriodProcessor:
             return
         if not resource.plan:
             return
+        # Discount items produced at invoice finalization carry the same
+        # offering_component_type; they are bookkeeping lines, not billed
+        # quantity, so they must not participate in the already-billed total.
+        # has_key (not details__is_discount=True) because exclude() on a JSON
+        # value would also drop rows where the key is absent entirely.
         related_invoice_items = invoice_models.InvoiceItem.objects.filter(
             resource=resource,
             details__offering_component_type=component_type,
-        )
+        ).exclude(details__has_key="is_discount")
         if not related_invoice_items.exists():
             # For TOTAL period components, if no previous billing exists,
             # this is likely due to missing CREATE order billing.
@@ -229,6 +234,15 @@ class LimitPeriodProcessor:
             )
             return
         details = get_component_details(resource, plan_component)
+
+        # Record the signed limit delta feeding the volume discount aggregation
+        # (billing_discount): summing this item's value with the resource's
+        # earlier TOTAL items yields the current total limit, so tier formulas
+        # evaluate on the net limit after increases and decreases alike.
+        # Compensation items (negative delta) can never produce a discount line
+        # themselves — billing_discount._create_discount_item skips items whose
+        # discount amount is not positive.
+        details[billing_discount.DISCOUNT_USAGE_KEY] = float(diff)
 
         start = timezone.now()
         _, end = cls._get_billing_period(
