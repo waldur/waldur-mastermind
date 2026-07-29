@@ -56,6 +56,100 @@ class EventConsumerRegistrationTest(test.APITestCase):
             logging_models.EventConsumer.objects.filter(user=user).exists()
         )
 
+    def test_user_can_register_a_self_scoped_consumer(self, *mocks):
+        user = structure_factories.UserFactory()
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            URL,
+            {
+                "object_types": ["user_profile", "user_ssh_key"],
+                "scopes": [{"type": "user", "uuid": user.uuid.hex}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code, status.HTTP_201_CREATED, response.content
+        )
+        consumer = logging_models.EventConsumer.objects.get(user=user)
+        self.assertFalse(consumer.is_global)
+        scope = consumer.scopes.get()
+        self.assertEqual(scope.scope, user)
+
+    def test_user_cannot_bind_to_another_user(self, *mocks):
+        user = structure_factories.UserFactory()
+        other = structure_factories.UserFactory()
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            URL,
+            {"scopes": [{"type": "user", "uuid": other.uuid.hex}]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            logging_models.EventConsumer.objects.filter(user=user).exists()
+        )
+
+    def test_staff_can_bind_to_another_user(self, *mocks):
+        staff = structure_factories.UserFactory(is_staff=True)
+        other = structure_factories.UserFactory()
+        self.client.force_authenticate(staff)
+
+        response = self.client.post(
+            URL,
+            {"scopes": [{"type": "user", "uuid": other.uuid.hex}]},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code, status.HTTP_201_CREATED, response.content
+        )
+        consumer = logging_models.EventConsumer.objects.get(user=staff)
+        self.assertEqual(consumer.scopes.get().scope, other)
+
+    def test_unknown_scope_type_is_rejected(self, *mocks):
+        user = structure_factories.UserFactory()
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            URL,
+            {"scopes": [{"type": "banana", "uuid": user.uuid.hex}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch(
+        "waldur_core.logging.backend.RabbitMQManagementBackend.list_rabbitmq_vhost_permissions"
+    )
+    @mock.patch("waldur_core.logging.backend.RabbitMQManagementBackend.get_user")
+    def test_self_scope_registration_is_idempotent(
+        self,
+        mock_get_user,
+        mock_vhost_perms,
+        mock_vhost,
+        mock_user,
+        mock_perms,
+        mock_queue,
+    ):
+        user = structure_factories.UserFactory()
+        self.client.force_authenticate(user)
+        body = {"scopes": [{"type": "user", "uuid": user.uuid.hex}]}
+
+        first = self.client.post(URL, body, format="json")
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.content)
+        consumer = logging_models.EventConsumer.objects.get(user=user)
+
+        mock_get_user.return_value = {"name": consumer.rmq_username}
+        mock_vhost_perms.return_value = [consumer.rmq_username]
+        second = self.client.post(URL, body, format="json")
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            logging_models.EventConsumer.objects.filter(user=user).count(), 1
+        )
+
     @mock.patch(
         "waldur_core.logging.backend.RabbitMQManagementBackend.list_rabbitmq_vhost_permissions"
     )

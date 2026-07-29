@@ -394,6 +394,11 @@ def get_scope_ancestors(scope):
     Resource → Offering / Project → Customer.
     ResourceProject → Resource → … (chain above).
     """
+    if isinstance(scope, User):
+        # A user has no scope ancestors: identity is the whole chain. The
+        # hasattr probing below must never wander into reverse accessors of
+        # the user model.
+        return [scope]
     ancestors = [scope]
     if hasattr(scope, "resource"):  # ResourceProject -> Resource
         ancestors.append(scope.resource)
@@ -796,6 +801,11 @@ def holds_any_role_on_scope_or_ancestor(user, scope) -> bool:
         return False
     if user.is_staff or user.is_support:
         return True
+    if isinstance(scope, User):
+        # Self-referential user scope: identity, not a UserRole. A user may
+        # always bind to themselves; binding to anyone else is staff/support
+        # only (handled above).
+        return scope.id == user.id
     keys = scope_keys_for(scope)
     if not keys:
         return False
