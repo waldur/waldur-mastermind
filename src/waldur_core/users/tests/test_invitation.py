@@ -1043,6 +1043,30 @@ class InvitationReminderTest(BaseInvitationTest):
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue("REMINDER" in mail.outbox[0].subject)
 
+    @override_config(HOMEPORT_URL="TEST")
+    def test_send_reminder_skips_soft_deleted_project_invitation(self):
+        """Pending invites for terminated projects must not get reminder emails."""
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)
+        waldur_section["TRANSLATION_DOMAIN"] = "TEST"
+        event_type = "invitation_created"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            factories.ProjectInvitationFactory(
+                scope=self.project,
+                created=timezone.now()
+                - waldur_section["INVITATION_LIFETIME"]
+                + timedelta(days=1),
+                created_by=self.project_admin,
+            )
+            self.project.delete()
+            self.assertTrue(self.project.is_removed)
+
+            tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 0)
+
 
 class InvitationEmailRestrictionTest(test.APITestCase):
     def setUp(self):
@@ -2748,6 +2772,20 @@ class InvitationResendStuckTaskTest(test.APITestCase):
                 self.sender.full_name or self.sender.username,
             )
 
+    def test_skips_soft_deleted_project_invitation(self):
+        """Stuck invites for terminated projects must not be reprocessed."""
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            execution_state=models.Invitation.ExecutionState.SCHEDULED,
+            created_by=self.sender,
+        )
+        invitation.scope.delete()
+        self.assertTrue(invitation.scope.is_removed)
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            tasks.resend_stuck_invitations()
+            process.delay.assert_not_called()
+
 
 class InvitationWebhookScopeTest(test.APITestCase):
     """Tests for webhook scope filtering - webhooks only support project invitations."""
@@ -2805,6 +2843,26 @@ class InvitationWebhookScopeTest(test.APITestCase):
             tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
             mock_webhook.assert_not_called()
             mock_email.assert_called_once()
+
+    @override_waldur_core_settings(INVITATION_USE_WEBHOOKS=False)
+    def test_send_invitation_created_skips_soft_deleted_project(self):
+        """Do not email invites whose project scope has been soft-deleted."""
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            created_by=self.sender,
+        )
+        invitation.scope.delete()
+        self.assertTrue(invitation.scope.is_removed)
+
+        with mock.patch("waldur_core.users.tasks.broadcast_mail") as mock_email:
+            tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+            mock_email.assert_not_called()
+
+        invitation.refresh_from_db()
+        self.assertEqual(
+            invitation.execution_state, models.Invitation.ExecutionState.ERRED
+        )
+        self.assertIn("deleted or terminated", invitation.error_message)
 
 
 class InvitationOrgScopedRoleTest(test.APITestCase):
