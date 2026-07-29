@@ -365,6 +365,7 @@ class MarketplaceBillingService:
             unit_price = plan_component.price
             unit = resource.plan.unit
             quantity = 0
+            discount_volume = None
 
             if is_fixed:
                 unit_price *= plan_component.amount
@@ -376,6 +377,9 @@ class MarketplaceBillingService:
                 limit = resource.limits.get(component_type, 0)
                 factor = resource.offering.component_factors.get(component_type, 1)
                 quantity = limit / factor if factor != 1 else limit
+                # The volume discount is thresholded on the raw volume; capture
+                # it before the upfront duration multiplication below.
+                discount_volume = quantity
                 if resource.end_date:
                     start_date = start.date() if hasattr(start, "date") else start
                     quantity *= core_utils.calculate_duration_months(
@@ -406,12 +410,17 @@ class MarketplaceBillingService:
                 details["unit_price"] = float(unit_price)
 
             # Record the volume that feeds the org-aggregated volume discount:
-            # FIXED scales on the configured amount, one-time and plan-switch
-            # charges on their billed quantity. The discount itself is computed
-            # and materialized at invoice finalization (billing_discount).
-            details[billing_discount.DISCOUNT_USAGE_KEY] = float(
-                plan_component.amount if is_fixed else quantity
-            )
+            # FIXED scales on the configured amount, prepaid ONE_TIME on the
+            # raw limit (never the duration-multiplied upfront quantity, so a
+            # long prepaid period cannot push a small volume over a tier
+            # threshold), other one-time and plan-switch charges on their
+            # billed quantity. The discount itself is computed and
+            # materialized at invoice finalization (billing_discount).
+            if is_fixed:
+                discount_volume = plan_component.amount
+            elif discount_volume is None:
+                discount_volume = quantity
+            details[billing_discount.DISCOUNT_USAGE_KEY] = float(discount_volume)
 
             invoice_models.InvoiceItem.objects.create(
                 name=name,
