@@ -708,16 +708,16 @@ td:nth-child(4) {
 | `send_comment_added_notification` | `Django Signal (post_save)` | `support.Comment` | No description |
 | `send_course_account_deletion_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
 | `send_course_account_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
-| `send_done_order_to_message_queue` | `Django Signal (post_save)` | `marketplace.Order` | Send completed marketplace order to message queue for site agent processing. |
 | `send_issue_updated_notification` | `Django Signal (post_save)` | `support.Issue` | No description |
 | `send_offering_user_created_message` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Send OfferingUser creation message to message queue for external systems. |
 | `send_offering_user_deleted_message` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Send OfferingUser deletion message to message queue for external systems. |
 | `send_offering_user_updated_message` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Send OfferingUser update message to message queue for external systems. |
 | `send_offering_user_username_message` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
-| `send_pending_order_to_message_queue` | `Django Signal (post_save)` | `marketplace.Order` | Send pending marketplace order to message queue for site agent processing. |
+| `send_order_state_change_to_message_queue` | `Django Signal (post_save)` | `marketplace.Order` | Emit an order event on every state transition, for any offering type. |
 | `send_project_service_account_deletion_info` | `Django Signal (post_save)` | `marketplace.ProjectServiceAccount` | No description |
 | `send_project_service_account_info` | `Django Signal (post_save)` | `marketplace.ProjectServiceAccount` | No description |
 | `send_resource_messages_on_project_move` | `Custom Signal (project_moved)` | `—` | Push a RESOURCE message for every active site-agent resource in a moved project. |
+| `send_resource_state_change_to_message_queue` | `Django Signal (post_save)` | `marketplace.Resource` | Emit a resource event on creation and every state transition. |
 | `send_resource_update_message_to_queue` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `send_role_granted_message_to_queue` | `Custom Signal (role_granted)` | `—` | No description |
 | `send_role_revoked_message_to_queue` | `Custom Signal (role_revoked)` | `—` | No description |
