@@ -1221,9 +1221,63 @@ options:
 
 ```
 
+## rebill_historical_usage
+
+Re-bill ComponentUsage records whose invoice item is missing or stale because their invoice was already finalized when the usage was reported or corrected (e.g. via waldur_site_load_historical_usage in waldur-site-agent). Staff-only, one-off correction tool. Never run automatically or on a schedule. Pass -v 2 (or -v 3) for debug-level logging of every decision this command makes.
+
+```bash
+
+usage: waldur rebill_historical_usage [--execute] [--offering OFFERING_UUID]
+                                      [--resource RESOURCE_UUID]
+                                      [--start-date START_DATE]
+                                      [--end-date END_DATE]
+                                      [--allow-aggregated-discount-recompute]
+
+options:
+  --execute             Actually apply the correction. Without this flag the
+                        command always runs as a dry run -- it computes and
+                        prints the exact same plan (inside a transaction
+                        that's deliberately rolled back at the end) but writes
+                        nothing to the database. This default is deliberate:
+                        review the printed plan first, then re-run with
+                        --execute once it looks right.
+  --offering OFFERING_UUID
+                        Only process resources belonging to the offering with
+                        this UUID.
+  --resource RESOURCE_UUID
+                        Only process the resource with this UUID.
+  --start-date START_DATE
+                        Only billing periods on or after this date (format:
+                        YYYY-MM-DD).
+  --end-date END_DATE   Only billing periods on or before this date (format:
+                        YYYY-MM-DD).
+  --allow-aggregated-discount-recompute
+                        Allow recomputing volume discounts for offering
+                        components that use the aggregated (non-per-resource)
+                        discount scope. This also rewrites discount amounts
+                        for OTHER resources sharing that offering component on
+                        the same invoice. Review the printed sibling-impact
+                        report (from a plain dry-run invocation) before using
+                        this.
+
+```
+
 ## rebuild_billing
 
 Create or update price estimates based on invoices.
+
+## reencrypt_fields
+
+Re-encrypt stored secrets under the current FIELD_ENCRYPTION_KEY. Run this after promoting a new key (with the previous one in FIELD_ENCRYPTION_KEY_FALLBACKS) so the old key can then be retired; rows are otherwise only re-encrypted when they happen to be rewritten. Use --dry-run to audit which rows the configured keys can still decrypt.
+
+```bash
+
+usage: waldur reencrypt_fields [--dry-run]
+
+options:
+  --dry-run  Report what would be re-encrypted without writing anything
+
+```
 
 ## removestalect
 
