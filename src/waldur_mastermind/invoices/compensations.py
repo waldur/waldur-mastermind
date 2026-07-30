@@ -148,6 +148,7 @@ class MonthlyCompensation:
                 compensation_details = dict(item.details or {})
                 compensation_details["is_compensation"] = True
                 compensation_details["compensation_of_item"] = item.uuid.hex
+                compensation_project = item.resource.project
                 self._compensations.append(
                     models.InvoiceItem(
                         invoice=self.invoice,
@@ -157,7 +158,13 @@ class MonthlyCompensation:
                         credit=self.credit,
                         name=f"Credit compensation. {item}",
                         resource=item.resource,
-                        project=item.resource.project,
+                        project=compensation_project,
+                        # These are normally denormalised by a post_save handler,
+                        # which bulk_create below does not fire. Without them the
+                        # project-scoped costs endpoint — it filters on
+                        # project_uuid, not project_id — never sees compensations.
+                        project_name=compensation_project.name,
+                        project_uuid=compensation_project.uuid.hex,
                         details=compensation_details,
                     )
                 )
