@@ -1477,3 +1477,50 @@ class CreditEndDateValidationScopeTest(test.APITestCase):
             tasks.set_to_zero_overdue_credits()
             cc.refresh_from_db()
             self.assertEqual(cc.value, 0)
+
+
+class CompensationProjectAttributionTest(test.APITestCase):
+    """Compensation items are written with bulk_create, which does not fire the
+    post_save handler that denormalises project_name/project_uuid. The
+    project-scoped costs endpoint filters on project_uuid, so without those
+    columns a project's credit consumption reads as zero.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.customer_credit = self.fixture.customer_credit
+        self.project_credit = self.fixture.project_credit
+        self.invoice = self.fixture.invoice
+        self.invoice_item = self.fixture.invoice_item
+        self.project = self.fixture.project
+
+        compensations.MonthlyCompensation(
+            self.fixture.customer, invoice=self.invoice
+        ).apply_compensations()
+
+        self.compensation = models.InvoiceItem.objects.get(
+            invoice=self.invoice, credit=self.customer_credit
+        )
+
+    def test_compensation_item_carries_denormalised_project(self):
+        self.assertEqual(self.compensation.project_uuid, self.project.uuid.hex)
+        self.assertEqual(self.compensation.project_name, self.project.name)
+
+    def test_costs_endpoint_reports_the_compensation(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            factories.InvoiceItemFactory.get_list_url("costs"),
+            {"project_uuid": self.project.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current = [
+            row
+            for row in response.data
+            if row["year"] == self.invoice.year and row["month"] == self.invoice.month
+        ]
+        self.assertTrue(current, "no costs row for the compensated period")
+        self.assertLess(
+            Decimal(current[0]["compensation"]),
+            Decimal("0"),
+            "compensation is missing from the project-scoped costs endpoint",
+        )
