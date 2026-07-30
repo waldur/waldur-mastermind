@@ -7,6 +7,9 @@ from pathlib import Path
 from django.core.management import call_command
 
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
+from waldur_mastermind.marketplace.demo_presets.credit_history import (
+    generate_credit_history,
+)
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
 
@@ -191,6 +194,7 @@ class DemoPresetManager:
             # Generate invoices for imported resources (if not dry run)
             if not dry_run:
                 cls._generate_billing_for_resources(output)
+                cls._generate_credit_history(output)
 
             # Get users with passwords for the response
             users = cls.get_preset_users(name)
@@ -259,6 +263,30 @@ class DemoPresetManager:
                 )
 
         output.write(f"\nGenerated billing for {invoice_count} resources\n")
+
+    @classmethod
+    def _generate_credit_history(cls, output: StringIO):
+        """
+        Generate historical credit consumption for credited customers.
+
+        No-op for presets without credits. Past months are billed and then run
+        through the real compensation flow, so compensations, minimal-consumption
+        draws and credit balances match what production would produce.
+        """
+        try:
+            processed = generate_credit_history(stdout=output)
+        except Exception as e:
+            logger.warning(f"Failed to generate credit history: {e}")
+            output.write(f"Warning: Failed to generate credit history: {e}\n")
+            return
+
+        if not processed:
+            return
+
+        output.write("\n============================================================\n")
+        output.write("Generated Credit History\n")
+        output.write("============================================================\n")
+        output.write(f"Compensated {processed} customer-months\n")
 
     @classmethod
     def _get_permissions_file(cls) -> Path | None:
