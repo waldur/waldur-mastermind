@@ -55,6 +55,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingUserStates,
     OrderStates,
     OrderTypes,
+    ResourceApiKeyStates,
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
@@ -1851,10 +1852,23 @@ class ResourceApiKeyFilter(django_filters.FilterSet):
         field_name="resource__uuid",
         label="Resource UUID",
     )
+    # The site agent's reconciliation pass sweeps a whole offering for keys stuck
+    # mid-rotation; without these it would have to list keys per resource.
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="resource__offering__uuid",
+        label="Offering UUID",
+    )
+    state = core_filters.MappedMultipleChoiceFilter(
+        ResourceApiKeyStates.CHOICES, label="API key state"
+    )
+    modified_before = django_filters.IsoDateTimeFilter(
+        field_name="modified", lookup_expr="lte", label="Modified before"
+    )
 
     class Meta:
         model = models.ResourceApiKey
-        fields = ("resource_uuid",)
+        fields = ("resource_uuid", "offering_uuid", "state", "modified_before")
 
 
 class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.FilterSet):

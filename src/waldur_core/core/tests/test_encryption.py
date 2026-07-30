@@ -80,3 +80,36 @@ class EncryptionTest(TestCase):
             FIELD_ENCRYPTION_KEY=KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
         ):
             self.assertEqual(encryption.decrypt_value(token), "pre-dedicated-key")
+
+
+@override_settings(FIELD_ENCRYPTION_KEY=KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[])
+class RotateValueTest(TestCase):
+    def test_rotation_moves_a_token_onto_the_new_primary(self):
+        """This is what lets an old key be retired.
+
+        A token written under the old key must survive being re-encrypted while both
+        keys are configured, and then still decrypt once the old key is gone.
+        """
+        token = encryption.encrypt_value("sk-abc")
+
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=OTHER_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[KEY]
+        ):
+            rotated = encryption.rotate_value(token)
+
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=OTHER_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
+        ):
+            self.assertEqual(encryption.decrypt_value(rotated), "sk-abc")
+            # The original token is exactly what would now fail a reveal.
+            with self.assertRaises(InvalidToken):
+                encryption.decrypt_value(token)
+
+    def test_rotation_rejects_a_token_no_configured_key_can_read(self):
+        with override_settings(
+            FIELD_ENCRYPTION_KEY=OTHER_KEY, FIELD_ENCRYPTION_KEY_FALLBACKS=[]
+        ):
+            foreign = encryption.encrypt_value("sk-abc")
+
+        with self.assertRaises(InvalidToken):
+            encryption.rotate_value(foreign)

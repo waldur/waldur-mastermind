@@ -1,5 +1,7 @@
+import datetime
 from unittest import mock
 
+from django.utils import timezone
 from django_fsm import TransitionNotAllowed
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -54,8 +56,7 @@ class ResourceApiKeyModelTest(test.APITestCase):
         key.set_updating()
         self.assertEqual(key.state, States.UPDATING)
         key.set_ok()
-        key.set_terminating()
-        self.assertEqual(key.state, States.TERMINATING)
+        key.set_updating()
         key.set_erred()
         self.assertEqual(key.state, States.ERRED)
 
@@ -79,8 +80,8 @@ class ResourceApiKeyModelTest(test.APITestCase):
             key.set_updating()
 
     def test_erred_key_can_be_recovered(self):
-        # A failed apply must not strand the key: rotate/revoke and the agent's
-        # set_ok are all allowed from Erred so it can be retried from the portal.
+        # A failed apply must not strand the key: rotate and the agent's set_ok are
+        # both allowed from Erred so it can be retried from the portal.
         key = models.ResourceApiKey.objects.create(
             resource=factories.ResourceFactory(), client_id="cid-1"
         )
@@ -91,12 +92,6 @@ class ResourceApiKeyModelTest(test.APITestCase):
         self.assertEqual(key.state, States.UPDATING)
         key.set_ok()  # agent reports the new value
         self.assertEqual(key.state, States.OK)
-
-        key.set_terminating()  # portal revoke
-        key.set_erred()  # agent failed to remove the secret entry
-        self.assertEqual(key.state, States.ERRED)
-        key.set_terminating()  # portal revoke retry works from Erred too
-        self.assertEqual(key.state, States.TERMINATING)
 
 
 class ConsumerApiKeyTest(test.APITestCase):
@@ -202,13 +197,12 @@ class ConsumerApiKeyTest(test.APITestCase):
         response = self.client.post(detail_url(self.key, "rotate"))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_owner_can_revoke(self):
+    def test_revoke_is_not_offered(self):
+        # The key count is fixed at provisioning; rotation re-mints in place, so
+        # there is no consumer-facing way to remove a key.
         self.client.force_authenticate(self.fixture.owner)
-        with mock.patch(PREPARE, return_value=MESSAGES), mock.patch(PUBLISH):
-            response = self.client.post(detail_url(self.key, "revoke"))
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        self.key.refresh_from_db()
-        self.assertEqual(self.key.state, States.TERMINATING)
+        response = self.client.post(f"{detail_url(self.key)}revoke/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_rotate_rejected_when_resource_terminating(self):
         # A key command must not race the resource's termination cleanup.
@@ -363,24 +357,16 @@ class ProviderApiKeyTest(test.APITestCase):
         self.assertEqual(key.state, States.ERRED)
         self.assertEqual(key.error_message, "boom")
 
-    def test_agent_confirms_revoke_by_deleting(self):
-        key = models.ResourceApiKey.objects.create(
-            resource=self.resource, client_id="cid-1", state=States.TERMINATING
-        )
-        self.client.force_authenticate(self.fixture.offering_owner)
-        response = self.client.delete(detail_url(key))
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(models.ResourceApiKey.objects.filter(pk=key.pk).exists())
-
-    def test_destroy_requires_terminating(self):
-        # A stray/duplicate destroy must not remove an OK row while its key still
-        # serves at the gateway.
+    def test_destroy_is_not_offered(self):
+        # Deleting a key row was only ever a revoke confirmation. With no revoke
+        # there is nothing to confirm, and an ungated delete could drop a row whose
+        # key still serves at the backend. Termination cleanup deletes rows directly.
         key = models.ResourceApiKey.objects.create(
             resource=self.resource, client_id="cid-1", state=States.OK
         )
         self.client.force_authenticate(self.fixture.offering_owner)
         response = self.client.delete(detail_url(key))
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertTrue(models.ResourceApiKey.objects.filter(pk=key.pk).exists())
 
     def test_set_erred_rejected_from_ok(self):
@@ -395,19 +381,6 @@ class ProviderApiKeyTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         key.refresh_from_db()
         self.assertEqual(key.state, States.OK)
-
-    def test_set_key_rejected_from_terminating(self):
-        # A late value push must never resurrect a key that is being revoked, nor
-        # persist its ciphertext.
-        key = models.ResourceApiKey.objects.create(
-            resource=self.resource, client_id="cid-1", state=States.TERMINATING
-        )
-        self.client.force_authenticate(self.fixture.offering_owner)
-        response = self.client.post(detail_url(key, "set-key"), {"api_key": "sk-late"})
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        key.refresh_from_db()
-        self.assertEqual(key.state, States.TERMINATING)
-        self.assertFalse(key.key_ciphertext)
 
     def test_duplicate_report_created_upserts(self):
         # A retried or duplicated report must upsert on (resource, client_id), not
@@ -426,27 +399,6 @@ class ProviderApiKeyTest(test.APITestCase):
         self.assertEqual(self.resource.api_keys.count(), 1)
         key = self.resource.api_keys.get()
         self.assertEqual(encryption.decrypt_value(key.key_ciphertext), "sk-second")
-
-    def test_report_created_must_not_resurrect_a_terminating_key(self):
-        # A stale/duplicated report must not flip a key whose revoke is in flight
-        # back to OK — that would leave a revealable key the gateway no longer
-        # accepts once the revoke completes.
-        key = models.ResourceApiKey.objects.create(
-            resource=self.resource, client_id="cid-1", state=States.TERMINATING
-        )
-        self.client.force_authenticate(self.fixture.offering_owner)
-        response = self.client.post(
-            list_url("report-created"),
-            {
-                "resource": self.resource.uuid.hex,
-                "client_id": "cid-1",
-                "api_key": "sk-zombie",
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        key.refresh_from_db()
-        self.assertEqual(key.state, States.TERMINATING)
-        self.assertFalse(key.key_ciphertext)
 
     def test_report_created_rejected_for_dead_resource(self):
         # A late report against a terminating/terminated resource must not
@@ -531,3 +483,61 @@ class ResourceHasApiKeysTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         by_uuid = {row["uuid"]: row for row in response.data}
         self.assertTrue(by_uuid[self.resource.uuid.hex]["has_api_keys"])
+
+
+class ResourceApiKeyFilterTest(test.APITestCase):
+    """The agent's reconciliation pass finds stuck keys by listing, not by command."""
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.stuck = models.ResourceApiKey.objects.create(
+            resource=self.resource, client_id="cid-1", state=States.UPDATING
+        )
+        self.settled = models.ResourceApiKey.objects.create(
+            resource=self.resource, client_id="cid-2", state=States.OK
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_filter_by_state(self):
+        response = self.client.get(list_url(), {"state": States.UPDATING})
+        self.assertEqual([key["uuid"] for key in response.data], [self.stuck.uuid.hex])
+
+    def test_filter_by_several_states(self):
+        response = self.client.get(list_url(), {"state": [States.UPDATING, States.OK]})
+        self.assertEqual(len(response.data), 2)
+
+    def test_filter_by_offering(self):
+        other = factories.ResourceFactory()
+        models.ResourceApiKey.objects.create(
+            resource=other, client_id="cid-3", state=States.UPDATING
+        )
+        response = self.client.get(
+            list_url(), {"offering_uuid": self.resource.offering.uuid.hex}
+        )
+        self.assertEqual(
+            {key["uuid"] for key in response.data},
+            {self.stuck.uuid.hex, self.settled.uuid.hex},
+        )
+
+    def test_filter_by_modification_time(self):
+        # The agent only wants keys stuck long enough to be a lost reply rather
+        # than one still in flight.
+        past = timezone.now() - datetime.timedelta(hours=1)
+        models.ResourceApiKey.objects.filter(pk=self.stuck.pk).update(modified=past)
+        cutoff = (timezone.now() - datetime.timedelta(minutes=30)).isoformat()
+
+        response = self.client.get(list_url(), {"modified_before": cutoff})
+
+        self.assertEqual([key["uuid"] for key in response.data], [self.stuck.uuid.hex])
+
+    def test_status_carries_the_resource_backend_id(self):
+        # A reconcile has no command carrying it, and rotate_resource_key needs it.
+        self.resource.backend_id = "res-backend-1"
+        self.resource.save()
+        response = self.client.get(
+            list_url(), {"resource_uuid": self.resource.uuid.hex}
+        )
+        self.assertEqual(
+            {key["resource_backend_id"] for key in response.data}, {"res-backend-1"}
+        )

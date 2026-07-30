@@ -14873,7 +14873,10 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.ResourceApiKeyStatusSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ResourceApiKeyFilter
-    disabled_actions = ["create", "update", "partial_update"]
+    # destroy was the agent's revoke confirmation; with no revoke there is nothing
+    # to confirm, and an ungated delete could drop a row whose key still serves at
+    # the backend. Termination cleanup deletes the rows directly (callbacks.py).
+    disabled_actions = ["create", "update", "partial_update", "destroy"]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -15001,30 +15004,9 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         )
     ]
 
-    @extend_schema(
-        summary="Revoke an API key",
-        description="Asks the site agent to remove this key from the backend. "
-        "The other keys keep working.",
-        request=None,
-        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
-    )
-    @action(detail=True, methods=["post"])
-    def revoke(self, request, uuid=None):
-        obj = self.get_object()
-        self._require_resource_live(obj.resource)
-        try:
-            api_key = self._locked_transition(obj, "set_terminating")
-        except TransitionNotAllowed:
-            raise IncorrectStateException(
-                "An API key can only be revoked from the OK state."
-            )
-        utils.publish_api_key_event(api_key, "revoke")
-        return Response(
-            {"status": _("API key revocation has been requested.")},
-            status=status.HTTP_202_ACCEPTED,
-        )
-
-    revoke_permissions = rotate_permissions
+    # There is deliberately no revoke: the key count is fixed at provisioning and
+    # rotation replaces a value in place, so a resource can never be left without
+    # a way to authenticate. See docs/resource-api-keys.md.
 
     # --- provider (site-agent) actions -----------------------------------------
 
@@ -15048,20 +15030,11 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         # Idempotent upsert on (resource, client_id): a retried or duplicated
         # report must not 500 on the unique constraint, and a re-applied key just
         # overwrites the stored value. New rows land OK (the agent already applied
-        # the key to the backend before reporting). The existing row is locked and
-        # checked first: a stale duplicate must not resurrect a key whose revoke
-        # is in flight.
+        # the key to the backend before reporting). The row was previously locked
+        # first to stop a stale duplicate resurrecting a key mid-revoke; with revoke
+        # gone there is no such state to guard, and update_or_create already handles
+        # a concurrent insert through the unique constraint.
         with transaction.atomic():
-            existing = (
-                models.ResourceApiKey.objects.select_for_update()
-                .filter(resource=resource, client_id=data["client_id"])
-                .first()
-            )
-            if existing and existing.state == models.ResourceApiKey.States.TERMINATING:
-                raise IncorrectStateException(
-                    "A revoke is in flight for this key; a key value can no "
-                    "longer be reported for it."
-                )
             api_key, _ = models.ResourceApiKey.objects.update_or_create(
                 resource=resource,
                 client_id=data["client_id"],
@@ -15166,19 +15139,6 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     set_erred_permissions = set_key_permissions
     set_erred_serializer_class = serializers.ResourceApiKeySetErredSerializer
-
-    def perform_destroy(self, instance):
-        # destroy is the agent's revoke-confirmation; a row may only be deleted
-        # after a revoke put it into Terminating. Guards against a stray/duplicate
-        # destroy removing an OK row while its key still serves at the gateway.
-        if instance.state != models.ResourceApiKey.States.TERMINATING:
-            raise IncorrectStateException(
-                f"An API key row can only be deleted while Terminating, "
-                f"not {instance.state}."
-            )
-        instance.delete()
-
-    destroy_permissions = set_key_permissions
 
 
 @extend_schema_view(
