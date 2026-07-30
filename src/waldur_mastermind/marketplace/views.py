@@ -10191,6 +10191,15 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
                 description="Filter runtime states by resources belonging to a specific category.",
                 extensions={"x-waldur-operation-id": "marketplace_categories_retrieve"},
             ),
+            OpenApiParameter(
+                name="offering_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter runtime states by resources of a specific offering.",
+                extensions={
+                    "x-waldur-operation-id": "marketplace_provider_offerings_retrieve"
+                },
+            ),
         ],
         request=None,
         responses={
@@ -10222,6 +10231,21 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
         category_uuid = request.query_params.get("category_uuid")
         if category_uuid and is_uuid_like(category_uuid):
             resources = resources.filter(offering__category__uuid=category_uuid)
+        offering_uuid = request.query_params.get("offering_uuid")
+        if offering_uuid and is_uuid_like(offering_uuid):
+            # A service provider rarely holds a role in the consumer projects its
+            # resources live in, so the project-based scope above would hide every
+            # runtime state of its own offering. Add back the resources of this
+            # offering that are visible from the provider side.
+            provider_resource_ids = (
+                models.Resource.objects.filter(offering__uuid=offering_uuid)
+                .filter_for_service_provider(request.user)
+                .values("id")
+            )
+            resources = models.Resource.objects.filter(
+                Q(id__in=resources.filter(offering__uuid=offering_uuid).values("id"))
+                | Q(id__in=provider_resource_ids)
+            )
         runtime_states = set(
             resources.values_list(
                 "backend_metadata__runtime_state", flat=True

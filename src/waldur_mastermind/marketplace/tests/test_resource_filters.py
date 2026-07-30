@@ -1,5 +1,7 @@
+from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -52,3 +54,59 @@ class ResourceOrderFilterTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.resource.uuid.hex)
+
+
+@ddt
+class ResourceOrderingTest(test.APITestCase):
+    """Ordering fields exposed by ResourceFilter.o."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = factories.ResourceFactory.get_list_url()
+
+        # Two resources whose ordering keys are deliberately inverted relative to
+        # each other, so an unsupported ordering field cannot accidentally pass.
+        self.first = factories.ResourceFactory(
+            project=structure_factories.ProjectFactory(
+                customer=structure_factories.CustomerFactory(name="A organization")
+            ),
+            offering=factories.OfferingFactory(name="A offering"),
+            backend_id="aaa-backend-id",
+        )
+        self.first.plan = factories.PlanFactory(
+            offering=self.first.offering, name="A plan"
+        )
+        self.first.save()
+
+        self.last = factories.ResourceFactory(
+            project=structure_factories.ProjectFactory(
+                customer=structure_factories.CustomerFactory(name="Z organization")
+            ),
+            offering=factories.OfferingFactory(name="Z offering"),
+            backend_id="zzz-backend-id",
+        )
+        self.last.plan = factories.PlanFactory(
+            offering=self.last.offering, name="Z plan"
+        )
+        self.last.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+
+    def get_uuids(self, ordering):
+        response = self.client.get(self.url, {"o": ordering})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [item["uuid"] for item in response.data]
+
+    @data("customer_name", "offering_name", "plan_name", "backend_id")
+    def test_ordering_is_ascending(self, ordering):
+        uuids = self.get_uuids(ordering)
+        self.assertLess(
+            uuids.index(self.first.uuid.hex), uuids.index(self.last.uuid.hex)
+        )
+
+    @data("customer_name", "offering_name", "plan_name", "backend_id")
+    def test_ordering_is_reversible(self, ordering):
+        uuids = self.get_uuids(f"-{ordering}")
+        self.assertGreater(
+            uuids.index(self.first.uuid.hex), uuids.index(self.last.uuid.hex)
+        )
