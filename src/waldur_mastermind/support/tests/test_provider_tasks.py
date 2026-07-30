@@ -128,6 +128,61 @@ class RouteIssueToProviderTest(TestCase):
         tasks.route_issue_to_provider(self.issue.id)
         self.assertFalse(models.Issue.objects.filter(parent_issue=self.issue).exists())
 
+    @mock.patch("waldur_mastermind.support.backend.get_backend_for_provider")
+    def test_routes_by_offering_when_no_resource(self, mock_get_backend):
+        # A ticket opened about an offering (no resource) routes to that
+        # offering's provider helpdesk.
+        mock_get_backend.return_value = mock.Mock()
+        issue = factories.IssueFactory(
+            offering=self.offering,
+            backend_id="WLD-400",
+            customer=self.customer,
+        )
+
+        tasks.route_issue_to_provider(issue.id)
+
+        child_issue = models.Issue.objects.filter(parent_issue=issue).first()
+        self.assertIsNotNone(child_issue)
+        self.assertEqual(child_issue.provider_helpdesk, self.helpdesk)
+
+    @mock.patch("waldur_mastermind.support.backend.get_backend_for_provider")
+    def test_offering_on_issue_takes_precedence_over_resource(self, mock_get_backend):
+        # When both are set, the explicit issue.offering wins over the offering
+        # behind the attached resource.
+        mock_get_backend.return_value = mock.Mock()
+        other_customer = structure_factories.CustomerFactory()
+        other_provider = marketplace_factories.ServiceProviderFactory(
+            customer=other_customer
+        )
+        other_offering = marketplace_factories.OfferingFactory(customer=other_customer)
+        other_helpdesk = factories.ProviderHelpdeskFactory(
+            service_provider=other_provider
+        )
+        ct = ContentType.objects.get_for_model(self.resource)
+        issue = factories.IssueFactory(
+            resource_content_type=ct,
+            resource_object_id=self.resource.id,
+            offering=other_offering,
+            backend_id="WLD-500",
+            customer=self.customer,
+        )
+
+        tasks.route_issue_to_provider(issue.id)
+
+        child_issue = models.Issue.objects.filter(parent_issue=issue).first()
+        self.assertIsNotNone(child_issue)
+        self.assertEqual(child_issue.provider_helpdesk, other_helpdesk)
+
+    def test_skips_routing_when_no_resource_and_no_offering(self):
+        issue = factories.IssueFactory(
+            resource_content_type=None,
+            resource_object_id=None,
+            offering=None,
+            backend_id="WLD-600",
+        )
+        tasks.route_issue_to_provider(issue.id)
+        self.assertFalse(models.Issue.objects.filter(parent_issue=issue).exists())
+
 
 class ForwardCommentToChildTest(TestCase):
     """Tests for the forward_comment_to_child task."""

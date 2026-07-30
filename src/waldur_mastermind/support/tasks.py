@@ -296,6 +296,31 @@ def sync_issues():
     backend.get_active_backend().sync_issues()
 
 
+def resolve_routing_offering(issue):
+    """Offering that determines provider routing for an issue.
+
+    Prefers the offering linked directly on the issue (a ticket opened about an
+    offering, possibly with no resource); otherwise derives it from the attached
+    resource's marketplace offering.
+    """
+    from waldur_mastermind.marketplace import models as marketplace_models
+
+    if issue.offering_id:
+        return issue.offering
+
+    resource = issue.resource
+    if not resource:
+        return None
+
+    if isinstance(resource, marketplace_models.Resource):
+        return resource.offering
+
+    marketplace_resource = marketplace_models.Resource.objects.filter(
+        scope=resource
+    ).first()
+    return marketplace_resource.offering if marketplace_resource else None
+
+
 @shared_task(
     name="waldur_mastermind.support.route_issue_to_provider",
     bind=True,
@@ -315,30 +340,18 @@ def route_issue_to_provider(self, issue_id):
         logger.info("Issue %s already routed, skipping.", issue.key)
         return
 
-    # Resolve: Issue -> resource -> Offering -> ServiceProvider -> ProviderHelpdesk
-    resource = issue.resource
-    if not resource:
-        logger.info("Issue %s has no resource, stays with operator.", issue.key)
-        return
-
+    # Resolve: Issue -> Offering -> ServiceProvider -> ProviderHelpdesk.
+    # The offering is the routing determinant; it comes either from the issue
+    # directly (e.g. a ticket opened from an offering, no resource) or from the
+    # attached resource's offering.
     from waldur_mastermind.marketplace import models as marketplace_models
 
-    # Find the marketplace resource and its offering
-    marketplace_resource = None
-    if isinstance(resource, marketplace_models.Resource):
-        marketplace_resource = resource
-    else:
-        marketplace_resource = marketplace_models.Resource.objects.filter(
-            scope=resource
-        ).first()
-
-    if not marketplace_resource:
-        logger.info("No marketplace resource found for issue %s.", issue.key)
-        return
-
-    offering = marketplace_resource.offering
+    resource = issue.resource
+    offering = resolve_routing_offering(issue)
     if not offering or not offering.customer:
-        logger.info("No offering/customer found for issue %s.", issue.key)
+        logger.info(
+            "No routable offering for issue %s, stays with operator.", issue.key
+        )
         return
 
     try:

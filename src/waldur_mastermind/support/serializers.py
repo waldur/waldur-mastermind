@@ -87,6 +87,12 @@ class IssueSerializer(
         + [marketplace_models.Resource],
         required=False,
     )
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=marketplace_models.Offering.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     caller = serializers.HyperlinkedRelatedField(
         view_name="user-detail",
         lookup_field="uuid",
@@ -177,6 +183,7 @@ class IssueSerializer(
             "resource",
             "resource_type",
             "resource_name",
+            "offering",
             "created",
             "modified",
             "is_reported_manually",
