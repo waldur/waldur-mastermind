@@ -2240,6 +2240,7 @@ class GroupInvitationSubmitRequestTest(test.APITestCase):
             "uuid",
             "scope_name",
             "scope_uuid",
+            "scope_type",
             "auto_approved",
             "project_uuid",
             "project_created",
