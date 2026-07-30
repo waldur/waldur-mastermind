@@ -14,6 +14,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
@@ -1668,6 +1669,113 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         """Test that service providers cannot specify date for usage-based components when backfilling past billing periods."""
         # Authenticate as service provider owner
         self.client.force_authenticate(self.fixture.owner)
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "usage_cpu",  # Usage-based component
+                    "amount": 10,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods",
+            str(response.data),
+        )
+
+    def test_service_provider_can_backfill_usage_based_components_when_invoice_is_pending(
+        self,
+    ):
+        """Usage-based components can be backfilled into a past billing period
+        as long as the customer's invoice for that period is still mutable
+        (not yet frozen)."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        invoice_factories.InvoiceFactory(
+            customer=self.consumer_customer,
+            year=2023,
+            month=12,
+            state=invoice_models.Invoice.States.PENDING,
+        )
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "usage_cpu",  # Usage-based component
+                    "amount": 10,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.usage_component,
+        )
+        self.assertEqual(usage.date, backfill_date)
+        self.assertEqual(usage.billing_period, datetime.date(2023, 12, 1))
+
+    def test_service_provider_can_backfill_usage_based_components_when_invoice_is_pending_finalization(
+        self,
+    ):
+        """PENDING_FINALIZATION (grace period) invoices are mutable too."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        invoice_factories.InvoiceFactory(
+            customer=self.consumer_customer,
+            year=2023,
+            month=12,
+            state=invoice_models.Invoice.States.PENDING_FINALIZATION,
+        )
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "usage_cpu",  # Usage-based component
+                    "amount": 10,
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_service_provider_cannot_backfill_usage_based_components_when_invoice_is_frozen(
+        self,
+    ):
+        """Once the invoice for the backfilled period is frozen (CREATED),
+        usage-based backfill is rejected even though an invoice exists."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        invoice_factories.InvoiceFactory(
+            customer=self.consumer_customer,
+            year=2023,
+            month=12,
+            state=invoice_models.Invoice.States.CREATED,
+        )
 
         backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 

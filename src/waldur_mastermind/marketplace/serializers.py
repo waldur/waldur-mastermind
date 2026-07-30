@@ -75,7 +75,7 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.common.utils import prices_are_equal
-from waldur_mastermind.invoices.models import InvoiceItem
+from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
@@ -8046,23 +8046,57 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         help_text="Date for usage reporting (staff and service providers for limit-based components). If not provided, current date is used.",
     )
 
+    @staticmethod
+    def _has_mutable_invoice_for_period(resource, date_value):
+        """Whether the resource's customer already has an invoice for the
+        backfilled date's billing period that still accepts modifications.
+
+        Mirrors the gate applied when usage is actually written into an
+        invoice item, see
+        billing_usage.BillingUsageProcessor._create_or_update_usage_invoice_item.
+        """
+        if not date_value:
+            return False
+
+        billing_period = core_utils.month_start(date_value)
+        invoice = Invoice.objects.filter(
+            customer=resource.project.customer,
+            year=billing_period.year,
+            month=billing_period.month,
+        ).first()
+        return bool(invoice) and invoice.state in Invoice.States.MUTABLE_STATES
+
     def _is_backfillable_component_usage(self, attrs):
         """Check that every reported component is safe to backfill.
 
         Backfilling a past period is only forbidden for USAGE components,
         because those directly create retroactive invoice items. Limit-based
         and prepaid (one-time) usage is display-only, so it is safe to backfill.
+
+        USAGE components are allowed too when the resource's customer already
+        has a mutable (not yet frozen) invoice for the backfilled billing
+        period.
         """
         plan_period = attrs.get("plan_period")
         resource = plan_period and plan_period.resource or attrs.get("resource")
         if not resource:
             return False
 
+        usage_backfill_has_mutable_invoice = self._has_mutable_invoice_for_period(
+            resource, attrs.get("date")
+        )
+
         components_map = self.get_components_map(resource.plan.offering)
         for usage in attrs.get("usages", []):
             component = components_map.get(usage.get("type"))
-            if component and component.billing_type not in DISPLAY_ONLY_BILLING_TYPES:
-                return False
+            if not component or component.billing_type in DISPLAY_ONLY_BILLING_TYPES:
+                continue
+            if (
+                component.billing_type == BillingTypes.USAGE
+                and usage_backfill_has_mutable_invoice
+            ):
+                continue
+            return False
         return True
 
     def validate_date(self, value):
