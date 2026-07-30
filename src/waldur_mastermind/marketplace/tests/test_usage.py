@@ -1,4 +1,5 @@
 import datetime
+import decimal
 
 from ddt import data, ddt
 from django.test import override_settings
@@ -14,6 +15,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices.compensations import MonthlyCompensation
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
@@ -1512,6 +1514,61 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         # The ComponentUsage should now show the updated total
         # Note: The exact behavior might depend on how user usage aggregation is implemented
         # This test documents the expected invoice behavior
+
+    def test_usage_update_finds_cost_item_not_compensation_item(self):
+        """A compensation item copies the main item's `details` wholesale
+        (MonthlyCompensation.calculate_current_compensations), so it also
+        carries `offering_component_type`. Re-reporting usage on a still-
+        mutable invoice that already has a compensation item must update the
+        cost item, never the compensation item that happens to share the
+        same resource + offering_component_type."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "usages": [{"type": "cpu", "amount": 5}],
+        }
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        invoice = invoice_models.Invoice.objects.get(
+            customer=self.fixture.customer, year=2024, month=2
+        )
+        cost_item = invoice.items.get(
+            resource=self.resource, details__offering_component_type="cpu"
+        )
+
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("1000")
+        )
+        MonthlyCompensation(
+            self.fixture.customer, invoice=invoice
+        ).apply_compensations()
+
+        compensation_item = invoice.items.get(
+            resource=self.resource, credit=credit, details__is_compensation=True
+        )
+        # Confirms the ambiguity actually exists for this test to be meaningful.
+        self.assertEqual(
+            compensation_item.details.get("offering_component_type"), "cpu"
+        )
+
+        # Report higher usage while the invoice is still mutable.
+        payload["usages"][0]["amount"] = 8
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        cost_item.refresh_from_db()
+        compensation_item.refresh_from_db()
+        self.assertEqual(cost_item.quantity, 8)
+        self.assertFalse(cost_item.details.get("is_compensation"))
+        # Untouched by the usage update -- only the compensation engine may
+        # change it.
+        self.assertEqual(compensation_item.unit_price, decimal.Decimal("-50"))
 
     def test_usage_update_rejected_for_finalized_invoice(self):
         """Usage reported for a month whose invoice is already finalized should not update the invoice item."""
