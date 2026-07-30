@@ -1529,6 +1529,10 @@ class InvoiceCostItemSerializer(serializers.Serializer):
 
 class InvoiceCostSerializer(serializers.Serializer):
     price = serializers.FloatField(read_only=True)
+    # Credit compensation drawn for the period (always <= 0). Distinct from
+    # `price`, which nets compensation against incurred cost and can read ~0
+    # in a month where credit happens to fully offset usage.
+    compensation = serializers.FloatField(read_only=True, default=0)
     year = serializers.IntegerField(read_only=True)
     month = serializers.IntegerField(read_only=True)
     items = InvoiceCostItemSerializer(many=True, required=False)

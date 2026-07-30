@@ -174,10 +174,20 @@ class BillingUsageProcessor:
             )
             return
 
-        # Try to find an existing invoice item for this component in the current period
+        # Try to find an existing invoice item for this component in the current
+        # period. Compensation items copy the main item's `details` wholesale
+        # (see MonthlyCompensation.calculate_current_compensations), so they
+        # also carry `offering_component_type` and can match this lookup by
+        # accident. Disambiguate with `unit_price__gte=0`: a real cost item's
+        # price is never negative, while compensation items (only created
+        # `if credit_compensation:`, i.e. nonzero) and discount items (only
+        # created `if discount_amount > 0`) are always created with strictly
+        # negative unit_price -- a hard domain invariant, unlike JSON detail
+        # keys such as `is_compensation`, which older rows may not carry.
         item = invoice.items.filter(
             resource=resource,
             details__offering_component_type=offering_component.type,
+            unit_price__gte=0,
         ).first()
 
         try:

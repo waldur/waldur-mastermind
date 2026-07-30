@@ -1121,6 +1121,88 @@ def get_or_create_plan_period(resource: models.Resource, date):
     return plan_period
 
 
+def get_or_create_plan_period_for_historical_backfill(resource: models.Resource, date):
+    """Resolve or create the plan period for a historical billing month.
+
+    Mirrors ``get_plan_period_for_billing``'s overlap resolution, but —
+    unlike that function — will also create a missing
+    :class:`ResourcePlanPeriod` for a PAST billing month, not just the
+    current one.
+
+    This is intentionally a separate function, not a relaxed version of
+    ``get_plan_period_for_billing``: ordinary live usage-reporting API calls
+    must keep refusing to retroactively fabricate billing history for a past
+    month. Only an explicit, staff-triggered backfill
+    (the ``rebill_historical_usage`` management command) should ever call
+    this.
+    """
+    plan_period = get_plan_period(resource, date)
+    if plan_period is not None:
+        return plan_period
+
+    month_start = core_utils.month_start(date)
+    month_end = core_utils.month_end(date)
+    plan_period = (
+        models.ResourcePlanPeriod.objects.filter(resource=resource)
+        .filter(Q(start__lte=month_end) | Q(start__isnull=True))
+        .filter(Q(end__gte=month_start) | Q(end__isnull=True))
+        .order_by("start")
+        .last()
+    )
+    if plan_period is not None:
+        return plan_period
+
+    if resource.plan and resource.state in [
+        ResourceStates.OK,
+        ResourceStates.UPDATING,
+    ]:
+        # Bound the fabricated period so it can never overlap an existing
+        # one: cap its end at the next later period's start (if any), and
+        # its start at the previous earlier period's end (if any). Without
+        # this, an open-ended (`end=None`) period created here for a gap
+        # that has OTHER periods on either side would overlap them,
+        # corrupting get_plan_period's point-in-time resolution for dates
+        # outside this historical month too.
+        following_start = (
+            models.ResourcePlanPeriod.objects.filter(
+                resource=resource, start__gte=month_end
+            )
+            .order_by("start")
+            .values_list("start", flat=True)
+            .first()
+        )
+        preceding_end = (
+            models.ResourcePlanPeriod.objects.filter(
+                resource=resource, end__lte=month_start
+            )
+            .order_by("-end")
+            .values_list("end", flat=True)
+            .first()
+        )
+        start = (
+            max(resource.created, preceding_end) if preceding_end else resource.created
+        )
+        logger.warning(
+            "Creating missing historical Resource Plan Period for resource %s "
+            "(UUID: %s) covering %s using its CURRENT plan (%s) -- the plan "
+            "actually active during that historical month could not be "
+            "determined from existing ResourcePlanPeriod records and may "
+            "differ.",
+            resource.name,
+            resource.uuid.hex,
+            month_start,
+            resource.plan,
+        )
+        plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=start,
+            end=following_start,
+        )
+
+    return plan_period
+
+
 def import_current_usages(resource, usages=None, hourly_accumulation=False):
     now = timezone.now()
     date = now.date()

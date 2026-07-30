@@ -1,0 +1,716 @@
+import datetime
+import decimal
+import logging
+
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+
+from waldur_mastermind.common.enums import Units
+from waldur_mastermind.invoices import ledger
+from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.marketplace import billing_discount
+from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
+from waldur_mastermind.marketplace.billing_utils import convert_quantity
+from waldur_mastermind.marketplace.enums import BillingTypes, DiscountAggregations
+from waldur_mastermind.marketplace.models import (
+    ComponentUsage,
+    Offering,
+    PlanComponent,
+    Resource,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class _DryRunRollback(Exception):
+    """Raised inside an atomic block to discard a simulated dry run."""
+
+
+class Command(BaseCommand):
+    help = (
+        "Re-bill ComponentUsage records whose invoice item is missing or stale "
+        "because their invoice was already finalized when the usage was "
+        "reported or corrected (e.g. via waldur_site_load_historical_usage in "
+        "waldur-site-agent). Staff-only, one-off correction tool. Never run "
+        "automatically or on a schedule. Pass -v 2 (or -v 3) for debug-level "
+        "logging of every decision this command makes."
+    )
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--execute",
+            action="store_true",
+            help="Actually apply the correction. Without this flag the command "
+            "always runs as a dry run -- it computes and prints the exact same "
+            "plan (inside a transaction that's deliberately rolled back at the "
+            "end) but writes nothing to the database. This default is "
+            "deliberate: review the printed plan first, then re-run with "
+            "--execute once it looks right.",
+        )
+        parser.add_argument(
+            "--offering",
+            dest="offering_uuid",
+            help="Only process resources belonging to the offering with this UUID.",
+        )
+        parser.add_argument(
+            "--resource",
+            dest="resource_uuid",
+            help="Only process the resource with this UUID.",
+        )
+        parser.add_argument(
+            "--start-date",
+            dest="start_date",
+            help="Only billing periods on or after this date (format: YYYY-MM-DD).",
+        )
+        parser.add_argument(
+            "--end-date",
+            dest="end_date",
+            help="Only billing periods on or before this date (format: YYYY-MM-DD).",
+        )
+        parser.add_argument(
+            "--allow-aggregated-discount-recompute",
+            action="store_true",
+            help="Allow recomputing volume discounts for offering components that "
+            "use the aggregated (non-per-resource) discount scope. This also "
+            "rewrites discount amounts for OTHER resources sharing that offering "
+            "component on the same invoice. Review the printed sibling-impact "
+            "report (from a plain dry-run invocation) before using this.",
+        )
+
+    def _parse_date(self, value, label):
+        try:
+            return datetime.datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            raise CommandError(
+                f"Invalid {label} {value!r}: expected format YYYY-MM-DD."
+            )
+
+    def _find_main_item(self, invoice, resource, offering_component):
+        """Find the main (cost) invoice item for a resource/component.
+
+        Compensation and discount items copy the main item's `details`
+        wholesale (see MonthlyCompensation.calculate_current_compensations
+        and billing_discount._create_discount_item), so they also carry
+        `offering_component_type` and can match this lookup by accident.
+        Disambiguate with `unit_price__gte=0`: a real cost item's price is
+        never negative, while compensation items (only created `if
+        credit_compensation:`, i.e. nonzero) and discount items (only
+        created `if discount_amount > 0`) are always strictly negative --
+        a hard domain invariant. Do NOT rely on JSON detail keys like
+        `is_compensation`/`compensation_of_item` for this: production data
+        can predate whenever that tagging convention was added and simply
+        not carry them at all.
+        """
+        return invoice.items.filter(
+            resource=resource,
+            details__offering_component_type=offering_component.type,
+            unit_price__gte=0,
+        ).first()
+
+    def handle(self, *args, **options):
+        # `-v 2`/`-v 3` (Django's built-in --verbosity, added automatically by
+        # BaseCommand) raises just this command's own logger to DEBUG. The
+        # root logger stays at INFO, so this doesn't turn on debug output
+        # for the rest of the app -- only for this command's own log calls.
+        # The DatabaseLogHandler only accepts INFO+ regardless, so debug
+        # detail only ever shows up on the console, never in persisted logs.
+        if options["verbosity"] >= 2:
+            logger.setLevel(logging.DEBUG)
+
+        # Dry run is the default; --execute is the one thing that opts out of
+        # it, so a bare invocation can never write to the database.
+        dry_run = not options["execute"]
+        self.allow_aggregated = options["allow_aggregated_discount_recompute"]
+        logger.debug(
+            "rebill_historical_usage starting: dry_run=%s offering=%s resource=%s "
+            "start_date=%s end_date=%s allow_aggregated_discount_recompute=%s",
+            dry_run,
+            options["offering_uuid"],
+            options["resource_uuid"],
+            options["start_date"],
+            options["end_date"],
+            self.allow_aggregated,
+        )
+        start_date = (
+            self._parse_date(options["start_date"], "--start-date")
+            if options["start_date"]
+            else None
+        )
+        end_date = (
+            self._parse_date(options["end_date"], "--end-date")
+            if options["end_date"]
+            else None
+        )
+        if start_date and end_date and start_date > end_date:
+            raise CommandError("--start-date must not be after --end-date.")
+
+        offering = None
+        if options["offering_uuid"]:
+            try:
+                offering = Offering.objects.get(uuid=options["offering_uuid"])
+            except (Offering.DoesNotExist, ValueError):
+                raise CommandError(
+                    f"Offering with UUID {options['offering_uuid']!r} does not exist."
+                )
+
+        resource = None
+        if options["resource_uuid"]:
+            try:
+                resource = Resource.objects.get(uuid=options["resource_uuid"])
+            except (Resource.DoesNotExist, ValueError):
+                raise CommandError(
+                    f"Resource with UUID {options['resource_uuid']!r} does not exist."
+                )
+
+        usages = ComponentUsage.objects.filter(
+            component__billing_type=BillingTypes.USAGE,
+            component__is_prepaid=False,
+        ).select_related(
+            "resource",
+            "resource__project",
+            "resource__project__customer",
+            "resource__offering",
+            "component",
+            "plan_period",
+        )
+        if offering:
+            usages = usages.filter(resource__offering=offering)
+        if resource:
+            usages = usages.filter(resource=resource)
+        if start_date:
+            usages = usages.filter(billing_period__gte=start_date)
+        if end_date:
+            usages = usages.filter(billing_period__lte=end_date)
+
+        prefix = "[DRY RUN] " if dry_run else ""
+        corrected = 0
+        unaffected = 0
+        candidate_count = usages.count()
+        logger.debug(
+            "rebill_historical_usage: %s candidate usage(s) to consider",
+            candidate_count,
+        )
+
+        for usage in usages.order_by("resource_id", "billing_period"):
+            label = (
+                f"{usage.resource.name} ({usage.resource.uuid.hex}) / "
+                f"{usage.component.type} / {usage.billing_period}"
+            )
+            logger.debug(
+                "Processing %s (ComponentUsage id=%s, usage=%s)",
+                label,
+                usage.pk,
+                usage.usage,
+            )
+            try:
+                if self._process_usage(usage, dry_run):
+                    corrected += 1
+                else:
+                    unaffected += 1
+            except Exception:
+                # One broken resource-period must not abort the whole run --
+                # every prior correction already committed in its own
+                # transaction.atomic() and would otherwise be stranded with
+                # no final summary to show for it.
+                logger.exception("Unable to process usage for %s", label)
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"{prefix}{label}: unexpected error, skipped. See "
+                        f"logs for details."
+                    )
+                )
+                unaffected += 1
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"{prefix}Done: {corrected} resource-periods corrected, "
+                f"{unaffected} unaffected/skipped."
+            )
+        )
+
+    def _process_usage(self, usage: ComponentUsage, dry_run: bool) -> bool:
+        resource = usage.resource
+        offering_component = usage.component
+        customer = resource.project.customer
+        billing_period = usage.billing_period
+        label = f"{resource.name} ({resource.uuid.hex}) / {offering_component.type} / {billing_period}"
+
+        invoice = invoice_models.Invoice.objects.filter(
+            customer=customer,
+            year=billing_period.year,
+            month=billing_period.month,
+        ).first()
+        if invoice is None:
+            # No invoice yet for this period; ordinary billing will create it
+            # (and bill it correctly) the next time usage is reported.
+            logger.debug(
+                "%s: no invoice for %s-%s yet, skipping",
+                label,
+                billing_period.year,
+                billing_period.month,
+            )
+            return False
+        logger.debug(
+            "%s: invoice %s-%s state=%s",
+            label,
+            invoice.year,
+            invoice.month,
+            invoice.state,
+        )
+        if invoice.state in invoice_models.Invoice.States.MUTABLE_STATES:
+            # Ordinary billing already handles mutable invoices on ComponentUsage
+            # save; nothing for this tool to do.
+            logger.debug("%s: invoice is mutable, ordinary billing handles it", label)
+            return False
+        if invoice.state != invoice_models.Invoice.States.CREATED:
+            # PAID: money already collected against the stale price -- a
+            # silent price change needs a manual reconciliation, not an
+            # automatic one. CANCELED: reopening/re-finalizing a canceled
+            # invoice would silently resurrect it into a billable state.
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  {label}: invoice is {invoice.state!r}, not 'created' -- "
+                    f"skipping (this tool only corrects finalized-but-unpaid "
+                    f"invoices; needs manual review)."
+                )
+            )
+            return False
+
+        had_plan_period = usage.plan_period is not None
+        plan_period = (
+            usage.plan_period
+            or marketplace_utils.get_or_create_plan_period_for_historical_backfill(
+                resource, billing_period
+            )
+        )
+        if plan_period is None:
+            logger.debug("%s: no plan period could be resolved or created", label)
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  {label}: no plan period available (resource not "
+                    f"active/no plan); skipping."
+                )
+            )
+            return False
+        logger.debug(
+            "%s: resolved plan_period id=%s (had_plan_period=%s)",
+            label,
+            plan_period.pk,
+            had_plan_period,
+        )
+        if not had_plan_period:
+            # The plan actually active during this historical month is
+            # unknowable if no ResourcePlanPeriod ever covered it -- pricing
+            # falls back to the resource's CURRENT plan, which may differ
+            # from what was active back then.
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  {label}: no plan period covered this billing period; "
+                    f"created one using the resource's current plan "
+                    f"({resource.plan}). Verify pricing manually if the "
+                    f"resource has changed plans since {billing_period:%Y-%m}."
+                )
+            )
+            # Persist it onto the ComponentUsage row itself -- otherwise
+            # this billing period would still read plan_period=None
+            # afterwards, and every subsequent run would keep treating it
+            # as unresolved.
+            ComponentUsage.objects.filter(pk=usage.pk).update(plan_period=plan_period)
+            usage.plan_period = plan_period
+
+        old_item = self._find_main_item(invoice, resource, offering_component)
+
+        # Cheap pre-check so unaffected resource-periods never touch the
+        # invoice at all (minimizes blast radius on invoices with many items).
+        # Skipped when --allow-aggregated-discount-recompute is set: that flag
+        # is itself a request to force the discount pass for this resource's
+        # offering component, even if the item's own quantity is already
+        # correct (e.g. a follow-up run after reviewing a --dry-run warning).
+        expected_quantity = convert_quantity(
+            usage.usage,
+            resource.offering.type,
+            offering_component.type,
+            billing_type=offering_component.billing_type,
+        )
+        logger.debug(
+            "%s: old_item=%s expected_quantity=%s",
+            label,
+            old_item.quantity if old_item else None,
+            expected_quantity,
+        )
+        if (
+            old_item is not None
+            and old_item.quantity == expected_quantity
+            and not self.allow_aggregated
+        ):
+            logger.debug("%s: already matches expected quantity, skipping", label)
+            return False
+
+        logger.debug("%s: applying correction (dry_run=%s)", label, dry_run)
+        try:
+            with transaction.atomic():
+                self._apply_correction(
+                    usage, resource, offering_component, invoice, plan_period, dry_run
+                )
+                if dry_run:
+                    raise _DryRunRollback()
+        except _DryRunRollback:
+            pass
+        return True
+
+    def _apply_correction(
+        self, usage, resource, offering_component, invoice, plan_period, dry_run
+    ) -> None:
+        prefix = "[DRY RUN] " if dry_run else ""
+        label = f"{resource.name} ({resource.uuid.hex}) / {offering_component.type} / {usage.billing_period}"
+
+        old_item = self._find_main_item(invoice, resource, offering_component)
+        old_price = old_item.price if old_item else decimal.Decimal(0)
+        logger.debug(
+            "%s: reopening invoice (state %s -> pending)", label, invoice.state
+        )
+
+        invoice.state = invoice_models.Invoice.States.PENDING
+        invoice.save(update_fields=["state"])
+
+        BillingUsageProcessor._create_or_update_usage_invoice_item(
+            resource=resource,
+            offering_component=offering_component,
+            usage_to_bill=usage.usage,
+            date=usage.billing_period,
+            plan_period=plan_period,
+        )
+
+        new_item = self._find_main_item(invoice, resource, offering_component)
+        if new_item is None:
+            logger.debug(
+                "%s: no invoice item after billing pass (no plan component / zero price?)",
+                label,
+            )
+            self.stdout.write(
+                self.style.WARNING(
+                    f"{prefix}{label}: invoice item was not created (no plan "
+                    f"component / zero price?); re-finalizing invoice unchanged."
+                )
+            )
+            invoice.set_created()
+            return
+
+        new_price = new_item.price
+        logger.debug(
+            "%s: item price %s -> %s (item id=%s)",
+            label,
+            old_price,
+            new_price,
+            new_item.pk,
+        )
+        self.stdout.write(
+            f"{prefix}{label}: invoice item price {old_price} -> {new_price}"
+        )
+
+        self._apply_discount_recompute(
+            resource, offering_component, invoice, plan_period, dry_run
+        )
+
+        invoice.set_created()
+        logger.debug("%s: invoice re-finalized (state -> created)", label)
+
+        if invoice_models.AffiliateFeeAccrual.objects.filter(invoice=invoice).exists():
+            # accrue_affiliate_fee() is idempotent per (link, invoice) --
+            # invoice.set_created() re-fires the invoice_created signal, but
+            # the already-existing accrual makes it a no-op, so the fee
+            # stays based on the pre-correction price.
+            self.stdout.write(
+                self.style.WARNING(
+                    f"{prefix}{label}: an affiliate fee was already accrued "
+                    f"for this invoice; it is NOT recomputed against the "
+                    f"corrected price. Review manually if affiliate fees "
+                    f"apply here."
+                )
+            )
+
+        self._apply_credit_correction(
+            resource, offering_component, invoice, new_item, dry_run
+        )
+
+    def _apply_discount_recompute(
+        self, resource, offering_component, invoice, plan_period, dry_run
+    ) -> None:
+        prefix = "[DRY RUN] " if dry_run else ""
+        label = f"{resource.name} ({resource.uuid.hex}) / {offering_component.type}"
+
+        try:
+            plan_component = plan_period.plan.components.get(
+                component=offering_component
+            )
+        except PlanComponent.DoesNotExist:
+            logger.debug(
+                "%s: no matching plan component, skipping discount recompute", label
+            )
+            return
+
+        if not (plan_component.discount_formula or "").strip():
+            logger.debug(
+                "%s: no discount_formula configured, skipping discount recompute", label
+            )
+            return
+
+        logger.debug(
+            "%s: discount_formula=%r aggregation=%s",
+            label,
+            plan_component.discount_formula,
+            plan_component.discount_aggregation,
+        )
+        if plan_component.discount_aggregation == DiscountAggregations.PER_RESOURCE:
+            # Only this resource's own discount bucket is affected.
+            billing_discount.apply_aggregated_volume_discounts(invoice)
+            return
+
+        siblings = invoice.items.exclude(resource=resource).filter(
+            plan_component__component=offering_component,
+            plan_component__isnull=False,
+        )
+        sibling_resources = sorted(
+            {
+                f"{item.resource.name} ({item.resource.uuid.hex})"
+                for item in siblings
+                if item.resource_id
+            }
+        )
+        if not sibling_resources:
+            # No other resource on this invoice shares the component; safe.
+            logger.debug(
+                "%s: aggregated scope but no sibling resources, safe to recompute",
+                label,
+            )
+            billing_discount.apply_aggregated_volume_discounts(invoice)
+            return
+
+        self.stdout.write(
+            self.style.WARNING(
+                f"{prefix}{label}: offering component uses aggregated (non-"
+                f"per-resource) discount scope; recomputing would also rewrite "
+                f"discount amounts for: {', '.join(sibling_resources)}."
+            )
+        )
+        if self.allow_aggregated:
+            self.stdout.write(
+                f"{prefix}{label}: --allow-aggregated-discount-recompute set; "
+                f"recomputing discounts for the whole invoice."
+            )
+            billing_discount.apply_aggregated_volume_discounts(invoice)
+        else:
+            self.stdout.write(
+                f"{prefix}{label}: skipping discount recompute (pass "
+                f"--allow-aggregated-discount-recompute to proceed after review)."
+            )
+
+    def _apply_credit_correction(
+        self, resource, offering_component, invoice, new_item, dry_run
+    ) -> None:
+        prefix = "[DRY RUN] " if dry_run else ""
+        label = (
+            f"{resource.name} ({resource.uuid.hex}) / {offering_component.type} / "
+            f"{invoice.year}-{invoice.month:02d}"
+        )
+        customer = resource.project.customer
+
+        # Lock the credit rows before reading/mutating them, matching
+        # invoices/tasks.py:process_invoice_credits (see WAL-9806): without
+        # this, a concurrent invoice finalization or another correction run
+        # touching the same customer's credit could race with our
+        # read-modify-write on `.value` and silently lose an update.
+        customer_credit = (
+            invoice_models.CustomerCredit.objects.select_for_update()
+            .filter(customer=customer)
+            .first()
+        )
+        if customer_credit is None:
+            logger.debug("%s: no CustomerCredit configured, nothing to correct", label)
+            return
+        project_credit = (
+            invoice_models.ProjectCredit.objects.select_for_update()
+            .filter(project=resource.project)
+            .first()
+        )
+        logger.debug(
+            "%s: customer_credit id=%s value=%s project_credit id=%s value=%s",
+            label,
+            customer_credit.pk,
+            customer_credit.value,
+            project_credit.pk if project_credit else None,
+            project_credit.value if project_credit else None,
+        )
+
+        # Matched structurally (resource + component + credit + negative
+        # price), not via the `compensation_of_item` detail key: production
+        # compensation rows can predate whenever that tagging convention was
+        # added and simply not carry it (or `is_compensation`) at all.
+        old_compensation = decimal.Decimal(0)
+        existing_compensation = invoice.items.filter(
+            resource=resource,
+            credit=customer_credit,
+            details__offering_component_type=offering_component.type,
+            unit_price__lt=0,
+        ).first()
+        if existing_compensation is not None:
+            old_compensation = existing_compensation.unit_price * -1
+        logger.debug(
+            "%s: existing_compensation id=%s old_compensation=%s",
+            label,
+            existing_compensation.pk if existing_compensation else None,
+            old_compensation,
+        )
+
+        # Net out any paired volume-discount item, mirroring
+        # MonthlyCompensation.calculate_current_compensations's
+        # discount_by_item handling -- otherwise credit would be drawn
+        # against the pre-discount gross price.
+        discount_price = decimal.Decimal(0)
+        for discount_item in invoice.items.filter(
+            details__is_discount=True,
+            details__discount_of_item=new_item.uuid.hex,
+        ):
+            discount_price += discount_item.price
+        new_compensation = new_item.price + discount_price
+        if new_compensation < 0:
+            new_compensation = decimal.Decimal(0)
+        logger.debug(
+            "%s: new_item.price=%s discount_price=%s new_compensation=%s",
+            label,
+            new_item.price,
+            discount_price,
+            new_compensation,
+        )
+
+        # Simplifying assumption: the corrected cost is drawn 1:1 against
+        # credit, same as a fresh MonthlyCompensation pass would for a single
+        # item — safe here because the correction is tiny relative to typical
+        # credit balances. The available-balance check below is the guard
+        # against that assumption not holding.
+        delta_draw = new_compensation - old_compensation
+        logger.debug("%s: delta_draw=%s", label, delta_draw)
+        if delta_draw == 0:
+            self.stdout.write(
+                f"{prefix}{label}: credit compensation already correct "
+                f"({-old_compensation}); no change."
+            )
+            return
+
+        sibling_compensations = invoice.items.filter(
+            credit=customer_credit, unit_price__lt=0
+        ).exclude(resource=resource)
+        if sibling_compensations.exists():
+            sibling_resources = sorted(
+                {
+                    f"{item.resource.name} ({item.resource.uuid.hex})"
+                    for item in sibling_compensations
+                    if item.resource_id
+                }
+            )
+            self.stdout.write(
+                self.style.WARNING(
+                    f"{prefix}{label}: this credit is also drawn by other "
+                    f"resources on this invoice ({', '.join(sibling_resources)}). "
+                    f"This correction only adjusts {resource.name}'s own "
+                    f"compensation by its own price delta -- it does NOT "
+                    f"re-run cheapest-first credit allocation across those "
+                    f"resources, so their amounts may no longer match what a "
+                    f"full recompute would produce if the credit is scarce."
+                )
+            )
+        if customer_credit.minimal_consumption:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"{prefix}{label}: customer credit uses minimal-consumption "
+                    f"logic; its minimal-consumption tail / expected_consumption "
+                    f"were computed before this correction and are NOT "
+                    f"recomputed here. Review manually if this correction is "
+                    f"large relative to typical spend."
+                )
+            )
+
+        available = customer_credit.value
+        if project_credit:
+            available = min(available, project_credit.value)
+        logger.debug("%s: available=%s", label, available)
+        if delta_draw > 0 and delta_draw > available:
+            logger.debug(
+                "%s: delta_draw exceeds available, aborting credit correction", label
+            )
+            self.stdout.write(
+                self.style.ERROR(
+                    f"{prefix}{label}: correction would draw {delta_draw} more "
+                    f"credit than available ({available}); ABORTING credit "
+                    f"correction for this resource. Needs manual review."
+                )
+            )
+            return
+
+        self.stdout.write(
+            f"{prefix}{label}: credit compensation {-old_compensation} -> "
+            f"{-new_compensation} (credit balance delta: {-delta_draw:+})"
+        )
+
+        if existing_compensation is not None:
+            logger.debug(
+                "%s: updating existing compensation item id=%s",
+                label,
+                existing_compensation.pk,
+            )
+            existing_compensation.unit_price = -new_compensation
+            existing_compensation.details = dict(existing_compensation.details or {})
+            existing_compensation.details["compensation_of_item"] = new_item.uuid.hex
+            existing_compensation.save(update_fields=["unit_price", "details"])
+        else:
+            logger.debug("%s: creating new compensation item", label)
+            invoice_models.InvoiceItem.objects.create(
+                invoice=invoice,
+                unit_price=-new_compensation,
+                quantity=1,
+                unit=Units.QUANTITY,
+                credit=customer_credit,
+                name=f"Credit compensation (retroactive correction). {new_item}",
+                resource=resource,
+                project=resource.project,
+                # Match the cost item's own start/end (already correctly
+                # derived from the billing period, not today's date) --
+                # without this, InvoiceItem.start/end silently default to
+                # get_current_month_start()/end(), dating the compensation
+                # to whenever this command happened to run instead of the
+                # invoice's actual billing period.
+                start=new_item.start,
+                end=new_item.end,
+                details={
+                    "is_compensation": True,
+                    "compensation_of_item": new_item.uuid.hex,
+                    "retroactive_correction": True,
+                    # Without this, _find_main_item's own structural lookup
+                    # (which matches on this exact key) would never find
+                    # this row on a later run, creating a duplicate
+                    # compensation item every time instead of updating it.
+                    "offering_component_type": offering_component.type,
+                },
+            )
+
+        with ledger.credit_transaction_type(
+            invoice_models.CreditTransaction.Types.ADJUSTMENT,
+            reference=invoice,
+            comment=(
+                f"Retroactive correction: usage for resource {resource.uuid.hex} "
+                f"({offering_component.type}, {invoice.year}-{invoice.month:02d}) "
+                f"was corrected after the invoice had already been finalized."
+            ),
+        ):
+            customer_credit.value -= delta_draw
+            customer_credit.save(update_fields=["value"])
+            if project_credit:
+                project_credit.value -= delta_draw
+                project_credit.save(update_fields=["value"])
+            logger.debug(
+                "%s: customer_credit -> %s, project_credit -> %s",
+                label,
+                customer_credit.value,
+                project_credit.value if project_credit else None,
+            )
