@@ -817,6 +817,12 @@ class SubmitRequestResponseSerializer(serializers.Serializer):
     uuid = serializers.CharField(help_text="UUID of the created permission request")
     scope_name = serializers.CharField(help_text="Name of the invitation scope")
     scope_uuid = serializers.CharField(help_text="UUID of the invitation scope")
+    scope_type = serializers.ChoiceField(
+        choices=list(TYPE_MAP),
+        required=False,
+        allow_null=True,
+        help_text="Type of the invitation scope (e.g., 'customer', 'project')",
+    )
     auto_approved = serializers.BooleanField(
         help_text="Whether the request was automatically approved"
     )

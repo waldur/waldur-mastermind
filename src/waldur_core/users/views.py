@@ -22,6 +22,7 @@ from waldur_core.core.views import (
 )
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.permissions.enums import TYPE_KEY_BY_CT
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_user, validate_user_restrictions
 from waldur_core.structure import filters as structure_filters
@@ -663,9 +664,14 @@ class GroupInvitationViewSet(ActionsViewSet):
         # Get scope details safely
         scope_name = ""
         scope_uuid = ""
+        scope_type = None
         if invitation.scope:
             scope_name = getattr(invitation.scope, "name", str(invitation.scope))
             scope_uuid = str(invitation.scope.uuid)
+        if invitation.content_type:
+            scope_type = TYPE_KEY_BY_CT.get(
+                (invitation.content_type.app_label, invitation.content_type.model)
+            )
 
         # Use the serializer to validate and format the response
         response_serializer = serializers.SubmitRequestResponseSerializer(
@@ -673,6 +679,7 @@ class GroupInvitationViewSet(ActionsViewSet):
                 "uuid": permission_request.uuid.hex,
                 "scope_name": scope_name,
                 "scope_uuid": scope_uuid,
+                "scope_type": scope_type,
                 "auto_approved": auto_approved,
                 "project_uuid": project_uuid,
                 "project_created": project_created,

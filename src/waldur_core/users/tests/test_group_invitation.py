@@ -1561,6 +1561,40 @@ class GroupInvitationAutoApprovalTest(BaseGroupInvitationTest):
             has_user(self.customer, user, self.auto_approve_invitation.role)
         )
 
+    def test_submit_request_response_reports_customer_scope_type(self):
+        """Customer-scoped invitations report scope_type=customer in the response."""
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["scope_type"], "customer")
+
+    def test_submit_request_response_reports_project_scope_type(self):
+        """Project-scoped invitations report scope_type=project in the response.
+
+        Without auto_create_project, project_uuid stays null while scope_uuid
+        is a *project* UUID — the frontend can only route to the right
+        dashboard when scope_type identifies the scope model.
+        """
+        project_scoped_invitation = factories.ProjectGroupInvitationFactory(
+            scope=self.project,
+            auto_approve=True,
+            user_email_patterns=[".*@example.com"],
+        )
+        url = factories.ProjectGroupInvitationFactory.get_url(
+            project_scoped_invitation, "submit_request"
+        )
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["auto_approved"])
+        self.assertEqual(response.data["scope_type"], "project")
+        self.assertEqual(response.data["scope_uuid"], self.project.uuid.hex)
+        self.assertIsNone(response.data.get("project_uuid"))
+
     def test_auto_approval_disabled_requires_manual_approval(self):
         """Test that when auto_approve is False, requests require manual approval."""
         manual_approval_invitation = factories.CustomerGroupInvitationFactory(
