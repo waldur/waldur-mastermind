@@ -511,9 +511,10 @@ def fetch_job(request):
     As argument, you need to pass in the `job_id` query parameter,
     which must match one of the jobs in the OpenPortal bridge queue.
 
-    If a job is not found, it will return an authorisation error
-    (403 Forbidden), thereby preventing "unauthorised" access to
-    this end-point.
+    If the job cannot be handed over - no `job_id` was given, it matches
+    no job in the queue, or the job is not pending - it will return an
+    authorisation error (401 Unauthorized), thereby preventing
+    "unauthorised" access to this end-point.
 
     If the job is found, it will return a 200 OK response.
 
