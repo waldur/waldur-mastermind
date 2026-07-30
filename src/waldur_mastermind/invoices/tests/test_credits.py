@@ -1524,3 +1524,25 @@ class CompensationProjectAttributionTest(test.APITestCase):
             Decimal("0"),
             "compensation is missing from the project-scoped costs endpoint",
         )
+
+    def test_costs_endpoint_exposes_the_gross_and_net_figures(self):
+        """price nets compensation off incurred, so clients need all three to
+        tell "nothing was spent" apart from "credit covered the spend"."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            factories.InvoiceItemFactory.get_list_url("costs"),
+            {"project_uuid": self.project.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(
+            row
+            for row in response.data
+            if row["year"] == self.invoice.year and row["month"] == self.invoice.month
+        )
+        for field in ("price", "incurred", "compensation"):
+            self.assertIn(field, row)
+        self.assertGreater(Decimal(row["incurred"]), Decimal("0"))
+        self.assertEqual(
+            Decimal(row["price"]),
+            Decimal(row["incurred"]) + Decimal(row["compensation"]),
+        )
