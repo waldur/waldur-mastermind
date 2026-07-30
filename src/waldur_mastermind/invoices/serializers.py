@@ -1533,6 +1533,10 @@ class InvoiceCostSerializer(serializers.Serializer):
     # `price`, which nets compensation against incurred cost and can read ~0
     # in a month where credit happens to fully offset usage.
     compensation = serializers.FloatField(read_only=True, default=0)
+    # Gross charges for the period, before any credit is applied. The costs
+    # action has always returned this alongside `price` and `compensation`;
+    # declaring it keeps generated clients from having to read it untyped.
+    incurred = serializers.FloatField(read_only=True, default=0)
     year = serializers.IntegerField(read_only=True)
     month = serializers.IntegerField(read_only=True)
     items = InvoiceCostItemSerializer(many=True, required=False)
