@@ -1523,6 +1523,10 @@ class ResourceFilter(
             ("name", "name"),
             ("created", "created"),
             ("project__name", "project_name"),
+            ("project__customer__name", "customer_name"),
+            ("offering__name", "offering_name"),
+            ("plan__name", "plan_name"),
+            ("backend_id", "backend_id"),
             ("state", "state"),
             ("end_date", "end_date"),
         )
