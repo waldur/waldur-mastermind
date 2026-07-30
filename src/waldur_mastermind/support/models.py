@@ -126,6 +126,18 @@ class Issue(
     resource_object_id = models.PositiveIntegerField(null=True)
     resource = GenericForeignKey("resource_content_type", "resource_object_id")
 
+    offering = models.ForeignKey(
+        "marketplace.Offering",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text=_(
+            "Marketplace offering the issue is about. Determines the provider "
+            "helpdesk to route to when no resource is attached."
+        ),
+    )
+
     resolution_date = models.DateTimeField(blank=True, null=True)
     template = models.ForeignKey["Template"](
         "Template",

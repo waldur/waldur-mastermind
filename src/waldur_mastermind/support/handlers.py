@@ -283,16 +283,23 @@ def dispatch_routing_on_issue_create(
         instance.tracker.has_changed("backend_id")
         and not instance.tracker.previous("backend_id")
     ):
-        # Only route if resource is already attached
-        if instance.resource_object_id:
+        # Route if a resource or an offering is already attached; either is
+        # enough to resolve the provider (see resolve_routing_offering).
+        if instance.resource_object_id or instance.offering_id:
             should_route = True
 
-    # Scenario 2: resource first attached to existing issue
-    if (
-        not created
-        and instance.resource_object_id
-        and instance.tracker.has_changed("resource_object_id")
-        and not instance.tracker.previous("resource_object_id")
+    # Scenario 2: a resource or an offering is first attached to an existing issue
+    if not created and (
+        (
+            instance.resource_object_id
+            and instance.tracker.has_changed("resource_object_id")
+            and not instance.tracker.previous("resource_object_id")
+        )
+        or (
+            instance.offering_id
+            and instance.tracker.has_changed("offering_id")
+            and not instance.tracker.previous("offering_id")
+        )
     ):
         should_route = True
 
