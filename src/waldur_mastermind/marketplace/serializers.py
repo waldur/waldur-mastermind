@@ -7113,12 +7113,17 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     """Non-secret view of a resource API key — safe for listing/polling."""
 
     resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
+    # The agent's reconciliation pass finds keys by listing, so unlike a command
+    # it has nothing carrying the resource's backend id — and it needs one to talk
+    # to the backend.
+    resource_backend_id = serializers.ReadOnlyField(source="resource.backend_id")
 
     class Meta:
         model = models.ResourceApiKey
         fields = (
             "uuid",
             "resource_uuid",
+            "resource_backend_id",
             "client_id",
             "fingerprint",
             "state",

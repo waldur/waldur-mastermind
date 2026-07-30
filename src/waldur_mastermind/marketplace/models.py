@@ -4926,17 +4926,11 @@ class ResourceApiKey(
     def set_updating(self):
         pass
 
-    @transition(
-        field=state, source=[States.OK, States.ERRED], target=States.TERMINATING
-    )
-    def set_terminating(self):
-        pass
-
     # Only from the transitional states (not OK): a late/duplicate erred report
     # must not flip a key that has since been applied successfully back to red.
     @transition(
         field=state,
-        source=[States.CREATING, States.UPDATING, States.TERMINATING, States.ERRED],
+        source=[States.CREATING, States.UPDATING, States.ERRED],
         target=States.ERRED,
     )
     def set_erred(self):

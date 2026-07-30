@@ -70,5 +70,15 @@ def decrypt_value(ciphertext: str) -> str:
     return _get_fernet().decrypt(ciphertext.encode()).decode()
 
 
+def rotate_value(ciphertext: str) -> str:
+    """Re-encrypt an existing token under the primary key.
+
+    ``MultiFernet.rotate`` decrypts with any configured key and re-encrypts with the
+    first one. That is what makes retiring a fallback possible: until every row has
+    been rotated there is no way to know whether an old key is still needed.
+    """
+    return _get_fernet().rotate(ciphertext.encode()).decode()
+
+
 def is_encrypted(value) -> bool:
     return isinstance(value, str) and value.startswith(_FERNET_TOKEN_PREFIX)

@@ -408,19 +408,19 @@ class ServiceAccountState:
 
 class ResourceApiKeyStates:
     # Reuses the resource state vocabulary so the portal renders keys with the
-    # standard StateIndicator: Creating/Updating/Terminating show a spinner,
-    # OK is green, Erred is red.
+    # standard StateIndicator: Creating/Updating show a spinner, OK is green,
+    # Erred is red. There is no Terminating: the key count is fixed at
+    # provisioning and rotation replaces a value in place, so no consumer action
+    # removes a key.
     CREATING = "Creating"
     OK = "OK"
     UPDATING = "Updating"
-    TERMINATING = "Terminating"
     ERRED = "Erred"
 
     CHOICES = (
         (CREATING, CREATING),
         (OK, OK),
         (UPDATING, UPDATING),
-        (TERMINATING, TERMINATING),
         (ERRED, ERRED),
     )
 
