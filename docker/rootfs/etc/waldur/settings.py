@@ -128,6 +128,8 @@ if sentry_dsn:
     from sentry_sdk.integrations.celery import CeleryIntegration
     from sentry_sdk.integrations.django import DjangoIntegration
 
+    from waldur_core.logging.sentry import before_send as sentry_before_send
+
     def _traces_sampler(sampling_context):
         # Celery beat tasks run orders of magnitude less often than web
         # requests; sample them on a separate dial so they remain visible
@@ -146,6 +148,10 @@ if sentry_dsn:
             # background jobs surface as missed check-ins.
             CeleryIntegration(monitor_beat_tasks=True),
         ],
+        # structlog defers rendering to the log handler, so the record message
+        # sentry-sdk reads is the repr of the event dict. Without this hook the
+        # variable data inside it splits one bug across many issue groups.
+        before_send=sentry_before_send,
         # https://docs.sentry.io/platforms/python/guides/django/performance/
         traces_sampler=_traces_sampler,
         # Profiles fill the gap between instrumented spans and wall-clock
