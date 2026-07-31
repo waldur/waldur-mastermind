@@ -4,7 +4,7 @@ import logging
 from celery import shared_task
 from constance import config
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count
+from django.db.models import Count, Max
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -201,21 +201,30 @@ def send_messages_about_pending_orders():
     name="waldur_mastermind.marketplace_site_agent.mark_agent_services_as_inactive"
 )
 def mark_agent_services_as_inactive():
-    active_agent_services = models.AgentService.objects.filter(
-        state=enums.AgentServiceState.ACTIVE,
+    threshold = timezone.now() - datetime.timedelta(minutes=10)
+
+    # Aggregate the latest processor run per service in a single query instead of
+    # querying the processors of every active service separately. Max() ignores
+    # NULL last_run values, and the __lte filter drops services whose processors
+    # have never run as well as services without any processors at all.
+    stale_agent_services = list(
+        models.AgentService.objects.filter(state=enums.AgentServiceState.ACTIVE)
+        .annotate(last_processor_run=Max("agentprocessor__last_run"))
+        .filter(last_processor_run__lte=threshold)
     )
 
-    for agent_service in active_agent_services:
-        processor_last = agent_service.agentprocessor_set.order_by("last_run").last()
-        if not processor_last:
-            continue
-        if processor_last.last_run <= timezone.now() - datetime.timedelta(minutes=10):
-            agent_service.state = enums.AgentServiceState.IDLE
-            agent_service.save(update_fields=["state"])
-            logger.info(
-                "Agent service %s has been marked as inactive because its processors have not ran for more than 10 minutes.",
-                agent_service.name,
-            )
+    if not stale_agent_services:
+        return
+
+    models.AgentService.objects.filter(
+        id__in=[agent_service.id for agent_service in stale_agent_services]
+    ).update(state=enums.AgentServiceState.IDLE, modified=timezone.now())
+
+    for agent_service in stale_agent_services:
+        logger.info(
+            "Agent service %s has been marked as inactive because its processors have not ran for more than 10 minutes.",
+            agent_service.name,
+        )
 
 
 @shared_task(name="waldur_mastermind.marketplace_site_agent.cleanup_site_agent_logs")

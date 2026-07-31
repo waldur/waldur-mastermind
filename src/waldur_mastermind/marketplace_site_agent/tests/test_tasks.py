@@ -182,3 +182,47 @@ class MarkAgentServicesAsInactiveTest(TransactionTestCase):
 
         service_no_processors.refresh_from_db()
         self.assertEqual(service_no_processors.state, enums.AgentServiceState.ACTIVE)
+
+    def test_task_skips_services_whose_processors_never_ran(self):
+        """A processor that has never run must not be treated as stale."""
+        self.processor.last_run = None
+        self.processor.save()
+
+        tasks.mark_agent_services_as_inactive()
+
+        self.agent_service.refresh_from_db()
+        self.assertEqual(self.agent_service.state, enums.AgentServiceState.ACTIVE)
+
+    def test_stale_processor_wins_over_processor_that_never_ran(self):
+        """A service is still marked IDLE when only some of its processors have run."""
+        self.processor.last_run = None
+        self.processor.save()
+
+        stale_processor = factories.AgentProcessorFactory(service=self.agent_service)
+        stale_processor.last_run = timezone.now() - datetime.timedelta(minutes=15)
+        stale_processor.save()
+
+        tasks.mark_agent_services_as_inactive()
+
+        self.agent_service.refresh_from_db()
+        self.assertEqual(self.agent_service.state, enums.AgentServiceState.IDLE)
+
+    def test_query_count_does_not_grow_with_number_of_services(self):
+        """Guard against reintroducing a per-service processor lookup."""
+        self.processor.last_run = timezone.now() - datetime.timedelta(minutes=15)
+        self.processor.save()
+
+        with self.assertNumQueries(2):
+            tasks.mark_agent_services_as_inactive()
+
+        for _ in range(5):
+            extra_service = factories.AgentServiceFactory(
+                identity=self.agent_identity,
+                state=enums.AgentServiceState.ACTIVE,
+            )
+            extra_processor = factories.AgentProcessorFactory(service=extra_service)
+            extra_processor.last_run = timezone.now() - datetime.timedelta(minutes=15)
+            extra_processor.save()
+
+        with self.assertNumQueries(2):
+            tasks.mark_agent_services_as_inactive()
