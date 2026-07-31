@@ -37,6 +37,11 @@ RESOURCE_CALLBACKS = {
     (OrderTypes.UPDATE, False): callbacks.resource_update_failed,
     (OrderTypes.TERMINATE, True): callbacks.resource_deletion_succeeded,
     (OrderTypes.TERMINATE, False): callbacks.resource_deletion_failed,
+    # A rejected restoration ticket returns the resource to TERMINATED rather
+    # than ERRED, mirroring CREATE: the restore simply did not happen, and the
+    # user can request it again (restore_validators require TERMINATED).
+    (OrderTypes.RESTORE, True): callbacks.resource_restore_succeeded,
+    (OrderTypes.RESTORE, False): callbacks.resource_restore_canceled,
 }
 
 
@@ -121,6 +126,27 @@ def _update_order_output_safely(order: marketplace_models.Order, issue: Issue):
             order.save(update_fields=["output"])
         except Exception:
             logger.exception(f"Failed to set fallback output for order {order.uuid}")
+
+
+def _flush_processing_log(issue: Issue, log_entries: list):
+    """
+    Append collected entries to issue.processing_log and persist them.
+
+    Uses queryset.update() rather than issue.save() so that writing the log does
+    not re-trigger the post_save signal this handler is attached to.
+    """
+    for entry in log_entries:
+        event = entry.pop("event")
+        log_entry = {
+            "timestamp": timezone.now().isoformat(),
+            "event": event,
+            "details": entry if entry else None,
+        }
+        if issue.processing_log is None:
+            issue.processing_log = []
+        issue.processing_log.append(log_entry)
+
+    Issue.objects.filter(pk=issue.pk).update(processing_log=issue.processing_log)
 
 
 def update_order_if_issue_was_complete(
@@ -220,19 +246,7 @@ def update_order_if_issue_was_complete(
             }
         )
 
-        # Save all log entries using direct update to avoid triggering signals
-        for entry in log_entries:
-            event = entry.pop("event")
-            log_entry = {
-                "timestamp": timezone.now().isoformat(),
-                "event": event,
-                "details": entry if entry else None,
-            }
-            if issue.processing_log is None:
-                issue.processing_log = []
-            issue.processing_log.append(log_entry)
-
-        Issue.objects.filter(pk=issue.pk).update(processing_log=issue.processing_log)
+        _flush_processing_log(issue, log_entries)
         return
 
     order = issue.resource
@@ -251,7 +265,31 @@ def update_order_if_issue_was_complete(
     _update_order_output_safely(order, issue)
 
     callback_key = (order.type, resolved_value)
-    callback = RESOURCE_CALLBACKS[callback_key]
+    callback = RESOURCE_CALLBACKS.get(callback_key)
+
+    if callback is None:
+        # This handler runs inside issue.save(), which in turn runs inside the
+        # helpdesk webhook request. Raising here would return a 500 to the
+        # ticketing system and leave the order stuck, so degrade to a no-op and
+        # record why, instead of breaking the whole integration.
+        logger.error(
+            "No callback registered for order %s: type=%s, resolved=%s. "
+            "Order state is left unchanged.",
+            order.uuid,
+            order.type,
+            resolved_value,
+        )
+        log_entries.append(
+            {
+                "event": "callback_missing",
+                "order_uuid": str(order.uuid),
+                "order_type": order.type,
+                "order_state": order.state,
+                "callback_key": str(callback_key),
+            }
+        )
+        _flush_processing_log(issue, log_entries)
+        return
 
     logger.info(
         "Invoking callback %s for order %s (key=%s)",
@@ -304,20 +342,7 @@ def update_order_if_issue_was_complete(
             }
         )
 
-    # Save all log entries at once using direct update to avoid triggering signals
-    for entry in log_entries:
-        event = entry.pop("event")
-        log_entry = {
-            "timestamp": timezone.now().isoformat(),
-            "event": event,
-            "details": entry if entry else None,
-        }
-        if issue.processing_log is None:
-            issue.processing_log = []
-        issue.processing_log.append(log_entry)
-
-    # Use update() to avoid triggering post_save signal
-    Issue.objects.filter(pk=issue.pk).update(processing_log=issue.processing_log)
+    _flush_processing_log(issue, log_entries)
 
 
 def notify_about_request_based_item_creation(
