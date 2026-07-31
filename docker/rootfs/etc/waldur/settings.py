@@ -120,6 +120,30 @@ sentry_tasks_sample_rate = float(
     env.get("SENTRY_TASKS_SAMPLE_RATE", sentry_traces_sample_rate)
 )
 sentry_profiles_sample_rate = float(env.get("SENTRY_PROFILES_SAMPLE_RATE", 0))
+sentry_environment = env.get("SENTRY_ENVIRONMENT") or env.get("WALDUR_ENVIRONMENT")
+
+
+def _optional_int(name, default):
+    value = env.get(name, default)
+    if value in (None, "", "none", "null"):
+        return None
+    return int(value)
+
+
+# Sentry Crons tolerances. sentry-sdk leaves all of these unset, which means a
+# single late check-in immediately opens an issue. See
+# waldur_core.server.sentry_crons for why they cannot be set in the Sentry UI.
+sentry_crons_defaults = {
+    # Minutes a check-in may be late before the window counts as missed.
+    "checkin_margin": _optional_int("SENTRY_CRONS_CHECKIN_MARGIN", 5),
+    # Consecutive failures before an issue is opened.
+    "failure_issue_threshold": _optional_int("SENTRY_CRONS_FAILURE_ISSUE_THRESHOLD", 3),
+    # Consecutive successes before the issue is resolved again.
+    "recovery_threshold": _optional_int("SENTRY_CRONS_RECOVERY_THRESHOLD", 2),
+    # Minutes a task may run before it is treated as stuck; unset by default
+    # because Waldur's background tasks vary by orders of magnitude.
+    "max_runtime": _optional_int("SENTRY_CRONS_MAX_RUNTIME", None),
+}
 
 if sentry_dsn:
     import importlib
@@ -129,6 +153,10 @@ if sentry_dsn:
     from sentry_sdk.integrations.django import DjangoIntegration
 
     from waldur_core.logging.sentry import before_send as sentry_before_send
+    from waldur_core.server.sentry_crons import (
+        build_monitor_config_defaults,
+        patch_monitor_config_defaults,
+    )
 
     def _traces_sampler(sampling_context):
         # Celery beat tasks run orders of magnitude less often than web
@@ -158,8 +186,12 @@ if sentry_dsn:
         # task duration; required to see where time is spent inside Python
         # code that has no explicit Sentry span (e.g. signal cascades).
         profiles_sample_rate=sentry_profiles_sample_rate,
-        environment=env.get("SENTRY_ENVIRONMENT") or env.get("WALDUR_ENVIRONMENT"),
+        environment=sentry_environment,
         release="waldur-mastermind@" + importlib.metadata.version("waldur-mastermind"),
+    )
+
+    patch_monitor_config_defaults(
+        build_monitor_config_defaults(**sentry_crons_defaults)
     )
 
     WALDUR_CORE["HOMEPORT_SENTRY_TRACES_SAMPLE_RATE"] = sentry_traces_sample_rate
@@ -192,6 +224,16 @@ for extension_name in extensions:
 from waldur_auth_saml2.extension import SAML2Extension as _SAML2Extension  # noqa: E402
 
 _SAML2Extension.update_settings(globals())
+
+# Give this deployment its own Sentry Crons monitors. sentry-sdk keys monitors on
+# the beat entry name, which is identical in every Waldur installation, so
+# without this every deployment sharing a Sentry project collides on one monitor
+# and each one's downtime is reported against all the others. Applied last so
+# that entries contributed by extension config files are covered too.
+if sentry_dsn and env.get("SENTRY_CRONS_SCOPE_MONITORS", "true").lower() == "true":
+    from waldur_core.server.sentry_crons import scope_beat_schedule  # noqa: E402
+
+    CELERY_BEAT_SCHEDULE = scope_beat_schedule(CELERY_BEAT_SCHEDULE, sentry_environment)
 
 if not SECRET_KEY:
     raise Exception("GLOBAL_SECRET_KEY is not set")
