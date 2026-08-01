@@ -11154,34 +11154,38 @@ class OfferingUsersViewSet(
         current_user = self.request.user
         if current_user.is_staff or current_user.is_support:
             # Staff and support users see all OfferingUsers without any filtering
-            # Apply performance optimizations for compliance data
-            return (
-                super()
-                .get_queryset()
-                .select_related(
-                    "offering__compliance_checklist",
-                    "offering__user_attribute_config",
-                    "user",
-                    "offering__customer",
-                )
-                .prefetch_related(
-                    "offering__user_consents", "offering__terms_of_service_configs"
-                )
+            queryset = super().get_queryset()
+        else:
+            queryset = get_allowed_offering_users_for_user(
+                self.request.user,
+                include_consent_filtering=True,
+                action=self.action,
             )
+        return self._optimize_for_serialization(queryset)
 
-        # For non-staff users, apply both filtering and optimization
-        filtered_queryset = get_allowed_offering_users_for_user(
-            self.request.user, include_consent_filtering=True, action=self.action
+    def _optimize_for_serialization(self, queryset):
+        """Preload what OfferingUserSerializer reads for every row."""
+        completion_exists = checklist_models.ChecklistCompletion.objects.filter(
+            scope_content_type=ContentType.objects.get_for_model(models.OfferingUser),
+            scope_object_id=OuterRef("pk"),
+            checklist=OuterRef("offering__compliance_checklist"),
         )
-
-        # Apply performance optimizations to filtered queryset
-        return filtered_queryset.select_related(
-            "offering__compliance_checklist",
-            "offering__user_attribute_config",
-            "user",
-            "offering__customer",
-        ).prefetch_related(
-            "offering__user_consents", "offering__terms_of_service_configs"
+        return (
+            queryset.select_related(
+                "offering__compliance_checklist",
+                "offering__user_attribute_config",
+                "user",
+                "offering__customer",
+            )
+            .prefetch_related(
+                "offering__user_consents", "offering__terms_of_service_configs"
+            )
+            # Populates the fast path in
+            # OfferingUserSerializer.get_has_compliance_checklist, which
+            # otherwise costs one existence query per row. An offering with no
+            # compliance checklist matches nothing, which is the False the
+            # serializer returns for that case anyway.
+            .annotate(_compliance_completion_exists=Exists(completion_exists))
         )
 
     @extend_schema(

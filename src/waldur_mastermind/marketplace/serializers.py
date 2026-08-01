@@ -8861,8 +8861,6 @@ class OfferingUserSerializer(
             return offering_user._compliance_completion_exists
 
         # Fall back to individual query if not pre-loaded
-        from django.contrib.contenttypes.models import ContentType
-
         offering_user_ct = ContentType.objects.get_for_model(offering_user)
         return checklist_models.ChecklistCompletion.objects.filter(
             scope_content_type=offering_user_ct,

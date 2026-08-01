@@ -4,9 +4,13 @@ from unittest import mock
 
 from constance.test.unittest import override_config
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
+from django.db import connection
+from django.test import utils as django_test
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.enums import QuestionTypes
 from waldur_core.checklist.tests.factories import ChecklistFactory, QuestionFactory
 from waldur_core.logging.models import Event
@@ -19,7 +23,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.marketplace import models, utils
+from waldur_mastermind.marketplace import models, serializers, utils
 from waldur_mastermind.marketplace.enums import (
     OfferingUserRuntimeStates,
     OfferingUserStates,
@@ -2901,6 +2905,65 @@ class OfferingUserComplianceFieldTest(test.APITestCase):
         self.assertEqual(1, len(response.data))
         self.assertIn("has_compliance_checklist", response.data[0])
         self.assertFalse(response.data[0]["has_compliance_checklist"])
+
+    def _make_offering_user(self, offering, username):
+        sample_user = UserFactory()
+        self.fixture.project.add_user(sample_user, ProjectRole.ADMIN)
+        offering_user = OfferingUser.objects.create(
+            offering=offering, user=sample_user, username=username
+        )
+        models.UserOfferingConsent.objects.create(
+            user=sample_user, offering=offering, version="1.0"
+        )
+        return offering_user
+
+    def test_annotation_matches_the_unannotated_fallback(self):
+        """The Exists() annotation must reproduce the per-row query exactly.
+
+        Covers all three shapes: an offering with a checklist and a
+        completion, one with a checklist but no completion, and one with no
+        checklist at all.
+        """
+        self._make_offering_user(self.offering_with_compliance, "with_completion")
+        without_completion = self._make_offering_user(
+            self.offering_with_compliance, "without_completion"
+        )
+        checklist_models.ChecklistCompletion.objects.filter(
+            scope_object_id=without_completion.id,
+            scope_content_type=ContentType.objects.get_for_model(OfferingUser),
+        ).delete()
+        self._make_offering_user(self.offering_without_compliance, "no_checklist")
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(OfferingUserFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        serializer = serializers.OfferingUserSerializer()
+        for payload in response.data:
+            # Re-fetch without the annotation so the serializer takes its
+            # fallback branch, and compare the two answers.
+            unannotated = OfferingUser.objects.get(uuid=payload["uuid"])
+            self.assertFalse(hasattr(unannotated, "_compliance_completion_exists"))
+            self.assertEqual(
+                payload["has_compliance_checklist"],
+                serializer.get_has_compliance_checklist(unannotated),
+                f"mismatch for {payload['username']}",
+            )
+
+    def test_query_count_does_not_grow_with_number_of_offering_users(self):
+        self._make_offering_user(self.offering_with_compliance, "user_0")
+        self.client.force_authenticate(self.fixture.staff)
+        url = OfferingUserFactory.get_list_url()
+        self.client.get(url)  # warm ContentType and permission caches
+
+        with django_test.CaptureQueriesContext(connection) as baseline:
+            self.client.get(url)
+
+        for index in range(1, 6):
+            self._make_offering_user(self.offering_with_compliance, f"user_{index}")
+
+        with self.assertNumQueries(len(baseline)):
+            self.client.get(url)
 
 
 @ddt
