@@ -36,6 +36,7 @@ td:nth-child(4) {
 | `_bind_user_uuid` | `Custom Signal (bind_extra_request_metadata)` | `—` | Bind user_uuid and override user_id for consistency with request_id, task_id (UUIDs). |
 | `_bind_user_uuid` | `Custom Signal (bind_extra_request_finished_metadata)` | `—` | Bind user_uuid and override user_id for consistency with request_id, task_id (UUIDs). |
 | `_bind_user_uuid` | `Custom Signal (bind_extra_request_failed_metadata)` | `—` | Bind user_uuid and override user_id for consistency with request_id, task_id (UUIDs). |
+| `cancel_invitations_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | Cancel open invitations scoped to a project when it is deleted (incl. soft delete). |
 | `change_email_has_been_requested` | `Django Signal (post_save)` | `core.ChangeEmailRequest` | Send a notification when a user requests to change their email. |
 | `change_users_quota` | `Custom Signal (role_granted)` | `—` | Update the user count quota for a customer when a user's role is changed. |
 | `change_users_quota` | `Custom Signal (role_revoked)` | `—` | Update the user count quota for a customer when a user's role is changed. |
@@ -899,11 +900,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 820
+Total unique handlers found: 821
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 422 handlers
+- **waldur_core**: 423 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 340 handlers
