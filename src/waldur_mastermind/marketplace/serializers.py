@@ -2301,6 +2301,11 @@ class BasePlanSerializer(
         return {item.component.type: item.amount for item in plan.components.all()}
 
     def get_resources_count(self, plan: models.Plan) -> int:
+        # Annotated by utils.get_plans_available_for_user. This serializer is
+        # also used on querysets that carry no annotation, hence the fallback.
+        annotated = getattr(plan, "resources_count", None)
+        if annotated is not None:
+            return annotated
         return models.Resource.objects.filter(plan=plan).count()
 
     def get_plan_type(self, plan: models.Plan) -> str:

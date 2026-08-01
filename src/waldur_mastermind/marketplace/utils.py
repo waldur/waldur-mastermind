@@ -27,8 +27,9 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import models as models_module
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import Count, F, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.fields import FloatField
+from django.db.models.functions import Coalesce
 from django.db.models.functions.math import Ceil
 from django.urls import get_resolver
 from django.utils import timezone
@@ -2212,7 +2213,39 @@ def get_plans_available_for_user(
             | Q(organization_groups__in=get_organization_groups(user))
         )
 
-    return qs
+    return _with_plan_serialization_hints(qs)
+
+
+def _with_plan_serialization_hints(qs):
+    """Preload what BasePlanSerializer reads for every plan.
+
+    Six of its method fields iterate ``plan.components.all()`` and dereference
+    ``component``, and ``get_resources_count`` counts resources per plan, so
+    without this the cost grows with plans x components.
+
+    This belongs on the plan queryset rather than on the offering queryset:
+    callers reach plans through this helper, which applies its own
+    ``.filter()`` for organization groups, and a filter discards any prefetch
+    cache built further up.
+    """
+    resources_count = (
+        models.Resource.objects.filter(plan=OuterRef("pk"))
+        .order_by()
+        .values("plan")
+        .annotate(total=Count("*"))
+        .values("total")
+    )
+    return qs.prefetch_related(
+        Prefetch(
+            "components",
+            queryset=models.PlanComponent.objects.select_related("component"),
+        ),
+        "organization_groups",
+    ).annotate(
+        # Subquery yields NULL when a plan has no resources; the .count() this
+        # replaces yielded 0.
+        resources_count=Coalesce(Subquery(resources_count), 0),
+    )
 
 
 def generate_glauth_records_for_offering_users(

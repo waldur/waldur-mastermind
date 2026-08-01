@@ -6010,7 +6010,15 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return self.queryset.filter_by_ordering_availability_for_user(user)
+        return self.queryset.filter_by_ordering_availability_for_user(
+            user
+        ).select_related(
+            # get_filtered_plans reads offering.parent; the details serializer
+            # walks customer and category.
+            "parent",
+            "customer",
+            "category",
+        )
 
     @extend_schema(
         summary="List plans for an offering",
