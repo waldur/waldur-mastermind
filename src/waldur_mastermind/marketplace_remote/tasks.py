@@ -919,6 +919,20 @@ class UsagePullTask(BackgroundPullTask):
             )
         }
 
+        # Same for offering users, which _process_user_usages would otherwise
+        # look up once per user usage - that is once per usage per user.
+        # (offering, username) is not unique, only (offering, user) is, so
+        # order explicitly and keep the first match: the unordered .first()
+        # this replaces picked an arbitrary row among duplicates.
+        offering_users_by_username = {}
+        for offering_user in (
+            models.OfferingUser.objects.filter(offering=local_resource.offering)
+            .exclude(username="")
+            .exclude(username=None)
+            .order_by("id")
+        ):
+            offering_users_by_username.setdefault(offering_user.username, offering_user)
+
         processed_count = 0
         for remote_usage in remote_usages:
             offering_component = offering_components.get(remote_usage.type_)
@@ -954,7 +968,7 @@ class UsagePullTask(BackgroundPullTask):
             remote_user_usages = user_usages_by_key.get(key, [])
             if remote_user_usages:
                 self._process_user_usages(
-                    local_resource, component_usage, remote_user_usages
+                    component_usage, remote_user_usages, offering_users_by_username
                 )
 
             processed_count += 1
@@ -972,7 +986,9 @@ class UsagePullTask(BackgroundPullTask):
             local_resource,
         )
 
-    def _process_user_usages(self, local_resource, component_usage, remote_user_usages):
+    def _process_user_usages(
+        self, component_usage, remote_user_usages, offering_users_by_username
+    ):
         """Process user usages for a component usage."""
         for remote_user_usage in remote_user_usages:
             if not remote_user_usage.username:
@@ -981,10 +997,7 @@ class UsagePullTask(BackgroundPullTask):
                 usage = Decimal(0)
             else:
                 usage = Decimal(remote_user_usage.usage)
-            offering_user = models.OfferingUser.objects.filter(
-                offering=local_resource.offering,
-                username=remote_user_usage.username,
-            ).first()
+            offering_user = offering_users_by_username.get(remote_user_usage.username)
             models.ComponentUserUsage.objects.update_or_create(
                 component_usage=component_usage,
                 username=remote_user_usage.username,
