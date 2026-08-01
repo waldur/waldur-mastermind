@@ -3,6 +3,8 @@ import traceback
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -239,6 +241,56 @@ class OrderSetStateErredTest(BaseOrderSetStateTest):
         self.order.refresh_from_db()
         self.assertEqual(self.order.state, OrderStates.ERRED)
         self.assertEqual(self.order.error_message, error_message)
+
+    def test_failure_event_carries_the_reason(self):
+        """The activity log is where a consumer looks first.
+
+        Without the reason it read "deletion has failed" and they had to open
+        the order to learn why -- e.g. a backend refusing to remove a user that
+        still owns buckets.
+        """
+        resource = self.order.resource
+        resource.state = ResourceStates.TERMINATING
+        resource.save()
+        self.order.type = OrderTypes.TERMINATE
+        self.order.state = OrderStates.EXECUTING
+        self.order.save()
+
+        self.item_set_state_erred(
+            "staff", 'API error 500: "Unable to remove user with buckets."', ""
+        )
+
+        event = (
+            Event.objects.filter(
+                event_type=EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED
+            )
+            .order_by("-created")
+            .first()
+        )
+        self.assertIsNotNone(event)
+        self.assertIn("Unable to remove user with buckets", event.message)
+        self.assertIn(resource.name, event.message)
+
+    def test_failure_event_omits_an_empty_reason(self):
+        """No trailing colon when the agent reported no message."""
+        resource = self.order.resource
+        resource.state = ResourceStates.TERMINATING
+        resource.save()
+        self.order.type = OrderTypes.TERMINATE
+        self.order.state = OrderStates.EXECUTING
+        self.order.save()
+
+        self.item_set_state_erred("staff", "", "")
+
+        event = (
+            Event.objects.filter(
+                event_type=EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED
+            )
+            .order_by("-created")
+            .first()
+        )
+        self.assertIsNotNone(event)
+        self.assertTrue(event.message.endswith("deletion has failed."), event.message)
 
     def test_set_state_erred_transitions_resource_to_erred_for_create(self):
         self.order.type = OrderTypes.CREATE

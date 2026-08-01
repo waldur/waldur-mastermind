@@ -7105,10 +7105,19 @@ def _emit_resource_failure_event(order, resource):
     event_info = _RESOURCE_FAILURE_EVENTS.get(order.type)
     if event_info:
         event_type, message = event_info
+        event_context = {"resource": resource}
+        # The reason otherwise lives only on the order, so a resource's activity
+        # log read "deletion has failed" and the consumer had to open the order
+        # to learn it was, say, a backend refusing to remove a user that still
+        # owns buckets. The activity log is where people look first, and unlike
+        # the resource's own error_message it keeps one entry per attempt.
+        if order.error_message:
+            message = f"{message.rstrip('.')}: {{error_message}}"
+            event_context["error_message"] = order.error_message
         event_logger.emit(
             message,
             event_type=event_type,
-            event_context={"resource": resource},
+            event_context=event_context,
             scopes=log.get_resource_scopes(resource),
             level="error",
         )
@@ -15076,7 +15085,6 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
                 client_id=data["client_id"],
                 defaults={
                     "key_ciphertext": encryption.encrypt_value(plaintext),
-                    "fingerprint": utils.api_key_fingerprint(plaintext),
                     "state": models.ResourceApiKey.States.OK,
                     "error_message": "",
                 },
@@ -15104,7 +15112,6 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         plaintext = serializer.validated_data["api_key"]
         updates = {
             "key_ciphertext": encryption.encrypt_value(plaintext),
-            "fingerprint": utils.api_key_fingerprint(plaintext),
             "error_message": "",
         }
         # A backend whose public identifier rotates together with the secret (an S3
