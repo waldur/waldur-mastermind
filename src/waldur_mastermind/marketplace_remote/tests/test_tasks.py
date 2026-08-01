@@ -7,11 +7,14 @@ from unittest import mock
 import respx
 from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import connection
 from django.test import override_settings, testcases
+from django.test import utils as django_test
 from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_auth_social.const import ProviderChoices
+from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import format_text, serialize_instance
 from waldur_core.permissions.enums import RoleEnum
@@ -1678,6 +1681,112 @@ class UsagePullTest(testcases.TransactionTestCase):
         self.assertEqual(component_usage.backend_id, usage_data["uuid"])
         self.assertEqual(user_usage.usage, 50)
         self.assertEqual(user_usage.user, offering_user)
+
+    def _usage_payloads(self, usernames, billing_period):
+        """One component usage plus one user usage per username."""
+        usage = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu_k_hours",
+            "usage": 100,
+            "description": "Test usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": billing_period,
+        }
+        user_usages = [
+            {
+                "username": username,
+                "usage": 10,
+                "component_type": "cpu_k_hours",
+                "billing_period": billing_period,
+            }
+            for username in usernames
+        ]
+        return usage, user_usages
+
+    def _prepare(self, usernames, billing_periods):
+        models.OfferingComponent.objects.get_or_create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            defaults={"name": "CPU Hours"},
+        )
+        for username in usernames:
+            user = core_models.User.objects.filter(username=username).first()
+            if user is None:
+                user = UserFactory(username=username)
+            models.OfferingUser.objects.get_or_create(
+                offering=self.resource.offering,
+                user=user,
+                defaults={"username": username},
+            )
+        usages, user_usages = [], []
+        for billing_period in billing_periods:
+            usage, period_user_usages = self._usage_payloads(usernames, billing_period)
+            usages.append(usage)
+            user_usages.extend(period_user_usages)
+        self.mock_component_usages(usages)
+        self.mock_component_user_usages(user_usages)
+
+    def _offering_user_selects(self, captured):
+        return [
+            q
+            for q in captured.captured_queries
+            if "marketplace_offeringuser" in q["sql"] and q["sql"].startswith("SELECT")
+        ]
+
+    def test_offering_users_are_loaded_once_per_pull(self):
+        """The offering user lookup used to run once per user usage."""
+        self._prepare([f"user_{i}" for i in range(5)], ["2024-03-01"])
+
+        # Only the pull is measured; the fixtures above issue their own
+        # queries.
+        with django_test.CaptureQueriesContext(connection) as captured:
+            tasks.UsagePullTask().pull(self.resource)
+
+        self.assertEqual(
+            len(self._offering_user_selects(captured)),
+            1,
+            "offering users must be loaded once per pull, not once per user usage",
+        )
+
+    def test_offering_user_query_count_is_flat_across_usage_volume(self):
+        self._prepare([f"user_{i}" for i in range(2)], ["2024-03-01"])
+        with django_test.CaptureQueriesContext(connection) as small:
+            tasks.UsagePullTask().pull(self.resource)
+
+        self._prepare([f"user_{i}" for i in range(6)], ["2024-03-01", "2024-04-01"])
+        with django_test.CaptureQueriesContext(connection) as large:
+            tasks.UsagePullTask().pull(self.resource)
+
+        self.assertEqual(
+            len(self._offering_user_selects(small)),
+            len(self._offering_user_selects(large)),
+        )
+
+    def test_duplicate_usernames_resolve_deterministically(self):
+        """(offering, username) is not unique - only (offering, user) is."""
+        models.OfferingComponent.objects.create(
+            offering=self.resource.offering, type="cpu_k_hours", name="CPU Hours"
+        )
+        first = models.OfferingUser.objects.create(
+            offering=self.resource.offering,
+            username="shared",
+            user=UserFactory(username="a"),
+        )
+        models.OfferingUser.objects.create(
+            offering=self.resource.offering,
+            username="shared",
+            user=UserFactory(username="b"),
+        )
+        usage, user_usages = self._usage_payloads(["shared"], "2024-03-01")
+        self.mock_component_usages([usage])
+        self.mock_component_user_usages(user_usages)
+
+        tasks.UsagePullTask().pull(self.resource)
+
+        user_usage = models.ComponentUserUsage.objects.get(username="shared")
+        self.assertEqual(user_usage.user, first)
 
     def test_invalid_usage_date_is_skipped(self):
         """
