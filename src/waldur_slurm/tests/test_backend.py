@@ -240,3 +240,44 @@ class BackendTest(TestCase):
         self.allocation.refresh_from_db()
         self.assertEqual(3, self.allocation.associations.count())
         self.assertNotIn(stale_association, self.allocation.associations.all())
+
+
+class PullResourcesTest(TestCase):
+    """sync_usage covers every allocation of the settings in one pass.
+
+    Calling it inside the per-allocation loop repeated the whole usage
+    report - including its backend round-trip - once per allocation.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.SlurmFixture()
+        self.settings = self.fixture.settings
+        self.backend = self.settings.get_backend()
+        for _i in range(3):
+            # AllocationFactory already defaults to CoreStates.OK, which is
+            # what pull_resources filters on.
+            factories.AllocationFactory(
+                service_settings=self.settings,
+                project=self.fixture.project,
+            )
+
+    def test_usage_is_synchronized_once_per_pull(self):
+        with (
+            mock.patch.object(type(self.backend), "sync_usage") as sync_usage,
+            mock.patch.object(type(self.backend), "pull_allocation"),
+        ):
+            self.backend.pull_resources()
+
+        sync_usage.assert_called_once_with()
+
+    def test_usage_is_still_synchronized_when_an_allocation_fails(self):
+        with (
+            mock.patch.object(type(self.backend), "sync_usage") as sync_usage,
+            mock.patch.object(
+                type(self.backend), "pull_allocation", side_effect=Exception("boom")
+            ) as pull_allocation,
+        ):
+            self.backend.pull_resources()
+
+        self.assertEqual(pull_allocation.call_count, 3)
+        sync_usage.assert_called_once_with()
