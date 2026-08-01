@@ -60,18 +60,6 @@ class ResourceApiKeyModelTest(test.APITestCase):
         key.set_erred()
         self.assertEqual(key.state, States.ERRED)
 
-    def test_fingerprint_masks_short_keys(self):
-        from waldur_mastermind.marketplace import utils
-
-        # A realistic agent key is long; head + tail leaves a masked middle.
-        long_key = "sk-" + "a" * 40
-        fp = utils.api_key_fingerprint(long_key)
-        self.assertTrue(fp.startswith("sk-aaaa"))
-        self.assertNotIn(long_key, fp)
-        # A short value must not be substantially exposed by the fingerprint.
-        short_fp = utils.api_key_fingerprint("sk-short")
-        self.assertEqual(short_fp, "sk-...")
-
     def test_updating_not_allowed_from_creating(self):
         key = models.ResourceApiKey.objects.create(
             resource=factories.ResourceFactory(), client_id="cid-1"
@@ -103,7 +91,6 @@ class ConsumerApiKeyTest(test.APITestCase):
             resource=self.resource,
             client_id="cid-1",
             key_ciphertext=encryption.encrypt_value("sk-secret-one"),
-            fingerprint="sk-secr...-one",
             state=States.OK,
         )
 

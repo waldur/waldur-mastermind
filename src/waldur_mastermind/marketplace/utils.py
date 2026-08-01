@@ -4825,15 +4825,6 @@ def publish_offering_resources_sync_request(offering: models.Offering, user) -> 
     return True
 
 
-def api_key_fingerprint(plaintext: str) -> str:
-    """A display fingerprint that recognizes a key without revealing it."""
-    # For a short value, head[:7] + tail[-4:] would overlap and expose most of the
-    # key, so only show head+tail when a masked middle remains between them.
-    if len(plaintext) < 15:
-        return f"{plaintext[:3]}..."
-    return f"{plaintext[:7]}...{plaintext[-4:]}"
-
-
 def _log_api_key_action(
     resource: models.Resource, action: str, extra: str = ""
 ) -> None:

@@ -7130,7 +7130,6 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
             "resource_uuid",
             "resource_backend_id",
             "client_id",
-            "fingerprint",
             "state",
             "modified",
             "error_message",

@@ -25,9 +25,9 @@ below. The agent-side mechanics build on the
 backend-specific format, e.g. the `sk-` prefix) lives in the site-agent plugin.
 Waldur is a management layer, not the source of provider secrets. Crucially, the
 agent **applies the key to the gateway first, then reports it to Waldur** — so
-Waldur only ever stores a key that is already live. Waldur-side minting was
-rejected because it creates phantom keys: generate → store → the apply fails →
-Waldur holds a key the gateway never accepted.
+Waldur only ever stores a key that is already live. Minting in Waldur instead
+produces phantom keys: generate → store → the apply fails → Waldur holds a key
+the gateway never accepted.
 
 **Waldur stores the key, encrypted, for reveal.** For multiple members to read a
 key later, something durable and member-reachable must hold it. The agent has no
@@ -38,10 +38,10 @@ source.
 
 **Multiple keys per resource, not per user.** Two keys are provisioned by
 default — two independent keys are what make rotation zero-downtime, and they
-model the operator reality of primary/standby credentials. Per-user keys were
-rejected: they multiply the provisioning surface for a credential that is
-inherently shared, and cutting a departed member's access is solved by rotating
-the shared keys.
+model the operator reality of primary/standby credentials. Keys are not per user:
+that multiplies the provisioning surface for a credential that is inherently
+shared, and cutting a departed member's access is solved by rotating the shared
+keys.
 
 ## Model
 
@@ -52,9 +52,9 @@ the shared keys.
 | `resource` | `ForeignKey` — a resource owns a collection of keys |
 | `client_id` | the backend's **public** identifier, e.g. `<resource_backend_id>-<n>` (one gateway Secret entry) or an S3 access key; unique per resource, and may move on rotation |
 | `key_ciphertext` | the agent-generated value, Fernet-encrypted ([field encryption](#encryption-at-rest)) |
-| `fingerprint` | `sk-AbCd...WxYz` — recognizable without revealing |
 | `state` | FSM, aligned to resource states (below) |
 | `error_message` | agent-reported failure detail when `Erred` |
+| `modified` | `TimeStampedModel`; rotation rewrites the row in place, so this is the age of the secret currently in use — the portal shows it as *Issued* |
 
 The key value is deliberately **not** on `Resource`: it never touches the broad
 `ResourceSerializer`, gets its own permission-gated endpoints, and stays out of
@@ -86,11 +86,9 @@ the standard `StateIndicator` (`@/core/StateIndicator`) — no bespoke badge:
 `Creating` and `Updating` are the transitional (spinner) states, matching how
 `ResourceStateField` treats a resource.
 
-There is deliberately **no `Terminating`**. It existed for a consumer-facing revoke
-that no longer ships, so nothing could enter it; a state a model can describe but
-never reach only invites code that guards against it. Termination cleanup does not
-need it — it deletes the rows directly (`callbacks.py`). Migration 0256 drops the
-choice and moves any key left mid-revoke to `Erred`, where rotation can repair it.
+There is deliberately **no `Terminating`**: nothing removes a single key, and
+termination cleanup deletes the rows outright (`callbacks.py`) rather than walking
+them through a state.
 
 ```mermaid
 stateDiagram-v2
@@ -155,8 +153,8 @@ resource with `?resource_uuid=`.
 
 Consumer side:
 
-- `GET /` and `GET /{uuid}/` — list/retrieve status (fingerprint, `client_id`,
-  state, error message — no secret). Visible to resource project/customer
+- `GET /` and `GET /{uuid}/` — list/retrieve status (`client_id`, state,
+  `modified`, error message — no secret). Visible to resource project/customer
   members and the provider organization.
 - `GET /{uuid}/reveal/` — return the decrypted value (in the body, never the
   URL, with `Cache-Control: no-store`). Restricted to **consumer-side** access —
@@ -174,22 +172,15 @@ Consumer side:
 
 The keys are provisioned at resource creation (both supporting plugins make two)
 and **rotation is the only operation on them**: it replaces a key's value in
-place, so the count never changes after provisioning.
+place, so the count never changes after provisioning. Neither adding nor removing
+a key is exposed, which is what makes "this resource has the keys it was
+provisioned with" true by construction. A per-backend maximum, if one is ever
+needed, belongs with the site-agent plugin — the sensible number is
+backend-specific.
 
-Neither adding nor revoking is exposed, and the two omissions hold each other up.
-Without an add, a revoke would be a one-way door — keys are minted only at
-provisioning, and the portal mounts its tab from `has_api_keys`, so revoking the
-last key would strand the resource with neither credentials nor the surface to
-manage them. Without a revoke, the count cannot fall, so "this resource has the
-keys it was provisioned with" holds by construction rather than by a guard. The
-sensible maximum is in any case backend-specific, so a generic mastermind cap
-would be premature — it belongs with the site-agent plugin if a concrete need for
-on-demand keys appears.
-
-The provider `destroy` endpoint went with revoke: deleting a key row was only ever
-a revoke confirmation, and an ungated delete could drop a row whose key still serves
-at the backend. `destroy` is in `disabled_actions`, and termination cleanup deletes
-the rows directly (see [States](#states)).
+`destroy` is in `disabled_actions`: an ungated delete could drop a row whose key
+still serves at the backend. Termination cleanup deletes the rows directly (see
+[States](#states)).
 
 Provider side (used by the site agent), gated on `RESOURCE.MANAGE_API_KEY` on
 the offering customer:

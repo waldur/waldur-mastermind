@@ -4934,7 +4934,6 @@ class ResourceApiKey(
     # the agent, e.g. "<resource_backend_id>-1".
     client_id = models.CharField(max_length=255, blank=True, db_index=True)
     key_ciphertext = models.TextField(blank=True)
-    fingerprint = models.CharField(max_length=64, blank=True)
     state = FSMField(choices=States.CHOICES, default=States.CREATING)
 
     class Meta:
