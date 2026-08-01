@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 
+from dateutil.relativedelta import relativedelta
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
@@ -232,12 +233,17 @@ class ComponentUsageReportingTest(test.APITestCase):
     # --- MANAGEMENT COMMAND TESTS ---
 
     def test_management_command_backfill_and_idempotency(self):
+        # Pick the month relative to today rather than hardcoding one: the
+        # command walks back from `now`, so a fixed date silently drops out of
+        # the window once enough time passes.
+        past_period = (timezone.now() - relativedelta(months=3)).date().replace(day=1)
+
         # Create usage for a past month
         factories.ComponentUsageFactory(
             resource=self.resource,
             component=self.component,
             usage=10,
-            billing_period=datetime.date(2026, 1, 1),
+            billing_period=past_period,
         )
 
         # 1. Run command for 6 months back
@@ -247,7 +253,7 @@ class ComponentUsageReportingTest(test.APITestCase):
         # Check if record was created
         record = models.ComponentUsageMonthly.objects.filter(
             component=self.component,
-            billing_period=datetime.date(2026, 1, 1),
+            billing_period=past_period,
         ).first()
 
         self.assertIsNotNone(record)
