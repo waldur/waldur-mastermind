@@ -21,6 +21,16 @@ from waldur_mastermind.marketplace.enums import (
 
 logger = logging.getLogger(__name__)
 
+# Relations that _run_billing and the policy handlers walk for every usage.
+# One billing task is queued per ComponentUsage save, so each of these is a
+# separate round-trip per row unless it is loaded up front.
+BILLING_RELATED_FIELDS = (
+    "resource__project",
+    "resource__offering",
+    "component",
+    "plan_period",
+)
+
 
 class BillingUsageProcessor:
     """
@@ -301,7 +311,9 @@ def process_component_usage_billing(
     from waldur_mastermind.policy import handlers as policy_handlers
 
     try:
-        usage = marketplace_models.ComponentUsage.objects.get(pk=component_usage_id)
+        usage = marketplace_models.ComponentUsage.objects.select_related(
+            *BILLING_RELATED_FIELDS
+        ).get(pk=component_usage_id)
     except marketplace_models.ComponentUsage.DoesNotExist:
         logger.info(
             "ComponentUsage %s no longer exists; skipping async billing",
