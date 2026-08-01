@@ -1,6 +1,10 @@
+import uuid
+
 from ddt import data, ddt
 from django import template
+from django.db import connection
 from django.template.loader import get_template
+from django.test import utils as django_test
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status, test
 
@@ -668,3 +672,58 @@ class PlanSumComponentsTest(test.APITestCase):
         )
 
         self.assertEqual(self.plan.init_price, 150)  # 0 + 150
+
+
+class PublicOfferingPlanQueryCountTest(test.APITestCase):
+    """Serializing plans must not cost queries proportional to plan count.
+
+    ``BasePlanSerializer`` exposes six method fields that each iterate
+    ``plan.components.all()`` and dereference ``component``, plus a
+    per-plan resource count, so without prefetching the public offering
+    endpoint scales with plans x components.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            customer=self.fixture.customer, state=models.Offering.States.ACTIVE
+        )
+
+    def _add_plan(self, component_count=4):
+        plan = factories.PlanFactory(offering=self.offering)
+        for _i in range(component_count):
+            component = factories.OfferingComponentFactory(
+                offering=self.offering, type=f"comp-{uuid.uuid4().hex[:8]}"
+            )
+            factories.PlanComponentFactory(plan=plan, component=component)
+        return plan
+
+    def _get(self):
+        url = factories.OfferingFactory.get_public_url(self.offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response
+
+    def test_query_count_does_not_grow_with_number_of_plans(self):
+        self._add_plan()
+        # Warm ContentType and permission caches; they otherwise skew the count.
+        self._get()
+
+        with django_test.CaptureQueriesContext(connection) as baseline:
+            self._get()
+
+        for _i in range(4):
+            self._add_plan()
+
+        with self.assertNumQueries(len(baseline)):
+            self._get()
+
+    def test_plan_payload_is_unchanged_by_prefetching(self):
+        plan = self._add_plan()
+        response = self._get()
+
+        (payload,) = [p for p in response.data["plans"] if p["uuid"] == plan.uuid.hex]
+        self.assertEqual(len(payload["prices"]), 4)
+        self.assertEqual(len(payload["quotas"]), 4)
+        self.assertEqual(payload["resources_count"], 0)
+        self.assertEqual(payload["plan_type"], "fixed")

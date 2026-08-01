@@ -1445,6 +1445,14 @@ class Plan(
         get_estimate() with the duration multiplier. This avoids
         double-counting them via init_price.
         """
+        cached = self._cached_components()
+        if cached is not None:
+            return self._sum_prices(
+                item
+                for item in cached
+                if item.component.billing_type == BillingTypes.ONE_TIME
+                and not item.component.is_prepaid
+            )
         components = self.components.filter(
             component__billing_type=BillingTypes.ONE_TIME,
             component__is_prepaid=False,
@@ -1461,6 +1469,11 @@ class Plan(
         return self.sum_components(BillingTypes.ON_PLAN_SWITCH)
 
     def sum_components(self, billing_type) -> float:
+        cached = self._cached_components()
+        if cached is not None:
+            return self._sum_prices(
+                item for item in cached if item.component.billing_type == billing_type
+            )
         components = self.components.filter(component__billing_type=billing_type)
         return (
             components.aggregate(
@@ -1468,6 +1481,22 @@ class Plan(
             )["sum"]
             or 0
         )
+
+    def _cached_components(self):
+        """Prefetched components, or None when the caller did not prefetch.
+
+        ``.filter().aggregate()`` always issues a query, so the price
+        properties would defeat a prefetch built by
+        ``utils.get_plans_available_for_user`` and cost two queries per plan
+        during serialization.
+        """
+        return getattr(self, "_prefetched_objects_cache", {}).get("components")
+
+    @staticmethod
+    def _sum_prices(items) -> float:
+        # SUM(price * amount) skips rows where either side is NULL; treating
+        # them as zero here adds the same nothing to the total.
+        return sum((item.price or 0) * (item.amount or 0) for item in items)
 
     @property
     def has_connected_resources(self) -> bool:
