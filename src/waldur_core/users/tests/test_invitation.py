@@ -8,7 +8,7 @@ from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -1273,6 +1273,99 @@ class InvitationCancelTest(BaseInvitationTest):
 
         invitation.refresh_from_db()
         self.assertEqual(invitation.state, InvitationState.EXPIRED)
+
+
+class CancelInvitationsOnProjectDeletionTest(TestCase):
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.customer = self.project.customer
+
+    def test_pending_invitation_is_canceled_on_soft_delete(self):
+        invitation = factories.ProjectInvitationFactory(
+            scope=self.project,
+            role=ProjectRole.ADMIN,
+            state=InvitationState.PENDING,
+        )
+
+        self.project.delete()
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.CANCELED)
+
+    def test_pending_project_invitation_is_canceled_on_soft_delete(self):
+        invitation = factories.ProjectInvitationFactory(
+            scope=self.project,
+            role=ProjectRole.ADMIN,
+            state=InvitationState.PENDING_PROJECT,
+        )
+
+        self.project.delete()
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.CANCELED)
+
+    def test_requested_invitation_is_canceled_on_soft_delete(self):
+        invitation = factories.ProjectInvitationFactory(
+            scope=self.project,
+            role=ProjectRole.ADMIN,
+            state=InvitationState.REQUESTED,
+        )
+
+        self.project.delete()
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.CANCELED)
+
+    def test_accepted_invitation_is_not_changed(self):
+        invitation = factories.ProjectInvitationFactory(
+            scope=self.project,
+            role=ProjectRole.ADMIN,
+            state=InvitationState.ACCEPTED,
+        )
+
+        self.project.delete()
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.ACCEPTED)
+
+    def test_group_invitation_is_deactivated_on_soft_delete(self):
+        group_invitation = factories.ProjectGroupInvitationFactory(
+            scope=self.project,
+            role=ProjectRole.ADMIN,
+            is_active=True,
+        )
+
+        self.project.delete()
+
+        group_invitation.refresh_from_db()
+        self.assertFalse(group_invitation.is_active)
+
+    def test_customer_invitations_are_not_affected(self):
+        customer_invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            state=InvitationState.PENDING,
+        )
+        customer_group_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            is_active=True,
+        )
+        other_project = structure_factories.ProjectFactory(customer=self.customer)
+        other_invitation = factories.ProjectInvitationFactory(
+            scope=other_project,
+            role=ProjectRole.ADMIN,
+            state=InvitationState.PENDING,
+        )
+
+        self.project.delete()
+
+        customer_invitation.refresh_from_db()
+        customer_group_invitation.refresh_from_db()
+        other_invitation.refresh_from_db()
+        self.assertEqual(customer_invitation.state, InvitationState.PENDING)
+        self.assertTrue(customer_group_invitation.is_active)
+        self.assertEqual(other_invitation.state, InvitationState.PENDING)
 
 
 @ddt

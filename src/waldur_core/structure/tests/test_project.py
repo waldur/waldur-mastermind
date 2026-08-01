@@ -1402,20 +1402,23 @@ class ProjectRecoveryTest(test.APITestCase):
         )
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
 
-        # Soft delete and recover again
+        # Soft delete cancels open invitations. Refresh so soft-delete does not
+        # overwrite termination_metadata (incl. invitation_sent) with a stale
+        # in-memory copy from setUp.
+        self.project.refresh_from_db()
         self.project.delete()
         response2 = self.client.post(
             self.url, {"send_invitations_to_previous_members": True}
         )
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
 
-        # Should not create duplicate invitations
+        # invitation_sent in termination_metadata prevents a second batch
         project_ct = ContentType.objects.get_for_model(self.project)
         invitations = Invitation.objects.filter(
             content_type=project_ct, object_id=self.project.id
         )
-        # Should still be 2 invitations, not 4
         self.assertEqual(invitations.count(), 2)
+        self.assertEqual(invitations.filter(state=InvitationState.CANCELED).count(), 2)
 
     def test_legacy_project_basic_recovery_works(self):
         """Test recovery of project that was deleted before termination metadata feature."""

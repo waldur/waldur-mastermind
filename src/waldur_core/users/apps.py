@@ -8,9 +8,16 @@ class UserConfig(AppConfig):
 
     def ready(self):
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.structure.models import Project
         from waldur_core.users import handlers
         from waldur_core.users.models import PermissionRequest
         from waldur_core.users.scim import handlers as scim_handlers
+
+        signals.pre_delete.connect(
+            handlers.cancel_invitations_on_project_deletion,
+            sender=Project,
+            dispatch_uid="waldur_core.users.handlers.cancel_invitations_on_project_deletion",
+        )
 
         signals.post_save.connect(
             handlers.create_notification_about_permission_request_has_been_submitted,
