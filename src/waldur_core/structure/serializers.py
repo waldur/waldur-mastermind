@@ -1994,6 +1994,18 @@ class ProjectPermissionLogSerializer(
         }
 
 
+class UserListSerializer(serializers.ListSerializer):
+    """Resolves permission scopes for the whole page before serializing it.
+
+    See UserSerializer.prime_permission_scopes.
+    """
+
+    def to_representation(self, data):
+        users = list(data)
+        self.child.prime_permission_scopes(users)
+        return super().to_representation(users)
+
+
 class UserSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -2028,31 +2040,28 @@ class UserSerializer(
     birth_date = serializers.DateField(required=False, allow_null=True)
     should_protect_user_details = serializers.BooleanField(read_only=True)
 
+    # Populated per page by UserListSerializer; None for a single instance.
+    _page_scope_cache = None
+    _page_perms_cache = None
+
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, user: core_models.User):
         return self._serialize_permissions(user, PermissionSerializer)
 
-    def _serialize_permissions(self, user: core_models.User, serializer_class):
+    def _get_user_permissions(self, user: core_models.User):
         # Use prefetched permissions if available (from UserViewSet.get_queryset)
         # to avoid N+1 queries. Fall back to query for backwards compatibility.
         if hasattr(user, "prefetched_permissions"):
-            perms = list(user.prefetched_permissions)
-        else:
-            perms = list(
-                UserRole.objects.filter(user=user, is_active=True).select_related(
-                    "user", "role", "created_by", "content_type"
-                )
+            return list(user.prefetched_permissions)
+        return list(
+            UserRole.objects.filter(user=user, is_active=True).select_related(
+                "user", "role", "created_by", "content_type"
             )
+        )
 
-        # Batch-load scope objects (Project, Customer) to avoid N+1 queries
-        # when the permission serializer accesses scope.uuid, scope.customer.uuid, etc.
-        scope_ids_by_ct = {}
-        for perm in perms:
-            if perm.content_type_id and perm.object_id:
-                scope_ids_by_ct.setdefault(perm.content_type_id, []).append(
-                    perm.object_id
-                )
-
+    @staticmethod
+    def _resolve_scopes(scope_ids_by_ct):
+        """Load the permission scopes (Project, Customer) in one query per type."""
         scope_objects = {}
         for ct_id, obj_ids in scope_ids_by_ct.items():
             ct = ContentType.objects.get_for_id(ct_id)
@@ -2064,6 +2073,41 @@ class UserSerializer(
                 qs = qs.select_related("customer")
             for obj in qs:
                 scope_objects[(ct_id, obj.id)] = obj
+        return scope_objects
+
+    def prime_permission_scopes(self, users):
+        """Resolve the scopes of every user on this page in one pass.
+
+        Scope loading was already batched, but only within a single user, so a
+        page of 100 users cost 100 x (one query per scope type). Collecting the
+        whole page first collapses that to one query per scope type.
+        """
+        perms_by_user = {}
+        scope_ids_by_ct = {}
+        for user in users:
+            perms = self._get_user_permissions(user)
+            perms_by_user[user.pk] = perms
+            for perm in perms:
+                if perm.content_type_id and perm.object_id:
+                    scope_ids_by_ct.setdefault(perm.content_type_id, set()).add(
+                        perm.object_id
+                    )
+        self._page_perms_cache = perms_by_user
+        self._page_scope_cache = self._resolve_scopes(scope_ids_by_ct)
+
+    def _serialize_permissions(self, user: core_models.User, serializer_class):
+        if self._page_perms_cache is not None and user.pk in self._page_perms_cache:
+            perms = self._page_perms_cache[user.pk]
+            scope_objects = self._page_scope_cache
+        else:
+            perms = self._get_user_permissions(user)
+            scope_ids_by_ct = {}
+            for perm in perms:
+                if perm.content_type_id and perm.object_id:
+                    scope_ids_by_ct.setdefault(perm.content_type_id, []).append(
+                        perm.object_id
+                    )
+            scope_objects = self._resolve_scopes(scope_ids_by_ct)
 
         valid_perms = []
         for perm in perms:
@@ -2107,6 +2151,7 @@ class UserSerializer(
 
     class Meta:
         model = core_models.User
+        list_serializer_class = UserListSerializer
         fields = (
             "url",
             "uuid",
