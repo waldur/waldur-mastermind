@@ -361,6 +361,9 @@ Generate test pipeline:
       tests/generate-pipeline.sh
   artifacts:
     # We need to save both generated files as artifacts.
+    # Consumed by the 'Run tests dynamically' trigger job in the same pipeline,
+    # so they have no value once that pipeline finishes.
+    expire_in: 1 day
     paths:
       - generated-pipeline.yml
     reports:

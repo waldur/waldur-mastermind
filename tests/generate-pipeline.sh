@@ -253,6 +253,10 @@ run_unit_tests:
 
   artifacts:
     when: always
+    # Sharded suite: this job fans out up to ${MAX_PARALLEL_JOBS} times per
+    # pipeline, so it is the single largest producer of artifact rows in the
+    # project. Without an explicit expire_in these inherit the instance default.
+    expire_in: 1 week
     reports:
       junit: report.xml
       coverage_report:
