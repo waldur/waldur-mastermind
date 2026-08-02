@@ -4268,10 +4268,65 @@ class OpenStackNestedServerGroupSerializer(
         extra_kwargs = {"url": {"lookup_field": "uuid"}}
 
 
-def _validate_instance_ports(ports, tenant, instance=None):
+def _request_user(serializer):
+    """The requesting user, when the serializer was built with a request."""
+    request = serializer.context.get("request") if serializer.context else None
+    return getattr(request, "user", None) if request else None
+
+
+def _can_manage_network_project(user, network):
+    """Whether the user may act as the owner of the network's project."""
+    if user is None or not user.is_authenticated:
+        return False
+    if user.is_staff:
+        return True
+    project = network.project
+    return (
+        project.has_user(user, ProjectRole.ADMIN)
+        or project.has_user(user, ProjectRole.MANAGER)
+        or project.customer.has_user(user, CustomerRole.OWNER)
+    )
+
+
+def _validate_pinned_addresses(ports, tenant, user):
+    """Choosing an address on someone else's network requires owning it.
+
+    Neutron's ``create_port:fixed_ips:ip_address`` rule is admin-or-network-owner:
+    a tenant handed a network through an RBAC policy may attach to it and may let
+    Neutron allocate an address, but may not pick one. Waldur creates every port
+    through its admin session, so that restriction is not enforced for us and has
+    to be applied here, or a share recipient could claim an address in the
+    owner's network.
+
+    Only cross-tenant networks are checked. Pinning inside your own tenant is
+    what Neutron already permits to the owner, and is left untouched.
+    """
+    for port in ports:
+        fixed_ips = port.fixed_ips or []
+        if not any(fixed_ip.get("ip_address") for fixed_ip in fixed_ips):
+            continue
+        if port.subnet.tenant_id == tenant.id:
+            continue
+        network = port.subnet.network
+        if _can_manage_network_project(user, network):
+            continue
+        raise serializers.ValidationError(
+            {
+                "ports": _(
+                    "Cannot assign a specific IP address in network %s: it belongs "
+                    "to another tenant. Omit ip_address to let OpenStack allocate "
+                    "one, or ask an administrator of that network's project."
+                )
+                % network
+            }
+        )
+
+
+def _validate_instance_ports(ports, tenant, instance=None, user=None):
     """- make sure that ports belong to specified setting;
     - make sure that ports does not connect to the same subnet twice;
-    - make sure that referenced existing ports are attachable to the instance.
+    - make sure that referenced existing ports are attachable to the instance;
+    - make sure a pinned address is only chosen on a network the user owns.
     """
     if not ports:
         return
@@ -4335,6 +4390,8 @@ def _validate_instance_ports(ports, tenant, instance=None):
         raise serializers.ValidationError(
             _("It is impossible to connect to subnet %s twice.") % duplicates[0][0]
         )
+
+    _validate_pinned_addresses(ports, tenant, user)
 
 
 def _validate_instance_security_groups(security_groups, tenant):
@@ -4814,7 +4871,7 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
 
         _validate_instance_security_groups(security_groups, tenant)
         _validate_instance_server_group(attrs.get("server_group"), tenant)
-        _validate_instance_ports(ports, tenant)
+        _validate_instance_ports(ports, tenant, user=_request_user(self))
         subnets = [port.subnet for port in ports]
         floating_ips = cast(FloatingIPSpec, attrs.get("floating_ips", []))
         _validate_instance_floating_ips(floating_ips, tenant, subnets)
@@ -5202,7 +5259,12 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
     ports = OpenStackCreatePortSerializer(many=True)
 
     def validate_ports(self, ports):
-        _validate_instance_ports(ports, self.instance.tenant, instance=self.instance)
+        _validate_instance_ports(
+            ports,
+            self.instance.tenant,
+            instance=self.instance,
+            user=_request_user(self),
+        )
         return ports
 
     @transaction.atomic
@@ -5358,7 +5420,7 @@ class OpenStackBackupRestorationCreateSerializer(OpenStackBackupRestorationSeria
         _validate_instance_security_groups(attrs.get("security_groups", []), tenant)
 
         ports = attrs.get("ports", [])
-        _validate_instance_ports(ports, tenant)
+        _validate_instance_ports(ports, tenant, user=_request_user(self))
 
         subnets = [port.subnet for port in ports]
         floating_ips = cast(FloatingIPSpec, attrs.get("floating_ips", []))

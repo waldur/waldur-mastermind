@@ -971,6 +971,18 @@ class InstanceUpdatePortsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(self.instance.ports.filter(subnet=subnet).exists())
 
+    def _shared_network_from_another_tenant(self):
+        """A network owned by another tenant and shared into ours by RBAC."""
+        other_tenant = factories.TenantFactory(
+            service_settings=self.fixture.tenant.service_settings
+        )
+        network = factories.NetworkFactory(tenant=other_tenant)
+        subnet = factories.SubNetFactory(network=network, tenant=other_tenant)
+        factories.NetworkRBACPolicyFactory(
+            network=network, target_tenant=self.fixture.tenant
+        )
+        return subnet
+
     def test_rbac_share_grants_access_only_to_the_shared_network(self):
         """One shared network must not expose the owner's other networks.
 
@@ -978,17 +990,11 @@ class InstanceUpdatePortsTest(test.APITestCase):
         network, so sharing one network let the target tenant reach every other
         network that tenant owned.
         """
-        other_tenant = factories.TenantFactory(
-            service_settings=self.fixture.tenant.service_settings
-        )
-        shared_network = factories.NetworkFactory(tenant=other_tenant)
-        factories.SubNetFactory(network=shared_network, tenant=other_tenant)
+        shared_subnet = self._shared_network_from_another_tenant()
+        other_tenant = shared_subnet.tenant
         unshared_network = factories.NetworkFactory(tenant=other_tenant)
         unshared_subnet = factories.SubNetFactory(
             network=unshared_network, tenant=other_tenant
-        )
-        factories.NetworkRBACPolicyFactory(
-            network=shared_network, target_tenant=self.fixture.tenant
         )
 
         response = self.client.post(
@@ -1004,16 +1010,7 @@ class InstanceUpdatePortsTest(test.APITestCase):
         self.assertFalse(self.instance.ports.filter(subnet=unshared_subnet).exists())
 
     def test_subnet_of_an_rbac_shared_network_is_still_accepted(self):
-        other_tenant = factories.TenantFactory(
-            service_settings=self.fixture.tenant.service_settings
-        )
-        shared_network = factories.NetworkFactory(tenant=other_tenant)
-        shared_subnet = factories.SubNetFactory(
-            network=shared_network, tenant=other_tenant
-        )
-        factories.NetworkRBACPolicyFactory(
-            network=shared_network, target_tenant=self.fixture.tenant
-        )
+        shared_subnet = self._shared_network_from_another_tenant()
 
         response = self.client.post(
             self.url,
@@ -1026,6 +1023,59 @@ class InstanceUpdatePortsTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertTrue(self.instance.ports.filter(subnet=shared_subnet).exists())
+
+    def test_user_cannot_pin_an_address_on_another_tenants_network(self):
+        """Neutron reserves this to the network owner; Waldur creates ports as admin."""
+        subnet = self._shared_network_from_another_tenant()
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "subnet": factories.SubNetFactory.get_url(subnet),
+                        "fixed_ips": [
+                            {"ip_address": "10.90.0.50", "subnet_id": subnet.backend_id}
+                        ],
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.instance.ports.filter(subnet=subnet).exists())
+
+    def test_user_can_attach_to_a_shared_network_without_pinning(self):
+        """Letting OpenStack allocate is what Neutron permits to the recipient."""
+        subnet = self._shared_network_from_another_tenant()
+
+        response = self.client.post(
+            self.url,
+            data={"ports": [{"subnet": factories.SubNetFactory.get_url(subnet)}]},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertTrue(self.instance.ports.filter(subnet=subnet).exists())
+
+    def test_staff_may_pin_an_address_on_another_tenants_network(self):
+        subnet = self._shared_network_from_another_tenant()
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "subnet": factories.SubNetFactory.get_url(subnet),
+                        "fixed_ips": [
+                            {"ip_address": "10.90.0.50", "subnet_id": subnet.backend_id}
+                        ],
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_user_cannot_connect_instance_to_one_subnet_twice(self):
         response = self.client.post(
