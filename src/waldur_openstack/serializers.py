@@ -4276,15 +4276,21 @@ def _validate_instance_ports(ports, tenant, instance=None):
     if not ports:
         return
     subnets = [port.subnet for port in ports]
-    tenants_ids = list(
+    # An RBAC policy shares one network, not everything its owner happens to own.
+    # Collecting the owning tenants instead let a single share widen access to
+    # every other network belonging to that tenant, so match on the shared
+    # network, the way Tenant.available_subnets already does.
+    shared_network_ids = set(
         models.NetworkRBACPolicy.objects.filter(target_tenant=tenant).values_list(
-            "network__tenant", flat=True
+            "network_id", flat=True
         )
     )
-    tenants_ids.append(tenant.id)
+
+    def reachable(network_id, owner_tenant_id):
+        return owner_tenant_id == tenant.id or network_id in shared_network_ids
 
     for subnet in subnets:
-        if subnet.tenant.id not in tenants_ids:
+        if not reachable(subnet.network_id, subnet.tenant_id):
             message = (
                 _("Subnet %s does not belong to the same tenant as instance.") % subnet
             )
@@ -4294,7 +4300,7 @@ def _validate_instance_ports(ports, tenant, instance=None):
     for port in ports:
         if not port.pk:
             continue
-        if port.tenant_id not in tenants_ids:
+        if not reachable(port.network_id, port.tenant_id):
             raise serializers.ValidationError(
                 {
                     "ports": _(

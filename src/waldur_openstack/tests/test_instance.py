@@ -971,6 +971,62 @@ class InstanceUpdatePortsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(self.instance.ports.filter(subnet=subnet).exists())
 
+    def test_rbac_share_grants_access_only_to_the_shared_network(self):
+        """One shared network must not expose the owner's other networks.
+
+        The allowance used to be computed from the *owning tenant* of any shared
+        network, so sharing one network let the target tenant reach every other
+        network that tenant owned.
+        """
+        other_tenant = factories.TenantFactory(
+            service_settings=self.fixture.tenant.service_settings
+        )
+        shared_network = factories.NetworkFactory(tenant=other_tenant)
+        factories.SubNetFactory(network=shared_network, tenant=other_tenant)
+        unshared_network = factories.NetworkFactory(tenant=other_tenant)
+        unshared_subnet = factories.SubNetFactory(
+            network=unshared_network, tenant=other_tenant
+        )
+        factories.NetworkRBACPolicyFactory(
+            network=shared_network, target_tenant=self.fixture.tenant
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {"subnet": factories.SubNetFactory.get_url(unshared_subnet)},
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.instance.ports.filter(subnet=unshared_subnet).exists())
+
+    def test_subnet_of_an_rbac_shared_network_is_still_accepted(self):
+        other_tenant = factories.TenantFactory(
+            service_settings=self.fixture.tenant.service_settings
+        )
+        shared_network = factories.NetworkFactory(tenant=other_tenant)
+        shared_subnet = factories.SubNetFactory(
+            network=shared_network, tenant=other_tenant
+        )
+        factories.NetworkRBACPolicyFactory(
+            network=shared_network, target_tenant=self.fixture.tenant
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {"subnet": factories.SubNetFactory.get_url(shared_subnet)},
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertTrue(self.instance.ports.filter(subnet=shared_subnet).exists())
+
     def test_user_cannot_connect_instance_to_one_subnet_twice(self):
         response = self.client.post(
             self.url,
