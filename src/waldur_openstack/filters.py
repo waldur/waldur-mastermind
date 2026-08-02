@@ -5,6 +5,7 @@ from django_filters.widgets import BooleanWidget
 from waldur_core.core import filters as core_filters
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace.models import Offering
 from waldur_openstack.utils import get_valid_availability_zones
 
@@ -47,18 +48,31 @@ class SharedTenantFilterSet(django_filters.FilterSet):
         return queryset.filter(tenants=tenant)
 
     def filter_offering(self, queryset, name, value):
+        """Narrow service properties to those an offering can use.
+
+        An offering's scope is a generic relation, and OpenStack uses two kinds.
+        The tenant-provisioning offering is scoped to the service settings,
+        while the per-tenant instance and volume offerings that Waldur creates
+        alongside a tenant are scoped to that tenant. Assuming settings meant a
+        tenant-scoped offering reached a Tenant queryset with a Tenant instance,
+        which Django rejects outright — the request failed with a 500 rather
+        than an empty or filtered result.
+        """
         try:
             offering = Offering.objects.get(uuid=value)
         except Offering.DoesNotExist:
             return queryset.none()
-        if not offering.scope:
-            return queryset.none()
 
-        tenants = models.Tenant.objects.filter(service_settings=offering.scope)
-        if tenants.exists():
-            return queryset.filter(tenants__in=tenants).distinct()
-        # Fall back to service settings level when no tenants exist yet
-        return queryset.filter(settings=offering.scope)
+        scope = offering.scope
+        if isinstance(scope, models.Tenant):
+            return queryset.filter(tenants=scope).distinct()
+        if isinstance(scope, structure_models.ServiceSettings):
+            tenants = models.Tenant.objects.filter(service_settings=scope)
+            if tenants.exists():
+                return queryset.filter(tenants__in=tenants).distinct()
+            # Fall back to service settings level when no tenants exist yet
+            return queryset.filter(settings=scope)
+        return queryset.none()
 
 
 class SecurityGroupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
