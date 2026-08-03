@@ -3603,16 +3603,34 @@ class OpenStackBackend(ServiceBackend):
                     backend_router = neutron.add_gateway_router(
                         router["id"], {"network_id": network_id}
                     )["router"]
-                    external_ip_info = backend_router["external_gateway_info"][
-                        "external_fixed_ips"
-                    ][0]
-                    logger.info(
-                        "External network %s has been connected to the router %s with external IP %s within subnet %s.",
-                        network_id,
-                        router["name"],
-                        external_ip_info["ip_address"],
-                        external_ip_info["subnet_id"],
-                    )
+                    # Neutron allocates the gateway address from a subnet of the
+                    # external network, but an external network with no subnets
+                    # is legal: Subnet.network_has_no_subnet treats it as "not an
+                    # error" and _create_router_gw_port only logs "No IPs
+                    # available for external network", returning the router with
+                    # an empty external_fixed_ips. Indexing [0] to build a log
+                    # message turned that supported case into an IndexError that
+                    # failed the whole tenant provisioning.
+                    external_fixed_ips = (
+                        backend_router.get("external_gateway_info") or {}
+                    ).get("external_fixed_ips") or []
+                    if external_fixed_ips:
+                        external_ip_info = external_fixed_ips[0]
+                        logger.info(
+                            "External network %s has been connected to the router %s with external IP %s within subnet %s.",
+                            network_id,
+                            router["name"],
+                            external_ip_info["ip_address"],
+                            external_ip_info["subnet_id"],
+                        )
+                    else:
+                        logger.warning(
+                            "External network %s has been connected to the router %s, "
+                            "but no external IP was allocated: the network has no subnet "
+                            "to allocate from.",
+                            network_id,
+                            router["name"],
+                        )
                 else:
                     logger.info(
                         "External network %s is already connected to router %s.",
