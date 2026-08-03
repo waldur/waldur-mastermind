@@ -693,6 +693,31 @@ class ResourceEndDateTest(test.APITestCase):
             self.assertEqual(order.created_by, self.fixture.admin)
             self.assertEqual(order.consumer_reviewed_by, self.system_robot)
 
+    def test_terminate_resource_if_end_date_reached_and_purchase_order_is_required(
+        self,
+    ):
+        # Regression: require_purchase_order_upload used to block the forced
+        # approval, so an expired resource was never terminated and kept
+        # accruing cost with no way for the user to supply the attachment.
+        self.resource.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.resource.offering.save()
+
+        ProjectRole.ADMIN.add_permission(PermissionEnum.UPDATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_PRIVATE_ORDER)
+
+        with freeze_time("2020-01-01"):
+            self.resource.end_date_requested_by = self.fixture.admin
+            self.resource.save()
+
+            tasks.terminate_expired_resources()
+
+            order = models.Order.objects.get(
+                resource=self.fixture.resource, type=OrderTypes.TERMINATE
+            )
+            self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+            self.assertEqual(order.consumer_reviewed_by, self.system_robot)
+
     def test_each_expired_resource_is_attributed_independently(self):
         # Regression: actor for one resource must not leak into the next
         # iteration of the batch. The first resource has an explicit

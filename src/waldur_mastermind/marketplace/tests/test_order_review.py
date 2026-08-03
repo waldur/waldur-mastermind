@@ -207,6 +207,17 @@ class OrderApproveByConsumerTest(test.APITestCase):
         response = self.approve_order(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_terminate_order_does_not_require_purchase_order(self):
+        # A purchase order authorises spending, so it must never stand between
+        # a user and stopping a resource — there is no way to attach one to a
+        # terminate order either.
+        self.order.type = OrderTypes.TERMINATE
+        self.order.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.order.offering.save()
+        self.order.save(update_fields=["type"])
+        response = self.approve_order(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_update_order_with_attachment_is_approved_when_purchase_order_required(
         self,
     ):

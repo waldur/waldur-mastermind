@@ -125,9 +125,12 @@ def user_can_approve_order_as_consumer(user, order: models.Order) -> bool:
 
 
 def order_should_not_be_reviewed_by_consumer(order: models.Order):
-    # Check if purchase order upload is required and attachment is missing
+    # Check if purchase order upload is required and attachment is missing.
+    # Termination is exempt: a purchase order covers spending, and there is no
+    # way to attach one to a terminate order in the first place.
     if (
-        order.offering.plugin_options.get("require_purchase_order_upload", False)
+        order.type != OrderTypes.TERMINATE
+        and order.offering.plugin_options.get("require_purchase_order_upload", False)
         and not order.attachment
     ):
         return False

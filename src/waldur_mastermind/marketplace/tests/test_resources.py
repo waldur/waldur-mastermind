@@ -992,6 +992,21 @@ class ResourceTerminateTest(test.APITestCase):
         self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertEqual(order.created_by, self.fixture.staff)
 
+    def test_order_is_approved_implicitly_when_purchase_order_is_required(self):
+        # Regression: require_purchase_order_upload used to hold every terminate
+        # order in PENDING_CONSUMER, and the terminate endpoint accepts no
+        # attachment, so the order could only be unblocked by uploading a file
+        # to it out of band. Termination is exempt from the requirement.
+        self.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.offering.save()
+
+        # Act
+        response = self.terminate(self.fixture.staff)
+
+        # Assert
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.state, OrderStates.EXECUTING)
+
     def test_plan_switch_is_not_allowed_if_pending_order_for_resource_already_exists(
         self,
     ):
@@ -1031,6 +1046,31 @@ class ResourceTerminateTest(test.APITestCase):
         self.assertEqual(order.state, OrderStates.EXECUTING)
         self.assertEqual(order.consumer_reviewed_by, self.fixture.owner)
         self.assertEqual(models.Order.objects.filter(resource=self.resource).count(), 1)
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.process_order.delay")
+    def test_owner_confirms_pending_terminate_order_when_purchase_order_is_required(
+        self, mocked_process_order
+    ):
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.offering.save()
+
+        order = factories.OrderFactory(
+            resource=self.resource,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.PENDING_CONSUMER,
+            created_by=self.fixture.admin,
+        )
+
+        owner_response = self.terminate(self.fixture.owner)
+        self.assertEqual(owner_response.status_code, status.HTTP_200_OK)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.EXECUTING)
+        self.assertEqual(order.consumer_reviewed_by, self.fixture.owner)
 
     @mock.patch(
         "waldur_mastermind.marketplace.tasks.notify_provider_about_pending_order.delay"

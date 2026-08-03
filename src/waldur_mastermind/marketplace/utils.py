@@ -854,19 +854,6 @@ def _force_approve_pending_terminate_order(pending_order):
     level would be circular, so both stay function-local, confined to this
     one helper.
     """
-    if (
-        pending_order.offering.plugin_options.get("require_purchase_order_upload")
-        and not pending_order.attachment
-    ):
-        # Mirror the manual-approval guard in ConsumerResourceViewSet.terminate:
-        # a missing required purchase-order attachment still blocks approval
-        # even for an automatic, end-date-triggered termination.
-        logger.info(
-            "Skipping forced approval of order %s: purchase order attachment is required.",
-            pending_order.uuid,
-        )
-        return
-
     from waldur_mastermind.marketplace import order_approval
 
     order_approval.confirm_pending_terminate_order(
