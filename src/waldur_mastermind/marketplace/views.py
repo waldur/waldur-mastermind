@@ -7299,7 +7299,8 @@ class OrderViewSet(
     def approve_by_consumer(self, request, uuid=None):
         order: models.Order = self.get_object()
         if (
-            order.offering.plugin_options.get("require_purchase_order_upload")
+            order.type != OrderTypes.TERMINATE
+            and order.offering.plugin_options.get("require_purchase_order_upload")
             and not order.attachment
         ):
             raise rf_exceptions.ValidationError(
@@ -8232,13 +8233,6 @@ class BaseResourceViewSet(
                 request.user, pending_order
             ):
                 raise ValidationError(_("Pending order for resource already exists."))
-            if (
-                pending_order.offering.plugin_options.get(
-                    "require_purchase_order_upload"
-                )
-                and not pending_order.attachment
-            ):
-                raise ValidationError(_("Purchase order is required for approval."))
             self.ensure_resource_operations_allowed(resource)
             structure_utils.check_customer_blocked_or_archived(
                 pending_order.project.customer
