@@ -31,5 +31,8 @@ class PortSecurityGroupsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
         reread_port = models.Port.objects.get(pk=self.port.pk)
-        reread_security_groups = list(reread_port.security_groups.order_by("name"))
-        self.assertEqual(reread_security_groups, self.security_groups)
+        # Compare as an unordered collection: the assertion is about which
+        # groups the port ends up with, and ordering by name is not the same
+        # as creation order once the factory sequence crosses a power of ten
+        # ("security_group10" sorts before "security_group9").
+        self.assertCountEqual(reread_port.security_groups.all(), self.security_groups)
