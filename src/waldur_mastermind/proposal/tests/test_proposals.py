@@ -115,6 +115,39 @@ class ProposalCreateTest(test.APITestCase):
         response = self.create_proposal("staff", name="x" * 32)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    def move_round(self, start_offset_days, cutoff_offset_days):
+        call_round = self.fixture.round
+        call_round.start_time = timezone.now() + datetime.timedelta(
+            days=start_offset_days
+        )
+        call_round.cutoff_time = timezone.now() + datetime.timedelta(
+            days=cutoff_offset_days
+        )
+        call_round.save()
+
+    def test_can_not_create_before_the_round_opens(self):
+        """A proposal exists only while its round is open.
+
+        This used to be allowed, on the reasoning that a draft could be
+        prepared ahead of the round; the rule is now the same as for
+        submission, so a proposal can never be created into a state it could
+        not then be sent from.
+        """
+        self.move_round(start_offset_days=5, cutoff_offset_days=10)
+
+        response = self.create_proposal("staff")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(models.Proposal.objects.filter(name="new").exists())
+
+    def test_can_not_create_after_the_round_has_closed(self):
+        self.move_round(start_offset_days=-10, cutoff_offset_days=-1)
+
+        response = self.create_proposal("staff")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(models.Proposal.objects.filter(name="new").exists())
+
     def create_proposal(self, user, **kwargs):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -350,6 +383,42 @@ class ActionTest(test.APITestCase):
         self.client.force_authenticate(user)
         response = self.client.post(self.submit_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def move_round(self, start_offset_days, cutoff_offset_days):
+        call_round = self.proposal.round
+        call_round.start_time = timezone.now() + datetime.timedelta(
+            days=start_offset_days
+        )
+        call_round.cutoff_time = timezone.now() + datetime.timedelta(
+            days=cutoff_offset_days
+        )
+        call_round.save()
+
+    def test_can_not_submit_after_the_round_has_closed(self):
+        """The cutoff is a hard deadline, enforced when the proposal is sent.
+
+        Before, this returned 200: the call managers were notified and the
+        proposal entered review, only to be cancelled by the hourly sweeper.
+        """
+        self.move_round(start_offset_days=-10, cutoff_offset_days=-1)
+
+        self.client.force_authenticate(self.fixture.proposal_creator)
+        response = self.client.post(self.submit_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.DRAFT)
+
+    def test_can_not_submit_before_the_round_opens(self):
+        """A draft may be prepared ahead of the round, but not sent early."""
+        self.move_round(start_offset_days=5, cutoff_offset_days=10)
+
+        self.client.force_authenticate(self.fixture.proposal_creator)
+        response = self.client.post(self.submit_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.DRAFT)
 
     def test_set_project_start_date_on_fixed_date_allocation(self):
         new_proposal = factories.ProposalFactory(

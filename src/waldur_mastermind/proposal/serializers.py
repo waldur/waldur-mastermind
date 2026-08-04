@@ -1722,11 +1722,18 @@ class ProposalSerializer(
         if call_round.call.state != CallStates.ACTIVE:
             raise serializers.ValidationError(_("Call is not active."))
 
-        if call_round.status not in (
-            RoundStatuses.SCHEDULED,
-            RoundStatuses.OPEN,
-        ):
-            raise serializers.ValidationError(_("Round is not active."))
+        # A proposal exists only while its round is open — it cannot be drafted
+        # ahead of one opening, and cannot be started after the cutoff. Same
+        # rule as submission, so a proposal can never be created into a state it
+        # could not then be sent from.
+        if call_round.status == RoundStatuses.SCHEDULED:
+            raise serializers.ValidationError(
+                _("Round has not opened yet, so a proposal cannot be created.")
+            )
+        if call_round.status == RoundStatuses.ENDED:
+            raise serializers.ValidationError(
+                _("Round has closed, so a proposal can no longer be created.")
+            )
 
         attrs["round"] = call_round
         return attrs

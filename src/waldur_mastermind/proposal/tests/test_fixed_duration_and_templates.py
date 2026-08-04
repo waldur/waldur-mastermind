@@ -3,6 +3,9 @@ Tests for fixed duration and resource templates functionality.
 Uses Factory pattern for cleaner test setup.
 """
 
+import datetime
+
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -141,7 +144,9 @@ class FixedDurationTestCase(APITestCase):
         self.customer.add_user(self.customer_owner, CustomerRole.OWNER)
 
         self.call = proposal_factories.CallFactory(state=CallStates.ACTIVE)
-        self.round = proposal_factories.RoundFactory(call=self.call)
+        self.round = proposal_factories.RoundFactory(
+            call=self.call, start_time=timezone.now() - datetime.timedelta(days=1)
+        )
 
     def test_set_fixed_duration_on_call(self):
         """Test setting fixed duration on a call."""
@@ -209,7 +214,9 @@ class ResourceTemplateValidationTestCase(APITestCase):
         self.customer.add_user(self.customer_owner, CustomerRole.OWNER)
 
         self.call = proposal_factories.CallFactory(state=CallStates.ACTIVE)
-        self.round = proposal_factories.RoundFactory(call=self.call)
+        self.round = proposal_factories.RoundFactory(
+            call=self.call, start_time=timezone.now() - datetime.timedelta(days=1)
+        )
         self.requested_offering = proposal_factories.RequestedOfferingFactory(
             call=self.call, state=RequestedOfferingStates.ACCEPTED
         )
@@ -275,7 +282,8 @@ class ResourceTemplateValidationTestCase(APITestCase):
         # Create a call without templates using factories
         call_without_templates = proposal_factories.CallFactory()
         round_without_templates = proposal_factories.RoundFactory(
-            call=call_without_templates
+            call=call_without_templates,
+            start_time=timezone.now() - datetime.timedelta(days=1),
         )
         offering_without_templates = proposal_factories.RequestedOfferingFactory(
             call=call_without_templates, state=RequestedOfferingStates.ACCEPTED
@@ -319,7 +327,9 @@ class IntegrationTestCase(APITestCase):
         call = proposal_factories.CallFactory(
             fixed_duration_in_days=30, state=CallStates.ACTIVE
         )
-        round_obj = proposal_factories.RoundFactory(call=call)
+        round_obj = proposal_factories.RoundFactory(
+            call=call, start_time=timezone.now() - datetime.timedelta(days=1)
+        )
 
         # Add offering and create template using factories
         offering = proposal_factories.RequestedOfferingFactory(
@@ -391,7 +401,9 @@ class IntegrationTestCase(APITestCase):
         template = proposal_factories.CallResourceTemplateFactory(
             call=call, requested_offering=offering
         )
-        round_obj = proposal_factories.RoundFactory(call=call)
+        round_obj = proposal_factories.RoundFactory(
+            call=call, start_time=timezone.now() - datetime.timedelta(days=1)
+        )
         proposal = proposal_factories.ProposalFactory(round=round_obj)
 
         # Verify all relationships are consistent

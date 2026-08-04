@@ -90,6 +90,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     ReviewerSuggestionStatuses,
+    RoundStatuses,
     TransitionModes,
     WorkflowStepInstanceStatuses,
 )
@@ -99,6 +100,30 @@ from .models import Proposal
 from .serializers import ReviewSubmitSerializer, _is_reviewer_only_view
 
 logger = logging.getLogger(__name__)
+
+
+def validate_round_is_open(proposal):
+    """A proposal may only be submitted while its round is open.
+
+    Creation is deliberately looser — ``ProposalSerializer.validate`` also
+    accepts a *scheduled* round, so an applicant can prepare a draft before the
+    round opens. Submission is the point the deadline actually applies to.
+
+    Nothing checked the round here before, so a draft could be submitted after
+    the cutoff: that notified the call managers, created the workflow step
+    instances and moved the proposal into review, only for
+    ``proposals_for_ended_rounds_should_be_cancelled`` to cancel it within the
+    hour. The deadline is now enforced at the door rather than swept up after.
+    """
+    round_status = proposal.round.status
+    if round_status == RoundStatuses.SCHEDULED:
+        raise exceptions.ValidationError(
+            _("Round has not opened yet, so the proposal cannot be submitted.")
+        )
+    if round_status == RoundStatuses.ENDED:
+        raise exceptions.ValidationError(
+            _("Round has closed, so the proposal can no longer be submitted.")
+        )
 
 
 def validate_call_not_archived(nested_obj):
@@ -2714,7 +2739,10 @@ class ProposalViewSet(
             status=status.HTTP_200_OK,
         )
 
-    submit_validators = [core_validators.StateValidator(ProposalStates.DRAFT)]
+    submit_validators = [
+        core_validators.StateValidator(ProposalStates.DRAFT),
+        validate_round_is_open,
+    ]
 
     submit_permissions = [is_creator]
 
