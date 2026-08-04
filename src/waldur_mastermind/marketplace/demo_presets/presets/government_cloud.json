@@ -35,7 +35,8 @@
       "password": "demo",
       "phone_number": "+37256001001",
       "organization": "Government Cloud Authority",
-      "job_title": "System Administrator"
+      "job_title": "System Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000002",
@@ -48,7 +49,8 @@
       "password": "demo",
       "phone_number": "+37256001002",
       "organization": "Government Cloud Authority",
-      "job_title": "Support Engineer"
+      "job_title": "Support Engineer",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000003",
@@ -60,7 +62,8 @@
       "password": "demo",
       "phone_number": "+37256001003",
       "organization": "Ministry of Digital Affairs",
-      "job_title": "IT Director"
+      "job_title": "IT Director",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000004",
@@ -72,7 +75,8 @@
       "password": "demo",
       "phone_number": "+37256001004",
       "organization": "Ministry of Digital Affairs",
-      "job_title": "Project Manager"
+      "job_title": "Project Manager",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000005",
@@ -84,7 +88,8 @@
       "password": "demo",
       "phone_number": "+37256001005",
       "organization": "Ministry of Digital Affairs",
-      "job_title": "Software Developer"
+      "job_title": "Software Developer",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a1000000000000000000000000000001",
@@ -96,7 +101,8 @@
       "is_active": true,
       "phone_number": "+37256002001",
       "organization": "Government Cloud Authority",
-      "job_title": "Chief Cloud Architect"
+      "job_title": "Chief Cloud Architect",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a1000000000000000000000000000002",
@@ -108,7 +114,8 @@
       "is_active": true,
       "phone_number": "+37256002002",
       "organization": "Government Cloud Authority",
-      "job_title": "Information Security Officer"
+      "job_title": "Information Security Officer",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "ssh_public_keys": [

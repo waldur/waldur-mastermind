@@ -44,7 +44,8 @@
       "organization": "AI Platform Services",
       "job_title": "Platform Administrator",
       "registration_method": "keycloak",
-      "identity_source": "local"
+      "identity_source": "local",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000002",
@@ -59,7 +60,8 @@
       "organization": "AI Platform Services",
       "job_title": "ML Infrastructure Support",
       "registration_method": "keycloak",
-      "identity_source": "local"
+      "identity_source": "local",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000003",
@@ -73,7 +75,8 @@
       "organization": "AI Startup Inc",
       "job_title": "Chief Technology Officer",
       "registration_method": "eduteams",
-      "identity_source": "eduGAIN"
+      "identity_source": "eduGAIN",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000004",
@@ -87,7 +90,8 @@
       "organization": "AI Startup Inc",
       "job_title": "ML Team Lead",
       "registration_method": "eduteams",
-      "identity_source": "eduGAIN"
+      "identity_source": "eduGAIN",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000005",
@@ -102,7 +106,8 @@
       "job_title": "Data Scientist",
       "registration_method": "tara",
       "identity_source": "TARA",
-      "civil_number": "EE39912310123"
+      "civil_number": "EE39912310123",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a3000000000000000000000000000001",
@@ -116,7 +121,8 @@
       "organization": "AI Platform Services",
       "job_title": "GPU Infrastructure Manager",
       "registration_method": "keycloak",
-      "identity_source": "local"
+      "identity_source": "local",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a3000000000000000000000000000002",
@@ -133,7 +139,8 @@
       "affiliations": [
         "researcher@university.edu",
         "member@research-group.org"
-      ]
+      ],
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "ssh_public_keys": [

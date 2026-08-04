@@ -17,7 +17,8 @@
       "is_active": true,
       "password": "e2epassword",
       "organization": "E2E Organization",
-      "job_title": "Tester"
+      "job_title": "Tester",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "e2e00000000000000000000000000002",
@@ -27,7 +28,8 @@
       "last_name": "User",
       "is_staff": true,
       "is_active": true,
-      "password": "adminpassword"
+      "password": "adminpassword",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "customers": [

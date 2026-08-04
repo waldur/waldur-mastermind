@@ -68,7 +68,8 @@
       "organization_type": "urn:schac:homeOrganizationType:int:other",
       "eduperson_assurance": [
         "https://refeds.org/assurance/IAP/low"
-      ]
+      ],
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000002",
@@ -98,7 +99,8 @@
         "EE"
       ],
       "organization_country": "EE",
-      "organization_type": "urn:schac:homeOrganizationType:int:other"
+      "organization_type": "urn:schac:homeOrganizationType:int:other",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000003",
@@ -132,7 +134,8 @@
       "eduperson_assurance": [
         "https://refeds.org/assurance/IAP/medium",
         "https://refeds.org/assurance/ID/eppn-unique-no-reassign"
-      ]
+      ],
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000004",
@@ -164,7 +167,8 @@
       "organization_type": "urn:schac:homeOrganizationType:int:university",
       "eduperson_assurance": [
         "https://refeds.org/assurance/IAP/medium"
-      ]
+      ],
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000005",
@@ -194,7 +198,8 @@
         "DE"
       ],
       "organization_country": "DE",
-      "organization_type": "urn:schac:homeOrganizationType:int:university"
+      "organization_type": "urn:schac:homeOrganizationType:int:university",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000006",
@@ -223,7 +228,8 @@
         "DE"
       ],
       "organization_country": "DE",
-      "organization_type": "urn:schac:homeOrganizationType:int:company"
+      "organization_type": "urn:schac:homeOrganizationType:int:company",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000007",
@@ -253,7 +259,8 @@
         "DE"
       ],
       "organization_country": "DE",
-      "organization_type": "urn:schac:homeOrganizationType:int:company"
+      "organization_type": "urn:schac:homeOrganizationType:int:company",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000008",
@@ -286,7 +293,8 @@
       "organization_type": "urn:schac:homeOrganizationType:int:company",
       "eduperson_assurance": [
         "https://refeds.org/assurance/IAP/high"
-      ]
+      ],
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000009",
@@ -315,7 +323,8 @@
         "FI"
       ],
       "organization_country": "FI",
-      "organization_type": "urn:schac:homeOrganizationType:int:company"
+      "organization_type": "urn:schac:homeOrganizationType:int:company",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000010",
@@ -349,7 +358,8 @@
       "organization_type": "urn:schac:homeOrganizationType:int:company",
       "eduperson_assurance": [
         "https://refeds.org/assurance/IAP/medium"
-      ]
+      ],
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000011",
@@ -378,7 +388,8 @@
         "NL"
       ],
       "organization_country": "NL",
-      "organization_type": "urn:schac:homeOrganizationType:int:company"
+      "organization_type": "urn:schac:homeOrganizationType:int:company",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000012",
@@ -409,7 +420,8 @@
         "ES"
       ],
       "organization_country": "ES",
-      "organization_type": "urn:schac:homeOrganizationType:int:company"
+      "organization_type": "urn:schac:homeOrganizationType:int:company",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000013",
@@ -439,7 +451,8 @@
         "AR"
       ],
       "organization_country": "ES",
-      "organization_type": "urn:schac:homeOrganizationType:int:company"
+      "organization_type": "urn:schac:homeOrganizationType:int:company",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000014",
@@ -474,7 +487,8 @@
       "eduperson_assurance": [
         "https://refeds.org/assurance/IAP/high",
         "https://refeds.org/assurance/ID/eppn-unique-no-reassign"
-      ]
+      ],
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "af000000000000000000000000000015",
@@ -503,7 +517,8 @@
         "EE"
       ],
       "organization_country": "EE",
-      "organization_type": "urn:schac:homeOrganizationType:int:company"
+      "organization_type": "urn:schac:homeOrganizationType:int:company",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "ssh_public_keys": [

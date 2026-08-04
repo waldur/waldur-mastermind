@@ -21,7 +21,8 @@
       "password": "demo",
       "phone_number": "+37256001001",
       "organization": "University Computing Center",
-      "job_title": "System Administrator"
+      "job_title": "System Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000002",
@@ -34,7 +35,8 @@
       "password": "demo",
       "phone_number": "+37256001002",
       "organization": "University Computing Center",
-      "job_title": "HPC Support Specialist"
+      "job_title": "HPC Support Specialist",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000003",
@@ -46,7 +48,8 @@
       "password": "demo",
       "phone_number": "+37256001003",
       "organization": "Physics Department",
-      "job_title": "Department Head"
+      "job_title": "Department Head",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000004",
@@ -58,7 +61,8 @@
       "password": "demo",
       "phone_number": "+37256001004",
       "organization": "Physics Department",
-      "job_title": "Research Coordinator"
+      "job_title": "Research Coordinator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000005",
@@ -70,7 +74,8 @@
       "password": "demo",
       "phone_number": "+37256001005",
       "organization": "Physics Department",
-      "job_title": "PhD Researcher"
+      "job_title": "PhD Researcher",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a2000000000000000000000000000001",
@@ -82,7 +87,8 @@
       "is_active": true,
       "phone_number": "+37256003001",
       "organization": "University Computing Center",
-      "job_title": "HPC Systems Manager"
+      "job_title": "HPC Systems Manager",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a2000000000000000000000000000002",
@@ -93,7 +99,8 @@
       "is_active": true,
       "phone_number": "+37256003002",
       "organization": "Physics Department",
-      "job_title": "Professor of Particle Physics"
+      "job_title": "Professor of Particle Physics",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "ssh_public_keys": [
