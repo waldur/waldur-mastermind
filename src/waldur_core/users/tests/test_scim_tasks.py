@@ -319,6 +319,61 @@ class ScimTasksTest(BaseScimTestCase):
         client.get_user.assert_called_once_with(self.user.username)
         client.clear_all_entitlements.assert_not_called()
 
+    def _sync_with_remote_entitlement(self, resource_state):
+        """Sync a user whose only resource is in the given state while the
+        remote SCIM user already holds the matching entitlement."""
+        self._grant_project_role()
+        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering_username = "user-on-offering"
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=resource_state,
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
+
+        client = self._mock_client()
+        entitlement = client.build_entitlement(
+            self.urn_namespace, "login.example.org", offering_username
+        )
+        client.get_user.return_value = {"entitlements": [{"value": entitlement}]}
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_user_entitlements(self.user.uuid.hex)
+
+        return client
+
+    def test_keep_entitlements_when_resource_terminating(self):
+        """Entitlements are kept until termination completes."""
+        client = self._sync_with_remote_entitlement(
+            marketplace_models.Resource.States.TERMINATING
+        )
+
+        client.remove_entitlements.assert_not_called()
+        client.clear_all_entitlements.assert_not_called()
+        client.add_entitlements.assert_not_called()
+
+    def test_keep_entitlements_when_resource_updating(self):
+        """Entitlements are kept while the resource is being updated."""
+        client = self._sync_with_remote_entitlement(
+            marketplace_models.Resource.States.UPDATING
+        )
+
+        client.remove_entitlements.assert_not_called()
+        client.clear_all_entitlements.assert_not_called()
+        client.add_entitlements.assert_not_called()
+
+    def test_remove_entitlements_when_resource_terminated(self):
+        """Entitlements are removed once the resource is terminated."""
+        client = self._sync_with_remote_entitlement(
+            marketplace_models.Resource.States.TERMINATED
+        )
+
+        client.clear_all_entitlements.assert_called_once_with(self.user.username)
+        client.add_entitlements.assert_not_called()
+
     def test_handle_scim_error_on_get_user(self):
         """Test handling SCIM error when getting user."""
         self._grant_project_role()

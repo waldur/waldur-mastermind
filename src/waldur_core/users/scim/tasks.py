@@ -86,9 +86,17 @@ def get_user_ssh_login_nodes(user: User):
     if not project_ids:
         return {}
 
+    # Keep entitlements for resources in transitional states (updating,
+    # terminating, erred): access is revoked only once the resource is gone,
+    # and never granted before it has been provisioned.
     resources = marketplace_models.Resource.objects.filter(
-        project_id__in=project_ids, state=marketplace_models.Resource.States.OK
-    ).select_related("offering")
+        project_id__in=project_ids
+    ).exclude(
+        state__in=[
+            marketplace_models.Resource.States.CREATING,
+            marketplace_models.Resource.States.TERMINATED,
+        ]
+    )
 
     offering_ids = resources.values_list("offering_id", flat=True).distinct()
 
