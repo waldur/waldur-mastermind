@@ -57,7 +57,7 @@ dependencies = [
   "django-health-check>=3.20.0,<4.0.0",
   "django-dbtemplates @ git+https://github.com/jazzband/django-dbtemplates@master",
   "pydantic>=2.10.6,<3.0.0",
-  "cryptography==48.0.1",
+  "cryptography==50.0.0",
   "kubernetes>=31.0.0",
   "django>=6.0.4,<7.0",
   "azure-mgmt-consumption>=10.0.0,<11.0.0",
