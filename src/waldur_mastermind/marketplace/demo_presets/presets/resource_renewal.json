@@ -22,7 +22,8 @@
       "password": "demo",
       "phone_number": "+441234567001",
       "organization": "Cambridge Research Computing Services",
-      "job_title": "SRCP Platform Administrator"
+      "job_title": "SRCP Platform Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000002",
@@ -35,7 +36,8 @@
       "password": "demo",
       "phone_number": "+441234567002",
       "organization": "Cambridge Research Computing Services",
-      "job_title": "SRCP Service Manager"
+      "job_title": "SRCP Service Manager",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000003",
@@ -48,7 +50,8 @@
       "password": "demo",
       "phone_number": "+441234567003",
       "organization": "Clinical Research Group",
-      "job_title": "Principal Investigator"
+      "job_title": "Principal Investigator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000004",
@@ -61,7 +64,8 @@
       "password": "demo",
       "phone_number": "+441234567004",
       "organization": "Clinical Research Group",
-      "job_title": "Senior Research Associate"
+      "job_title": "Senior Research Associate",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000005",
@@ -74,7 +78,8 @@
       "password": "demo",
       "phone_number": "+441234567005",
       "organization": "Clinical Research Group",
-      "job_title": "PhD Researcher"
+      "job_title": "PhD Researcher",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "customers": [

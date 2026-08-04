@@ -33,7 +33,8 @@
       "password": "demo",
       "phone_number": "+37256001001",
       "organization": "Demo Organization",
-      "job_title": "System Administrator"
+      "job_title": "System Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000002",
@@ -46,7 +47,8 @@
       "password": "demo",
       "phone_number": "+37256001002",
       "organization": "Demo Organization",
-      "job_title": "Support Engineer"
+      "job_title": "Support Engineer",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000003",
@@ -58,7 +60,8 @@
       "password": "demo",
       "phone_number": "+37256001003",
       "organization": "Demo Organization",
-      "job_title": "Chief Technology Officer"
+      "job_title": "Chief Technology Officer",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000004",
@@ -70,7 +73,8 @@
       "password": "demo",
       "phone_number": "+37256001004",
       "organization": "Demo Organization",
-      "job_title": "Project Manager"
+      "job_title": "Project Manager",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000005",
@@ -82,7 +86,8 @@
       "password": "demo",
       "phone_number": "+37256001005",
       "organization": "Demo Organization",
-      "job_title": "Software Developer"
+      "job_title": "Software Developer",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "ssh_public_keys": [

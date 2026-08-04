@@ -23,7 +23,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "EuroHPC JU",
-      "job_title": "Platform Administrator"
+      "job_title": "Platform Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000002",
@@ -35,7 +36,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "EuroHPC JU",
-      "job_title": "Technical Support"
+      "job_title": "Technical Support",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000010",
@@ -46,7 +48,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "Barcelona Supercomputing Center",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000011",
@@ -57,7 +60,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "CINECA",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000012",
@@ -68,7 +72,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "CSC",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000013",
@@ -79,7 +84,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "IT4Innovations",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000014",
@@ -90,7 +96,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "IZUM",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000015",
@@ -101,7 +108,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "Jülich Supercomputing Centre",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000016",
@@ -112,7 +120,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "LuxProvide",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000017",
@@ -123,7 +132,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "Minho Advanced Computing Center",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000018",
@@ -134,7 +144,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "NAISS",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000019",
@@ -145,7 +156,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "Sofia Tech Park",
-      "job_title": "System Operator"
+      "job_title": "System Operator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000020",
@@ -156,7 +168,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "EuroHPC JU",
-      "job_title": "Review Portal Manager"
+      "job_title": "Review Portal Manager",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000030",
@@ -167,7 +180,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "Demo University",
-      "job_title": "Principal Investigator"
+      "job_title": "Principal Investigator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000031",
@@ -178,7 +192,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "Demo Research Institute",
-      "job_title": "Senior Researcher"
+      "job_title": "Senior Researcher",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000032",
@@ -189,7 +204,8 @@
       "is_active": true,
       "password": "demo",
       "organization": "Demo National Lab",
-      "job_title": "Research Engineer"
+      "job_title": "Research Engineer",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "customers": [

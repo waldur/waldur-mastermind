@@ -12,7 +12,8 @@
       "first_name": "Reporting",
       "last_name": "Staff",
       "is_staff": true,
-      "password": "demo"
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "f4000000000000000000000000000002",
@@ -20,7 +21,8 @@
       "email": "owner@reporting.demo",
       "first_name": "Org",
       "last_name": "Owner",
-      "password": "demo"
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "f4000000000000000000000000000003",
@@ -28,7 +30,8 @@
       "email": "alice@reporting.demo",
       "first_name": "Alice",
       "last_name": "Reviewer",
-      "password": "demo"
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "f4000000000000000000000000000004",
@@ -36,7 +39,8 @@
       "email": "bob@reporting.demo",
       "first_name": "Bob",
       "last_name": "Reviewer",
-      "password": "demo"
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "f4000000000000000000000000000005",
@@ -44,7 +48,8 @@
       "email": "charlie@reporting.demo",
       "first_name": "Charlie",
       "last_name": "Reviewer",
-      "password": "demo"
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "customers": [
