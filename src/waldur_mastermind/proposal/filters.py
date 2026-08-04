@@ -221,13 +221,16 @@ class RequestedOfferingFilter(django_filters.FilterSet):
 
 
 class RequestedResourceFilter(django_filters.FilterSet):
+    # RequestedResource reaches the offering through RequestedOffering; it has no
+    # offering FK of its own, so the shorter path raises FieldError at query time.
     offering = core_filters.URLFilter(
         view_name="marketplace-provider-offering-detail",
-        field_name="offering__uuid",
+        field_name="requested_offering__offering__uuid",
         label="Offering",
     )
     offering_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-provider-offering-detail", field_name="offering__uuid"
+        view_name="marketplace-provider-offering-detail",
+        field_name="requested_offering__offering__uuid",
     )
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail",
@@ -247,10 +250,10 @@ class RequestedResourceFilter(django_filters.FilterSet):
     )
     o = django_filters.OrderingFilter(
         fields=(
-            "created",
-            "offering__name",
-            "resource__name",
-            "proposal__name",
+            ("created", "created"),
+            ("requested_offering__offering__name", "offering__name"),
+            ("resource__name", "resource__name"),
+            ("proposal__name", "proposal__name"),
         )
     )
 
