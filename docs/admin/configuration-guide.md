@@ -1384,6 +1384,14 @@ Regular expression that a project name must fully match when creating or renamin
 
 Custom validation error shown when a project name does not match PROJECT_NAME_REGEX. Leave empty to use the default message.
 
+#### OPENPORTAL_MEMBERSHIP_SYNC_MODE
+
+**Type:** choice_field
+
+**Default value:** invitation
+
+How to add a user to a project when an OpenPortal award lists them as a member. 'invitation': create a pending invitation, so the user accepts, agrees to the terms and is provisioned locally before gaining access. 'direct': create the account if it does not exist and grant the role immediately. A pending invitation is reported back to the allocating portal as a member either way, so the award reaches a consistent state without waiting for the user to act.
+
 ### Telemetry
 
 #### TELEMETRY_URL
