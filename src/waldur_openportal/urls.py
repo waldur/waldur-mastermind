@@ -5,8 +5,10 @@ from .api import (
     access_for_email,
     customer_spend_info,
     fetch_job,
+    fetch_notification,
     get_api_token,
     offering_mapping,
+    project_email_policy,
     project_mapping,
     project_spend_info,
     user_mapping,
@@ -80,6 +82,26 @@ def register_in(router):
         views.ProjectAccountingSummaryViewSet,
         basename="openportal-accounting-summary",
     )
+    router.register(
+        r"openportal-remote-projects",
+        views.RemoteProjectViewSet,
+        basename="openportal-remote-project",
+    )
+    router.register(
+        r"openportal-remote-project-audit",
+        views.RemoteProjectAuditEntryViewSet,
+        basename="openportal-remote-project-audit",
+    )
+    router.register(
+        r"openportal-remote-project-allocations",
+        views.RemoteProjectAllocationEntryViewSet,
+        basename="openportal-remote-project-allocation",
+    )
+    router.register(
+        r"openportal-managed-project-audit",
+        views.ManagedProjectAuditEntryViewSet,
+        basename="openportal-managed-project-audit",
+    )
 
 
 urlpatterns = [
@@ -102,6 +124,11 @@ urlpatterns = [
         r"^api/openportal/fetch_job/",
         fetch_job,
         name="fetch-job",
+    ),
+    re_path(
+        r"^api/openportal/fetch_notification/",
+        fetch_notification,
+        name="fetch-notification",
     ),
     re_path(
         r"^api/openportal/whoami/",
@@ -128,10 +155,17 @@ urlpatterns = [
         user_mapping,
         name="user-mapping",
     ),
+    re_path(
+        r"^api/openportal/project_email_policy/(?P<project_uuid>[0-9a-f-]+)/$",
+        project_email_policy,
+        name="project-email-policy",
+    ),
     # Custom routes for ManagedProject with composite lookup
     re_path(
         r"^api/openportal-managed-projects/(?P<identifier>[\w.-]+)/(?P<destination>[\w.-]+)/$",
-        views.ManagedProjectViewSet.as_view({"get": "retrieve"}),
+        views.ManagedProjectViewSet.as_view(
+            {"get": "retrieve_custom", "head": "retrieve_custom"}
+        ),
         name="openportal-managed-project-detail",
     ),
     re_path(
@@ -158,5 +192,10 @@ urlpatterns = [
         r"^api/openportal-managed-projects/(?P<identifier>[\w.-]+)/(?P<destination>[\w.-]+)/detach/$",
         views.ManagedProjectViewSet.as_view({"post": "detach"}),
         name="openportal-managed-project-detach",
+    ),
+    re_path(
+        r"^api/openportal-managed-projects/(?P<identifier>[\w.-]+)/(?P<destination>[\w.-]+)/add-note/$",
+        views.ManagedProjectViewSet.as_view({"post": "add_note"}),
+        name="openportal-managed-project-add-note",
     ),
 ]

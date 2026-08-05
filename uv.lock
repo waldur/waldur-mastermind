@@ -1911,14 +1911,14 @@ wheels = [
 
 [[package]]
 name = "openportal"
-version = "0.28.0"
+version = "0.91.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/e2/9434d8fb376d29615530d8e5113661c794d049ff6602638928411970fbcd/openportal-0.28.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:ce47826847c9650ea66318732d86dac40b859accbf53ed35494a28aacb7a8b20", size = 2873892, upload-time = "2026-05-01T10:47:58.177Z" },
-    { url = "https://files.pythonhosted.org/packages/c9/e2/d6b6d0dcc5edcca3761391d16f2053965daee20eb35826c7afddee054c5e/openportal-0.28.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bc5732a29d40ac88783c033628ffeafd4000c2078d6e2797743d81e24b48c5cd", size = 2887768, upload-time = "2026-05-01T10:47:50.941Z" },
-    { url = "https://files.pythonhosted.org/packages/62/85/8925ef9fe0693c93aa049961c4a0a134073a575bdf417eac59234ca46c4b/openportal-0.28.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5a8729e89e4f5eab99bd9686b4efbf7948cca96b926b444b534b423acb039b08", size = 2970594, upload-time = "2026-05-01T10:47:54.904Z" },
-    { url = "https://files.pythonhosted.org/packages/2c/bf/01b460fe3499796953ecd5fdfa806d11cad3d9dfe4a351334e720417aaa7/openportal-0.28.0-cp310-abi3-musllinux_1_1_aarch64.whl", hash = "sha256:71fbf75298064b67ea4aaa28a922569c0bb9a0f008729e151bab54e1a12a5b8c", size = 3059623, upload-time = "2026-05-01T10:47:52.962Z" },
-    { url = "https://files.pythonhosted.org/packages/00/58/8742a45507bf9b10313ba79f1475cbb60bd6f9d1f815497b61ce48d8d087/openportal-0.28.0-cp310-abi3-musllinux_1_1_x86_64.whl", hash = "sha256:1459c0e8d1cc8ca7d9be6d69c5cc1f038f7a7b2856e187532d4ace124d541bbe", size = 3232448, upload-time = "2026-05-01T10:47:56.521Z" },
+    { url = "https://files.pythonhosted.org/packages/97/14/94be21f57f0c4c4b9e7f3c4cf4f208413e5b81fecea2ea286a2074231cb8/openportal-0.91.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:f1e4322b9f4b244ae1ec1070f13f24a5dcd7e354304e05526a49f180747d9311", size = 2939300, upload-time = "2026-08-04T10:51:13.834Z" },
+    { url = "https://files.pythonhosted.org/packages/92/ee/bb6954df39571a0e88eccb10595332548e0c9694c905f349289e49639f60/openportal-0.91.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1d77c6fc4ead6153c351cbfd4b364994d050e4e99ee884ecd90d01ccbeff3542", size = 2931568, upload-time = "2026-08-04T10:51:08.224Z" },
+    { url = "https://files.pythonhosted.org/packages/27/b5/86bb5c7b918e3e82276219ec39f8733ecf7d9bdbd226829a86c9b204b6c5/openportal-0.91.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e0da673ecd70c4ef09e6d1bce544664eaf6afd3eab1fd8124f2b9f21d55fbf7f", size = 3024569, upload-time = "2026-08-04T10:51:11.237Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/7b/fe0b15bf48e2eb67679fa9f904129e576939f5ca2f57ee2e60699a9fb176/openportal-0.91.0-cp310-abi3-musllinux_1_1_aarch64.whl", hash = "sha256:3bd5ea58df4d8dcb5c45566f1dd32f612ec73aabcf2a47fca758926db15ad503", size = 3126631, upload-time = "2026-08-04T10:51:09.878Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/9f/cfe0fb232bf179b5d5c62d8a99875ba10d1437d1a9963aa3db68e3f0f6e6/openportal-0.91.0-cp310-abi3-musllinux_1_1_x86_64.whl", hash = "sha256:04c0909b0860e51eac3efe033938d0ad8b8d2cb47c3507b34b614e860ea6673b", size = 3307872, upload-time = "2026-08-04T10:51:12.684Z" },
 ]
 
 [[package]]
@@ -3539,7 +3539,7 @@ requires-dist = [
     { name = "matrix-nio", specifier = ">=0.25.2,<1.0.0" },
     { name = "nh3", specifier = ">=0.2.18,<1.0.0" },
     { name = "openai", specifier = ">=2.26.0" },
-    { name = "openportal", specifier = ">=0.28.0" },
+    { name = "openportal", specifier = ">=0.91.0" },
     { name = "openstacksdk", specifier = ">=4.7.1" },
     { name = "pillow", specifier = ">=12.2.0,<13.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.6,<4.0.0" },

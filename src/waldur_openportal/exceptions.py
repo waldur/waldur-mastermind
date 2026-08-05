@@ -29,6 +29,42 @@ class OpenPortalOtherError(OpenPortalError):
             return self._message
 
 
+class OpenPortalUnsupportedCommandError(OpenPortalError):
+    """
+    Raised when the remote portal does not understand a command we sent,
+    which normally means it runs an older OpenPortal version. Callers use
+    this to fall back to whatever local state they already hold.
+
+    Defined here because the openportal SDK does not provide it, as of 0.91.0.
+    Catching a name the SDK lacks costs nothing until the fallback is needed,
+    and then raises AttributeError while handling the original error. Check
+    before switching to an SDK-provided one:
+
+        >>> hasattr(openportal, "OpenPortalUnsupportedCommandError")
+
+    See docs/guides/how-to-reconcile-a-fork.md, section 7.
+    """
+
+    def __init__(self, message=None):
+        super().__init__()
+        self._message = message
+
+    def __str__(self):
+        if self._message is None:
+            return "OpenPortalUnsupportedCommandError: The remote portal does not support this command."
+        else:
+            return f"OpenPortalUnsupportedCommandError: {self._message}"
+
+    def __repr__(self):
+        return f"OpenPortalUnsupportedCommandError(message={self._message})"
+
+    def message(self):
+        if self._message is None:
+            return "The remote portal does not support this command."
+        else:
+            return self._message
+
+
 class ManagedProjectPermissionError(OpenPortalError):
     pass
 

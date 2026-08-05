@@ -47,6 +47,11 @@ MARKETPLACE_CARD_STYLE_CHOICES = [
     ("minimal", "Minimal"),
 ]
 
+OPENPORTAL_MEMBERSHIP_SYNC_MODE_CHOICES = [
+    ("invitation", "Invite the user and wait for them to accept"),
+    ("direct", "Add the user to the project immediately"),
+]
+
 LOGIN_PAGE_LAYOUT_CHOICES = [
     ("split-screen", "Split-screen"),
     ("centered-card", "Centered-card"),
@@ -283,6 +288,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "LOGIN_PAGE_LAYOUT": LOGIN_PAGE_LAYOUT_CHOICES,
     "MARKETPLACE_LAYOUT_MODE": MARKETPLACE_LAYOUT_MODE_CHOICES,
     "MARKETPLACE_CARD_STYLE": MARKETPLACE_CARD_STYLE_CHOICES,
+    "OPENPORTAL_MEMBERSHIP_SYNC_MODE": OPENPORTAL_MEMBERSHIP_SYNC_MODE_CHOICES,
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": SUPPORT_BACKEND_CHOICES,
     "ZAMMAD_ARTICLE_TYPE": ZAMMAD_ARTICLE_TYPE_CHOICES,
     "DEFAULT_OFFERING_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
@@ -357,6 +363,19 @@ CONSTANCE_CONFIG = {
         "'show_restricted_disabled': Show all but mark inaccessible as disabled. "
         "'hide_inaccessible': Hide offerings user cannot access. "
         "'require_membership': Hide all unless user belongs to an organization/project.",
+        "choice_field",
+    ),
+    "OPENPORTAL_MEMBERSHIP_SYNC_MODE": (
+        "invitation",
+        "How to add a user to a project when an OpenPortal award lists them as "
+        "a member. "
+        "'invitation': create a pending invitation, so the user accepts, agrees "
+        "to the terms and is provisioned locally before gaining access. "
+        "'direct': create the account if it does not exist and grant the role "
+        "immediately. "
+        "A pending invitation is reported back to the allocating portal as a "
+        "member either way, so the award reaches a consistent state without "
+        "waiting for the user to act.",
         "choice_field",
     ),
     "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT": (
@@ -1755,6 +1774,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "AFFILIATION_REQUIRED_AT_PROJECT_CREATION",
         "PROJECT_NAME_REGEX",
         "PROJECT_NAME_REGEX_ERROR_MESSAGE",
+        "OPENPORTAL_MEMBERSHIP_SYNC_MODE",
     ),
     "Telemetry": (
         "TELEMETRY_URL",

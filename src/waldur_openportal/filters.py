@@ -1,11 +1,12 @@
 import django_filters
 from django.db.models import Q
+from django.utils import timezone
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 
-from . import models
+from . import config, models
 
 
 class AllocationFilter(structure_filters.BaseResourceFilter):
@@ -51,7 +52,7 @@ class RemoteAssociationFilter(django_filters.FilterSet):
         view_name="openportal-remote-allocation-detail", field_name="allocation__uuid"
     )
     allocation_uuid = core_filters.RelatedUUIDFilter(
-        view_name="openportal-allocation-detail", field_name="allocation__uuid"
+        view_name="openportal-remote-allocation-detail", field_name="allocation__uuid"
     )
 
 
@@ -80,25 +81,21 @@ class ProjectTemplateFilter(django_filters.FilterSet):
 def _identifiers_for_project_uuid(value):
     """Return the set of OpenPortal project_identifier strings for a project UUID.
 
-    Combines two sources:
+    Always combines two sources:
     1. Allocation.backend_id — covers active projects with existing allocations.
-       Available without OpenPortal config.
     2. {projectinfo.shortname}.{portal} — covers cases where the allocation
        has been deleted (e.g. soft-deleted projects, or allocations removed).
-       Requires OpenPortal config to resolve the portal name; skipped when
-       the plugin is enabled but config is unavailable.
     """
     import openportal
 
-    from . import config
+    if not config.ensure_config_loaded():
+        return set()
 
     allocation_identifiers = set(
         models.Allocation.objects.filter(project__uuid=value)
         .exclude(backend_id="")
         .values_list("backend_id", flat=True)
     )
-    if not config.ensure_config_loaded():
-        return allocation_identifiers
     portal = str(openportal.get_portal())
     shortnames = (
         models.ProjectInfo.objects.filter(
@@ -151,6 +148,31 @@ class CachedProjectStorageReportFilter(django_filters.FilterSet):
         fields = []
 
 
+class ProjectAccountingSummaryFilter(django_filters.FilterSet):
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="uuid"
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid"
+    )
+    is_active = django_filters.BooleanFilter(method="filter_is_active")
+
+    def filter_is_active(self, queryset, name, value):
+        today = timezone.now().date()
+        if value:
+            # Active: no end_date set, or end_date is in the future
+            return queryset.filter(end_date__isnull=True) | queryset.filter(
+                end_date__gt=today
+            )
+        else:
+            # Inactive: end_date is set and has passed
+            return queryset.filter(end_date__lte=today)
+
+    class Meta:
+        model = structure_models.Project
+        fields = []
+
+
 class ManagedProjectFilter(django_filters.FilterSet):
     identifier = django_filters.CharFilter(
         field_name="identifier", lookup_expr="icontains"
@@ -158,6 +180,36 @@ class ManagedProjectFilter(django_filters.FilterSet):
     local_identifier = django_filters.CharFilter(
         field_name="local_identifier", lookup_expr="icontains"
     )
+    query = django_filters.CharFilter(method="filter_search")
+    hide_embargoed = django_filters.BooleanFilter(method="filter_hide_embargoed")
+
+    def filter_search(self, queryset, name, value):
+        return queryset.filter(
+            Q(identifier__icontains=value)
+            | Q(project__name__icontains=value)
+            | Q(project_template__name__icontains=value)
+            | Q(details__name__icontains=value)
+        )
+
+    def filter_hide_embargoed(self, queryset, name, value):
+        """
+        Drop awards that cannot be approved yet because earliest_approve is
+        still in the future.
+
+        AwardDetails serialises the timestamp as a canonical UTC ISO-8601
+        string of fixed width, so it orders correctly as a string and can be
+        compared inside the JSON document.  A JSON null sorts below any string
+        and so is kept by the comparison, but a missing key matches neither it
+        nor an exclude(), hence the explicit isnull branch.
+        """
+        if not value:
+            return queryset
+
+        now = timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        return queryset.filter(
+            Q(details__earliest_approve__lte=now)
+            | Q(details__earliest_approve__isnull=True)
+        )
 
     project = core_filters.URLFilter(
         view_name="project-detail", field_name="project__uuid"
@@ -175,43 +227,118 @@ class ManagedProjectFilter(django_filters.FilterSet):
         field_name="project_template__uuid",
     )
     state = core_filters.ReviewStateFilter()
-    query = django_filters.CharFilter(method="filter_search")
-
-    def filter_search(self, queryset, name, value):
-        return queryset.filter(
-            Q(identifier__icontains=value)
-            | Q(project__name__icontains=value)
-            | Q(project_template__name__icontains=value)
-            | Q(details__name__icontains=value)
-        )
 
     class Meta:
         model = models.ManagedProject
         fields = []
 
 
-class ProjectAccountingSummaryFilter(django_filters.FilterSet):
+class RemoteProjectFilter(django_filters.FilterSet):
     project_uuid = core_filters.RelatedUUIDFilter(
-        view_name="project-detail", field_name="uuid"
+        view_name="project-detail", field_name="current_project__uuid"
+    )
+    project = core_filters.URLFilter(
+        view_name="project-detail",
+        field_name="current_project__uuid",
+    )
+    customer = core_filters.URLFilter(
+        view_name="customer-detail",
+        field_name="current_project__customer__uuid",
     )
     customer_uuid = core_filters.RelatedUUIDFilter(
-        view_name="customer-detail", field_name="customer__uuid"
+        view_name="customer-detail",
+        field_name="current_project__customer__uuid",
     )
-    is_active = django_filters.BooleanFilter(method="filter_is_active")
+    state = django_filters.MultipleChoiceFilter(
+        field_name="state",
+        choices=models.RemoteProjectState.CHOICES,
+    )
+    identifier = django_filters.CharFilter(lookup_expr="icontains")
+    destination = django_filters.CharFilter(lookup_expr="icontains")
+    query = django_filters.CharFilter(method="filter_search")
 
-    def filter_is_active(self, queryset, name, value):
-        from django.utils import timezone
-
-        today = timezone.now().date()
-        if value:
-            # Active: no end_date set, or end_date is in the future
-            return queryset.filter(end_date__isnull=True) | queryset.filter(
-                end_date__gt=today
-            )
-        else:
-            # Inactive: end_date is set and has passed
-            return queryset.filter(end_date__lte=today)
+    def filter_search(self, queryset, name, value):
+        return queryset.filter(
+            Q(identifier__icontains=value)
+            | Q(destination__icontains=value)
+            | Q(current_project__name__icontains=value)
+            | Q(last_confirmed_details__name__icontains=value)
+            | Q(last_confirmed_details__description__icontains=value)
+            | Q(last_sent_details__name__icontains=value)
+            | Q(last_sent_details__description__icontains=value)
+        )
 
     class Meta:
-        model = structure_models.Project
+        model = models.RemoteProject
+        fields = []
+
+
+class RemoteProjectAuditEntryFilter(django_filters.FilterSet):
+    remote_project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openportal-remote-project-detail", field_name="remote_project__uuid"
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="remote_project__current_project__uuid"
+    )
+    event_type = django_filters.CharFilter(field_name="event_type")
+    timestamp_after = django_filters.DateTimeFilter(
+        field_name="timestamp", lookup_expr="gte"
+    )
+    timestamp_before = django_filters.DateTimeFilter(
+        field_name="timestamp", lookup_expr="lte"
+    )
+    q = django_filters.CharFilter(method="filter_search", label="Search")
+
+    def filter_search(self, queryset, name, value):
+        return queryset.filter(
+            Q(note__icontains=value)
+            | Q(previous_details__icontains=value)
+            | Q(new_details__icontains=value)
+            | Q(performed_by__first_name__icontains=value)
+            | Q(performed_by__last_name__icontains=value)
+        )
+
+    class Meta:
+        model = models.RemoteProjectAuditEntry
+        fields = []
+
+
+class RemoteProjectAllocationEntryFilter(django_filters.FilterSet):
+    remote_project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openportal-remote-project-detail", field_name="remote_project__uuid"
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="remote_project__current_project__uuid"
+    )
+
+    class Meta:
+        model = models.RemoteProjectAllocationEntry
+        fields = []
+
+
+class ManagedProjectAuditEntryFilter(django_filters.FilterSet):
+    managed_project_identifier = django_filters.CharFilter(field_name="identifier")
+    managed_project_destination = django_filters.CharFilter(field_name="destination")
+    event_type = django_filters.CharFilter(field_name="event_type")
+    timestamp_after = django_filters.DateTimeFilter(
+        field_name="timestamp", lookup_expr="gte"
+    )
+    timestamp_before = django_filters.DateTimeFilter(
+        field_name="timestamp", lookup_expr="lte"
+    )
+    q = django_filters.CharFilter(method="filter_search", label="Search")
+
+    def filter_search(self, queryset, name, value):
+        return queryset.filter(
+            Q(note__icontains=value)
+            | Q(identifier__icontains=value)
+            | Q(destination__icontains=value)
+            | Q(previous_details__icontains=value)
+            | Q(new_details__icontains=value)
+            | Q(performed_by__first_name__icontains=value)
+            | Q(performed_by__last_name__icontains=value)
+        )
+
+    class Meta:
+        model = models.ManagedProjectAuditEntry
         fields = []

@@ -10,6 +10,13 @@ from . import config, exceptions
 logger = logging.getLogger(__name__)
 
 
+def _trim_cmd(cmd: str, max_len: int = 128) -> str:
+    if len(cmd) <= max_len:
+        return cmd
+    half = (max_len - 3) // 2
+    return f"{cmd[:half]}...{cmd[-(max_len - 3 - half) :]}"
+
+
 class OpenPortalRunner:
     """
     This class is actually responsible for running OpenPortal commands
@@ -21,15 +28,6 @@ class OpenPortalRunner:
             raise exceptions.OpenPortalError(
                 "OpenPortal is not enabled or configuration is not available"
             )
-
-    def load_config(self):
-        """
-        Load the OpenPortal configuration from the file specified
-        in the OPENPORTAL_CONFIG environment variable. Raises an
-        OpenPortalException if the environment variable is not set
-        or if the config file cannot be loaded
-        """
-        config.ensure_config_loaded()
 
     def health(self):
         if not config.is_config_available():
@@ -52,7 +50,7 @@ class OpenPortalRunner:
         """
         if not config.is_config_available():
             raise exceptions.OpenPortalError(
-                f"OpenPortal is not enabled or configuration is not available - cannot get job with UID '{uid}'"
+                f"OpenPortal is not available - cannot get job with UID '{uid}'"
             )
 
         try:
@@ -70,7 +68,7 @@ class OpenPortalRunner:
         """
         if not config.is_config_available():
             raise exceptions.OpenPortalError(
-                f"OpenPortal is not enabled or configuration is not available - cannot run '{command}'"
+                f"OpenPortal is not available - cannot run '{command}'"
             )
 
         try:
@@ -262,6 +260,17 @@ class OpenPortalClient:
         )
         return report
 
+    def get_storage_report(
+        self, project: openportal.ProjectIdentifier
+    ) -> "openportal.ProjectStorageReport":
+        """
+        Return the current storage report for the specified project
+        """
+        project = self._to_project_identifier(project)
+
+        report = self.run(f"{self.destination()} get_storage_report {project}")
+        return report
+
     def get_users(
         self, project: openportal.ProjectIdentifier
     ) -> list[openportal.UserMapping]:
@@ -275,7 +284,8 @@ class OpenPortalClient:
         """
         Run the passed command and await the result
         """
-        logger.debug(f"Running command '{command}'")
+        cmd_label = _trim_cmd(command)
+        logger.debug(f"Running command '{cmd_label}'")
         op_job = self._runner.run(command)
 
         now = datetime.datetime.now()
@@ -287,26 +297,26 @@ class OpenPortalClient:
             if check_time - last_update > datetime.timedelta(seconds=10):
                 total_duration = check_time - now
                 logger.warning(
-                    f"Job {command} is still running... for {total_duration}"
+                    f"Job {cmd_label} is still running... for {total_duration}"
                 )
                 last_update = check_time
 
             if check_time - now > datetime.timedelta(seconds=30):
-                logger.error(f"Job {command} is taking too long to run - skipping!")
+                logger.error(f"Job {cmd_label} is taking too long to run - skipping!")
                 break
 
         # Give the job another 100ms to finish...
         if not op_job.wait(100):
-            logger.error(f"Job {command} timed out - skipping!")
-            raise exceptions.OpenPortalError(f"Job '{command}' timed out - skipping!")
+            logger.error(f"Job {cmd_label} timed out - skipping!")
+            raise exceptions.OpenPortalError(f"Job '{cmd_label}' timed out - skipping!")
 
         if op_job.is_error:
-            logger.error(f"Job {command} has failed: {op_job.error_message}")
+            logger.error(f"Job {cmd_label} has failed: {op_job.error_message}")
             raise exceptions.OpenPortalError(
-                f"Job '{command}' failed: {op_job.error_message}"
+                f"Job '{cmd_label}' failed: {op_job.error_message}"
             )
         else:
-            logger.debug(f"Job finished: {command} - SUCCESS")
+            logger.debug(f"Job finished: {cmd_label} - SUCCESS")
             return op_job.result
 
     def list_accounts(self) -> list[Account]:

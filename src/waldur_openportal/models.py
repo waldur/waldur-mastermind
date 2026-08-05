@@ -19,6 +19,8 @@ from waldur_core.structure.managers import get_project_users
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openportal import utils
 
+from . import config
+
 logger = logging.getLogger(__name__)
 
 MAX_USER_SHORTNAME_LENGTH = 32
@@ -346,7 +348,7 @@ class RemoteAllocation(
                 # the resource options
                 try:
                     if float(resource.options["allocation"]) != float(allocation):
-                        logger.info(
+                        logger.debug(
                             f"Updating allocation for resource {resource} to {allocation} {allocation_unit}"
                         )
                         resource.options["allocation"] = allocation
@@ -355,7 +357,7 @@ class RemoteAllocation(
                     logger.warning(f"Failed to set allocation: {e}")
             else:
                 try:
-                    logger.info(
+                    logger.debug(
                         f"Recording default allocation {allocation} for resource {resource}"
                     )
                     options["allocation"] = allocation
@@ -364,7 +366,7 @@ class RemoteAllocation(
                 except Exception as e:
                     logger.warning(f"Failed to set allocation: {e}")
 
-        logger.info(
+        logger.debug(
             f"Requested credits from allocation {allocation} with unit {allocation_unit}"
         )
 
@@ -390,6 +392,12 @@ class RemoteAllocation(
         if project.end_date is not None:
             details.end_date = project.end_date
 
+        # The project key is the UUID of the organisation that owns
+        # the project. This way, only projects within the approved
+        # organisation can create remote projects using this
+        # allocation, thereby preventing an admin of another
+        # organisation from guessing the project template name
+        # and using that
         details.key = str(project.customer.uuid)
 
         # now get the allocation for this project (if requested)
@@ -409,12 +417,14 @@ class RemoteAllocation(
                 )
 
         # now try to add in any members for this project
+        # also keeping note of the allowed email domains
+        # for this project
         for user_id in get_project_users(project.id):
             try:
                 user = core_models.User.objects.filter(id=user_id)
 
                 if not user.exists():
-                    logger.info(
+                    logger.debug(
                         f"Skipping non-existing user {user_id} for project {project}"
                     )
                     continue
@@ -422,17 +432,17 @@ class RemoteAllocation(
                 user = user.first()
 
                 if user is None:
-                    logger.info(
+                    logger.debug(
                         f"Skipping non-existing user {user_id} for project {project}"
                     )
                     continue
 
                 if not user.is_active:
-                    logger.info(f"Skipping inactive user {user} for project {project}")
+                    logger.debug(f"Skipping inactive user {user} for project {project}")
                     continue
 
                 if user.email is None:
-                    logger.info(
+                    logger.debug(
                         f"Skipping user {user} without email for project {project}"
                     )
                     continue
@@ -440,7 +450,7 @@ class RemoteAllocation(
                 email = str(user.email).strip()
 
                 if not email:
-                    logger.info(
+                    logger.debug(
                         f"Skipping user {user} with empty email for project {project}"
                     )
                     continue
@@ -492,7 +502,7 @@ class RemoteAllocation(
                         )
                         continue
 
-                    logger.info(
+                    logger.debug(
                         f"Adding user {user} with role {role_name} to project {project}"
                     )
 
@@ -500,7 +510,7 @@ class RemoteAllocation(
             except Exception as e:
                 logger.warning(f"Failed to add user {user} to project {project}: {e}")
 
-        logger.info(f"Returning project details for project {project}: {details}")
+        logger.debug(f"Returning project details for project {project}: {details}")
 
         return details
 
@@ -744,14 +754,6 @@ class RemoteAssociation(core_models.UuidMixin):
 
     def __repr__(self):
         return self.__str__()
-
-    def user_is_in_remote(self) -> bool:
-        """
-        Check if the user is in the remote OpenPortal instance.
-        This is done by checking if the user has a remote project identifier.
-        """
-        logger.warning("NEED TO PROPERLY TEST IF A USER IS IN THE REMOTE INSTANCE")
-        return self.allocation.has_remote_project_identifier()
 
 
 class AllocationUserUsage(UsageMixin):
@@ -2043,7 +2045,7 @@ class ManagedProject(ReviewMixin, models.Model):
         verbose_name = _("Managed Project")
         verbose_name_plural = _("Managed Projects")
 
-    # This is the JSON representation of the OpenPortal ProjectDetails
+    # This is the JSON representation of the OpenPortal AwardDetails
     # that is synced between this portal and the managing portal
     details = models.JSONField(
         verbose_name=_("project data"),
@@ -2245,8 +2247,8 @@ class ManagedProject(ReviewMixin, models.Model):
 
     def set_details(self, details: openportal.AwardDetails):
         """
-        Set the ProjectDetails object for this project.
-        If the details are not an instance of ProjectDetails, convert it.
+        Set the AwardDetails object for this project.
+        If the details are not an instance of AwardDetails, convert it.
         """
         if not isinstance(details, openportal.AwardDetails):
             if not isinstance(details, str):
@@ -2262,15 +2264,115 @@ class ManagedProject(ReviewMixin, models.Model):
             )
 
         if self.details != new_details:
+            old_details = self.details
             self.details = new_details
             self.save(update_fields=["details"])
 
+            last = (
+                ManagedProjectAuditEntry.objects.filter(
+                    managed_project=self,
+                    event_type=ManagedProjectAuditEventType.DETAILS_UPDATED,
+                )
+                .order_by("-timestamp")
+                .first()
+            )
+            if last is None or last.new_details != self.details:
+                ManagedProjectAuditEntry.record(
+                    self,
+                    ManagedProjectAuditEventType.DETAILS_UPDATED,
+                    previous_details=old_details,
+                    new_details=self.details,
+                )
+
     def get_details(self) -> openportal.AwardDetails:
         """
-        Get the ProjectDetails object from the project data.
+        Get the AwardDetails object from the project data.
         If the project data is not set, return None.
         """
         return openportal.AwardDetails(json.dumps(self.details))
+
+    def _get_project_link(self) -> openportal.Link | None:
+        """
+        Get the project link for the attached project, or None
+        if there is no such project
+        """
+        if self.project is not None:
+            from waldur_core.core.utils import format_homeport_link
+
+            link = openportal.Link()
+            link.id = str(self.project.slug)
+            try:
+                link.url = format_homeport_link(f"/projects/{self.project.uuid}/")
+            except Exception:
+                link.url = None
+            return link
+        else:
+            return None
+
+    def set_project(self, project: structure_models.Project | None):
+        """
+        Set the project for this managed project.
+        This will also update the project link in the project details to point
+        to the new project.
+        If the project is not an instance of Project, raise an error.
+        """
+        if project is None:
+            self.project = None
+            self.save(update_fields=["project"])
+            existing_details = self.get_details()
+            existing_details.project_link = None
+            self.set_details(existing_details)
+            return
+
+        if not isinstance(project, structure_models.Project):
+            raise ValueError("Project must be an instance of Project.")
+
+        if self.project and self.project != project:
+            logger.warning(
+                f"Project for managed project {self} is being changed from {self.project} to {project}."
+            )
+
+        self.project = project
+        self.save(update_fields=["project"])
+        existing_details = self.get_details()
+        existing_details.project_link = self._get_project_link()
+        self.set_details(existing_details)
+
+    def merge_details(
+        self, new_details: openportal.AwardDetails
+    ) -> openportal.AwardDetails:
+        """
+        Merge incoming details from the local portal into the existing details,
+        with the following fields treated as authoritative from the incoming
+        details and always overriding the stored values:
+
+        - membership_control, allowed_domains: the remote portal sets membership
+          policy and it must not be softened by a merge with older stored values.
+        - award, call, renewal: link fields set by the local portal are the
+          source of truth and must replace whatever was previously stored.
+        - members: a None value explicitly means "do not manage membership" and
+          must not be overridden by stored members from a previous sync.
+
+        project_link is always set from this portal's own project reference,
+        since the local portal has no knowledge of the remote project URL/slug.
+        """
+        existing = self.get_details()
+        merged = existing.merge(new_details)
+
+        # These fields are authoritative from the incoming details and must
+        # override the merged result.
+        merged.membership_control = new_details.membership_control
+        merged.allowed_domains = new_details.allowed_domains
+        merged.award = new_details.award
+        merged.call = new_details.call
+        merged.renewal = new_details.renewal
+        merged.earliest_approve = new_details.earliest_approve
+
+        if new_details.members is None:
+            merged.members = None
+
+        merged.project_link = self._get_project_link()
+        return merged
 
     def get_default_offerings(self) -> list[marketplace_models.Offering]:
         """
@@ -2341,11 +2443,1093 @@ class ManagedProject(ReviewMixin, models.Model):
         """
         return self.state == ReviewStates.APPROVED
 
+    def _notify(self, action: str):
+        """
+        Send an award notification back to the remote portal that submitted
+        this managed project.  The destination is reversed because we are
+        replying in the opposite direction along the routing path.
+
+        Failures are logged and swallowed so they never disrupt the caller.
+        """
+        if not config.ensure_config_loaded():
+            return
+        try:
+            config.ensure_config_loaded()
+            dest = openportal.Destination(self.destination)
+            reverse_dest = openportal.Destination(".".join(reversed(dest.agents)))
+            openportal.notify(f"{reverse_dest} {action} {self.identifier}")
+        except Exception as e:
+            logger.warning(
+                f"Failed to send {action!r} notification for ManagedProject "
+                f"{self.identifier!r} to {self.destination!r}: {e}"
+            )
+
+    def notify_added(self):
+        self._notify("award_added")
+
+    def notify_changed(self):
+        self._notify("award_changed")
+
+    def notify_removed(self):
+        self._notify("award_removed")
+
+    def notify_accepted(self):
+        self._notify("award_accepted")
+
+    def notify_rejected(self):
+        self._notify("award_rejected")
+
     def __str__(self) -> str:
         try:
             return f"ManagedProject for {self.get_offering()} [{self.identifier} => {self.project}]"
         except Exception:
             return f"ManagedProject for 'null offering' [{self.identifier} => {self.project}]"
+
+
+# ---------------------------------------------------------------------------
+# RemoteProject — local portal representation of a project on a remote portal
+# ---------------------------------------------------------------------------
+
+
+class MembershipControlChoices:
+    """
+    Controls whether the receiving portal may independently modify
+    project membership or roles.  Mirrors the MembershipControl enum
+    in the OpenPortal AwardDetails grammar.
+    """
+
+    OPEN = "open"
+    MEMBERS_ONLY = "members_only"
+    ROLES_ONLY = "roles_only"
+    LOCKED = "locked"
+
+    CHOICES = [
+        (OPEN, _("Open — receiving portal manages membership freely")),
+        (MEMBERS_ONLY, _("Members only — roles are authoritative")),
+        (ROLES_ONLY, _("Roles only — membership is authoritative")),
+        (LOCKED, _("Locked — both membership and roles are authoritative")),
+    ]
+
+
+class RemoteProjectState:
+    """
+    State machine for RemoteProject.
+
+    PENDING  — AwardDetails have been sent to the remote portal but we have
+               not yet received confirmation (may be awaiting human review).
+    ACTIVE   — The award has been approved, a project exists on the remote
+               portal, and we have received confirmation that everything is ok.
+    STALE    — We have not heard from the remote portal for an unexpectedly
+               long time; the state may be out of date.
+    ERROR    — The request was rejected or the connection to the remote portal
+               is definitively broken.
+    DELETED  — The local resource associated with this award has been deleted.
+               The record is retained for history; a future resource may be
+               reconnected to revive this RemoteProject.
+    """
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    STALE = "stale"
+    ERROR = "error"
+    DELETED = "deleted"
+
+    CHOICES = [
+        (PENDING, _("Pending")),
+        (ACTIVE, _("Active")),
+        (STALE, _("Stale")),
+        (ERROR, _("Error")),
+        (DELETED, _("Deleted")),
+    ]
+
+
+class ManagedProjectAuditEventType(models.TextChoices):
+    """Event types for ManagedProjectAuditEntry."""
+
+    CREATED = "created", _("Project request received")
+    APPROVED = "approved", _("Project request approved")
+    REJECTED = "rejected", _("Project request rejected")
+    DELETED = "deleted", _("ManagedProject deleted")
+    NOTE_ADDED = "note_added", _("Note added")
+    DETAILS_UPDATED = "details_updated", _("Award details updated")
+    PROJECT_ATTACHED = "project_attached", _("Waldur project attached")
+    PROJECT_DETACHED = "project_detached", _("Waldur project detached")
+
+
+class ManagedProjectAuditEntry(models.Model):
+    """
+    Permanent audit log for a ManagedProject.
+
+    Unlike RemoteProjectAuditEntry (which uses CASCADE), these entries survive
+    the deletion of the ManagedProject itself.  The stable composite identity
+    (identifier + destination) is copied from the ManagedProject at creation time
+    so that history is preserved even after the ManagedProject is gone.
+
+    The nullable FK to ManagedProject is kept for convenience while the object
+    still exists.
+    """
+
+    # Copied from the ManagedProject at record() time — survive deletion
+    identifier = models.CharField(
+        max_length=MAX_PROJECTIDENTIFIER_LENGTH,
+        verbose_name=_("identifier"),
+        help_text=_("Project identifier copied from ManagedProject at record time."),
+    )
+
+    destination = models.CharField(
+        max_length=MAX_DESTINATION_LENGTH,
+        verbose_name=_("destination"),
+        help_text=_("Destination copied from ManagedProject at record time."),
+    )
+
+    # Nullable FK — set to NULL when the ManagedProject is deleted
+    managed_project = models.ForeignKey(
+        to="ManagedProject",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_log",
+        verbose_name=_("managed project"),
+    )
+
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        verbose_name=_("timestamp"),
+    )
+
+    event_type = models.CharField(
+        max_length=32,
+        choices=ManagedProjectAuditEventType.choices,
+        db_index=True,
+        verbose_name=_("event type"),
+    )
+
+    previous_details = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("previous details"),
+        help_text=_("Project details before this event.  Null for creation events."),
+    )
+
+    new_details = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("new details"),
+        help_text=_(
+            "Project details after this event.  "
+            "Null for events that do not change the details."
+        ),
+    )
+
+    performed_by = models.ForeignKey(
+        to=core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("performed by"),
+        help_text=_("The user who triggered this event, if it was a human action."),
+    )
+
+    note = models.TextField(
+        blank=True,
+        verbose_name=_("note"),
+        help_text=_("Optional free-text comment about this event."),
+    )
+
+    class Meta:
+        ordering = ["-timestamp"]
+        verbose_name = _("Managed Project Audit Entry")
+        verbose_name_plural = _("Managed Project Audit Entries")
+
+    def __str__(self) -> str:
+        return f"{self.identifier}@{self.destination} — {self.event_type} at {self.timestamp}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    @classmethod
+    def record(
+        cls,
+        managed_project: "ManagedProject",
+        event_type: str,
+        performed_by=None,
+        note: str = "",
+        previous_details=None,
+        new_details=None,
+    ) -> "ManagedProjectAuditEntry | None":
+        """
+        Create and save an audit entry for the given ManagedProject.
+
+        Copies identifier and destination from the ManagedProject at call time
+        so that the record survives deletion of the ManagedProject.
+
+        For events that carry new_details, the entry is skipped if new_details
+        is identical to the most recent entry for this project, preventing
+        duplicate records when the remote portal repeatedly sends the same
+        unchanged request.
+        """
+        if new_details is not None and event_type in (
+            ManagedProjectAuditEventType.CREATED,
+            ManagedProjectAuditEventType.DETAILS_UPDATED,
+        ):
+            last = (
+                cls.objects.filter(
+                    identifier=managed_project.identifier,
+                    destination=managed_project.destination,
+                    new_details__isnull=False,
+                )
+                .order_by("-timestamp")
+                .first()
+            )
+            if last is not None and last.new_details == new_details:
+                return None
+
+        return cls.objects.create(
+            identifier=managed_project.identifier,
+            destination=managed_project.destination,
+            managed_project=managed_project,
+            event_type=event_type,
+            performed_by=performed_by,
+            note=note or "",
+            previous_details=previous_details,
+            new_details=new_details,
+        )
+
+
+class RemoteProject(core_models.UuidMixin, models.Model):
+    """
+    Persistent record of a project on a remote OpenPortal portal, held on the
+    local (award-creating) portal.
+
+    A RemoteProject survives the deletion or replacement of the RemoteAllocation
+    that is currently attached to it, preserving history and metadata even when
+    the local marketplace resource is removed.
+
+    The stable identity is (destination, identifier):
+      destination — routing path, e.g. "airr.brics.isambard-ai"
+      identifier  — stable remote project ID, e.g. "u6ac.brics"
+
+    These are set on creation and never change.  If the routing address changes
+    that is considered a new RemoteProject.
+    """
+
+    # ------------------------------------------------------------------
+    # Identity
+    # ------------------------------------------------------------------
+
+    destination = models.CharField(
+        max_length=MAX_DESTINATION_LENGTH,
+        verbose_name=_("destination"),
+        help_text=_(
+            "Routing path from the local portal to the remote resource, "
+            "e.g. 'airr.brics.isambard-ai'.  Never changes after creation."
+        ),
+    )
+
+    identifier = models.CharField(
+        max_length=MAX_PROJECTIDENTIFIER_LENGTH,
+        null=True,
+        blank=True,
+        verbose_name=_("identifier"),
+        help_text=_(
+            "Stable remote project identifier, e.g. 'u6ac.brics'.  "
+            "Uniquely identifies the project on the remote portal and never changes.  "
+            "Null while the project is pending first approval."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("Remote Project")
+        verbose_name_plural = _("Remote Projects")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["destination", "identifier"],
+                condition=models.Q(identifier__isnull=False),
+                name="unique_remote_project_destination_identifier",
+            ),
+            models.UniqueConstraint(
+                fields=["destination", "current_project"],
+                condition=models.Q(
+                    identifier__isnull=True,
+                    current_project__isnull=False,
+                ),
+                name="unique_pending_remote_project_destination_project",
+            ),
+        ]
+
+    # ------------------------------------------------------------------
+    # State
+    # ------------------------------------------------------------------
+
+    state = models.CharField(
+        max_length=16,
+        choices=RemoteProjectState.CHOICES,
+        default=RemoteProjectState.PENDING,
+        verbose_name=_("state"),
+        db_index=True,
+    )
+
+    error_message = models.TextField(
+        blank=True,
+        default="",
+        verbose_name=_("error message"),
+        help_text=_(
+            "The most recent rejection or error message received from the "
+            "remote portal.  Cleared when the state transitions to ACTIVE."
+        ),
+    )
+
+    # ------------------------------------------------------------------
+    # Award details snapshots
+    # ------------------------------------------------------------------
+
+    last_sent_details = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("last sent award details"),
+        help_text=_(
+            "The AwardDetails most recently sent to the remote portal "
+            "(create_award or update_award).  May not yet be confirmed."
+        ),
+    )
+
+    last_confirmed_details = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("last confirmed award details"),
+        help_text=_(
+            "The AwardDetails most recently confirmed by the remote portal.  "
+            "Reflects what is actually live on the remote portal."
+        ),
+    )
+
+    pending_details = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("pending award details"),
+        help_text=_(
+            "AwardDetails that have been submitted to the remote portal but "
+            "are awaiting human review or confirmation (e.g. an allocation "
+            "increase that requires manual approval).  Null when nothing is "
+            "pending."
+        ),
+    )
+
+    pending_since = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("pending since"),
+        help_text=_("When the currently pending change was submitted."),
+    )
+
+    # ------------------------------------------------------------------
+    # Allocation (denormalised for fast access; ledger holds full history)
+    # ------------------------------------------------------------------
+
+    current_allocation = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        default=0,
+        verbose_name=_("current allocation"),
+        help_text=_(
+            "Latest confirmed allocation (credits) for this project.  "
+            "Updated whenever a RemoteProjectAllocationEntry is confirmed."
+        ),
+    )
+
+    pending_allocation = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name=_("pending allocation"),
+        help_text=_(
+            "Allocation value currently under review on the remote portal.  "
+            "Null when no allocation change is pending."
+        ),
+    )
+
+    # ------------------------------------------------------------------
+    # Connection tracking
+    # ------------------------------------------------------------------
+
+    last_contact_time = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("last contact time"),
+        help_text=_(
+            "The most recent time the remote portal acknowledged anything "
+            "about this project (confirmation, usage report, get_award "
+            "response, etc.).  Used to detect connectivity issues and to "
+            "trigger a transition to the STALE state."
+        ),
+    )
+
+    # ------------------------------------------------------------------
+    # Award-level extras — set by org managers, merged into AwardDetails
+    # before each update_award call.
+    # ------------------------------------------------------------------
+
+    notes = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name=_("notes"),
+        help_text=_(
+            "Append-only list of timestamped notes {timestamp, author, text}. "
+            "Kept in sync with the full merged set from award_details() — "
+            "includes both locally-authored notes and any notes added by the "
+            "remote portal."
+        ),
+    )
+
+    earliest_approve = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("earliest approve"),
+        help_text=_(
+            "Earliest UTC time the remote portal may approve this award. "
+            "Gives the sender a window to make corrections before "
+            "provisioning begins."
+        ),
+    )
+
+    membership_control = models.CharField(
+        max_length=16,
+        null=True,
+        blank=True,
+        choices=MembershipControlChoices.CHOICES,
+        verbose_name=_("membership control"),
+        help_text=_(
+            "Policy controlling whether the remote portal may "
+            "independently modify project membership or roles."
+        ),
+    )
+
+    allowed_domains = models.JSONField(
+        null=True,
+        blank=True,
+        default=None,
+        verbose_name=_("allowed domains"),
+        help_text=_(
+            "List of email domain glob patterns allowed to join the project "
+            "on the remote portal, e.g. ['*.ac.uk']. "
+            "None means all domains are allowed."
+        ),
+    )
+
+    breakdown = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name=_("allocation breakdown"),
+        help_text=_(
+            "Free-form allocation breakdown sent to the remote portal, "
+            "e.g. {'gpu_hours': '500 GPUHR', 'storage': '5 TB'}."
+        ),
+    )
+
+    link_award = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name=_("award link"),
+        help_text=_("Link to the award record on the funder's system."),
+    )
+
+    link_call = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name=_("call link"),
+        help_text=_("Link to the funding call this award came from."),
+    )
+
+    link_project = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name=_("project page link"),
+        help_text=_("Link to the project page on the awarding portal."),
+    )
+
+    link_renewal = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name=_("renewal link"),
+        help_text=_("Link to where renewal or more time can be requested."),
+    )
+
+    # Current live RemoteAllocation handle.  Set to null when the resource
+    # is deleted; the RemoteProject record is retained.
+    remote_allocation = models.OneToOneField(
+        to=RemoteAllocation,
+        on_delete=models.SET_NULL,
+        related_name="remote_project",
+        blank=True,
+        null=True,
+        verbose_name=_("remote allocation"),
+        help_text=_("The current RemoteAllocation that drives this project."),
+    )
+
+    # Denormalised FK for fast lookup of the currently attached local project.
+    # Updated whenever the award is moved; full history is in
+    # RemoteProjectAttachment.
+    current_project = models.ForeignKey(
+        to=structure_models.Project,
+        on_delete=models.SET_NULL,
+        related_name="current_remote_projects",
+        blank=True,
+        null=True,
+        verbose_name=_("current project"),
+        help_text=_("The local Waldur project currently holding this award."),
+    )
+
+    # ------------------------------------------------------------------
+    # Timestamps (created / modified via model_utils)
+    # ------------------------------------------------------------------
+
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    # ------------------------------------------------------------------
+    # Convenience properties
+    # ------------------------------------------------------------------
+
+    @property
+    def has_pending_change(self) -> bool:
+        return self.pending_details is not None or self.pending_allocation is not None
+
+    def get_destination(self) -> openportal.Destination:
+        return openportal.Destination(self.destination)
+
+    def get_identifier(self) -> openportal.ProjectIdentifier:
+        return openportal.ProjectIdentifier(self.identifier)
+
+    def _load_award_details(self, field) -> "openportal.AwardDetails | None":
+        if field is None:
+            return None
+        if isinstance(field, str):
+            return openportal.AwardDetails.from_json(field)
+        return openportal.AwardDetails.from_json(json.dumps(field))
+
+    def get_last_sent_details(self) -> "openportal.AwardDetails | None":
+        return self._load_award_details(self.last_sent_details)
+
+    def get_pending_details(self) -> "openportal.AwardDetails | None":
+        return self._load_award_details(self.pending_details)
+
+    def get_last_confirmed_details(self) -> "openportal.AwardDetails | None":
+        return self._load_award_details(self.last_confirmed_details)
+
+    def award_details(self) -> "openportal.AwardDetails":
+        """
+        Compute the best current view of the award by merging last_sent_details
+        (our intent — authoritative for locally-authored fields and membership)
+        with last_confirmed_details (remote ground truth — authoritative for
+        project_link), then layering in the current award-level extras stored
+        on this model.
+
+        Merge rules:
+        - Locally-authored fields (name, description, dates, template, key,
+          allocation, membership_control, allowed_domains): last_sent wins.
+        - Notes and breakdown: union from both, notes sorted chronologically.
+        - project_link: last_confirmed wins (remote portal owns its own URL),
+          unless link_project is explicitly set on this RemoteProject.
+        - Members: last_sent is always authoritative — the local portal's team
+          membership is the sole source of truth and is never augmented from
+          last_confirmed.
+        - Extras (link_*, earliest_approve, membership_control,
+          allowed_domains, breakdown): current model fields win — they may be
+          newer than the last send.
+
+        Always returns a non-None AwardDetails.  If no snapshot exists yet,
+        returns the extras only so callers always receive a valid base.
+        """
+
+        sent = self.get_last_sent_details()
+        confirmed = self.get_last_confirmed_details()
+
+        extras = self.get_extras()
+        extras_obj = openportal.AwardDetails.from_json(json.dumps(extras))
+
+        if sent is None and confirmed is None:
+            return extras_obj
+
+        if sent is None:
+            sent = openportal.AwardDetails("{}")
+
+        if confirmed is None:
+            result = sent
+        else:
+            # confirmed.merge(sent) → sent's locally-authored fields take
+            # precedence; notes and breakdown are unioned.
+            result = confirmed.merge(sent)
+
+            # Explicitly enforce local membership and membership_control —
+            # merge() may blend these, but last_sent is always authoritative.
+            result.members = sent.members
+
+        # Layer in current extras — these may be newer than the last send.
+        # Notes are unioned (merge deduplicates); other fields overwrite.
+        if extras:
+            result = result.merge(extras_obj)
+
+            # explicitly control these terms locally
+            result.membership_control = extras_obj.membership_control or None
+            result.earliest_approve = extras_obj.earliest_approve or None
+            result.call = extras_obj.call or None
+            result.award = extras_obj.award or None
+            result.renewal = extras_obj.renewal or None
+
+            # allowed_domains cannot go through the attribute setter: it
+            # normalises an empty list to None, which would turn "nothing
+            # allowed" into "no restriction at all".  merge() does preserve an
+            # empty list, but only onto a field that is unset, so clear the
+            # field first and then merge the local value back in.
+            # Still true as of openportal 0.91.0; from_json and merge keep the
+            # empty list, only assignment drops it.  See
+            # docs/guides/how-to-reconcile-a-fork.md, section 7.
+            result.allowed_domains = None
+            if self.allowed_domains is not None:
+                result = result.merge(
+                    openportal.AwardDetails(
+                        json.dumps({"allowed_domains": self.allowed_domains})
+                    )
+                )
+
+        # Remote portal always owns its project URL — restore after extras
+        # so that link_project cannot silently override a confirmed value.
+        if confirmed is not None and confirmed.project_link is not None:
+            result.project_link = confirmed.project_link
+
+        return result
+
+    def get_extras(self) -> dict:
+        """
+        Return a dict compatible with AwardDetails JSON representing all
+        manually-set award-level extras stored on this RemoteProject.
+        Called by award_details() to layer current model state on top of
+        the snapshot merge.
+        """
+        extras: dict = {}
+
+        if self.link_award:
+            extras["award"] = self.link_award
+        if self.link_call:
+            extras["call"] = self.link_call
+        if self.link_renewal:
+            extras["renewal"] = self.link_renewal
+        if self.notes:
+            extras["notes"] = self.notes
+
+        from django.utils import timezone as tz
+
+        if self.earliest_approve is not None and self.earliest_approve > tz.now():
+            extras["earliest_approve"] = self.earliest_approve.isoformat()
+
+        if self.membership_control:
+            extras["membership_control"] = self.membership_control
+        # None and [] mean different things here — None is "no restriction",
+        # [] is "nothing allowed" — so an empty list has to be forwarded
+        # rather than treated as unset.
+        if self.allowed_domains is not None:
+            extras["allowed_domains"] = self.allowed_domains
+        if self.breakdown:
+            extras["breakdown"] = self.breakdown
+
+        return extras
+
+    def ensure_not_erred(self):
+        """
+        If the project is in ERROR state, reset it to PENDING so that
+        subsequent writes (notes, links, etc.) are not blocked by the
+        ERRED allocation state guard.  Does nothing when not in ERROR.
+        """
+        if self.state == RemoteProjectState.ERROR:
+            self.reset_to_pending()
+
+    def reset_to_pending(self):
+        """
+        Clear a rejection error and return to PENDING state, allowing
+        the operator to make further changes or trigger a resend.
+
+        Sets RemoteProject state=PENDING and clears error_message.
+        Sets remote_allocation state=OK and clears its error_message,
+        so the state guard in update_allocated_project will pass.
+        """
+        from waldur_core.core.enums import CoreStates
+
+        self.state = RemoteProjectState.PENDING
+        self.error_message = ""
+        self.save(update_fields=["state", "error_message", "modified"])
+
+        alloc = self.remote_allocation
+        if alloc is not None:
+            alloc.state = CoreStates.OK
+            alloc.error_message = ""
+            alloc.save(update_fields=["state", "error_message", "modified"])
+
+        RemoteProjectAuditEntry.objects.create(
+            remote_project=self,
+            event_type=RemoteProjectAuditEventType.STATE_CHANGED,
+            note="Reset to pending by operator.",
+        )
+
+    def record_pending(self, sent_details_json=None):
+        """
+        Transition to PENDING: details have been sent but confirmation
+        has not yet been received (e.g. awaiting human review).
+        """
+        from waldur_openportal import remote_project_service
+
+        remote_project_service.record_award_attempted(self, sent_details_json or {})
+
+    def record_rejected(self, error_message, details_json=None):
+        """
+        Transition to ERROR: the remote portal rejected the award.
+
+        Delegates to record_award_update_rejected when the project is
+        already ACTIVE (an update was rejected), otherwise to
+        record_award_rejected (a create was rejected).  Both functions
+        also update remote_allocation to ERRED.
+        """
+        from waldur_openportal import remote_project_service
+
+        if self.state == RemoteProjectState.ACTIVE:
+            remote_project_service.record_award_update_rejected(self, error_message)
+        else:
+            remote_project_service.record_award_rejected(
+                self, details_json, error_message
+            )
+
+    def record_accepted(self, sent_details_json=None, confirmed_details_json=None):
+        """
+        Transition to ACTIVE: the remote portal confirmed the award.
+
+        Delegates to record_award_update_confirmed when the project has
+        previously been confirmed (last_confirmed_details is set),
+        otherwise to record_award_created (initial creation confirmed).
+        Both functions also update remote_allocation to OK.
+        """
+        from waldur_openportal import remote_project_service
+
+        if self.last_confirmed_details is not None:
+            remote_project_service.record_award_update_confirmed(
+                self, sent_details_json, confirmed_details_json
+            )
+        else:
+            remote_project_service.record_award_created(
+                self, sent_details_json, confirmed_details_json
+            )
+
+    def __str__(self) -> str:
+        return (
+            f"RemoteProject [{self.identifier} via {self.destination}] ({self.state})"
+        )
+
+
+class RemoteProjectAttachment(models.Model):
+    """
+    Records each period during which a local Waldur Project held the award
+    represented by a RemoteProject.
+
+    When an award is moved to a new local project:
+      1. Set detached_at on the current (open) attachment.
+      2. Create a new RemoteProjectAttachment for the new project.
+      3. Update RemoteProject.current_project.
+
+    The open attachment (detached_at=None) always matches
+    RemoteProject.current_project.
+    """
+
+    remote_project = models.ForeignKey(
+        to=RemoteProject,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+        verbose_name=_("remote project"),
+    )
+
+    project = models.ForeignKey(
+        to=structure_models.Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="remote_project_attachments",
+        verbose_name=_("project"),
+    )
+
+    attached_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("attached at"),
+    )
+
+    detached_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("detached at"),
+        help_text=_("Null while this is the current attachment."),
+    )
+
+    note = models.TextField(
+        blank=True,
+        verbose_name=_("note"),
+        help_text=_("Optional comment recorded when the award was attached or moved."),
+    )
+
+    class Meta:
+        ordering = ["-attached_at"]
+        verbose_name = _("Remote Project Attachment")
+        verbose_name_plural = _("Remote Project Attachments")
+
+    def __str__(self) -> str:
+        status = "current" if self.detached_at is None else f"until {self.detached_at}"
+        return f"{self.remote_project} → {self.project} ({status})"
+
+
+class RemoteProjectAllocationEntry(models.Model):
+    """
+    Allocation ledger for a RemoteProject.
+
+    Each row records one allocation change — the new total allocation value,
+    what it was before, which local project/award triggered it, and when
+    the remote portal confirmed it.
+
+    Allocation values are replacement semantics (not additive): if the
+    allocation is set to 100 then 150 then 200, the project has 200 credits.
+    However, linking each entry to its source attachment lets you reconstruct
+    how much each award contributed over its lifetime, which is needed to
+    calculate carry-over credits when an award is moved.
+
+    Usage example (award move):
+        spend_under_old_award = <from usage reports>
+        last_allocation_under_old_award = (
+            RemoteProjectAllocationEntry.objects
+            .filter(remote_project=rp, attachment=old_attachment, confirmed_at__isnull=False)
+            .order_by("-submitted_at")
+            .first()
+            .allocation
+        )
+        remaining = last_allocation_under_old_award - spend_under_old_award
+        new_total = remaining + new_credits_from_new_award  # or just new_credits if clean break
+    """
+
+    remote_project = models.ForeignKey(
+        to=RemoteProject,
+        on_delete=models.CASCADE,
+        related_name="allocation_history",
+        verbose_name=_("remote project"),
+    )
+
+    # New total allocation value (replacement, not delta)
+    allocation = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        verbose_name=_("allocation"),
+        help_text=_("New total allocation (credits) after this change."),
+    )
+
+    previous_allocation = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name=_("previous allocation"),
+        help_text=_("Total allocation before this change.  Null for the first entry."),
+    )
+
+    # Which local award period this allocation change belongs to
+    attachment = models.ForeignKey(
+        to=RemoteProjectAttachment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="allocation_entries",
+        verbose_name=_("attachment"),
+        help_text=_("The award attachment period during which this change was made."),
+    )
+
+    # Which local project triggered this change
+    source_project = models.ForeignKey(
+        to=structure_models.Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="remote_allocation_entries",
+        verbose_name=_("source project"),
+        help_text=_("The local project/award that triggered this allocation change."),
+    )
+
+    submitted_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("submitted at"),
+    )
+
+    confirmed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("confirmed at"),
+        help_text=_(
+            "When the remote portal confirmed this allocation.  Null if pending."
+        ),
+    )
+
+    note = models.TextField(
+        blank=True,
+        verbose_name=_("note"),
+        help_text=_(
+            "Optional comment, e.g. 'carrying over 20 unused credits from previous award'."
+        ),
+    )
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        verbose_name = _("Remote Project Allocation Entry")
+        verbose_name_plural = _("Remote Project Allocation Entries")
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.confirmed_at is not None
+
+    @property
+    def delta(self) -> object:
+        """Change in allocation.  Positive = increase, negative = decrease."""
+        if self.previous_allocation is None:
+            return self.allocation
+        return self.allocation - self.previous_allocation
+
+    def __str__(self) -> str:
+        status = "confirmed" if self.is_confirmed else "pending"
+        return (
+            f"{self.remote_project} allocation {self.previous_allocation} → "
+            f"{self.allocation} ({status})"
+        )
+
+
+class RemoteProjectAuditEventType(models.TextChoices):
+    """Event types for RemoteProjectAuditEntry."""
+
+    # Award lifecycle on the remote portal
+    AWARD_ATTEMPTED = (
+        "award_attempted",
+        _("Award creation attempted but not yet confirmed (pending approval or error)"),
+    )
+    AWARD_REJECTED = (
+        "award_rejected",
+        _("Award creation explicitly rejected by remote portal"),
+    )
+    AWARD_CREATED = "award_created", _("Award created (create_award sent)")
+    AWARD_UPDATED = "award_updated", _("Award updated (update_award sent)")
+    AWARD_UPDATE_CONFIRMED = (
+        "award_update_confirmed",
+        _("Award update confirmed by remote portal"),
+    )
+    AWARD_UPDATE_REJECTED = (
+        "award_update_rejected",
+        _("Award update rejected by remote portal"),
+    )
+    # State transitions
+    STATE_CHANGED = "state_changed", _("State changed")
+
+    # Resource lifecycle
+    RESOURCE_DELETED = "resource_deleted", _("Local resource deleted")
+
+
+class RemoteProjectAuditEntry(models.Model):
+    """
+    Full audit log for a RemoteProject.
+
+    Every significant event — award lifecycle, allocation changes, project
+    attachment moves, state transitions, resource deletion/restoration — is
+    recorded here.  This is the single timeline of everything that happened
+    to this RemoteProject.
+
+    For allocation-specific financial history, see RemoteProjectAllocationEntry.
+    The two models are linked via the allocation_entry FK so that the audit
+    timeline remains complete while detailed financial data stays queryable
+    in its own table.
+    """
+
+    remote_project = models.ForeignKey(
+        to=RemoteProject,
+        on_delete=models.CASCADE,
+        related_name="audit_log",
+        verbose_name=_("remote project"),
+    )
+
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        verbose_name=_("timestamp"),
+    )
+
+    event_type = models.CharField(
+        max_length=32,
+        choices=RemoteProjectAuditEventType.choices,
+        db_index=True,
+        verbose_name=_("event type"),
+    )
+
+    # AwardDetails snapshots — what changed
+    previous_details = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("previous award details"),
+        help_text=_("AwardDetails before this event.  Null for creation events."),
+    )
+
+    new_details = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("new award details"),
+        help_text=_(
+            "AwardDetails after this event, or the details being requested.  "
+            "Null for events that do not change the details."
+        ),
+    )
+
+    # Link to the allocation ledger entry when this event concerns an
+    # allocation change.  Null for non-allocation events.
+    allocation_entry = models.ForeignKey(
+        to=RemoteProjectAllocationEntry,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_entries",
+        verbose_name=_("allocation entry"),
+        help_text=_(
+            "The allocation ledger entry associated with this event, if applicable."
+        ),
+    )
+
+    # Who triggered this event (null for automated/system events)
+    performed_by = models.ForeignKey(
+        to=core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name=_("performed by"),
+        help_text=_("The user who triggered this event, if it was a human action."),
+    )
+
+    # Raw response from the remote portal (useful for debugging rejections)
+    remote_response = models.JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_("remote response"),
+        help_text=_("Raw response received from the remote portal, if applicable."),
+    )
+
+    note = models.TextField(
+        blank=True,
+        verbose_name=_("note"),
+        help_text=_("Optional free-text comment about this event."),
+    )
+
+    class Meta:
+        ordering = ["-timestamp"]
+        verbose_name = _("Remote Project Audit Entry")
+        verbose_name_plural = _("Remote Project Audit Entries")
+
+    def __str__(self) -> str:
+        return f"{self.remote_project} — {self.event_type} at {self.timestamp}"
 
     def __repr__(self) -> str:
         return self.__str__()

@@ -8,7 +8,7 @@ from waldur_core.core.admin import ExecutorAdminAction
 from waldur_core.core.models import StateMixin
 from waldur_core.structure import admin as structure_admin
 
-from . import executors, tasks
+from . import executors, models, tasks
 from .models import Allocation, AllocationUserUsage, Association
 
 
@@ -74,3 +74,152 @@ class AssociationAdmin(admin.ModelAdmin):
 admin.site.register(Allocation, AllocationAdmin)
 admin.site.register(AllocationUserUsage, AllocationUserUsageAdmin)
 admin.site.register(Association, AssociationAdmin)
+
+
+class RemoteProjectAuditEntryInline(admin.TabularInline):
+    model = models.RemoteProjectAuditEntry
+    extra = 0
+    readonly_fields = (
+        "timestamp",
+        "event_type",
+        "performed_by",
+        "note",
+        "remote_response",
+    )
+    fields = readonly_fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class RemoteProjectAllocationEntryInline(admin.TabularInline):
+    model = models.RemoteProjectAllocationEntry
+    extra = 0
+    readonly_fields = (
+        "submitted_at",
+        "confirmed_at",
+        "allocation",
+        "previous_allocation",
+        "source_project",
+        "note",
+    )
+    fields = readonly_fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class RemoteProjectAdmin(admin.ModelAdmin):
+    list_display = (
+        "identifier",
+        "destination",
+        "state",
+        "current_project",
+        "current_allocation",
+        "last_contact_time",
+        "created",
+    )
+    list_filter = ("state",)
+    search_fields = ("identifier", "destination")
+    readonly_fields = (
+        "uuid",
+        "created",
+        "modified",
+        "last_contact_time",
+        "last_sent_details",
+        "last_confirmed_details",
+    )
+    fields = (
+        "uuid",
+        "destination",
+        "identifier",
+        "state",
+        "current_project",
+        "remote_allocation",
+        "current_allocation",
+        "pending_allocation",
+        "pending_details",
+        "pending_since",
+        "last_sent_details",
+        "last_confirmed_details",
+        "last_contact_time",
+        "created",
+        "modified",
+    )
+    inlines = [
+        RemoteProjectAllocationEntryInline,
+        RemoteProjectAuditEntryInline,
+    ]
+
+
+class RemoteProjectAuditEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        "remote_project",
+        "event_type",
+        "timestamp",
+        "performed_by",
+    )
+    list_filter = ("event_type",)
+    search_fields = (
+        "remote_project__identifier",
+        "remote_project__destination",
+        "note",
+    )
+    readonly_fields = (
+        "remote_project",
+        "timestamp",
+        "event_type",
+        "previous_details",
+        "new_details",
+        "performed_by",
+        "remote_response",
+        "note",
+        "allocation_entry",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class RemoteProjectAllocationEntryAdmin(admin.ModelAdmin):
+    list_display = (
+        "remote_project",
+        "allocation",
+        "previous_allocation",
+        "submitted_at",
+        "confirmed_at",
+        "source_project",
+    )
+    search_fields = (
+        "remote_project__identifier",
+        "remote_project__destination",
+    )
+    readonly_fields = (
+        "remote_project",
+        "allocation",
+        "previous_allocation",
+        "attachment",
+        "source_project",
+        "submitted_at",
+        "confirmed_at",
+        "note",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+admin.site.register(models.RemoteProject, RemoteProjectAdmin)
+admin.site.register(models.RemoteProjectAuditEntry, RemoteProjectAuditEntryAdmin)
+admin.site.register(
+    models.RemoteProjectAllocationEntry,
+    RemoteProjectAllocationEntryAdmin,
+)
