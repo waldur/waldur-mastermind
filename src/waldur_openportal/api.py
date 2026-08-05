@@ -325,7 +325,7 @@ def customer_spend_info(request):
     projs = structure_models.Project.objects.filter(customer=org)
 
     response = {}
-    response["customer"] = org.name
+    response["customer"] = str(org.name)
 
     if start_date is not None:
         response["start_date"] = start_date.strftime("%Y-%m-%d")
@@ -493,6 +493,7 @@ def customer_spend_info(request):
     response["projects"] = projects
 
     response = JsonResponse(response)
+    response.status_code = status.HTTP_200_OK
     return response
 
 
@@ -608,6 +609,7 @@ def fetch_job(request):
     responses={200: serializers.AccessResponseSerializer(many=True)},
 )
 @api_view(["GET"])
+@authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def access_for_email(request):
     """
@@ -835,11 +837,17 @@ def get_api_token(request):
             )
 
         if response.status_code != 200:
-            return JsonResponse({"error": "Introspection endpoint error."})
+            return JsonResponse(
+                {"error": "Introspection endpoint error."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
         data = response.json()
         if not data.get("active"):
-            return JsonResponse({"error": "Token is inactive or invalid."})
+            return JsonResponse(
+                {"error": "Token is inactive or invalid."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
         cache.set(cache_key, data, timeout=cache_timeout)
 
@@ -852,15 +860,16 @@ def get_api_token(request):
         )
 
     # GET Waldur user
-    user, __ = core_models.User.objects.get_or_create(username=user_identifier)
+    user, _ = core_models.User.objects.get_or_create(username=user_identifier)
     set_user_context(user)
 
     # Check staff access
     user_access = "staff" if user.is_staff else "not a staff"
 
-    # Sync email with Keycloak response email
+    # Sync email with Keycloak response email - this should match the user_identifier
     email = data.get("email")
     if email and user.email != email:
+        user.email = str(email)  # Sync email with response returned from Keycloak
         user.save(update_fields=["email"])
 
     # Generate Waldur API token
@@ -984,6 +993,7 @@ def project_mapping(request):
     Map OpenPortal ProjectIdentifier strings to Waldur Project objects.
 
     Chain: Allocation.backend_id == identifier -> Allocation.project
+    Fallback: RemoteAllocation.backend_id == identifier -> RemoteAllocation.project
     """
     identifiers = request.query_params.getlist("identifier")
     if not identifiers:
@@ -1003,12 +1013,33 @@ def project_mapping(request):
             .select_related("project", "project__customer")
             .first()
         )
+        if allocation is None:
+            allocation = (
+                models.RemoteAllocation.objects.filter(backend_id=identifier)
+                .select_related("project", "project__customer")
+                .first()
+            )
+
+        project = None
 
         if allocation is None:
+            # look up by the openportal.models.ProjectInfo
+            shortname = (
+                str(identifier).split(".")[0] if "." in identifier else identifier
+            )
+            project_info = (
+                models.ProjectInfo.objects.filter(shortname=shortname)
+                .select_related("project", "project__customer")
+                .first()
+            )
+
+            project = project_info.project if project_info else None
+        else:
+            project = allocation.project
+
+        if project is None:
             result[identifier] = None
             continue
-
-        project = allocation.project
 
         if (
             accessible_project_ids is not None
@@ -1151,52 +1182,6 @@ def user_mapping(request):
 
     return JsonResponse(result)
 
-    # Get the free text search query
-    query = request.query_params.get("q")
-
-    # Also support legacy parameters for backwards compatibility
-    email = request.query_params.get("email")
-    short_name = request.query_params.get("short_name")
-    project_name = request.query_params.get("project_name")
-    project_id = request.query_params.get("project_id")
-
-    # If no 'q' parameter, check for legacy parameters
-    if query is None:
-        if email:
-            query = email
-        elif short_name:
-            query = short_name
-        elif project_name:
-            query = project_name
-        elif project_id:
-            query = project_id
-
-    if query is None:
-        response = JsonResponse(
-            {
-                "error": "Search query parameter 'q' is required. You can search by email, short_name, project_name, or project_id."
-            }
-        )
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return response
-
-    # Clean and normalize the query
-    query = str(query).strip()
-
-    if len(query) == 0:
-        response = JsonResponse({"error": "Search query cannot be empty."})
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return response
-
-    can_query_all = user.is_staff or user.is_support
-
-    logger.info(
-        f"api/openportal/access_for_email request for query='{query}' from {user} ({user.email})"
-    )
-
-    # Intelligent search routing based on query format
-    return _intelligent_search(user, query, can_query_all)
-
 
 def _intelligent_search(requesting_user, query, can_query_all):
     """
@@ -1218,7 +1203,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
                     "error": "You can only search by your own email address. Staff users can search for any user."
                 }
             )
-            response.status_code = status.HTTP_401_UNAUTHORIZED
+            response.status_code = status.HTTP_403_FORBIDDEN
             return response
 
         # Try email search
@@ -1283,7 +1268,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
                                         "error": "You can only search by your own short name. Staff users can search for any user."
                                     }
                                 )
-                                response.status_code = status.HTTP_401_UNAUTHORIZED
+                                response.status_code = status.HTTP_403_FORBIDDEN
                                 return response
                         except models.UserInfo.DoesNotExist:
                             # User doesn't have a short_name, so they can't search by short_name
@@ -1292,7 +1277,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
                                     "error": "You don't have a short name configured, so you can only search by your email address."
                                 }
                             )
-                            response.status_code = status.HTTP_401_UNAUTHORIZED
+                            response.status_code = status.HTTP_403_FORBIDDEN
                             return response
                     return result
         except Exception as e:
@@ -1308,7 +1293,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
                 "allowed_searches": ["your_email", "your_short_name"],
             }
         )
-        response.status_code = status.HTTP_401_UNAUTHORIZED
+        response.status_code = status.HTTP_403_FORBIDDEN
         return response
 
     logger.info(f"Attempting project name search for query: '{query}'")
@@ -1473,7 +1458,7 @@ def _search_by_short_name(requesting_user, short_name, can_query_all):
     if not can_query_all:
         if user != requesting_user:
             response = JsonResponse({"error": "You can only query your own short_name"})
-            response.status_code = status.HTTP_401_UNAUTHORIZED
+            response.status_code = status.HTTP_403_FORBIDDEN
             return response
 
     if not user.is_active:
@@ -1563,7 +1548,7 @@ def _search_by_project_name(requesting_user, project_name, can_query_all):
             response = JsonResponse(
                 {"error": "You can only query projects you are a member of"}
             )
-            response.status_code = status.HTTP_401_UNAUTHORIZED
+            response.status_code = status.HTTP_403_FORBIDDEN
             return response
 
     # Get all active users in this project using the project's get_users method
@@ -1665,7 +1650,7 @@ def _search_by_project_id(requesting_user, project_id, can_query_all):
             response = JsonResponse(
                 {"error": "You can only query projects you are a member of"}
             )
-            response.status_code = status.HTTP_401_UNAUTHORIZED
+            response.status_code = status.HTTP_403_FORBIDDEN
             return response
 
     # Get all active users in this project using the project's get_users method
@@ -1797,3 +1782,145 @@ def _get_user_projects(user):
         )
 
     return projects
+
+
+@extend_schema(exclude=True)
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([])
+def fetch_notification(request):
+    """
+    End-point called by the OpenPortal bridge agent to signal to Waldur
+    that a new notification has arrived and needs to be fetched.
+
+    The bridge sends GET /fetch_notification?notification_id=<uuid>.
+    The notification_id acts as a shared secret — a missing or unknown ID
+    returns an authorisation error (401 Unauthorized), thereby preventing
+    "unauthorised" access to this end-point.
+
+    Notifications are fire-and-forget: no DB record is created and no
+    retry/idempotency logic is applied. The event is dispatched
+    synchronously to the appropriate handler and 200 OK returned.
+    """
+
+    board = OpenPortalBoard()
+
+    notification_id = request.query_params.get("notification_id")
+
+    if not notification_id:
+        response = JsonResponse({})
+        response.status_code = status.HTTP_401_UNAUTHORIZED
+        return response
+
+    notification_id = str(notification_id).strip()
+
+    if len(notification_id) == 0:
+        response = JsonResponse({})
+        response.status_code = status.HTTP_401_UNAUTHORIZED
+        return response
+
+    try:
+        notification = board.fetch_notification(notification_id)
+        if notification is None:
+            response = JsonResponse({})
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return response
+    except Exception as e:
+        logger.error(f"Error fetching notification {notification_id}: {e}")
+        response = JsonResponse({})
+        response.status_code = status.HTTP_401_UNAUTHORIZED
+        return response
+
+    try:
+        tasks.dispatch_notification(notification)
+    except Exception as e:
+        logger.error(f"Error dispatching notification {notification}: {e}")
+        # We still return 200 OK to avoid unnecessary retries from the bridge
+
+    response = JsonResponse({})
+    response.status_code = status.HTTP_200_OK
+    return response
+
+
+def _get_project_allowed_domains(project):
+    """
+    Return the unified allowed_domains list for a project from its AwardDetails.
+
+    None  — no restriction (all emails permitted)
+    []    — nothing allowed
+    [...]  — restricted to the listed domain globs and/or specific addresses
+    """
+    managed = models.ManagedProject.objects.filter(project=project).first()
+    if managed is not None:
+        try:
+            domains = managed.get_details().allowed_domains
+            return None if domains is None else sorted(str(dp) for dp in domains)
+        except Exception as e:
+            logger.warning(
+                f"_get_project_allowed_domains: ManagedProject check failed "
+                f"for {project}: {e}"
+            )
+            return None
+
+    remote_projects = list(models.RemoteProject.objects.filter(current_project=project))
+    if not remote_projects:
+        return None
+
+    union = set()
+    for rp in remote_projects:
+        try:
+            details = rp.get_last_sent_details()
+            if details is None or details.allowed_domains is None:
+                return None  # any unrestricted RemoteProject → overall unrestricted
+            union.update(str(dp) for dp in details.allowed_domains)
+        except Exception as e:
+            logger.warning(
+                f"_get_project_allowed_domains: RemoteProject {rp.pk} check "
+                f"failed for {project}: {e}"
+            )
+            return None  # fail open
+
+    return sorted(union)
+
+
+@extend_schema(
+    responses={200: serializers.ProjectEmailPolicyResponseSerializer},
+    description=(
+        "Return the allowed_domains list for a project derived from its AwardDetails. "
+        "null means no restriction; [] means nothing allowed; a list contains permitted "
+        "domain globs and/or specific email addresses."
+    ),
+)
+@api_view(["GET"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def project_email_policy(request, project_uuid):
+    """
+    Return the allowed_domains list for a project derived from its AwardDetails.
+
+    Accessible to: staff, support, any member of the project, or any user
+    with a role in the customer that owns the project.
+
+    Response: {"allowed_domains": null | [] | ["*.ac.uk", "chris@example.com", ...]}
+
+    null  — no restriction (all emails permitted)
+    []    — nothing allowed
+    list  — permitted domain globs and/or specific email addresses
+    """
+    from waldur_core.permissions.utils import has_user as perm_has_user
+
+    try:
+        project = structure_models.Project.objects.get(uuid=project_uuid)
+    except structure_models.Project.DoesNotExist:
+        return JsonResponse({"detail": "Not found."}, status=404)
+
+    user = request.user
+    if not (
+        user.is_staff
+        or getattr(user, "is_support", False)
+        or perm_has_user(project.customer, user)
+        or perm_has_user(project, user)
+    ):
+        return JsonResponse({"detail": "Access denied."}, status=403)
+
+    return JsonResponse({"allowed_domains": _get_project_allowed_domains(project)})

@@ -1,7 +1,9 @@
+import json
 import logging
 
 from django.core.validators import MinValueValidator
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers as rf_serializers
@@ -609,6 +611,102 @@ class ProjectAccountingSummarySerializer(rf_serializers.Serializer):
         return data
 
 
+class LinkSerializer(rf_serializers.Serializer):
+    """Serializer for an OpenPortal Link (optional id + optional URL)."""
+
+    id = rf_serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    url = rf_serializers.URLField(required=False, allow_blank=True, allow_null=True)
+
+
+class NoteSerializer(rf_serializers.Serializer):
+    timestamp = rf_serializers.DateTimeField(
+        help_text="When the note was created (UTC)"
+    )
+    author = rf_serializers.CharField(
+        help_text="Name of the person who created the note"
+    )
+    text = rf_serializers.CharField(help_text="Free-text content of the note")
+
+
+class AwardDetailsSerializer(rf_serializers.Serializer):
+    """
+    Mirrors the JSON produced by openportal.AwardDetails.to_json().
+    Field names and shapes are the wire format used by the OpenPortal Rust
+    library (note: "template", not "project_template" — the JSON key differs
+    from the Python property name).
+    """
+
+    name = rf_serializers.CharField(
+        allow_null=True, help_text="The name of the project"
+    )
+    template = rf_serializers.CharField(
+        allow_null=True, help_text="The template used for the project"
+    )
+    key = rf_serializers.CharField(
+        allow_null=True,
+        help_text="Shared secret required to access a particular project template",
+    )
+    description = rf_serializers.CharField(
+        allow_null=True, help_text="The description of the project"
+    )
+    members = rf_serializers.DictField(
+        child=rf_serializers.CharField(),
+        allow_null=True,
+        help_text="Email addresses of project members (keys) and their roles (values)",
+    )
+    start_date = rf_serializers.DateField(
+        allow_null=True, help_text="Proposed start date of the project"
+    )
+    end_date = rf_serializers.DateField(
+        allow_null=True, help_text="Proposed end date of the project"
+    )
+    allocation = rf_serializers.CharField(
+        allow_null=True,
+        help_text='The allocation of resource for this project (e.g. "1000 NHR")',
+    )
+    breakdown = rf_serializers.DictField(
+        child=rf_serializers.CharField(),
+        required=False,
+        help_text="Free-form breakdown of the allocation into named components",
+    )
+    award = LinkSerializer(
+        required=False, help_text="Link back to the award record on the funder's system"
+    )
+    call = LinkSerializer(
+        required=False,
+        help_text="Link to the funding call from which the award was made",
+    )
+    project_link = LinkSerializer(
+        required=False,
+        help_text="Link to the project page on the remote/awarding portal",
+    )
+    renewal = LinkSerializer(
+        required=False, help_text="Link to where renewal or more time can be requested"
+    )
+    notes = NoteSerializer(
+        many=True, help_text="Notes attached to this award (append-only log)"
+    )
+    earliest_approve = rf_serializers.DateTimeField(
+        required=False,
+        help_text="Earliest UTC time at which this award may be approved",
+    )
+    membership_control = rf_serializers.ChoiceField(
+        choices=models.MembershipControlChoices.CHOICES,
+        required=False,
+        help_text="Whether the receiving portal may independently modify membership or roles. Absent means 'open'.",
+    )
+    allowed_domains = rf_serializers.ListField(
+        child=rf_serializers.CharField(),
+        allow_null=True,
+        help_text="Allowed email domain glob patterns. null means all domains are allowed; [] means none are.",
+    )
+
+
+@extend_schema_field(AwardDetailsSerializer)
+class AwardDetailsField(rf_serializers.JSONField):
+    pass
+
+
 class ProjectAttachSerializer(rf_serializers.Serializer):
     project_uuid = rf_serializers.UUIDField(
         help_text="UUID of the project to attach to this managed project"
@@ -625,19 +723,11 @@ class ProjectAttachSerializer(rf_serializers.Serializer):
             )
 
 
-class ManagedProjectDetailsSerializer(rf_serializers.Serializer):
-    name = rf_serializers.CharField(required=False, allow_null=True)
-    description = rf_serializers.CharField(required=False, allow_null=True)
-    allocation = rf_serializers.CharField(required=False, allow_null=True)
-    start_date = rf_serializers.CharField(required=False, allow_null=True)
-    end_date = rf_serializers.CharField(required=False, allow_null=True)
-
-
 class ManagedProjectSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     rf_serializers.ModelSerializer,
 ):
-    state = rf_serializers.CharField(read_only=True, source="get_state_display")
+    state = rf_serializers.CharField(source="get_state_display", read_only=True)
 
     reviewed_by_full_name = rf_serializers.CharField(
         read_only=True, source="reviewed_by.full_name"
@@ -656,7 +746,10 @@ class ManagedProjectSerializer(
         source="project", read_only=True
     )
 
-    details = ManagedProjectDetailsSerializer(read_only=True)
+    details = AwardDetailsField(
+        read_only=True,
+        help_text=_("Details of the project as provided by the remote OpenPortal."),
+    )
 
     project_template = rf_serializers.HyperlinkedRelatedField(
         queryset=models.ProjectTemplate.objects.all(),
@@ -692,6 +785,301 @@ class ManagedProjectSerializer(
 
     def get_filtered_field_names(self):
         return ("project",)
+
+
+class RemoteProjectAllocationEntrySerializer(rf_serializers.ModelSerializer):
+    is_confirmed = rf_serializers.BooleanField(read_only=True)
+    delta = rf_serializers.DecimalField(max_digits=20, decimal_places=2, read_only=True)
+    source_project_name = rf_serializers.CharField(
+        source="source_project.name", read_only=True
+    )
+    source_project_uuid = rf_serializers.UUIDField(
+        source="source_project.uuid", read_only=True
+    )
+
+    class Meta:
+        model = models.RemoteProjectAllocationEntry
+        fields = (
+            "id",
+            "allocation",
+            "previous_allocation",
+            "delta",
+            "source_project_name",
+            "source_project_uuid",
+            "submitted_at",
+            "confirmed_at",
+            "is_confirmed",
+            "note",
+        )
+
+
+class RemoteProjectAuditEntrySerializer(rf_serializers.ModelSerializer):
+    performed_by_full_name = rf_serializers.CharField(
+        source="performed_by.full_name", read_only=True
+    )
+    performed_by_uuid = rf_serializers.UUIDField(
+        source="performed_by.uuid", read_only=True
+    )
+    remote_project_uuid = rf_serializers.UUIDField(
+        source="remote_project.uuid", read_only=True
+    )
+    remote_project_url = rf_serializers.HyperlinkedRelatedField(
+        source="remote_project",
+        view_name="openportal-remote-project-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+    previous_details = AwardDetailsField(read_only=True, allow_null=True)
+    new_details = AwardDetailsField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = models.RemoteProjectAuditEntry
+        fields = (
+            "id",
+            "timestamp",
+            "event_type",
+            "previous_details",
+            "new_details",
+            "performed_by_full_name",
+            "performed_by_uuid",
+            "remote_project_uuid",
+            "remote_project_url",
+            "remote_response",
+            "note",
+        )
+
+
+class ManagedProjectAuditEntrySerializer(rf_serializers.ModelSerializer):
+    performed_by_full_name = rf_serializers.CharField(
+        source="performed_by.full_name", read_only=True
+    )
+    performed_by_uuid = rf_serializers.UUIDField(
+        source="performed_by.uuid", read_only=True
+    )
+    previous_details = AwardDetailsField(read_only=True, allow_null=True)
+    new_details = AwardDetailsField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = models.ManagedProjectAuditEntry
+        fields = (
+            "id",
+            "identifier",
+            "destination",
+            "timestamp",
+            "event_type",
+            "previous_details",
+            "new_details",
+            "performed_by_full_name",
+            "performed_by_uuid",
+            "note",
+        )
+
+
+class AddNoteSerializer(rf_serializers.Serializer):
+    # The author is taken from the authenticated user, not the request body:
+    # a note is an audit record and must not be attributable to someone else.
+    text = rf_serializers.CharField()
+
+
+class AddManagedProjectNoteSerializer(rf_serializers.Serializer):
+    text = rf_serializers.CharField()
+
+
+class SetEarliestApproveSerializer(rf_serializers.Serializer):
+    earliest_approve = rf_serializers.DateTimeField(allow_null=True)
+
+
+class SetMembershipControlSerializer(rf_serializers.Serializer):
+    membership_control = rf_serializers.ChoiceField(
+        choices=models.MembershipControlChoices.CHOICES,
+        allow_null=True,
+    )
+
+
+class SetAllowedDomainsSerializer(rf_serializers.Serializer):
+    # null clears the restriction entirely; an empty list is a valid value
+    # meaning that no address is allowed to join.
+    allowed_domains = rf_serializers.ListField(
+        child=rf_serializers.CharField(max_length=255),
+        allow_empty=True,
+        allow_null=True,
+    )
+
+
+class SetLinksSerializer(rf_serializers.Serializer):
+    """
+    Update any combination of the four award links in one call.
+    Pass null to clear a link.
+    """
+
+    award = LinkSerializer(required=False, allow_null=True)
+    call = LinkSerializer(required=False, allow_null=True)
+    project_link = LinkSerializer(required=False, allow_null=True)
+    renewal = LinkSerializer(required=False, allow_null=True)
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        # Ensure Serializer instances are converted to plain dicts
+        for key in ("award", "call", "project_link", "renewal"):
+            if key in value and value[key] is not None:
+                value[key] = dict(value[key])
+        return value
+
+
+class RemoteProjectSerializer(rf_serializers.ModelSerializer):
+    """
+    Serializer for RemoteProject.
+
+    Privileged fields (raw AwardDetails JSON, notes) are only returned
+    to staff, support, or CustomerOwner of the organisation that owns
+    current_project.  All other fields (including earliest_approve) are
+    visible to any authenticated user who can see the project.
+    """
+
+    state_display = rf_serializers.CharField(source="get_state_display", read_only=True)
+    current_project_name = rf_serializers.CharField(
+        source="current_project.name", read_only=True
+    )
+    current_project_uuid = rf_serializers.UUIDField(
+        source="current_project.uuid", read_only=True
+    )
+    has_pending_change = rf_serializers.BooleanField(read_only=True)
+
+    link_award = LinkSerializer(read_only=True, allow_null=True)
+    link_call = LinkSerializer(read_only=True, allow_null=True)
+    link_project = LinkSerializer(read_only=True, allow_null=True)
+    link_renewal = LinkSerializer(read_only=True, allow_null=True)
+    allowed_domains = rf_serializers.ListField(
+        child=rf_serializers.CharField(), read_only=True, allow_null=True
+    )
+    breakdown = rf_serializers.DictField(
+        child=rf_serializers.CharField(), read_only=True
+    )
+
+    resource_uuid = rf_serializers.SerializerMethodField()
+    resource_name = rf_serializers.SerializerMethodField()
+
+    # Privileged-only fields exposed via SerializerMethodField so that
+    # unprivileged users receive null rather than a 403.
+    last_sent_details = rf_serializers.SerializerMethodField()
+    last_confirmed_details = rf_serializers.SerializerMethodField()
+    pending_details = rf_serializers.SerializerMethodField()
+    award_details = rf_serializers.SerializerMethodField()
+    notes = rf_serializers.SerializerMethodField()
+    earliest_approve = rf_serializers.SerializerMethodField()
+    allocation_string = rf_serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.RemoteProject
+        fields = (
+            # Identity
+            "uuid",
+            "destination",
+            "identifier",
+            "resource_uuid",
+            "resource_name",
+            # State
+            "state",
+            "state_display",
+            # Allocation
+            "current_allocation",
+            "pending_allocation",
+            "allocation_string",
+            # Links (always visible)
+            "link_award",
+            "link_call",
+            "link_project",
+            "link_renewal",
+            # Award extras (always visible)
+            "membership_control",
+            "allowed_domains",
+            "breakdown",
+            # Privileged
+            "last_sent_details",
+            "last_confirmed_details",
+            "pending_details",
+            "award_details",
+            "pending_since",
+            "notes",
+            "earliest_approve",
+            # Error
+            "error_message",
+            # Misc
+            "has_pending_change",
+            "current_project_name",
+            "current_project_uuid",
+            "last_contact_time",
+            "created",
+            "modified",
+        )
+
+    def _is_privileged(self, obj):
+        """
+        True for staff, support, or CustomerOwner of the organisation
+        that owns current_project.
+        """
+        request = self.context.get("request")
+        if request is None:
+            return False
+        user = request.user
+        if user.is_staff or getattr(user, "is_support", False):
+            return True
+        if obj.current_project is None:
+            return False
+        customer = obj.current_project.customer
+        from waldur_core.permissions.fixtures import CustomerRole
+
+        return customer.has_user(user, CustomerRole.OWNER)
+
+    @extend_schema_field(rf_serializers.UUIDField(allow_null=True))
+    def get_resource_uuid(self, obj):
+        if obj.remote_allocation is None:
+            return None
+        return obj.remote_allocation.marketplace_uuid
+
+    @extend_schema_field(rf_serializers.CharField(allow_null=True))
+    def get_resource_name(self, obj):
+        if obj.remote_allocation is None:
+            return None
+        return obj.remote_allocation.name
+
+    @extend_schema_field(AwardDetailsSerializer(allow_null=True))
+    def get_last_sent_details(self, obj):
+        return obj.last_sent_details if self._is_privileged(obj) else None
+
+    @extend_schema_field(AwardDetailsSerializer(allow_null=True))
+    def get_last_confirmed_details(self, obj):
+        return obj.last_confirmed_details if self._is_privileged(obj) else None
+
+    @extend_schema_field(AwardDetailsSerializer(allow_null=True))
+    def get_pending_details(self, obj):
+        return obj.pending_details if self._is_privileged(obj) else None
+
+    @extend_schema_field(AwardDetailsSerializer(allow_null=True))
+    def get_award_details(self, obj):
+        if not self._is_privileged(obj):
+            return None
+        details = obj.award_details()
+        if details is None:
+            return None
+        return json.loads(details.to_json())
+
+    @extend_schema_field(rf_serializers.CharField(allow_null=True))
+    def get_allocation_string(self, obj):
+        details = obj.award_details()
+        if details is None:
+            return None
+        return json.loads(details.to_json()).get("allocation")
+
+    @extend_schema_field(NoteSerializer(many=True, allow_null=True))
+    def get_notes(self, obj):
+        return obj.notes if self._is_privileged(obj) else None
+
+    @extend_schema_field(OpenApiTypes.DATETIME)
+    def get_earliest_approve(self, obj):
+        if obj.earliest_approve is None:
+            return None
+        return obj.earliest_approve.isoformat()
 
 
 class AccessResourceSerializer(rf_serializers.Serializer):
@@ -732,3 +1120,10 @@ class UserMappingSerializer(rf_serializers.Serializer):
     full_name = rf_serializers.CharField()
     email = rf_serializers.EmailField()
     username = rf_serializers.CharField()
+
+
+class ProjectEmailPolicyResponseSerializer(rf_serializers.Serializer):
+    allowed_domains = rf_serializers.ListField(
+        child=rf_serializers.CharField(),
+        allow_null=True,
+    )

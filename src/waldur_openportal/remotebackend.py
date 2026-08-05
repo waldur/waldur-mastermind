@@ -14,11 +14,11 @@ from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_openportal import signals
+from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_openportal import remote_project_service, signals
 from waldur_openportal.remoteclient import RemoteOpenPortalClient
 
 from . import exceptions, models
-from . import utils as openportal_utils
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,15 @@ logger = logging.getLogger(__name__)
 class RemoteOpenPortalBackend(ServiceBackend):
     def __init__(self, settings):
         self.settings = settings
-        self.client = self.get_client(settings)
+
+    @property
+    def client(self) -> RemoteOpenPortalClient:
+        """
+        Lazy initialize OpenPortal client instance
+        """
+        if not hasattr(self, "_client"):
+            self._client = self.get_client(self.settings)
+        return self._client
 
     def destination(self) -> openportal.Destination:
         """
@@ -52,36 +60,6 @@ class RemoteOpenPortalBackend(ServiceBackend):
         logger.debug(f"Pulling OpenPortal remote resources for settings: {self}")
 
         logger.warning("Skipping pull_resources")
-        return
-        # --- IGNORE ---
-        fail_count = 0
-        now = datetime.datetime.now()
-
-        from . import tasks as openportal_tasks
-
-        for allocation in self.get_allocation_queryset().filter(
-            state=CoreStates.OK, is_added=True
-        ):
-            if openportal_tasks.is_task_running(openportal_tasks.sync):
-                logger.info(
-                    "Task sync is already running - skipping allocation %s",
-                    allocation,
-                )
-                continue
-
-            try:
-                logger.debug("About to pull allocation %s", allocation)
-                self.pull_allocation(allocation)
-            except Exception as e:
-                logger.error("Error while pulling allocation [%s]: %s", allocation, e)
-                fail_count += 1
-
-                if fail_count > 5 and (datetime.datetime.now() - now).seconds > 60:
-                    logger.error("Too many failures - aborting")
-                    return
-                elif (datetime.datetime.now() - now).seconds > 120:
-                    logger.error("Took too long - aborting")
-                    return
 
     def ping(self, raise_exception=False):
         logger.debug("Pinging OpenPortal")
@@ -111,57 +89,48 @@ class RemoteOpenPortalBackend(ServiceBackend):
             self.add_allocated_project(allocation)
             return
 
-        project = allocation.get_project_identifier()
-        remote_project = allocation.get_project_identifier()
-        logger.debug(
-            f"Syncing users for allocation: {allocation} | {project} <=> {remote_project}"
-        )
-        users = allocation.project.get_users()
-        logger.debug(f"Users for allocation: {users}")
+        logger.debug(f"Syncing users for allocation: {allocation}")
 
-        # go through and add the users who are not in OpenPortal
-        for user in users:
-            if not user.is_active:
-                logger.warning(
-                    f"Removing {user} as they are no longer listed as active"
-                )
-                continue
+        active_users = [u for u in allocation.project.get_users() if u.is_active]
+        active_user_ids = {u.id for u in active_users}
 
-            # get the association between the user and the allocation
-            try:
-                (association, _) = models.RemoteAssociation.objects.get_or_create(
+        existing_associations = {
+            ra.user_id: ra  # type: ignore[attr-defined]
+            for ra in models.RemoteAssociation.objects.filter(
+                allocation=allocation, user__isnull=False
+            )
+        }
+
+        # Create associations for users not yet tracked.
+        for user in active_users:
+            if user.id not in existing_associations:
+                association = models.RemoteAssociation.objects.create(
                     user=user, allocation=allocation
                 )
-            except models.RemoteAssociation.MultipleObjectsReturned:
-                association = openportal_utils.get_remote_association(
-                    user=user, allocation=allocation
+                signals.openportal_remote_association_created.send(
+                    models.RemoteAllocation,
+                    allocation=allocation,
+                    user=user,
+                )
+                logger.debug(f"Created RemoteAssociation for {user} on {allocation}.")
+
+        # Remove associations for users no longer in the project.
+        for user_id, association in existing_associations.items():
+            if user_id not in active_user_ids:
+                signals.openportal_remote_association_deleted.send(
+                    models.RemoteAllocation,
+                    allocation=allocation,
+                    user=association.user,
+                )
+                association.delete()
+                logger.debug(
+                    f"Deleted RemoteAssociation for user_id={user_id} on {allocation}."
                 )
 
-            try:
-                if not association.user_is_in_remote():
-                    logger.info(f"Adding user {user} to OpenPortal Remote Project")
-
-                    self.client.add_user(
-                        project=project, user=user, role=association.role
-                    )
-
-                    logger.debug(
-                        f"Added user {user} to OpenPortal project {project} in role {association.role}"
-                    )
-
-                    association.set_user_is_in_remote(True)
-                    association.save()
-
-                    signals.openportal_association_created.send(
-                        models.RemoteAllocation,
-                        allocation=allocation,
-                        user=user,
-                    )
-            except Exception as e:
-                logger.error(f"Unable to add user {user} to OpenPortal: {e}")
-
-        # Note that we don't remove remote users - the membership is solely
-        # managed by the PI on the remote system - we only add people here
+        # Push the full current AwardDetails to the remote portal so that
+        # membership enforcement (add/remove/role changes) is applied according
+        # to the membership_control setting.
+        self.update_allocated_project(allocation, force_update=True)
 
     def assert_can_add_allocation(self, allocation: models.RemoteAllocation):
         """
@@ -301,6 +270,8 @@ class RemoteOpenPortalBackend(ServiceBackend):
 
         self.assert_can_add_allocation(allocation)
 
+        destination = str(self.destination())
+
         if allocation.has_project_identifier():
             project = allocation.get_project_identifier()
             details = allocation.get_project_details()
@@ -308,44 +279,200 @@ class RemoteOpenPortalBackend(ServiceBackend):
                 f"Allocation already exists: {allocation} | {project} | {details}"
             )
 
+            # Ensure a RemoteProject exists and build details from it:
+            # use award_details() as the base (confirmed history + extras)
+            # then merge live Waldur data on top so local fields win.
+            remote_project = None
+            try:
+                _rid = (
+                    str(allocation.get_remote_project_identifier())
+                    if allocation.has_remote_project_identifier()
+                    else None
+                )
+                remote_project = remote_project_service.get_or_create_remote_project(
+                    allocation, destination, remote_identifier=_rid
+                )
+                details = remote_project.award_details().merge(details)
+            except Exception as _rp_e:
+                logger.warning(
+                    f"Failed to prepare RemoteProject for {allocation}: {_rp_e}"
+                )
+
             # add it again just to be sure
             try:
                 mapping = self.client.add_project(project, details)
             except exceptions.ManagedProjectRejectedError as e:
                 logger.warning(f"OpenPortal project {project} is rejected: {e}. ")
-                allocation.error_message = str(e)
-                allocation.set_erred()
-                allocation.save()
+                try:
+                    if remote_project is None:
+                        _rid = (
+                            str(allocation.get_remote_project_identifier())
+                            if allocation.has_remote_project_identifier()
+                            else None
+                        )
+                        remote_project = (
+                            remote_project_service.get_or_create_remote_project(
+                                allocation,
+                                destination,
+                                remote_identifier=_rid,
+                            )
+                        )
+                    remote_project.record_rejected(
+                        str(e), json.loads(details.to_json())
+                    )
+                except Exception as _rp_e:
+                    logger.warning(
+                        f"Failed to record award rejection in RemoteProject"
+                        f" for {allocation}: {_rp_e}"
+                    )
+                    allocation.error_message = str(e)
+                    allocation.set_erred()
+                    allocation.save()
                 return allocation
             except Exception as e:
                 logger.warning(
-                    f"Unable to re-add project {project} to OpenPortal: {e}. This will be re-added later..."
+                    f"Unable to re-add project {project} to OpenPortal:"
+                    f" {e}. This will be re-added later..."
                 )
+                try:
+                    if remote_project is None:
+                        _rid = (
+                            str(allocation.get_remote_project_identifier())
+                            if allocation.has_remote_project_identifier()
+                            else None
+                        )
+                        remote_project = (
+                            remote_project_service.get_or_create_remote_project(
+                                allocation,
+                                destination,
+                                remote_identifier=_rid,
+                            )
+                        )
+                    remote_project.record_pending(json.loads(details.to_json()))
+                except Exception as _rp_e:
+                    logger.warning(
+                        f"Failed to create/update RemoteProject for"
+                        f" {allocation} after re-add failure: {_rp_e}"
+                    )
                 return allocation
         else:
             project = self.client.get_project_identifier(allocation.project)
             details = allocation.get_project_details()
 
+            # Ensure a RemoteProject exists and build details from it:
+            # use award_details() as the base (confirmed history + extras)
+            # then merge live Waldur data on top so local fields win.
+            remote_project = None
+            try:
+                remote_project = remote_project_service.get_or_create_remote_project(
+                    allocation, destination, remote_identifier=None
+                )
+                details = remote_project.award_details().merge(details)
+            except Exception as _rp_e:
+                logger.warning(
+                    f"Failed to prepare RemoteProject for {allocation}: {_rp_e}"
+                )
+
             try:
                 mapping = self.client.add_project(project, details)
             except exceptions.ManagedProjectRejectedError as e:
                 logger.warning(f"OpenPortal project {project} is rejected: {e}. ")
-                allocation.error_message = str(e)
-                allocation.set_erred()
-                allocation.save()
+                try:
+                    if remote_project is None:
+                        remote_project = (
+                            remote_project_service.get_or_create_remote_project(
+                                allocation,
+                                destination,
+                                remote_identifier=None,
+                            )
+                        )
+                    remote_project.record_rejected(
+                        str(e), json.loads(details.to_json())
+                    )
+                except Exception as _rp_e:
+                    logger.warning(
+                        f"Failed to record award rejection in RemoteProject"
+                        f" for {allocation}: {_rp_e}"
+                    )
+                    allocation.error_message = str(e)
+                    allocation.set_erred()
+                    allocation.save()
                 return allocation
             except Exception as e:
                 logger.warning(
-                    f"Unable to create OpenPortal project for {project}: {e}. This will be created later..."
+                    f"Unable to create OpenPortal project for {project}:"
+                    f" {e}. This will be created later..."
                 )
+                try:
+                    if remote_project is None:
+                        remote_project = (
+                            remote_project_service.get_or_create_remote_project(
+                                allocation,
+                                destination,
+                                remote_identifier=None,
+                            )
+                        )
+                    remote_project.record_pending(json.loads(details.to_json()))
+                except Exception as _rp_e:
+                    logger.warning(
+                        f"Failed to create pending RemoteProject for"
+                        f" {allocation}: {_rp_e}"
+                    )
                 return allocation
 
-            logger.info(f"Created OpenPortal project {project} with mapping {mapping}")
+            logger.debug(f"Created OpenPortal project {project} with mapping {mapping}")
             allocation.state = CoreStates.OK
             allocation.set_mapping(mapping)
-            allocation.is_added = True
 
+        # Refetch confirmed state from the remote before saving the allocation.
+        # If this raises the allocation is not saved, so the next sync retries.
+        # Exception: older remote portals that don't support get_award raise
+        # OpenPortalUnsupportedCommandError — fall back to the details we just sent.
+        try:
+            confirmed_details_json = json.loads(
+                self.client.get_award(project).to_json()
+            )
+        except exceptions.OpenPortalUnsupportedCommandError as e:
+            logger.warning(
+                f"Remote portal does not support get_award for {project}"
+                f" (older portal) — using sent details as confirmed: {e}"
+            )
+
+            if details:
+                confirmed_details_json = json.loads(details.to_json())
+            else:
+                confirmed_details_json = json.loads("{}")
+
+        # Save state and mapping now, but defer is_added until RemoteProject is
+        # recorded. If record_award_created fails, is_added stays False so the
+        # next sync retries.
         allocation.save()
+        try:
+            remote_identifier = (
+                str(allocation.get_remote_project_identifier())
+                if allocation.has_remote_project_identifier()
+                else None
+            )
+            # Identifier now known after successful add — upgrade the
+            # pending record if needed.
+            remote_project = remote_project_service.get_or_create_remote_project(
+                allocation,
+                destination,
+                remote_identifier=remote_identifier,
+            )
+            attachment = remote_project_service.ensure_current_attachment(
+                remote_project
+            )
+            details_json = json.loads(details.to_json())
+            remote_project_service.record_award_created(
+                remote_project, details_json, confirmed_details_json, attachment
+            )
+            allocation.is_added = True
+            allocation.save(update_fields=["is_added", "modified"])
+        except Exception as e:
+            logger.warning(
+                f"Failed to update RemoteProject record for {allocation}: {e}"
+            )
         return allocation
 
     def add_allocated_project(self, allocation: models.RemoteAllocation):
@@ -398,6 +525,33 @@ class RemoteOpenPortalBackend(ServiceBackend):
         project_identifier = allocation.get_project_identifier()
         project_details = allocation.get_project_details()
 
+        # Get (or create) the RemoteProject, then build the details to send:
+        # use award_details() as the base (confirmed history + extras) and
+        # merge live Waldur data on top so local fields win.
+        destination = str(self.destination())
+        remote_identifier = (
+            str(allocation.get_remote_project_identifier())
+            if allocation.has_remote_project_identifier()
+            else None
+        )
+        _remote_project = None
+        _attachment = None
+        _details_json = None
+        try:
+            _remote_project = remote_project_service.get_or_create_remote_project(
+                allocation, destination, remote_identifier=remote_identifier
+            )
+
+            new_project_details = _remote_project.award_details().merge(project_details)
+
+            # make sure that if members is None, this is preserved
+            if project_details.members is None:
+                new_project_details.members = None
+
+            project_details = new_project_details
+        except Exception as e:
+            logger.warning(f"Failed to prepare RemoteProject for {allocation}: {e}")
+
         if force_update:
             version = allocation.increment_version()
         else:
@@ -410,18 +564,75 @@ class RemoteOpenPortalBackend(ServiceBackend):
             return
 
         try:
+            _attachment = remote_project_service.ensure_current_attachment(
+                _remote_project
+            )
+            _details_json = json.loads(project_details.to_json())
+            remote_project_service.record_award_sent(
+                _remote_project, _details_json, _attachment
+            )
+        except Exception as e:
+            logger.warning(f"Failed to record award_sent for {allocation}: {e}")
+
+        try:
             mapping = self.client.update_project(project_identifier, project_details)
+            # Refetch confirmed state before marking the update as done.
+            # If this raises, successfully_updated() is not called so the
+            # allocation stays UPDATING and the next sync retries.
+            # Exception: older remote portals that don't support get_award raise
+            # OpenPortalUnsupportedCommandError — fall back to the details we just sent.
+            try:
+                _confirmed_details_json = json.loads(
+                    self.client.get_award(project_identifier).to_json()
+                )
+            except exceptions.OpenPortalUnsupportedCommandError as e:
+                logger.warning(
+                    f"Remote portal does not support get_award for"
+                    f" {project_identifier} (older portal)"
+                    f" — using sent details as confirmed: {e}"
+                )
+                _confirmed_details_json = _details_json
+
             allocation.successfully_updated(version)
             allocation.update_mapping(mapping)
-            allocation.state = CoreStates.OK
-            allocation.save()
+            # update_project succeeded without exception — the remote portal
+            # accepted immediately, so transition RemoteProject to ACTIVE now
+            # rather than waiting for the async award_accepted notification.
+            if _remote_project is not None:
+                try:
+                    remote_project_service.record_award_update_confirmed(
+                        _remote_project,
+                        _details_json,
+                        _confirmed_details_json,
+                        skip_locked=False,
+                    )
+                except Exception as rp_e:
+                    logger.warning(
+                        f"Failed to record award_update_confirmed for {allocation}: {rp_e}"
+                    )
+                    allocation.state = CoreStates.OK
+                    allocation.save(update_fields=["state", "modified"])
+            else:
+                allocation.state = CoreStates.OK
+                allocation.save(update_fields=["state", "modified"])
         except exceptions.ManagedProjectRejectedError as e:
             logger.warning(
                 f"OpenPortal project {project_identifier} is rejected: {e}. "
             )
-            allocation.error_message = str(e)
-            allocation.set_erred()
-            allocation.save()
+            try:
+                if _remote_project is not None:
+                    _remote_project.record_rejected(str(e))
+                else:
+                    allocation.error_message = str(e)
+                    allocation.set_erred()
+                    allocation.save()
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to record award_update_rejected for {allocation}: {exc}"
+                )
+                allocation.error_message = str(e)
+                allocation.set_erred()
+                allocation.save()
         except Exception as e:
             logger.warning(
                 f"Unable to update OpenPortal project {project_identifier}: {e}."
@@ -512,7 +723,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
         if not isinstance(allocation, models.RemoteAllocation):
             raise ServiceBackendError("Invalid allocation type %s" % type(allocation))
 
-        logger.info(f"Deleting allocation: {allocation}")
+        logger.debug(f"Deleting allocation: {allocation}")
 
         try:
             project = allocation.get_project_identifier()
@@ -524,6 +735,14 @@ class RemoteOpenPortalBackend(ServiceBackend):
             allocation.remote_project_identifier = None
             allocation.is_added = False
             allocation.save()
+            try:
+                remote_project = getattr(allocation, "remote_project", None)
+                if remote_project is not None:
+                    remote_project_service.record_resource_deleted(remote_project)
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to record resource_deleted for {allocation}: {exc}"
+                )
         except Exception as e:
             logger.error(
                 f"Unable to delete allocation {allocation} from OpenPortal: {e}"
@@ -699,7 +918,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
         # Negative usage_change = less usage = less cost = need to increase credit (refund)
         cost_change = usage_change * unit_price
 
-        logger.info(
+        logger.debug(
             f"Reconciliation credit adjustment for {project.name}: "
             f"usage_change={usage_change:.2f} hours, "
             f"unit_price={unit_price:.4f}, "
@@ -713,7 +932,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
         project_credit.value = project_credit.value - decimal.Decimal(cost_change)
         project_credit.save(update_fields=["value"])
 
-        logger.info(
+        logger.debug(
             f"Adjusted project credit for {project.name} from {old_credit_value:.2f} "
             f"to {project_credit.value:.2f} (change: {-cost_change:.2f})"
         )
@@ -764,10 +983,16 @@ class RemoteOpenPortalBackend(ServiceBackend):
             )
             return
 
-        # Get the plan period
-        plan_period = marketplace_models.ResourcePlanPeriod.objects.filter(
-            resource=resource, end=None
-        ).first()
+        # Resolve the plan period the month being reconciled was billed under,
+        # not whichever period happens to be open now. A resource whose plan
+        # has changed since — or which has been terminated — has a closed
+        # period covering that month, and its ComponentUsage is keyed to it.
+        # Looking the usage up under the current period would miss the existing
+        # row and add a second one for the same month, which the uniqueness
+        # constraint allows because the plan periods differ.
+        plan_period = marketplace_utils.get_plan_period_for_billing(
+            resource, month_date
+        )
 
         if not plan_period:
             logger.warning(
@@ -839,15 +1064,14 @@ class RemoteOpenPortalBackend(ServiceBackend):
         )
 
         if created:
-            logger.info(
+            logger.debug(
                 f"Created ComponentUsage for {allocation} {month_date.year}-{month_date.month:02d} "
                 f"with {actual_usage} hours"
             )
             # New usage created - need to adjust credits by the full amount
             usage_change = actual_usage
         else:
-            # Update the usage - schedule_component_usage_billing enqueues
-            # process_component_usage_billing on commit; billing is async.
+            # Update the usage - this will trigger BillingUsageProcessor.update_invoice_when_usage_is_reported
             old_usage = float(component_usage.usage)
             component_usage.usage = actual_usage
             component_usage.date = datetime.datetime(
@@ -860,7 +1084,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
                 tzinfo=datetime.UTC,
             )
             component_usage.save()
-            logger.info(
+            logger.debug(
                 f"Updated ComponentUsage for {allocation} {month_date.year}-{month_date.month:02d} "
                 f"from {old_usage} to {actual_usage} hours"
             )
@@ -903,6 +1127,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
 
         logger.debug(f"Months to get accounts: {months}")
 
+        got_usage_report = False
         for month in months:
             # get the historical report for this month
             first_day = month.days[0]
@@ -933,6 +1158,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
                 logger.debug(f"Skipping {month} as report is complete")
             else:
                 report = self.client.get_usage_report(project, month)
+                got_usage_report = True
 
                 if report.total_usage.seconds > 0:
                     self._update_usage_from_report(
@@ -967,6 +1193,16 @@ class RemoteOpenPortalBackend(ServiceBackend):
             except Exception as e:
                 logger.error(
                     f"Failed to reconcile historical usage for {allocation} in {month}: {e}"
+                )
+
+        if got_usage_report:
+            try:
+                remote_project = getattr(allocation, "remote_project", None)
+                if remote_project is not None:
+                    remote_project_service.touch_last_contact(remote_project)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to touch last_contact_time for {allocation}: {e}"
                 )
 
     def sync_storage(self, allocation: models.RemoteAllocation):
@@ -1009,6 +1245,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
 
         resource = str(self.client.destination())
 
+        got_storage_report = False
         for month in months:
             first_day = month.days[0]
 
@@ -1038,9 +1275,20 @@ class RemoteOpenPortalBackend(ServiceBackend):
                 f"Stored storage report for {project}"
                 f" [{first_day.year}-{first_day.month:02d}]"
             )
+            got_storage_report = True
+
+        if got_storage_report:
+            try:
+                remote_project = getattr(allocation, "remote_project", None)
+                if remote_project is not None:
+                    remote_project_service.touch_last_contact(remote_project)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to touch last_contact_time for {allocation}: {e}"
+                )
 
     def pull_allocation(self, allocation):
-        logger.info(f"Pulling remote allocation: {allocation}")
+        logger.debug(f"Pulling remote allocation: {allocation}")
 
     def get_allocation_queryset(self):
         logger.debug("Getting OpenPortal allocation queryset")

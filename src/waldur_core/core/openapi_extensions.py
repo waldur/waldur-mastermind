@@ -11,8 +11,13 @@ from drf_spectacular.types import OpenApiTypes
 
 
 class WaldurTokenScheme(TokenScheme):
-    target_class = "waldur_core.core.authentication.TokenAuthentication"
+    target_class = "waldur_core.core.authentication.ImpersonationAuthentication"
     name = "waldurTokenAuth"
+    # TokenScheme sets priority=-1 and match_subclasses=True so it can match any
+    # TokenAuthentication subclass. Without a higher priority here, this exact-class
+    # extension ties with the base TokenScheme and loses on registration order,
+    # so ImpersonationAuthentication falls back to the colliding "tokenAuth" name.
+    priority = 0
 
 
 class WaldurSessionScheme(SessionScheme):

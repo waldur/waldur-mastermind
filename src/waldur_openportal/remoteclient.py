@@ -8,7 +8,7 @@ from waldur_slurm.structures import Account
 
 from . import exceptions
 from . import utils as openportal_utils
-from .client import OpenPortalRunner
+from .client import OpenPortalRunner, _trim_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class RemoteOpenPortalClient:
             raise exceptions.OpenPortalError("Instance name cannot be None")
 
         if project_template is None:
-            logger.warning(
+            logger.debug(
                 "Project class is not specified, using default 'default' project class"
             )
             project_template = "default"
@@ -48,12 +48,17 @@ class RemoteOpenPortalClient:
 
     def _to_project_details(self, details) -> openportal.AwardDetails:
         """
-        Convert the passed (any) object into a ProjectDetails object
+        Convert the passed (any) object into a AwardDetails object
         """
         if not isinstance(details, openportal.AwardDetails):
             details = openportal.AwardDetails(str(details))
 
         details.project_template = self._project_template
+
+        # also add in the allowed email domains associated with this template
+        # for domain in self._project_template.allowed_email_domains:
+        #     details.add_allowed_domain(domain)
+
         return details
 
     def _to_usage(self, usage) -> openportal.Usage:
@@ -112,7 +117,7 @@ class RemoteOpenPortalClient:
 
         mapping = self.run(f"{self.destination()} add_user {user}")
 
-        logger.info(
+        logger.debug(
             f"Added OpenPortal user to project {project} with mapping {mapping}"
         )
 
@@ -126,7 +131,7 @@ class RemoteOpenPortalClient:
 
         self.run(f"{self.destination()} remove_user {user}")
 
-        logger.info(f"Deleted OpenPortal user '{user}'")
+        logger.debug(f"Deleted OpenPortal user '{user}'")
 
     def _get_project_shortname(self, project: structure_models.Project) -> str:
         """
@@ -178,14 +183,14 @@ class RemoteOpenPortalClient:
         project = self._to_project_identifier(project)
         details = self._to_project_details(details)
 
-        logger.info(
-            f"Creating remote OpenPortal project {project} with details {details} on destination {self.destination()}"
+        logger.debug(
+            f"Creating remote OpenPortal project {project} on destination {self.destination()}"
         )
 
         mapping = self.run(f"{self.destination()} create_project {project} {details}")
 
-        logger.info(
-            f"Created remote OpenPortal project {project} with details {details} and mapping {mapping}"
+        logger.debug(
+            f"Created remote OpenPortal project {project} with mapping {mapping}"
         )
 
         return mapping
@@ -202,14 +207,14 @@ class RemoteOpenPortalClient:
         project = self._to_project_identifier(project)
         details = self._to_project_details(details)
 
-        logger.info(
-            f"Updating remote OpenPortal project {project} with details {details}"
+        logger.debug(
+            f"Updating remote OpenPortal project {project} on destination {self.destination()}"
         )
 
         mapping = self.run(f"{self.destination()} update_project {project} {details}")
 
-        logger.info(
-            f"Updated remote OpenPortal project {project} with details {details} and mapping {mapping}"
+        logger.debug(
+            f"Updated remote OpenPortal project {project} with mapping {mapping}"
         )
 
         return mapping
@@ -232,9 +237,7 @@ class RemoteOpenPortalClient:
         project = self._to_project_identifier(project)
         usage = self._to_usage(limit)
 
-        logger.info(f"Setting resource usage limit for project {project} to {usage}")
-
-        logger.info(f"{self.destination()} set_limit {project} {usage.seconds} seconds")
+        logger.debug(f"Setting resource usage limit for project {project} to {usage}")
 
         new_limit = self.run(
             f"{self.destination()} set_limit {project} {usage.seconds} seconds"
@@ -293,11 +296,22 @@ class RemoteOpenPortalClient:
         project = self._to_project_identifier(project)
         return self.run(f"{self.destination()} get_users {project}")
 
+    def get_award(
+        self, project: openportal.ProjectIdentifier
+    ) -> openportal.AwardDetails:
+        """
+        Fetch the current AwardDetails for the given project from the remote portal.
+        Raises exceptions.OpenPortalError on failure.
+        """
+        project = self._to_project_identifier(project)
+        return self.run(f"{self.destination()} get_award {project}")
+
     def run(self, command: str):
         """
         Run the passed command and await the result
         """
-        logger.debug(f"Running command '{command}'")
+        cmd_label = _trim_cmd(command)
+        logger.debug(f"Running command '{cmd_label}'")
         op_job = self._runner.run(command)
 
         now = datetime.datetime.now()
@@ -309,24 +323,24 @@ class RemoteOpenPortalClient:
             if check_time - last_update > datetime.timedelta(seconds=10):
                 total_duration = check_time - now
                 logger.warning(
-                    f"Job {command} is still running... for {total_duration}"
+                    f"Job {cmd_label} is still running... for {total_duration}"
                 )
                 last_update = check_time
 
             if check_time - now > datetime.timedelta(seconds=30):
-                logger.error(f"Job {command} is taking too long to run - skipping!")
+                logger.error(f"Job {cmd_label} is taking too long to run - skipping!")
                 break
 
         # Give the job another 100ms to finish...
         if not op_job.wait(100):
-            logger.error(f"Job {command} timed out - skipping!")
-            raise exceptions.OpenPortalError(f"Job '{command}' timed out - skipping!")
+            logger.error(f"Job {cmd_label} timed out - skipping!")
+            raise exceptions.OpenPortalError(f"Job '{cmd_label}' timed out - skipping!")
 
         if op_job.is_error:
-            logger.error(f"Job {command} has failed: {op_job.error_message}")
+            logger.error(f"Job {cmd_label} has failed: {op_job.error_message}")
             raise exceptions.convert_to_openportal_error(op_job.error_message)
         else:
-            logger.debug(f"Job finished: {command} - SUCCESS")
+            logger.debug(f"Job finished: {cmd_label} - SUCCESS")
             return op_job.result
 
     def list_accounts(self) -> list[Account]:
@@ -348,7 +362,7 @@ class RemoteOpenPortalClient:
         organisation and parent name. This just creates a project with the specified name,
         returning the project mapping for that project
         """
-        logger.info(
+        logger.debug(
             f"Creating account '{name}' with description '{description}' and organization '{organization}'"
         )
 

@@ -1,12 +1,13 @@
 import datetime
 import functools
+import json
 import logging
 import random
 import time
 
 import openportal
 from celery import shared_task
-from constance import config
+from constance import config as constance_config
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
@@ -17,9 +18,8 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import backend, models, utils
-from . import config as openportal_config
-from .board import OpenPortalBoard
+from . import backend, config, models, remote_project_service, utils
+from .board import OpenPortalBoard, _trim_job
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,19 @@ logger = logging.getLogger(__name__)
 def run_once_task(takeover_timeout, include_args=False):
     """
     Decorator to ensure only one instance of a task runs at a time.
+
+    The lock is a database row that is deleted in a ``finally``, so it only
+    outlives the task if the process dies without unwinding - a hard kill or an
+    OOM. ``takeover_timeout`` is the sole recovery path from that state.
+
+    ``last_run`` records when the task *started* and is deliberately never
+    refreshed while it runs: there is no heartbeat. That is safe only because
+    Celery kills any task well before the lock could expire under it. Keep
+    ``takeover_timeout`` generously above ``CELERY_TASK_TIME_LIMIT`` (currently
+    30 minutes) to account for queue wait and scheduling delays, the same
+    reasoning ``BackgroundTask.lock_timeout`` follows in waldur_core. Lowering it
+    below that limit would let a still-running task have its lock taken over and
+    end up running twice.
 
     Args:
         takeover_timeout: Timeout in seconds before a stale lock can be taken over
@@ -58,14 +71,14 @@ def run_once_task(takeover_timeout, include_args=False):
                     )
 
                     # someone else beat us to the lock - was this more than
-                    # takeover_timeout seconds ago?
+                    # takeover_timeout seconds ago?  total_seconds() rather than
+                    # seconds: the latter is the seconds-within-the-day part, so
+                    # a lock orphaned for 24h reads as 0 elapsed and is never
+                    # taken over.  Both values are UTC-aware (USE_TZ is on), so
+                    # they subtract directly.
                     if (
                         lock.last_run is None
-                        or (
-                            now.replace(tzinfo=None)
-                            - lock.last_run.replace(tzinfo=None)
-                        ).seconds
-                        > takeover_timeout
+                        or (now - lock.last_run).total_seconds() > takeover_timeout
                     ):
                         # remove the lock
                         try:
@@ -90,12 +103,12 @@ def run_once_task(takeover_timeout, include_args=False):
                             )
                             return True
                         else:
-                            logger.info(
+                            logger.debug(
                                 f"OpenPortal task {lock_id} already running - skipping"
                             )
                             return False
                     else:
-                        logger.info(
+                        logger.debug(
                             f"OpenPortal task {lock_id} already running - skipping"
                         )
                         return False
@@ -118,9 +131,13 @@ def run_once_task(takeover_timeout, include_args=False):
 
             if acquire_lock():
                 try:
-                    func(*args, **kwargs)
+                    return func(*args, **kwargs)
                 finally:
                     release_lock()
+
+            # Lock held elsewhere - indistinguishable from a task that returned
+            # None, which is fine for these fire-and-forget beat tasks.
+            return None
 
         return wrapper
 
@@ -189,7 +206,7 @@ def add_allocated_project(serialized_allocation):
         allocation = core_utils.deserialize_instance(serialized_allocation)
 
         if not isinstance(allocation, models.Allocation):
-            logger.info(
+            logger.debug(
                 f"Skipping allocation {allocation} - not an openportal.Allocation instance"
             )
             return
@@ -212,7 +229,7 @@ def update_user(serialized_user):
         user = core_utils.deserialize_instance(serialized_user)
 
         if not isinstance(user, User):
-            logger.info(f"Skipping user {user} - not a User instance")
+            logger.debug(f"Skipping user {user} - not a User instance")
             return
 
     for allocation in utils.get_project_allocations(user):
@@ -261,7 +278,7 @@ def delete_user(serialized_user):
         user = core_utils.deserialize_instance(serialized_user)
 
         if not isinstance(user, User):
-            logger.info(f"Skipping user {user} - not a User instance")
+            logger.debug(f"Skipping user {user} - not a User instance")
             return
 
     if not isinstance(user, User):
@@ -312,7 +329,7 @@ def sync_allocation_usage(serialized_allocation):
         allocation = core_utils.deserialize_instance(serialized_allocation)
 
         if not isinstance(allocation, models.Allocation):
-            logger.info(
+            logger.debug(
                 f"Skipping allocation {allocation} - not an Allocation instance"
             )
             return
@@ -336,7 +353,7 @@ def sync_remote_allocation_usage(serialized_allocation):
         allocation = core_utils.deserialize_instance(serialized_allocation)
 
         if not isinstance(allocation, models.RemoteAllocation):
-            logger.info(
+            logger.debug(
                 f"Skipping allocation {allocation} - not a RemoteAllocation instance"
             )
             return
@@ -373,14 +390,25 @@ def sync_remote_allocation_users(serialized_allocation):
         allocation = core_utils.deserialize_instance(serialized_allocation)
 
         if not isinstance(allocation, models.RemoteAllocation):
-            logger.info(
+            logger.debug(
                 f"Skipping allocation {allocation} - not a RemoteAllocation instance"
             )
             return
 
     backend = allocation.get_backend()
 
-    allocation = backend.check_added_allocation(allocation)
+    try:
+        allocation = backend.check_added_allocation(allocation)
+    except Exception as e:
+        if str(e).find("ManagedProjectPendingError") != -1:
+            logger.debug(
+                f"Allocation {allocation} is still pending in remote portal - skipping usage sync"
+            )
+        else:
+            logger.error(f"Failed to check allocation {allocation}: {e}")
+
+        # just return for now - we can't sync usage as the project is not connected
+        return
 
     backend.sync_users(allocation)
 
@@ -399,7 +427,7 @@ def sync_allocation_users(serialized_allocation):
         allocation = core_utils.deserialize_instance(serialized_allocation)
 
         if not isinstance(allocation, models.Allocation):
-            logger.info(
+            logger.debug(
                 f"Skipping allocation {allocation} - not an Allocation instance"
             )
             return
@@ -412,40 +440,86 @@ def sync_allocation_users(serialized_allocation):
 
 
 @shared_task(name="waldur_openportal.sync_remote_usage")
-@run_once_task(takeover_timeout=60 * 60)
 def sync_remote_usage():
     """
-    This task is called to synchronise the usage for all remote allocations
+    Dispatcher: fans out one sync_remote_usage_for_destination subtask per active
+    destination so that a down destination cannot block usage syncs for others.
     """
-    if not openportal_config.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_remote_usage"
         )
         return
 
     logger.info("OpenPortal task.sync_remote_usage")
+
+    service_settings_ids = list(
+        models.RemoteAllocation.objects.filter(is_active=True)
+        .values_list("service_settings_id", flat=True)
+        .distinct()
+    )
+
+    logger.info(
+        f"OpenPortal task.sync_remote_usage: dispatching sync for {len(service_settings_ids)} destination(s)"
+    )
+
+    for sid in service_settings_ids:
+        try:
+            sync_remote_usage_for_destination.delay(sid)
+        except Exception as e:
+            logger.error(
+                f"Failed to dispatch sync_remote_usage_for_destination for service_settings {sid}: {e}"
+            )
+
+
+@shared_task(name="waldur_openportal.sync_remote_usage_for_destination")
+@run_once_task(takeover_timeout=60 * 60, include_args=True)
+def sync_remote_usage_for_destination(service_settings_id):
+    """
+    Sync usage for all RemoteAllocations belonging to a single destination.
+    """
+    try:
+        service_settings = structure_models.ServiceSettings.objects.get(
+            pk=service_settings_id
+        )
+    except structure_models.ServiceSettings.DoesNotExist:
+        logger.error(
+            f"sync_remote_usage_for_destination: ServiceSettings {service_settings_id} does not exist"
+        )
+        return
+
+    logger.info(
+        f"OpenPortal task.sync_remote_usage_for_destination: {service_settings}"
+    )
+
+    allocations = list(
+        models.RemoteAllocation.objects.filter(
+            is_active=True, service_settings=service_settings
+        )
+    )
+    random.shuffle(allocations)
+
     now = datetime.datetime.now()
     fail_count = 0
-    processed_count = 0
 
-    for allocation in list(models.RemoteAllocation.objects.filter(is_active=True)):
+    for allocation in allocations:
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error(
+                f"sync_remote_usage_for_destination: {service_settings} took too long - aborting"
+            )
+            return
+
         try:
             sync_remote_allocation_usage(allocation)
-            processed_count += 1
-            if processed_count % 50 == 0:
-                logger.info(f"Processed {processed_count} remote allocations")
         except Exception as e:
             logger.error(f"Failed to sync usage for {allocation}: {e}")
             fail_count += 1
 
-            if fail_count > 5 and (datetime.datetime.now() - now).seconds > 60:
-                logger.error("Too many failures - aborting")
+            if fail_count > 25 and (datetime.datetime.now() - now).seconds > 600:
+                logger.error(
+                    f"sync_remote_usage_for_destination: {service_settings} - too many failures, aborting"
+                )
                 return
-            elif (datetime.datetime.now() - now).seconds > 3600:
-                logger.error("sync_remote_usage took too long - aborting")
-                return
-
-    logger.info(f"sync_remote_usage completed: processed {processed_count} allocations")
 
 
 @shared_task(name="waldur_openportal.sync_customer_allocations")
@@ -468,15 +542,25 @@ def sync_customer_allocations(customer_id):
     )
 
     # Get all active allocations for this customer
-    allocations = models.Allocation.objects.filter(
-        is_active=True, project__customer=customer
+    allocations = list(
+        models.Allocation.objects.filter(is_active=True, project__customer=customer)
     )
+
+    # randomise the order of the allocations to avoid always processing in the same order and potentially
+    # leaving some allocations with outdated usage for a long time
+    random.shuffle(allocations)
+
+    now = datetime.datetime.now()
 
     for allocation in allocations:
         try:
             sync_allocation_usage(allocation)
         except Exception as e:
             logger.error(f"Failed to sync usage for {allocation}: {e}")
+
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error("sync_customer_allocations took too long - aborting")
+            return
 
 
 @shared_task(name="waldur_openportal.sync_usage")
@@ -490,7 +574,7 @@ def sync_usage():
     The sync_allocation_limits task should be scheduled separately (e.g., via cron)
     to run after this task typically completes to update resource limits.
     """
-    if not openportal_config.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_usage"
         )
@@ -530,7 +614,7 @@ def sync_allocation_storage(serialized_allocation):
         allocation = core_utils.deserialize_instance(serialized_allocation)
 
         if not isinstance(allocation, models.Allocation):
-            logger.info(
+            logger.debug(
                 f"Skipping allocation {allocation} - not an Allocation instance"
             )
             return
@@ -547,7 +631,7 @@ def sync_storage():
     Runs every 8 hours so each project gets at least one storage report per day
     without hammering the filesystems.
     """
-    if not openportal_config.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_storage"
         )
@@ -582,15 +666,15 @@ def sync_remote_allocation_storage(serialized_allocation):
         allocation = core_utils.deserialize_instance(serialized_allocation)
 
         if not isinstance(allocation, models.RemoteAllocation):
-            logger.info(
+            logger.debug(
                 f"Skipping allocation {allocation} - not a RemoteAllocation instance"
             )
             return
 
-    backend_obj = allocation.get_backend()
+    backend = allocation.get_backend()
 
     try:
-        allocation = backend_obj.check_added_allocation(allocation)
+        allocation = backend.check_added_allocation(allocation)
     except Exception as e:
         if str(e).find("ManagedProjectPendingError") != -1:
             logger.debug(
@@ -600,7 +684,44 @@ def sync_remote_allocation_storage(serialized_allocation):
             logger.error(f"Failed to check allocation {allocation}: {e}")
         return
 
-    backend_obj.sync_storage(allocation)
+    backend.sync_storage(allocation)
+
+
+@shared_task(name="waldur_openportal.refresh_remote_projects")
+@run_once_task(takeover_timeout=60 * 60)
+def refresh_remote_projects():
+    """
+    Refresh the details of all RemoteProjects from the remote portal.
+    This is called periodically in case we miss the updates that
+    come from push notifications
+    """
+    logger.info("OpenPortal task.refresh_remote_projects")
+    now = datetime.datetime.now()
+    fail_count = 0
+
+    remote_projects = list(models.RemoteProject.objects.all())
+
+    # randomise the order of the projects to avoid always processing in the same order and potentially
+    # leaving some projects with outdated details for a long time
+    random.shuffle(remote_projects)
+
+    for remote_project in remote_projects:
+        try:
+            utils.refresh_remote_project(remote_project)
+        except Exception as e:
+            logger.error(f"Failed to refresh remote project {remote_project}: {e}")
+            fail_count += 1
+
+            if fail_count > 25 and (datetime.datetime.now() - now).seconds > 600:
+                logger.error("Too many failures - aborting")
+                return
+            elif (datetime.datetime.now() - now).seconds > 3600:
+                logger.error("sync_remote_projects took too long - aborting")
+                return
+
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error("sync_remote_projects took too long - aborting")
+            return
 
 
 @shared_task(name="waldur_openportal.sync_remote_storage")
@@ -610,7 +731,7 @@ def sync_remote_storage():
     Fetch and store accumulated storage reports from remote portals for all
     active RemoteAllocations.
     """
-    if not openportal_config.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_remote_storage"
         )
@@ -630,7 +751,7 @@ def sync_remote_storage():
             logger.error(f"Failed to sync storage for {allocation}: {e}")
             fail_count += 1
 
-            if fail_count > 5 and (datetime.datetime.now() - now).seconds > 60:
+            if fail_count > 25 and (datetime.datetime.now() - now).seconds > 600:
                 logger.error("Too many failures - aborting")
                 return
             elif (datetime.datetime.now() - now).seconds > 3600:
@@ -642,74 +763,6 @@ def sync_remote_storage():
             return
 
 
-@shared_task(name="waldur_openportal.sync_local_users")
-@run_once_task(takeover_timeout=60 * 60)
-def sync_local_users():
-    """
-    This task runs through all of the allocations and makes sure that all
-    users associated with those allocations are properly synced (e.g.
-    added or removed)
-    """
-    if not openportal_config.ensure_config_loaded():
-        logger.debug(
-            "OpenPortal not enabled or config not available, skipping sync_local_users"
-        )
-        return
-
-    logger.info("OpenPortal task.sync_local_users")
-    now = datetime.datetime.now()
-
-    allocations = list(models.Allocation.objects.filter(is_active=True))
-
-    # randomise the order of the allocations to avoid always processing in the same order and potentially
-    # leaving some allocations with unsynced users for a long time
-    random.shuffle(allocations)
-
-    for allocation in allocations:
-        try:
-            sync_allocation_users(allocation)
-        except Exception as e:
-            logger.error(f"Failed to sync users for {allocation}: {e}")
-
-        if (datetime.datetime.now() - now).seconds > 3600:
-            logger.error("sync_users took too long - aborting")
-            break
-
-
-@shared_task(name="waldur_openportal.sync_remote_users")
-@run_once_task(takeover_timeout=60 * 60)
-def sync_remote_users():
-    """
-    This task runs through all of the remote allocations and makes sure that all
-    users associated with those allocations are properly synced (e.g.
-    added or removed)
-    """
-    if not openportal_config.ensure_config_loaded():
-        logger.debug(
-            "OpenPortal not enabled or config not available, skipping sync_remote_users"
-        )
-        return
-
-    logger.info("OpenPortal task.sync_remote_users")
-    now = datetime.datetime.now()
-
-    allocations = list(models.RemoteAllocation.objects.filter(is_active=True))
-
-    # randomise the order of the allocations to avoid always processing in the same order and potentially
-    # leaving some allocations with unsynced users for a long time
-    random.shuffle(allocations)
-
-    for allocation in allocations:
-        try:
-            sync_remote_allocation_users(allocation)
-        except Exception as e:
-            logger.error(f"Failed to sync remote users for {allocation}: {e}")
-
-        if (datetime.datetime.now() - now).seconds > 3600:
-            logger.error("sync_remote_users took too long - aborting")
-            break
-
-
 @shared_task(name="waldur_openportal.sync_allocation_limits")
 @run_once_task(takeover_timeout=60 * 60)
 def sync_allocation_limits():
@@ -717,7 +770,7 @@ def sync_allocation_limits():
     This task updates the resource limits for all allocations based on project credits
     and current usage. This should be run after sync_usage to ensure all usage data is current.
     """
-    if not openportal_config.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_allocation_limits"
         )
@@ -725,63 +778,83 @@ def sync_allocation_limits():
 
     logger.info("OpenPortal task.sync_allocation_limits")
     now = datetime.datetime.now()
-    processed_count = 0
 
-    for project_credit in list(
+    project_credits = list(
         invoice_models.ProjectCredit.objects.select_related("project")
-    ):
-        project = project_credit.project
+    )
 
-        # Skip fully removed projects
-        if project.is_removed:
-            continue
+    # randomise the order of the projects to avoid always processing in the same order and potentially
+    # leaving some projects with outdated limits for a long time
+    random.shuffle(project_credits)
 
-        # For projects in grace period or past grace period, set limits to zero
-        if project.is_in_grace_period:
-            logger.info(
-                f"Project {project} is in grace period (until {project.end_date_with_grace}) - setting limits to zero"
-            )
-            credits_available = 0
-        elif project.is_expired:
-            # Project is expired and past grace period
-            logger.info(
-                f"Project {project} is expired (past grace period) - setting limits to zero"
-            )
-            credits_available = 0
-        else:
-            # Project is active, use normal credit logic
-            credits_available = project_credit.value
+    for project_credit in project_credits:
+        # Bound before the try block: the handler below reports on it, and a
+        # failure to resolve the project would otherwise raise NameError from
+        # inside the handler (or name the previous iteration's project).
+        project = None
 
-            if credits_available is None or credits_available <= 0:
-                credits_available = 0
-            else:
-                credits_available = float(credits_available)
+        try:
+            project = project_credit.project
 
-        # find any openportal allocations associated with the project
-        allocations = models.Allocation.objects.filter(project=project, is_active=True)
+            # Skip fully removed projects
+            if project.is_removed:
+                continue
 
-        if not allocations:
-            logger.debug(f"Project {project} has no OpenPortal allocations - skipping")
-            continue
-
-        # Calculate the total usage so far this month across OpenPortal allocations
-        # for this project - if it exceeds the number of project credits available
-        # then we have to set the limits to zero to prevent any more spend
-        if credits_available > 0:
-            total_spend = 0.0
-
-            for allocation in allocations:
-                total_spend += float(allocation.node_usage)
-
-            logger.info(
-                f"Total spend for {project} is {total_spend} hours - {credits_available} available"
-            )
-
-            if total_spend >= credits_available:
-                logger.warning(
-                    f"Total spend for {project} exceeds available credits - setting limits to zero"
+            # For projects in grace period or past grace period, set limits to zero
+            if project.is_in_grace_period:
+                logger.debug(
+                    f"Project {project} is in grace period (until {project.end_date_with_grace}) - setting limits to zero"
                 )
                 credits_available = 0
+            elif project.is_expired:
+                # Project is expired and past grace period
+                logger.debug(
+                    f"Project {project} is expired (past grace period) - setting limits to zero"
+                )
+                credits_available = 0
+            else:
+                # Project is active, use normal credit logic
+                credits_available = project_credit.value
+
+                if credits_available is None or credits_available <= 0:
+                    credits_available = 0
+                else:
+                    credits_available = float(credits_available)
+
+            # find any openportal allocations associated with the project
+            allocations = models.Allocation.objects.filter(
+                project=project, is_active=True
+            )
+
+            if not allocations:
+                logger.debug(
+                    f"Project {project} has no OpenPortal allocations - skipping"
+                )
+                continue
+
+            # Calculate the total usage so far this month across OpenPortal allocations
+            # for this project - if it exceeds the number of project credits available
+            # then we have to set the limits to zero to prevent any more spend
+            if credits_available > 0:
+                total_spend = 0.0
+
+                for allocation in allocations:
+                    total_spend += float(allocation.node_usage)
+
+                logger.debug(
+                    f"Total spend for {project} is {total_spend} hours - {credits_available} available"
+                )
+
+                if total_spend >= credits_available:
+                    logger.warning(
+                        f"Total spend for {project} exceeds available credits - setting limits to zero"
+                    )
+                    credits_available = 0
+        except Exception as e:
+            logger.error(
+                f"Failed to calculate credits for {project or project_credit}: {e}"
+            )
+            continue
 
         for allocation in allocations:
             try:
@@ -828,82 +901,133 @@ def sync_allocation_limits():
                 logger.error("sync_allocation_limits took too long - aborting")
                 return
 
-        # Memory cleanup after processing each project
-        processed_count += 1
-        if processed_count % 100 == 0:
-            logger.info(f"Processed {processed_count} project credits")
-
     logger.info(
-        f"sync_allocation_limits completed: processed {processed_count} credits"
+        f"sync_allocation_limits completed: processed {len(project_credits)} credits"
     )
 
 
 @shared_task(name="waldur_openportal.sync_remote")
-@run_once_task(takeover_timeout=60 * 60)
 def sync_remote():
     """
-    This is a full OpenPortal remote sync - this will go through all remote projects
-    and make sure that they have been created and any updates applied
+    Dispatcher: fans out one sync_remote_for_destination subtask per active destination
+    so that destinations are synced in parallel and a down destination cannot block others.
     """
     logger.info("OpenPortal task.sync_remote")
+
+    service_settings_ids = list(
+        models.RemoteAllocation.objects.filter(is_active=True)
+        .values_list("service_settings_id", flat=True)
+        .distinct()
+    )
+
+    logger.info(
+        f"OpenPortal task.sync_remote: dispatching sync for {len(service_settings_ids)} destination(s)"
+    )
+
+    for sid in service_settings_ids:
+        try:
+            sync_remote_for_destination.delay(sid)
+        except Exception as e:
+            logger.error(
+                f"Failed to dispatch sync_remote_for_destination for service_settings {sid}: {e}"
+            )
+
+
+@shared_task(name="waldur_openportal.sync_remote_for_destination")
+@run_once_task(takeover_timeout=60 * 60, include_args=True)
+def sync_remote_for_destination(service_settings_id):
+    """
+    Sync all RemoteAllocations for a single destination (ServiceSettings).
+    Allocations are shuffled so that a persistent early failure cannot starve
+    later entries across repeated sync cycles.  Failures are counted per
+    destination so that a down destination does not consume the failure budget
+    of other destinations.
+    """
+    try:
+        service_settings = structure_models.ServiceSettings.objects.get(
+            pk=service_settings_id
+        )
+    except structure_models.ServiceSettings.DoesNotExist:
+        logger.error(
+            f"sync_remote_for_destination: ServiceSettings {service_settings_id} does not exist"
+        )
+        return
+
+    logger.info(f"OpenPortal task.sync_remote_for_destination: {service_settings}")
+
+    remote_allocations = list(
+        models.RemoteAllocation.objects.filter(
+            is_active=True, service_settings=service_settings
+        )
+    )
+    random.shuffle(remote_allocations)
+
     now = datetime.datetime.now()
     fail_count = 0
 
-    # First, try to create all of the remote projects that are not
-    # already created in the remote portal
-    for remote_allocation in models.RemoteAllocation.objects.filter(is_active=True):
-        project = remote_allocation.project
-
-        if project is None:
-            logger.warning(
-                f"Remote allocation {remote_allocation} has no associated project - deleting"
+    for remote_allocation in remote_allocations:
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error(
+                f"sync_remote_for_destination: {service_settings} took too long - aborting"
             )
-            try:
-                remote_allocation.delete()
-            except Exception as e:
-                logger.error(
-                    f"Failed to delete remote allocation {remote_allocation}: {e}"
+            break
+
+        try:
+            project = remote_allocation.project
+
+            if project is None:
+                logger.warning(
+                    f"Remote allocation {remote_allocation} has no associated project - deleting"
                 )
-            continue
+                try:
+                    remote_allocation.delete()
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete remote allocation {remote_allocation}: {e}"
+                    )
+                continue
 
-        # Skip removed projects or projects past grace period
-        if project.is_removed:
-            logger.info(
-                f"Remote allocation {remote_allocation} is for a removed project - deleting"
-            )
-            try:
-                remote_allocation.delete()
-            except Exception as e:
-                logger.error(
-                    f"Failed to delete remote allocation {remote_allocation}: {e}"
+            # Skip removed projects or projects past grace period
+            if project.is_removed:
+                logger.debug(
+                    f"Remote allocation {remote_allocation} is for a removed project - deleting"
                 )
-            continue
+                try:
+                    remote_allocation.delete()
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete remote allocation {remote_allocation}: {e}"
+                    )
+                continue
 
-        # Delete allocations for projects past grace period (fully expired)
-        if project.is_expired and not project.is_in_grace_period:
-            logger.info(
-                f"Remote allocation {remote_allocation} is for a project past grace period - deleting"
-            )
-            try:
-                remote_allocation.delete()
-            except Exception as e:
-                logger.error(
-                    f"Failed to delete remote allocation {remote_allocation}: {e}"
+            # Delete allocations for projects past grace period (fully expired)
+            if project.is_expired and not project.is_in_grace_period:
+                logger.debug(
+                    f"Remote allocation {remote_allocation} is for a project past grace period - deleting"
                 )
-            continue
+                try:
+                    remote_allocation.delete()
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete remote allocation {remote_allocation}: {e}"
+                    )
+                continue
 
-        # Projects in grace period are kept but will have limits set to zero by sync_usage
+            # Projects in grace period are kept but will have limits set to zero by sync_usage
 
-        if remote_allocation.state not in [
-            CoreStates.CREATION_SCHEDULED,
-            CoreStates.CREATING,
-            CoreStates.UPDATE_SCHEDULED,
-            CoreStates.UPDATING,
-            CoreStates.OK,
-        ]:
-            logger.debug(
-                f"Remote allocation {remote_allocation} is not in a valid state {remote_allocation.state} for syncing - skipping"
-            )
+            if remote_allocation.state not in [
+                CoreStates.CREATION_SCHEDULED,
+                CoreStates.CREATING,
+                CoreStates.UPDATE_SCHEDULED,
+                CoreStates.UPDATING,
+                CoreStates.OK,
+            ]:
+                logger.debug(
+                    f"Remote allocation {remote_allocation} is not in a valid state {remote_allocation.state} for syncing - skipping"
+                )
+                continue
+        except Exception as e:
+            logger.error(f"Failed to check remote allocation {remote_allocation}: {e}")
             continue
 
         try:
@@ -915,7 +1039,7 @@ def sync_remote():
                 )
                 backend.add_allocated_project(remote_allocation)
             elif remote_allocation.needs_updating():
-                logger.info(
+                logger.debug(
                     f"Remote allocation {remote_allocation} needs updating ({remote_allocation.local_version} vs {remote_allocation.remote_version}) - updating"
                 )
                 backend.update_allocated_project(remote_allocation, force_update=False)
@@ -924,19 +1048,129 @@ def sync_remote():
             logger.error(f"Failed to sync remote project {remote_allocation}: {e}")
             fail_count += 1
 
-            if fail_count > 5 and (datetime.datetime.now() - now).seconds > 60:
-                logger.error("Too many failures - aborting")
+            if fail_count > 25 and (datetime.datetime.now() - now).seconds > 600:
+                logger.error(
+                    f"sync_remote_for_destination: {service_settings} - too many failures, aborting"
+                )
                 break
-            elif (datetime.datetime.now() - now).seconds > 3600:
-                logger.error("sync_remote_usage took too long - aborting")
-                break
+
+
+@shared_task(name="waldur_openportal.sync_local_users")
+@run_once_task(takeover_timeout=60 * 60)
+def sync_local_users():
+    """
+    This task runs through all of the allocations and makes sure that all
+    users associated with those allocations are properly synced (e.g.
+    added or removed)
+    """
+    if not config.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_local_users"
+        )
+        return
+
+    logger.info("OpenPortal task.sync_local_users")
+    now = datetime.datetime.now()
+
+    allocations = list(models.Allocation.objects.filter(is_active=True))
+
+    # randomise the order of the allocations to avoid always processing in the same order and potentially
+    # leaving some allocations with unsynced users for a long time
+    random.shuffle(allocations)
+
+    for allocation in allocations:
+        try:
+            sync_allocation_users(allocation)
+        except Exception as e:
+            logger.error(f"Failed to sync users for {allocation}: {e}")
+
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error("sync_users took too long - aborting")
+            break
+
+
+@shared_task(name="waldur_openportal.sync_remote_users")
+def sync_remote_users():
+    """
+    Dispatcher: fans out one sync_remote_users_for_destination subtask per active
+    destination so that a down destination cannot block user syncs for others.
+    """
+    if not config.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_remote_users"
+        )
+        return
+
+    logger.info("OpenPortal task.sync_remote_users")
+
+    service_settings_ids = list(
+        models.RemoteAllocation.objects.filter(is_active=True)
+        .values_list("service_settings_id", flat=True)
+        .distinct()
+    )
+
+    logger.info(
+        f"OpenPortal task.sync_remote_users: dispatching sync for {len(service_settings_ids)} destination(s)"
+    )
+
+    for sid in service_settings_ids:
+        try:
+            sync_remote_users_for_destination.delay(sid)
+        except Exception as e:
+            logger.error(
+                f"Failed to dispatch sync_remote_users_for_destination for service_settings {sid}: {e}"
+            )
+
+
+@shared_task(name="waldur_openportal.sync_remote_users_for_destination")
+@run_once_task(takeover_timeout=60 * 60, include_args=True)
+def sync_remote_users_for_destination(service_settings_id):
+    """
+    Sync users for all RemoteAllocations belonging to a single destination.
+    """
+    try:
+        service_settings = structure_models.ServiceSettings.objects.get(
+            pk=service_settings_id
+        )
+    except structure_models.ServiceSettings.DoesNotExist:
+        logger.error(
+            f"sync_remote_users_for_destination: ServiceSettings {service_settings_id} does not exist"
+        )
+        return
+
+    logger.info(
+        f"OpenPortal task.sync_remote_users_for_destination: {service_settings}"
+    )
+
+    allocations = list(
+        models.RemoteAllocation.objects.filter(
+            is_active=True, service_settings=service_settings
+        )
+    )
+    random.shuffle(allocations)
+
+    now = datetime.datetime.now()
+
+    for allocation in allocations:
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error(
+                f"sync_remote_users_for_destination: {service_settings} took too long - aborting"
+            )
+            break
+
+        try:
+            sync_remote_allocation_users(allocation)
+        except Exception as e:
+            logger.error(f"Failed to sync remote users for {allocation}: {e}")
 
 
 @shared_task(name="waldur_openportal.sync")
 @run_once_task(takeover_timeout=60 * 60)
 def sync():
     """
-    Perform a complete sync of OpenPortal.
+    This is a full OpenPortal sync - this will go through all projects
+    and ensure that only users associated with those projects have
+    the correct associations with any OpenPortal allocations.
     This will add and remove users as needed.
     """
     logger.info("OpenPortal task.sync")
@@ -957,7 +1191,7 @@ def sync_project(serialized_project):
         project = core_utils.deserialize_instance(serialized_project)
 
         if not isinstance(project, structure_models.Project):
-            logger.info(f"Skipping project {project} - not a Project instance")
+            logger.debug(f"Skipping project {project} - not a Project instance")
             return
 
     now = datetime.datetime.now()
@@ -1101,7 +1335,7 @@ def send_notifications():
         # notification to avoid overwhelming the mail server
         for user in project.get_users():
             try:
-                logger.info(f"Sending notification to {user} in {project}")
+                logger.debug(f"Sending notification to {user} in {project}")
                 logger.debug(f"Notification subject: {notification_subject}")
                 logger.debug(f"Notification body: {notification_body}")
 
@@ -1210,7 +1444,7 @@ def update_remote_project(serialized_project):
         project = core_utils.deserialize_instance(serialized_project)
 
         if not isinstance(project, structure_models.Project):
-            logger.info(f"Skipping project {project} - not a Project instance")
+            logger.debug(f"Skipping project {project} - not a Project instance")
             return
 
     # find the remote allocations for this project
@@ -1222,11 +1456,46 @@ def update_remote_project(serialized_project):
         try:
             backend = remote_allocation.get_backend()
 
-            logger.info(f"Updating remote project {remote_allocation}")
+            logger.debug(f"Updating remote project {remote_allocation}")
 
             backend.update_allocated_project(remote_allocation)
         except Exception as e:
             logger.error(f"Failed to update remote project {remote_allocation}: {e}")
+
+
+@shared_task(name="waldur_openportal.apply_membership_control")
+def apply_membership_control(
+    serialized_remote_project, new_control: str, performed_by_id=None
+):
+    """
+    Apply a membership control transition on a RemoteProject.
+    May involve a live fetch from the remote portal (if a member sync is needed),
+    so this is run asynchronously rather than blocking the API.
+    """
+    logger.info(
+        f"OpenPortal task.set_membership_control: {serialized_remote_project} -> {new_control!r}"
+    )
+
+    if isinstance(serialized_remote_project, models.RemoteProject):
+        remote_project = serialized_remote_project
+    else:
+        remote_project = core_utils.deserialize_instance(serialized_remote_project)
+        if not isinstance(remote_project, models.RemoteProject):
+            logger.error(
+                f"set_membership_control: expected RemoteProject, got {type(remote_project)}"
+            )
+            return
+
+    performed_by = None
+    if performed_by_id is not None:
+        performed_by = User.objects.filter(id=performed_by_id).first()
+
+    utils.set_membership_control(
+        remote_project,
+        new_control=new_control,
+        dry_run=False,
+        performed_by=performed_by,
+    )
 
 
 @shared_task(name="waldur_openportal.delete_remote_project")
@@ -1244,7 +1513,7 @@ def delete_remote_project(serialized_project):
         project = core_utils.deserialize_instance(serialized_project)
 
         if not isinstance(project, structure_models.Project):
-            logger.info(f"Skipping project {project} - not a Project instance")
+            logger.debug(f"Skipping project {project} - not a Project instance")
             return
 
     # find the remote allocations for this project
@@ -1256,7 +1525,7 @@ def delete_remote_project(serialized_project):
         try:
             backend = remote_allocation.get_backend()
 
-            logger.info(f"Deleting remote project {remote_allocation}")
+            logger.debug(f"Deleting remote project {remote_allocation}")
 
             backend.delete_allocation(remote_allocation)
         except Exception as e:
@@ -1297,7 +1566,7 @@ def create_default_resources(serialized_managed_project):
         )
 
     if project.is_removed:
-        logger.info(
+        logger.debug(
             f"OpenPortal - ManagedProject {managed_project} is for a removed project"
         )
         raise ValueError(
@@ -1306,7 +1575,7 @@ def create_default_resources(serialized_managed_project):
 
     # Prevent creating resources for projects past grace period
     if project.is_expired and not project.is_in_grace_period:
-        logger.info(
+        logger.debug(
             f"OpenPortal - ManagedProject {managed_project} is for a project past grace period"
         )
         raise ValueError(
@@ -1334,7 +1603,7 @@ def create_default_resources(serialized_managed_project):
                 # that the resource is either running, or has been removed in the
                 # remote portal. DO NOT RECREATE IT.
                 have_existing = True
-                logger.info(
+                logger.debug(
                     f"OpenPortal - Found existing resource {existing_resource} for {offering} in {project}"
                 )
                 resource = existing_resource
@@ -1352,7 +1621,7 @@ def create_default_resources(serialized_managed_project):
                     break
 
         if have_existing:
-            logger.info(
+            logger.debug(
                 f"OpenPortal - Skipping creation of {offering} for {project} - already exists"
             )
 
@@ -1441,7 +1710,7 @@ def create_default_resources(serialized_managed_project):
             ):
                 if existing_resource.state == marketplace_models.Resource.States.ERRED:
                     # remove previously failed resource creation attempts
-                    logger.info(
+                    logger.debug(
                         f"OpenPortal - Removing previously failed resource {existing_resource} for {offering} in {project}"
                     )
                     existing_resource.delete()
@@ -1457,7 +1726,7 @@ def create_default_resources(serialized_managed_project):
                         existing_resource.delete()
 
 
-def update_project(
+def update_award(
     board: OpenPortalBoard,
     project: openportal.ProjectIdentifier,
     details: openportal.AwardDetails,
@@ -1467,7 +1736,7 @@ def update_project(
     Update the project in the OpenPortal board with the given details.
     If the project does not exist, then there will be an error.
     """
-    mapping = board.update_project(project, details, force_approve=force_approve)
+    mapping = board.update_award(project, details, force_approve=force_approve)
 
     # schedule creation of default resources again in case any were missed
     try:
@@ -1488,7 +1757,7 @@ def update_project(
     return mapping
 
 
-def create_project(
+def create_award(
     board: OpenPortalBoard,
     identifier: openportal.ProjectIdentifier,
     details: openportal.AwardDetails,
@@ -1497,11 +1766,11 @@ def create_project(
     Create a project in the OpenPortal board with the given identifier and details.
     """
     # first, create the project if it doesn't exist
-    mapping = board.create_project(identifier, details)
+    mapping = board.create_award(identifier, details)
 
     # next, update the details of the project to match the details provided.
     # This will also create the default resources for the project
-    mapping = update_project(board, mapping.project, details)
+    mapping = update_award(board, mapping.project, details)
 
     return mapping
 
@@ -1529,7 +1798,7 @@ def managed_project_approved(serialized_managed_project):
             f"OpenPortal - {managed_project} is not a ManagedProject instance - it is {type(managed_project)}"
         )
 
-    if not managed_project.is_approved:
+    if not managed_project.is_approved():
         logger.error(
             f"OpenPortal - ManagedProject {managed_project} is not approved - cannot call handler!"
         )
@@ -1541,11 +1810,13 @@ def managed_project_approved(serialized_managed_project):
     identifier = managed_project.get_remote_identifier()
     details = managed_project.get_details()
 
-    result = update_project(board, identifier, details, force_approve=True)
+    result = update_award(board, identifier, details, force_approve=True)
 
     logger.info(
         f"OpenPortal - Managed project {managed_project} approved - mapping is {result}"
     )
+
+    managed_project.notify_accepted()
 
 
 @shared_task(name="waldur_openportal.run_job")
@@ -1563,13 +1834,15 @@ def run_job(serialized_job):
         job = core_utils.deserialize_instance(serialized_job)
 
     if not isinstance(job, models.Job):
-        logger.error(f"OpenPortal - {job} is not a Job instance - it is {type(job)}")
+        logger.error(
+            f"OpenPortal - {_trim_job(job)} is not a Job instance - it is {type(job)}"
+        )
         return
 
     job_model = job
 
     if job_model.state != models.Job.State.PENDING:
-        logger.info(f"OpenPortal - Job {job.job_id} is not pending - skipping")
+        logger.debug(f"OpenPortal - Job {job.job_id} is not pending - skipping")
         return
 
     try:
@@ -1583,15 +1856,17 @@ def run_job(serialized_job):
         return
 
     if job.state != openportal.Status.pending():
-        logger.info(f"OpenPortal - Job {job.id} is not pending - skipping")
+        logger.debug(f"OpenPortal - Job {job_model.job_id} is not pending - skipping")
         return
 
     job_model.state = models.Job.State.RUNNING
     job_model.save()
 
-    board = OpenPortalBoard(job.destination)
+    board = OpenPortalBoard(
+        job.forwarded_for if job.forwarded_for is not None else job.destination
+    )
 
-    logger.info(f"Running job {job} - status {job.state}")
+    logger.info(f"Running job {_trim_job(job)} - status {job.state}")
 
     command = job.instruction.command
     args = job.instruction.arguments
@@ -1599,20 +1874,20 @@ def run_job(serialized_job):
     try:
         result = None
 
-        if command == "create_project":
+        if command == "create_project" or command == "create_award":
             identifier = openportal.ProjectIdentifier(args[0])
             details = openportal.AwardDetails(args[1])
-            result = create_project(board, identifier, details)
-        elif command == "remove_project":
+            result = create_award(board, identifier, details)
+        elif command == "remove_project" or command == "remove_award":
             identifier = openportal.ProjectIdentifier(args[0])
-            result = board.remove_project(identifier)
-        elif command == "update_project":
+            result = board.remove_award(identifier)
+        elif command == "update_project" or command == "update_award":
             identifier = openportal.ProjectIdentifier(args[0])
             details = openportal.AwardDetails(args[1])
-            result = update_project(board, identifier, details)
-        elif command == "get_project":
+            result = update_award(board, identifier, details)
+        elif command == "get_project" or command == "get_award":
             identifier = openportal.ProjectIdentifier(args[0])
-            result = board.get_project(identifier)
+            result = board.get_award(identifier)
         elif command == "get_projects":
             identifier = openportal.PortalIdentifier(args[0])
             result = board.get_projects(identifier)
@@ -1711,13 +1986,302 @@ def run_job(serialized_job):
             )
 
 
+@shared_task(name="waldur_openportal.refresh_remote_award")
+def refresh_remote_award(destination: str, local_identifier: str):
+    """
+    Re-fetch the current AwardDetails for a RemoteProject from the remote portal
+    and update last_confirmed_details.  Always updates last_contact_time.
+    If the fetch fails, last_confirmed_details is left unchanged.
+
+    local_identifier is the award identifier on this portal, e.g. "awardtest.ukri".
+    The RemoteProject is located via destination + the local project slug, then the
+    remote identifier stored on that record is used for the actual fetch.
+    """
+    logger.info(
+        f"OpenPortal task.refresh_remote_award: destination={destination!r}, local_identifier={local_identifier!r}"
+    )
+
+    if not config.ensure_config_loaded():
+        return
+
+    try:
+        destination: openportal.Destination = openportal.Destination(destination)
+    except Exception as e:
+        logger.error(f"refresh_remote_award: invalid destination {destination!r}: {e}")
+        return
+
+    local_id = openportal.ProjectIdentifier(local_identifier)
+
+    if str(local_id.portal) != str(openportal.get_portal()):
+        logger.error(
+            f"refresh_remote_award: identifier {local_identifier!r} is for portal "
+            f"{local_id.portal!r}, expected {openportal.get_portal()!r} — ignoring"
+        )
+        return
+
+    current_project = None
+
+    try:
+        # now find the project by the shortname
+        project_info = models.ProjectInfo.objects.get(shortname=str(local_id.project))
+        current_project = project_info.project
+    except models.ProjectInfo.DoesNotExist:
+        pass
+
+    if current_project is None:
+        # look this up by the slug instead of the shortname
+        try:
+            current_project = structure_models.Project.objects.get(
+                slug=str(local_id.project)
+            )
+        except structure_models.Project.DoesNotExist:
+            logger.error(
+                f"refresh_remote_award: no Project found with slug {local_id.project!r}"
+            )
+            return
+
+    try:
+        remote_project = models.RemoteProject.objects.get(
+            destination=str(destination), current_project=current_project
+        )
+    except models.RemoteProject.DoesNotExist:
+        logger.error(
+            f"refresh_remote_award: no RemoteProject found for "
+            f"destination={destination!r}, project ID={local_id.project!r}"
+        )
+        return
+
+    utils.refresh_remote_project(remote_project)
+
+
+def dispatch_notification(notification: openportal.Notification):
+    """
+    Dispatch an OpenPortal bridge notification to the appropriate handler.
+    Called synchronously from the fetch_notification view.
+    Notifications are fire-and-forget — errors are logged but not raised.
+    """
+    _NOTIFICATION_HANDLERS = {
+        "award_added": _handle_award_added,
+        "award_removed": _handle_award_removed,
+        "award_changed": _handle_award_changed,
+        "award_accepted": _handle_award_accepted,
+        "award_rejected": _handle_award_rejected,
+    }
+
+    if notification.event_type is None:
+        logger.error(f"OpenPortal notification has no event type: {notification}")
+        return
+
+    handler = _NOTIFICATION_HANDLERS.get(notification.event_type)
+    if handler is None:
+        return
+
+    handler(notification)
+
+
+def _schedule_award_task_if_local(notification: openportal.Notification, task):
+    """
+    Parse the notification's event_argument as a ProjectIdentifier, check that
+    it belongs to this portal, and if so schedule the given Celery task with
+    (destination, event_argument) arguments.
+    Returns early without scheduling if the identifier is for a different portal.
+    """
+    if not config.ensure_config_loaded():
+        return
+
+    local_id = openportal.ProjectIdentifier(str(notification.event_argument))
+    if str(local_id.portal) != str(openportal.get_portal()):
+        logger.warning(
+            f"Ignoring notification {notification.event_type!r}: identifier "
+            f"{notification.event_argument!r} belongs to portal {local_id.portal!r}, "
+            f"not {openportal.get_portal()!r}"
+        )
+        return
+
+    try:
+        destination = openportal.Destination(str(notification.destination))
+    except Exception as e:
+        logger.error(
+            f"Invalid destination in notification: {notification.destination!r}: {e}"
+        )
+        return
+
+    # reverse the destination as notifications are reversed
+    destination = destination.reverse()
+
+    task.delay(str(destination), str(notification.event_argument))
+
+
+def _schedule_refresh_award_if_local(notification: openportal.Notification):
+    _schedule_award_task_if_local(notification, refresh_remote_award)
+
+
+@shared_task(name="waldur_openportal.reject_remote_award")
+def reject_remote_award(destination: str, local_identifier: str):
+    """
+    Find the RemoteProject for this award and transition it (and its
+    RemoteAllocation) to ERROR/ERRED state.
+    Called when the remote portal sends an award_rejected notification.
+    """
+    logger.info(
+        f"OpenPortal task.reject_remote_award: destination={destination!r},"
+        f" local_identifier={local_identifier!r}"
+    )
+
+    if not config.ensure_config_loaded():
+        return
+
+    local_id = openportal.ProjectIdentifier(local_identifier)
+
+    if str(local_id.portal) != str(openportal.get_portal()):
+        logger.error(
+            f"reject_remote_award: identifier {local_identifier!r} is for portal "
+            f"{local_id.portal!r}, expected {openportal.get_portal()!r} — ignoring"
+        )
+        return
+
+    try:
+        project = structure_models.Project.objects.get(slug=str(local_id.project))
+    except structure_models.Project.DoesNotExist:
+        logger.error(
+            f"reject_remote_award: no Project found with slug {local_id.project!r}"
+        )
+        return
+
+    try:
+        dest = openportal.Destination(destination)
+    except Exception as e:
+        logger.error(f"reject_remote_award: invalid destination {destination!r}: {e}")
+        return
+
+    try:
+        remote_project = models.RemoteProject.objects.get(
+            destination=str(dest), current_project=project
+        )
+    except models.RemoteProject.DoesNotExist:
+        logger.error(
+            f"reject_remote_award: no RemoteProject found for "
+            f"destination={dest!r}, project slug={local_id.project!r}"
+        )
+        return
+
+    try:
+        remote_project.record_rejected("Award rejected by remote portal")
+    except Exception as e:
+        logger.warning(
+            f"reject_remote_award: failed to record rejection for {remote_project}: {e}"
+        )
+        return
+
+    remote_project_service.touch_last_contact(remote_project)
+
+
+@shared_task(name="waldur_openportal.accept_remote_award")
+def accept_remote_award(destination: str, local_identifier: str):
+    """
+    Find the RemoteProject for this award, refetch the confirmed details
+    from the remote portal, then transition the project (and its
+    RemoteAllocation) to ACTIVE/OK state.
+    Called when the remote portal sends an award_accepted notification.
+    """
+    logger.info(
+        f"OpenPortal task.accept_remote_award: destination={destination!r},"
+        f" local_identifier={local_identifier!r}"
+    )
+
+    if not config.ensure_config_loaded():
+        return
+
+    local_id = openportal.ProjectIdentifier(local_identifier)
+
+    if str(local_id.portal) != str(openportal.get_portal()):
+        logger.error(
+            f"accept_remote_award: identifier {local_identifier!r} is for portal "
+            f"{local_id.portal!r}, expected {openportal.get_portal()!r} — ignoring"
+        )
+        return
+
+    try:
+        project = structure_models.Project.objects.get(slug=str(local_id.project))
+    except structure_models.Project.DoesNotExist:
+        logger.error(
+            f"accept_remote_award: no Project found with slug {local_id.project!r}"
+        )
+        return
+
+    try:
+        dest = openportal.Destination(destination)
+    except Exception as e:
+        logger.error(f"accept_remote_award: invalid destination {destination!r}: {e}")
+        return
+
+    try:
+        remote_project = models.RemoteProject.objects.get(
+            destination=str(dest), current_project=project
+        )
+    except models.RemoteProject.DoesNotExist:
+        logger.error(
+            f"accept_remote_award: no RemoteProject found for "
+            f"destination={dest!r}, project slug={local_id.project!r}"
+        )
+        return
+
+    confirmed_details_json = None
+    try:
+        board = OpenPortalBoard(dest)
+        details = board.refetch_award(local_id)
+        if details:
+            confirmed_details_json = json.loads(details.to_json())
+    except Exception as e:
+        logger.warning(
+            f"accept_remote_award: could not refetch award details for "
+            f"{remote_project} — accepting without confirmed details: {e}"
+        )
+
+    try:
+        remote_project.record_accepted(confirmed_details_json=confirmed_details_json)
+    except Exception as e:
+        logger.warning(
+            f"accept_remote_award: failed to record acceptance for "
+            f"{remote_project}: {e}"
+        )
+        return
+
+    remote_project_service.touch_last_contact(remote_project)
+
+
+def _handle_award_added(notification: openportal.Notification):
+    logger.debug(f"OpenPortal notification: {notification}")
+    _schedule_refresh_award_if_local(notification)
+
+
+def _handle_award_removed(notification: openportal.Notification):
+    logger.debug(f"OpenPortal notification: {notification}")
+    _schedule_refresh_award_if_local(notification)
+
+
+def _handle_award_changed(notification: openportal.Notification):
+    logger.debug(f"OpenPortal notification: {notification}")
+    _schedule_refresh_award_if_local(notification)
+
+
+def _handle_award_accepted(notification: openportal.Notification):
+    logger.info(f"OpenPortal notification: {notification}")
+    _schedule_award_task_if_local(notification, accept_remote_award)
+
+
+def _handle_award_rejected(notification: openportal.Notification):
+    logger.info(f"OpenPortal notification: {notification}")
+    _schedule_award_task_if_local(notification, reject_remote_award)
+
+
 @shared_task(name="waldur_openportal.sync_offering_agents")
 def sync_offering_agents():
     """
     This task is called to sync the agents for all offerings
     that are associated with remote OpenPortal backends.
     """
-    if not openportal_config.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         logger.info(
             "OpenPortal not enabled or config not available, skipping sync_offering_agents"
         )
@@ -1749,11 +2313,11 @@ def sync_offering_agents():
 @shared_task(name="waldur_openportal.sync_board")
 def sync_board():
     """
-    This task is called to synchronise the board to check if OpenPortal
+    This task polls the OpenPortal jobs board to see if this portal
     has received any jobs. If it has, then it pulls the job from the
     board and then spawns a new task to process the job.
     """
-    if not openportal_config.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         logger.info(
             "OpenPortal not enabled or config not available, skipping sync_board"
         )
@@ -1767,10 +2331,10 @@ def sync_board():
     for job in jobs:
         try:
             if job.state != openportal.Status.PENDING:
-                logger.info(f"Job {job.id} is not pending - skipping")
+                logger.debug(f"Job {job.id} is not pending - skipping")
                 continue
 
-            logger.info(f"Processing job {job} from OpenPortal board")
+            logger.info(f"Processing job {_trim_job(job)} from OpenPortal board")
             j = models.Job.objects.create(
                 id=str(job.id),
                 data=job.to_json(),
@@ -1784,19 +2348,29 @@ def sync_board():
 
 
 @shared_task(name="waldur_openportal.clean_stale_jobs")
-def clean_stale_jobs():
+def clean_stale_jobs(days: int = 2, batch_size: int = 5000):
     """
     This task deletes all OpenPortal jobs that were created more than
-    2 days ago - this is to prevent the database from filling up with
+    {days} days ago - this is to prevent the database from filling up with
     old jobs that are no longer relevant.
     """
     logger.info("OpenPortal task.clean_stale_jobs")
-
-    cutoff = datetime.date.today() - datetime.timedelta(days=2)
-
-    stale_jobs = models.Job.objects.filter(created__lt=cutoff)
-
-    stale_jobs.delete()
+    cutoff = datetime.date.today() - datetime.timedelta(days=days)
+    total = 0
+    batch_count = 0
+    while True:
+        batch_ids = list(
+            models.Job.objects.filter(created__lt=cutoff).values_list("id", flat=True)[
+                :batch_size
+            ]
+        )
+        if not batch_ids:
+            break
+        batch_count += 1
+        logger.info(f"Deleting batch {batch_count} with {len(batch_ids)} jobs")
+        models.Job.objects.filter(id__in=batch_ids).delete()
+        total += len(batch_ids)
+    logger.info(f"Deleted {total} jobs older than {days} days")
 
 
 @shared_task(name="waldur_openportal.fix_total_allocation")
@@ -1822,7 +2396,10 @@ def fix_total_allocation():
         if project.is_expired:
             continue
 
-        utils.fix_total_allocation(project)
+        try:
+            utils.fix_total_allocation(project)
+        except Exception as e:
+            logger.error(f"Failed to fix total allocation for project {project}: {e}")
 
 
 @shared_task(name="waldur_openportal.notify_users_about_rejected_allocation")
@@ -1896,7 +2473,7 @@ def notify_users_about_rejected_allocation(serialized_managed_project):
             "reviewer_email": reviewer.email,
             "reviewer_organization": reviewer.organization,
             "review_comment": managed_project.review_comment or "",
-            "site_name": config.SITE_NAME,
+            "site_name": constance_config.SITE_NAME,
         }
         logger.info(
             "OpenPortal - sending rejection notification to %s for project %s",
@@ -1909,3 +2486,58 @@ def notify_users_about_rejected_allocation(serialized_managed_project):
             context,
             [user.email],
         )
+
+
+@shared_task(name="waldur_openportal.mark_stale_remote_projects")
+@run_once_task(takeover_timeout=60 * 60)
+def mark_stale_remote_projects():
+    """
+    Mark RemoteProjects as STALE when we have not received any contact
+    from the remote portal for more than STALE_THRESHOLD_HOURS hours.
+
+    This covers two cases:
+      - last_contact_time is set but is older than the threshold
+      - last_contact_time is null and the project was created more than
+        the threshold ago (i.e. we never heard back after creation)
+
+    A STALE project transitions back to ACTIVE automatically when
+    touch_last_contact() is called (e.g. on a successful usage or
+    storage report fetch).
+    """
+    STALE_THRESHOLD_HOURS = 12
+    logger.info("OpenPortal task.mark_stale_remote_projects")
+
+    threshold = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+        hours=STALE_THRESHOLD_HOURS
+    )
+
+    # Projects that were contacted before the threshold
+    stale_by_contact = models.RemoteProject.objects.filter(
+        state=models.RemoteProjectState.ACTIVE,
+        last_contact_time__lt=threshold,
+    )
+
+    # Projects that were never contacted and were created before the threshold
+    stale_by_silence = models.RemoteProject.objects.filter(
+        state=models.RemoteProjectState.ACTIVE,
+        last_contact_time__isnull=True,
+        created__lt=threshold,
+    )
+
+    stale_projects = list(stale_by_contact) + list(stale_by_silence)
+
+    for remote_project in stale_projects:
+        try:
+            remote_project.state = models.RemoteProjectState.STALE
+            remote_project.save(update_fields=["state", "modified"])
+            models.RemoteProjectAuditEntry.objects.create(
+                remote_project=remote_project,
+                event_type=models.RemoteProjectAuditEventType.STATE_CHANGED,
+                note=(
+                    f"Marked STALE: no contact from remote portal "
+                    f"for more than {STALE_THRESHOLD_HOURS} hours."
+                ),
+            )
+            logger.info(f"Marked RemoteProject {remote_project} as STALE")
+        except Exception as e:
+            logger.error(f"Failed to mark RemoteProject {remote_project} as STALE: {e}")

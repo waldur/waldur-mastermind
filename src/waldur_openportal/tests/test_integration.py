@@ -118,8 +118,8 @@ class TaskIntegrationTest(TestCase):
     @mock.patch("waldur_openportal.tasks.openportal.sync_offerings")
     @mock.patch("waldur_openportal.tasks.openportal.get_portal")
     @mock.patch("waldur_openportal.tasks.models.ProjectTemplate.objects.all")
-    @mock.patch("waldur_openportal.tasks.openportal_config.is_config_loaded")
-    @mock.patch("waldur_openportal.tasks.openportal_config.load_config")
+    @mock.patch("waldur_openportal.tasks.config.is_config_loaded")
+    @mock.patch("waldur_openportal.tasks.config.load_config")
     def test_tasks_proceed_when_enabled_with_config(
         self, mock_load, mock_is_loaded, mock_templates, mock_portal, mock_sync
     ):
