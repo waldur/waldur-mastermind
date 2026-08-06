@@ -1861,7 +1861,10 @@ def update_offering_user_username_after_user_change(sender, instance: User, **kw
     user = instance
 
     # Update username for offering users only if site_username has been changed
-    if not user.tracker.has_changed("details") or not user.details.get("site_username"):
+    if not user.tracker.has_changed("details"):
+        return
+    details = user.details if isinstance(user.details, dict) else {}
+    if not details.get("site_username"):
         return
 
     offering_users = models.OfferingUser.objects.filter(

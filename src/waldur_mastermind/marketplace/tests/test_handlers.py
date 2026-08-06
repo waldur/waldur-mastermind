@@ -456,6 +456,13 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITestCase):
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.username, "old_username")
 
+    def test_do_not_update_offering_user_username_if_details_is_not_dict(self):
+        self.user.details = ""
+        self.user.save(update_fields=["details"])
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "old_username")
+
     def test_do_not_update_offering_user_username_if_username_generation_policy_is_not_identity_claim(
         self,
     ):
