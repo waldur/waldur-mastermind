@@ -7,6 +7,9 @@ from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_auth_social.models import IdentityProvider
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import BASIC_OFFERING
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class RemoteEduteamsUserTest(TestCase):
@@ -145,6 +148,45 @@ class RemoteEduteamsUserTest(TestCase):
         self.assertFalse(existing_user.is_active)
         self.assertIsNotNone(existing_user.last_sync)
         self.assertNotEqual(existing_user.last_sync, original_last_sync)
+
+    @patch("waldur_auth_social.utils.get_remote_eduteams_user_info")
+    def test_pull_remote_eduteams_user_not_found_clears_details_json_field(
+        self, mock_get_user_info
+    ):
+        """Remote user removal must not set JSONField details to an empty string."""
+        mock_get_user_info.side_effect = NotFound("User not found")
+
+        offering = marketplace_factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            plugin_options={
+                "username_generation_policy": (
+                    marketplace_utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value
+                )
+            },
+        )
+        existing_user = structure_factories.UserFactory(
+            username=self.username,
+            is_active=True,
+            details={"site_username": "remote-user"},
+            active_isds=["isd:eduteams"],
+            attribute_sources={
+                "details": {
+                    "source": "isd:eduteams",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                },
+            },
+        )
+        marketplace_factories.OfferingUserFactory(
+            offering=offering,
+            user=existing_user,
+            username="remote-user",
+        )
+
+        pull_remote_eduteams_user(self.username)
+
+        existing_user.refresh_from_db()
+        self.assertFalse(existing_user.is_active)
+        self.assertEqual(existing_user.details, {})
 
     @patch("waldur_auth_social.utils.get_remote_eduteams_user_info")
     def test_pull_remote_eduteams_user_not_found_no_existing_user(

@@ -11,7 +11,7 @@ from constance import config
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import DateField, IntegerField
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
@@ -837,16 +837,18 @@ def remove_user_from_isd(user: User, source: str) -> bool:
             # Clear the actual field value. civil_number must clear to None:
             # it has a unique constraint and relies on NULL for absent values,
             # so "" would collide as soon as two users are cleared.
-            if hasattr(user, field):
-                if isinstance(getattr(user, field), list):
+            if hasattr(user, field) and field in model_fields:
+                field_obj = User._meta.get_field(field)
+                if isinstance(field_obj, models.JSONField):
+                    default = field_obj.get_default()
+                elif isinstance(getattr(user, field), list):
                     default = []
                 elif field == "civil_number":
                     default = None
                 else:
                     default = ""
                 setattr(user, field, default)
-                if field in model_fields:
-                    cleared_fields.append(field)
+                cleared_fields.append(field)
 
     user.attribute_sources = attribute_sources
 
