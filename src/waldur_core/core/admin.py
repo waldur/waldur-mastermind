@@ -2,6 +2,7 @@ import copy
 import json
 from collections import defaultdict
 
+import reversion
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
@@ -313,11 +314,26 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
 
     def administratively_deactivate(self, request, queryset):
         reason = f"Administratively deactivated via admin by {request.user.username}"
-        count = queryset.filter(is_active=True).update(
-            is_active=False,
-            is_admin_deactivated=True,
-            deactivation_reason=reason,
-        )
+        # Saved row by row rather than via queryset.update(), which issues raw
+        # SQL and fires no signals: that skipped personal access token
+        # revocation, the audit event and the revision snapshot alike.
+        count = 0
+        for user in queryset.filter(is_active=True).iterator():
+            user.is_active = False
+            user.is_admin_deactivated = True
+            user.deactivation_reason = reason
+            user.save(
+                update_fields=[
+                    "is_active",
+                    "is_admin_deactivated",
+                    "deactivation_reason",
+                ]
+            )
+            count += 1
+        # VersionAdmin already wraps the changelist view in a revision, so the
+        # snapshots above are recorded - but nameless. Label them.
+        if count and reversion.is_active():
+            reversion.set_comment(reason)
         messages.success(
             request,
             _("%(count)d user(s) have been administratively deactivated.")
@@ -329,11 +345,22 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
     )
 
     def reactivate(self, request, queryset):
-        count = queryset.filter(is_active=False).update(
-            is_active=True,
-            is_admin_deactivated=False,
-            deactivation_reason="",
-        )
+        # See administratively_deactivate for why this is not a queryset update.
+        count = 0
+        for user in queryset.filter(is_active=False).iterator():
+            user.is_active = True
+            user.is_admin_deactivated = False
+            user.deactivation_reason = ""
+            user.save(
+                update_fields=[
+                    "is_active",
+                    "is_admin_deactivated",
+                    "deactivation_reason",
+                ]
+            )
+            count += 1
+        if count and reversion.is_active():
+            reversion.set_comment(f"Reactivated via admin by {request.user.username}")
         messages.success(
             request,
             _("%(count)d user(s) have been reactivated.") % {"count": count},

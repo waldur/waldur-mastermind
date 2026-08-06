@@ -65,6 +65,12 @@ class CoreConfig(AppConfig):
                 dispatch_uid=f"waldur_core.core.create_initial_revision_{model.__name__}",
             )
 
+        signals.post_save.connect(
+            handlers.create_revision_on_update,
+            sender=User,
+            dispatch_uid="waldur_core.core.handlers.create_revision_on_update",
+        )
+
         signals.post_delete.connect(
             handlers.log_ssh_key_delete,
             sender=SshPublicKey,

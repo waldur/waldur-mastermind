@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import traceback
+from io import StringIO
 from uuid import uuid4
 
 from celery import Task as CeleryTask
@@ -12,6 +13,7 @@ from celery.result import AsyncResult
 from celery.worker.request import Request
 from constance import config
 from django.core.cache import cache
+from django.core.management import call_command
 from django.db import IntegrityError, OperationalError, close_old_connections
 from django.db import models as django_models
 from django.db.models import ObjectDoesNotExist
@@ -920,3 +922,52 @@ def check_table_growth_alerts():
             )
     else:
         logger.info("No table growth alerts triggered")
+
+
+@shared_task(name="waldur_core.delete_stale_user_revisions")
+def delete_stale_user_revisions():
+    """Prune reversion history for users.
+
+    Every audited change to a user opens a revision, and federated deployments
+    sync users on every login, so core.User is the fastest-growing versioned
+    table. USER_REVISION_KEEP_MINIMUM guarantees each user keeps a usable trail
+    however old it is: without it, a quiet account would eventually lose its
+    history entirely.
+
+    Note that a revision is deleted whole, taking every version it holds with
+    it. Revisions written by the per-user signal handler hold exactly one user,
+    but an admin bulk action writes one revision covering all users it touched -
+    those are pruned together, which is fine as they share an age.
+    """
+    retention_days = config.USER_REVISION_RETENTION_DAYS
+    if not retention_days:
+        logger.debug(
+            "USER_REVISION_RETENTION_DAYS is 0, skipping user revision cleanup"
+        )
+        return
+
+    keep = config.USER_REVISION_KEEP_MINIMUM
+    if keep < 1:
+        logger.warning(
+            "USER_REVISION_KEEP_MINIMUM is %s, which would allow a user's whole "
+            "history to be deleted. Skipping user revision cleanup.",
+            keep,
+        )
+        return
+
+    output = StringIO()
+    call_command(
+        "deleterevisions",
+        "core.User",
+        days=retention_days,
+        keep=keep,
+        verbosity=1,
+        stdout=output,
+    )
+    logger.info(
+        "Pruned user revisions older than %s days, keeping the %s most recent "
+        "per user. %s",
+        retention_days,
+        keep,
+        output.getvalue().strip().replace("\n", " "),
+    )
