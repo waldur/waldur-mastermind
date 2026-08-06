@@ -108,6 +108,13 @@ class RequestedOfferingFactory(
     created_by = factory.SubFactory(structure_factories.UserFactory)
     offering = factory.SubFactory(marketplace_factories.OfferingFactory)
     state = RequestedOfferingStates.ACCEPTED
+    # A plan on the offering, as every real call has: the applicant's
+    # resource-request form lists only offerings that carry one, and call
+    # activation refuses a plan-less accepted offering. Pass plan=None to
+    # exercise that path.
+    plan = factory.LazyAttribute(
+        lambda ro: marketplace_factories.PlanFactory(offering=ro.offering)
+    )
 
     @classmethod
     def get_url(cls, call=None, requested_offering=None):
@@ -186,6 +193,16 @@ class RoundFactory(
     cutoff_time = factory.LazyFunction(
         lambda: timezone.now() + datetime.timedelta(days=10)
     )
+
+    class Params:
+        # The default round is scheduled, not open — its start_time is in the
+        # future. Pass opened=True where the test needs a round that is
+        # accepting proposals now.
+        opened = factory.Trait(
+            start_time=factory.LazyFunction(
+                lambda: timezone.now() - datetime.timedelta(days=1)
+            ),
+        )
 
     @classmethod
     def get_url(cls, call=None, call_round=None, action=None):
@@ -281,6 +298,10 @@ class RequestedResourceFactory(
     def get_provider_list_url(cls):
         url = "http://testserver" + reverse("proposal-requested-resource-list")
         return url
+
+    @classmethod
+    def get_my_list_url(cls):
+        return "http://testserver" + reverse("proposal-my-requested-resource-list")
 
     @classmethod
     def get_provider_url(cls, requested_resource=None, action=None):

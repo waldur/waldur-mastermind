@@ -105,9 +105,8 @@ logger = logging.getLogger(__name__)
 def validate_round_is_open(proposal):
     """A proposal may only be submitted while its round is open.
 
-    Creation is deliberately looser — ``ProposalSerializer.validate`` also
-    accepts a *scheduled* round, so an applicant can prepare a draft before the
-    round opens. Submission is the point the deadline actually applies to.
+    Same rule as creation (``ProposalSerializer.validate``), so a proposal can
+    never be created into a state it could not then be sent from.
 
     Nothing checked the round here before, so a draft could be submitted after
     the cutoff: that notified the call managers, created the workflow step
@@ -123,6 +122,66 @@ def validate_round_is_open(proposal):
     if round_status == RoundStatuses.ENDED:
         raise exceptions.ValidationError(
             _("Round has closed, so the proposal can no longer be submitted.")
+        )
+
+
+def validate_purchase_orders_present(proposal):
+    """Every requested resource whose call entry demands a purchase order has one.
+
+    Enforced at submission rather than at creation so an applicant can assemble
+    the request first and attach the authorisation last, which is the order the
+    two usually arrive in.
+
+    The requirement is a property of the call entry
+    (``RequestedOffering.require_purchase_order``), seeded from the offering's
+    ``require_purchase_order_upload`` but owned by the call manager afterwards —
+    the offering flag alone gates *order approval*, which happens well after a
+    proposal is reviewed.
+    """
+    missing = [
+        requested_resource.requested_offering.offering.name
+        for requested_resource in proposal.requestedresource_set.filter(
+            requested_offering__require_purchase_order=True
+        ).select_related("requested_offering__offering")
+        if not requested_resource.has_purchase_order
+    ]
+    if missing:
+        raise exceptions.ValidationError(
+            _(
+                "A purchase order is required for the following offerings: %(offerings)s."
+            )
+            % {"offerings": ", ".join(sorted(missing))}
+        )
+
+
+def validate_requested_amounts_present(proposal):
+    """No requested resource may ask for an offering without naming an amount.
+
+    Attaching an offering creates a resource request with empty limits, which
+    the proposal form counted as a completed step. Submitted like that,
+    ``allocate_proposal`` provisions a resource with no quota at all — the
+    applicant is awarded nothing and finds out after the review.
+
+    Offerings with nothing to ask for (no limit or prepaid component) are
+    exempt: there is no amount to name in the first place.
+    """
+    missing = []
+    for requested_resource in proposal.requestedresource_set.select_related(
+        "requested_offering__offering"
+    ):
+        offering = requested_resource.requested_offering.offering
+        requestable = offering.get_limit_components()
+        if not requestable:
+            continue
+        limits = requested_resource.limits or {}
+        if not any(limits.get(component_type) for component_type in requestable):
+            missing.append(offering.name)
+    if missing:
+        raise exceptions.ValidationError(
+            _(
+                "Requested amounts are missing for the following offerings: %(offerings)s."
+            )
+            % {"offerings": ", ".join(sorted(set(missing)))}
         )
 
 
@@ -452,9 +511,16 @@ class CallManagingOrganisationViewSet(
 
 class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "uuid"
-    queryset = models.Call.objects.filter(
-        state__in=[CallStates.ACTIVE, CallStates.ARCHIVED]
-    ).order_by("created")
+    queryset = (
+        models.Call.objects.filter(state__in=[CallStates.ACTIVE, CallStates.ARCHIVED])
+        # Each template serializes its offering's components so the applicant
+        # can be shown a price; without this that is a query per template.
+        .prefetch_related(
+            "resource_templates__requested_offering__offering__components",
+            "resource_templates__requested_offering__plan__components",
+        )
+        .order_by("created")
+    )
     serializer_class = serializers.PublicCallSerializer
     filterset_class = filters.CallFilter
     permission_classes = (rf_permissions.AllowAny,)
@@ -639,11 +705,25 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         # resource templates applicants can request, and it matches the call
         # serializer's `offerings` field (accepted-only) so the frontend gate
         # agrees exactly with this check.
-        if not call.requestedoffering_set.filter(
+        accepted = call.requestedoffering_set.filter(
             state=RequestedOfferingStates.ACCEPTED
-        ).exists():
+        )
+        if not accepted.exists():
             raise exceptions.ValidationError(
                 _("Call must have at least one accepted offering to be activated.")
+            )
+        # An accepted offering with no plan passes every other check and then
+        # cannot be asked for: the applicant's resource-request form lists only
+        # offerings that carry one, so the call activates and applicants meet an
+        # empty picker. A plan can only be set while the offering is still
+        # requested, so catching it here is the last point it is still fixable.
+        planless = list(
+            accepted.filter(plan__isnull=True).values_list("offering__name", flat=True)
+        )
+        if planless:
+            raise exceptions.ValidationError(
+                _("These offerings have no plan and could not be requested: %s.")
+                % ", ".join(planless)
             )
         call.state = CallStates.ACTIVE
         call.save()
@@ -2742,6 +2822,8 @@ class ProposalViewSet(
     submit_validators = [
         core_validators.StateValidator(ProposalStates.DRAFT),
         validate_round_is_open,
+        validate_requested_amounts_present,
+        validate_purchase_orders_present,
     ]
 
     submit_permissions = [is_creator]
@@ -2798,6 +2880,56 @@ class ProposalViewSet(
         )(self, request, uuid, obj_uuid)
 
     resource_detail_serializer_class = serializers.RequestedResourceSerializer
+
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_proposals_resource_purchase_order_set",
+        request=serializers.RequestedResourcePurchaseOrderSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.RequestedResourcePurchaseOrderSerializer
+        },
+        description="Upload or replace the purchase order of a requested resource.",
+    )
+    @extend_schema(
+        methods=["delete"],
+        operation_id="proposal_proposals_resource_purchase_order_delete",
+        request=None,
+        responses={status.HTTP_204_NO_CONTENT: None},
+        description="Remove the purchase order of a requested resource.",
+    )
+    def resource_purchase_order(self, request, uuid=None, obj_uuid=None):
+        # get_object() applies filter_queryset_for_user, so visibility of the
+        # proposal is what gates this, exactly as for resource_detail.
+        proposal = cast(models.Proposal, self.get_object())
+        if proposal.state != ProposalStates.DRAFT:
+            raise IncorrectStateException(
+                "Only proposals with a draft status are available for editing."
+            )
+        try:
+            requested_resource = proposal.requestedresource_set.get(uuid=obj_uuid)
+        except models.RequestedResource.DoesNotExist:
+            return response.Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == "DELETE":
+            if requested_resource.attachment:
+                requested_resource.attachment.delete(save=False)
+            requested_resource.purchase_order_reference = ""
+            requested_resource.save(
+                update_fields=["attachment", "purchase_order_reference"]
+            )
+            return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+        serializer = self.get_serializer(requested_resource, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # Replace rather than accumulate, as the order attachment endpoint does.
+        if "attachment" in serializer.validated_data and requested_resource.attachment:
+            requested_resource.attachment.delete(save=False)
+        serializer.save()
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    resource_purchase_order_serializer_class = (
+        serializers.RequestedResourcePurchaseOrderSerializer
+    )
 
     @extend_schema(
         description="Attach document to proposal.",
@@ -3723,6 +3855,63 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     accept_permissions = cancel_permissions = [
         proposal_permissions.user_can_accept_requested_offering
     ]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "include_closed",
+                OpenApiTypes.BOOL,
+                description=(
+                    "Include requests belonging to rejected or canceled "
+                    "proposals. They are omitted by default."
+                ),
+            )
+        ]
+    )
+)
+class UserRequestedResourceViewSet(ReadOnlyActionsViewSet):
+    """Resources the current user has requested through a proposal.
+
+    Counterpart of ``ProviderRequestedResourceViewSet``, which scopes to
+    offerings the user *manages* — the service provider's view of who applied.
+    This one scopes to proposals the user can read, reusing the very rule
+    ``ProposalViewSet`` applies, so this list and "My proposals" can never
+    disagree about what the user is party to.
+
+    Note it does not scope through ``RequestedResource.Permissions.project_path``
+    (``proposal__project``): that project does not exist until the proposal is
+    approved, so it would hide exactly the pending rows this page is about.
+
+    Requests on rejected or canceled proposals are left out unless asked for:
+    they are settled questions, and listing them by default buries the requests
+    the user can still act on. ``?include_closed=true`` brings them back.
+    """
+
+    lookup_field = "uuid"
+    serializer_class = serializers.UserRequestedResourceSerializer
+    filterset_class = filters.RequestedResourceFilter
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_queryset(self):
+        proposals = filter_queryset_for_user(
+            models.Proposal.objects.all(), self.request.user
+        )
+        if self.request.query_params.get("include_closed") not in ("true", "True"):
+            proposals = proposals.exclude(
+                state__in=[ProposalStates.CANCELED, ProposalStates.REJECTED]
+            )
+        return (
+            models.RequestedResource.objects.filter(proposal__in=proposals)
+            .select_related(
+                "proposal",
+                "proposal__round__call",
+                "requested_offering__offering",
+                "resource",
+            )
+            .order_by("-created")
+        )
 
 
 class ProviderRequestedResourceViewSet(ReadOnlyActionsViewSet):

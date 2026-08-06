@@ -107,6 +107,14 @@ OFFERING_VISIBILITY_CHOICES = [
     ("require_membership", "Hide all unless user belongs to an organization/project"),
 ]
 
+# How an applicant reaches services. Governs navigation and entry points only;
+# the API keeps serving everything in every mode.
+SERVICE_ACCESS_MODE_CHOICES = [
+    ("calls", "Calls only"),
+    ("marketplace", "Marketplace only"),
+    ("both", "Marketplace and calls"),
+]
+
 AI_ASSISTANT_ENABLED_ROLES_CHOICES = [
     ("disabled", "Disabled"),
     ("staff", "Staff users"),
@@ -304,6 +312,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": DEACTIVATION_POLICY_CHOICES,
     "SCIM_INBOUND_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
+    "SERVICE_ACCESS_MODE": SERVICE_ACCESS_MODE_CHOICES,
     "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
     "ENABLED_REPORTING_SCREENS": REPORTING_SCREEN_CHOICES,
     "AI_ASSISTANT_ENABLED_ROLES": AI_ASSISTANT_ENABLED_ROLES_CHOICES,
@@ -363,6 +372,17 @@ CONSTANCE_CONFIG = {
         "'show_restricted_disabled': Show all but mark inaccessible as disabled. "
         "'hide_inaccessible': Hide offerings user cannot access. "
         "'require_membership': Hide all unless user belongs to an organization/project.",
+        "choice_field",
+    ),
+    "SERVICE_ACCESS_MODE": (
+        "both",
+        "How users reach services. "
+        "'calls': only through calls for proposals, no marketplace navigation. "
+        "'marketplace': the marketplace is the single entry point; calls are "
+        "reached through an offering and proposals are tracked in the user "
+        "profile. "
+        "'both': marketplace and calls are browsable independently. "
+        "Navigation only — the API serves the same data in every mode.",
         "choice_field",
     ),
     "OPENPORTAL_MEMBERSHIP_SYNC_MODE": (
@@ -1746,6 +1766,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
         "ANONYMOUS_USER_CAN_VIEW_PLANS",
         "RESTRICTED_OFFERING_VISIBILITY_MODE",
+        "SERVICE_ACCESS_MODE",
         "SHOW_OFFERING_COVER_IMAGE",
         "ENABLE_MARKDOWN_IMAGE_UPLOAD",
         "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
@@ -2142,6 +2163,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SHOW_OFFERING_COVER_IMAGE",
     "ENABLE_MARKDOWN_IMAGE_UPLOAD",
     "RESTRICTED_OFFERING_VISIBILITY_MODE",
+    "SERVICE_ACCESS_MODE",
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",

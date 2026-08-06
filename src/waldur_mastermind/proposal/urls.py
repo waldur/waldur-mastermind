@@ -40,6 +40,11 @@ def register_in(router):
         basename="proposal-requested-resource",
     )
     router.register(
+        r"proposal-my-requested-resources",
+        views.UserRequestedResourceViewSet,
+        basename="proposal-my-requested-resource",
+    )
+    router.register(
         r"call-rounds",
         views.RoundViewSet,
         basename="call-round",
@@ -155,7 +160,17 @@ urlpatterns += [
         r"^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/rounds/(?P<obj_uuid>[a-f0-9]+)/close/$",
         views.ProtectedCallViewSet.as_view({"post": "close_round"}),
         name="proposal-call-close_round",
-    )
+    ),
+    re_path(
+        r"^api/proposal-proposals/(?P<uuid>[a-f0-9]+)/resources/(?P<obj_uuid>[a-f0-9]+)/purchase_order/$",
+        views.ProposalViewSet.as_view(
+            {
+                "post": "resource_purchase_order",
+                "delete": "resource_purchase_order",
+            }
+        ),
+        name="proposal-proposal-resource-purchase-order",
+    ),
 ]
 
 # Public reviewer invitation endpoints (token-based, no auth required)

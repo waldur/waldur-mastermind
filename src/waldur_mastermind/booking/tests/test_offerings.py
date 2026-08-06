@@ -2,9 +2,13 @@ import re
 from unittest import mock
 
 from ddt import data, ddt
+from django.db import connection as db_connection
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.booking import models
 from waldur_mastermind.google.tests import factories as google_factories
@@ -14,6 +18,8 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.proposal.enums import CallStates
+from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 from .. import calendar
 
@@ -201,4 +207,51 @@ class BookingOfferingActionsTest(test.APITestCase):
         self.assertTrue("google_calendar_link" in response.data.keys())
         self.assertEqual(
             response.data["google_calendar_link"], self.google_calendar.http_link
+        )
+
+
+class BookingOfferingOpenForProposalsTest(test.APITestCase):
+    def setUp(self):
+        self.url = reverse("booking-offering-list")
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+
+    def create_offering(self):
+        offering = marketplace_factories.OfferingFactory(
+            type=BOOKING_OFFERING, state=OfferingStates.ACTIVE
+        )
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=offering, call__state=CallStates.ACTIVE
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        return offering
+
+    def test_list_does_not_run_a_query_per_offering(self):
+        query = {"field": ["uuid", "open_for_proposals"]}
+        self.create_offering()
+
+        # Warm up one-off lookups so the measurements differ only in row count.
+        self.client.get(self.url, query)
+
+        with CaptureQueriesContext(db_connection) as ctx_one:
+            self.client.get(self.url, query)
+
+        for _ in range(3):
+            self.create_offering()
+
+        with CaptureQueriesContext(db_connection) as ctx_many:
+            response = self.client.get(self.url, query)
+
+        self.assertEqual(len(response.data), 4)
+        self.assertTrue(all(row["open_for_proposals"] for row in response.data))
+        self.assertEqual(len(ctx_one), len(ctx_many))
+
+    def test_annotation_resolves_per_offering(self):
+        self.create_offering()
+        marketplace_factories.OfferingFactory(
+            type=BOOKING_OFFERING, state=OfferingStates.ACTIVE
+        )
+
+        response = self.client.get(self.url, {"field": ["uuid", "open_for_proposals"]})
+        self.assertEqual(
+            sorted(row["open_for_proposals"] for row in response.data), [False, True]
         )

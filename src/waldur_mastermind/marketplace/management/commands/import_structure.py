@@ -7770,6 +7770,17 @@ class Command(BaseCommand):
                     "created_by": created_by,
                     "approved_by": approved_by,
                     "description": ro_data.get("description", ""),
+                    # Omitted means "whatever the offering asks for": the model
+                    # seeds it from require_purchase_order_upload on create, and
+                    # the call manager owns it from then on.
+                    "require_purchase_order": ro_data.get(
+                        "require_purchase_order",
+                        bool(
+                            (offering.plugin_options or {}).get(
+                                "require_purchase_order_upload"
+                            )
+                        ),
+                    ),
                 }
 
                 if not self.dry_run:

@@ -71,6 +71,11 @@ class CallFilter(django_filters.FilterSet):
     offering_uuid = core_filters.RelatedUUIDFilter(
         view_name="marketplace-provider-offering-detail", method="filter_offering_uuid"
     )
+    open_for_offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        method="filter_open_for_offering_uuid",
+        label="Calls the offering can be requested through right now",
+    )
     state = django_filters.MultipleChoiceFilter(choices=CallStates.CHOICES)
     o = django_filters.OrderingFilter(
         fields=("manager__customer__name", "created", "name")
@@ -101,6 +106,16 @@ class CallFilter(django_filters.FilterSet):
 
     def filter_offering_uuid(self, queryset, name, value):
         return queryset.filter(offerings__uuid=value).distinct()
+
+    def filter_open_for_offering_uuid(self, queryset, name, value):
+        """Calls a proposal for this offering can be submitted to right now.
+
+        Narrower than ``offering_uuid``, which matches every call the offering was
+        ever added to. Shares the predicate behind ``open_for_proposals``.
+        """
+        return queryset.filter(
+            id__in=models.RequestedOffering.objects.call_ids_open_for_offering(value)
+        )
 
 
 class ProposalFilter(django_filters.FilterSet):
@@ -248,14 +263,35 @@ class RequestedResourceFilter(django_filters.FilterSet):
     proposal_uuid = core_filters.RelatedUUIDFilter(
         view_name="proposal-proposal-detail", field_name="proposal__uuid"
     )
+    proposal_state = django_filters.MultipleChoiceFilter(
+        field_name="proposal__state",
+        choices=ProposalStates.CHOICES,
+        label="Proposal state",
+    )
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by offering, proposal, call or resource name",
+    )
     o = django_filters.OrderingFilter(
         fields=(
             ("created", "created"),
             ("requested_offering__offering__name", "offering__name"),
             ("resource__name", "resource__name"),
+            ("resource__state", "resource__state"),
             ("proposal__name", "proposal__name"),
+            ("proposal__state", "proposal__state"),
+            ("proposal__round__call__name", "call__name"),
         )
     )
+
+    def filter_query(self, queryset, name, value):
+        # The four names a row actually shows, so the box matches what is read.
+        return queryset.filter(
+            Q(requested_offering__offering__name__icontains=value)
+            | Q(proposal__name__icontains=value)
+            | Q(proposal__round__call__name__icontains=value)
+            | Q(resource__name__icontains=value)
+        )
 
     class Meta:
         model = models.RequestedResource

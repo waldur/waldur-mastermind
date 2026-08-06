@@ -4046,11 +4046,13 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
         ) + (
             "user_has_consent",
             "is_accessible",
+            "open_for_proposals",
         )
 
     plugin_options = MergedPluginOptionsField(read_only=True)
     user_has_consent = serializers.SerializerMethodField()
     is_accessible = serializers.SerializerMethodField()
+    open_for_proposals = serializers.SerializerMethodField()
 
     @extend_schema_field(BasePublicPlanSerializer(many=True))
     def get_filtered_plans(self, offering: models.Offering):
@@ -4092,6 +4094,23 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
         # Check if user has accessible plans for this offering
         plans = utils.get_plans_available_for_user(request.user, offering)
         return plans.filter(archived=False).exists()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_open_for_proposals(self, offering: models.Offering) -> bool:
+        """Offering can be requested via a proposal in an active call with an open or upcoming round.
+
+        Says nothing about *this* user's eligibility for those calls — the call's
+        own restrictions are checked by the public call eligibility endpoint.
+        The fallback below covers serialization outside an annotated queryset.
+        """
+        annotated = getattr(offering, "open_for_proposals", None)
+        if annotated is not None:
+            return annotated
+        return (
+            proposal_models.RequestedOffering.objects.open_for_proposals()
+            .filter(offering=offering)
+            .exists()
+        )
 
     def get_fields(self):
         fields = super().get_fields()
