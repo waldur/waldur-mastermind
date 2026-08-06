@@ -634,6 +634,8 @@ td:nth-child(4) {
 | `init_resource_parent` | `Django Signal (post_save)` | `marketplace.Resource` | Initialize the parent resource for a newly created resource. |
 | `limit_update_failed` | `Custom Signal (resource_limit_update_failed)` | `marketplace.Resource` | Handle failed limit updates. |
 | `limit_update_succeeded` | `Custom Signal (resource_limit_update_succeeded)` | `marketplace.Resource` | Handle successful limit updates. |
+| `log_access_subnet_offering_scope_deletion` | `Django Signal (post_delete)` | `marketplace.AccessSubnetOfferingScope` | Log an access subnet losing an offering scope. |
+| `log_access_subnet_offering_scope_save` | `Django Signal (post_save)` | `marketplace.AccessSubnetOfferingScope` | Log an access subnet gaining an offering scope. |
 | `log_affiliate` | `Django Signal (post_save)` | `invoices.CustomerAffiliate` | Audit staff changes of affiliate terms. Scoped to the affiliate |
 | `log_attachment_delete` | `Django Signal (post_delete)` | `support.Attachment` | No description |
 | `log_attachment_save` | `Django Signal (post_save)` | `support.Attachment` | No description |
@@ -653,8 +655,6 @@ td:nth-child(4) {
 | `log_order_events` | `Django Signal (post_save)` | `marketplace.Order` | Log order creation and state transition events. |
 | `log_project_credit` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `log_request_events` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
-| `log_resource_access_subnet_deletion` | `Django Signal (post_delete)` | `marketplace.ResourceAccessSubnet` | Log successful resource access subnet deletion. |
-| `log_resource_access_subnet_save` | `Django Signal (post_save)` | `marketplace.ResourceAccessSubnet` | Log resource access subnet creation and updates. |
 | `log_resource_events` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource creation request events. |
 | `log_resource_limit_change_request_events` | `Django Signal (post_save)` | `marketplace.ResourceLimitChangeRequest` | Log events when resource limit change request is created or reviewed. |
 | `log_resource_robot_account_created_or_updated` | `Django Signal (post_save)` | `marketplace.RobotAccount` | Log resource robot account creation and updates. |

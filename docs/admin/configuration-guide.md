@@ -1248,6 +1248,14 @@ Allow anonymous users to see plans
 
 Controls offering visibility for regular users. 'show_all': Show all shared offerings (current behavior). 'show_restricted_disabled': Show all but mark inaccessible as disabled. 'hide_inaccessible': Hide offerings user cannot access. 'require_membership': Hide all unless user belongs to an organization/project.
 
+#### SERVICE_ACCESS_MODE
+
+**Type:** choice_field
+
+**Default value:** both
+
+How users reach services. 'calls': only through calls for proposals, no marketplace navigation. 'marketplace': the marketplace is the single entry point; calls are reached through an offering and proposals are tracked in the user profile. 'both': marketplace and calls are browsable independently. Navigation only — the API serves the same data in every mode.
+
 #### SHOW_OFFERING_COVER_IMAGE
 
 **Type:** bool

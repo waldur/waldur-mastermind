@@ -45,6 +45,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`UuidMixin`](#uuidmixin) | `waldur_core.core.models` | Mixin to identify models by UUID |
 | [`LookupMixin`](#lookupmixin) | `waldur_core.core.nested_routers` | Deprecated |
 | [`NestedMixin`](#nestedmixin) | `waldur_core.core.nested_routers` | Mixin for creating nested routers that handle hierarchical URL structures |
+| [`AccessSubnetMixin`](#accesssubnetmixin) | `waldur_core.core.serializers` | Shared mask and provenance rules for the access-subnet serializers |
 | [`AugmentedSerializerMixin`](#augmentedserializermixin) | `waldur_core.core.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
 | [`NetworkAclValidationMixin`](#networkaclvalidationmixin) | `waldur_core.core.serializers` | Validate + canonicalise ``allowed_networks`` and enforce the entry cap |
 | [`RestrictedSerializerMixin`](#restrictedserializermixin) | `waldur_core.core.serializers` | This mixin allows to specify list of fields to be rendered by serializer |
@@ -601,6 +602,28 @@ No method override is needed since Django Rest Framework 2.4.
 **Description:**
 
 Mixin for creating nested routers that handle hierarchical URL structures.
+
+### AccessSubnetMixin
+
+**Module:** `waldur_core.core.serializers`
+
+**Description:**
+
+Shared mask and provenance rules for the access-subnet serializers.
+
+Two rules, both of which need to know who is acting and therefore cannot
+live on the model field:
+
+- mask width — non-staff may only enter single hosts, staff any width but
+  ``/0`` (see ``core_utils.validate_access_subnet_for_user``);
+- provenance — an entry staff created is flagged ``is_staff_managed`` and
+
+  becomes read-only for everyone else whatever its width, so a consumer
+  cannot quietly remove a range an operator pinned. Deletion is guarded
+  separately in the viewset, which the serializer never sees.
+
+``is_staff_managed`` is derived from the acting user on create and is never
+writable through the API.
 
 ### AugmentedSerializerMixin
 
