@@ -1600,8 +1600,22 @@ class CustomerSerializer(
         return count_customer_users(customer)
 
 
+class ScopedOfferingSerializer(serializers.Serializer):
+    """An offering an access subnet applies to, with enough to label it."""
+
+    uuid = serializers.CharField()
+    name = serializers.CharField()
+    # False once the organization has terminated its last resource of the
+    # offering. The scope is kept so re-provisioning restores protection, but
+    # the portal has to show it as stale — it can be removed, not re-added, and
+    # is no longer exported.
+    has_live_resources = serializers.BooleanField()
+
+
 class AccessSubnetSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    core_serializers.AccessSubnetMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     class Meta:
         model = models.AccessSubnet
@@ -1610,13 +1624,135 @@ class AccessSubnetSerializer(
             "inet",
             "description",
             "customer",
+            "applies_to_portal",
+            "offerings",
+            "scoped_offerings",
+            "is_staff_managed",
         )
         extra_kwargs = {
             "customer": {"lookup_field": "uuid"},
         }
         protected_fields = ["customer"]
+        read_only_fields = ["is_staff_managed", "scoped_offerings"]
 
     inet = serializers.CharField()
+    scoped_offerings = ScopedOfferingSerializer(many=True, read_only=True)
+    offerings = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        help_text="UUIDs of offerings this network may reach. Only offerings "
+        "the organization consumes and that enable access subnets are accepted.",
+    )
+
+    def to_representation(self, instance):
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        data = super().to_representation(instance)
+        scopes = marketplace_models.AccessSubnetOfferingScope.objects.filter(
+            access_subnet=instance
+        ).select_related("offering")
+        data["offerings"] = [scope.offering.uuid.hex for scope in scopes]
+        # Names travel with the entry because there is no way to look an
+        # offering up by uuid from the portal, and a dormant one is absent from
+        # the list of offerings the organization consumes.
+        data["scoped_offerings"] = [
+            {
+                "uuid": scope.offering.uuid.hex,
+                "name": scope.offering.name,
+                "has_live_resources": marketplace_models.Resource.objects.filter(
+                    project__customer_id=instance.customer_id,
+                    offering_id=scope.offering_id,
+                )
+                .exclude(state=marketplace_models.Resource.States.TERMINATED)
+                .exists(),
+            }
+            for scope in scopes
+        ]
+        return data
+
+    def _already_scoped(self):
+        """Offering ids this entry is already scoped to."""
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        if self.instance is None:
+            return set()
+        return set(
+            marketplace_models.AccessSubnetOfferingScope.objects.filter(
+                access_subnet=self.instance
+            ).values_list("offering_id", flat=True)
+        )
+
+    def _resolve_offerings(self, customer, uuids):
+        """Offerings the customer may scope this subnet to.
+
+        Rejects anything the customer does not consume or that has not opted
+        into access subnets — the two conditions that would otherwise surface
+        as a confusing failure after the fact.
+
+        Offerings already scoped are exempt from those checks. An organization
+        that terminates its last resource of an offering keeps the scope, and
+        re-validating it would reject every subsequent edit of the entry —
+        including the one removing that very scope, leaving no way out.
+        """
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        if not uuids:
+            return []
+        offerings = list(
+            marketplace_models.Offering.objects.filter(uuid__in=uuids).distinct()
+        )
+        found = {offering.uuid.hex for offering in offerings}
+        missing = {str(value).replace("-", "") for value in uuids} - found
+        if missing:
+            raise exceptions.ValidationError(
+                {"offerings": _("Offerings not found: %s") % ", ".join(sorted(missing))}
+            )
+        already_scoped = self._already_scoped()
+        for offering in offerings:
+            if offering.id in already_scoped:
+                continue
+            if not (offering.plugin_options or {}).get(
+                "enable_resource_access_subnets"
+            ):
+                raise exceptions.ValidationError(
+                    {
+                        "offerings": _(
+                            "Access subnets are not enabled for offering %s."
+                        )
+                        % offering.name
+                    }
+                )
+            if (
+                not marketplace_models.Resource.objects.filter(
+                    project__customer=customer, offering=offering
+                )
+                .exclude(state=marketplace_models.Resource.States.TERMINATED)
+                .exists()
+            ):
+                raise exceptions.ValidationError(
+                    {
+                        "offerings": _(
+                            "This organization has no resources of offering %s."
+                        )
+                        % offering.name
+                    }
+                )
+        return offerings
+
+    def _sync_offerings(self, instance, offerings):
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        scope_model = marketplace_models.AccessSubnetOfferingScope
+        wanted = {offering.id for offering in offerings}
+        existing = scope_model.objects.filter(access_subnet=instance)
+        # Delete individually rather than with a bulk queryset delete so the
+        # post_delete audit handler fires for each removed scope.
+        for scope in existing.exclude(offering_id__in=wanted):
+            scope.delete()
+        present = set(existing.values_list("offering_id", flat=True))
+        for offering in offerings:
+            if offering.id not in present:
+                scope_model.objects.create(access_subnet=instance, offering=offering)
 
     def validate(self, validated_data):
         if not self.instance:
@@ -1625,8 +1761,69 @@ class AccessSubnetSerializer(
 
             if not has_permission(self.context["request"], permission, customer):
                 raise exceptions.PermissionDenied()
+        else:
+            self.validate_staff_managed()
+            customer = self.instance.customer
 
+        if "offerings" in validated_data:
+            self._resolve_offerings(customer, validated_data["offerings"])
         return validated_data
+
+    def create(self, validated_data):
+        offerings = validated_data.pop("offerings", None)
+        instance = super().create(validated_data)
+        if offerings is not None:
+            self._sync_offerings(
+                instance, self._resolve_offerings(instance.customer, offerings)
+            )
+        return instance
+
+    def update(self, instance, validated_data):
+        offerings = validated_data.pop("offerings", None)
+        instance = super().update(instance, validated_data)
+        if offerings is not None:
+            self._sync_offerings(
+                instance, self._resolve_offerings(instance.customer, offerings)
+            )
+        return instance
+
+
+class AccessSubnetImpactAddressSerializer(serializers.Serializer):
+    """One address that can reach a resource, and where it came from."""
+
+    inet = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    # Provider defaults are published on the offering and are not editable by
+    # the consumer, so an address it never added still needs explaining.
+    source = serializers.ChoiceField(choices=["organization", "provider_default"])
+    is_staff_managed = serializers.BooleanField()
+
+
+class AccessSubnetImpactResourceSerializer(serializers.Serializer):
+    """A resource and the addresses that may reach it."""
+
+    resource_uuid = serializers.CharField()
+    resource_name = serializers.CharField()
+    project_name = serializers.CharField()
+    offering_uuid = serializers.CharField()
+    offering_name = serializers.CharField()
+    # Without the offering opting in, no address list can apply here at all —
+    # worth saying so rather than showing an empty list that looks like a gap.
+    supports_access_subnets = serializers.BooleanField()
+    # False means the list is advisory: exported for an external firewall, but
+    # Waldur itself does not act on it.
+    concealment_enabled = serializers.BooleanField()
+    # True when the offering opts in but nothing restricts this resource, so it
+    # is reachable from anywhere. This is the case the redesign exists to expose.
+    unrestricted = serializers.BooleanField()
+    addresses = AccessSubnetImpactAddressSerializer(many=True)
+    packed = serializers.ListField(child=serializers.CharField())
+
+
+class AccessSubnetImpactSerializer(serializers.Serializer):
+    """Which of an organization's resources each access subnet reaches."""
+
+    resources = AccessSubnetImpactResourceSerializer(many=True)
 
 
 class BasicCustomerSerializer(serializers.ModelSerializer):

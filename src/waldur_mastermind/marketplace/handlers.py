@@ -3048,7 +3048,7 @@ def release_posix_allocations_on_consumer_deletion(sender, instance, **kwargs):
     posix_ids.release_posix_allocations(instance)
 
 
-def get_resource_access_subnet_changes(instance):
+def get_access_subnet_changes(instance):
     """Return {field: (old, new)} for fields that genuinely changed.
 
     The tracker reports the ``inet`` CidrAddressField as changed whenever it is
@@ -3064,47 +3064,36 @@ def get_resource_access_subnet_changes(instance):
     return changes
 
 
-def generate_resource_access_subnet_changes(changes):
-    """Render a {field: (old, new)} change map as a human-readable string."""
-    changes_string = "Resource access subnet has been updated.\n"
-    for key, (old_value, new_value) in changes.items():
-        changes_string += (
-            f"{key} has been changed from '{old_value}' to '{new_value}'. "
-        )
-    return changes_string
+def log_access_subnet_offering_scope_save(sender, instance, created=False, **kwargs):
+    """Log an access subnet gaining an offering scope.
 
-
-def log_resource_access_subnet_save(sender, instance, created=False, **kwargs):
-    """Log resource access subnet creation and updates."""
-    if created:
-        event_logger.emit(
-            f"Resource access subnet {instance} has been created.",
-            event_type=EventType.RESOURCE_ACCESS_SUBNET_CREATION_SUCCEEDED,
-            event_context={"resource_access_subnet": instance},
-            scopes=[instance, instance.resource, instance.resource.project],
-        )
-        return
-
-    changes = get_resource_access_subnet_changes(instance)
-    if not changes:
-        # Nothing genuinely changed (e.g. a save that only re-assigned the same
-        # values) — do not emit a noisy no-op update event.
+    Only creation is interesting: the row carries nothing but the two foreign
+    keys, so there is no field a later save could meaningfully change. Edits to
+    the address or its description are logged against the subnet itself.
+    """
+    if not created:
         return
     event_logger.emit(
-        generate_resource_access_subnet_changes(changes),
-        event_type=EventType.RESOURCE_ACCESS_SUBNET_UPDATE_SUCCEEDED,
-        event_context={"resource_access_subnet": instance},
-        scopes=[instance, instance.resource, instance.resource.project],
+        f"Access subnet {instance.access_subnet} now applies to "
+        f"{instance.offering.name}.",
+        event_type=EventType.ACCESS_SUBNET_UPDATE_SUCCEEDED,
+        event_context={"access_subnet": instance.access_subnet},
+        scopes=[
+            instance.access_subnet,
+            instance.access_subnet.customer,
+            instance.offering,
+        ],
     )
 
 
-def log_resource_access_subnet_deletion(sender, instance, **kwargs):
-    """Log successful resource access subnet deletion."""
+def log_access_subnet_offering_scope_deletion(sender, instance, **kwargs):
+    """Log an access subnet losing an offering scope."""
     event_logger.emit(
-        f"Resource access subnet {instance} has been deleted.",
-        event_type=EventType.RESOURCE_ACCESS_SUBNET_DELETION_SUCCEEDED,
-        event_context={"resource_access_subnet": instance},
-        scopes=[instance.resource, instance.resource.project],
+        f"Access subnet {instance.access_subnet} no longer applies to "
+        f"{instance.offering.name}.",
+        event_type=EventType.ACCESS_SUBNET_UPDATE_SUCCEEDED,
+        event_context={"access_subnet": instance.access_subnet},
+        scopes=[instance.access_subnet.customer, instance.offering],
     )
 
 
@@ -3119,8 +3108,8 @@ def log_offering_access_subnet_save(sender, instance, created=False, **kwargs):
         )
         return
 
-    # Reuse the resource change-detection helper: it only inspects the tracker.
-    changes = get_resource_access_subnet_changes(instance)
+    # Reuse the shared change-detection helper: it only inspects the tracker.
+    changes = get_access_subnet_changes(instance)
     if not changes:
         return
     changes_string = "Offering access subnet has been updated.\n"

@@ -621,14 +621,14 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.log_resource_access_subnet_save,
-            sender=models.ResourceAccessSubnet,
-            dispatch_uid="waldur_mastermind.marketplace.log_resource_access_subnet_save",
+            handlers.log_access_subnet_offering_scope_save,
+            sender=models.AccessSubnetOfferingScope,
+            dispatch_uid="waldur_mastermind.marketplace.log_access_subnet_offering_scope_save",
         )
         signals.post_delete.connect(
-            handlers.log_resource_access_subnet_deletion,
-            sender=models.ResourceAccessSubnet,
-            dispatch_uid="waldur_mastermind.marketplace.log_resource_access_subnet_deletion",
+            handlers.log_access_subnet_offering_scope_deletion,
+            sender=models.AccessSubnetOfferingScope,
+            dispatch_uid="waldur_mastermind.marketplace.log_access_subnet_offering_scope_deletion",
         )
 
         signals.post_save.connect(

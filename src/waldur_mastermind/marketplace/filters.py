@@ -135,6 +135,11 @@ class OfferingFilter(
         method="filter_allowed_customer",
         label="Allowed customer UUID",
     )
+    consumer_customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        method="filter_consumer_customer",
+        label="Consumer customer UUID",
+    )
     service_manager_uuid = core_filters.RelatedUUIDFilter(
         view_name="user-detail",
         method="filter_service_manager",
@@ -270,6 +275,28 @@ class OfferingFilter(
 
     def filter_service_manager(self, queryset, name, value):
         return queryset.filter_for_service_manager(value)
+
+    def filter_consumer_customer(self, queryset, name, value):
+        """Offerings the given customer actually consumes.
+
+        Note this is the consumer side: ``customer_uuid`` above matches the
+        *provider* that publishes an offering, and ``allowed_customer_uuid``
+        matches who is permitted to order one. Neither answers "which offerings
+        does this organization already hold resources of".
+
+        Terminated resources are excluded, and the offering must have opted into
+        access subnets. Both conditions are deliberately the same ones the
+        access-subnet serializer enforces on write: without the plugin-option
+        check the picker offered offerings whose creation then failed with
+        "Access subnets are not enabled for this offering".
+        """
+        return queryset.filter(
+            plugin_options__has_key="enable_resource_access_subnets",
+            plugin_options__enable_resource_access_subnets=True,
+            id__in=models.Resource.objects.filter(project__customer__uuid=value)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values("offering_id"),
+        ).distinct()
 
     def filter_project(self, queryset, name, value):
         return queryset.filter_for_project(value)
@@ -482,15 +509,19 @@ class OfferingCustomersFilterBackend(BaseFilterBackend):
 
 class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
     """Hide resources whose offering opted into subnet-based concealment when the
-    caller's IP is not covered by the resource's access subnets.
+    caller's IP is not covered by the applicable access subnets.
 
     Mirrors the organization-level ``filter_queryset_by_user_ip`` semantics:
     staff/support and requests without a resolvable IP bypass the check. A
     resource is hidden only when its offering enabled
-    ``conceal_subnet_restricted_resources`` AND it is restricted (it has at least
-    one own subnet, or its offering has at least one provider-default subnet) AND
-    the caller's IP is in none of the resource's own subnets nor the offering's
-    default subnets. The provider defaults widen the allow-list.
+    ``conceal_subnet_restricted_resources`` AND it is restricted (its owning
+    customer has at least one subnet for that offering, or the offering has at
+    least one provider-default subnet) AND the caller's IP is in neither set.
+    The provider defaults widen the allow-list.
+
+    Note the fail-open default this preserves: a customer that has defined no
+    subnets for an offering with no provider defaults is not restricted at all.
+    Concealment is opt-in by having a list, not by the flag alone.
     """
 
     FLAG = "conceal_subnet_restricted_resources"
@@ -503,35 +534,46 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
         if user.is_staff or user.is_support or not user_ip:
             return queryset
 
-        concealing = {
-            "offering__plugin_options__has_key": self.FLAG,
-            f"offering__plugin_options__{self.FLAG}": True,
-        }
-        # Resources restricted because they have their own subnet(s).
-        restricted_own = models.ResourceAccessSubnet.objects.filter(
-            **{f"resource__{k}": v for k, v in concealing.items()},
-            inet__isnull=False,
-        ).values_list("resource_id", flat=True)
-        # Concealing offerings that carry provider-default subnets: every resource
-        # of such an offering is restricted (checked against the defaults).
+        concealing = Q(
+            **{
+                "offering__plugin_options__has_key": self.FLAG,
+                f"offering__plugin_options__{self.FLAG}": True,
+            }
+        )
+
+        def customer_list(**lookups):
+            # Correlated on both columns, so one organization's list never
+            # restricts — or admits — another organization's resources of the
+            # same offering. A subquery rather than an enumerated set of pairs:
+            # the pair count grows with customers x offerings and must not be
+            # inlined into the SQL on every resource listing.
+            return Exists(
+                models.AccessSubnetOfferingScope.objects.filter(
+                    access_subnet__customer_id=OuterRef("project__customer_id"),
+                    offering_id=OuterRef("offering_id"),
+                    **{
+                        f"access_subnet__{key}": value for key, value in lookups.items()
+                    },
+                )
+            )
+
+        # Offerings carrying provider-default subnets: every resource of such an
+        # offering is restricted, and checked against those defaults.
         offerings_with_defaults = models.OfferingAccessSubnet.objects.filter(
-            **concealing,
             inet__isnull=False,
         ).values_list("offering_id", flat=True)
-
-        # Resources allowed because one of their own subnets covers the IP.
-        allowed_own = models.ResourceAccessSubnet.objects.filter(
-            inet__net_contains_or_equals=user_ip,
-        ).values_list("resource_id", flat=True)
         # Offerings whose provider-default subnets cover the IP.
         offerings_allowing_ip = models.OfferingAccessSubnet.objects.filter(
             inet__net_contains_or_equals=user_ip,
         ).values_list("offering_id", flat=True)
 
-        restricted = Q(pk__in=restricted_own) | Q(
-            offering_id__in=offerings_with_defaults
+        restricted = concealing & (
+            Q(customer_list(inet__isnull=False))
+            | Q(offering_id__in=offerings_with_defaults)
         )
-        allowed = Q(pk__in=allowed_own) | Q(offering_id__in=offerings_allowing_ip)
+        allowed = Q(customer_list(inet__net_contains_or_equals=user_ip)) | Q(
+            offering_id__in=offerings_allowing_ip
+        )
         return queryset.exclude(restricted & ~allowed)
 
 
@@ -1740,38 +1782,6 @@ class ResourceFilter(
                 )
             )
         return queryset
-
-
-class ResourceAccessSubnetFilter(django_filters.FilterSet):
-    resource = core_filters.URLFilter(
-        view_name="marketplace-resource-detail",
-        field_name="resource__uuid",
-        label="Resource URL",
-    )
-    resource_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-resource-detail",
-        field_name="resource__uuid",
-        label="Resource UUID",
-    )
-    offering_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-provider-offering-detail",
-        field_name="resource__offering__uuid",
-        label="Offering UUID",
-    )
-    inet = django_filters.CharFilter(lookup_expr="icontains", label="Inet")
-    description = django_filters.CharFilter(
-        lookup_expr="icontains", label="Description"
-    )
-
-    class Meta:
-        model = models.ResourceAccessSubnet
-        fields = [
-            "resource",
-            "resource_uuid",
-            "offering_uuid",
-            "inet",
-            "description",
-        ]
 
 
 class OfferingAccessSubnetFilter(django_filters.FilterSet):

@@ -5,11 +5,21 @@ from waldur_core.structure import models
 
 
 class Command(BaseCommand):
-    help = "Dumps information about organization access subnets, merging adjacent or overlapping networks."
+    help = (
+        "Dumps the addresses allowed to sign in to the portal on behalf of an "
+        "organization, merging adjacent or overlapping networks. Entries that "
+        "apply only to resources of an offering are excluded — those are "
+        "exported by resource_access_subnets."
+    )
 
     def get_merged_subnets(self):
-        subnets = models.AccessSubnet.objects.exclude(inet__isnull=True).values_list(
-            "inet", flat=True
+        # Only portal-scoped entries. The same table now also holds addresses
+        # trusted purely for reaching resources; emitting those here would widen
+        # the sign-in allow-list with addresses never meant to grant it.
+        subnets = (
+            models.AccessSubnet.objects.exclude(inet__isnull=True)
+            .filter(applies_to_portal=True)
+            .values_list("inet", flat=True)
         )
         return core_utils.merge_access_subnets(subnets)
 

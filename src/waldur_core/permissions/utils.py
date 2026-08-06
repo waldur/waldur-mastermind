@@ -275,7 +275,13 @@ def get_users_with_permission(scope, permission):
     return User.objects.filter(id__in=user_ids)
 
 
-def get_scope_ids(user, content_type, role=None, permission=None):
+def get_scope_ids(user, content_type, role=None, permission=None) -> QuerySet[int]:
+    """Ids — not objects — of the scopes the user holds a role on.
+
+    Callers routinely feed this to ``filter(scope__in=...)``, which works with
+    ids. A membership test does not: ``obj in <queryset of ints>`` is neither a
+    type error nor a runtime error, it is silently False.
+    """
     qs = models.UserRole.objects.filter(
         is_active=True, user=user, content_type=content_type
     )

@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import re
 from datetime import timedelta
@@ -476,19 +477,74 @@ def validate_cidr_32(value):
         raise ValidationError("Only /32 mask is allowed.")
 
 
+def validate_access_subnet_cidr(value):
+    """
+    Validate a CIDR address usable as an access-subnet entry.
+
+    Rejects a zero-length prefix outright: ``0.0.0.0/0`` (or ``::/0``) matches
+    every address, which would silently neutralise any restriction built on
+    these entries. Every other width is accepted here — the narrower "single
+    host only" rule that applies to non-staff users is enforced in the
+    serializer, which is the only layer that knows who is making the request.
+
+    Args:
+        value: CIDR address string to validate
+
+    Raises:
+        ValidationError: If the value is malformed or has a /0 prefix
+    """
+    try:
+        network = ipaddress.ip_network(str(value), strict=False)
+    except ValueError as e:
+        raise ValidationError(str(e))
+    if network.prefixlen == 0:
+        raise ValidationError("A /0 mask is not allowed: it matches every address.")
+
+
 class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, LoggableMixin):
     """
     Model for customer access subnets.
 
-    Stores CIDR addresses with /32 mask validation for IP-based access control.
-    Used to restrict access to customer resources based on source IP addresses.
+    One trusted network for the organization, plus what it is trusted for.
+
+    A single entry can apply to portal sign-in (``applies_to_portal``) and/or to
+    the organization's resources of particular offerings, the latter recorded
+    outside this app so that structure keeps no knowledge of the marketplace.
+    Keeping it as one row per address means a consumer describes a network once
+    ("office egress") rather than maintaining parallel lists.
+
+    ``applies_to_portal`` defaults to False deliberately. Any portal-scoped
+    entry restricts sign-in for the whole organization, so adding a network in
+    order to reach a bucket must not quietly lock people out of the portal.
+
+    Non-staff users may only enter single hosts (``/32``); staff may enter wider
+    ranges, which are then flagged ``is_staff_managed`` so consumers cannot edit
+    or remove them. Both rules live in the serializer, which is the layer that
+    knows the acting user.
     """
 
     customer = models.ForeignKey["Customer"](
         on_delete=models.CASCADE, to="Customer", related_name="access_subnet_set"
     )
-    inet = CidrAddressField(null=True, blank=True, validators=[validate_cidr_32])
+    inet = CidrAddressField(
+        null=True, blank=True, validators=[validate_access_subnet_cidr]
+    )
+    applies_to_portal = models.BooleanField(
+        default=False,
+        help_text="Whether this network may sign in to the portal on behalf of "
+        "the organization. Off by default: any portal-scoped entry restricts "
+        "sign-in for everyone in the organization.",
+    )
+    is_staff_managed = models.BooleanField(
+        default=False,
+        help_text="Set when staff created the entry. Such entries are read-only "
+        "for everyone else, regardless of mask width.",
+    )
     tracker = cast(FieldInstanceTracker, FieldTracker())
+    # Queries now start from this model rather than joining in from Customer
+    # (which carries its own NetManager), so the netfields lookups —
+    # inet__net_contains_or_equals — have to be available here too.
+    objects = NetManager()
 
     class Meta:
         unique_together = ("customer", "inet")
@@ -498,7 +554,13 @@ class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, Loggable
         return self.customer.name + " | " + str(self.inet)
 
     def get_log_fields(self):
-        return "description", "inet", "customer"
+        return (
+            "description",
+            "inet",
+            "customer",
+            "applies_to_portal",
+            "is_staff_managed",
+        )
 
 
 class CustomerAddressDetailsMixin(models.Model):

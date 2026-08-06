@@ -88,11 +88,6 @@ def register_in(router):
         basename="marketplace-provider-resource",
     )
     router.register(
-        r"marketplace-resource-access-subnets",
-        views.ResourceAccessSubnetViewSet,
-        basename="marketplace-resource-access-subnet",
-    )
-    router.register(
         r"marketplace-offering-access-subnets",
         views.OfferingAccessSubnetViewSet,
         basename="marketplace-offering-access-subnet",

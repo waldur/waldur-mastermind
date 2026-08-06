@@ -35,21 +35,38 @@ class AccessSubnetCreateTest(test.APITestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ACCESS_SUBNET)
 
     @data("staff", "owner")
-    def test_user_can_create_access_subnet(self, user):
+    def test_user_can_create_single_host_access_subnet(self, user):
         user = getattr(self.fixture, user)
-        response = self.create_access_subnet(user)
-        self.assertEqual(response.status_code, 201)
+        response = self.create_access_subnet(user, inet="192.168.1.5/32")
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def test_owner_cannot_create_wider_than_single_host(self):
+        # The declared CharField used to drop the model's /32 validator, so the
+        # API accepted any width. Non-staff are now held to a single host.
+        response = self.create_access_subnet(self.fixture.owner)
+        self.assertEqual(response.status_code, 400, response.data)
+
+    def test_staff_can_create_wider_network(self):
+        response = self.create_access_subnet(self.fixture.staff)
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(response.data["is_staff_managed"])
+
+    def test_staff_cannot_create_zero_prefix(self):
+        response = self.create_access_subnet(self.fixture.staff, inet="0.0.0.0/0")
+        self.assertEqual(response.status_code, 400, response.data)
 
     def test_project_user_cannot_create_access_subnet(self):
-        response = self.create_access_subnet(self.project_user)
+        # A single host, so the mask rule passes and the permission check is
+        # what the response actually reflects.
+        response = self.create_access_subnet(self.project_user, inet="192.168.1.5/32")
         self.assertEqual(response.status_code, 403)
 
-    def create_access_subnet(self, user):
+    def create_access_subnet(self, user, inet="192.168.1.0/24"):
         self.client.force_authenticate(user=user)
         url = factories.AccessSubnetFactory.get_list_url()
         payload = {
             "customer": self.customer_url,
-            "inet": "192.168.1.0/24",
+            "inet": inet,
             "description": "Test subnet",
         }
         response = self.client.post(

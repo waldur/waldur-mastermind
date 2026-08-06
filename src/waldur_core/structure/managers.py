@@ -138,10 +138,33 @@ def _get_resource_role_customer_ids_qs(user):
 
 
 def filter_customer_by_ip_address(ip_address):
-    return structure_models.Customer.objects.filter(
-        models.Q(access_subnet_set__inet__isnull=True)
-        | models.Q(access_subnet_set__inet__net_contains_or_equals=ip_address)
-    ).values_list("id", flat=True)
+    """Customers the given address may act on behalf of.
+
+    Only subnets the organization marked as applying to portal sign-in count
+    here. An entry added to reach a resource of some offering must never
+    restrict who can sign in, so it is excluded — that separation is the whole
+    reason the scope flag exists.
+
+    A customer with no portal-scoped subnets is unrestricted. ``Exists`` rather
+    than a join: the join form matched "has a row whose inet is null", which
+    cannot express "has no portal-scoped rows at all", and duplicated customer
+    ids once several subnets matched.
+    """
+    portal_subnets = structure_models.AccessSubnet.objects.filter(
+        customer=models.OuterRef("pk"),
+        applies_to_portal=True,
+        inet__isnull=False,
+    )
+    return (
+        structure_models.Customer.objects.annotate(
+            has_portal_subnets=models.Exists(portal_subnets),
+            address_allowed=models.Exists(
+                portal_subnets.filter(inet__net_contains_or_equals=ip_address)
+            ),
+        )
+        .filter(models.Q(has_portal_subnets=False) | models.Q(address_allowed=True))
+        .values_list("id", flat=True)
+    )
 
 
 def filter_queryset_by_user_ip(queryset, request):
@@ -212,12 +235,22 @@ class PrivateServiceSettingsManager(ServiceSettingsManager):
         return super().get_queryset().filter(shared=False)
 
 
-def get_connected_customers(user, role=None):
+def get_connected_customers(user, role=None) -> QuerySet[int]:
+    """Customer **ids** the user holds a role on, despite the name.
+
+    Use ``filter(customer__in=...)``; a membership test needs
+    ``Customer.objects.filter(pk=..., id__in=...).exists()``.
+    """
     ctype = ContentType.objects.get_for_model(structure_models.Customer)
     return get_scope_ids(user, ctype, role)
 
 
-def get_connected_projects(user, role=None):
+def get_connected_projects(user, role=None) -> QuerySet[int]:
+    """Project **ids** the user holds a role on, despite the name.
+
+    Use ``filter(project__in=...)``; a membership test needs
+    ``Project.objects.filter(pk=..., id__in=...).exists()``.
+    """
     ctype = ContentType.objects.get_for_model(structure_models.Project)
     return get_scope_ids(user, ctype, role)
 

@@ -2434,42 +2434,54 @@ class Resource(
         }
 
 
-class ResourceAccessSubnet(
-    core_models.UuidMixin, core_models.DescribableMixin, LoggableMixin
-):
-    """
-    Model for resource access subnets.
+class AccessSubnetOfferingScope(core_models.UuidMixin, LoggableMixin):
+    """Marks one of an organization's access subnets as applying to an offering.
 
-    Stores CIDR addresses with /32 mask validation. By default the data is
-    advisory metadata exported for consumption by external firewalls that guard
-    the backend entity the resource maps to (e.g. an S3 bucket); Waldur does not
-    act on it. Optionally, if the resource's offering enables the
-    ``conceal_subnet_restricted_resources`` plugin option, Waldur also hides such
-    resources from the consumer API for callers whose IP is not in the list.
-    Available only for resources whose offering opts in via the
-    ``enable_resource_access_subnets`` plugin option.
+    The address, its description and its provenance live on
+    ``structure.AccessSubnet``; this table only records which offerings that
+    single entry is trusted for. Splitting it this way keeps the address list
+    unified for the consumer while leaving ``structure`` with no knowledge of
+    the marketplace — the dependency points this way only.
+
+    The scope applies to every resource the customer holds of the offering,
+    including ones created later. By default it is advisory metadata exported
+    for external firewalls guarding the backend entities those resources map to
+    (e.g. S3 buckets); Waldur does not act on it. If the offering enables the
+    ``conceal_subnet_restricted_resources`` plugin option, Waldur additionally
+    hides the customer's resources of that offering from the consumer API for
+    callers whose address is in none of the scoped subnets.
+
+    Only offerings that opt in via ``enable_resource_access_subnets`` and that
+    the customer actually consumes may be scoped; both rules are enforced in the
+    serializer.
     """
 
-    resource = models.ForeignKey(
-        Resource, on_delete=models.CASCADE, related_name="access_subnet_set"
+    access_subnet = models.ForeignKey(
+        structure_models.AccessSubnet,
+        on_delete=models.CASCADE,
+        # No reverse accessor, so no marketplace-shaped attribute hangs off a
+        # structure model. Callers that need an entry's offerings query this
+        # table directly.
+        related_name="+",
     )
-    inet = CidrAddressField(
-        null=True, blank=True, validators=[structure_models.validate_cidr_32]
+    offering = models.ForeignKey(
+        Offering, on_delete=models.CASCADE, related_name="access_subnet_scopes"
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
-    # NetManager enables the netfields network lookups (e.g.
-    # inet__net_contains_or_equals) used by the consumer-API concealment filter.
+    # The concealment filter reaches the address through this table
+    # (access_subnet__inet__net_contains_or_equals), so the netfields lookups
+    # must be available from here as well.
     objects = NetManager()
 
     class Meta:
-        unique_together = ("resource", "inet")
-        ordering = ["inet"]
+        unique_together = ("access_subnet", "offering")
+        ordering = ["offering__name"]
 
     def __str__(self):
-        return self.resource.name + " | " + str(self.inet)
+        return f"{self.access_subnet} | {self.offering.name}"
 
     def get_log_fields(self):
-        return "description", "inet", "resource"
+        return "access_subnet", "offering"
 
 
 class OfferingAccessSubnet(
@@ -2478,11 +2490,11 @@ class OfferingAccessSubnet(
     """
     Provider-defined default access subnets for an offering.
 
-    Unlike the per-resource ``ResourceAccessSubnet`` (single-host /32 entries
-    curated by consumers), these are wider CIDR segments (any mask) defined by
+    Unlike the consumer's own access subnets (curated by them, single-host
+    unless staff widens them), these are CIDR segments of any width defined by
     the service provider. They are shown read-only to consumers alongside their
-    own resource subnets, count toward the consumer-API concealment allow-list,
-    and are included in the exported firewall allow-list.
+    own subnets, count toward the consumer-API concealment allow-list, and are
+    included in the exported firewall allow-list.
     """
 
     offering = models.ForeignKey(
