@@ -26,6 +26,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.proposal.enums import (
+    WORKFLOW_STEPS_CHOICES,
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     AssignmentSources,
@@ -108,6 +109,9 @@ SPECTACULAR_SETTINGS = {
         # COI type codes are shared by the ConflictOfInterest.coi_type field and
         # the three CallCOIConfiguration rule lists;
         "CoiTypeEnum": COITypes.CHOICES,
+        # CallWorkflowStep.step and Proposal.workflow_step share this choice
+        # set; name it once so drf-spectacular doesn't emit two enums for it.
+        "StepEnum": WORKFLOW_STEPS_CHOICES,
         # Assignment batch and item statuses
         "AssignmentBatchStatus": AssignmentBatchStatuses.CHOICES,
         "AssignmentItemStatus": AssignmentItemStatuses.CHOICES,

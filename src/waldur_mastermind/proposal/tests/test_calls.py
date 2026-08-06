@@ -45,6 +45,84 @@ class PublicCallGetTest(test.APITestCase):
         self.assertEqual(len(response.json()), 1)
 
 
+class PublicCallOpenForOfferingFilterTest(test.APITestCase):
+    """``open_for_offering_uuid`` must agree with the offering's open_for_proposals.
+
+    ``offering_uuid`` stays deliberately loose: the offering page lists past and
+    archived calls under it too.
+    """
+
+    def setUp(self):
+        self.offering = marketplace_factories.OfferingFactory()
+        self.url = factories.CallFactory.get_public_list_url()
+
+    def add_offering_to_call(self, with_round=True, **kwargs):
+        kwargs.setdefault("call__state", CallStates.ACTIVE)
+        requested_offering = factories.RequestedOfferingFactory(
+            offering=self.offering, **kwargs
+        )
+        if with_round:
+            factories.RoundFactory(call=requested_offering.call, opened=True)
+        return requested_offering.call
+
+    def get_calls(self, param):
+        response = self.client.get(self.url, {param: self.offering.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [call["uuid"] for call in response.json()]
+
+    def test_call_accepting_proposals_is_returned_by_both_filters(self):
+        call = self.add_offering_to_call()
+
+        self.assertEqual(self.get_calls("offering_uuid"), [call.uuid.hex])
+        self.assertEqual(self.get_calls("open_for_offering_uuid"), [call.uuid.hex])
+
+    def test_call_without_a_live_round_is_returned_by_offering_uuid_only(self):
+        call = self.add_offering_to_call(with_round=False)
+
+        self.assertEqual(self.get_calls("offering_uuid"), [call.uuid.hex])
+        self.assertEqual(self.get_calls("open_for_offering_uuid"), [])
+
+    def test_archived_call_is_returned_by_offering_uuid_only(self):
+        call = self.add_offering_to_call(call__state=CallStates.ARCHIVED)
+
+        self.assertEqual(self.get_calls("offering_uuid"), [call.uuid.hex])
+        self.assertEqual(self.get_calls("open_for_offering_uuid"), [])
+
+    def test_unaccepted_request_is_returned_by_offering_uuid_only(self):
+        call = self.add_offering_to_call(state=RequestedOfferingStates.REQUESTED)
+
+        self.assertEqual(self.get_calls("offering_uuid"), [call.uuid.hex])
+        self.assertEqual(self.get_calls("open_for_offering_uuid"), [])
+
+    def test_call_open_for_another_offering_is_not_returned(self):
+        factories.RoundFactory(
+            call=factories.RequestedOfferingFactory(call__state=CallStates.ACTIVE).call,
+            opened=True,
+        )
+
+        self.assertEqual(self.get_calls("open_for_offering_uuid"), [])
+
+    def test_call_whose_templates_skip_the_offering_is_not_returned(self):
+        """Such a call strands the applicant on a proposal it cannot be added to."""
+        call = self.add_offering_to_call()
+        # A template on the same call, but for a different requested offering.
+        factories.CallResourceTemplateFactory(call=call, requested_offering__call=call)
+
+        self.assertEqual(self.get_calls("offering_uuid"), [call.uuid.hex])
+        self.assertEqual(self.get_calls("open_for_offering_uuid"), [])
+
+    def test_call_whose_template_covers_the_offering_is_returned(self):
+        call = self.add_offering_to_call()
+        factories.CallResourceTemplateFactory(
+            call=call,
+            requested_offering=models.RequestedOffering.objects.get(
+                call=call, offering=self.offering
+            ),
+        )
+
+        self.assertEqual(self.get_calls("open_for_offering_uuid"), [call.uuid.hex])
+
+
 @ddt
 class CallGetTest(test.APITestCase):
     def setUp(self):
@@ -291,6 +369,37 @@ class CallActivateTest(test.APITestCase):
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.draft_call.state, CallStates.ACTIVE)
+
+    def test_user_can_not_activate_call_whose_offering_has_no_plan(self):
+        """Such a call activates fine and then cannot be applied to.
+
+        The applicant's resource-request form lists only offerings carrying a
+        plan, so the picker would be empty with no indication why. A plan can
+        only be set while the offering is still requested, so activation is the
+        last point it is still fixable.
+        """
+        factories.RoundFactory(call=self.draft_call)
+        self.draft_call.requestedoffering_set.update(plan=None)
+
+        response = self.activate_call("staff", self.draft_call)
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.draft_call.refresh_from_db()
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
+
+    def test_a_planless_offering_that_was_never_accepted_does_not_block(self):
+        factories.RoundFactory(call=self.draft_call)
+        factories.RequestedOfferingFactory(
+            call=self.draft_call,
+            state=RequestedOfferingStates.REQUESTED,
+            plan=None,
+        )
+
+        response = self.activate_call("staff", self.draft_call)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     @data("staff")
     def test_user_can_not_activate_call_without_round(self, user):

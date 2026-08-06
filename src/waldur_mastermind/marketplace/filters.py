@@ -65,7 +65,6 @@ from waldur_mastermind.marketplace.managers import (
     get_connected_offerings,
 )
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
@@ -204,7 +203,22 @@ class OfferingFilter(
         label="Scope UUID",
     )
     accessible_via_calls = django_filters.BooleanFilter(
-        label="Accessible via calls", method="filter_accessible_via_calls"
+        label="Accessible via calls",
+        method="filter_accessible_via_calls",
+        help_text=(
+            "Deprecated: offerings accepted on an active call, regardless of "
+            "whether a proposal can actually be submitted for them. Use "
+            "open_for_proposals instead."
+        ),
+    )
+    open_for_proposals = django_filters.BooleanFilter(
+        label="Open for proposals",
+        method="filter_open_for_proposals",
+        help_text=(
+            "Offerings that can be requested through a call right now: accepted "
+            "on an active call with a round that is open, and covered by a "
+            "resource template when the call defines any."
+        ),
     )
     accessible = django_filters.BooleanFilter(
         label="Only offerings the current user can order",
@@ -348,14 +362,28 @@ class OfferingFilter(
         return queryset.filter_accessible_for_user(self.request.user)
 
     def filter_accessible_via_calls(self, queryset, name, value):
+        # Deliberately loose and frozen: this filter is published API surface, so
+        # it keeps the meaning it shipped with. open_for_proposals is the one that
+        # answers "can a proposal be submitted for this offering right now".
         if value is None:
             return queryset
 
-        from waldur_mastermind.proposal.models import RequestedOffering
+        offerings_ids = (
+            proposal_models.RequestedOffering.objects.offering_ids_in_active_calls()
+        )
 
-        offerings_ids = RequestedOffering.objects.filter(
-            state=RequestedOfferingStates.ACCEPTED, call__state=CallStates.ACTIVE
-        ).values_list("offering_id", flat=True)
+        if value:
+            return queryset.filter(id__in=offerings_ids)
+        else:
+            return queryset.exclude(id__in=offerings_ids)
+
+    def filter_open_for_proposals(self, queryset, name, value):
+        if value is None:
+            return queryset
+
+        offerings_ids = (
+            proposal_models.RequestedOffering.objects.offering_ids_open_for_proposals()
+        )
 
         if value:
             return queryset.filter(id__in=offerings_ids)

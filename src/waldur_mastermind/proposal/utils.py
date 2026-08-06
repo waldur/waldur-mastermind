@@ -113,6 +113,17 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
                 resource=resource,
                 created_by=get_system_robot(),
             )
+            # Hand the purchase order to the order, so the approval gate in
+            # marketplace.permissions is already satisfied. Without this the
+            # applicant supplies it during the proposal and is asked again the
+            # moment the allocation lands.
+            if requested_resource.attachment:
+                # Point at the stored file rather than assigning the FieldFile:
+                # the document is already committed, so this records the same
+                # path without re-uploading a copy.
+                order.attachment.name = requested_resource.attachment.name
+            if requested_resource.purchase_order_reference:
+                order.request_comment = requested_resource.purchase_order_reference
             order.init_cost()
             order.save()
 

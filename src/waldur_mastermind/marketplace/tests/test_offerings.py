@@ -18,6 +18,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection as db_connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
@@ -63,6 +64,13 @@ from waldur_mastermind.marketplace.management.commands.import_offering import (
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
+from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.enums import (
+    CallStates,
+    RequestedOfferingStates,
+    RoundStatuses,
+)
+from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 from . import fixtures as marketplace_fixtures
 
@@ -5090,3 +5098,179 @@ class RestrictedOfferingVisibilityModeTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["is_accessible"])
+
+
+class OfferingOpenForProposalsTest(test.APITestCase):
+    def setUp(self):
+        self.offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+
+    def get_offering(self):
+        url = factories.OfferingFactory.get_public_url(self.offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def test_not_open_without_requested_offering(self):
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_open_when_accepted_in_active_call_with_open_round(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        self.assertTrue(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_when_the_round_has_not_started(self):
+        """Advertising an offering whose round opens later hands the applicant
+        a deadline they cannot act on — and the write path would refuse it
+        anyway, since a proposal can only be created while its round is open.
+        """
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        # The factory default is a round starting in five days.
+        scheduled = proposal_factories.RoundFactory(call=requested_offering.call)
+        self.assertEqual(scheduled.status, RoundStatuses.SCHEDULED)
+
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_when_call_templates_do_not_cover_the_offering(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        proposal_factories.CallResourceTemplateFactory(
+            call=requested_offering.call,
+            requested_offering=proposal_factories.RequestedOfferingFactory(
+                call=requested_offering.call
+            ),
+        )
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_open_when_a_call_template_covers_the_offering(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        proposal_factories.CallResourceTemplateFactory(
+            call=requested_offering.call,
+            requested_offering=requested_offering,
+        )
+        self.assertTrue(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_when_template_covers_offering_on_another_call(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        proposal_factories.CallResourceTemplateFactory(
+            call=requested_offering.call,
+            requested_offering=proposal_factories.RequestedOfferingFactory(
+                call=requested_offering.call
+            ),
+        )
+        proposal_factories.CallResourceTemplateFactory(
+            requested_offering=requested_offering,
+        )
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_when_call_is_draft(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_when_request_is_not_accepted(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+            state=RequestedOfferingStates.REQUESTED,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_when_all_rounds_ended(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        proposal_factories.RoundFactory(
+            call=requested_offering.call,
+            start_time=timezone.now() - datetime.timedelta(days=10),
+            cutoff_time=timezone.now() - datetime.timedelta(days=5),
+        )
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_when_call_has_no_rounds(self):
+        proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_not_open_via_another_offering_request(self):
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            call__state=CallStates.ACTIVE,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+        self.assertFalse(self.get_offering()["open_for_proposals"])
+
+    def test_several_live_rounds_do_not_duplicate_the_offering(self):
+        # Callers feed open_for_proposals() to Exists() and __in with no distinct().
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        for _ in range(2):
+            proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+
+        self.assertEqual(
+            proposal_models.RequestedOffering.objects.open_for_proposals().count(), 1
+        )
+
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url, {"open_for_proposals": "true"})
+        self.assertEqual(len(response.json()), 1)
+
+    def test_falls_back_to_a_query_when_queryset_is_not_annotated(self):
+        # The script plugin and nested representations serialize unannotated rows.
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            call__state=CallStates.ACTIVE,
+        )
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+
+        offering = models.Offering.objects.get(pk=self.offering.pk)
+        self.assertFalse(hasattr(offering, "open_for_proposals"))
+        serializer = serializers.PublicOfferingDetailsSerializer()
+        self.assertTrue(serializer.get_open_for_proposals(offering))
+
+    def test_list_does_not_run_a_query_per_offering(self):
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+        url = factories.OfferingFactory.get_public_list_url()
+        query = {"field": ["uuid", "open_for_proposals"]}
+
+        # Warm up one-off lookups so the measurements differ only in row count.
+        self.client.get(url, query)
+
+        with CaptureQueriesContext(db_connection) as ctx_one:
+            self.client.get(url, query)
+
+        for _ in range(3):
+            requested_offering = proposal_factories.RequestedOfferingFactory(
+                offering=factories.OfferingFactory(state=OfferingStates.ACTIVE),
+                call__state=CallStates.ACTIVE,
+            )
+            proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+
+        with CaptureQueriesContext(db_connection) as ctx_many:
+            response = self.client.get(url, query)
+
+        self.assertEqual(len(response.data), 4)
+        self.assertEqual(len(ctx_one), len(ctx_many))

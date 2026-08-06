@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace.callbacks import (
     resource_creation_succeeded,
 )
 from waldur_mastermind.marketplace.enums import BOOKING_OFFERING, ResourceStates
+from waldur_mastermind.proposal import managers as proposal_managers
 
 from . import executors, filters, permissions, serializers
 
@@ -85,6 +86,11 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
     )
     lookup_field = "uuid"
     serializer_class = serializers.OfferingSerializer
+
+    def get_queryset(self):
+        return proposal_managers.annotate_offerings_open_for_proposals(
+            super().get_queryset()
+        )
 
     @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])

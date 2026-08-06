@@ -208,6 +208,9 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField()
     offering_name = serializers.ReadOnlyField(source="offering.name")
     offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
+    # The plugin type drives the frontend's per-type component filter, which a
+    # cost estimate has to apply or it prices components the offering hides.
+    offering_type = serializers.ReadOnlyField(source="offering.type")
     category_uuid = serializers.UUIDField(
         read_only=True, source="offering.category.uuid"
     )
@@ -230,6 +233,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "offering",
             "offering_name",
             "offering_uuid",
+            "offering_type",
             "provider_name",
             "category_uuid",
             "category_name",
@@ -239,6 +243,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "plan_details",
             "options",
             "components",
+            "require_purchase_order",
             "created",
         ]
         extra_kwargs = {
@@ -298,6 +303,13 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
             )
         return None
 
+    # Whether this row needs a purchase order, resolved from the call's setting
+    # so the form does not have to re-derive it from plugin_options.
+    purchase_order_required = serializers.ReadOnlyField()
+    has_purchase_order = serializers.ReadOnlyField()
+    # Written through the dedicated multipart action, as orders do.
+    attachment = serializers.FileField(read_only=True)
+
     class Meta:
         model = models.RequestedResource
         fields = [
@@ -310,6 +322,10 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
             "call_resource_template_name",
             "attributes",
             "limits",
+            "purchase_order_reference",
+            "attachment",
+            "purchase_order_required",
+            "has_purchase_order",
             "description",
             "created_by",
             "created_by_name",
@@ -322,6 +338,76 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
             "created_by": {
                 "lookup_field": "uuid",
                 "view_name": "user-detail",
+            },
+        }
+
+
+class UserRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
+    """One row of "resources I requested through a proposal".
+
+    Deliberately flat rather than reusing ``NestedRequestedResourceSerializer``:
+    that one embeds the whole requested offering (plan details, components,
+    options), which is far more than a list needs and costs a query per row.
+
+    Proposal state and resource state are reported separately. They are two
+    different lifecycles — the resource does not exist until the proposal is
+    approved — so collapsing them into one column would require inventing a
+    mapping that neither model owns.
+    """
+
+    offering_name = serializers.CharField(
+        read_only=True, source="requested_offering.offering.name"
+    )
+    offering_uuid = serializers.UUIDField(
+        read_only=True, source="requested_offering.offering.uuid"
+    )
+    call_name = serializers.CharField(read_only=True, source="proposal.round.call.name")
+    call_uuid = serializers.UUIDField(read_only=True, source="proposal.round.call.uuid")
+    proposal_name = serializers.CharField(read_only=True, source="proposal.name")
+    proposal_uuid = serializers.UUIDField(read_only=True, source="proposal.uuid")
+    proposal_state = serializers.CharField(read_only=True, source="proposal.state")
+    # resource is null until the proposal is approved. Without allow_null DRF
+    # raises SkipField on the dotted source and drops the key from the payload
+    # entirely, so the SDK sees an absent field rather than an explicit null.
+    resource_name = serializers.CharField(
+        read_only=True, source="resource.name", allow_null=True
+    )
+    resource_uuid = serializers.UUIDField(
+        read_only=True, source="resource.uuid", allow_null=True
+    )
+    resource_state = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_resource_state(self, requested_resource) -> str | None:
+        """Null until the proposal is approved and the resource is provisioned."""
+        if not requested_resource.resource:
+            return None
+        return requested_resource.resource.get_state_display()
+
+    class Meta:
+        model = models.RequestedResource
+        fields = [
+            "uuid",
+            "created",
+            "description",
+            "attributes",
+            "limits",
+            "offering_name",
+            "offering_uuid",
+            "call_name",
+            "call_uuid",
+            "proposal",
+            "proposal_name",
+            "proposal_uuid",
+            "proposal_state",
+            "resource_name",
+            "resource_uuid",
+            "resource_state",
+        ]
+        extra_kwargs = {
+            "proposal": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-proposal-detail",
             },
         }
 
@@ -698,6 +784,16 @@ class CallResourceTemplateSerializer(
     requested_offering_uuid = serializers.UUIDField(
         source="requested_offering.uuid", read_only=True
     )
+    # The plan alone cannot be priced: bucketing an amount into recurring or
+    # one-off needs each component's billing type and limit period, and the
+    # plugin type drives the frontend's component filter. Same two fields
+    # NestedRequestedOfferingSerializer carries for the non-template path.
+    requested_offering_type = serializers.ReadOnlyField(
+        source="requested_offering.offering.type"
+    )
+    requested_offering_components = OfferingComponentSerializer(
+        source="requested_offering.offering.components", many=True, read_only=True
+    )
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     url = serializers.SerializerMethodField()
     requested_offering = NestedCallActionHyperlinkedRelatedField(
@@ -721,6 +817,8 @@ class CallResourceTemplateSerializer(
             "requested_offering_name",
             "requested_offering_uuid",
             "requested_offering_plan",
+            "requested_offering_type",
+            "requested_offering_components",
             "created_by",
             "created_by_name",
             "created",
@@ -1080,6 +1178,22 @@ class RequestedResourceSerializer(
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
+
+
+class RequestedResourcePurchaseOrderSerializer(serializers.ModelSerializer):
+    """Multipart write of the purchase order, mirroring OrderAttachmentSerializer.
+
+    Kept off the main serializer because a file cannot ride along with the JSON
+    body the resource form submits.
+    """
+
+    class Meta:
+        model = models.RequestedResource
+        fields = ("attachment", "purchase_order_reference")
+        extra_kwargs = {
+            "attachment": {"required": False, "allow_null": True},
+            "purchase_order_reference": {"required": False, "allow_blank": True},
+        }
 
 
 class ProviderRequestedResourceSerializer(NestedRequestedResourceSerializer):
@@ -1682,8 +1796,10 @@ class ProposalSerializer(
             "compliance_status",
             "can_submit",
             "awaiting_manual_advance",
+            "workflow_step",
         ]
         read_only_fields = (
+            "workflow_step",
             "created_by",
             "approved_by",
             "project",

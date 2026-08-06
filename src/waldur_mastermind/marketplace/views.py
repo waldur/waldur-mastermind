@@ -194,6 +194,7 @@ from waldur_mastermind.marketplace.utils import (
 )
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 from waldur_mastermind.promotions import models as promotions_models
+from waldur_mastermind.proposal import managers as proposal_managers
 from waldur_mastermind.support import models as support_models
 from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
@@ -6010,14 +6011,14 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return self.queryset.filter_by_ordering_availability_for_user(
-            user
-        ).select_related(
-            # get_filtered_plans reads offering.parent; the details serializer
-            # walks customer and category.
-            "parent",
-            "customer",
-            "category",
+        return proposal_managers.annotate_offerings_open_for_proposals(
+            self.queryset.filter_by_ordering_availability_for_user(user).select_related(
+                # get_filtered_plans reads offering.parent; the details serializer
+                # walks customer and category.
+                "parent",
+                "customer",
+                "category",
+            )
         )
 
     @extend_schema(

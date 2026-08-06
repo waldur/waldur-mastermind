@@ -528,6 +528,28 @@ class RequestedOffering(
     plan = models.ForeignKey(
         on_delete=models.CASCADE, to=marketplace_models.Plan, null=True, blank=True
     )
+    require_purchase_order = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether a purchase order must accompany a resource request for this "
+            "offering before the proposal can be submitted. Defaults to the "
+            "offering's require_purchase_order_upload, and stays under the call "
+            "manager's control afterwards."
+        ),
+    )
+
+    objects = managers.RequestedOfferingQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        # Seed from the offering the first time only. The offering flag gates
+        # order *approval*, which happens after allocation; a call may need it
+        # earlier (or not at all), so the call manager owns it from here on and
+        # later offering changes must not silently rewrite the call's setting.
+        if self._state.adding and not self.require_purchase_order:
+            self.require_purchase_order = bool(
+                self.offering.plugin_options.get("require_purchase_order_upload")
+            )
+        return super().save(*args, **kwargs)
 
 
 class CallResourceTemplate(
@@ -919,6 +941,15 @@ class RequestedResource(
     )
     attributes = models.JSONField(blank=True, default=dict)
     limits = models.JSONField(blank=True, default=dict)
+    # Collected here rather than at order approval so the reviewer sees the
+    # authorisation alongside the amounts, and so allocate_proposal can hand it
+    # to the order it creates instead of asking the applicant a second time.
+    purchase_order_reference = models.CharField(max_length=255, blank=True)
+    attachment = models.FileField(
+        upload_to="proposal_requested_resource_attachments",
+        blank=True,
+        null=True,
+    )
     created_by = models.ForeignKey(
         core_models.User,
         on_delete=models.SET_NULL,
@@ -932,6 +963,20 @@ class RequestedResource(
         null=True,
     )
     proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE)
+
+    @property
+    def purchase_order_required(self) -> bool:
+        return self.requested_offering.require_purchase_order
+
+    @property
+    def has_purchase_order(self) -> bool:
+        """Either half satisfies the requirement.
+
+        Some providers want the document, others only need the reference from
+        the customer's finance system; demanding both would block the second
+        group for no gain.
+        """
+        return bool(self.attachment) or bool(self.purchase_order_reference)
 
 
 class ProposalWorkflowStepInstance(

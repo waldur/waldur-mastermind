@@ -1,6 +1,8 @@
+import datetime
 import json
 import unittest
 
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -482,35 +484,95 @@ class PlanComponentFilterTest(test.APITestCase):
         self.assertEqual(len(response.json()), 1)
 
 
-class AccessibleViaCallsFilterTest(test.APITestCase):
+class CallsFilterBaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.url = factories.OfferingFactory.get_public_list_url()
 
-    def test_accessible_via_calls(self):
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {"accessible_via_calls": "true"})
-        self.assertEqual(len(response.json()), 0)
-
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {"accessible_via_calls": "false"})
-        self.assertEqual(len(response.json()), 1)
-
+    def accept_on_active_call(self):
         requested_offering = proposal_factories.RequestedOfferingFactory(
             offering=self.offering,
             state=RequestedOfferingStates.ACCEPTED,
         )
         requested_offering.call.state = CallStates.ACTIVE
         requested_offering.call.save()
+        return requested_offering
+
+    def assert_filtered(self, param: str, matches: bool):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {param: "true"})
+        self.assertEqual(len(response.json()), 1 if matches else 0)
+
+        response = self.client.get(self.url, {param: "false"})
+        self.assertEqual(len(response.json()), 0 if matches else 1)
+
+
+class AccessibleViaCallsFilterTest(CallsFilterBaseTest):
+    """The deprecated filter keeps the meaning it shipped with.
+
+    It is published API surface (offering endpoints in the OpenAPI schema, the
+    CLI reference), so narrowing it in place would silently drop rows for
+    existing consumers. ``open_for_proposals`` is the narrow one.
+    """
+
+    def test_accessible_via_calls(self):
+        self.assert_filtered("accessible_via_calls", matches=False)
+
+        self.accept_on_active_call()
+
+        self.assert_filtered("accessible_via_calls", matches=True)
+
+    def test_still_matches_when_call_has_no_rounds(self):
+        self.accept_on_active_call()
+
+        self.assert_filtered("accessible_via_calls", matches=True)
+        self.assert_filtered("open_for_proposals", matches=False)
+
+    def test_still_matches_when_all_rounds_ended(self):
+        requested_offering = self.accept_on_active_call()
+        proposal_factories.RoundFactory(
+            call=requested_offering.call,
+            start_time=timezone.now() - datetime.timedelta(days=10),
+            cutoff_time=timezone.now() - datetime.timedelta(days=5),
+        )
+
+        self.assert_filtered("accessible_via_calls", matches=True)
+        self.assert_filtered("open_for_proposals", matches=False)
+
+
+class OpenForProposalsFilterTest(CallsFilterBaseTest):
+    def test_open_for_proposals(self):
+        self.assert_filtered("open_for_proposals", matches=False)
+
+        requested_offering = self.accept_on_active_call()
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
+
+        self.assert_filtered("open_for_proposals", matches=True)
+
+    def test_not_open_when_call_has_no_rounds(self):
+        self.accept_on_active_call()
+
+        self.assert_filtered("open_for_proposals", matches=False)
+
+    def test_not_open_when_all_rounds_ended(self):
+        requested_offering = self.accept_on_active_call()
+        proposal_factories.RoundFactory(
+            call=requested_offering.call,
+            start_time=timezone.now() - datetime.timedelta(days=10),
+            cutoff_time=timezone.now() - datetime.timedelta(days=5),
+        )
+
+        self.assert_filtered("open_for_proposals", matches=False)
+
+    def test_filter_agrees_with_serializer_field(self):
+        requested_offering = self.accept_on_active_call()
+        proposal_factories.RoundFactory(call=requested_offering.call, opened=True)
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {"accessible_via_calls": "true"})
+        response = self.client.get(self.url, {"open_for_proposals": "true"})
         self.assertEqual(len(response.json()), 1)
-
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {"accessible_via_calls": "false"})
-        self.assertEqual(len(response.json()), 0)
+        self.assertTrue(response.json()[0]["open_for_proposals"])
 
 
 class ResourceBillingTypeFilterTest(test.APITestCase):

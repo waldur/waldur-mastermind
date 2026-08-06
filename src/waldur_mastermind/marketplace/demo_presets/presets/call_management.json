@@ -1307,7 +1307,10 @@
       "category_uuid": "d4000000000000000000000000000001",
       "customer_uuid": "b4000000000000000000000000000001",
       "description": "Standard HPC allocation for research projects",
-      "getting_started": "## Getting Started with HPC Allocation\n\n### Access\nSSH to hpc.research-council.edu\n\n### Job Submission\nUse SLURM for job scheduling\n\n### Support\nEmail: hpc-support@research-council.edu"
+      "getting_started": "## Getting Started with HPC Allocation\n\n### Access\nSSH to hpc.research-council.edu\n\n### Job Submission\nUse SLURM for job scheduling\n\n### Support\nEmail: hpc-support@research-council.edu",
+      "plugin_options": {
+        "enable_purchase_order_upload": true
+      }
     },
     {
       "uuid": "f4000000000000000000000000000002",
@@ -1373,8 +1376,11 @@
       "type": "cpu_hours",
       "name": "CPU Core Hours",
       "description": "CPU compute time allocation",
-      "billing_type": "usage",
-      "measured_unit": "hours"
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 1000,
+      "max_value": 500000
     },
     {
       "uuid": "c4000000000000000000000000000102",
@@ -1383,7 +1389,10 @@
       "name": "Scratch Storage",
       "description": "Fast scratch storage",
       "billing_type": "limit",
-      "measured_unit": "GB"
+      "measured_unit": "GB",
+      "limit_period": "month",
+      "min_value": 100,
+      "max_value": 5000
     },
     {
       "uuid": "c4000000000000000000000000000201",
@@ -1391,8 +1400,11 @@
       "type": "gpu_hours",
       "name": "GPU Hours",
       "description": "GPU compute time",
-      "billing_type": "usage",
-      "measured_unit": "hours"
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 100,
+      "max_value": 50000
     },
     {
       "uuid": "c4000000000000000000000000000202",
@@ -1400,8 +1412,11 @@
       "type": "cpu_hours",
       "name": "CPU Core Hours",
       "description": "CPU compute time",
-      "billing_type": "usage",
-      "measured_unit": "hours"
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 1000,
+      "max_value": 1000000
     },
     {
       "uuid": "c4000000000000000000000000000301",
@@ -1410,7 +1425,10 @@
       "name": "Storage Capacity",
       "description": "Research data storage",
       "billing_type": "limit",
-      "measured_unit": "TB"
+      "measured_unit": "TB",
+      "limit_period": "annual",
+      "min_value": 1,
+      "max_value": 500
     },
     {
       "uuid": "c4000000000000000000000000000401",
@@ -1419,7 +1437,10 @@
       "name": "vCPU Cores",
       "description": "Virtual CPU cores",
       "billing_type": "limit",
-      "measured_unit": "cores"
+      "measured_unit": "cores",
+      "limit_period": "month",
+      "min_value": 2,
+      "max_value": 256
     },
     {
       "uuid": "c4000000000000000000000000000402",
@@ -1428,7 +1449,10 @@
       "name": "Memory",
       "description": "RAM allocation",
       "billing_type": "limit",
-      "measured_unit": "GB"
+      "measured_unit": "GB",
+      "limit_period": "month",
+      "min_value": 4,
+      "max_value": 1024
     },
     {
       "uuid": "c4000000000000000000000000000501",
@@ -1436,8 +1460,11 @@
       "type": "cpu",
       "name": "CPU Hours",
       "description": "CPU core hours for SLURM jobs",
-      "billing_type": "usage",
-      "measured_unit": "hours"
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 1000,
+      "max_value": 2000000
     },
     {
       "uuid": "c4000000000000000000000000000502",
@@ -1445,8 +1472,11 @@
       "type": "ram",
       "name": "Memory Hours",
       "description": "Memory allocation in GB-hours",
-      "billing_type": "usage",
-      "measured_unit": "GB-hours"
+      "billing_type": "limit",
+      "measured_unit": "GB-hours",
+      "limit_period": "total",
+      "min_value": 1000,
+      "max_value": 8000000
     },
     {
       "uuid": "c4000000000000000000000000000503",
@@ -1454,8 +1484,50 @@
       "type": "gpu",
       "name": "GPU Hours",
       "description": "GPU compute hours for accelerated workloads",
-      "billing_type": "usage",
-      "measured_unit": "hours"
+      "billing_type": "limit",
+      "measured_unit": "hours",
+      "limit_period": "total",
+      "min_value": 0,
+      "max_value": 100000
+    },
+    {
+      "uuid": "c4000000000000000000000000000103",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "type": "onboarding",
+      "name": "Onboarding and account setup",
+      "description": "One-off charge raised when the allocation is activated.",
+      "billing_type": "one",
+      "measured_unit": "project"
+    },
+    {
+      "uuid": "c4000000000000000000000000000203",
+      "offering_uuid": "f4000000000000000000000000000002",
+      "type": "support_hours",
+      "name": "Dedicated support",
+      "description": "Support hours bought up front for the duration of the award.",
+      "billing_type": "one",
+      "measured_unit": "hours",
+      "is_prepaid": true,
+      "min_prepaid_duration": 1,
+      "max_prepaid_duration": 12,
+      "prepaid_duration_step": 1,
+      "min_value": 0,
+      "max_value": 100
+    },
+    {
+      "uuid": "c4000000000000000000000000000104",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "type": "priority_support",
+      "name": "Priority support",
+      "description": "Support hours paid up front for the duration of the award.",
+      "billing_type": "one",
+      "measured_unit": "hours",
+      "is_prepaid": true,
+      "min_prepaid_duration": 1,
+      "max_prepaid_duration": 12,
+      "prepaid_duration_step": 1,
+      "min_value": 0,
+      "max_value": 200
     }
   ],
   "plans": [
@@ -1481,7 +1553,7 @@
       "uuid": "14000000000000000000000000000004",
       "name": "Cloud VM Plan",
       "offering_uuid": "f4000000000000000000000000000004",
-      "unit": "month"
+      "unit": "day"
     },
     {
       "uuid": "14000000000000000000000000000005",
@@ -1489,6 +1561,13 @@
       "offering_uuid": "f4000000000000000000000000000005",
       "unit": "month",
       "description": "SLURM allocation for competitive research grants with periodic usage policies"
+    },
+    {
+      "uuid": "14000000000000000000000000000006",
+      "name": "Research Storage Plan (archive tier)",
+      "offering_uuid": "f4000000000000000000000000000003",
+      "unit": "month",
+      "description": "Cheaper tier for cold data, restored on request."
     }
   ],
   "plan_components": [
@@ -1496,13 +1575,17 @@
       "plan_uuid": "14000000000000000000000000000001",
       "component_uuid": "c4000000000000000000000000000101",
       "price": "0.05",
-      "amount": 0
+      "amount": 0,
+      "discount_formula": "15 if usage >= 200000 else 8 if usage >= 100000 else 0",
+      "discount_aggregation": "resource"
     },
     {
       "plan_uuid": "14000000000000000000000000000001",
       "component_uuid": "c4000000000000000000000000000102",
       "price": "0.01",
-      "amount": 0
+      "amount": 0,
+      "discount_formula": "10 if usage >= 1000 else 0",
+      "discount_aggregation": "customer"
     },
     {
       "plan_uuid": "14000000000000000000000000000002",
@@ -1525,13 +1608,13 @@
     {
       "plan_uuid": "14000000000000000000000000000004",
       "component_uuid": "c4000000000000000000000000000401",
-      "price": "5.00",
+      "price": "0.20",
       "amount": 0
     },
     {
       "plan_uuid": "14000000000000000000000000000004",
       "component_uuid": "c4000000000000000000000000000402",
-      "price": "2.50",
+      "price": "0.08",
       "amount": 0
     },
     {
@@ -1550,6 +1633,30 @@
       "plan_uuid": "14000000000000000000000000000005",
       "component_uuid": "c4000000000000000000000000000503",
       "price": "0.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000001",
+      "component_uuid": "c4000000000000000000000000000103",
+      "price": "250.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000002",
+      "component_uuid": "c4000000000000000000000000000203",
+      "price": "75.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000006",
+      "component_uuid": "c4000000000000000000000000000301",
+      "price": "6.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000001",
+      "component_uuid": "c4000000000000000000000000000104",
+      "price": "45.00",
       "amount": 0
     }
   ],
@@ -1606,6 +1713,17 @@
       "reviewer_identity_visible_to_submitters": false,
       "reviews_visible_to_submitters": false,
       "fixed_duration_in_days": 180
+    },
+    {
+      "uuid": "ca200000000000000000000000000005",
+      "name": "Rolling access requests",
+      "description": "Minimal workflow: one offering, one decision, no review panel.",
+      "manager_uuid": "ca100000000000000000000000000001",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "state": "active",
+      "reviewer_identity_visible_to_submitters": false,
+      "reviews_visible_to_submitters": false,
+      "fixed_duration_in_days": 90
     }
   ],
   "requested_offerings": [
@@ -1660,6 +1778,25 @@
       "plan_uuid": "14000000000000000000000000000004",
       "state": "requested",
       "description": "Cloud VM package pending approval"
+    },
+    {
+      "uuid": "ca300000000000000000000000000007",
+      "call_uuid": "ca200000000000000000000000000001",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "plan_uuid": "14000000000000000000000000000005",
+      "state": "accepted",
+      "description": "Batch allocation on the council cluster.",
+      "approved_by_uuid": "a4000000000000000000000000000001"
+    },
+    {
+      "uuid": "ca300000000000000000000000000008",
+      "call_uuid": "ca200000000000000000000000000005",
+      "offering_uuid": "f4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000001",
+      "state": "accepted",
+      "description": "The only offering this call grants.",
+      "approved_by_uuid": "a4000000000000000000000000000001",
+      "require_purchase_order": true
     }
   ],
   "call_resource_templates": [
@@ -1758,6 +1895,13 @@
       "cutoff_time": "relative:-90days",
       "allocation_date": "relative:-60days",
       "review_duration_in_days": 30
+    },
+    {
+      "uuid": "ca500000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000005",
+      "start_time": "relative:-5days",
+      "cutoff_time": "relative:+85days",
+      "review_duration_in_days": 7
     }
   ],
   "proposals": [
@@ -1765,7 +1909,7 @@
       "uuid": "ca600000000000000000000000000001",
       "name": "Quantum Error Correction Simulations",
       "round_uuid": "ca500000000000000000000000000001",
-      "state": "submitted",
+      "state": "in_review",
       "created_by_uuid": "a4000000000000000000000000000006",
       "description": "This research program will develop and implement novel quantum error correction codes optimized for near-term quantum hardware. Using large-scale HPC simulations, we will benchmark these codes against current state-of-the-art approaches and identify promising candidates for experimental implementation.",
       "project_summary": "This proposal requests HPC resources for large-scale quantum error correction code simulations. We aim to develop and benchmark novel quantum error correction codes that can be implemented on near-term quantum hardware. Our team combines expertise in quantum computing theory, numerical simulation methods, and experimental quantum physics.",
@@ -1807,7 +1951,7 @@
       "uuid": "ca600000000000000000000000000004",
       "name": "Large Language Model Fine-tuning",
       "round_uuid": "ca500000000000000000000000000003",
-      "state": "submitted",
+      "state": "in_review",
       "created_by_uuid": "00000000000000000000000000000004",
       "project_summary": "We request GPU resources to fine-tune large language models for scientific text understanding. The models will be optimized for extracting structured information from research papers.",
       "project_duration": 180,
@@ -2798,7 +2942,8 @@
     "SITE_NAME": "Research Grant Portal",
     "SITE_DESCRIPTION": "Competitive research grant management platform for proposal submission, peer review, and resource allocation.",
     "MARKETPLACE_LANDING_PAGE": "Research Computing Services",
-    "CURRENCY_NAME": "EUR"
+    "CURRENCY_NAME": "EUR",
+    "SERVICE_ACCESS_MODE": "both"
   },
   "expertise_categories": [
     {
@@ -4249,6 +4394,18 @@
       "call_uuid": "ca200000000000000000000000000002",
       "proposal_role": "PROPOSAL.MEMBER",
       "project_role": "PROJECT.MEMBER"
+    },
+    {
+      "uuid": "d1000000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000005",
+      "proposal_role": "PROPOSAL.MANAGER",
+      "project_role": "PROJECT.MANAGER"
+    },
+    {
+      "uuid": "d1000000000000000000000000000006",
+      "call_uuid": "ca200000000000000000000000000005",
+      "proposal_role": "PROPOSAL.MEMBER",
+      "project_role": "PROJECT.MEMBER"
     }
   ],
   "call_workflow_steps": [
@@ -4315,6 +4472,19 @@
       "responsible_role": "applicant",
       "applicant_visible": true,
       "transition_mode": "automatic_on_completion"
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000005",
+      "step": "allocation_decision",
+      "is_enabled": true,
+      "responsible_role": "call_manager",
+      "transition_mode": "manual",
+      "applicant_visible": true
+    },
+    {
+      "call_uuid": "ca200000000000000000000000000005",
+      "step": "administrative_check",
+      "is_enabled": false
     }
   ],
   "proposal_workflow_step_instances": [
