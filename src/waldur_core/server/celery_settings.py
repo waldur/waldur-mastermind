@@ -317,6 +317,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=2, minute=0),
         "args": (),
     },
+    # Prune user revision history daily at 3 AM
+    "delete-stale-user-revisions": {
+        "task": "waldur_core.delete_stale_user_revisions",
+        "schedule": crontab(hour=3, minute=0),
+        "args": (),
+    },
     # Cleanup expired personal access tokens every 6 hours
     "cleanup-expired-pats": {
         "task": "waldur_core.core.cleanup_expired_personal_access_tokens",

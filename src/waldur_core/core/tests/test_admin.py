@@ -84,11 +84,17 @@ class UserReversionTest(TestCase):
             Version.objects.filter(object_id=user.id, content_type=ct).count(), 1
         )
 
+        # Granting staff is an audited change, so it does add a revision.
         user.is_staff = True
         user.save()
+        self.assertEqual(
+            Version.objects.filter(object_id=user.id, content_type=ct).count(), 2
+        )
+
+        # Authenticating only touches last_login, which must never open one.
         self.assertTrue(
             self.client.login(username=user.username, password=user_password)
         )
         self.assertEqual(
-            Version.objects.filter(object_id=user.id, content_type=ct).count(), 1
+            Version.objects.filter(object_id=user.id, content_type=ct).count(), 2
         )
