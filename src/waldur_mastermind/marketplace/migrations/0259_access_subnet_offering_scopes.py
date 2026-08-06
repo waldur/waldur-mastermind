@@ -149,7 +149,7 @@ def restore_resource_subnets(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0257_drop_resource_api_key_fingerprint"),
+        ("marketplace", "0258_derive_service_access_mode"),
         ("structure", "0079_accesssubnet_scopes"),
     ]
 
