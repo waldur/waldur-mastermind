@@ -6104,6 +6104,12 @@ class OfferingAccessSubnetSerializer(
             network = ipaddress.ip_network(value, strict=True)
         except ValueError as e:
             raise rf_exceptions.ValidationError(str(e))
+        # A /0 default would match every address and silently neutralise the
+        # concealment filter for every resource of the offering.
+        if network.prefixlen == 0:
+            raise rf_exceptions.ValidationError(
+                _("A /0 mask is not allowed: it matches every address.")
+            )
         return str(network)
 
     def validate(self, validated_data):
@@ -6136,79 +6142,12 @@ class OfferingAccessSubnetSerializer(
         return validated_data
 
 
-class ResourceAccessSubnetSerializer(
-    core_serializers.AugmentedSerializerMixin,
-    serializers.HyperlinkedModelSerializer,
-):
-    class Meta:
-        model = models.ResourceAccessSubnet
-        fields = (
-            "uuid",
-            "inet",
-            "description",
-            "resource",
-            "resource_name",
-            "resource_backend_id",
-        )
-        extra_kwargs = {
-            "resource": {
-                "lookup_field": "uuid",
-                "view_name": "marketplace-resource-detail",
-            },
-        }
-        protected_fields = ["resource"]
-
-    inet = serializers.CharField()
-    resource_name = serializers.ReadOnlyField(source="resource.name")
-    resource_backend_id = serializers.ReadOnlyField(source="resource.backend_id")
-
-    def validate_inet(self, value):
-        # A bare IP address is treated as a single-host /32 network. The stored
-        # value is advisory data for an external firewall; only single IPs are
-        # allowed, consistent with the organization-level access subnets.
-        if "/" not in value:
-            value = f"{value}/32"
-        if not value.endswith("/32"):
-            raise rf_exceptions.ValidationError(
-                _("Only a single IP address (/32) is allowed.")
-            )
-        return value
-
-    def validate(self, validated_data):
-        if not self.instance:
-            resource = validated_data["resource"]
-            if not (resource.offering.plugin_options or {}).get(
-                "enable_resource_access_subnets"
-            ):
-                raise rf_exceptions.ValidationError(
-                    {"resource": _("Access subnets are not enabled for this offering.")}
-                )
-            # The permission is granted on the consumer project/customer, so
-            # check both scopes (staff bypass is handled inside has_permission).
-            consumer_scopes = [resource.project, resource.project.customer]
-            if not any(
-                has_permission(
-                    self.context["request"],
-                    PermissionEnum.CREATE_RESOURCE_ACCESS_SUBNET,
-                    scope,
-                )
-                for scope in consumer_scopes
-            ):
-                raise PermissionDenied()
-
-        return validated_data
-
-
 class OfferingAccessSubnetExpandedSerializer(serializers.Serializer):
-    """A single resource access subnet with its resource/project/customer context."""
+    """A consumer access subnet with its customer/offering context."""
 
     inet = serializers.CharField()
     description = serializers.CharField(allow_blank=True)
-    resource_uuid = serializers.CharField()
-    resource_name = serializers.CharField()
-    resource_backend_id = serializers.CharField(allow_blank=True)
-    project_uuid = serializers.CharField()
-    project_name = serializers.CharField()
+    is_staff_managed = serializers.BooleanField()
     customer_uuid = serializers.CharField()
     customer_name = serializers.CharField()
     offering_uuid = serializers.CharField()

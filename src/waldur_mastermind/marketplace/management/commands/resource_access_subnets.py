@@ -5,9 +5,11 @@ from waldur_mastermind.marketplace import utils
 
 class Command(BaseCommand):
     help = (
-        "Dumps per-resource access subnets for consumption by external firewalls, "
-        "merging adjacent or overlapping networks. Only resources of offerings that "
-        "opt in via the enable_resource_access_subnets plugin option have subnets."
+        "Dumps consumer access subnets for consumption by external firewalls, "
+        "merging adjacent or overlapping networks. Subnets are defined per "
+        "(customer, offering) pair and apply to all of that customer's resources "
+        "of the offering. Only offerings that opt in via the "
+        "enable_resource_access_subnets plugin option have subnets."
     )
 
     def add_arguments(self, parser):

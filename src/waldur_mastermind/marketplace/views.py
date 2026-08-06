@@ -2405,13 +2405,14 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         summary="List access subnets for an offering",
-        description="Returns the allowed access subnets of all resources of the "
-        "offering, in two forms: 'expanded' — every subnet with its resource, "
-        "project and customer context; and 'packed' — the same subnets collapsed "
-        "into the minimal set of CIDRs (adjacent/overlapping networks merged). "
-        "Intended for service providers building an external firewall allow-list. "
-        "Available to staff, support, the offering's service manager and the "
-        "offering customer owner.",
+        description="Returns the access subnets consumers defined for the "
+        "offering, in two forms: 'expanded' — every subnet with its customer and "
+        "offering context; and 'packed' — the same subnets collapsed into the "
+        "minimal set of CIDRs (adjacent/overlapping networks merged). Consumer "
+        "subnets are defined per (customer, offering) pair and apply to all of "
+        "that customer's resources of the offering. Intended for service "
+        "providers building an external firewall allow-list. Available to staff, "
+        "support, the offering's service manager and the offering customer owner.",
         responses=serializers.OfferingAccessSubnetsSerializer,
     )
     @action(detail=True, methods=["get"], filter_backends=[])
@@ -2419,30 +2420,28 @@ class ProviderOfferingViewSet(
         offering: models.Offering = self.get_object()
         marketplace_permissions.ensure_offering_provider_access(request.user, offering)
         subnets = (
-            models.ResourceAccessSubnet.objects.filter(resource__offering=offering)
-            .exclude(inet__isnull=True)
-            .select_related(
-                "resource",
-                "resource__offering",
-                "resource__project",
-                "resource__project__customer",
-            )
-            .order_by("inet")
+            models.AccessSubnetOfferingScope.objects.filter(offering=offering)
+            .exclude(access_subnet__inet__isnull=True)
+            # Dormant scopes — the organization terminated its last resource of
+            # this offering — are kept but must not reach the allow-list.
+            .filter(utils._live_resource_exists())
+            .select_related("access_subnet", "access_subnet__customer", "offering")
+            .order_by("access_subnet__inet")
         )
-        expanded = [self._expand_resource_subnet(subnet) for subnet in subnets]
+        expanded = [self._expand_consumer_subnet(scope) for scope in subnets]
         default_subnets = list(
             models.OfferingAccessSubnet.objects.filter(offering=offering)
             .exclude(inet__isnull=True)
             .values_list("inet", flat=True)
         )
         defaults = [str(inet) for inet in default_subnets]
-        # The packed allow-list merges the per-resource subnets with the
+        # The packed allow-list merges the consumer subnets with the
         # provider-default subnets of the offering.
-        resource_inets = [s.inet for s in subnets]
+        consumer_inets = [scope.access_subnet.inet for scope in subnets]
         packed = [
             str(network)
             for network in core_utils.merge_access_subnets(
-                resource_inets + default_subnets
+                consumer_inets + default_subnets
             )
         ]
         serializer = serializers.OfferingAccessSubnetsSerializer(
@@ -2451,26 +2450,23 @@ class ProviderOfferingViewSet(
         return Response(serializer.data)
 
     @staticmethod
-    def _expand_resource_subnet(subnet):
+    def _expand_consumer_subnet(scope):
+        subnet = scope.access_subnet
         return {
             "inet": str(subnet.inet),
             "description": subnet.description,
-            "resource_uuid": subnet.resource.uuid.hex,
-            "resource_name": subnet.resource.name,
-            "resource_backend_id": subnet.resource.backend_id,
-            "project_uuid": subnet.resource.project.uuid.hex,
-            "project_name": subnet.resource.project.name,
-            "customer_uuid": subnet.resource.project.customer.uuid.hex,
-            "customer_name": subnet.resource.project.customer.name,
-            "offering_uuid": subnet.resource.offering.uuid.hex,
-            "offering_name": subnet.resource.offering.name,
+            "is_staff_managed": subnet.is_staff_managed,
+            "customer_uuid": subnet.customer.uuid.hex,
+            "customer_name": subnet.customer.name,
+            "offering_uuid": scope.offering.uuid.hex,
+            "offering_name": scope.offering.name,
         }
 
     @extend_schema(
         summary="Aggregate access subnets across offerings",
         description="Returns the combined access-subnet allow-list of the given "
-        "offerings: 'expanded' — every resource subnet with its resource, project, "
-        "customer and offering context; 'defaults' — the provider-default subnets "
+        "offerings: 'expanded' — every consumer subnet with its customer and "
+        "offering context; 'defaults' — the provider-default subnets "
         "of each offering; 'organization_subnets' — organization-level access "
         "subnets of customers owning non-terminated resources of the offerings "
         "(populated only when include_organization_subnets is true); and 'packed' "
@@ -2533,7 +2529,7 @@ class ProviderOfferingViewSet(
             include_organization_subnets=include_organization_subnets,
         )
         expanded = [
-            self._expand_resource_subnet(subnet) for subnet in data["resource_subnets"]
+            self._expand_consumer_subnet(subnet) for subnet in data["consumer_subnets"]
         ]
         defaults = [
             {
@@ -8023,38 +8019,6 @@ class OfferingAccessSubnetViewSet(core_views.ActionsViewSet):
         return qs.filter(
             Q(offering__customer__in=connected_customers)
             | Q(offering__in=connected_offerings)
-        )
-
-
-class ResourceAccessSubnetViewSet(core_views.ActionsViewSet):
-    queryset = models.ResourceAccessSubnet.objects.all().order_by("inet")
-    serializer_class = serializers.ResourceAccessSubnetSerializer
-    lookup_field = "uuid"
-    filterset_class = filters.ResourceAccessSubnetFilter
-    filter_backends = (DjangoFilterBackend,)
-    destroy_permissions = [
-        permission_factory(
-            PermissionEnum.DELETE_RESOURCE_ACCESS_SUBNET,
-            ["resource.project", "resource.project.customer"],
-        )
-    ]
-    update_permissions = partial_update_permissions = [
-        permission_factory(
-            PermissionEnum.UPDATE_RESOURCE_ACCESS_SUBNET,
-            ["resource.project", "resource.project.customer"],
-        )
-    ]
-
-    def get_queryset(self):
-        user = self.request.user
-        qs = super().get_queryset()
-        if user.is_staff or user.is_support:
-            return qs
-        connected_projects = get_connected_projects(user)
-        connected_customers = get_connected_customers(user)
-        return qs.filter(
-            Q(resource__project__in=connected_projects)
-            | Q(resource__project__customer__in=connected_customers)
         )
 
 

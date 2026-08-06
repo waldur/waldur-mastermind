@@ -5,6 +5,7 @@ from rest_framework import test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import fixtures
 
@@ -136,8 +137,11 @@ class OfferingDefaultSubnetsExportTest(test.APITestCase):
         models.OfferingAccessSubnet.objects.create(
             offering=self.fixture.offering, inet="203.0.113.0/30"
         )
-        models.ResourceAccessSubnet.objects.create(
-            resource=self.fixture.resource, inet="192.168.1.5/32"
+        subnet = structure_models.AccessSubnet.objects.create(
+            customer=self.fixture.customer, inet="192.168.1.5/32"
+        )
+        models.AccessSubnetOfferingScope.objects.create(
+            access_subnet=subnet, offering=self.fixture.offering
         )
 
     def test_aggregation_packed_includes_defaults(self):

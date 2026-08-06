@@ -27,7 +27,16 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import models as models_module
 from django.db import transaction
-from django.db.models import Count, F, OuterRef, Prefetch, Q, Subquery, Sum
+from django.db.models import (
+    Count,
+    Exists,
+    F,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    Sum,
+)
 from django.db.models.fields import FloatField
 from django.db.models.functions import Coalesce
 from django.db.models.functions.math import Ceil
@@ -5734,24 +5743,45 @@ def build_resource_team_response(resource, request, users):
     )
 
 
+def _live_resource_exists():
+    """Scopes whose organization still runs something on the offering.
+
+    A scope survives the termination of the last resource so that
+    re-provisioning restores protection without reconfiguration. It must not
+    keep reaching the exported allow-list though: an external firewall would go
+    on trusting those addresses for a service the organization has stopped
+    using.
+    """
+    return Q(
+        Exists(
+            models.Resource.objects.filter(
+                project__customer_id=OuterRef("access_subnet__customer_id"),
+                offering_id=OuterRef("offering_id"),
+            ).exclude(state=models.Resource.States.TERMINATED)
+        )
+    )
+
+
 def aggregate_access_subnets(offering_uuids=None, include_organization_subnets=False):
     """Collect the access-subnet allow-list for the given offerings.
 
     ``offering_uuids=None`` means all offerings. Returns a dict with the
-    per-resource subnets, the provider-default offering subnets, the
-    organization-level subnets of customers owning non-terminated resources
-    of the offerings (empty unless ``include_organization_subnets``), and
-    ``packed`` — all of the above collapsed into the minimal CIDR list.
+    consumer (customer x offering) subnets, the provider-default offering
+    subnets, the organization-level subnets of customers owning non-terminated
+    resources of the offerings (empty unless ``include_organization_subnets``),
+    and ``packed`` — all of the above collapsed into the minimal CIDR list.
+
+    Consumer entries are reported per (customer, offering) pair rather than per
+    resource: the list is defined at that grain, so expanding it across every
+    resource would multiply the payload without adding information.
     """
-    resource_subnets = (
-        models.ResourceAccessSubnet.objects.exclude(inet__isnull=True)
-        .select_related(
-            "resource",
-            "resource__offering",
-            "resource__project",
-            "resource__project__customer",
+    consumer_subnets = (
+        models.AccessSubnetOfferingScope.objects.exclude(
+            access_subnet__inet__isnull=True
         )
-        .order_by("inet")
+        .filter(_live_resource_exists())
+        .select_related("access_subnet", "access_subnet__customer", "offering")
+        .order_by("access_subnet__inet")
     )
     offering_defaults = (
         models.OfferingAccessSubnet.objects.exclude(inet__isnull=True)
@@ -5759,9 +5789,7 @@ def aggregate_access_subnets(offering_uuids=None, include_organization_subnets=F
         .order_by("inet")
     )
     if offering_uuids is not None:
-        resource_subnets = resource_subnets.filter(
-            resource__offering__uuid__in=offering_uuids
-        )
+        consumer_subnets = consumer_subnets.filter(offering__uuid__in=offering_uuids)
         offering_defaults = offering_defaults.filter(offering__uuid__in=offering_uuids)
 
     if include_organization_subnets:
@@ -5775,7 +5803,10 @@ def aggregate_access_subnets(offering_uuids=None, include_organization_subnets=F
         ).distinct()
         organization_subnets = (
             structure_models.AccessSubnet.objects.exclude(inet__isnull=True)
-            .filter(customer_id__in=customer_ids)
+            # Portal-scoped only, preserving what this flag meant before the
+            # two lists merged: "also trust the addresses this organization
+            # signs in from". Offering scopes arrive through consumer_subnets.
+            .filter(customer_id__in=customer_ids, applies_to_portal=True)
             .select_related("customer")
             .order_by("inet")
         )
@@ -5783,13 +5814,13 @@ def aggregate_access_subnets(offering_uuids=None, include_organization_subnets=F
         organization_subnets = structure_models.AccessSubnet.objects.none()
 
     inets = (
-        [subnet.inet for subnet in resource_subnets]
+        [scope.access_subnet.inet for scope in consumer_subnets]
         + [subnet.inet for subnet in offering_defaults]
         + [subnet.inet for subnet in organization_subnets]
     )
     packed = [str(network) for network in core_utils.merge_access_subnets(inets)]
     return {
-        "resource_subnets": resource_subnets,
+        "consumer_subnets": consumer_subnets,
         "offering_defaults": offering_defaults,
         "organization_subnets": organization_subnets,
         "packed": packed,

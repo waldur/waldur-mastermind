@@ -41,6 +41,7 @@ from waldur_core.checklist.models import Answer, ChecklistCompletion, Question
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates, ReviewStates
@@ -596,13 +597,170 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.AccessSubnetSerializer
     lookup_field = "uuid"
     filterset_class = filters.AccessSubnetFilter
-    filter_backends = (DjangoFilterBackend, filters.GenericRoleFilter)
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.GenericRoleFilter,
+        filters.AccessSubnetOrderingFilter,
+    )
+    # Every column the portal renders is sortable. The offering columns are not
+    # listed here because their sort key carries an offering uuid; the ordering
+    # backend resolves `o=offering:<uuid>` into an annotation instead.
+    ordering_fields = ("inet", "description", "applies_to_portal", "is_staff_managed")
     destroy_permissions = [
         permission_factory(PermissionEnum.DELETE_ACCESS_SUBNET, ["customer"])
     ]
     update_permissions = partial_update_permissions = [
         permission_factory(PermissionEnum.UPDATE_ACCESS_SUBNET, ["customer"])
     ]
+
+    @extend_schema(
+        summary="Show which resources the access subnets reach",
+        description="For each of the organization's live resources, the "
+        "addresses that may reach it, where each came from, and whether the "
+        "list is enforced or merely advisory. Pass access_subnet_uuid to narrow "
+        "it to the resources one address reaches.",
+        parameters=[
+            OpenApiParameter(
+                name="customer_uuid",
+                type=OpenApiTypes.UUID,
+                required=True,
+                location=OpenApiParameter.QUERY,
+                description="Organization whose resources to report on.",
+                extensions={"x-waldur-operation-id": "customers_retrieve"},
+            ),
+            OpenApiParameter(
+                name="access_subnet_uuid",
+                type=OpenApiTypes.UUID,
+                required=False,
+                location=OpenApiParameter.QUERY,
+                description="Limit to the resources this one address reaches.",
+                extensions={"x-waldur-operation-id": "access_subnets_retrieve"},
+            ),
+        ],
+        responses=serializers.AccessSubnetImpactSerializer,
+    )
+    @action(detail=False, methods=["get"], filter_backends=[])
+    def resource_impact(self, request):
+        # Lazy: structure must not import the marketplace at module load.
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        customer_uuid = request.query_params.get("customer_uuid")
+        if not customer_uuid or not core_utils.is_uuid_like(customer_uuid):
+            raise ValidationError(
+                {"customer_uuid": _("A valid customer_uuid is required.")}
+            )
+        customer = get_object_or_404(models.Customer, uuid=customer_uuid)
+        if not (request.user.is_staff or request.user.is_support):
+            # Membership is tested with the same `__in` idiom get_queryset uses.
+            # `customer in get_connected_customers(...)` looks equivalent and is
+            # not: the queryset yields ids, so the comparison never matched and
+            # denied every non-staff caller, including a customer's own owner.
+            if not models.Customer.objects.filter(
+                pk=customer.pk, id__in=get_connected_customers(user=request.user)
+            ).exists():
+                raise PermissionDenied()
+
+        subnet_uuid = request.query_params.get("access_subnet_uuid")
+        if subnet_uuid and not core_utils.is_uuid_like(subnet_uuid):
+            raise ValidationError(
+                {"access_subnet_uuid": _("A valid access_subnet_uuid is required.")}
+            )
+
+        resources = (
+            marketplace_models.Resource.objects.filter(project__customer=customer)
+            .exclude(state=marketplace_models.Resource.States.TERMINATED)
+            .select_related("offering", "project")
+            .order_by("offering__name", "name")
+        )
+
+        # Gather per offering once rather than per resource: every resource of an
+        # offering shares the same address list by construction.
+        scopes = marketplace_models.AccessSubnetOfferingScope.objects.filter(
+            access_subnet__customer=customer,
+            access_subnet__inet__isnull=False,
+        ).select_related("access_subnet")
+        if subnet_uuid:
+            scopes = scopes.filter(access_subnet__uuid=subnet_uuid)
+        org_addresses: dict[int, list] = {}
+        for scope in scopes:
+            org_addresses.setdefault(scope.offering_id, []).append(scope.access_subnet)
+
+        defaults: dict[int, list] = {}
+        for default in marketplace_models.OfferingAccessSubnet.objects.filter(
+            offering__in=resources.values("offering_id"),
+            inet__isnull=False,
+        ):
+            defaults.setdefault(default.offering_id, []).append(default)
+
+        rows = []
+        for resource in resources:
+            offering = resource.offering
+            options = offering.plugin_options or {}
+            supports = bool(options.get("enable_resource_access_subnets"))
+            own = org_addresses.get(offering.id, [])
+            provider = defaults.get(offering.id, [])
+
+            # Narrowing to one address should not imply the other offerings'
+            # resources are unreachable — they are simply not being asked about.
+            if subnet_uuid and not own:
+                continue
+
+            addresses = [
+                {
+                    "inet": str(subnet.inet),
+                    "description": subnet.description,
+                    "source": "organization",
+                    "is_staff_managed": subnet.is_staff_managed,
+                }
+                for subnet in own
+            ] + [
+                {
+                    "inet": str(default.inet),
+                    "description": default.description,
+                    "source": "provider_default",
+                    "is_staff_managed": False,
+                }
+                for default in provider
+            ]
+            packed = [
+                str(network)
+                for network in core_utils.merge_access_subnets(
+                    [subnet.inet for subnet in own] + [d.inet for d in provider]
+                )
+            ]
+            rows.append(
+                {
+                    "resource_uuid": resource.uuid.hex,
+                    "resource_name": resource.name,
+                    "project_name": resource.project.name,
+                    "offering_uuid": offering.uuid.hex,
+                    "offering_name": offering.name,
+                    "supports_access_subnets": supports,
+                    "concealment_enabled": bool(
+                        options.get("conceal_subnet_restricted_resources")
+                    ),
+                    "unrestricted": supports and not addresses,
+                    "addresses": addresses,
+                    "packed": packed,
+                }
+            )
+
+        serializer = serializers.AccessSubnetImpactSerializer({"resources": rows})
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        """Block a non-staff caller from removing an entry staff pinned.
+
+        The serializer covers updates; deletion never reaches it. This cannot be
+        a ``destroy_validators`` entry either — those are called with the object
+        alone and run for every caller, so they could not let staff through.
+        """
+        subnet = self.get_object()
+        if subnet.is_staff_managed and not request.user.is_staff:
+            raise ValidationError(
+                _("This entry is managed by staff and cannot be deleted.")
+            )
+        return super().destroy(request, *args, **kwargs)
 
     def get_queryset(self):
         user = self.request.user

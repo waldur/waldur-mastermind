@@ -1207,8 +1207,11 @@ class CustomerInetFilterTest(test.APITestCase):
         self.customer = self.fixture.customer
         self.customer.save()
 
+        # Explicitly portal-scoped: an entry only restricts sign-in when it says
+        # it applies to the portal, so an unscoped one would leave the customer
+        # visible and this test would assert nothing.
         self.access_subnet = AccessSubnet.objects.create(
-            customer=self.customer, inet="128.0.0.0/16"
+            customer=self.customer, inet="128.0.0.0/16", applies_to_portal=True
         )
 
         # Patch only get_ip_address; normalize_ip_address must run for real so

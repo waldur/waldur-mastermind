@@ -1761,3 +1761,48 @@ class DetailSerializer(serializers.Serializer):
 
 class StatusSerializer(serializers.Serializer):
     status = serializers.CharField()
+
+
+class AccessSubnetMixin:
+    """Shared mask and provenance rules for the access-subnet serializers.
+
+    Two rules, both of which need to know who is acting and therefore cannot
+    live on the model field:
+
+    * mask width — non-staff may only enter single hosts, staff any width but
+      ``/0`` (see ``core_utils.validate_access_subnet_for_user``);
+    * provenance — an entry staff created is flagged ``is_staff_managed`` and
+      becomes read-only for everyone else whatever its width, so a consumer
+      cannot quietly remove a range an operator pinned. Deletion is guarded
+      separately in the viewset, which the serializer never sees.
+
+    ``is_staff_managed`` is derived from the acting user on create and is never
+    writable through the API.
+    """
+
+    def validate_inet(self, value):
+        return core_utils.validate_access_subnet_for_user(
+            value, self.context["request"].user
+        )
+
+    def validate_staff_managed(self):
+        """Reject an update to an entry staff created when the caller is not staff."""
+        if self.instance is None or not self.instance.is_staff_managed:
+            return
+        if not self.context["request"].user.is_staff:
+            raise rf_serializers.ValidationError(
+                _("This entry is managed by staff and cannot be modified.")
+            )
+
+    def create(self, validated_data):
+        validated_data["is_staff_managed"] = self.context["request"].user.is_staff
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Staff may widen an entry a consumer originally created. Without this
+        # the entry would keep is_staff_managed=False, leaving the consumer able
+        # to delete a range only staff could have entered — so any staff write of
+        # `inet` takes ownership. Editing only a description does not.
+        if "inet" in validated_data and self.context["request"].user.is_staff:
+            validated_data["is_staff_managed"] = True
+        return super().update(instance, validated_data)

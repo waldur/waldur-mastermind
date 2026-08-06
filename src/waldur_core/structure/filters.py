@@ -4,13 +4,14 @@ from django import forms
 from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import Exists, OuterRef, Q, Subquery
 from django.db.models.functions import Concat, Length
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
 from drf_spectacular.plumbing import build_parameter_type
 from drf_spectacular.utils import OpenApiParameter
+from rest_framework import filters as rf_filters
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
@@ -1426,6 +1427,29 @@ class AccessSubnetFilter(django_filters.FilterSet):
     description = django_filters.CharFilter(
         lookup_expr="icontains", label="Description"
     )
+    applies_to_portal = django_filters.BooleanFilter(label="Applies to portal")
+    is_staff_managed = django_filters.BooleanFilter(label="Is staff managed")
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        method="filter_offering",
+        label="Offering UUID",
+    )
+
+    def filter_offering(self, queryset, name, value):
+        """Entries scoped to the given offering.
+
+        The scope table lives in the marketplace, and AccessSubnet deliberately
+        exposes no reverse accessor to it, so this resolves through an explicit
+        subquery behind a function-local import — the same way the rest of
+        structure reaches marketplace.
+        """
+        from waldur_mastermind.marketplace.models import AccessSubnetOfferingScope
+
+        return queryset.filter(
+            id__in=AccessSubnetOfferingScope.objects.filter(
+                offering__uuid=value
+            ).values("access_subnet_id")
+        )
 
     class Meta:
         model = models.AccessSubnet
@@ -1434,7 +1458,70 @@ class AccessSubnetFilter(django_filters.FilterSet):
             "customer_uuid",
             "inet",
             "description",
+            "applies_to_portal",
+            "is_staff_managed",
+            "offering_uuid",
         ]
+
+
+class AccessSubnetOrderingFilter(rf_filters.OrderingFilter):
+    """Ordering that also understands the per-offering columns.
+
+    Most columns map to a field and sort natively. An offering column does not:
+    "sorted by whether this entry applies to offering X" carries the offering
+    identity in the sort key itself, which ``ordering_fields`` cannot express
+    because the set of offerings is data, not a fixed list.
+
+    Such a term is spelled ``o=offering:<uuid>`` and is resolved into an
+    annotated ``Exists`` for that offering. Anything else is validated against
+    the view's ``ordering_fields`` exactly as the parent would, so this does not
+    become a way to order by arbitrary columns.
+    """
+
+    OFFERING_PREFIX = "offering:"
+
+    def filter_queryset(self, request, queryset, view):
+        from waldur_mastermind.marketplace.models import AccessSubnetOfferingScope
+
+        terms = [
+            term.strip()
+            for value in request.query_params.getlist(self.ordering_param)
+            for term in value.split(",")
+            if term.strip()
+        ]
+        offering_terms = [
+            term for term in terms if term.lstrip("-").startswith(self.OFFERING_PREFIX)
+        ]
+        if not offering_terms:
+            return super().filter_queryset(request, queryset, view)
+
+        allowed = set(getattr(view, "ordering_fields", ()) or ())
+        annotations = {}
+        ordering = []
+        for term in terms:
+            descending = term.startswith("-")
+            key = term[1:] if descending else term
+            if not key.startswith(self.OFFERING_PREFIX):
+                # Same validation the parent applies: an unknown field is
+                # dropped rather than passed through to order_by.
+                if key in allowed:
+                    ordering.append(term)
+                continue
+            offering_uuid = key[len(self.OFFERING_PREFIX) :]
+            if not is_uuid_like(offering_uuid):
+                continue
+            alias = f"scope_{offering_uuid.replace('-', '')}"
+            annotations[alias] = Exists(
+                AccessSubnetOfferingScope.objects.filter(
+                    access_subnet=OuterRef("pk"),
+                    offering__uuid=offering_uuid,
+                )
+            )
+            ordering.append(f"-{alias}" if descending else alias)
+
+        if not ordering:
+            return queryset
+        return queryset.annotate(**annotations).order_by(*ordering)
 
 
 class ExternalLinkFilter(django_filters.FilterSet):

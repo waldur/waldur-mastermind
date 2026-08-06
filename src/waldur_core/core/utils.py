@@ -646,6 +646,38 @@ def merge_access_subnets(inet_values):
     return merged
 
 
+def validate_access_subnet_for_user(value, user):
+    """Normalise and validate an access-subnet CIDR for the acting user.
+
+    Non-staff users may only enter a single host, so a bare address is widened
+    to ``/32`` (``/128`` for IPv6) and anything wider is rejected: these lists
+    are how a consumer grants itself access, and an unbounded mask would let it
+    open far more than intended. Staff may enter any width except ``/0``, which
+    matches every address and would silently neutralise every restriction built
+    on these entries.
+
+    Networks with host bits set are rejected rather than silently masked —
+    quietly turning ``203.0.113.5/24`` into ``203.0.113.0/24`` would grant a
+    whole range where a single host was written.
+
+    Returns the normalised CIDR string.
+    """
+    try:
+        network = ipaddress.ip_network(str(value), strict=True)
+    except ValueError as e:
+        raise ValidationError(str(e))
+
+    if network.prefixlen == 0:
+        raise ValidationError("A /0 mask is not allowed: it matches every address.")
+
+    if not user.is_staff and network.prefixlen != network.max_prefixlen:
+        raise ValidationError(
+            "Only a single IP address (/%s) is allowed." % network.max_prefixlen
+        )
+
+    return str(network)
+
+
 def get_user_agent(request):
     return request.META.get("HTTP_USER_AGENT", "")
 
