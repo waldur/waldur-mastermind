@@ -662,15 +662,25 @@ class ResourceImpactTest(test.APITestCase):
         self.assertTrue(row["unrestricted"])
         self.assertEqual(row["addresses"], [])
 
-    def test_offering_without_support_is_not_called_unrestricted(self):
-        # Nothing can protect it, so reporting it as an unprotected gap would be
-        # a false alarm rather than something the consumer can act on.
+    def test_offering_without_support_is_omitted(self):
+        # Nothing can protect it and no allow-list can apply, so listing it
+        # would only bury the resources whose exposure is actually in question.
         models.AccessSubnetOfferingScope.objects.all().delete()
         self.fixture.offering.plugin_options = {}
         self.fixture.offering.save()
-        row = self.rows()[0]
-        self.assertFalse(row["supports_access_subnets"])
-        self.assertFalse(row["unrestricted"])
+        self.assertEqual(self.rows(), [])
+
+    def test_unsupported_offering_does_not_hide_a_supported_one(self):
+        # The exclusion is per resource, not "any unsupported offering empties
+        # the report".
+        other = factories.OfferingFactory(customer=self.fixture.offering.customer)
+        other.plugin_options = {}
+        other.save()
+        factories.ResourceFactory(offering=other, project=self.fixture.project)
+        rows = self.rows()
+        self.assertEqual(
+            [row["offering_uuid"] for row in rows], [self.fixture.offering.uuid.hex]
+        )
 
     def test_packed_merges_adjacent_addresses(self):
         _create_subnet(

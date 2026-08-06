@@ -615,10 +615,12 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Show which resources the access subnets reach",
-        description="For each of the organization's live resources, the "
-        "addresses that may reach it, where each came from, and whether the "
-        "list is enforced or merely advisory. Pass access_subnet_uuid to narrow "
-        "it to the resources one address reaches.",
+        description="For each of the organization's live resources of an "
+        "offering that supports access subnets, the addresses that may reach "
+        "it, where each came from, and whether the list is enforced or merely "
+        "advisory. Resources of offerings without access subnet support are "
+        "omitted: no allow-list can apply to them. Pass access_subnet_uuid to "
+        "narrow it to the resources one address reaches.",
         parameters=[
             OpenApiParameter(
                 name="customer_uuid",
@@ -666,8 +668,16 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
                 {"access_subnet_uuid": _("A valid access_subnet_uuid is required.")}
             )
 
+        # Only offerings that opted into access subnets. A resource whose
+        # offering does not support them has no allow-list to report and none
+        # that could be built, so listing it says nothing the reader can act on
+        # — it just buries the resources whose exposure is actually in question.
         resources = (
-            marketplace_models.Resource.objects.filter(project__customer=customer)
+            marketplace_models.Resource.objects.filter(
+                project__customer=customer,
+                offering__plugin_options__has_key="enable_resource_access_subnets",
+                offering__plugin_options__enable_resource_access_subnets=True,
+            )
             .exclude(state=marketplace_models.Resource.States.TERMINATED)
             .select_related("offering", "project")
             .order_by("offering__name", "name")
@@ -696,7 +706,6 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
         for resource in resources:
             offering = resource.offering
             options = offering.plugin_options or {}
-            supports = bool(options.get("enable_resource_access_subnets"))
             own = org_addresses.get(offering.id, [])
             provider = defaults.get(offering.id, [])
 
@@ -735,11 +744,10 @@ class AccessSubnetViewSet(core_views.ActionsViewSet):
                     "project_name": resource.project.name,
                     "offering_uuid": offering.uuid.hex,
                     "offering_name": offering.name,
-                    "supports_access_subnets": supports,
                     "concealment_enabled": bool(
                         options.get("conceal_subnet_restricted_resources")
                     ),
-                    "unrestricted": supports and not addresses,
+                    "unrestricted": not addresses,
                     "addresses": addresses,
                     "packed": packed,
                 }

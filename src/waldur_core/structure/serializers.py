@@ -1800,21 +1800,22 @@ class AccessSubnetImpactAddressSerializer(serializers.Serializer):
 
 
 class AccessSubnetImpactResourceSerializer(serializers.Serializer):
-    """A resource and the addresses that may reach it."""
+    """A resource and the addresses that may reach it.
+
+    Only resources of offerings that opted into access subnets appear, so every
+    row here has an allow-list that means something.
+    """
 
     resource_uuid = serializers.CharField()
     resource_name = serializers.CharField()
     project_name = serializers.CharField()
     offering_uuid = serializers.CharField()
     offering_name = serializers.CharField()
-    # Without the offering opting in, no address list can apply here at all —
-    # worth saying so rather than showing an empty list that looks like a gap.
-    supports_access_subnets = serializers.BooleanField()
     # False means the list is advisory: exported for an external firewall, but
     # Waldur itself does not act on it.
     concealment_enabled = serializers.BooleanField()
-    # True when the offering opts in but nothing restricts this resource, so it
-    # is reachable from anywhere. This is the case the redesign exists to expose.
+    # True when nothing restricts this resource, so it is reachable from
+    # anywhere. This is the case the redesign exists to expose.
     unrestricted = serializers.BooleanField()
     addresses = AccessSubnetImpactAddressSerializer(many=True)
     packed = serializers.ListField(child=serializers.CharField())
