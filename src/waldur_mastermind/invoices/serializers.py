@@ -1160,11 +1160,47 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, many=True, source="project.customer.customercredit.offerings"
     )
 
+    # Derived from the organization credit without disclosing it: how much of
+    # this allocation can actually be drawn, and whether the organization
+    # balance is the binding constraint.
+    spendable_value = serializers.ReadOnlyField()
+    is_limited_by_organization_credit = serializers.ReadOnlyField()
+
+    # Organization-wide figures. ProjectCredit is readable by project roles so
+    # the dashboard can explain a paused resource, but these three describe the
+    # whole organization, so they stay with customer-level roles.
+    ORGANIZATION_SCOPED_FIELDS = (
+        "customer_credit",
+        "allocated_customer_credit",
+        "offerings",
+    )
+
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_allocated_customer_credit(self, project_credit) -> Decimal | None:
         return models.ProjectCredit.objects.filter(
             project__customer=project_credit.project.customer
         ).aggregate(sum=Sum("value"))["sum"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or user.is_staff or user.is_support:
+            return data
+
+        customer = instance.project.customer
+        # Memoised per serializer instance: a list response would otherwise
+        # re-run the role lookup for every row.
+        cache = self.context.setdefault("_owner_access_cache", {})
+        if customer.id not in cache:
+            cache[customer.id] = structure_permissions._has_owner_access(user, customer)
+        if cache[customer.id]:
+            return data
+
+        for field in self.ORGANIZATION_SCOPED_FIELDS:
+            data.pop(field, None)
+        return data
 
     def validate_project(self, project):
         user = self.context["request"].user
@@ -1190,6 +1226,8 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "customer_credit",
             "allocated_customer_credit",
             "consumption_last_month",
+            "spendable_value",
+            "is_limited_by_organization_credit",
             "offerings",
             "end_date",
             "expected_consumption",
