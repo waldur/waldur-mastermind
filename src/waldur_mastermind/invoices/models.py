@@ -779,10 +779,41 @@ class ProjectCredit(BaseCredit):
         consumption = sum([i.total for i in items]) or 0
         return consumption * -1
 
+    @property
+    def spendable_value(self) -> decimal.Decimal:
+        """Credit this project can actually draw this month.
+
+        `value` is only an allocation: compensation stops as soon as the
+        organization credit is exhausted (see MonthlyCompensation), so a
+        project can show a healthy balance that cannot be spent. Exposing the
+        minimum lets the dashboard say so without revealing organization
+        totals to project members.
+        """
+        customer_credit = CustomerCredit.objects.filter(
+            customer=self.project.customer
+        ).first()
+        if not customer_credit:
+            return decimal.Decimal("0")
+        return min(self.value, customer_credit.value)
+
+    @property
+    def is_limited_by_organization_credit(self) -> bool:
+        """True when the organization balance, not this allocation, is binding."""
+        return self.spendable_value < self.value
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
         customer_path = "project__customer"
+        # Read access for project roles too. The project dashboard renders
+        # credit-adjusted costs and policy saturation to every project member,
+        # but the credit object itself was customer-scoped, so members saw an
+        # empty list — indistinguishable from "this project has no credit" —
+        # and the credit panel silently disappeared. Mirrors ProjectPolicy,
+        # which is customer- and project-visible for the same reason. Writes
+        # stay owner/staff-only: they are guarded by the ViewSet's
+        # update/partial_update/destroy permissions, not by this filter.
+        project_path = "project"
 
     def __str__(self):
         return f"Project credit for {self.project.name}, value {self.value}."

@@ -196,17 +196,90 @@ class ProjectCreditRetrieveTest(test.APITestCase):
         self.fixture = fixtures.CreditFixture()
         self.url = factories.ProjectCreditFactory.get_url(self.fixture.project_credit)
 
-    @data("staff", "global_support", "owner")
+    # Project roles are included: the credit funds their project, and the
+    # project dashboard cannot explain a paused resource or a credit-adjusted
+    # cost without it. Users with no role on the project still see nothing.
+    @data("staff", "global_support", "owner", "manager", "admin", "member")
     def test_user_with_access_can_retrieve_credit(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data("manager", "admin", "user")
+    @data("user")
     def test_user_cannot_retrieve_credit(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_project_role_does_not_leak_credit_of_another_project(self):
+        other_credit = factories.ProjectCreditFactory(
+            project=structure_factories.ProjectFactory(customer=self.fixture.customer)
+        )
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(factories.ProjectCreditFactory.get_url(other_credit))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_project_role_sees_only_own_project_in_list(self):
+        factories.ProjectCreditFactory(
+            project=structure_factories.ProjectFactory(customer=self.fixture.customer)
+        )
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(factories.ProjectCreditFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["uuid"] for item in response.data],
+            [self.fixture.project_credit.uuid.hex],
+        )
+
+    def test_project_role_cannot_retrieve_customer_credit(self):
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(
+            factories.CustomerCreditFactory.get_url(self.fixture.customer_credit)
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_organization_wide_figures_are_hidden_from_project_roles(self):
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in ("customer_credit", "allocated_customer_credit", "offerings"):
+            self.assertNotIn(field, response.data)
+
+    @data("staff", "global_support", "owner")
+    def test_organization_wide_figures_are_visible_to_customer_roles(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in ("customer_credit", "allocated_customer_credit", "offerings"):
+            self.assertIn(field, response.data)
+
+    def test_spendable_value_is_capped_by_organization_credit(self):
+        credit = self.fixture.project_credit
+        credit.value = 100
+        credit.save()
+        customer_credit = self.fixture.customer_credit
+        customer_credit.value = 30
+        customer_credit.save()
+
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(response.data["spendable_value"]), Decimal(30))
+        self.assertTrue(response.data["is_limited_by_organization_credit"])
+
+    def test_spendable_value_equals_allocation_when_organization_credit_suffices(self):
+        credit = self.fixture.project_credit
+        credit.value = 20
+        credit.save()
+        customer_credit = self.fixture.customer_credit
+        customer_credit.value = 500
+        customer_credit.save()
+
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(response.data["spendable_value"]), Decimal(20))
+        self.assertFalse(response.data["is_limited_by_organization_credit"])
 
 
 @ddt
@@ -261,10 +334,17 @@ class ProjectCreditUpdateTest(test.APITestCase):
             ).exists()
         )
 
-    @data("manager", "admin", "user")
+    @data("user")
     def test_user_cannot_update_credit(self, user):
         response = self.update_credit(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # Project roles can read the credit, so an unauthorised write is a 403
+    # rather than a 404 — same shape as global_support below.
+    @data("manager", "admin", "member")
+    def test_project_role_cannot_update_credit(self, user):
+        response = self.update_credit(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data(
         "global_support",
@@ -291,10 +371,17 @@ class ProjectCreditDeleteTest(test.APITestCase):
         response = self.delete_credit(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data("manager", "admin", "user")
+    @data("user")
     def test_user_cannot_delete_credit(self, user):
         response = self.delete_credit(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # Project roles can read the credit, so an unauthorised delete is a 403
+    # rather than a 404 — same shape as global_support below.
+    @data("manager", "admin", "member")
+    def test_project_role_cannot_delete_credit(self, user):
+        response = self.delete_credit(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data(
         "global_support",
