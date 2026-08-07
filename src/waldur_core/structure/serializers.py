@@ -854,14 +854,20 @@ class ProjectSerializer(
         customer = (
             attrs.get("customer") if not self.instance else self.instance.customer
         )
-        end_date = attrs.get("end_date")
-
-        if end_date:
-            if not has_permission(
-                self.context["request"], PermissionEnum.DELETE_PROJECT, customer
-            ):
-                raise exceptions.PermissionDenied()
-            attrs["end_date_requested_by"] = self.context["request"].user
+        # Guard every actual change to the end date, including a change to null.
+        # Testing the value for truthiness let an explicit {"end_date": null}
+        # through unchecked, so removing a project's expiry — which keeps it
+        # alive indefinitely — was easier than setting one. A write that repeats
+        # the current value is left alone, so unrelated partial updates that echo
+        # the field are not blocked.
+        if "end_date" in attrs:
+            current_end_date = self.instance.end_date if self.instance else None
+            if attrs["end_date"] != current_end_date:
+                if not has_permission(
+                    self.context["request"], PermissionEnum.DELETE_PROJECT, customer
+                ):
+                    raise exceptions.PermissionDenied()
+                attrs["end_date_requested_by"] = self.context["request"].user
 
         # Each "field X is mandatory" flag below enforces the constraint on
         # create, or on an update that explicitly sets the field to null. An
