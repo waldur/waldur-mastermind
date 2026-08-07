@@ -4821,42 +4821,43 @@ def publish_offering_resources_sync_request(offering: models.Offering, user) -> 
     return True
 
 
-def _log_api_key_action(
-    resource: models.Resource, action: str, extra: str = ""
-) -> None:
-    """Log an API key action with the identifiers useful for support triage."""
+def _log_api_key_rotation(api_key: models.ResourceApiKey) -> None:
+    """Log a rotation command with the identifiers useful for support triage."""
+    resource = api_key.resource
     project = resource.project
     customer = project.customer
     logger.info(
-        "API key %s requested for resource %s (%s), project %s (%s), "
-        "organization %s (%s)%s",
-        action,
+        "API key rotation requested for key %s of resource %s (%s), "
+        "project %s (%s), organization %s (%s)",
+        api_key.uuid.hex,
         resource.name,
         resource.uuid.hex,
         project.name,
         project.uuid.hex,
         customer.name,
         customer.uuid.hex,
-        extra,
     )
 
 
-def publish_api_key_event(api_key: models.ResourceApiKey, action: str) -> bool:
-    """Ask connected site agents to reconcile a resource API key.
+def publish_api_key_event(api_key: models.ResourceApiKey) -> bool:
+    """Ask connected site agents to rotate a resource API key.
 
     The agent owns key generation: this only sends a slim command (no key
-    material). ``action`` is one of ``rotate`` / ``revoke`` / ``add``. The agent
-    performs the backend change and reports back via the provider endpoints.
-    Returns True if at least one agent subscription received the command.
+    material). Rotation is the only command — the key count is fixed at
+    provisioning and a rotation replaces a value in place — so the action is not
+    a parameter. The agent performs the backend change and reports back via the
+    provider endpoints. Returns True if at least one agent subscription received
+    the command.
     """
     resource = api_key.resource
-    _log_api_key_action(resource, action, extra=f", key {api_key.uuid.hex}")
+    _log_api_key_rotation(api_key)
     payload = {
         "resource_uuid": resource.uuid.hex,
         "resource_backend_id": resource.backend_id,
         "api_key_uuid": api_key.uuid.hex,
         "client_id": api_key.client_id,
-        "action": action,
+        # Still on the wire: the agent dispatches on it and rejects anything else.
+        "action": "rotate",
     }
     messages = prepare_messages(
         resource.offering,

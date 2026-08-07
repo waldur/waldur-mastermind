@@ -16,6 +16,20 @@ ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 #
 SECRET_KEY = '...'
 
+# Field-level encryption at rest (see docs/resource-api-keys.md)
+# Fernet key for encrypting secret DB columns, e.g. resource API keys. Optional:
+# when unset the key is derived from SECRET_KEY and a warning is logged. Set a
+# dedicated one in production so leaking Django settings does not by itself
+# unlock encrypted columns. Generate with:
+#
+#   python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+#
+# FIELD_ENCRYPTION_KEY = '...'
+#
+# Previous keys, kept decryptable while FIELD_ENCRYPTION_KEY is rotated. Drop a
+# key once `waldur reencrypt_fields` has rewritten every row under the new one.
+# FIELD_ENCRYPTION_KEY_FALLBACKS = ['...']
+
 # Databases
 DATABASES = {
      'default': {
