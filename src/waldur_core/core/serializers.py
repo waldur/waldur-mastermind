@@ -1313,6 +1313,25 @@ class VersionHistoryUserSerializer(serializers.Serializer):
     full_name = serializers.CharField(help_text="Full name of the user")
 
 
+# Field names stripped from version history payloads. A version holds the raw
+# serialized model, so returning it verbatim bypasses whatever that model's own
+# serializer withholds: User.password would hand out the password hash, and
+# Offering.secret_options is restricted to staff, owners and service managers by
+# can_see_secret_options - while the history endpoint is open to support users
+# too. Keep this in sync with any field a serializer deliberately hides.
+REDACTED_VERSION_FIELDS = frozenset(
+    {
+        "password",
+        "secret_options",
+    }
+)
+
+# Values a JSON response can carry as-is. Model defaults are only substituted
+# below when they are one of these; anything richer (dates, files, Decimals)
+# is left absent rather than risking a render error on a read-only endpoint.
+JSON_NATIVE_TYPES = (str, int, float, bool, list, dict, type(None))
+
+
 class VersionHistorySerializer(serializers.Serializer):
     """
     Generic serializer for django-reversion Version objects.
@@ -1348,7 +1367,35 @@ class VersionHistorySerializer(serializers.Serializer):
         return None
 
     def get_serialized_data(self, obj) -> dict:
-        return json.loads(obj.serialized_data)[0]["fields"]
+        fields = json.loads(obj.serialized_data)[0]["fields"]
+        data = {
+            name: value
+            for name, value in fields.items()
+            if name not in REDACTED_VERSION_FIELDS
+        }
+        self._add_missing_fields(obj, data)
+        return data
+
+    def _add_missing_fields(self, obj, data) -> None:
+        """Fill in fields the model gained after this snapshot was taken.
+
+        A snapshot only carries the columns that existed when it was written.
+        Left absent, every field added since reads as a change when two versions
+        are compared, so a single rename can appear to have altered dozens of
+        fields - the older the snapshot, the worse it looks. Substituting the
+        model default keeps the comparison about what the user actually changed.
+        """
+        model = obj._model
+        if model is None:
+            return
+        for field in model._meta.concrete_fields:
+            if field.primary_key or field.name in data:
+                continue
+            if field.name in REDACTED_VERSION_FIELDS:
+                continue
+            default = field.get_default()
+            if isinstance(default, JSON_NATIVE_TYPES):
+                data[field.name] = default
 
 
 class TableGrowthStatsSerializer(serializers.Serializer):

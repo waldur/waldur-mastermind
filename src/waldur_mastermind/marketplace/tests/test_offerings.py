@@ -7,6 +7,7 @@ import uuid
 from itertools import product
 from unittest import mock
 
+import reversion
 from constance.test.unittest import override_config
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -5274,3 +5275,29 @@ class OfferingOpenForProposalsTest(test.APITestCase):
 
         self.assertEqual(len(response.data), 4)
         self.assertEqual(len(ctx_one), len(ctx_many))
+
+
+class OfferingHistorySecretOptionsTest(test.APITestCase):
+    """Offering history is open to support users, but secret_options is not:
+    can_see_secret_options allows only staff, owners and service managers."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.secret_options = {"backend_url": "https://backend.example.com"}
+        self.offering.save(update_fields=["secret_options"])
+        with reversion.create_revision():
+            reversion.add_to_revision(self.offering)
+
+    def test_secret_options_are_not_exposed_in_history(self):
+        self.client.force_authenticate(self.fixture.global_support)
+
+        response = self.client.get(
+            factories.OfferingFactory.get_url(self.offering, "history")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data)
+        for version in response.data:
+            self.assertNotIn("secret_options", version["serialized_data"])
+        self.assertNotIn("backend.example.com", json.dumps(response.data, default=str))
