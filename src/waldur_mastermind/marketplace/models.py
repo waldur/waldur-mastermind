@@ -2631,6 +2631,10 @@ class Order(
         validators=[FileTypeValidator(allowed_types=["application/pdf"])],
     )
 
+    provider_message_updated_at = models.DateTimeField(
+        editable=False, null=True, blank=True
+    )
+
     # Consumer-to-provider response
     consumer_message = models.TextField(blank=True, default="")
     consumer_message_attachment = models.FileField(
@@ -2638,6 +2642,9 @@ class Order(
         blank=True,
         null=True,
         validators=[FileTypeValidator(allowed_types=["application/pdf"])],
+    )
+    consumer_message_updated_at = models.DateTimeField(
+        editable=False, null=True, blank=True
     )
 
     consumer_rejection_comment = models.TextField(blank=True, default="")
@@ -2832,6 +2839,18 @@ class Order(
         error_traceback_changed = self.pk and self.tracker.has_changed(
             "error_traceback"
         )
+        provider_message_changed = self.pk and any(
+            self.tracker.has_changed(field)
+            for field in (
+                "provider_message",
+                "provider_message_url",
+                "provider_message_attachment",
+            )
+        )
+        consumer_message_changed = self.pk and any(
+            self.tracker.has_changed(field)
+            for field in ("consumer_message", "consumer_message_attachment")
+        )
         if output_changed or error_message_changed or error_traceback_changed:
             now = timezone.now()
             if output_changed:
@@ -2849,6 +2868,19 @@ class Order(
                     normalized_update_fields.add("error_traceback")
                 if error_message_changed or error_traceback_changed:
                     normalized_update_fields.add("error_updated_at")
+
+        if provider_message_changed or consumer_message_changed:
+            now = timezone.now()
+            if provider_message_changed:
+                self.provider_message_updated_at = now
+            if consumer_message_changed:
+                self.consumer_message_updated_at = now
+
+            if normalized_update_fields is not None:
+                if provider_message_changed:
+                    normalized_update_fields.add("provider_message_updated_at")
+                if consumer_message_changed:
+                    normalized_update_fields.add("consumer_message_updated_at")
 
         if normalized_update_fields is not None:
             kwargs["update_fields"] = list(normalized_update_fields)
