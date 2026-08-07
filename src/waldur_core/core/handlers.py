@@ -447,6 +447,46 @@ def revoke_user_pats_on_deactivation(sender, instance: User, **kwargs):
             )
 
 
+def emit_user_blocked_event(username, ip_address, dedup_timeout):
+    """Emit a user_blocked event at most once per (username, IP) lockout window.
+
+    Both lockout paths call this: the django-axes signal and the token-auth
+    failure counter. django-axes re-sends user_locked_out on every attempt made
+    while a lockout is already in force, so without a guard a single lockout
+    would log one event per attack request. cache.add is atomic, so it also
+    collapses the two paths (and concurrent requests) into a single event.
+
+    The lockout may not correspond to an existing user (the username can be
+    unknown), so the event carries the raw username and IP rather than a user
+    scope, mirroring the failed-login event.
+    """
+    username = username or ""
+    ip_address = ip_address or ""
+    dedup_key = f"USER_BLOCKED_EMITTED_OF_{username}_AT_{ip_address}"
+    if not cache.add(dedup_key, True, dedup_timeout):
+        return
+    event_logger.emit(
+        "User {username} has been blocked after too many failed login attempts "
+        "from {ip_address}.",
+        event_type=EventType.USER_BLOCKED,
+        event_context={"username": username, "ip_address": ip_address},
+        scopes=[],
+    )
+
+
+def log_user_locked_out(sender, username=None, ip_address=None, request=None, **kwargs):
+    """Emit a user_blocked event when django-axes locks out a username/IP."""
+    # AXES_COOLOFF_TIME may be a timedelta, an int (hours), or None (no cool-off).
+    cooloff = settings.AXES_COOLOFF_TIME
+    if hasattr(cooloff, "total_seconds"):
+        dedup_timeout = cooloff.total_seconds()
+    elif cooloff:
+        dedup_timeout = cooloff * 3600
+    else:
+        dedup_timeout = 600
+    emit_user_blocked_event(username, ip_address, dedup_timeout)
+
+
 def constance_updated(sender, key, old_value, new_value, **kwargs):
     """Clear the API configuration cache when a Constance setting is updated."""
     cache.delete("API_CONFIGURATION")

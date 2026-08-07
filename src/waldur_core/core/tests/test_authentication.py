@@ -3,6 +3,7 @@ from unittest import mock
 import httpx
 import jwt
 import respx
+from axes.signals import user_locked_out
 from constance.test.unittest import override_config
 from django.conf import settings
 from django.core.cache import cache
@@ -16,6 +17,7 @@ from rest_framework.authtoken.models import Token
 
 from waldur_core.core.authentication import DEFAULT_TOKEN_UPDATE_INTERVAL, refresh_token
 from waldur_core.core.models import User
+from waldur_core.logging.models import Event
 
 from . import helpers
 
@@ -95,6 +97,16 @@ class TokenAuthenticationTest(test.APITestCase):
             response.data["detail"], "Username is locked out. Try in 10 minutes."
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_user_blocked_event_is_emitted_once_when_lockout_threshold_is_reached(self):
+        for _ in range(6):
+            self.client.post(
+                self.auth_url, data={"username": self.username, "password": "WRONG"}
+            )
+
+        events = Event.objects.filter(event_type="user_blocked")
+        self.assertEqual(events.count(), 1)
+        self.assertIn(self.username, events.first().message)
 
     def test_expired_token_is_recreated_on_successful_authentication(self):
         user = User.objects.get(username=self.username)
@@ -283,6 +295,38 @@ class TokenAuthenticationTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertTrue(b"Authentication method is disabled." in response.content)
+
+
+class AxesLockoutEventTest(test.APITestCase):
+    def tearDown(self):
+        cache.clear()
+
+    def test_user_blocked_event_is_emitted_on_axes_lockout(self):
+        user_locked_out.send(
+            "axes",
+            request=None,
+            username="attacker",
+            ip_address="203.0.113.7",
+        )
+
+        events = Event.objects.filter(event_type="user_blocked")
+        self.assertEqual(events.count(), 1)
+        message = events.first().message
+        self.assertIn("attacker", message)
+        self.assertIn("203.0.113.7", message)
+
+    def test_repeated_axes_lockout_signals_emit_a_single_event(self):
+        # django-axes re-sends user_locked_out on every attempt made while the
+        # lockout is already in force; only the first should be logged.
+        for _ in range(5):
+            user_locked_out.send(
+                "axes",
+                request=None,
+                username="attacker",
+                ip_address="203.0.113.7",
+            )
+
+        self.assertEqual(Event.objects.filter(event_type="user_blocked").count(), 1)
 
 
 VALID_JWT_PAYLOAD = {

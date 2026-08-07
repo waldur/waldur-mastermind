@@ -52,6 +52,7 @@ from waldur_core.core.authentication import (
 )
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURES
+from waldur_core.core.handlers import emit_user_blocked_event
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP, build_logo_url
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.metadata_schemas import (
@@ -200,8 +201,9 @@ class ObtainAuthToken(APIView):
         auth_failure_key = f"LOGIN_FAILURES_OF_{username}_AT_{source_ip}"
         auth_failures = cache.get(auth_failure_key) or 0
         lockout_time_in_mins = 10
+        max_auth_failures = 4
 
-        if auth_failures >= 4:
+        if auth_failures >= max_auth_failures:
             logger.debug(
                 "Not returning auth token: "
                 f"username {username} from {source_ip} is locked out"
@@ -228,6 +230,12 @@ class ObtainAuthToken(APIView):
                 event_context={"username": username},
                 scopes=[],
             )
+
+            # Emit a block event when the failure counter reaches the lockout
+            # threshold. emit_user_blocked_event dedups within the lockout
+            # window, so subsequent attempts do not produce duplicate events.
+            if auth_failures + 1 >= max_auth_failures:
+                emit_user_blocked_event(username, source_ip, lockout_time_in_mins * 60)
 
             return Response(
                 data={"detail": _("Invalid username/password.")},

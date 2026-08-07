@@ -24,6 +24,7 @@
 - pat_used_from_new_ip
 - token_created
 - token_lifetime_updated
+- user_blocked
 
 ## Call
 
