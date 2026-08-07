@@ -1,8 +1,10 @@
+import json
 from datetime import timedelta
 
 import reversion
 from django.utils import timezone
 from rest_framework import status, test
+from reversion.models import Version
 
 from waldur_core.structure.tests import factories, fixtures
 
@@ -363,3 +365,55 @@ class HistoryPaginationTest(HistoryViewSetMixinTest):
         self.assertEqual(len(response.data), 10)
         # Total count should be in the header
         self.assertEqual(response["X-Result-Count"], "16")  # initial + 15 updates
+
+
+class VersionPayloadTest(test.APITestCase):
+    """The history payload is a raw model snapshot, so it needs its own
+    guards against leaking fields the model's own serializer withholds."""
+
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = factories.UserFactory()
+
+    def get_history(self, user=None):
+        self.client.force_authenticate(user or self.fixture.staff)
+        response = self.client.get(factories.UserFactory.get_url(self.user, "history"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def test_password_hash_is_not_exposed(self):
+        self.user.set_password("correct horse battery staple")
+        self.user.save(update_fields=["password"])
+        password_hash = self.user.password
+        self.assertTrue(password_hash)
+        with reversion.create_revision():
+            reversion.add_to_revision(self.user)
+
+        history = self.get_history()
+
+        self.assertTrue(history)
+        for version in history:
+            self.assertNotIn("password", version["serialized_data"])
+        self.assertNotIn(password_hash, json.dumps(history, default=str))
+
+    def test_fields_added_after_the_snapshot_use_the_model_default(self):
+        """Otherwise every field added since reads as a change in a diff."""
+        version = Version.objects.get_for_object(self.user).first()
+        payload = json.loads(version.serialized_data)
+        del payload[0]["fields"]["job_title"]
+        version.serialized_data = json.dumps(payload)
+        version.save()
+
+        data = self.get_history()[0]["serialized_data"]
+
+        self.assertEqual(data["job_title"], "")
+
+    def test_recorded_values_are_left_alone(self):
+        self.user.job_title = "Lord Commander"
+        self.user.save(update_fields=["job_title"])
+        with reversion.create_revision():
+            reversion.add_to_revision(self.user)
+
+        data = self.get_history()[0]["serialized_data"]
+
+        self.assertEqual(data["job_title"], "Lord Commander")
