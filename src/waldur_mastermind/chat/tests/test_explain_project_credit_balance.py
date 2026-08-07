@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.test import TestCase
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.chat.tools.account.explain_project_credit_balance import (
     ExplainProjectCreditBalanceTool,
@@ -134,10 +135,11 @@ class ExplainProjectCreditBalanceToolTest(TestCase):
         )
         self.assertEqual(result["type"], "error")
 
-    def test_project_member_without_customer_role_denied_financials(self):
-        # Credit / invoice data is customer-role scoped. A project-only member
-        # can resolve the project but must NOT see its credit balance, the
-        # customer envelope, or spend totals (matches the REST boundary).
+    def test_project_member_sees_own_credit_but_not_customer_envelope(self):
+        # ProjectCredit is readable by project roles — the credit funds their
+        # project, and they cannot be told why a resource paused without it.
+        # CustomerCredit stays customer-role scoped, so the organization
+        # envelope must not leak (matches the REST boundary).
         invoices_factories.CustomerCreditFactory(
             customer=self.fixture.customer, value=Decimal("10000")
         )
@@ -149,7 +151,7 @@ class ExplainProjectCreditBalanceToolTest(TestCase):
             invoice=invoice,
             project=self.fixture.project,
             quantity=10,
-            unit_price=Decimal("20"),  # 200 > 100 → overdrawn for an authorized viewer
+            unit_price=Decimal("20"),  # 200 > 100 → overdrawn
         )
         # Staff (and customer owner) see the overdrawn credit + envelope.
         staff_result = self.tool.execute(
@@ -157,11 +159,26 @@ class ExplainProjectCreditBalanceToolTest(TestCase):
         )
         self.assertTrue(staff_result["data"]["project_credit"]["is_overdrawn"])
         self.assertIsNotNone(staff_result["data"]["customer_credit"])
-        # Project-only member: project resolves, but no financial data leaks.
+        # Project-only member: own credit resolves, organization credit does not.
         result = self.tool.execute(
             self.fixture.admin, {"project_uuid": str(self.fixture.project.uuid)}
         )
         self.assertEqual(result["type"], "success")
-        self.assertIsNone(result["data"]["project_credit"])
+        self.assertTrue(result["data"]["project_credit"]["is_overdrawn"])
+        self.assertEqual(result["data"]["project_credit"]["value"], "100.00000")
         self.assertIsNone(result["data"]["customer_credit"])
-        self.assertIn("no project credit configured", result["summary"].lower())
+        self.assertIn("OVERDRAWN", result["summary"])
+
+    def test_project_member_denied_credit_of_sibling_project(self):
+        # Project roles read the credit of THEIR project only: a sibling
+        # project under the same organization must stay invisible.
+        invoices_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=Decimal("10000")
+        )
+        sibling = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        invoices_factories.ProjectCreditFactory(project=sibling, value=Decimal("500"))
+
+        result = self.tool.execute(
+            self.fixture.admin, {"project_uuid": str(sibling.uuid)}
+        )
+        self.assertEqual(result["type"], "error")

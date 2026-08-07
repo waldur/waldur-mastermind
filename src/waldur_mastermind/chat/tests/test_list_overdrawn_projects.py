@@ -130,11 +130,12 @@ class ListOverdrawnProjectsToolTest(TestCase):
             result["data"]["overdrawn_projects"][0]["project_name"], "Mine Over"
         )
 
-    def test_project_only_member_denied_credit_visibility(self):
-        # ProjectCredit is customer-role scoped. A project-level member with no
-        # customer role must NOT see overdrawn credits — not even for their own
-        # project — matching the production ProjectCredit REST boundary. The
-        # old Customer-based scoping leaked every sibling project's credit.
+    def test_project_only_member_sees_own_project_not_siblings(self):
+        # ProjectCredit is readable by project roles, but scoped to their own
+        # project: a project-level member with no customer role sees their own
+        # overdrawn credit and nothing else. Scoping through
+        # filter_queryset_for_user (rather than by Customer) is what keeps the
+        # sibling project's credit out of the listing.
         fixture = ProjectFixture()
         invoice = self._ensure_customer_credit(fixture.customer)
         invoices_factories.ProjectCreditFactory(
@@ -144,16 +145,20 @@ class ListOverdrawnProjectsToolTest(TestCase):
             invoice=invoice,
             project=fixture.project,
             quantity=1,
-            unit_price=Decimal("300"),  # overdrawn for an authorized viewer
+            unit_price=Decimal("300"),  # overdrawn
         )
-        # Staff sees the overdrawn project...
+        self._add_project_with_spend(fixture.customer, "Sibling Over", "100", "300")
+        # Staff sees both overdrawn projects...
         self.assertEqual(
-            self.tool.execute(fixture.staff, {})["data"]["_total_count"], 1
+            self.tool.execute(fixture.staff, {})["data"]["_total_count"], 2
         )
-        # ...but a project-only member (no customer role) sees nothing.
+        # ...a project-only member sees only their own.
         result = self.tool.execute(fixture.admin, {})
-        self.assertEqual(result["data"]["_total_count"], 0)
-        self.assertIn("No overdrawn", result["summary"])
+        self.assertEqual(result["data"]["_total_count"], 1)
+        self.assertEqual(
+            result["data"]["overdrawn_projects"][0]["project_uuid"],
+            str(fixture.project.uuid),
+        )
 
     def test_non_staff_user_sees_only_their_customer(self):
         fixture = ProjectFixture()

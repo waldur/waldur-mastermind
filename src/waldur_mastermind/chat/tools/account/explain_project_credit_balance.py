@@ -89,10 +89,12 @@ class ExplainProjectCreditBalanceTool(BaseTool):
         if project is None:
             return {"type": "error", "summary": "Project not found."}
 
-        # Credits and invoice items are customer-role scoped (their Permissions
-        # expose only customer_path). Project membership alone does NOT grant
-        # access, so scope through filter_queryset_for_user to match the REST
-        # boundary — staff/support still see everything.
+        # Scope through filter_queryset_for_user to match the REST boundary:
+        # ProjectCredit and InvoiceItem are readable by project roles for their
+        # own project (invoice items only when the customer opts in via
+        # display_billing_info_in_projects), while CustomerCredit stays
+        # customer-role scoped, so a project-only member never sees the
+        # organization envelope. Staff/support still see everything.
         project_credit = (
             filter_queryset_for_user(ProjectCredit.objects.all(), user)
             .filter(project=project)

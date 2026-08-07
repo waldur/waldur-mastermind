@@ -120,9 +120,10 @@ class ExplainInvoiceCompensationsTool(BaseTool):
         if project is None:
             return {"type": "error", "summary": "Project not found."}
 
-        # InvoiceItem is customer-role scoped (Permissions exposes only
-        # customer_path); scope through filter_queryset_for_user so project
-        # membership alone cannot read customer billing — staff/support see all.
+        # Scope through filter_queryset_for_user rather than filtering by
+        # project alone: InvoiceItem is customer-role scoped, plus project
+        # roles for their own project when the customer opts in via
+        # display_billing_info_in_projects. Staff/support see everything.
         items_qs = (
             filter_queryset_for_user(InvoiceItem.objects.all(), user)
             .filter(project=project)

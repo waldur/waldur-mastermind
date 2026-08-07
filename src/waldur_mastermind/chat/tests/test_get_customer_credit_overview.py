@@ -108,30 +108,37 @@ class GetCustomerCreditOverviewToolTest(TestCase):
         self.assertEqual(result["type"], "success")
         self.assertEqual(result["data"]["customer"]["uuid"], str(self.customer.uuid))
 
-    def test_project_only_member_denied_credit_data(self):
-        # Customer/project credit is customer-role scoped. A project-only
-        # member can resolve the organization but must see no credit data.
+    def test_project_only_member_sees_own_project_but_not_envelope(self):
+        # CustomerCredit stays customer-role scoped, so the organization
+        # envelope must not leak. ProjectCredit is readable by project roles,
+        # but only for their own project — the sibling stays hidden, so the
+        # rollup a project-only member gets is not an organization view.
         self._customer_credit(value="10000")
         invoices_factories.ProjectCreditFactory(
             project=self.fixture.project, value=Decimal("100")
         )
-        invoice = invoices_factories.InvoiceFactory(customer=self.customer)
         invoices_factories.InvoiceItemFactory(
-            invoice=invoice,
+            invoice=self._shared_invoice(),
             project=self.fixture.project,
             quantity=1,
             unit_price=Decimal("300"),
         )
-        # Staff sees the envelope and the overdrawn project.
+        self._project_with("Sibling", "1000", None)
+        # Staff sees the envelope and both projects.
         staff_result = self.tool.execute(
             self.fixture.staff, {"customer_uuid": str(self.customer.uuid)}
         )
         self.assertIsNotNone(staff_result["data"]["customer_credit"])
+        self.assertEqual(staff_result["data"]["_total_project_count"], 2)
         self.assertEqual(staff_result["data"]["overdrawn_count"], 1)
-        # Project-only member: organization resolves, but no credit data leaks.
+        # Project-only member: own project only, no organization credit.
         result = self.tool.execute(
             self.fixture.admin, {"customer_uuid": str(self.customer.uuid)}
         )
         self.assertEqual(result["type"], "success")
         self.assertIsNone(result["data"]["customer_credit"])
-        self.assertEqual(result["data"]["_total_project_count"], 0)
+        self.assertEqual(result["data"]["_total_project_count"], 1)
+        self.assertEqual(
+            result["data"]["projects"][0]["project_uuid"],
+            str(self.fixture.project.uuid),
+        )

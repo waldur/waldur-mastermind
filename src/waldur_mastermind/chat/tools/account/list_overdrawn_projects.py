@@ -59,12 +59,11 @@ class ListOverdrawnProjectsTool(BaseTool):
     def execute(self, user, arguments: dict) -> dict:
         customer_name = (arguments.get("customer_name") or "").strip()
 
-        # ProjectCredit is customer-role scoped (Permissions.customer_path =
-        # "project__customer"). Scope ProjectCredit directly through
-        # filter_queryset_for_user rather than through Customer — Customer's
-        # Permissions promote a single project role to whole-customer
-        # visibility, which would leak sibling-project credits. Staff/support
-        # still see everything.
+        # ProjectCredit is readable by customer roles and by roles on the
+        # project itself. Scope it directly through filter_queryset_for_user
+        # rather than through Customer — Customer's Permissions promote a
+        # single project role to whole-customer visibility, which would leak
+        # sibling-project credits. Staff/support still see everything.
         credits_qs = filter_queryset_for_user(ProjectCredit.objects.all(), user)
         if customer_name:
             credits_qs = credits_qs.filter(

@@ -6,9 +6,10 @@ assistant fans out one ``explain_project_credit_balance`` per project to
 build a customer summary — slow and noisy. Returns the customer credit
 envelope plus a per-project rollup (credit, spend, balance, overdrawn flag).
 
-All querysets are scoped through ``filter_queryset_for_user`` so the
-customer/project credit visibility matches the REST boundary (customer-role
-scoped; staff/support see everything).
+All querysets are scoped through ``filter_queryset_for_user`` so credit
+visibility matches the REST boundary: the customer envelope is customer-role
+scoped, project credits are also readable by roles on the project itself, and
+staff/support see everything.
 """
 
 import logging
@@ -116,9 +117,10 @@ class GetCustomerCreditOverviewTool(BaseTool):
                 ),
             }
 
-        # Credits are customer-role scoped (Permissions expose only
-        # customer_path) — scope through filter_queryset_for_user so project
-        # membership alone cannot read the organization's credit posture.
+        # Scope through filter_queryset_for_user: CustomerCredit is
+        # customer-role scoped, so project membership alone cannot read the
+        # organization's envelope, and the per-project rollup narrows to the
+        # projects the caller actually has a role on.
         customer_credit = (
             filter_queryset_for_user(CustomerCredit.objects.all(), user)
             .filter(customer=customer)
