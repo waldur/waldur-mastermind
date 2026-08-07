@@ -154,6 +154,50 @@ class SetProviderInfoTest(BaseProviderConsumerInfoTest):
         self.assertIn("output_updated_at", response.data)
         self.assertIsNotNone(response.data["output_updated_at"])
 
+    def test_provider_message_updated_at_is_set(self):
+        self._post(
+            self.fixture.offering_owner,
+            {"provider_message": "Please sign NDA"},
+        )
+        self.order.refresh_from_db()
+        self.assertIsNotNone(self.order.provider_message_updated_at)
+        self.assertIsNone(self.order.consumer_message_updated_at)
+
+    def test_message_timestamps_track_latest_side(self):
+        self._post(
+            self.fixture.offering_owner,
+            {"provider_message": "Please sign NDA"},
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        consumer_url = factories.OrderFactory.get_url(self.order, "set_consumer_info")
+        self.client.post(consumer_url, {"consumer_message": "Signed"})
+        self.order.refresh_from_db()
+        self.assertGreater(
+            self.order.consumer_message_updated_at,
+            self.order.provider_message_updated_at,
+        )
+
+        self._post(
+            self.fixture.offering_owner,
+            {"provider_message": "One more document, please"},
+        )
+        self.order.refresh_from_db()
+        self.assertGreater(
+            self.order.provider_message_updated_at,
+            self.order.consumer_message_updated_at,
+        )
+
+    def test_message_timestamps_visible_in_detail_response(self):
+        self._post(
+            self.fixture.offering_owner,
+            {"provider_message": "Check this"},
+        )
+        self.client.force_authenticate(self.fixture.offering_owner)
+        url = factories.OrderFactory.get_url(self.order)
+        response = self.client.get(url)
+        self.assertIsNotNone(response.data["provider_message_updated_at"])
+        self.assertIsNone(response.data["consumer_message_updated_at"])
+
     def test_consumer_cannot_use_provider_endpoint(self):
         response = self._post(
             self.fixture.owner,
@@ -267,6 +311,15 @@ class SetConsumerInfoTest(BaseProviderConsumerInfoTest):
         url = factories.OrderFactory.get_url(self.order)
         response = self.client.get(url)
         self.assertEqual(response.data["consumer_message"], "My response")
+
+    def test_consumer_message_updated_at_is_set(self):
+        self._post(
+            self.fixture.owner,
+            {"consumer_message": "My response"},
+        )
+        self.order.refresh_from_db()
+        self.assertIsNotNone(self.order.consumer_message_updated_at)
+        self.assertIsNone(self.order.provider_message_updated_at)
 
     def test_provider_cannot_use_consumer_endpoint(self):
         response = self._post(
