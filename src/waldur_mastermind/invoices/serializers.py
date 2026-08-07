@@ -1163,7 +1163,13 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
     # Derived from the organization credit without disclosing it: how much of
     # this allocation can actually be drawn, and whether the organization
     # balance is the binding constraint.
-    spendable_value = serializers.ReadOnlyField()
+    # DecimalField, not ReadOnlyField: DRF renders Decimals as strings, but a
+    # bare ReadOnlyField gives drf-spectacular nothing to go on, so the schema
+    # advertised `number` and the generated SDK typed it as such while the API
+    # returned "0.00000". Mirrors the precision of the underlying `value`.
+    spendable_value = serializers.DecimalField(
+        max_digits=16, decimal_places=5, read_only=True
+    )
     is_limited_by_organization_credit = serializers.ReadOnlyField()
 
     # Organization-wide figures. ProjectCredit is readable by project roles so
