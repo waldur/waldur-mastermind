@@ -253,6 +253,14 @@ class ProjectCreditRetrieveTest(test.APITestCase):
         for field in ("customer_credit", "allocated_customer_credit", "offerings"):
             self.assertIn(field, response.data)
 
+    def test_spendable_value_is_serialised_as_a_decimal_string(self):
+        # Same shape as `value` and `customer_credit`; the generated SDK types
+        # this field from the schema, so a number here would be a lie.
+        self.client.force_authenticate(self.fixture.member)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data["spendable_value"], str)
+
     def test_spendable_value_is_capped_by_organization_credit(self):
         credit = self.fixture.project_credit
         credit.value = 100
