@@ -378,6 +378,7 @@ class EventType(StrEnum):
     UPDATE_OF_PROJECT_CREDIT_BY_STAFF = "update_of_project_credit_by_staff"
     AUTOMATIC_CREDIT_ADJUSTMENT = "automatic_credit_adjustment"
     USER_ACTIVATED = "user_activated"
+    USER_BLOCKED = "user_blocked"
     USER_CREATION_SUCCEEDED = "user_creation_succeeded"
     USER_DATA_ACCESSED = "user_data_accessed"
     USER_DEACTIVATED = "user_deactivated"
@@ -457,6 +458,7 @@ EVENT_GROUP_MAPPING = {
         EventType.AUTH_LOGGED_IN_WITH_USERNAME,
         EventType.AUTH_LOGGED_OUT,
         EventType.AUTH_LOGIN_FAILED_WITH_USERNAME,
+        EventType.USER_BLOCKED,
         EventType.TOKEN_CREATED,
         EventType.TOKEN_LIFETIME_UPDATED,
         EventType.PAT_CREATED,
