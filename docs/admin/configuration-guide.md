@@ -3100,6 +3100,24 @@ Number of days to retain table size history data.
 
 Minimum table size in bytes (default 1MB) to monitor. Smaller tables are ignored.
 
+### User Revision History
+
+#### USER_REVISION_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 730
+
+Delete user profile revision history older than this many days. Set to 0 to keep it forever.
+
+#### USER_REVISION_KEEP_MINIMUM
+
+**Type:** int
+
+**Default value:** 20
+
+Always keep at least this many most recent revisions per user, however old they are. Must be above 0, otherwise pruning can erase a user's history entirely.
+
 ### User Actions
 
 #### USER_ACTIONS_ENABLED
