@@ -345,9 +345,9 @@ class ProviderApiKeyTest(test.APITestCase):
         self.assertEqual(key.error_message, "boom")
 
     def test_destroy_is_not_offered(self):
-        # Deleting a key row was only ever a revoke confirmation. With no revoke
-        # there is nothing to confirm, and an ungated delete could drop a row whose
-        # key still serves at the backend. Termination cleanup deletes rows directly.
+        # The key count is fixed at provisioning, so nothing needs a delete, and an
+        # ungated one could drop a row whose key still serves at the backend.
+        # Termination cleanup deletes rows directly.
         key = models.ResourceApiKey.objects.create(
             resource=self.resource, client_id="cid-1", state=States.OK
         )

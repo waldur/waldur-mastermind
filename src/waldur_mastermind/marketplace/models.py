@@ -4992,8 +4992,8 @@ class ResourceApiKey(
     def set_ok(self):
         pass
 
-    # Rotate/revoke are also allowed from Erred so a failed apply can be retried
-    # from the portal instead of leaving the key stuck.
+    # Rotation is also allowed from Erred so a failed apply can be retried from
+    # the portal instead of leaving the key stuck.
     @transition(field=state, source=[States.OK, States.ERRED], target=States.UPDATING)
     def set_updating(self):
         pass

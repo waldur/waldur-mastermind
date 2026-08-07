@@ -14865,8 +14865,8 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     A resource owns many keys. The site agent generates each key, applies it to
     the backend, then reports it here (encrypted). Members reveal keys; managers
-    rotate / revoke them. Portal actions are commands — the agent does the
-    backend change and reports back through the provider actions.
+    rotate them. Portal actions are commands — the agent does the backend change
+    and reports back through the provider actions.
     """
 
     queryset = models.ResourceApiKey.objects.select_related(
@@ -14877,9 +14877,9 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.ResourceApiKeyStatusSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ResourceApiKeyFilter
-    # destroy was the agent's revoke confirmation; with no revoke there is nothing
-    # to confirm, and an ungated delete could drop a row whose key still serves at
-    # the backend. Termination cleanup deletes the rows directly (callbacks.py).
+    # No destroy: the key count is fixed at provisioning, so nothing needs one, and
+    # an ungated delete could drop a row whose key still serves at the backend.
+    # Termination cleanup deletes the rows directly (callbacks.py).
     disabled_actions = ["create", "update", "partial_update", "destroy"]
 
     def get_queryset(self):
@@ -14950,9 +14950,9 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     def _require_resource_live(resource):
         """Reject key commands on a resource that is not live.
 
-        Rotating / revoking / adding a key makes no sense once the resource is on
-        its way out; a command emitted for a terminating resource races the
-        termination cleanup (which deletes the key rows) at the agent.
+        Rotating a key makes no sense once the resource is on its way out; a
+        command emitted for a terminating resource races the termination cleanup
+        (which deletes the key rows) at the agent.
         """
         dead = (
             models.Resource.States.TERMINATING,
@@ -14994,7 +14994,7 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
             raise IncorrectStateException(
                 "An API key can only be rotated from the OK state."
             )
-        utils.publish_api_key_event(api_key, "rotate")
+        utils.publish_api_key_event(api_key)
         log.log_resource_api_key_rotated(api_key, request.user)
         return Response(
             {"status": _("API key rotation has been requested.")},
@@ -15034,10 +15034,10 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         # Idempotent upsert on (resource, client_id): a retried or duplicated
         # report must not 500 on the unique constraint, and a re-applied key just
         # overwrites the stored value. New rows land OK (the agent already applied
-        # the key to the backend before reporting). The row was previously locked
-        # first to stop a stale duplicate resurrecting a key mid-revoke; with revoke
-        # gone there is no such state to guard, and update_or_create already handles
-        # a concurrent insert through the unique constraint.
+        # the key to the backend before reporting). No row lock is needed: there is
+        # no transitional state a stale duplicate could resurrect, and
+        # update_or_create already handles a concurrent insert through the unique
+        # constraint.
         with transaction.atomic():
             api_key, _ = models.ResourceApiKey.objects.update_or_create(
                 resource=resource,
@@ -15090,9 +15090,8 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
                     f"Another API key of this resource already uses client_id {client_id}."
                 )
             updates["client_id"] = client_id
-        # Transition under lock, persist only if it is legal: a value must never
-        # be written to a Terminating key (revoke in flight) or overwrite an
-        # already applied OK key with a late/stale duplicate.
+        # Transition under lock, persist only if it is legal: a late or duplicated
+        # report must never overwrite an already applied OK key.
         try:
             api_key = self._locked_transition(obj, "set_ok", **updates)
         except TransitionNotAllowed:
