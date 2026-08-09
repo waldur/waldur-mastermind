@@ -13,7 +13,7 @@ from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 
 from . import log, models, signals, tasks
-from .utils import format_limits_list
+from .utils import format_limits_list, parse_date
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +235,28 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
                     "Updated options for resource %s (UUID: %s) from order %s",
                     locked_resource.name,
                     locked_resource.uuid.hex,
+                    order.uuid.hex,
+                )
+
+            # Handle end date changes from order attributes. This is the single
+            # place an approved order writes an end date, so it covers both
+            # completion routes: processors that finish synchronously delegate
+            # here, and offerings whose backend call is asynchronous arrive here
+            # when the backend reports back. Renewal orders carry new_end_date
+            # too, so keying on the attribute rather than on the action also
+            # applies renewals that finish asynchronously — those used to be
+            # marked done with no end date ever written.
+            new_end_date = parse_date(order.attributes.get("new_end_date"))
+            if new_end_date and locked_resource.end_date != new_end_date:
+                locked_resource.end_date = new_end_date
+                locked_resource.end_date_requested_by = (
+                    order.consumer_reviewed_by or order.created_by
+                )
+                logger.info(
+                    "Updated end date for resource %s (UUID: %s) to %s from order %s",
+                    locked_resource.name,
+                    locked_resource.uuid.hex,
+                    new_end_date,
                     order.uuid.hex,
                 )
 
