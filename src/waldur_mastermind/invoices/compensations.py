@@ -8,6 +8,7 @@ from django.db.models import Sum
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
+from waldur_mastermind.billing import handlers as billing_handlers
 from waldur_mastermind.common.enums import Units
 
 from . import ledger, log, models
@@ -398,6 +399,31 @@ class MonthlyCompensation:
                 scopes=[self.customer, project_credit.project],
             )
 
+        self.refresh_price_estimates(
+            {compensation.project for compensation in self._compensations}
+        )
+
+    def refresh_price_estimates(self, projects):
+        """Recompute PriceEstimate for the customer and the given projects.
+
+        PriceEstimate.total sums every invoice item for the month, compensations
+        included — they are ordinary items with a negative unit_price — so it is
+        a cost net of credit. It is kept current by a post_save handler on
+        InvoiceItem, which bulk_create does not fire and which is not connected
+        for deletes at all. Without this call the stored estimate keeps the
+        pre-compensation value, and everything reading billing_price_estimate
+        (cost policy rows, the project dashboard) reports a cost the credit has
+        already paid for.
+
+        Only the projects whose invoice items changed are passed: the minimal
+        consumption tail moves credit values without writing an invoice item, so
+        it cannot alter an estimate. The customer scope always changes with any
+        of its projects, so it is always included.
+        """
+        if not projects:
+            return
+        billing_handlers.update_estimates_for_scopes([self.customer, *projects])
+
     def get_project_credit_consumption(self, project):
         """Returns the value by which the project credit will be reduced next month."""
 
@@ -462,6 +488,13 @@ class MonthlyCompensation:
             compensation_items.aggregate(sum=Sum("unit_price"))["sum"] or 0
         ) * -1
 
+        # Resolved before the delete below, because the queryset is lazy and
+        # would come back empty afterwards. These are the projects whose net
+        # cost changes, and so the estimates to refresh at the end.
+        affected_projects = list(
+            Project.objects.filter(id__in=compensation_items.values("project_id"))
+        )
+
         # The roll-back flow emits its own ROLL_BACK_*_CREDIT events below;
         # suppress the generic UPDATE_OF_*_CREDIT_BY_STAFF audit to avoid duplicates.
         with (
@@ -509,6 +542,12 @@ class MonthlyCompensation:
                     )
 
             compensation_items.delete()
+
+        # Removing compensations raises the net cost again, and no post_delete
+        # handler is connected for InvoiceItem, so refresh here too rather than
+        # relying on a later save() — clear_compensations is also called on its
+        # own from the API.
+        self.refresh_price_estimates(affected_projects)
 
     def apply_compensations(self):
         self.clear_compensations()

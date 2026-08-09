@@ -1138,6 +1138,9 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         compensations.MonthlyCompensation(
             customer_credit.customer
         ).apply_compensations()
+        # DRF asserts on a None return, so without this the action always 500s
+        # after doing its work.
+        return Response(status=status.HTTP_200_OK)
 
     @extend_schema(responses={status.HTTP_200_OK: None}, request=None)
     @transaction.atomic
@@ -1147,6 +1150,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         compensations.MonthlyCompensation(
             customer_credit.customer
         ).clear_compensations()
+        return Response(status=status.HTTP_200_OK)
 
     apply_compensations_permissions = clear_compensations_permissions = [
         structure_permissions.is_staff

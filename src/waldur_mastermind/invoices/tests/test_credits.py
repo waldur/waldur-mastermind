@@ -5,6 +5,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from unittest import mock
 
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.aggregates import Sum
 from django.test import TransactionTestCase
 from django.utils import timezone
@@ -13,6 +14,7 @@ from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.invoices import compensations, models, tasks
 from waldur_mastermind.invoices.audit import skip_credit_audit
 from waldur_mastermind.invoices.tests import factories, fixtures
@@ -745,6 +747,107 @@ class ProjectCreditTest(test.APITestCase):
             self.customer_credit.value,
             old_customer_credit_value - self.project_credit.value,
         )
+
+
+@freeze_time("2024-01-01")
+class PriceEstimateAfterCompensationTest(test.APITestCase):
+    """PriceEstimate.total sums every invoice item for the month, compensations
+    included, so it is a cost net of credit. It is maintained by a post_save
+    handler that bulk_create does not fire — and no post_delete handler is
+    connected at all — so the compensation flow has to refresh it itself.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.customer_credit = self.fixture.customer_credit
+        self.invoice = self.fixture.invoice
+        self.invoice_item = self.fixture.invoice_item
+        self.project = self.fixture.project
+
+    def get_estimate(self, scope):
+        return billing_models.PriceEstimate.objects.get(
+            content_type=ContentType.objects.get_for_model(scope), object_id=scope.id
+        )
+
+    def get_net_cost(self, scope_filter):
+        return sum(
+            item.unit_price * item.quantity
+            for item in models.InvoiceItem.objects.filter(**scope_filter)
+        )
+
+    def test_project_estimate_matches_cost_after_credit_is_applied(self):
+        gross = self.get_estimate(self.project).total
+        self.assertEqual(
+            gross, self.invoice_item.unit_price * self.invoice_item.quantity
+        )
+
+        compensations.MonthlyCompensation(self.fixture.customer).apply_compensations()
+
+        net = self.get_net_cost({"project": self.project})
+        self.assertLess(net, gross)
+        self.assertEqual(self.get_estimate(self.project).total, net)
+
+    def test_customer_estimate_matches_cost_after_credit_is_applied(self):
+        compensations.MonthlyCompensation(self.fixture.customer).apply_compensations()
+
+        net = self.get_net_cost({"invoice__customer": self.fixture.customer})
+        self.assertEqual(self.get_estimate(self.fixture.customer).total, net)
+
+    def test_only_projects_with_compensation_items_are_recomputed(self):
+        # A project with no invoice items cannot be compensated, so recomputing
+        # its estimate would be pure cost — one aggregate per project adds up
+        # for a customer with many of them.
+        untouched = structure_factories.ProjectFactory(customer=self.fixture.customer)
+
+        with mock.patch(
+            "waldur_mastermind.billing.handlers.update_estimates_for_scopes"
+        ) as mocked:
+            compensations.MonthlyCompensation(
+                self.fixture.customer
+            ).apply_compensations()
+
+        refreshed = {scope for call in mocked.call_args_list for scope in call[0][0]}
+        self.assertIn(self.project, refreshed)
+        self.assertIn(self.fixture.customer, refreshed)
+        self.assertNotIn(untouched, refreshed)
+
+    def test_estimate_returns_to_gross_when_compensations_are_cleared(self):
+        gross = self.get_estimate(self.project).total
+        monthly = compensations.MonthlyCompensation(self.fixture.customer)
+        monthly.apply_compensations()
+        self.assertLess(self.get_estimate(self.project).total, gross)
+
+        compensations.MonthlyCompensation(self.fixture.customer).clear_compensations()
+        self.assertEqual(self.get_estimate(self.project).total, gross)
+
+
+@ddt
+class CompensationActionTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.fixture.invoice_item
+        self.url = factories.CustomerCreditFactory.get_url(
+            self.fixture.customer_credit, action="apply_compensations"
+        )
+        self.clear_url = factories.CustomerCreditFactory.get_url(
+            self.fixture.customer_credit, action="clear_compensations"
+        )
+
+    def test_apply_compensations_returns_ok(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_clear_compensations_returns_ok(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.clear_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "manager", "admin", "user")
+    def test_non_staff_cannot_apply_compensations(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+        self.assertNotEqual(response.status_code, status.HTTP_200_OK)
 
 
 @dataclass
