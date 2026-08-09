@@ -39,6 +39,13 @@ def update_estimates_for_scopes(scopes):
     """
     for scope in scopes:
         estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
+        # Prime the generic relation with the object the caller already holds.
+        # update_total() reads both `scope` and `content_type`, and on the get
+        # branch neither is cached, so each estimate would otherwise re-fetch
+        # its own scope row plus a ContentType — two queries per scope for data
+        # already in memory. Assigning the GFK caches content_type too, via
+        # ContentType.objects.get_for_model, which is process-cached.
+        estimate.scope = scope
         estimate.update_total()
         estimate.save(update_fields=["total"])
 
