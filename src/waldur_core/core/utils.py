@@ -24,7 +24,7 @@ from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, get_connection
 from django.core.management.base import BaseCommand
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import F, Subquery
@@ -214,6 +214,7 @@ def send_mail(
     bcc: list[str] | None = None,
     reply_to: str | None = None,
     fail_silently: bool = False,
+    connection=None,
 ) -> int:
     from waldur_core.logging.models import EmailLog
 
@@ -226,6 +227,7 @@ def send_mail(
         from_email=from_email,
         bcc=bcc,
         reply_to=[reply_to],
+        connection=connection,
     )
 
     footer_text = config.COMMON_FOOTER_TEXT
@@ -312,18 +314,32 @@ def broadcast_mail(
         text_message = format_text(text_template_name, context)
         html_message = render_to_string(html_template_name, context)
 
-        for recipient in recipient_list:
-            logger.info(f"About to send {event_type} notification to {recipient}")
-            send_mail(
-                subject,
-                text_message,
-                to=[recipient],
-                html_message=html_message,
-                filename=filename,
-                attachment=attachment,
-                content_type=content_type,
-                bcc=bcc,
-            )
+        # One shared SMTP connection for the whole batch (a fresh connection
+        # per recipient can trip relay rate limits), and per-recipient error
+        # isolation so one undeliverable address cannot block the rest.
+        connection = get_connection()
+        try:
+            connection.open()
+            for recipient in recipient_list:
+                logger.info(f"About to send {event_type} notification to {recipient}")
+                try:
+                    send_mail(
+                        subject,
+                        text_message,
+                        to=[recipient],
+                        html_message=html_message,
+                        filename=filename,
+                        attachment=attachment,
+                        content_type=content_type,
+                        bcc=bcc,
+                        connection=connection,
+                    )
+                except Exception:
+                    logger.exception(
+                        f"Failed to send {event_type} notification to {recipient}"
+                    )
+        finally:
+            connection.close()
 
 
 def get_ordering(request):
