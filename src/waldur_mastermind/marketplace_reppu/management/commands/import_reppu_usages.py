@@ -210,9 +210,17 @@ class Command(BaseCommand):
                 )
             )
             date = datetime.date(year=year, month=month, day=1)
-            offering_component = marketplace_models.OfferingComponent.objects.get(
-                offering=resource.offering, type=component_type
-            )
+            try:
+                offering_component = marketplace_models.OfferingComponent.objects.get(
+                    offering=resource.offering, type=component_type
+                )
+            except marketplace_models.OfferingComponent.DoesNotExist:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"The offering {resource.offering} does not have a component with type {component_type}, skipping processing."
+                    )
+                )
+                return
             plan_period = marketplace_utils.get_plan_period(resource, date)
             if not self.dry_run:
                 component_usage, _ = (
