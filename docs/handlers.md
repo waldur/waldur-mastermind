@@ -657,6 +657,7 @@ td:nth-child(4) {
 | `log_order_events` | `Django Signal (post_save)` | `marketplace.Order` | Log order creation and state transition events. |
 | `log_project_credit` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `log_request_events` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
+| `log_resource_end_date_change_request_events` | `Django Signal (post_save)` | `marketplace.ResourceEndDateChangeRequest` | Record who asked for an end date and what was decided. |
 | `log_resource_events` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource creation request events. |
 | `log_resource_limit_change_request_events` | `Django Signal (post_save)` | `marketplace.ResourceLimitChangeRequest` | Log events when resource limit change request is created or reviewed. |
 | `log_resource_robot_account_created_or_updated` | `Django Signal (post_save)` | `marketplace.RobotAccount` | Log resource robot account creation and updates. |
@@ -711,6 +712,7 @@ td:nth-child(4) {
 | `send_comment_added_notification` | `Django Signal (post_save)` | `support.Comment` | No description |
 | `send_course_account_deletion_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
 | `send_course_account_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
+| `send_end_date_change_request_to_message_queue` | `Django Signal (post_save)` | `marketplace.ResourceEndDateChangeRequest` | Emit an end date change request event on creation and every state change. |
 | `send_issue_updated_notification` | `Django Signal (post_save)` | `support.Issue` | No description |
 | `send_offering_user_created_message` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Send OfferingUser creation message to message queue for external systems. |
 | `send_offering_user_deleted_message` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Send OfferingUser deletion message to message queue for external systems. |
@@ -902,14 +904,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 823
+Total unique handlers found: 825
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 425 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 340 handlers
+- **waldur_mastermind**: 342 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
