@@ -276,6 +276,30 @@ class EndDateChangeRequestApproveTest(BaseEndDateChangeRequestTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class EndDateChangeRequestFilterTest(BaseEndDateChangeRequestTest):
+    def setUp(self):
+        super().setUp()
+        self.make_request(created_by=self.fixture.member)
+        self.client.force_authenticate(self.fixture.owner)
+
+    def test_requests_can_be_filtered_by_offering(self):
+        """An external approval system watches specific offerings."""
+        response = self.client.get(
+            self.list_url, {"offering_uuid": self.offering.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_another_offering_matches_nothing(self):
+        other = factories.OfferingFactory()
+
+        response = self.client.get(self.list_url, {"offering_uuid": other.uuid.hex})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+
 class EndDateChangeRequestVisibilityTest(BaseEndDateChangeRequestTest):
     def test_creator_sees_own_request(self):
         self.make_request(created_by=self.fixture.member)

@@ -3349,6 +3349,14 @@ class ResourceEndDateChangeRequestFilter(django_filters.FilterSet):
         field_name="resource__project__uuid",
         label="Project UUID",
     )
+    # An external approval system watches the offerings it is configured for, so
+    # it needs to ask for requests one offering at a time, the way it already
+    # does for orders.
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="resource__offering__uuid",
+        label="Offering UUID",
+    )
     created_by_uuid = core_filters.RelatedUUIDFilter(
         view_name="user-detail",
         field_name="created_by__uuid",
