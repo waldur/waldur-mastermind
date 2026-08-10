@@ -334,6 +334,11 @@ def register_in(router):
         views.ResourceLimitChangeRequestViewSet,
         basename="marketplace-resource-limit-change-request",
     )
+    router.register(
+        r"marketplace-resource-end-date-change-requests",
+        views.ResourceEndDateChangeRequestViewSet,
+        basename="marketplace-resource-end-date-change-request",
+    )
 
 
 urlpatterns = [

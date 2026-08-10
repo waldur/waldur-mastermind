@@ -47,6 +47,11 @@ class MarketplaceConfig(AppConfig):
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace.send_resource_state_change_to_message_queue",
         )
+        signals.post_save.connect(
+            handlers.send_end_date_change_request_to_message_queue,
+            sender=models.ResourceEndDateChangeRequest,
+            dispatch_uid="waldur_mastermind.marketplace.send_end_date_change_request_to_message_queue",
+        )
 
         # OfferingProfile sync — schedule async reconciliation when profile
         # roles change or when an offering is bound/unbound.
@@ -618,6 +623,12 @@ class MarketplaceConfig(AppConfig):
             handlers.log_resource_limit_change_request_events,
             sender=models.ResourceLimitChangeRequest,
             dispatch_uid="waldur_mastermind.marketplace.log_resource_limit_change_request_events",
+        )
+
+        signals.post_save.connect(
+            handlers.log_resource_end_date_change_request_events,
+            sender=models.ResourceEndDateChangeRequest,
+            dispatch_uid="waldur_mastermind.marketplace.log_resource_end_date_change_request_events",
         )
 
         signals.post_save.connect(

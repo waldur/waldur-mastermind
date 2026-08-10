@@ -272,6 +272,10 @@ def user_can_set_end_date_by_provider(
     raise exceptions.PermissionDenied()
 
 
+# Setting a resource end date from the consumer side takes one permission and
+# only that one. Everyone else asks, through ResourceEndDateChangeRequest, and a
+# holder of this same permission decides — so approving is never harder than
+# doing it yourself, and no role can reach the outcome while bypassing review.
 user_can_set_end_date_as_consumer = permission_factory(
     PermissionEnum.SET_RESOURCE_END_DATE,
     ["project.customer", "project"],
