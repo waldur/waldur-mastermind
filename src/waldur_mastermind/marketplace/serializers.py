@@ -314,6 +314,15 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, create orders when options of related resources are changed.",
     )
+    enable_resource_end_date_change_requests = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, users without RESOURCE.SET_END_DATE can "
+        "request an end date change, and holders of that permission approve or "
+        "reject. Approval writes the date directly; no order is created. "
+        "Requests are published as events so an external approval system can "
+        "decide instead. Not applicable to prepaid offerings, which extend "
+        "through renewal instead.",
+    )
     enable_resource_projects = serializers.BooleanField(
         required=False,
         help_text="Enable sub-project management within resources.",
@@ -486,6 +495,39 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
                 _("Invalid date format. Use YYYY-MM-DD.")
             )
         return value
+
+    def validate(self, attrs):
+        """Refuse end date change requests on a prepaid offering up front.
+
+        utils.offering_allows_end_date_change_requests ignores the option for
+        prepaid offerings, so without this the switch saves and then does
+        nothing, which reads as a bug. Prepaid resources extend through renewal,
+        whose duration bounds and upfront charge an arbitrary date would bypass.
+
+        Only the offering being edited can be inspected here — components arrive
+        through their own endpoints — so a prepaid component added later still
+        leaves the option set but inert. Approval re-checks the same gate, so
+        nothing slips through on that route.
+        """
+        attrs = super().validate(attrs)
+        if not attrs.get("enable_resource_end_date_change_requests"):
+            return attrs
+
+        offering = getattr(self.root, "instance", None)
+        if (
+            offering is not None
+            and getattr(offering, "pk", None)
+            and offering.components.filter(is_prepaid=True).exists()
+        ):
+            raise rf_exceptions.ValidationError(
+                {
+                    "enable_resource_end_date_change_requests": _(
+                        "Prepaid offerings extend through renewal, so they "
+                        "cannot accept end date change requests."
+                    )
+                }
+            )
+        return attrs
 
 
 class SupportPluginOptionsSerializer(serializers.Serializer):
@@ -7229,6 +7271,180 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
         validated_data["created_by"] = request.user
         validated_data["state"] = ReviewStates.PENDING
         return super().create(validated_data)
+
+
+class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
+    resource = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Resource.objects.all(),
+    )
+    state = serializers.CharField(source="get_state_display", read_only=True)
+    uuid = serializers.UUIDField(read_only=True)
+
+    class Meta:
+        model = models.ResourceEndDateChangeRequest
+        fields = ("resource", "requested_end_date", "comment", "uuid", "state")
+
+    def validate_resource(self, resource):
+        user = self.context["request"].user
+        if user.is_staff or user.is_support:
+            raise serializers.ValidationError(
+                _(
+                    "Staff and support users should use resource edit "
+                    "instead of creating a request."
+                )
+            )
+        if not utils.offering_allows_end_date_change_requests(resource.offering):
+            raise serializers.ValidationError(
+                _("This offering does not accept end date change requests.")
+            )
+        # Mirrors permissions.user_can_set_end_date_as_consumer: this permission
+        # writes the date directly, so a request would be an approval the user
+        # could grant themselves. Everyone else asks.
+        if any(
+            has_permission(user, PermissionEnum.SET_RESOURCE_END_DATE, scope)
+            for scope in (resource.project, resource.project.customer)
+        ):
+            raise serializers.ValidationError(
+                _(
+                    "You have permission to change the resource end date directly. "
+                    "Use set end date instead of creating a request."
+                )
+            )
+        accessible = filter_queryset_for_user(
+            models.Resource.objects.filter(pk=resource.pk),
+            user,
+        )
+        if not accessible.exists():
+            raise serializers.ValidationError(
+                _("You don't have access to this resource.")
+            )
+        return resource
+
+    def validate(self, attrs):
+        resource = attrs.get("resource")
+        requested_end_date = attrs.get("requested_end_date")
+        user = self.context["request"].user
+
+        if resource and requested_end_date:
+            if resource.end_date == requested_end_date:
+                raise serializers.ValidationError(
+                    _("Requested end date is identical to the current end date.")
+                )
+            utils.validate_end_date_for_resource(resource, requested_end_date)
+
+        if (
+            resource
+            and models.ResourceEndDateChangeRequest.objects.filter(
+                resource=resource,
+                created_by=user,
+                state=ReviewStates.PENDING,
+            ).exists()
+        ):
+            raise serializers.ValidationError(
+                _(
+                    "You already have a pending end date change request "
+                    "for this resource."
+                )
+            )
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        validated_data["created_by"] = request.user
+        validated_data["state"] = ReviewStates.PENDING
+        return super().create(validated_data)
+
+
+class ResourceEndDateChangeRequestSerializer(serializers.HyperlinkedModelSerializer):
+    @staticmethod
+    def eager_load(queryset, request=None):
+        return queryset.select_related(
+            "resource__project__customer",
+            "resource__offering",
+            "created_by",
+            "reviewed_by",
+        )
+
+    state = serializers.CharField(source="get_state_display", read_only=True)
+    resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
+    resource_name = serializers.CharField(read_only=True, source="resource.name")
+    project_uuid = serializers.UUIDField(read_only=True, source="resource.project.uuid")
+    project_name = serializers.CharField(read_only=True, source="resource.project.name")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="resource.project.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="resource.project.customer.name"
+    )
+    offering_uuid = serializers.UUIDField(
+        read_only=True, source="resource.offering.uuid"
+    )
+    offering_name = serializers.CharField(
+        read_only=True, source="resource.offering.name"
+    )
+    created_by_full_name = serializers.CharField(
+        read_only=True, source="created_by.full_name", allow_null=True
+    )
+    created_by_uuid = serializers.UUIDField(
+        read_only=True, source="created_by.uuid", allow_null=True
+    )
+    reviewed_by_full_name = serializers.CharField(
+        read_only=True, source="reviewed_by.full_name", allow_null=True
+    )
+    reviewed_by_uuid = serializers.UUIDField(
+        read_only=True, source="reviewed_by.uuid", allow_null=True
+    )
+    current_end_date = serializers.DateField(
+        read_only=True, source="resource.end_date", allow_null=True
+    )
+
+    class Meta:
+        model = models.ResourceEndDateChangeRequest
+        fields = (
+            "url",
+            "uuid",
+            "state",
+            "resource",
+            "resource_uuid",
+            "resource_name",
+            "project_uuid",
+            "project_name",
+            "customer_uuid",
+            "customer_name",
+            "offering_uuid",
+            "offering_name",
+            "requested_end_date",
+            "current_end_date",
+            "comment",
+            "created",
+            "created_by_uuid",
+            "created_by_full_name",
+            "reviewed_at",
+            "reviewed_by_uuid",
+            "reviewed_by_full_name",
+            "review_comment",
+            "backend_id",
+        )
+        read_only_fields = ("backend_id",)
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-resource-end-date-change-request-detail",
+            },
+            "resource": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-resource-detail",
+            },
+        }
+
+
+class ResourceEndDateChangeRequestBackendIDSerializer(serializers.ModelSerializer):
+    """Lets an external approval system record its own identifier on a request."""
+
+    class Meta:
+        model = models.ResourceEndDateChangeRequest
+        fields = ("backend_id",)
 
 
 class ResourceLimitChangeRequestSerializer(serializers.HyperlinkedModelSerializer):

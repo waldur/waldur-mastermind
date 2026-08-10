@@ -8603,6 +8603,7 @@ class BaseResourceViewSet(
     def _set_end_date_v2(self, request, template):
         resource: models.Resource = self.get_object()
         check_end_date_change_for_prepaid(resource, request)
+
         serializer = serializers.ResourceEndDateSerializer(
             data=request.data, instance=resource, context={"request": request}
         )
@@ -17939,6 +17940,210 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
     approve_validators = reject_validators = cancel_validators = [
         core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
     ]
+
+
+def user_can_approve_resource_end_date_change_request(
+    request, view, obj: models.ResourceEndDateChangeRequest | None = None
+):
+    """Deciding a request needs the same right as setting the date outright.
+
+    SET_RESOURCE_END_DATE, checked against the resource's project and its
+    customer, so approving is never harder than doing it yourself and no one can
+    reach the outcome while bypassing review.
+
+    Deliberately not ORDER.APPROVE: there is no order here, and that permission
+    is also granted on the offering, which would hand a consumer-side decision
+    to the provider.
+    """
+    if not obj:
+        return
+    if has_permission(
+        request.user,
+        PermissionEnum.SET_RESOURCE_END_DATE,
+        obj.resource.project.customer,
+    ) or has_permission(
+        request.user, PermissionEnum.SET_RESOURCE_END_DATE, obj.resource.project
+    ):
+        return
+    raise PermissionDenied()
+
+
+class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSet):
+    """End date change requests from users who cannot change the date themselves.
+
+    The request records what was asked for; approving it writes the date onto
+    the resource. No order is created on any path. Requests are published as
+    events so an external approval system can decide instead.
+    """
+
+    queryset = models.ResourceEndDateChangeRequest.objects.all()
+    serializer_class = serializers.ResourceEndDateChangeRequestSerializer
+    create_serializer_class = serializers.ResourceEndDateChangeRequestCreateSerializer
+    # Seeing a request follows seeing the resource it concerns: GenericRoleFilter
+    # applies the model's Permissions paths, so anyone with a role on the project
+    # or its customer sees every request on that resource, and nobody else sees
+    # any. Deciding is a separate and narrower question, answered by
+    # user_can_approve_resource_end_date_change_request.
+    filter_backends = [structure_filters.GenericRoleFilter, DjangoFilterBackend]
+    filterset_class = filters.ResourceEndDateChangeRequestFilter
+    disabled_actions = ["update", "partial_update", "destroy"]
+    lookup_field = "uuid"
+
+    approve_permissions = reject_permissions = [
+        user_can_approve_resource_end_date_change_request
+    ]
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses={status.HTTP_200_OK: None},
+        description="Approve resource end date change request and apply the date "
+        "to the resource.",
+    )
+    @action(detail=True, methods=["post"])
+    def approve(self, request, **kwargs):
+        end_date_request: models.ResourceEndDateChangeRequest = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+
+        resource = end_date_request.resource
+        requested_end_date = end_date_request.requested_end_date
+
+        if resource.state != models.Resource.States.OK:
+            raise ValidationError(_("Resource is not in OK state."))
+
+        if resource.end_date == requested_end_date:
+            raise ValidationError(
+                _("Requested end date is identical to the current end date.")
+            )
+
+        # Re-checked here rather than trusted from creation time, for the same
+        # reason the date is: the offering may have stopped accepting these
+        # while the request waited — the option turned off, or a prepaid
+        # component added, which routes extensions through renewal instead.
+        if not utils.offering_allows_end_date_change_requests(resource.offering):
+            raise ValidationError(
+                _("This offering no longer accepts end date change requests.")
+            )
+
+        # Likewise the date: it may have stopped being acceptable while the
+        # request waited, for instance because the project end date moved in.
+        utils.validate_end_date_for_resource(resource, requested_end_date)
+
+        # The end date is a Waldur-side concept — moving it provisions and
+        # releases nothing — so the approval writes it directly. The approver is
+        # recorded as the requester of the date, mirroring the direct path.
+        with transaction.atomic():
+            resource.end_date = requested_end_date
+            resource.end_date_requested_by = request.user
+            resource.save(update_fields=["end_date", "end_date_requested_by"])
+
+            end_date_request.approve(request.user, comment)
+
+        transaction.on_commit(
+            lambda: tasks.notify_about_resource_termination.delay(
+                resource.uuid.hex, request.user.uuid.hex, False
+            )
+        )
+        log.log_resource_end_date_has_been_updated(
+            resource,
+            request.user,
+            "End date of marketplace resource %(resource_name)s has been updated"
+            " through an approved change request."
+            " End date: %(end_date)s."
+            " User: %(user)s.",
+        )
+
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses={status.HTTP_200_OK: None},
+        description="Reject resource end date change request.",
+    )
+    @action(detail=True, methods=["post"])
+    def reject(self, request, **kwargs):
+        end_date_request: models.ResourceEndDateChangeRequest = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+        end_date_request.reject(request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Set end date change request backend ID",
+        description="Records the identifier this request has in an external "
+        "approval system, so that system can correlate its own record with the "
+        "Waldur request when reporting a verdict.",
+        request=serializers.ResourceEndDateChangeRequestBackendIDSerializer,
+        responses={status.HTTP_200_OK: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_backend_id(self, request, **kwargs):
+        """Record the external approval system's identifier for this request.
+
+        Deliberately *not* modelled on OrderViewSet.set_backend_id, despite the
+        name. That one carries SET_RESOURCE_BACKEND_ID scoped to
+        ["offering", "offering.customer"], and every backend id in the
+        marketplace is provider-only for the same reason — see
+        ResourceBackendIDTest, which asserts the consumer side gets 404.
+
+        This identifier is a different thing: the consumer's own approval
+        workflow item reference, on a consumer-owned request. Reusing
+        SET_RESOURCE_BACKEND_ID here would make one permission mean
+        "provider may set identifiers" in three places and the opposite in a
+        fourth, so the approve permission gates it instead. Nothing is granted
+        by that in practice: an external approver both correlates and decides,
+        and when the decision stays inside Waldur no backend id is ever set.
+        """
+        end_date_request: models.ResourceEndDateChangeRequest = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_backend_id = serializer.validated_data["backend_id"]
+        old_backend_id = end_date_request.backend_id
+        if new_backend_id != old_backend_id:
+            end_date_request.backend_id = new_backend_id
+            end_date_request.save(update_fields=["backend_id"])
+            logger.info(
+                "%s has changed end date change request %s backend_id from %s to %s",
+                request.user.full_name,
+                end_date_request.uuid.hex,
+                old_backend_id,
+                new_backend_id,
+            )
+        return Response(
+            {"status": _("Request backend_id has been changed.")},
+            status=status.HTTP_200_OK,
+        )
+
+    # Not SET_RESOURCE_BACKEND_ID: that permission is provider-scoped
+    # everywhere else and this request is consumer-owned. See set_backend_id.
+    set_backend_id_permissions = [user_can_approve_resource_end_date_change_request]
+    set_backend_id_serializer_class = (
+        serializers.ResourceEndDateChangeRequestBackendIDSerializer
+    )
+
+    @extend_schema(
+        responses=serializers.OrderInfoResponseSerializer,
+        description="Cancel resource end date change request. Only the creator can cancel.",
+    )
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, **kwargs):
+        end_date_request: models.ResourceEndDateChangeRequest = self.get_object()
+        if end_date_request.created_by != request.user:
+            raise PermissionDenied(
+                _("You can only cancel your own resource end date change requests.")
+            )
+        end_date_request.cancel()
+        return Response(
+            {"detail": _("Resource end date change request has been canceled.")},
+            status=status.HTTP_200_OK,
+        )
+
+    approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
+    approve_validators = reject_validators = cancel_validators = (
+        set_backend_id_validators
+    ) = [core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)]
 
 
 class ProjectOrderAutoApprovalViewSet(core_views.ActionsViewSet):

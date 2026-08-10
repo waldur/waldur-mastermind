@@ -130,6 +130,18 @@ class EventType(StrEnum):
     MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_REJECTED = (
         "marketplace_resource_limit_change_request_rejected"
     )
+    MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CREATED = (
+        "marketplace_resource_end_date_change_request_created"
+    )
+    MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_APPROVED = (
+        "marketplace_resource_end_date_change_request_approved"
+    )
+    MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_REJECTED = (
+        "marketplace_resource_end_date_change_request_rejected"
+    )
+    MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CANCELED = (
+        "marketplace_resource_end_date_change_request_canceled"
+    )
     MAINTENANCE_ANNOUNCEMENT_CANCELLED = "maintenance_announcement_cancelled"
     MAINTENANCE_ANNOUNCEMENT_COMPLETED = "maintenance_announcement_completed"
     MAINTENANCE_ANNOUNCEMENT_CREATED = "maintenance_announcement_created"
@@ -600,6 +612,10 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_CREATED,
         EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_APPROVED,
         EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_REJECTED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CREATED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_APPROVED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_REJECTED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CANCELED,
         EventType.RESOURCE_ROBOT_ACCOUNT_CREATED,
         EventType.RESOURCE_ROBOT_ACCOUNT_DELETED,
         EventType.RESOURCE_ROBOT_ACCOUNT_STATE_CHANGED,
@@ -657,6 +673,10 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_CREATED,
         EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_APPROVED,
         EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_REJECTED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CREATED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_APPROVED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_REJECTED,
+        EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CANCELED,
         EventType.OPENSTACK_FLOATING_IP_ATTACHED,
         EventType.OPENSTACK_FLOATING_IP_CONNECTED,
         EventType.OPENSTACK_FLOATING_IP_DESCRIPTION_UPDATED,
@@ -930,6 +950,9 @@ class ObservableObjectType(Enum):
     RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
     OFFERING_RESOURCES_SYNC = "offering_resources_sync"
     RESOURCE_API_KEY_ROTATION = "resource_api_key_rotation"
+    # Lets an external approval system pick up end date change requests and
+    # report a verdict back through the request's approve/reject actions.
+    RESOURCE_END_DATE_CHANGE_REQUEST = "resource_end_date_change_request"
     # User-centric events for global (empty-scope) consumers — IdM/IGA sync.
     USER_PROFILE = "user_profile"
     USER_SSH_KEY = "user_ssh_key"

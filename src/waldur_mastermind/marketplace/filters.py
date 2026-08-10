@@ -3331,3 +3331,31 @@ class ResourceLimitChangeRequestFilter(django_filters.FilterSet):
     class Meta:
         model = models.ResourceLimitChangeRequest
         fields = []
+
+
+class ResourceEndDateChangeRequestFilter(django_filters.FilterSet):
+    resource_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-resource-detail",
+        field_name="resource__uuid",
+        label="Resource UUID",
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="resource__project__customer__uuid",
+        label="Customer UUID",
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail",
+        field_name="resource__project__uuid",
+        label="Project UUID",
+    )
+    created_by_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail",
+        field_name="created_by__uuid",
+        label="Created by UUID",
+    )
+    state = ReviewStateFilter()
+
+    class Meta:
+        model = models.ResourceEndDateChangeRequest
+        fields = []

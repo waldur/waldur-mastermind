@@ -3547,6 +3547,43 @@ def validate_end_date(
     return min([termination_date, *caps]) if caps else termination_date
 
 
+def offering_allows_end_date_change_requests(offering: models.Offering) -> bool:
+    """Whether this offering accepts end date change requests.
+
+    When enabled, users who may not set the date themselves can ask for it, and
+    whoever holds the permission — or an external approval system acting on
+    their behalf — decides.
+
+    Prepaid offerings are excluded whatever the option says: they extend through
+    the renewal action, which enforces duration bounds and charges upfront, and
+    an arbitrary-date path would bypass both.
+    """
+    if offering.components.filter(is_prepaid=True).exists():
+        return False
+    return bool(offering.plugin_options.get("enable_resource_end_date_change_requests"))
+
+
+def validate_end_date_for_resource(resource: models.Resource, end_date):
+    """Validate a requested end date against the resource and its offering.
+
+    Wraps validate_end_date with the arguments derived from the resource, so the
+    request path and the approval path apply identical rules. Termination
+    offsets are measured from the creation order's start date when provisioning
+    was delayed, same as at order creation time.
+    """
+    if not end_date:
+        raise serializers.ValidationError({"end_date": _("End date is required.")})
+
+    creation_order = resource.creation_order
+    return validate_end_date(
+        offering=resource.offering,
+        created_date=resource.created.date(),
+        end_date=end_date,
+        start_date=creation_order.start_date if creation_order else None,
+        project_end_date=resource.project.end_date if resource.project else None,
+    )
+
+
 def sync_component_user_usage(allocation_user_usage, plugin_name):
     allocation = allocation_user_usage.allocation
     resource = models.Resource.objects.filter(scope=allocation).first()
@@ -4538,6 +4575,7 @@ _CONSUMER_RESOURCE_EVENTS = {
     ObservableObjectType.RESOURCE,
     ObservableObjectType.RESOURCE_PERIODIC_LIMITS,
     ObservableObjectType.RESOURCE_API_KEY_ROTATION,
+    ObservableObjectType.RESOURCE_END_DATE_CHANGE_REQUEST,
 }
 # Scoped via project_uuid in payload
 _CONSUMER_PROJECT_SCOPED_EVENTS = {

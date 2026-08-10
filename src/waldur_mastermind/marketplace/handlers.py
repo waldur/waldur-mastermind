@@ -62,6 +62,7 @@ from waldur_mastermind.marketplace.models import (
     Plan,
     PlanComponent,
     Resource,
+    ResourceEndDateChangeRequest,
     RobotAccount,
     ScopedServiceAccount,
     Screenshot,
@@ -3040,6 +3041,61 @@ def log_resource_limit_change_request_events(sender, instance, created=False, **
         )
 
 
+def log_resource_end_date_change_request_events(
+    sender, instance, created=False, **kwargs
+):
+    """Record who asked for an end date and what was decided.
+
+    Unlike a limit change request, approving this one produces no order, so
+    without these events the resource's audit trail would show the date moving
+    with nothing explaining who asked for it — and a rejected request would
+    leave no trace at all.
+    """
+    resource = instance.resource
+    event_context = {
+        "resource_end_date_change_request": instance,
+        "resource": resource,
+    }
+    if created:
+        event_logger.emit(
+            f"{instance.created_by} requested the end date of resource "
+            f"{resource.name} be changed to {instance.requested_end_date}.",
+            event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CREATED,
+            event_context=event_context,
+            scopes=[resource],
+        )
+        return
+
+    if not instance.tracker.has_changed("state"):
+        return
+
+    if instance.state == ReviewStates.APPROVED:
+        event_logger.emit(
+            f"{instance.reviewed_by} approved changing the end date of resource "
+            f"{resource.name} to {instance.requested_end_date}.",
+            event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_APPROVED,
+            event_context=event_context,
+            scopes=[resource],
+        )
+    elif instance.state == ReviewStates.REJECTED:
+        event_logger.emit(
+            f"{instance.reviewed_by} rejected changing the end date of resource "
+            f"{resource.name} to {instance.requested_end_date}.",
+            event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_REJECTED,
+            event_context=event_context,
+            scopes=[resource],
+        )
+    elif instance.state == ReviewStates.CANCELED:
+        # Withdrawn by the requester, so there is no reviewer to name.
+        event_logger.emit(
+            f"{instance.created_by} withdrew the request to change the end date "
+            f"of resource {resource.name} to {instance.requested_end_date}.",
+            event_type=EventType.MARKETPLACE_RESOURCE_END_DATE_CHANGE_REQUEST_CANCELED,
+            event_context=event_context,
+            scopes=[resource],
+        )
+
+
 def release_posix_allocations_on_consumer_deletion(sender, instance, **kwargs):
     """Mark the deleted POSIX id consumer's identity as released.
 
@@ -3159,6 +3215,44 @@ def send_order_state_change_to_message_queue(
     payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
     messages = marketplace_utils.prepare_messages(
         order.offering, payload, ObservableObjectType.ORDER
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+
+def send_end_date_change_request_to_message_queue(
+    sender, instance: ResourceEndDateChangeRequest, created=False, **kwargs
+):
+    """Emit an end date change request event on creation and every state change.
+
+    This is what lets an external approval system take the decision: it hears
+    about a new pending request, records its own identifier via set_backend_id,
+    and later calls approve or reject. The terminal states are emitted too, so a
+    request resolved inside Waldur does not leave the external system waiting.
+    """
+    if get_skip_side_effects():
+        return
+    end_date_request = instance
+    if not created and not end_date_request.tracker.has_changed("state"):
+        return
+
+    resource = end_date_request.resource
+    payload = {
+        "request_uuid": end_date_request.uuid.hex,
+        "request_state": end_date_request.get_state_display(),
+        "resource_uuid": resource.uuid.hex,
+        "resource_name": resource.name,
+        "requested_end_date": end_date_request.requested_end_date.isoformat(),
+        "current_end_date": resource.end_date.isoformat()
+        if resource.end_date
+        else None,
+        "comment": end_date_request.comment or "",
+        "backend_id": end_date_request.backend_id,
+    }
+    messages = marketplace_utils.prepare_messages(
+        resource.offering,
+        payload,
+        ObservableObjectType.RESOURCE_END_DATE_CHANGE_REQUEST,
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)

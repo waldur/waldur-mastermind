@@ -5404,3 +5404,71 @@ class ResourceLimitChangeRequest(
 
     def __str__(self):
         return f"Limit change request for {self.resource} ({self.get_state_display()})"
+
+
+class ResourceEndDateChangeRequest(
+    core_models.UuidMixin, core_mixins.ReviewMixin, LoggableMixin
+):
+    """
+    Request from a project member who may not change the resource end date
+    themselves. Users holding that permission approve or reject it, and approval
+    writes the date onto the resource — no order is involved.
+
+    The decision does not have to be taken inside Waldur: the request is
+    published as an observable event and carries a ``backend_id``, so an
+    external approval system can pick it up, record its own identifier, and call
+    approve or reject when its verdict is known.
+    """
+
+    class Meta:
+        ordering = ["created"]
+        verbose_name = _("Resource end date change request")
+        verbose_name_plural = _("Resource end date change requests")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource", "created_by"],
+                condition=models.Q(state=ReviewStates.PENDING),
+                name="unique_pending_end_date_request_per_resource_and_user",
+            )
+        ]
+
+    class Permissions:
+        customer_path = "resource__project__customer"
+        project_path = "resource__project"
+
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+    resource = models.ForeignKey(
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="end_date_change_requests",
+    )
+    requested_end_date = models.DateField(
+        help_text=_("The requested new end date for the resource"),
+    )
+    created_by = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+    )
+    comment = models.TextField(
+        blank=True,
+        null=True,
+        help_text=_("Optional comment from the requester"),
+    )
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_(
+            "Identifier of this request in an external approval system. Empty "
+            "means it has not been submitted there yet."
+        ),
+    )
+
+    def get_log_fields(self):
+        return ("uuid", "state")
+
+    def __str__(self):
+        return (
+            f"End date change request for {self.resource} ({self.get_state_display()})"
+        )
