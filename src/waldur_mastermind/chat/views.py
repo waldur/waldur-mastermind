@@ -4,7 +4,19 @@ import django_filters
 from constance import config
 from django.contrib.postgres.search import SearchQuery
 from django.db import transaction
-from django.db.models import Case, Count, Exists, Max, OuterRef, Q, Sum, Value, When
+from django.db.models import (
+    Case,
+    Count,
+    Exists,
+    Max,
+    OuterRef,
+    Q,
+    StringAgg,
+    Sum,
+    TextField,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
@@ -612,8 +624,21 @@ class ThreadSessionFilter(django_filters.FilterSet):
     user = core_filters.RelatedUUIDFilter(
         view_name="user-detail", field_name="chat_session__user__uuid"
     )
-    created = django_filters.DateFilter(field_name="created", lookup_expr="date")
-    modified = django_filters.DateFilter(field_name="modified", lookup_expr="date")
+    # `date__gte`/`date__lte` rather than a DateTimeFilter with plain
+    # `gte`/`lte`: the client sends a bare date, and a datetime comparison
+    # would resolve created_before=<day> to midnight, dropping that whole day.
+    created_after = django_filters.DateFilter(
+        field_name="created", lookup_expr="date__gte"
+    )
+    created_before = django_filters.DateFilter(
+        field_name="created", lookup_expr="date__lte"
+    )
+    modified_after = django_filters.DateFilter(
+        field_name="modified", lookup_expr="date__gte"
+    )
+    modified_before = django_filters.DateFilter(
+        field_name="modified", lookup_expr="date__lte"
+    )
     query = django_filters.CharFilter(method="filter_by_query")
     is_flagged = django_filters.BooleanFilter(method="filter_is_flagged")
     has_feedback = django_filters.BooleanFilter(method="filter_has_feedback")
@@ -650,6 +675,9 @@ class ThreadSessionFilter(django_filters.FilterSet):
             "input_tokens",
             "output_tokens",
             "total_tokens",
+            # Annotated in get_queryset; ordering by it is what lets the
+            # frontend's Model column render a sort control that actually works.
+            "models_used",
         )
     )
 
@@ -789,6 +817,20 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
                 message_count=Count("messages"),
                 _msg_input=Sum("messages__input_tokens"),
                 _msg_output=Sum("messages__output_tokens"),
+                # Aggregated rather than resolved per row: the list returns many
+                # threads, so a SerializerMethodField here would be an N+1.
+                # Blank models are excluded so a thread mixing tracked and
+                # pre-tracking messages reads as the model it actually used.
+                models_used=Coalesce(
+                    StringAgg(
+                        "messages__model",
+                        Value(", "),
+                        distinct=True,
+                        filter=~Q(messages__model=""),
+                    ),
+                    Value(""),
+                    output_field=TextField(),
+                ),
             )
             .annotate(
                 input_tokens=Case(
@@ -898,20 +940,29 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
     @extend_schema(
         summary="Get statistics for visible chat threads",
         responses={200: serializers.ChatThreadStatsResponseSerializer},
+        # drf-spectacular only derives filter parameters for `list` by default,
+        # so without this the action honours the filterset but documents none of
+        # it — and generated clients then type the query as `never`, forbidding
+        # the very params the endpoint accepts.
+        filters=True,
     )
     @decorators.action(detail=False, methods=["get"])
     def stats(self, request):
         """Summary statistics for the visible chat threads.
 
-        Aggregates over a clean base queryset rather than ``get_queryset`` —
-        the per-row token/count annotations there would collide with these
-        aggregates. Visibility mirrors the list: staff/support see all, other
-        users only their own.
+        Filters run against the annotated list queryset, then the matched
+        threads are re-read as a plain queryset. Both halves are load-bearing:
+        ``has_feedback`` and the token ranges resolve against annotations that
+        exist only on ``get_queryset``, while the per-row annotations there
+        would collide with the aggregates below. Visibility comes from
+        ``get_queryset`` — staff/support see all, other users only their own.
         """
-        qs = models.ThreadSession.objects.all()
-        if not (request.user.is_staff or request.user.is_support):
-            qs = qs.filter(chat_session__user=request.user)
-        qs = self.filterset_class(request.GET, queryset=qs, request=request).qs
+        matched = self.filterset_class(
+            request.GET, queryset=self.get_queryset(), request=request
+        ).qs
+        # Ordering is cleared because the annotated queryset groups by thread,
+        # and Postgres rejects an ORDER BY on a non-grouped column inside IN.
+        qs = models.ThreadSession.objects.filter(pk__in=matched.values("pk").order_by())
 
         thread_agg = qs.aggregate(
             threads_total=Count("uuid", distinct=True),

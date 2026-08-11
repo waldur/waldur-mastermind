@@ -405,6 +405,14 @@ class Message(UuidMixin, TimeStampedModel):
     input_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
     output_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
 
+    # Snapshot of config.AI_ASSISTANT_MODEL at generation time. The setting is a
+    # single mutable global, so reading it back later would misattribute every
+    # historical row after an admin switches models — same reasoning as
+    # InvoiceItem storing unit_price instead of following a mutable plan.
+    # Empty means the row predates tracking; never backfilled, because the model
+    # that produced it is unrecoverable.
+    model = models.CharField(max_length=150, blank=True, default="", db_index=True)
+
     # Prompt injection detection fields
     is_flagged = models.BooleanField(default=False, db_index=True)
     severity = models.CharField(

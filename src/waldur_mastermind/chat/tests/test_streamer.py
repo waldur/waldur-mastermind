@@ -1378,6 +1378,77 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         self.assertEqual(word_count, 30)
 
 
+class LLMStreamerModelSnapshotTest(_LLMStreamerTestBase, drf_test.APITestCase):
+    """AI_ASSISTANT_MODEL is a mutable global, so the model that produced a turn
+    has to be recorded on the row at write time. There are two persistence
+    paths and both must record it — a miss on either leaves blanks that are
+    indistinguishable from rows written before tracking existed.
+    """
+
+    def _make_thread_session(self):
+        user = structure_factories.UserFactory()
+        session = ChatSession.objects.create(user=user)
+        return ThreadSession.objects.create(chat_session=session, name="test")
+
+    def test_streaming_captures_the_configured_model(self):
+        streamer = self._make_streamer([_make_chunk(content="Hello")])
+        list(streamer)
+
+        self.assertEqual(streamer.model, "test-model")
+
+    def test_create_path_records_the_model(self):
+        # _persist_messages is invoked directly rather than via list(streamer):
+        # the LLM path runs it on a worker thread with its own connection,
+        # which cannot see rows created inside this test's transaction.
+        thread = self._make_thread_session()
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+            original_input="hi",
+        )
+        streamer.model = "test-model"
+        streamer._absorb_block({"id": "blk_0", "k": "markdown", "c": "Hello"})
+        streamer._persist_messages()
+
+        assistant = thread.messages.get(role=Message.Role.ASSISTANT)
+        self.assertEqual(assistant.model, "test-model")
+
+    def test_placeholder_path_records_the_model(self):
+        # The regenerate/placeholder branch assigns onto an existing row and
+        # saves with an explicit update_fields list, so a new field is dropped
+        # silently unless it is added there too.
+        thread = self._make_thread_session()
+        user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("hi"),
+            sequence_index=1,
+        )
+        placeholder = Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            blocks=[],
+            sequence_index=2,
+        )
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+            user_msg=user_msg,
+            assistant_msg=placeholder,
+        )
+        streamer.model = "test-model"
+        streamer._absorb_block({"id": "blk_0", "k": "markdown", "c": "Hello world"})
+        streamer._persist_messages()
+
+        placeholder.refresh_from_db()
+        self.assertEqual(placeholder.model, "test-model")
+
+
 class BlockAccumulatorTest(unittest.TestCase):
     """Unit tests for LLMStreamer's blocks accumulator (no LLM, no DB)."""
 

@@ -293,6 +293,30 @@ class AnonymousChatConversationSerializer(serializers.Serializer):
     offerings_clicked = serializers.IntegerField(
         help_text="Click-throughs on recommended offerings; repeat clicks count separately."
     )
+    models_used = serializers.CharField(
+        allow_blank=True,
+        help_text=(
+            "Comma-separated distinct LLM models across the conversation. More "
+            "than one when AI_ASSISTANT_MODEL was switched partway through; "
+            "blank for conversations predating model tracking."
+        ),
+    )
+    is_reviewed = serializers.BooleanField(
+        help_text=(
+            "True once the nightly LLM judge has scored this conversation. "
+            "One verdict per conversation, recorded on its last turn; a "
+            "conversation is never re-judged."
+        )
+    )
+    input_tokens = serializers.IntegerField(
+        help_text="Prompt tokens summed over the conversation; 0 for turns predating token tracking."
+    )
+    output_tokens = serializers.IntegerField(
+        help_text="Completion tokens summed over the conversation."
+    )
+    total_tokens = serializers.IntegerField(
+        help_text="input_tokens + output_tokens. Excludes LLM judge spend, which runs on its own budget."
+    )
     started = serializers.DateTimeField(allow_null=True)
     last_active = serializers.DateTimeField(allow_null=True)
 
