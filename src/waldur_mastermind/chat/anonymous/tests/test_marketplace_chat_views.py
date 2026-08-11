@@ -170,6 +170,27 @@ class StreamHappyPathTest(test.APITestCase):
         self.assertEqual(interaction.output_tokens, 20)
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    @override_constance_config(**_ANONYMOUS_LIVE, AI_ASSISTANT_MODEL="test-model")
+    def test_persists_the_model_that_produced_the_turn(self, mock_openai_cls):
+        mock_openai_cls.return_value = _mock_openai_client(
+            [_make_content_chunk("Hello!"), _make_usage_chunk(10, 20)]
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "input": "what HPC services do you have?",
+                "session_id": "session-abc",
+            },
+        )
+        b"".join(response.streaming_content)
+
+        # AI_ASSISTANT_MODEL is a mutable global, so without this snapshot the
+        # token counts above become uninterpretable after a model switch.
+        interaction = anonymous_models.AnonymousChatInteraction.objects.get()
+        self.assertEqual(interaction.model, "test-model")
+
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(**_ANONYMOUS_LIVE)
     def test_session_id_reused_from_different_ip_returns_403(self, mock_openai_cls):
         mock_openai_cls.return_value = _mock_openai_client(

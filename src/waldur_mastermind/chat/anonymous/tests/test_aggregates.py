@@ -216,3 +216,74 @@ class AggregatesTest(TestCase):
         # is the stable pseudonym staff should rely on).
         self.assertNotIn("last_ip", u1)
         self.assertEqual(u1["no_feedback"], 2)
+
+
+class SessionModelsUsedTest(TestCase):
+    def _mk(self, model, session_id="s1"):
+        return models.AnonymousChatInteraction.objects.create(
+            session_id=session_id,
+            user_slug="u1",
+            user_input="x",
+            model=model,
+        )
+
+    def test_lists_the_models_a_conversation_used(self):
+        # `model` is a column on the interaction itself, so it aggregates in the
+        # same pass — unlike clicks, which need their own query to avoid
+        # multiplying the interaction rows.
+        self._mk("old-model")
+        self._mk("new-model")
+
+        [row] = aggregates.session_aggregates(
+            models.AnonymousChatInteraction.objects.all()
+        )
+
+        self.assertEqual(
+            sorted(row["models_used"].split(", ")), ["new-model", "old-model"]
+        )
+        self.assertEqual(row["message_count"], 2)
+
+    def test_is_blank_before_model_tracking(self):
+        self._mk("")
+
+        [row] = aggregates.session_aggregates(
+            models.AnonymousChatInteraction.objects.all()
+        )
+
+        self.assertEqual(row["models_used"], "")
+
+
+class SessionIsReviewedTest(TestCase):
+    def _mk(self, reviewed):
+        interaction = models.AnonymousChatInteraction.objects.create(
+            session_id="s1", user_slug="u1", user_input="x"
+        )
+        models.AnonymousChatFeedback.objects.create(
+            interaction=interaction,
+            score=1,
+            llm_reviewed_at=timezone.now() if reviewed else None,
+        )
+        return interaction
+
+    def test_flags_a_conversation_the_judge_has_scored(self):
+        # The judge scores a whole conversation in one call and records the
+        # verdict on its last turn, so a scored conversation is a fact about
+        # the conversation rather than a fraction of its turns.
+        self._mk(reviewed=True)
+        self._mk(reviewed=False)
+
+        [row] = aggregates.session_aggregates(
+            models.AnonymousChatInteraction.objects.all()
+        )
+
+        self.assertTrue(row["is_reviewed"])
+        self.assertEqual(row["message_count"], 2)
+
+    def test_does_not_flag_a_conversation_the_judge_has_not_reached(self):
+        self._mk(reviewed=False)
+
+        [row] = aggregates.session_aggregates(
+            models.AnonymousChatInteraction.objects.all()
+        )
+
+        self.assertFalse(row["is_reviewed"])

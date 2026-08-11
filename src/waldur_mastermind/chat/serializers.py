@@ -475,6 +475,15 @@ class ThreadSessionSerializer(
     user_full_name = serializers.CharField(
         source="chat_session.user.full_name", read_only=True
     )
+    models_used = serializers.CharField(
+        read_only=True,
+        allow_blank=True,
+        help_text=(
+            "Comma-separated distinct LLM models across the thread's messages. "
+            "More than one when an admin switched AI_ASSISTANT_MODEL mid-thread; "
+            "blank for threads written before model tracking existed."
+        ),
+    )
     is_flagged = serializers.SerializerMethodField()
     max_severity = serializers.SerializerMethodField()
     has_feedback = serializers.BooleanField(read_only=True)
@@ -493,6 +502,7 @@ class ThreadSessionSerializer(
             "total_tokens",
             "title_gen_input_tokens",
             "title_gen_output_tokens",
+            "models_used",
             "is_flagged",
             "max_severity",
             "has_feedback",

@@ -14,10 +14,13 @@ from django.db.models import (
     Max,
     Min,
     Q,
+    StringAgg,
     Sum,
+    TextField,
     Value,
     When,
 )
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from waldur_mastermind.chat.anonymous import models
@@ -118,14 +121,16 @@ _SEVERITY_RANK = {
 _RANK_TO_SEVERITY = {rank: value for value, rank in _SEVERITY_RANK.items()}
 
 
-def session_aggregates(qs):
-    """Per-session aggregate rows — one row per anonymous conversation.
+def conversation_queryset(qs):
+    """The grouped conversation rows, before the click join and row build.
 
-    Mirrors the authenticated ThreadSession table: a conversation is a
-    ``session_id`` group. Severity collapses to the highest level seen in the
-    conversation, and feedback/flagged collapse to booleans.
+    Split out so callers can narrow on the aggregates themselves: filtering
+    this queryset lands in HAVING, which selects whole conversations. The
+    same predicate applied to ``qs`` would drop individual turns and
+    re-aggregate the survivors, quietly rewriting every other column on a
+    partially-matching conversation.
     """
-    grouped = (
+    return (
         qs.exclude(session_id="")
         .values("session_id")
         .annotate(
@@ -134,6 +139,11 @@ def session_aggregates(qs):
             flagged_count=Count("uuid", filter=Q(is_flagged=True)),
             positive_feedback=Count("uuid", filter=Q(feedback__score=1)),
             negative_feedback=Count("uuid", filter=Q(feedback__score=-1)),
+            # Same 1:1 feedback join as the two counts above, so this adds no
+            # row multiplication.
+            reviewed_count=Count(
+                "uuid", filter=Q(feedback__llm_reviewed_at__isnull=False)
+            ),
             offerings_shown=Sum("result_count"),
             severity_rank=Max(
                 Case(
@@ -145,11 +155,42 @@ def session_aggregates(qs):
                     output_field=IntegerField(),
                 )
             ),
+            # Safe in this annotate(): model is a column on the interaction
+            # row, so unlike clicks it adds no join and cannot multiply rows.
+            models_used=Coalesce(
+                StringAgg("model", Value(", "), distinct=True, filter=~Q(model="")),
+                Value(""),
+                output_field=TextField(),
+            ),
+            # Suffixed rather than named after the public field: a bare
+            # ``input_tokens`` alias shadows the concrete column, and a later
+            # .filter() on that name can resolve to the column and emit WHERE
+            # instead of HAVING — turn-level narrowing wearing a
+            # conversation-level name.
+            input_tokens_sum=Coalesce(Sum("input_tokens"), Value(0)),
+            output_tokens_sum=Coalesce(Sum("output_tokens"), Value(0)),
+            total_tokens=Coalesce(Sum("input_tokens"), Value(0))
+            + Coalesce(Sum("output_tokens"), Value(0)),
             started=Min("created"),
             last_active=Max("created"),
         )
         .order_by("-last_active")
     )
+
+
+def session_aggregates(qs, grouped=None):
+    """Per-session aggregate rows — one row per anonymous conversation.
+
+    Mirrors the authenticated ThreadSession table: a conversation is a
+    ``session_id`` group. Severity collapses to the highest level seen in the
+    conversation, and feedback/flagged collapse to booleans.
+
+    ``grouped`` accepts an already-narrowed :func:`conversation_queryset` so
+    the caller can apply HAVING-level filters; ``qs`` is still needed for the
+    click join, which counts against the unfiltered interaction rows.
+    """
+    if grouped is None:
+        grouped = conversation_queryset(qs)
     # Counted in its own query rather than as another annotate(): clicks is a
     # non-unique FK, so joining it here would multiply the interaction rows and
     # silently inflate message_count and offerings_shown.
@@ -175,6 +216,14 @@ def session_aggregates(qs):
                 > 0,
                 "offerings_shown": row["offerings_shown"] or 0,
                 "offerings_clicked": click_counts.get(row["session_id"], 0),
+                "models_used": row["models_used"],
+                # Same shape as is_flagged above: the count stays an internal
+                # annotation so the conversation filterset can use it in
+                # HAVING, while the row carries the fact callers actually want.
+                "is_reviewed": row["reviewed_count"] > 0,
+                "input_tokens": row["input_tokens_sum"],
+                "output_tokens": row["output_tokens_sum"],
+                "total_tokens": row["total_tokens"],
                 "started": row["started"],
                 "last_active": row["last_active"],
             }

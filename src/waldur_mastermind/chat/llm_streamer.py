@@ -195,6 +195,7 @@ class LLMStreamer:
         self.user = user
         self.input_tokens = None
         self.output_tokens = None
+        self.model = ""
         self.error = None
         self.thread = thread
         self.original_input = original_input
@@ -338,6 +339,9 @@ class LLMStreamer:
     def _stream_completion(self, messages, include_tools=True, round_num: int = 0):
         """Open a streaming chat completion and yield SDK chunk objects."""
         model = config.AI_ASSISTANT_MODEL
+        # Captured for persistence: the setting is a mutable global, so the
+        # value has to be recorded now, not looked up when the row is saved.
+        self.model = model
         backend_type = config.AI_ASSISTANT_BACKEND_TYPE
         _completion_kwargs = config.AI_ASSISTANT_COMPLETION_KWARGS
         completion_kwargs = (
@@ -1227,12 +1231,14 @@ class LLMStreamer:
         self.assistant_msg.warning = self.accumulated_warning
         self.assistant_msg.input_tokens = self.input_tokens
         self.assistant_msg.output_tokens = self.output_tokens
+        self.assistant_msg.model = self.model
         self.assistant_msg.save(
             update_fields=[
                 "blocks",
                 "warning",
                 "input_tokens",
                 "output_tokens",
+                "model",
                 "modified",
             ]
         )
@@ -1307,6 +1313,7 @@ class LLMStreamer:
                 sequence_index=user_msg.sequence_index + 1,
                 input_tokens=self.input_tokens,
                 output_tokens=self.output_tokens,
+                model=self.model,
             )
         return user_msg, assistant_msg
 

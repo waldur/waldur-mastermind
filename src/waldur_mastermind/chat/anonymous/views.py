@@ -17,7 +17,8 @@ from django.db.models import Avg, Count, Q, Sum
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import decorators, status, viewsets
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -449,6 +450,11 @@ class MarketplaceChatViewSet(viewsets.ViewSet):
                     }
                 ),
                 action_taken=detection.action.value,
+                # Snapshot now: the setting is a mutable global, so a later
+                # lookup would misattribute this turn after a model switch.
+                # This is the chat model — the judge reads the setting on its
+                # own path and must not overwrite it.
+                model=config.AI_ASSISTANT_MODEL,
             )
 
         feedback_token = compute_feedback_token(
@@ -609,6 +615,91 @@ class MarketplaceChatViewSet(viewsets.ViewSet):
             raise rf_exceptions.PermissionDenied(_("Invalid feedback token."))
 
 
+CONVERSATION_TOKEN_PARAMS = (
+    "input_tokens_min",
+    "input_tokens_max",
+    "output_tokens_min",
+    "output_tokens_max",
+    "total_tokens_min",
+    "total_tokens_max",
+)
+CONVERSATION_DATE_PARAMS = ("last_active_after", "last_active_before")
+CONVERSATION_FLAG_PARAMS = ("is_reviewed",)
+
+
+def conversation_parameters():
+    """OpenAPI docs for the conversation-level params.
+
+    Hand-written because they live on a second filterset, which
+    drf-spectacular cannot discover from ``filterset_class``; without them a
+    generated client types the query as ``never`` and forbids the very
+    params the endpoint accepts.
+    """
+    return (
+        [
+            OpenApiParameter(
+                name,
+                OpenApiTypes.NUMBER,
+                OpenApiParameter.QUERY,
+                description=(
+                    "Conversation-level bound: selects whole conversations by "
+                    "their summed spend, never individual turns."
+                ),
+            )
+            for name in CONVERSATION_TOKEN_PARAMS
+        ]
+        + [
+            OpenApiParameter(
+                name,
+                OpenApiTypes.DATE,
+                OpenApiParameter.QUERY,
+                description=(
+                    "Bound on the conversation's most recent turn. Inclusive of "
+                    "the boundary day."
+                ),
+            )
+            for name in CONVERSATION_DATE_PARAMS
+        ]
+        + [
+            OpenApiParameter(
+                name,
+                OpenApiTypes.BOOL,
+                OpenApiParameter.QUERY,
+                description=(
+                    "Whether the nightly LLM judge has scored the conversation."
+                ),
+            )
+            for name in CONVERSATION_FLAG_PARAMS
+        ]
+    )
+
+
+def _narrow_to_matching_conversations(qs, request):
+    """Drop turns belonging to conversations the aggregate bounds exclude.
+
+    The KPI aggregates interactions, but the widget it feeds is handed the
+    table's whole filter object. Ignoring these bounds here would leave the
+    headline numbers describing a wider set than the rows beneath them.
+    Membership is resolved per conversation, so a conversation that qualifies
+    contributes all of its turns.
+    """
+    if not any(
+        request.GET.get(name)
+        for name in (
+            *CONVERSATION_TOKEN_PARAMS,
+            *CONVERSATION_DATE_PARAMS,
+            *CONVERSATION_FLAG_PARAMS,
+        )
+    ):
+        return qs
+    matching = anonymous_filters.AnonymousChatConversationFilter(
+        request.GET,
+        queryset=aggregates.conversation_queryset(qs),
+        request=request,
+    ).qs
+    return qs.filter(session_id__in=matching.values("session_id"))
+
+
 class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
     """Staff/support only. ``get_queryset`` returns ``.none()`` for anyone outside the role gate
     so a future action missing ``_permissions`` can't leak transcripts.
@@ -723,11 +814,19 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
         responses={
             200: anonymous_serializers.AnonymousChatConversationSerializer(many=True)
         },
+        parameters=conversation_parameters(),
     )
     @decorators.action(detail=False, methods=["get"], url_path="conversations")
     def conversations(self, request):
         qs = self.filter_queryset(self.get_queryset())
-        rows = aggregates.session_aggregates(qs)
+        # Two filtersets, two levels: the one above narrowed turns, this one
+        # narrows the conversations those turns roll up into.
+        grouped = anonymous_filters.AnonymousChatConversationFilter(
+            request.GET,
+            queryset=aggregates.conversation_queryset(qs),
+            request=request,
+        ).qs
+        rows = aggregates.session_aggregates(qs, grouped=grouped)
         return Response(
             anonymous_serializers.AnonymousChatConversationSerializer(
                 rows, many=True
@@ -742,10 +841,18 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             "the same parameters work as on the list endpoint."
         ),
         responses={200: anonymous_serializers.AnonymousChatKpiResponseSerializer},
+        # The description above promises filters are honoured; without this
+        # drf-spectacular documents none of them for a custom action, and
+        # generated clients type the query as `never`.
+        filters=True,
+        # The widget is scoped by the table's filter object, conversation-level
+        # bounds included, so the KPI documents and honours them too.
+        parameters=conversation_parameters(),
     )
     @decorators.action(detail=False, methods=["get"])
     def kpi(self, request):
         qs = self.filter_queryset(self.get_queryset())
+        qs = _narrow_to_matching_conversations(qs, request)
 
         agg = qs.aggregate(
             interactions_total=Count("uuid"),
@@ -798,7 +905,11 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             llm_reviewed_at__isnull=False,
         )
         review_agg = reviewed_qs.aggregate(
-            reviewed_total=Count("interaction"),
+            # Distinct sessions, not interactions: the judge reviews a thread,
+            # and the verdict happens to be stored on one of its interaction
+            # feedback rows. Counting rows would report turns under a label
+            # ("Reviewed", against a thread total) that means threads.
+            reviewed_total=Count("interaction__session_id", distinct=True),
             avg_resolution=Avg("llm_resolution_score"),
             hallucinations=Count(
                 "interaction", filter=Q(llm_hallucination_detected=True)
