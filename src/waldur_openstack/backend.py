@@ -5928,8 +5928,22 @@ class OpenStackBackend(ServiceBackend):
                     except (
                         neutron_exceptions.IpAddressAlreadyAllocatedClient,
                         neutron_exceptions.IpAddressInUseClient,
-                    ):
-                        created_port = self._find_reusable_port(admin_neutron, new_port)
+                    ) as allocation_error:
+                        # Reclaiming is best effort. A failure while looking up
+                        # the address holder must not replace the allocation
+                        # error with a secondary one, or the reported failure
+                        # points at the lookup rather than the taken address.
+                        try:
+                            created_port = self._find_reusable_port(
+                                admin_neutron, new_port
+                            )
+                        except neutron_exceptions.NeutronClientException:
+                            logger.warning(
+                                "Failed to look up which port holds the address "
+                                "requested for instance %s.",
+                                instance.backend_id,
+                            )
+                            raise allocation_error from None
                         if created_port is None:
                             raise
                         logger.info(
