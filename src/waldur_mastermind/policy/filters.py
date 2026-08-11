@@ -30,6 +30,22 @@ class ProjectEstimatedCostPolicyFilter(PolicyFilter):
     project_uuid = core_filters.RelatedUUIDFilter(
         view_name="project-detail", field_name="scope__uuid"
     )
+    # A policy with `resource` set measures only that resource's invoice items,
+    # so it belongs to that resource rather than to a project-wide view. Exact
+    # match, like the scope filters above: a project-wide policy has
+    # resource=null and is deliberately not returned by a resource query.
+    resource = core_filters.URLFilter(
+        view_name="marketplace-resource-detail", field_name="resource__uuid"
+    )
+    resource_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-resource-detail", field_name="resource__uuid"
+    )
+    # The complement, so a project-wide view can ask for just the policies it
+    # can honestly plot rather than fetching all of them and discarding the
+    # resource-scoped rows client-side.
+    has_resource = django_filters.BooleanFilter(
+        field_name="resource", lookup_expr="isnull", exclude=True
+    )
     query = django_filters.CharFilter(method="filter_query")
 
     class Meta:
