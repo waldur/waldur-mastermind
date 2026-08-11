@@ -1212,6 +1212,16 @@ class ServiceProviderSerializer(
     organization_groups = structure_serializers.OrganizationGroupSerializer(
         many=True, read_only=True
     )
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    allowed_domains = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_(
+            "List of allowed domains for offering endpoints. "
+            "Only staff can modify this field. "
+        ),
+    )
 
     def get_fields(self):
         fields = super().get_fields()
@@ -3530,6 +3540,18 @@ class NestedSoftwareCatalogSerializer(serializers.ModelSerializer):
     catalog = CatalogSummarySerializer(read_only=True)
     partition = PartitionSummarySerializer(read_only=True, allow_null=True)
     package_count = serializers.SerializerMethodField()
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    enabled_cpu_family = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of enabled CPU families: ['x86_64', 'aarch64']"),
+    )
+    enabled_cpu_microarchitectures = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of enabled CPU microarchitectures: ['generic', 'zen3']"),
+    )
 
     class Meta:
         model = models.OfferingSoftwareCatalog
@@ -13090,6 +13112,17 @@ class SoftwareCatalogDiscoverSerializer(serializers.Serializer):
 class NestedSoftwareTargetSerializer(serializers.ModelSerializer):
     """Nested serializer for unified SoftwareTarget model."""
 
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    gpu_architectures = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_(
+            "List of GPU architectures this target supports "
+            "(e.g., ['nvidia/cc70', 'nvidia/cc90'])"
+        ),
+    )
+
     class Meta:
         model = models.SoftwareTarget
         fields = (
@@ -13341,6 +13374,19 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
 class SoftwareTargetSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for unified SoftwareTarget model."""
 
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension. `read_only` is set
+    # here rather than inherited from Meta.read_only_fields, which DRF applies
+    # via extra_kwargs and therefore never reaches a declared field.
+    gpu_architectures = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+        help_text=_(
+            "List of GPU architectures this target supports "
+            "(e.g., ['nvidia/cc70', 'nvidia/cc90'])"
+        ),
+    )
+
     class Meta:
         model = models.SoftwareTarget
         fields = (
@@ -13385,6 +13431,18 @@ class OfferingSoftwareCatalogSerializer(serializers.ModelSerializer):
     partition_name = serializers.CharField(
         source="partition.partition_name", read_only=True
     )
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    enabled_cpu_family = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of enabled CPU families: ['x86_64', 'aarch64']"),
+    )
+    enabled_cpu_microarchitectures = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of enabled CPU microarchitectures: ['generic', 'zen3']"),
+    )
 
     class Meta:
         model = models.OfferingSoftwareCatalog
@@ -13420,6 +13478,18 @@ class OfferingSoftwareCatalogUpdateSerializer(serializers.ModelSerializer):
         queryset=models.OfferingPartition.objects.all(),
         required=False,
         allow_null=True,
+    )
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    enabled_cpu_family = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of enabled CPU families: ['x86_64', 'aarch64']"),
+    )
+    enabled_cpu_microarchitectures = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of enabled CPU microarchitectures: ['generic', 'zen3']"),
     )
 
     class Meta:

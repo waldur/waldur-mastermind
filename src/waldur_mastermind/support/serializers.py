@@ -1331,6 +1331,14 @@ class ProviderSupportUserSerializer(
     def get_has_capacity(self, obj):
         return obj.has_capacity
 
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    skills = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of skill tags for routing."),
+    )
+
     class Meta:
         model = models.ProviderSupportUser
         fields = (

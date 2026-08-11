@@ -2530,6 +2530,15 @@ class ReviewerPublicationSerializer(
 ):
     """Serializer for reviewer publications."""
 
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension. The child is left
+    # unconstrained because entries are {"name": ..., "orcid": ...} objects,
+    # and plain name strings are still accepted for legacy records.
+    coauthors = serializers.ListField(
+        required=False,
+        help_text=_("List of co-author names and identifiers"),
+    )
+
     class Meta:
         model = models.ReviewerPublication
         fields = [
@@ -2558,6 +2567,13 @@ class ReviewerProfileSerializer(
     user_uuid = serializers.UUIDField(source="user.uuid", read_only=True)
     affiliations = ReviewerAffiliationSerializer(many=True, read_only=True)
     expertise_set = ReviewerExpertiseSerializer(many=True, read_only=True)
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    alternative_names = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of name variants used in publications"),
+    )
     publications = ReviewerPublicationSerializer(many=True, read_only=True)
     stats = ReviewerStatsSerializer(read_only=True)
     orcid_connected = serializers.SerializerMethodField()
@@ -2624,6 +2640,14 @@ class ReviewerProfileSerializer(
 
 class ReviewerProfileCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating a reviewer profile."""
+
+    # Declared explicitly so the schema renders an array; a bare JSONField is
+    # mapped to a free-form object by JSONFieldExtension.
+    alternative_names = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("List of name variants used in publications"),
+    )
 
     class Meta:
         model = models.ReviewerProfile
