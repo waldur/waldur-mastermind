@@ -5803,6 +5803,48 @@ class OpenStackBackend(ServiceBackend):
             # finally, mark all instance ports with backend_id as OK
             instance.ports.exclude(backend_id="").update(state=CoreStates.OK)
 
+    def _find_reusable_port(self, admin_neutron, local_port: models.Port):
+        """Find a leftover Neutron port holding the address `local_port` asks for.
+
+        Returns the port to adopt, or None when the address is held by something we
+        must not touch — in which case the caller re-raises the allocation error.
+
+        Ports stranded by an earlier failed attach keep their address allocated
+        while no longer being reachable: they are unbound, so they never show up in
+        `list_ports(device_id=...)`, and the local row that would have named them
+        was never given a backend_id. Adopting one is only safe when it sits in the
+        expected subnet, belongs to the same tenant, is attached to nothing, and is
+        claimed by no other local port.
+        """
+        wanted = {
+            (fixed_ip["subnet_id"], fixed_ip["ip_address"])
+            for fixed_ip in local_port.fixed_ips or []
+            if fixed_ip.get("subnet_id") and fixed_ip.get("ip_address")
+        }
+        if not wanted:
+            return None
+
+        subnet_id, ip_address = sorted(wanted)[0]
+        candidates = admin_neutron.list_ports(
+            fixed_ips=[f"subnet_id={subnet_id}", f"ip_address={ip_address}"]
+        )["ports"]
+
+        for candidate in candidates:
+            if candidate.get("device_id") or candidate.get("device_owner"):
+                continue
+            if candidate.get("tenant_id") != local_port.tenant.backend_id:
+                continue
+            found = {
+                (fixed_ip["subnet_id"], fixed_ip["ip_address"])
+                for fixed_ip in candidate["fixed_ips"]
+            }
+            if found != wanted:
+                continue
+            if models.Port.objects.filter(backend_id=candidate["id"]).exists():
+                continue
+            return candidate
+        return None
+
     @log_backend_action()
     def push_instance_ports(self, instance: models.Instance):
         session = get_tenant_session(instance.tenant)
@@ -5822,7 +5864,7 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
         # delete stale ports
-        existing_instance_ids = instance.ports.values_list("backend_id", flat=True)
+        existing_instance_ids = set(instance.ports.values_list("backend_id", flat=True))
         for backend_port in backend_ports:
             if backend_port["id"] not in existing_instance_ids:
                 try:
@@ -5879,16 +5921,34 @@ class OpenStackBackend(ServiceBackend):
                         instance.backend_id,
                         new_port.subnet.backend_id,
                     )
-                    created_port = admin_neutron.create_port({"port": port_payload})[
-                        "port"
-                    ]
-                    nova.servers.interface_attach(
-                        instance.backend_id, created_port["id"], None, None
-                    )
+                    try:
+                        created_port = admin_neutron.create_port(
+                            {"port": port_payload}
+                        )["port"]
+                    except (
+                        neutron_exceptions.IpAddressAlreadyAllocatedClient,
+                        neutron_exceptions.IpAddressInUseClient,
+                    ):
+                        created_port = self._find_reusable_port(admin_neutron, new_port)
+                        if created_port is None:
+                            raise
+                        logger.info(
+                            "Reusing unattached port %s, which already holds the "
+                            "address requested for instance %s.",
+                            created_port["id"],
+                            instance.backend_id,
+                        )
+                    # Record the port before attaching it. An attach failure used to
+                    # discard the id, leaving the port in Neutron with its address
+                    # still allocated and nothing referencing it, so every later run
+                    # tried to create it again and failed on that same address.
                     new_port.mac_address = created_port["mac_address"]
                     new_port.fixed_ips = created_port["fixed_ips"]
                     new_port.backend_id = created_port["id"]
                     new_port.save()
+                    nova.servers.interface_attach(
+                        instance.backend_id, created_port["id"], None, None
+                    )
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
             except nova_exceptions.ClientException as e:

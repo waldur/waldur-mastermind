@@ -2049,6 +2049,31 @@ class PushInstancePortsTest(BaseBackendTest):
         port.save()
         return instance, port
 
+    def _run_push(self, instance, tenant_neutron, admin_neutron):
+        """Run push_instance_ports against the given clients, return the nova mock."""
+
+        def fake_get_neutron_client(session):
+            return admin_neutron if session == "ADMIN" else tenant_neutron
+
+        with (
+            mock.patch(
+                "waldur_openstack.backend.get_tenant_session", return_value="TENANT"
+            ),
+            mock.patch.object(
+                OpenStackBackend,
+                "admin_session",
+                new_callable=mock.PropertyMock,
+                return_value="ADMIN",
+            ),
+            mock.patch(
+                "waldur_openstack.backend.get_neutron_client",
+                side_effect=fake_get_neutron_client,
+            ),
+            mock.patch("waldur_openstack.backend.get_nova_client") as mock_nova,
+        ):
+            self.backend.push_instance_ports(instance)
+        return mock_nova
+
     def test_new_port_is_created_via_admin_session(self):
         instance, port = self._prepare_new_port()
 
@@ -2100,3 +2125,138 @@ class PushInstancePortsTest(BaseBackendTest):
         mock_nova.return_value.servers.interface_attach.assert_called_once()
         port.refresh_from_db()
         self.assertEqual(port.backend_id, "created-port-id")
+
+    def _neutron_clients(self, created_port=None):
+        tenant_neutron = mock.Mock()
+        tenant_neutron.list_ports.return_value = {"ports": []}
+        admin_neutron = mock.Mock()
+        if created_port is not None:
+            admin_neutron.create_port.return_value = {"port": created_port}
+        return tenant_neutron, admin_neutron
+
+    def _orphaned_backend_port(self, port, **overrides):
+        backend_port = {
+            "id": "orphaned-port-id",
+            "mac_address": "fa:16:3e:00:00:02",
+            "fixed_ips": port.fixed_ips,
+            "device_id": "",
+            "device_owner": "",
+            "tenant_id": port.tenant.backend_id,
+        }
+        backend_port.update(overrides)
+        return backend_port
+
+    def test_backend_id_is_stored_before_attaching(self):
+        # The attach used to run first, so its failure threw away the id of a port
+        # that Neutron had already created — stranding it with the address still
+        # allocated and no way for a later run to find it again.
+        instance, port = self._prepare_new_port()
+        tenant_neutron, admin_neutron = self._neutron_clients(
+            created_port={
+                "id": "created-port-id",
+                "mac_address": "fa:16:3e:00:00:01",
+                "fixed_ips": port.fixed_ips,
+            }
+        )
+
+        def fake_get_neutron_client(session):
+            return admin_neutron if session == "ADMIN" else tenant_neutron
+
+        with (
+            mock.patch(
+                "waldur_openstack.backend.get_tenant_session", return_value="TENANT"
+            ),
+            mock.patch.object(
+                OpenStackBackend,
+                "admin_session",
+                new_callable=mock.PropertyMock,
+                return_value="ADMIN",
+            ),
+            mock.patch(
+                "waldur_openstack.backend.get_neutron_client",
+                side_effect=fake_get_neutron_client,
+            ),
+            mock.patch("waldur_openstack.backend.get_nova_client") as mock_nova,
+        ):
+            mock_nova.return_value.servers.interface_attach.side_effect = (
+                nova_exceptions.ClientException(500)
+            )
+            with self.assertRaises(OpenStackBackendError):
+                self.backend.push_instance_ports(instance)
+
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "created-port-id")
+
+    def test_orphaned_port_holding_the_address_is_reused(self):
+        instance, port = self._prepare_new_port()
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {
+            "ports": [self._orphaned_backend_port(port)]
+        }
+
+        mock_nova = self._run_push(instance, tenant_neutron, admin_neutron)
+
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "orphaned-port-id")
+        self.assertEqual(port.mac_address, "fa:16:3e:00:00:02")
+        mock_nova.return_value.servers.interface_attach.assert_called_once_with(
+            instance.backend_id, "orphaned-port-id", None, None
+        )
+
+    def test_address_held_by_an_attached_port_is_not_stolen(self):
+        instance, port = self._prepare_new_port()
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {
+            "ports": [
+                self._orphaned_backend_port(port, device_id="some-other-instance")
+            ]
+        }
+
+        with self.assertRaises(OpenStackBackendError):
+            self._run_push(instance, tenant_neutron, admin_neutron)
+
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "")
+
+    def test_address_held_by_another_tenant_is_not_stolen(self):
+        instance, port = self._prepare_new_port()
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {
+            "ports": [self._orphaned_backend_port(port, tenant_id="other-tenant")]
+        }
+
+        with self.assertRaises(OpenStackBackendError):
+            self._run_push(instance, tenant_neutron, admin_neutron)
+
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "")
+
+    def test_port_already_claimed_by_another_record_is_not_stolen(self):
+        instance, port = self._prepare_new_port()
+        factories.PortFactory(
+            tenant=self.fixture.tenant,
+            subnet=self.fixture.subnet,
+            backend_id="orphaned-port-id",
+        )
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {
+            "ports": [self._orphaned_backend_port(port)]
+        }
+
+        with self.assertRaises(OpenStackBackendError):
+            self._run_push(instance, tenant_neutron, admin_neutron)
+
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "")
