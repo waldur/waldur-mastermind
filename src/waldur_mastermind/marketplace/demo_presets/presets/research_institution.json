@@ -205,6 +205,12 @@
       "title": "Research Kubernetes",
       "description": "Kubernetes clusters for research workloads and containerized applications",
       "group_uuid": "d1e2f3a4b5c6789012345678abcdef01"
+    },
+    {
+      "uuid": "d20000000000000000000000000000aa",
+      "title": "Private Cloud",
+      "description": "OpenStack tenants backing research Kubernetes clusters",
+      "group_uuid": "d1e2f3a4b5c6789012345678abcdef01"
     }
   ],
   "service_providers": [
@@ -212,6 +218,64 @@
       "uuid": "e2000000000000000000000000000001",
       "customer_uuid": "b2000000000000000000000000000001",
       "description": "University Computing Center - Academic HPC and cloud services"
+    }
+  ],
+  "openstack_service_settings": [
+    {
+      "uuid": "0520000000000000000000000000000a",
+      "name": "University OpenStack",
+      "type": "OpenStack",
+      "backend_url": "https://openstack.university.example.com:5000/v3",
+      "username": "admin",
+      "password": "demo",
+      "domain": "Default",
+      "shared": true,
+      "is_active": true,
+      "state": 2,
+      "options": {},
+      "customer_uuid": "b2000000000000000000000000000001"
+    }
+  ],
+  "openstack_flavors": [
+    {
+      "name": "gp.medium",
+      "backend_id": "research_institution-gp.medium",
+      "cores": 4,
+      "ram": 16384,
+      "disk": 102400,
+      "settings_uuid": "0520000000000000000000000000000a"
+    },
+    {
+      "name": "gp.large",
+      "backend_id": "research_institution-gp.large",
+      "cores": 8,
+      "ram": 32768,
+      "disk": 204800,
+      "settings_uuid": "0520000000000000000000000000000a"
+    },
+    {
+      "name": "gp.xlarge",
+      "backend_id": "research_institution-gp.xlarge",
+      "cores": 16,
+      "ram": 65536,
+      "disk": 409600,
+      "settings_uuid": "0520000000000000000000000000000a"
+    },
+    {
+      "name": "gpu.2xlarge",
+      "backend_id": "research_institution-gpu.2xlarge",
+      "cores": 32,
+      "ram": 131072,
+      "disk": 819200,
+      "settings_uuid": "0520000000000000000000000000000a"
+    },
+    {
+      "name": "gpu.4xlarge",
+      "backend_id": "research_institution-gpu.4xlarge",
+      "cores": 64,
+      "ram": 262144,
+      "disk": 1638400,
+      "settings_uuid": "0520000000000000000000000000000a"
     }
   ],
   "offerings": [
@@ -359,6 +423,19 @@
         "tres_billing_enabled": true
       },
       "getting_started": "## Getting Started with SLURM Research Cluster\n\n### Login\n```bash\nssh username@slurm.university.edu\n```\n\n### Check Allocation\n```bash\nsacctmgr show user $USER format=User,Account,QOS\nsqueue -u $USER\n```\n\n### Submit Jobs\n```bash\n#!/bin/bash\n#SBATCH --job-name=my_job\n#SBATCH --nodes=2\n#SBATCH --ntasks-per-node=64\n#SBATCH --time=24:00:00\n#SBATCH --partition=research\n\nsrun ./my_simulation\n```\n\n### GPU Jobs\n```bash\n#SBATCH --gres=gpu:4\n#SBATCH --partition=gpu\n```\n\n### Support\n- Documentation: https://docs.slurm.university.edu/\n- Support: hpc-support@university.edu"
+    },
+    {
+      "uuid": "f20000000000000000000000000000aa",
+      "name": "University OpenStack Tenant",
+      "type": "OpenStack.Tenant",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d20000000000000000000000000000aa",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "scope_type": "structure.servicesettings",
+      "scope_uuid": "0520000000000000000000000000000a",
+      "description": "OpenStack tenant providing the compute infrastructure for research Kubernetes clusters. Select it as the infrastructure of a datacenter when configuring a cluster."
     }
   ],
   "offering_endpoints": [
