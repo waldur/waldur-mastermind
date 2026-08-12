@@ -1391,43 +1391,27 @@ class OfferingUserListPullTaskTest(testcases.TransactionTestCase):
             backend_id=uuid.uuid4().hex,
         )
 
-    def test_offering_with_service_provider_option_is_excluded(self):
+    def test_offering_users_are_pulled_regardless_of_plugin_options(self):
         """
-        Test that offerings with service_provider_can_create_offering_user=True
-        are excluded from the pull task.
+        Accounts of a remote offering are always managed by the remote Waldur,
+        so the pull must not depend on plugin options, which are synced
+        from the remote offering and typically carry
+        service_provider_can_create_offering_user=True.
         """
         task = tasks.OfferingUserListPullTask()
         pulled_objects = list(task.get_pulled_objects())
 
-        self.assertNotIn(
-            self.offering_with_option,
-            pulled_objects,
-            "Offering with service_provider_can_create_offering_user=True should be excluded",
-        )
-        self.assertIn(
-            self.offering_without_option,
-            pulled_objects,
-            "Offering without the option should be included",
-        )
+        self.assertIn(self.offering_with_option, pulled_objects)
+        self.assertIn(self.offering_without_option, pulled_objects)
 
-    def test_offering_with_false_option_is_included(self):
-        """
-        Test that offerings with service_provider_can_create_offering_user=False
-        are included in the pull task.
-        """
-        self.offering_with_option.plugin_options = {
-            "service_provider_can_create_offering_user": False
-        }
+    def test_offering_without_credentials_is_excluded(self):
+        self.offering_with_option.secret_options = {}
         self.offering_with_option.save()
 
         task = tasks.OfferingUserListPullTask()
-        pulled_objects = task.get_pulled_objects()
+        pulled_objects = list(task.get_pulled_objects())
 
-        self.assertIn(
-            self.offering_with_option,
-            pulled_objects,
-            "Offering with service_provider_can_create_offering_user=False should be included",
-        )
+        self.assertNotIn(self.offering_with_option, pulled_objects)
 
 
 @override_settings(
