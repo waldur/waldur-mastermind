@@ -8,6 +8,7 @@ OFFERING_FIELDS = (
     "country",
     "options",
     "resource_options",
+    "plugin_options",
     "access_url",
 )
 

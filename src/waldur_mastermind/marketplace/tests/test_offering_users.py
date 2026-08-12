@@ -102,6 +102,22 @@ class ListOfferingUsersTest(test.APITestCase):
         self.assertEqual(1, len(response.data))
         self.assertEqual("user3", response.data[0]["username"])
 
+    @data("owner", "admin", "manager")
+    def test_other_users_can_not_view_offering_users_when_offering_user_creation_disabled(
+        self, user
+    ):
+        offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        sample_user = UserFactory()
+        self.fixture.project.add_user(sample_user, ProjectRole.ADMIN)
+        OfferingUser.objects.create(
+            offering=offering, user=sample_user, username="remote-user"
+        )
+
+        response = self.list_permissions(user)
+        self.assertNotIn("remote-user", [row["username"] for row in response.data])
+
     def test_user_can_filter_offering_users(self):
         offering_user1 = OfferingUser.objects.get(username="user")
         offering_user1.save()

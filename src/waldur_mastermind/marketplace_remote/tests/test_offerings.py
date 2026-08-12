@@ -317,6 +317,19 @@ class OfferingDetailsPullTest(test.APITestCase):
         self.assertEqual(1, self.offering.components.count())
 
     @override_settings(task_always_eager=True)
+    def test_plugin_options_are_pulled(self):
+        self.remote_offering["plugin_options"] = {
+            "service_provider_can_create_offering_user": True,
+            "username_generation_policy": "waldur_username",
+        }
+        self.mock_offering_details(self.remote_offering)
+        self.task.pull(self.offering)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.remote_offering["plugin_options"], self.offering.plugin_options
+        )
+
+    @override_settings(task_always_eager=True)
     def test_pull_is_skipped_when_backend_id_is_empty(self):
         # An unlinked remote offering has an empty backend_id. Pulling it would
         # build a request to /api/marketplace-public-offerings// which collapses

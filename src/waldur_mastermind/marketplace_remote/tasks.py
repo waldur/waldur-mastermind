@@ -17,7 +17,6 @@ from celery.app import shared_task
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.db.models import Q
 from django.utils import dateparse, timezone
 from httpx import TransportError
 from rest_framework import exceptions as rf_exceptions
@@ -528,11 +527,11 @@ class OfferingUserListPullTask(BackgroundListPullTask):
     pull_task = OfferingUserPullTask
 
     def get_pulled_objects(self):
+        # Accounts of a remote offering are managed by the remote Waldur, so
+        # they are pulled independently of plugin options, which are synced
+        # from the remote offering.
         return models.Offering.objects.filter(
             type=REMOTE_OFFERING, secret_options__has_keys=["api_url", "token"]
-        ).filter(
-            Q(plugin_options__service_provider_can_create_offering_user__isnull=True)
-            | Q(plugin_options__service_provider_can_create_offering_user=False)
         )
 
 
