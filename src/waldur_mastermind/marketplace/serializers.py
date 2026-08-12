@@ -874,6 +874,12 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="List of disabled marketplace resource actions for this offering.",
     )
+    show_ssh_key_loss_warning = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Show a warning about unrecoverable loss of the SSH "
+        "private key on the OpenStack instance order form.",
+    )
 
     def validate_disabled_resource_actions(self, value):
         valid_actions = [choice[0] for choice in ResourceAction.CHOICES]

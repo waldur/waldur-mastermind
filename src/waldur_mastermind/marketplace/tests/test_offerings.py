@@ -1135,6 +1135,7 @@ class OfferingCreateTest(test.APITestCase):
             "expose_inference_playground": False,
             "highlight_backend_id_display": False,
             "require_effective_id_for_highlighted_display": False,
+            "show_ssh_key_loss_warning": False,
             "enable_posix_account": True,
             "homedir_prefix": "/home/",
             "login_shell": "/bin/bash",
@@ -4724,6 +4725,27 @@ class CheckUniqueBackendIdWithRulesTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data["is_unique"])
         self.assertTrue(response.data["is_valid_format"])
+
+
+class ShowSshKeyLossWarningTest(test.APITestCase):
+    def test_child_offering_serves_parent_flag(self):
+        fixture = fixtures.ProjectFixture()
+        parent = factories.OfferingFactory(
+            customer=fixture.customer,
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            plugin_options={"show_ssh_key_loss_warning": True},
+        )
+        child = factories.OfferingFactory(
+            customer=fixture.customer,
+            state=OfferingStates.ACTIVE,
+            parent=parent,
+        )
+        self.client.force_authenticate(fixture.staff)
+        url = factories.OfferingFactory.get_public_url(child)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["plugin_options"]["show_ssh_key_loss_warning"])
 
 
 class BackendIdRulesNotInPublicAPITest(test.APITestCase):
