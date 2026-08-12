@@ -50,6 +50,7 @@ Waldur implements several custom field types to enhance the configuration experi
 | `color_field` | Hex color code. | Color Picker | No |
 | `image_field` | Image upload. | File Upload | No |
 | `secret_field` | Sensitive data (masked in UI). | Password Input | No |
+| `non_empty_field` | String that may be changed but not blanked out. | Text Input | No |
 
 ## Practical Examples
 

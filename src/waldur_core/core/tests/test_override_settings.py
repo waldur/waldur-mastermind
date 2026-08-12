@@ -62,6 +62,22 @@ class OverrideSettingsTest(test.APITestCase):
         response = self._override_settings_and_get(payload)
         self.assertEqual(response.data["COUNTRIES"], ["US", "GB", "DE"])
 
+    def test_non_empty_field_can_be_changed(self):
+        payload = {"FREEIPA_GROUPNAME_PREFIX": "hpc_"}
+        response = self._override_settings_and_get(payload)
+        self.assertEqual(response.data["FREEIPA_GROUPNAME_PREFIX"], "hpc_")
+
+    def test_non_empty_field_can_not_be_blanked_out(self):
+        """
+        An empty FreeIPA prefix makes every entity in the directory look
+        Waldur-managed, so the group synchronization would delete all of them.
+        """
+        for key in ("FREEIPA_GROUPNAME_PREFIX", "FREEIPA_USERNAME_PREFIX"):
+            with self.subTest(key=key):
+                response = self.client.post(self.url, {key: ""})
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(key, response.data)
+
     def test_override_settings_mixed_fields(self):
         payload = {
             "WALDUR_SUPPORT_ENABLED": True,

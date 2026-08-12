@@ -1,5 +1,6 @@
 import collections
 import csv
+import logging
 from io import StringIO
 
 import python_freeipa
@@ -12,6 +13,8 @@ from waldur_core.quotas import models as quota_models
 from waldur_core.structure import models as structure_models
 
 from . import models, utils
+
+logger = logging.getLogger(__name__)
 
 
 class GroupSynchronizer:
@@ -214,7 +217,8 @@ class GroupSynchronizer:
             try:
                 self.client._request("group_detach", group)
             except python_freeipa.exceptions.NotFound:
-                return
+                # The group is already gone, other stale groups still have to be processed.
+                continue
             self.client.group_del(group)
 
     def sync_user_status(self):
@@ -235,8 +239,36 @@ class GroupSynchronizer:
             if not local_status and remote_status:
                 self.client.user_disable(profile.username)
 
+    def has_valid_prefixes(self):
+        """
+        Prefixes are the only marker distinguishing Waldur-managed entities
+        from the rest of the directory. An empty prefix matches everything,
+        so every group would be considered stale and deleted, and every group
+        member would be considered a stale membership.
+        """
+        empty_settings = [
+            name
+            for name, value in (
+                ("FREEIPA_GROUPNAME_PREFIX", self.group_prefix),
+                ("FREEIPA_USERNAME_PREFIX", self.user_prefix),
+            )
+            if not value
+        ]
+        if empty_settings:
+            logger.error(
+                "Skipping FreeIPA group synchronization because the following "
+                "settings are empty: %s. An empty prefix marks every group and "
+                "user in the directory as Waldur-managed, which would delete them.",
+                ", ".join(empty_settings),
+            )
+            return False
+        return True
+
     def sync(self):
         try:
+            if not self.has_valid_prefixes():
+                return
+
             self.collect_waldur_permissions()
             self.collect_waldur_customers()
             self.collect_waldur_projects()
