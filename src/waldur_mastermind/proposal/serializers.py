@@ -18,6 +18,7 @@ from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.validators import get_project_name_regex_error
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
@@ -885,7 +886,9 @@ class PublicCallSerializer(
     documents = CallDocumentSerializer(many=True, read_only=True)
     resource_templates = serializers.SerializerMethodField()
     fixed_duration_in_days = serializers.ReadOnlyField()
-    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    description = core_serializers.HTMLCleanField(
+        required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
+    )
     has_eligibility_restrictions = serializers.SerializerMethodField()
 
     class Meta:
@@ -1663,7 +1666,9 @@ class ProposalSerializer(
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(source="created_by.uuid", read_only=True)
     project_name = serializers.ReadOnlyField(source="project.name")
-    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    description = core_serializers.HTMLCleanField(
+        required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
+    )
 
     # Applicant attributes — gated by CallApplicantVisibilityConfig for reviewers.
     applicant_username = serializers.ReadOnlyField(source="created_by.username")
