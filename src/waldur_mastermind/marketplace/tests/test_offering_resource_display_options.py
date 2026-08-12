@@ -145,6 +145,16 @@ class OfferingResourceDisplayOptionsIntegrationTest(test.APITestCase):
             self.offering.plugin_options["auto_approve_remote_orders"], False
         )
 
+    def test_update_offering_plugin_options_with_show_ssh_key_loss_warning(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, "update_integration")
+        response = self.client.post(
+            url, {"plugin_options": {"show_ssh_key_loss_warning": True}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertTrue(self.offering.plugin_options["show_ssh_key_loss_warning"])
+
     def test_update_offering_plugin_options_with_default_display_values(self):
         """Test that default values are applied when not specified"""
         self.client.force_authenticate(self.fixture.staff)
