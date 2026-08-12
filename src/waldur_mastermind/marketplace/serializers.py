@@ -42,7 +42,12 @@ from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
-from waldur_core.core.models import NAME_LENGTH, User, get_ssh_key_fingerprints
+from waldur_core.core.models import (
+    DESCRIPTION_LENGTH,
+    NAME_LENGTH,
+    User,
+    get_ssh_key_fingerprints,
+)
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions import models as permission_models
@@ -2305,7 +2310,9 @@ class BasePlanSerializer(
         many=True, read_only=True
     )
     is_active = serializers.SerializerMethodField()
-    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    description = core_serializers.HTMLCleanField(
+        required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
+    )
     components = NestedPlanComponentSerializer(many=True, read_only=True)
 
     class Meta:
@@ -4221,7 +4228,10 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     options = OfferingOptionsSerializer(required=False)
     resource_options = OfferingOptionsSerializer(required=False)
     plugin_options = MergedPluginOptionsSerializer(required=False)
-    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    # full_description and vendor_details are TextField-backed, hence unbounded.
+    description = core_serializers.HTMLCleanField(
+        required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
+    )
     full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     vendor_details = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     offering_group = serializers.SlugRelatedField(
@@ -4453,7 +4463,10 @@ class OfferingOverviewUpdateSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    # full_description is TextField-backed, hence unbounded.
+    description = core_serializers.HTMLCleanField(
+        required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
+    )
     full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
     class Meta:

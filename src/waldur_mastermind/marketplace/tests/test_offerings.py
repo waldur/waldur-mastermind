@@ -25,8 +25,9 @@ from rest_framework import status, test
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
-from waldur_core.core.tests.helpers import load_json_resource
+from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION, load_json_resource
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
 from waldur_core.media.models import File
@@ -1296,6 +1297,84 @@ class OfferingUpdateOverviewTest(BaseOfferingUpdateTest):
 
         response = self.update_overview("owner")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class OfferingDescriptionLengthTest(BaseOfferingUpdateTest):
+    """Oversized descriptions must be rejected with 400, not blow up in the database."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def update_overview(self, description):
+        url = factories.OfferingFactory.get_url(self.offering, "update_overview")
+        return self.client.post(
+            url, {"name": self.offering.name, "description": description}
+        )
+
+    def test_description_over_limit_is_rejected(self):
+        response = self.update_overview("a" * (DESCRIPTION_LENGTH + 904))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+
+    def test_description_expanded_by_html_clean_is_rejected(self):
+        self.assertLess(len(EXPANDING_DESCRIPTION), DESCRIPTION_LENGTH)
+
+        response = self.update_overview(EXPANDING_DESCRIPTION)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+        self.assertIn("sanitisation", str(response.data["description"]))
+
+    def test_description_within_limit_is_accepted(self):
+        response = self.update_overview("a" * DESCRIPTION_LENGTH)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(len(self.offering.description), DESCRIPTION_LENGTH)
+
+    def test_full_description_is_not_length_limited(self):
+        # full_description is backed by a TextField, so it stays unbounded.
+        url = factories.OfferingFactory.get_url(self.offering, "update_overview")
+        response = self.client.post(
+            url,
+            {
+                "name": self.offering.name,
+                "full_description": "a" * (DESCRIPTION_LENGTH * 2),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+
+class OfferingCreateDescriptionLengthTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.category = factories.CategoryFactory()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def create_offering(self, description):
+        return self.client.post(
+            factories.OfferingFactory.get_list_url(),
+            {
+                "name": "offering",
+                "category": factories.CategoryFactory.get_url(self.category),
+                "customer": structure_factories.CustomerFactory.get_url(self.customer),
+                "type": "Support.OfferingTemplate",
+                "description": description,
+            },
+        )
+
+    def test_description_over_limit_is_rejected(self):
+        response = self.create_offering("a" * (DESCRIPTION_LENGTH + 904))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+
+    def test_description_expanded_by_html_clean_is_rejected(self):
+        response = self.create_offering(EXPANDING_DESCRIPTION)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+        self.assertIn("sanitisation", str(response.data["description"]))
 
 
 @ddt

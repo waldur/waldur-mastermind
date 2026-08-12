@@ -10,13 +10,14 @@ from django import forms
 from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import (
+    FieldDoesNotExist,
     ImproperlyConfigured,
     MultipleObjectsReturned,
     ObjectDoesNotExist,
 )
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
-from django.core.validators import RegexValidator, URLValidator
+from django.core.validators import MaxLengthValidator, RegexValidator, URLValidator
 from django.urls import Resolver404, reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -24,7 +25,7 @@ from drf_spectacular.utils import extend_schema_field
 from modeltranslation.manager import get_translatable_fields_for_model
 from rest_framework import serializers
 from rest_framework import serializers as rf_serializers
-from rest_framework.fields import Field, ReadOnlyField
+from rest_framework.fields import Field, ReadOnlyField, lazy_format
 from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import utils as core_utils
@@ -1057,6 +1058,14 @@ class HTMLCleanField(serializers.CharField):
     This field ensures consistent HTML sanitization across the application by
     automatically cleaning any HTML content that is provided to it.
 
+    When no explicit ``max_length`` is given and the field is declared on a
+    ``ModelSerializer``, the limit is inferred from the backing model field.
+    Without this, redeclaring a bounded column (e.g. ``CharField(max_length=4096)``)
+    as an ``HTMLCleanField`` would silently drop the length validator that a plain
+    ``ModelSerializer`` would have generated, and an oversized value would reach
+    the database and blow up with a ``DataError`` (HTTP 500) instead of a clean 400.
+    Fields backed by an unbounded column (``TextField``) stay unbounded.
+
     Usage:
         class MySerializer(serializers.ModelSerializer):
             description = HTMLCleanField()
@@ -1067,19 +1076,64 @@ class HTMLCleanField(serializers.CharField):
                 fields = ('description', 'content')
     """
 
+    def bind(self, field_name, parent):
+        super().bind(field_name, parent)
+        if self.max_length is not None:
+            return
+        max_length = self._get_model_field_max_length()
+        if max_length is None:
+            return
+        self.max_length = max_length
+        self.validators.append(
+            MaxLengthValidator(
+                max_length,
+                message=lazy_format(
+                    self.error_messages["max_length"], max_length=max_length
+                ),
+            )
+        )
+
+    def _get_model_field_max_length(self):
+        """Return max_length of the model field backing this serializer field."""
+        model = getattr(getattr(self.parent, "Meta", None), "model", None)
+        if model is None:
+            return None
+        source = self.source
+        if not source or source == "*" or "." in source:
+            return None
+        try:
+            model_field = model._meta.get_field(source)
+        except (FieldDoesNotExist, AttributeError):
+            return None
+        return getattr(model_field, "max_length", None)
+
     def to_internal_value(self, data):
         # First, let the parent CharField handle basic validation
         value = super().to_internal_value(data)
         if not value:
             return value
         # Then clean the HTML content if it's not empty
-        value = clean_html(value.strip())
-        if self.max_length is not None and len(value) > self.max_length:
+        stripped = value.strip()
+        cleaned = clean_html(stripped)
+        if (
+            self.max_length is not None
+            and len(cleaned) > self.max_length
+            and len(stripped) <= self.max_length
+        ):
+            # The input itself fits, so it only overflowed because sanitisation
+            # expanded it: & -> &amp; and so on. Say so explicitly, otherwise a
+            # user staring at a 4004-character box is told it exceeds 4096.
             raise serializers.ValidationError(
-                _("Value is too long (maximum %(max_length)s characters).")
-                % {"max_length": self.max_length}
+                _(
+                    "Value is too long after HTML sanitisation: %(length)s characters, "
+                    "maximum is %(max_length)s. Characters such as &, < and > are "
+                    "escaped during sanitisation and count as several characters."
+                )
+                % {"length": len(cleaned), "max_length": self.max_length}
             )
-        return value
+        # An input that was already over the limit is reported by the regular
+        # max_length validator, which runs on the value returned from here.
+        return cleaned
 
 
 class ConnectionStatsSerializer(serializers.Serializer):

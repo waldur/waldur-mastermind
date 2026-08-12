@@ -9,6 +9,8 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import DESCRIPTION_LENGTH
+from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.utils import has_user
@@ -160,6 +162,46 @@ class ProposalCreateTest(test.APITestCase):
         payload.update(kwargs)
 
         return self.client.post(self.url, payload)
+
+
+class ProposalDescriptionLengthTest(test.APITestCase):
+    """Oversized proposal descriptions must be rejected with 400, not blow up in the database."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.url = factories.ProposalFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def create_proposal(self, description):
+        return self.client.post(
+            self.url,
+            {
+                "name": "new",
+                "round_uuid": self.fixture.round.uuid.hex,
+                "duration_in_days": 10,
+                "description": description,
+            },
+        )
+
+    def test_description_over_limit_is_rejected(self):
+        response = self.create_proposal("a" * (DESCRIPTION_LENGTH + 904))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+
+    def test_description_expanded_by_html_clean_is_rejected(self):
+        self.assertLess(len(EXPANDING_DESCRIPTION), DESCRIPTION_LENGTH)
+
+        response = self.create_proposal(EXPANDING_DESCRIPTION)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+        self.assertIn("sanitisation", str(response.data["description"]))
+
+    def test_description_within_limit_is_accepted(self):
+        response = self.create_proposal("a" * DESCRIPTION_LENGTH)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        proposal = models.Proposal.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(len(proposal.description), DESCRIPTION_LENGTH)
 
 
 @ddt

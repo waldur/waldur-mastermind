@@ -5,6 +5,8 @@ from rest_framework import status, test
 
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.core.models import DESCRIPTION_LENGTH
+from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -286,6 +288,39 @@ class CallUpdateTest(test.APITransactionTestCase):
         call = models.Call.objects.get(uuid=self.call.uuid)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(call.documents.all()), 1)
+
+
+class CallDescriptionLengthTest(test.APITestCase):
+    """Oversized call descriptions must be rejected with 400, not blow up in the database."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.client.force_authenticate(self.fixture.staff)
+        self.url = factories.CallFactory.get_protected_url(self.call)
+
+    def test_description_over_limit_is_rejected(self):
+        response = self.client.patch(
+            self.url, {"description": "a" * (DESCRIPTION_LENGTH + 904)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+
+    def test_description_expanded_by_html_clean_is_rejected(self):
+        self.assertLess(len(EXPANDING_DESCRIPTION), DESCRIPTION_LENGTH)
+
+        response = self.client.patch(self.url, {"description": EXPANDING_DESCRIPTION})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("description", response.data)
+        self.assertIn("sanitisation", str(response.data["description"]))
+
+    def test_description_within_limit_is_accepted(self):
+        response = self.client.patch(
+            self.url, {"description": "a" * DESCRIPTION_LENGTH}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.call.refresh_from_db()
+        self.assertEqual(len(self.call.description), DESCRIPTION_LENGTH)
 
 
 @ddt
