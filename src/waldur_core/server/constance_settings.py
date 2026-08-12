@@ -13,6 +13,7 @@ LANGUAGE_CHOICES = [
     "nb",
     "ar",
     "cs",
+    "km",
 ]
 
 SCRIPT_RUN_MODE_CHOICES = [
