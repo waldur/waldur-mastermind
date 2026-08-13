@@ -266,6 +266,9 @@ CONSTANCE_ADDITIONAL_FIELDS = {
     "color_field": ["django.forms.CharField", {"required": False}],
     "html_field": ["django.forms.CharField", {"required": False}],
     "text_field": ["django.forms.CharField", {"required": False}],
+    # String setting that must not be blanked out - an empty value would change
+    # the meaning of the setting rather than just unset it.
+    "non_empty_field": ["django.forms.CharField", {"required": True}],
     "url_field": ["django.forms.URLField", {"required": False}],
     "secret_field": ["django.forms.CharField", {"required": False}],
     "dict_field": ["waldur_core.core.serializers.DictField", {"required": False}],
@@ -971,11 +974,15 @@ CONSTANCE_CONFIG = {
     ),
     "FREEIPA_USERNAME_PREFIX": (
         "waldur_",
-        "Prefix to be appended to all usernames created in FreeIPA by Waldur",
+        "Prefix to be appended to all usernames created in FreeIPA by Waldur. "
+        "It marks which accounts are managed by Waldur, so it may not be empty.",
+        "non_empty_field",
     ),
     "FREEIPA_GROUPNAME_PREFIX": (
         "waldur_",
-        "Prefix to be appended to all group names created in FreeIPA by Waldur",
+        "Prefix to be appended to all group names created in FreeIPA by Waldur. "
+        "It marks which groups are managed by Waldur, so it may not be empty.",
+        "non_empty_field",
     ),
     "FREEIPA_BLACKLISTED_USERNAMES": (
         ["root"],

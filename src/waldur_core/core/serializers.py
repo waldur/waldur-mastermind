@@ -684,6 +684,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 "text_field",
                 "url_field",
                 "secret_field",
+                "non_empty_field",
             ):
                 field_class = serializers.CharField
             if not field_class:
@@ -695,6 +696,10 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["allow_null"] = True
             if config_type == "secret_field":
                 kwargs["allow_blank"] = True
+            if config_type == "non_empty_field":
+                # The setting stays optional in the payload, but it cannot be
+                # blanked out once it is submitted.
+                kwargs["allow_blank"] = False
             if config_type == "color_field":
                 kwargs["validators"] = [color_hex_validator]
                 kwargs["allow_blank"] = True
