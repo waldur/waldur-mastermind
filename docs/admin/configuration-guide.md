@@ -2298,7 +2298,7 @@ Comma-separated list of columns for users table.
 
 **Type:** str
 
-**Default value:** en,et,lt,lv,ru,it,de,da,sv,es,fr,nb,ar,cs
+**Default value:** en,et,lt,lv,ru,it,de,da,sv,es,fr,nb,ar,cs,km
 
 List of enabled languages
 
