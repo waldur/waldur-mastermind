@@ -1,19 +1,30 @@
 from unittest import mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
+    BillingTypes,
+    OrderStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models, utils
-from waldur_mastermind.proposal.enums import ProposalStates
+from waldur_mastermind.proposal.enums import (
+    ProposalStates,
+    WorkflowStepInstanceStatuses,
+)
 from waldur_mastermind.proposal.tests import factories, fixtures
+
+PDF_BODY = b"%PDF-1.4 fake"
 
 
 def _pdf(name="po.pdf"):
-    return SimpleUploadedFile(name, b"%PDF-1.4 fake", content_type="application/pdf")
+    return SimpleUploadedFile(name, PDF_BODY, content_type="application/pdf")
 
 
 class RequirementDerivationTest(test.APITestCase):
@@ -279,6 +290,12 @@ class AllocationCarryThroughTest(test.APITestCase):
             resource=None,
         )
 
+    def _allocated_order(self):
+        self.requested_resource.refresh_from_db()
+        return marketplace_models.Order.objects.get(
+            resource=self.requested_resource.resource
+        )
+
     def test_reference_and_document_are_copied_onto_the_order(self):
         self.requested_resource.attachment = _pdf()
         self.requested_resource.purchase_order_reference = "PO-4711"
@@ -286,20 +303,117 @@ class AllocationCarryThroughTest(test.APITestCase):
 
         utils.allocate_proposal(self.proposal)
 
-        order = marketplace_models.Order.objects.get(
-            resource=self.requested_resource.__class__.objects.get(
-                pk=self.requested_resource.pk
-            ).resource
-        )
-        self.assertTrue(order.attachment)
+        order = self._allocated_order()
+        # Name equality is the assertion that matters: allocate_proposal copies
+        # the stored path rather than the file, so the order must point at the
+        # very object the applicant uploaded. Truthiness alone would still pass
+        # if the order pointed somewhere else, or at a path with no blob behind
+        # it — hence the read-back through the order's own field.
+        self.assertEqual(order.attachment.name, self.requested_resource.attachment.name)
+        with order.attachment.open("rb") as document:
+            self.assertEqual(document.read(), PDF_BODY)
         self.assertEqual(order.request_comment, "PO-4711")
 
     def test_nothing_is_copied_when_no_purchase_order_was_given(self):
         utils.allocate_proposal(self.proposal)
 
+        order = self._allocated_order()
+        self.assertFalse(order.attachment)
+        self.assertFalse(order.request_comment)
+
+    def test_order_is_consumer_approved_on_allocation(self):
+        # The call review already authorised the spend, so nothing is left for
+        # the consumer to decide. Left pending, the order both parks the
+        # resource in CREATING and re-asks for the purchase order the proposal
+        # already collected.
+        utils.allocate_proposal(self.proposal)
+
+        order = self._allocated_order()
+        self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+        self.assertEqual(order.consumer_reviewed_by, get_system_robot())
+        self.assertIsNotNone(order.consumer_reviewed_at)
+
+    def test_provider_review_still_applies(self):
+        # Only the consumer step is skipped. An offering whose provider reviews
+        # orders must still get its say.
+        self.fixture.offering.type = BASIC_OFFERING
+        self.fixture.offering.save()
+
+        utils.allocate_proposal(self.proposal)
+
+        self.assertEqual(self._allocated_order().state, OrderStates.PENDING_PROVIDER)
+
+
+class AllocationCarryThroughEndToEndTest(test.APITestCase):
+    """The document survives the whole path the applicant actually walks.
+
+    The tests above assign the file to the model and call allocate_proposal
+    directly, which leaves the two ends untested: the multipart upload the form
+    performs, and the workflow terminal that triggers allocation.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.project = None
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "allocation_decision"
+        self.proposal.save()
+        self.requested_resource = factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=factories.RequestedOfferingFactory(
+                call=self.fixture.call, offering=self.fixture.offering
+            ),
+            resource=None,
+        )
+        factories.CallWorkflowStepFactory(
+            call=self.fixture.call, step="allocation_decision"
+        )
+        self.step_instance = models.ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="allocation_decision",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_uploaded_document_reaches_the_order_through_the_workflow(self):
+        upload_url = (
+            factories.ProposalFactory.get_url(self.proposal, "resources")
+            + self.requested_resource.uuid.hex
+            + "/purchase_order/"
+        )
+        # The proposal has to be in draft to accept the upload, exactly as the
+        # applicant's own sequence goes: attach, then submit, then get reviewed.
+        self.proposal.state = ProposalStates.DRAFT
+        self.proposal.save()
+        upload_response = self.client.post(
+            upload_url,
+            {"attachment": _pdf(), "purchase_order_reference": "PO-4711"},
+            format="multipart",
+        )
+        self.assertEqual(
+            upload_response.status_code, status.HTTP_200_OK, upload_response.data
+        )
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.save()
+
+        response = self.client.post(
+            factories.ProposalFactory.get_url(
+                self.proposal, action="complete_workflow_step"
+            ),
+            {"step_uuid": self.step_instance.uuid.hex, "outcome": "approved"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
         self.requested_resource.refresh_from_db()
         order = marketplace_models.Order.objects.get(
             resource=self.requested_resource.resource
         )
-        self.assertFalse(order.attachment)
-        self.assertFalse(order.request_comment)
+        self.assertEqual(order.attachment.name, self.requested_resource.attachment.name)
+        with order.attachment.open("rb") as document:
+            self.assertEqual(document.read(), PDF_BODY)
+        self.assertEqual(order.request_comment, "PO-4711")
+        self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
