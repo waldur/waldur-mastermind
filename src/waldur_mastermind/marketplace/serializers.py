@@ -2058,7 +2058,6 @@ class MarketplaceCategorySerializer(
             "icon",
             "default_vm_category",
             "default_volume_category",
-            "default_tenant_category",
             "offering_count",
             "available_offerings_count",
             "sections",
@@ -2081,7 +2080,6 @@ class MarketplaceCategorySerializer(
         for flag in [
             "default_volume_category",
             "default_vm_category",
-            "default_tenant_category",
         ]:
             if data.get(flag):
                 category_exists = (

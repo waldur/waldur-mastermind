@@ -2840,9 +2840,6 @@ class Command(BaseCommand):
                     "default_volume_category": category_data.get(
                         "default_volume_category", False
                     ),
-                    "default_tenant_category": category_data.get(
-                        "default_tenant_category", False
-                    ),
                     "group": group,
                 }
 

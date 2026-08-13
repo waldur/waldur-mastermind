@@ -10,9 +10,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 class BaseOpenStackTest(test.APITestCase):
     def setUp(self):
         super().setUp()
-        self.tenant_category = marketplace_factories.CategoryFactory(
-            title="Tenant", default_tenant_category=True
-        )
+        self.tenant_category = marketplace_factories.CategoryFactory(title="Tenant")
         self.instance_category = marketplace_factories.CategoryFactory(
             title="Instance", default_vm_category=True
         )

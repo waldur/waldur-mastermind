@@ -211,7 +211,6 @@ class ImportStructureCommandTest(TestCase):
                 "backend_id": "vm",
                 "default_vm_category": True,
                 "default_volume_category": False,
-                "default_tenant_category": False,
             }
         ]
 

@@ -643,7 +643,6 @@ class Command(BaseCommand):
                     "backend_id": category.backend_id,
                     "default_vm_category": category.default_vm_category,
                     "default_volume_category": category.default_volume_category,
-                    "default_tenant_category": category.default_tenant_category,
                     "group_uuid": category.group.uuid.hex if category.group else None,
                     "created": category.created.isoformat()
                     if category.created

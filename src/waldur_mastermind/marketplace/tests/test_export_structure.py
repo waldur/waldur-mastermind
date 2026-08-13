@@ -201,7 +201,6 @@ class ExportStructureCommandTest(TestCase):
             backend_id="test_backend",
             default_vm_category=True,
             default_volume_category=False,
-            default_tenant_category=False,
         )
 
         self._call_export_command()
