@@ -3421,6 +3421,34 @@ def get_pending_consumer_terminate_order(resource):
     )
 
 
+def can_update_offering_in_any_scope(request, offering) -> bool:
+    """True if the caller holds UPDATE_OFFERING on the offering, its customer,
+    or that customer's service provider.
+
+    ``has_permission`` matches ``UserRole.scope`` exactly and never walks
+    ancestors, so all three scopes have to be named: OFFERING.MANAGER holds the
+    permission on the offering, CUSTOMER.OWNER on the customer, and
+    SERVICE_PROVIDER.MANAGER on the service provider. This is the same set
+    ``permission_factory(UPDATE_OFFERING, ["*", "customer",
+    "customer.serviceprovider"])`` accepts on ProviderOfferingViewSet.
+
+    Use this where a bool is wanted; ``views.can_update_offering`` is the
+    permission_factory-style callable that raises and additionally applies the
+    ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT config and a draft-state rule.
+    """
+    return any(
+        has_permission(request, PermissionEnum.UPDATE_OFFERING, scope)
+        for scope in (
+            offering,
+            offering.customer,
+            # Not every customer has a service provider record, and a bare
+            # attribute access would raise. `has_permission` treats a None scope
+            # as False.
+            getattr(offering.customer, "serviceprovider", None),
+        )
+    )
+
+
 def refresh_integration_agent_status(request, agent_type):
     user_agent = core_utils.get_user_agent(request)
     if "waldur-site-agent" not in user_agent:
@@ -3440,7 +3468,7 @@ def refresh_integration_agent_status(request, agent_type):
         )
         return
 
-    if not has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
+    if not can_update_offering_in_any_scope(request, offering):
         logger.warning(
             "User %s lacks UPDATE_OFFERING permission on offering %s (%s); "
             "skipping %s integration status update",
