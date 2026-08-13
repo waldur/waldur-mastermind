@@ -126,6 +126,7 @@ class PreflightCostPolicyUpdateTest(test.APITestCase):
 
         CustomerRole.OWNER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
 
         self.offering = marketplace_factories.OfferingFactory(
             state=OfferingStates.ACTIVE,

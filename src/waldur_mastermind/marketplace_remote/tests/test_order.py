@@ -83,6 +83,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         self.offering_component.billing_type = BillingTypes.LIMIT
         self.offering_component.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
         ServiceProviderRole.MANAGER.add_permission(
             PermissionEnum.UPDATE_RESOURCE_LIMITS
         )

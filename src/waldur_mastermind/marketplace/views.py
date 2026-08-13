@@ -7239,17 +7239,8 @@ class OrderViewSet(
         serializer.is_valid(raise_exception=True)
         project = serializer.validated_data.get("project")
         offering = serializer.validated_data.get("offering")
-        if (
-            project
-            and offering
-            and marketplace_permissions.offering_is_restricted(offering)
-            and not marketplace_permissions.user_holds_restricted_role(
-                user, project, offering
-            )
-        ):
-            raise rf_exceptions.PermissionDenied(
-                "This offering is restricted to designated project roles."
-            )
+        if project and offering:
+            marketplace_permissions.check_offering_restriction(user, project, offering)
         if project and marketplace_permissions.has_project_permission(
             request, PermissionEnum.CREATE_ORDER, project
         ):
@@ -8803,6 +8794,7 @@ class BaseResourceViewSet(
             PermissionEnum.UPDATE_RESOURCE_OPTIONS,
             ["project", "project.customer", "offering.customer"],
         ),
+        permissions.check_order_creation_permission_for_options,
     ]
     update_options_serializer_class = serializers.ResourceOptionsSerializer
     update_options_validators = [
@@ -9279,6 +9271,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             PermissionEnum.SWITCH_RESOURCE_PLAN,
             ["project", "project.customer"],
         ),
+        permissions.check_order_creation_permission,
     ]
     reallocate_limits_permissions = [
         permissions.check_tos_consent_permission,
@@ -9286,6 +9279,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             PermissionEnum.UPDATE_RESOURCE_LIMITS,
             ["project", "project.customer"],
         ),
+        permissions.check_order_creation_permission,
     ]
     update_limits_permissions = [
         permissions.check_tos_consent_permission,
@@ -9293,6 +9287,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             PermissionEnum.UPDATE_RESOURCE_LIMITS,
             ["project", "project.customer"],
         ),
+        permissions.check_order_creation_permission,
     ]
 
     switch_plan_validators = [
@@ -9396,6 +9391,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             PermissionEnum.UPDATE_RESOURCE_LIMITS,  # Re-use existing permission
             ["project", "project.customer"],
         ),
+        permissions.check_order_creation_permission,
     ]
 
     renew_validators = [
@@ -17832,6 +17828,17 @@ def user_can_approve_resource_limit_change_request(
     raise PermissionDenied()
 
 
+def check_order_creation_permission_for_limit_change_request(
+    request, view, obj: models.ResourceLimitChangeRequest | None = None
+):
+    """Approving a request submits a marketplace order on the requester's
+    behalf, so the approver needs order creation rights as well. Rejecting
+    creates nothing and is deliberately not gated on this."""
+    if not obj:
+        return
+    permissions.check_order_creation_permission(request, view, obj.resource)
+
+
 class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.ResourceLimitChangeRequest.objects.all()
     serializer_class = serializers.ResourceLimitChangeRequestSerializer
@@ -17868,8 +17875,10 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
             | Q(created_by=user)
         )
 
-    approve_permissions = reject_permissions = [
-        user_can_approve_resource_limit_change_request
+    reject_permissions = [user_can_approve_resource_limit_change_request]
+
+    approve_permissions = reject_permissions + [
+        check_order_creation_permission_for_limit_change_request
     ]
 
     @extend_schema(

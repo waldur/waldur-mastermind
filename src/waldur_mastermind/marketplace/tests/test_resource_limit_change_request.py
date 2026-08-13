@@ -42,13 +42,19 @@ class ResourceLimitChangeRequestCreateTest(test.APITestCase):
             1,
         )
 
-    def test_user_with_update_resource_limits_permission_cannot_create_request(self):
-        """User with UPDATE_RESOURCE_LIMITS should update directly, not create request."""
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
-        self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(
-                PermissionEnum.UPDATE_RESOURCE_LIMITS
+    def grant_owner(self, *permissions):
+        for permission in permissions:
+            CustomerRole.OWNER.add_permission(permission)
+            self.addCleanup(
+                lambda permission=permission: CustomerRole.OWNER.delete_permission(
+                    permission
+                )
             )
+
+    def test_user_who_can_update_limits_directly_cannot_create_request(self):
+        """A user able to perform the update outright is sent down that route."""
+        self.grant_owner(
+            PermissionEnum.UPDATE_RESOURCE_LIMITS, PermissionEnum.CREATE_ORDER
         )
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(
@@ -56,6 +62,22 @@ class ResourceLimitChangeRequestCreateTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(
+            models.ResourceLimitChangeRequest.objects.filter(
+                resource=self.resource
+            ).exists()
+        )
+
+    def test_user_without_order_permission_can_still_create_request(self):
+        """Holding the limits permission alone is not enough to update directly,
+        so the request flow has to stay open — otherwise such a user would have
+        no way to change limits at all."""
+        self.grant_owner(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            self.list_url, self.get_valid_payload(), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
             models.ResourceLimitChangeRequest.objects.filter(
                 resource=self.resource
             ).exists()
@@ -180,12 +202,18 @@ class ResourceLimitChangeRequestApproveRejectTest(test.APITestCase):
         self.resource.save()
         self.resource.offering.shared = True
         self.resource.offering.save()
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
-        self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(
-                PermissionEnum.UPDATE_RESOURCE_LIMITS
+        # Approving applies the limits through an order, so the approver needs
+        # order creation rights alongside the limits permission.
+        for permission in (
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            PermissionEnum.CREATE_ORDER,
+        ):
+            CustomerRole.OWNER.add_permission(permission)
+            self.addCleanup(
+                lambda permission=permission: CustomerRole.OWNER.delete_permission(
+                    permission
+                )
             )
-        )
         self.request = factories.ResourceLimitChangeRequestFactory(
             resource=self.resource,
             created_by=self.fixture.manager,
@@ -413,12 +441,16 @@ class ResourceLimitChangeRequestNotificationTest(test.APITestCase):
             type="storage",
             billing_type=BillingTypes.LIMIT,
         )
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
-        self.addCleanup(
-            lambda: CustomerRole.OWNER.delete_permission(
-                PermissionEnum.UPDATE_RESOURCE_LIMITS
+        for permission in (
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            PermissionEnum.CREATE_ORDER,
+        ):
+            CustomerRole.OWNER.add_permission(permission)
+            self.addCleanup(
+                lambda permission=permission: CustomerRole.OWNER.delete_permission(
+                    permission
+                )
             )
-        )
         request = factories.ResourceLimitChangeRequestFactory(
             resource=resource,
             created_by=fixture.manager,
