@@ -1023,6 +1023,13 @@ class RequestedOfferingSerializer(
         read_only_fields = (
             "created_by",
             "approved_by",
+            # The requirement belongs to the offering's provider, whose flag
+            # gates order approval; the call entry only decides what the
+            # proposal collects, and is seeded from that flag when the offering
+            # is added. Writing it here let a call manager lower a provider's
+            # requirement — before the provider had even accepted the entry, and
+            # without either of them being shown the field anywhere.
+            "require_purchase_order",
         )
         protected_fields = ("offering",)
         extra_kwargs = {
