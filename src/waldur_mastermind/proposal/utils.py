@@ -14,6 +14,7 @@ from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import order_approval
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
     AllocationTimes,
@@ -108,10 +109,11 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             resource.init_cost()
             resource.save()
 
+            robot = get_system_robot()
             order = marketplace_models.Order(
                 **attrs,
                 resource=resource,
-                created_by=get_system_robot(),
+                created_by=robot,
             )
             # Hand the purchase order to the order, so the approval gate in
             # marketplace.permissions is already satisfied. Without this the
@@ -129,6 +131,31 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
 
             requested_resource.resource = resource
             requested_resource.save()
+
+            # The call review already authorised this spend, so the consumer
+            # approval step has nothing left to decide. Left in
+            # PENDING_CONSUMER the order parks the allocated resource in
+            # CREATING until somebody clicks approve, and — when the offering
+            # demands a purchase order — asks the applicant for the document
+            # the proposal already collected, because the marketplace gate
+            # looks at order.attachment while the proposal accepts a bare
+            # reference as well.
+            #
+            # Only the consumer step is skipped: the transition below still
+            # routes to provider review, to PENDING_PROJECT for a future-dated
+            # project and to PENDING_START_DATE where those apply. No
+            # select_for_update is taken because the row was created in this
+            # transaction and is not yet visible to anyone else.
+            order.review_by_consumer(robot)
+            outcome = order_approval.transition_order_from_consumer_approval(
+                order, robot
+            )
+            logger.info(
+                "Order %s allocated from proposal %s moved to %s.",
+                order.uuid,
+                proposal.uuid,
+                outcome,
+            )
 
 
 def process_closed_round(call_round: proposal_models.Round):
