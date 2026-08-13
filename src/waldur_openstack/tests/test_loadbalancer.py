@@ -1014,3 +1014,28 @@ class OctaviaAvailabilityGuardTest(test.APITestCase):
         )
         with self.assertRaises(OpenStackBackendError):
             client.create_load_balancer(lb)
+
+    @mock.patch("waldur_openstack.octavia.Connection")
+    @mock.patch("waldur_openstack.octavia.create_session")
+    def test_get_connection_builds_from_session_not_global_verify(
+        self, mock_create_session, mock_connection
+    ):
+        # Regression guard for issue #66 Defect 2: the Octavia connection must be
+        # built from an explicit keystoneauth session (create_session), never via
+        # openstack_sdk.connect(verify=...) whose _OpenStackCloudMixin installs a
+        # process-global InsecureRequestWarning filter that silences the warning
+        # for the whole worker.
+        self.tenant.backend_id = "tenant-backend-id"
+        self.tenant.save()
+        client = OctaviaClient(self.tenant)
+
+        connection = client._get_connection()
+
+        credentials = mock_create_session.call_args.args[0]
+        self.assertEqual(credentials["project_id"], "tenant-backend-id")
+        self.assertNotIn("project_name", credentials)
+        self.assertIs(
+            mock_connection.call_args.kwargs["session"],
+            mock_create_session.return_value,
+        )
+        self.assertIs(connection, mock_connection.return_value)

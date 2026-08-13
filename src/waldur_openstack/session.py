@@ -52,6 +52,21 @@ class TimedSession(keystone_session.Session):
     once at session construction time instruments every downstream SDK.
     """
 
+    def __init__(self, *args, session=None, verify: bool | str = True, **kwargs):
+        # Inject a QuietSession transport when verification is off so
+        # InsecureRequestWarning is suppressed on every construction path --
+        # including the warm-token recover_cached_session(), which otherwise
+        # gets a plain requests.Session that floods the logs (issue #66).
+        inject = session is None and not verify
+        if inject:
+            session = build_http_session(verify)
+        super().__init__(*args, session=session, verify=verify, **kwargs)
+        if inject:
+            # We own the injected transport, so restore the _session reference
+            # keystoneauth drops for external sessions (LP#1838704) or
+            # Session.__del__ never closes it.
+            self._session = self.session
+
     def request(self, url, method, **kwargs):
         start = time.perf_counter()
         status: int | str = "-"
@@ -177,19 +192,31 @@ def get_credentials(settings, tenant=None):
     return credentials
 
 
-def recover_cached_session(cached_session: dict[str, str], verify_ssl=False):
+def build_http_session(verify_ssl: bool | str):
+    """Transport for a keystoneauth Session: a `QuietSession`
+    (InsecureRequestWarning suppressed) when TLS verification is off, else
+    `None` so keystoneauth builds its own. Re-applies the `TCPKeepAliveAdapter`
+    mounts (LP#1323862) that a caller-supplied session would otherwise lose.
+    """
+    if verify_ssl:
+        return None
+    http_session = QuietSession()
+    http_session.verify = False
+    for scheme in list(http_session.adapters):
+        http_session.mount(scheme, keystone_session.TCPKeepAliveAdapter())
+    return http_session
+
+
+def recover_cached_session(
+    cached_session: dict[str, str], verify_ssl: bool | str = False
+):
     auth_state = cached_session.pop("auth_state")
     auth_method = v3.Token(**cached_session)
     auth_method.set_auth_state(auth_state)
     return TimedSession(auth=auth_method, verify=verify_ssl)
 
 
-def create_session(credentials: dict[str, str], verify_ssl=False):
-    http_session = None
-    if not verify_ssl:
-        http_session = QuietSession()
-        http_session.verify = False
-
+def create_session(credentials: dict[str, str], verify_ssl: bool | str = False):
     credentials = dict(credentials)
     auth_type = credentials.pop("auth_type", "password")
 
@@ -204,10 +231,10 @@ def create_session(credentials: dict[str, str], verify_ssl=False):
     else:
         raise OpenStackBackendError(f"Unsupported auth_type: {auth_type}")
 
+    # TimedSession injects the QuietSession transport itself when verify_ssl is off.
     ks_session = TimedSession(
         auth=auth,
         verify=verify_ssl,
-        session=http_session,
     )
 
     try:

@@ -6,7 +6,9 @@ from constance.test.unittest import override_config
 from keystoneauth1 import exceptions as keystoneauth_exceptions
 from keystoneauth1 import session as keystone_session
 from keystoneauth1.identity import v3
+from keystoneauth1.session import TCPKeepAliveAdapter
 
+from waldur_core.core.utils import QuietSession
 from waldur_core.structure.backend import current_backend_action
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.session import (
@@ -14,6 +16,7 @@ from waldur_openstack.session import (
     TimedSession,
     create_session,
     get_nova_client,
+    recover_cached_session,
 )
 
 CALLS_LOGGER = "waldur_openstack.calls"
@@ -484,3 +487,76 @@ class TestTimedSession:
         assert len(records) == 1
         assert records[0].openstack_action == "delete tenant routers"
         assert "action=delete tenant routers" in records[0].getMessage()
+
+
+class TestSessionTlsWarnings:
+    """Both session-construction paths must build a QuietSession transport when
+    TLS verification is off, so InsecureRequestWarning is suppressed structurally
+    rather than per call site (issue #66). The warm-token path
+    (recover_cached_session) previously supplied no transport and floods the logs.
+    """
+
+    def _assert_quiet_transport(self, session):
+        transport = session.session
+        assert isinstance(transport, QuietSession)
+        # The TCPKeepAliveAdapter mounts (LP#1323862) that keystoneauth applies
+        # to its own default transport must be re-applied to ours.
+        assert transport.adapters
+        assert all(
+            isinstance(adapter, TCPKeepAliveAdapter)
+            for adapter in transport.adapters.values()
+        )
+        # We built the transport, so keystoneauth's del-time close must own it
+        # (LP#1838704) or the socket leaks.
+        assert session._session is transport
+
+    @mock.patch.object(
+        keystone_session.Session,
+        "get_auth_headers",
+        return_value={"X-Auth-Token": "token"},
+    )
+    def test_create_session_uses_quiet_transport_when_unverified(
+        self, _mock_headers, password_credentials
+    ):
+        session = create_session(password_credentials, verify_ssl=False)
+        self._assert_quiet_transport(session)
+
+    @mock.patch.object(
+        keystone_session.Session,
+        "get_auth_headers",
+        return_value={"X-Auth-Token": "token"},
+    )
+    def test_create_session_plain_transport_when_verified(
+        self, _mock_headers, password_credentials
+    ):
+        session = create_session(password_credentials, verify_ssl=True)
+        assert not isinstance(session.session, QuietSession)
+
+    @mock.patch.object(
+        keystone_session.Session,
+        "get_auth_headers",
+        return_value={"X-Auth-Token": "token"},
+    )
+    def test_create_session_plain_transport_when_verified_with_ca_path(
+        self, _mock_headers, password_credentials
+    ):
+        # get_verify_ssl returns a CA file path (str) for the certificate
+        # branch; a truthy non-bool verify must still not build a QuietSession.
+        session = create_session(password_credentials, verify_ssl="/path/ca.pem")
+        assert not isinstance(session.session, QuietSession)
+
+    @mock.patch("waldur_openstack.session.v3.Token")
+    def test_recover_cached_session_uses_quiet_transport_when_unverified(
+        self, _mock_token
+    ):
+        session = recover_cached_session(
+            {"auth_state": "state", "token": "token"}, verify_ssl=False
+        )
+        self._assert_quiet_transport(session)
+
+    @mock.patch("waldur_openstack.session.v3.Token")
+    def test_recover_cached_session_plain_transport_when_verified(self, _mock_token):
+        session = recover_cached_session(
+            {"auth_state": "state", "token": "token"}, verify_ssl=True
+        )
+        assert not isinstance(session.session, QuietSession)
