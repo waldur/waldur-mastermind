@@ -113,7 +113,6 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.fixtures import (
     CustomerRole,
-    ServiceProviderRole,
 )
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
@@ -15709,14 +15708,13 @@ class IntegrationStatusViewSet(core_views.ReadOnlyActionsViewSet):
         if user.is_staff or user.is_support:
             return qs
 
+        # `filter_for_user` already covers offerings reachable through a customer,
+        # project or direct offering role; narrow those to the ones the caller may
+        # actually administer.
         offerings = [
             offering
             for offering in models.Offering.objects.all().filter_for_user(user)
-            if offering.customer.has_user(user, CustomerRole.OWNER)
-            or offering.customer.has_user(
-                user,
-                ServiceProviderRole.MANAGER,
-            )
+            if utils.can_update_offering_in_any_scope(self.request, offering)
         ]
         return qs.filter(offering__in=offerings)
 

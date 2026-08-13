@@ -2,7 +2,11 @@ from ddt import data, ddt
 from rest_framework import test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -15,6 +19,11 @@ class IntegrationStatusCreationTest(test.APITestCase):
         self.order = self.fixture.order
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        # permissions.yaml is not loaded in tests, so every role starts with no
+        # permissions and has to be seeded here. Production ships UPDATE_OFFERING
+        # on OFFERING.MANAGER, so seeding it is what makes the offering_manager
+        # cases below exercise the real role.
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
     def test_integration_status_created_while_orders_fetched(self):
         url = (
@@ -52,7 +61,7 @@ class IntegrationStatusCreationTest(test.APITestCase):
         )
         self.assertIsNotNone(integration_status.last_request_timestamp)
 
-    @data("offering_owner", "service_manager")
+    @data("offering_owner", "service_manager", "offering_manager")
     def test_integration_status_created_while_resources_fetched(self, user):
         url = (
             factories.ResourceFactory.get_list_url()
@@ -89,8 +98,8 @@ class IntegrationStatusCreationTest(test.APITestCase):
         )
         self.assertIsNotNone(integration_status.last_request_timestamp)
 
-    @data("offering_manager", "offering_admin")
-    def test_integration_status_creation_not_permitted(self, user):
+    @data("offering_admin")
+    def test_integration_status_creation_not_permitted_for_consumer_user(self, user):
         url = (
             factories.ResourceFactory.get_list_url()
             + f"?offering_uuid={self.offering.uuid.hex}"
@@ -143,8 +152,11 @@ class IntegrationStatusGetTest(test.APITestCase):
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        # See the note in IntegrationStatusCreationTest.setUp: roles carry no
+        # permissions in tests until seeded here.
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
-    @data("offering_owner", "service_manager")
+    @data("offering_owner", "service_manager", "offering_manager")
     def test_service_provider_user_can_see_integration_statuses_in_offering(self, user):
         self.client.force_login(getattr(self.fixture, user))
         url = factories.OfferingFactory.get_url(self.offering)
@@ -161,10 +173,10 @@ class IntegrationStatusGetTest(test.APITestCase):
         )
         self.assertEqual(integration_status_data["status"], "Active")
 
-    @data("offering_manager", "offering_admin")
-    def test_service_provider_user_can_not_see_integration_statuses_in_offering(
-        self, user
-    ):
+    @data("offering_admin")
+    def test_consumer_user_can_not_see_integration_statuses_in_offering(self, user):
+        """A project admin administers resources, not the offering, and holds no
+        UPDATE_OFFERING on any scope."""
         self.client.force_login(getattr(self.fixture, user))
         url = factories.OfferingFactory.get_url(self.offering)
         response = self.client.get(url)
@@ -172,7 +184,7 @@ class IntegrationStatusGetTest(test.APITestCase):
 
         self.assertIsNone(response.data["integration_status"], response.data)
 
-    @data("offering_owner", "service_manager")
+    @data("offering_owner", "service_manager", "offering_manager")
     def test_service_provider_user_can_view_integration_statuses(self, user):
         self.client.force_login(getattr(self.fixture, user))
         url = factories.IntegrationStatusFactory.get_list_url()
@@ -181,8 +193,8 @@ class IntegrationStatusGetTest(test.APITestCase):
 
         self.assertEqual(3, len(response.data), response.data)
 
-    @data("offering_manager", "offering_admin")
-    def test_service_provider_user_can_not_view_integration_statuses(self, user):
+    @data("offering_admin")
+    def test_consumer_user_can_not_view_integration_statuses(self, user):
         self.client.force_login(getattr(self.fixture, user))
         url = factories.IntegrationStatusFactory.get_list_url()
         response = self.client.get(url)

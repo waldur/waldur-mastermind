@@ -11932,8 +11932,8 @@ class ComponentUserUsageLimitSerializer(
 
 @extend_schema_field(IntegrationStatusSerializer(many=True, allow_null=True))
 def get_integration_status(serializer, offering):
-    if not has_permission(
-        serializer.context["request"], PermissionEnum.UPDATE_OFFERING, offering.customer
+    if not utils.can_update_offering_in_any_scope(
+        serializer.context["request"], offering
     ):
         return None
 
