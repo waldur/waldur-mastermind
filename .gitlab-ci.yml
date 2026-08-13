@@ -486,7 +486,15 @@ Publish the latest multiarch docker image:
     - docker context create builder
     - docker buildx create builder --use
     - docker buildx imagetools create --tag opennode/${CI_PROJECT_NAME}:latest opennode/${CI_PROJECT_NAME}:yolo
-    - docker buildx imagetools create --tag ${CI_REGISTRY_IMAGE}:latest opennode/${CI_PROJECT_NAME}:yolo
+    # The yolo tag is an OCI index holding the linux/amd64 image plus a buildx
+    # attestation manifest (platform unknown/unknown). Copying the whole index
+    # into the GitLab registry fails on the attestation with "blob unknown to
+    # registry", so copy just the platform image — which is all the integration
+    # tests and docker-compose consume. Attestations stay on Docker Hub.
+    - apk add --no-cache skopeo
+    - skopeo copy --override-os linux --override-arch amd64
+      docker://opennode/${CI_PROJECT_NAME}:yolo
+      docker://${CI_REGISTRY_IMAGE}:latest
 
 Publish the YOLO multiarch docker image:
   extends: .Publish multiarch latest docker image template
