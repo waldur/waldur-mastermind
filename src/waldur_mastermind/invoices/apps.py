@@ -92,6 +92,12 @@ class InvoiceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.invoices.process_affiliate_fees",
         )
 
+        signals.pre_delete.connect(
+            handlers.delete_project_credits_with_customer_credit,
+            sender=models.CustomerCredit,
+            dispatch_uid="waldur_mastermind.invoices.delete_project_credits_with_customer_credit",
+        )
+
         signals.post_save.connect(
             handlers.log_project_credit,
             sender=models.ProjectCredit,
