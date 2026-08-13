@@ -288,13 +288,6 @@ class Category(
             'Set to true if this category is for OpenStack Volume. Only one category can have "true" value.'
         ),
     )
-    default_tenant_category = models.BooleanField(
-        default=False,
-        help_text=_(
-            'Set to true if this category is for OpenStack Tenant. Only one category can have "true" value.'
-        ),
-    )
-
     group = models.ForeignKey(
         CategoryGroup, blank=True, null=True, on_delete=models.SET_NULL
     )
@@ -305,7 +298,6 @@ class Category(
         for flag in [
             "default_volume_category",
             "default_vm_category",
-            "default_tenant_category",
         ]:
             if getattr(self, flag):
                 category = (
