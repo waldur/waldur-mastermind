@@ -420,6 +420,9 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
         ProjectRole.ADMIN.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
         ProjectRole.MANAGER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
+        # Switching a plan submits an order, so it needs order creation rights.
+        for role in (CustomerRole.OWNER, ProjectRole.ADMIN, ProjectRole.MANAGER):
+            role.add_permission(PermissionEnum.CREATE_ORDER)
 
     def switch_plan(self, user, resource, plan):
         self.client.force_authenticate(user)
@@ -611,6 +614,9 @@ class ResourceRenewTest(test.APITestCase):
         # Set permissions
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
         ProjectRole.ADMIN.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        # Renewal submits an order, so it needs order creation rights too.
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
 
     def renew_resource(self, user, resource, payload):
         self.client.force_authenticate(user)
@@ -1415,6 +1421,8 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         )
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        # A limit update submits an order, so it needs order creation rights too.
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def update_limits(self, user, resource, limits=None):
         limits = limits or {"vcpu": 10}
@@ -1608,6 +1616,9 @@ class ResourceReallocateLimitsTest(test.APITestCase):
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
         ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        # Reallocation submits one order per affected resource.
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def reallocate_limits(self, user, source_resource, limits, targets):
         self.client.force_authenticate(user)

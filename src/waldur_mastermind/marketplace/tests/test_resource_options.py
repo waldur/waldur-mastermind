@@ -45,6 +45,9 @@ class ResourceUpdateOptionsTest(test.APITestCase):
         self.url = factories.ResourceFactory.get_url(self.resource, "update_options")
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        # Offerings configured to create orders on option change route the
+        # change through an order, which needs order creation rights.
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def make_request(self, user, payload=None, custom_url=None):
         url = custom_url or self.url

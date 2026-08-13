@@ -5359,6 +5359,19 @@ def validate_target_allocation(
             name=target_resource.name,
         )
 
+    # Each target gets its own order, so order creation must be authorized per
+    # target as well. Targets come from the request body rather than the
+    # action's object, so the view's permission check does not cover them.
+    if not has_permission(
+        user, PermissionEnum.CREATE_ORDER, target_resource.project
+    ) and not has_permission(
+        user, PermissionEnum.CREATE_ORDER, target_resource.project.customer
+    ):
+        error_validation(
+            "User does not have permission to create orders for target resource %(name)s.",
+            name=target_resource.name,
+        )
+
     target_limits = target_resource.limits or {}
     validate_limits(target_limits, target_resource.offering, target_resource)
 

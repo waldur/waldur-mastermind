@@ -228,6 +228,73 @@ user_can_terminate_resource = permission_factory(
 )
 
 
+def check_offering_restriction(user, project, offering):
+    """Raise unless the user holds one of the roles the offering is restricted
+    to, in the given project or its customer."""
+    if offering_is_restricted(offering) and not user_holds_restricted_role(
+        user, project, offering
+    ):
+        raise exceptions.PermissionDenied(
+            _("This offering is restricted to designated project roles.")
+        )
+
+
+def check_order_creation_permission(request, view, resource: models.Resource = None):
+    """Authorize the order a resource action is about to create.
+
+    Actions such as limit updates or plan switches do not merely mutate the
+    resource, they submit a marketplace order on the consumer's behalf. They
+    must therefore satisfy the same authorization as submitting that order
+    directly: CREATE_ORDER in the consumer project, plus the offering's role
+    restriction. Otherwise a role granted only the resource-level permission
+    could mint orders it is not entitled to, and an offering restricted to
+    designated roles could be grown by changing an existing resource instead of
+    ordering a new one.
+    """
+    if resource is None:
+        return
+
+    user = request.user
+    if user.is_staff or user.is_support:
+        return
+
+    project = resource.project
+
+    check_offering_restriction(user, project, resource.offering)
+
+    if not has_project_permission(request, PermissionEnum.CREATE_ORDER, project):
+        raise exceptions.PermissionDenied(
+            _("You are not allowed to create orders in this project.")
+        )
+
+
+def check_order_creation_permission_for_options(
+    request, view, resource: models.Resource = None
+):
+    """Order authorization for resource option changes.
+
+    Option changes only produce an order when the offering opts in; otherwise
+    they are written straight to the resource and no order permission applies.
+    Service providers acting on their own offering are exempt, because
+    CREATE_ORDER is a consumer-side permission that a provider does not hold in
+    the consumer's project.
+    """
+    if resource is None:
+        return
+
+    if not resource.offering.plugin_options.get(
+        "create_orders_on_resource_option_change"
+    ):
+        return
+
+    if has_permission(
+        request, PermissionEnum.UPDATE_RESOURCE_OPTIONS, resource.offering.customer
+    ):
+        return
+
+    check_order_creation_permission(request, view, resource)
+
+
 def validate_resource_terminate_state(resource: models.Resource) -> None:
     """Allow terminate on OK/ERRED resources and on TERMINATING with pending approval."""
     if resource.state in (ResourceStates.OK, ResourceStates.ERRED):

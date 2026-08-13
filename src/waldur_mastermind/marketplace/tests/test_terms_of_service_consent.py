@@ -2487,6 +2487,7 @@ class ResourceConsentUIFieldsTest(APITestCase):
     def test_update_limits_allowed_with_tos_consent(self):
         """Test that updating resource limits is allowed with ToS consent."""
         ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
 
         models.OfferingTermsOfService.objects.create(
             offering=self.offering,

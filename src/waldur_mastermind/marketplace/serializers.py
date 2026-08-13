@@ -5609,6 +5609,11 @@ class OrderCreateSerializer(
     project_name = serializers.ReadOnlyField(source="project.name")
     project_description = serializers.ReadOnlyField(source="project.description")
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
+    # This endpoint always provisions a new resource, so the order it produces
+    # is always a CREATE. Accepting a caller-supplied type here would attach an
+    # Update/Terminate/Restore order to a freshly built resource, a combination
+    # nothing downstream expects.
+    type = NaturalChoiceField(choices=OrderTypes.CHOICES, read_only=True)
 
     class Meta:
         model = models.Order
@@ -5741,7 +5746,7 @@ class OrderCreateSerializer(
             plan=validated_data.get("plan"),
             attributes=attributes,
             limits=validated_data.get("limits", {}),
-            type=validated_data.get("type"),
+            type=OrderTypes.CREATE,
             start_date=validated_data.get("start_date"),
         )
         validate_order(order, request)
@@ -7265,11 +7270,24 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
                     "instead of creating a request."
                 )
             )
-        if has_permission(
-            user, PermissionEnum.UPDATE_RESOURCE_LIMITS, resource.project
-        ) or has_permission(
-            user, PermissionEnum.UPDATE_RESOURCE_LIMITS, resource.project.customer
-        ):
+        # Changing limits directly also submits an order, so a user is only
+        # redirected to that route when they can do both. Holding the limits
+        # permission alone leaves the request flow as their way forward,
+        # otherwise they would have no route at all.
+        can_update_directly = (
+            has_permission(
+                user, PermissionEnum.UPDATE_RESOURCE_LIMITS, resource.project
+            )
+            or has_permission(
+                user, PermissionEnum.UPDATE_RESOURCE_LIMITS, resource.project.customer
+            )
+        ) and (
+            has_permission(user, PermissionEnum.CREATE_ORDER, resource.project)
+            or has_permission(
+                user, PermissionEnum.CREATE_ORDER, resource.project.customer
+            )
+        )
+        if can_update_directly:
             raise serializers.ValidationError(
                 _(
                     "You have permission to change resource limits directly. "

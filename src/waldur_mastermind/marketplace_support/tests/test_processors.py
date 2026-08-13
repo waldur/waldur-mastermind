@@ -406,6 +406,8 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         CustomerRole.OWNER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
         ProjectRole.ADMIN.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
         ProjectRole.MANAGER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
+        for role in (CustomerRole.OWNER, ProjectRole.ADMIN, ProjectRole.MANAGER):
+            role.add_permission(PermissionEnum.CREATE_ORDER)
 
     def test_success_switch_plan_if_issue_is_resolved(self):
         order = self.get_order(self.success_issue_status)
