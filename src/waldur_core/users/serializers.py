@@ -15,6 +15,7 @@ from waldur_core.permissions.utils import (
     check_grant_policy,
     get_valid_models,
     validate_only_one_project_manager,
+    validate_scope_available,
 )
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import _get_customer
@@ -167,6 +168,9 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
                 "Role and scope should belong to the same content type."
             )
 
+        # Fail here rather than at accept time, so the inviter learns the scope
+        # rejects grants before the email goes out.
+        validate_scope_available(scope)
         _enforce_role_available_for_scope(scope, role)
         validate_only_one_project_manager(scope, role)
         return attrs
