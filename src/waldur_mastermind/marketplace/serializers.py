@@ -8651,7 +8651,8 @@ class OfferingUserPosixAttributesSerializer(serializers.Serializer):
         max_value=models.PosixIdPool.MAX_ID,
         help_text=(
             "Override the account's UID. The value must fall within the "
-            "offering's POSIX ID pool and is rejected if already allocated."
+            "offering's resolved POSIX ID pool and is rejected with 400 if it "
+            "is out of range or already held by another active identity."
         ),
     )
     primarygroup = serializers.IntegerField(
@@ -8659,7 +8660,10 @@ class OfferingUserPosixAttributesSerializer(serializers.Serializer):
         allow_null=True,
         min_value=models.PosixIdPool.MIN_ID,
         max_value=models.PosixIdPool.MAX_ID,
-        help_text="Override the account's primary GID (see uidnumber).",
+        help_text=(
+            "Override the account's primary GID, under the same pool-range "
+            "and uniqueness rules as uidnumber."
+        ),
     )
 
     # login_shell and home_directory sync to LDAP and are consumed by downstream
@@ -8681,13 +8685,30 @@ class OfferingUserPosixAttributesSerializer(serializers.Serializer):
 
 
 class OfferingUserPosixUpdateResponseSerializer(serializers.Serializer):
-    """Response of the set_posix_attributes action: the updated POSIX
-    attributes plus any non-fatal warnings (e.g. a UID outside every active
-    range)."""
+    """Response of the set_posix_attributes action: the POSIX ids now stored
+    for the account plus any non-fatal advisories about the accepted values (a
+    reserved id - 65534 or 65535 - or a value of 2^31 or above). Out-of-range
+    and already-allocated values are rejected with 400, not warned about."""
 
-    uidnumber = serializers.IntegerField(allow_null=True, required=False)
-    primarygroup = serializers.IntegerField(allow_null=True, required=False)
-    warnings = serializers.ListField(child=serializers.CharField(), default=list)
+    uidnumber = serializers.IntegerField(
+        allow_null=True,
+        required=False,
+        help_text="The UID now stored for the account.",
+    )
+    primarygroup = serializers.IntegerField(
+        allow_null=True,
+        required=False,
+        help_text="The primary GID now stored for the account.",
+    )
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        default=list,
+        help_text=(
+            "Non-fatal advisories about the accepted values: a reserved POSIX "
+            "id (65534 or 65535) or a value of 2^31 or above. Out-of-range "
+            "and already-allocated values are rejected with 400 instead."
+        ),
+    )
 
 
 class OfferingUserSerializer(
