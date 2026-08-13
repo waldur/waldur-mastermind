@@ -497,6 +497,24 @@ def check_grant_policy(scope, role):
         raise ValidationError("Role is concealed for this organization.")
 
 
+def validate_scope_available(scope):
+    """Reject a grant on a scope that does not accept role assignments.
+
+    Currently only marketplace offerings: a private (non-shared) offering is
+    owned by a single organization and its roles are not handed out, which
+    ``UserRoleCreateSerializer.validate`` already enforces on the direct
+    add_user path. Checked here as well so the invitation path
+    (``Invitation.accept``) and ``PermissionRequest.approve`` cannot be used to
+    reach the same grant through the back door.
+
+    Guarded on the attribute rather than the model because this helper is
+    generic across every scope type in TYPE_MAP; only Offering defines
+    ``shared``.
+    """
+    if getattr(scope, "shared", None) is False:
+        raise ValidationError("Offering is not available.")
+
+
 def validate_role_grant(scope, user, role, expiration_time=None):
     """Validate a role can be granted to a user on scope.
 
@@ -513,6 +531,8 @@ def validate_role_grant(scope, user, role, expiration_time=None):
 
     if not role.is_active:
         raise ValidationError("Role is not active.")
+
+    validate_scope_available(scope)
 
     check_grant_policy(scope, role)
 

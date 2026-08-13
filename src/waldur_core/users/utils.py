@@ -170,8 +170,22 @@ def get_scope_link(scope_type, scope_uuid):
         "call": "calls",
         "resource": "resources",
         "resource project": "resource-projects",
+        # Offerings are a valid invitation scope (see TYPE_MAP). The
+        # provider-side offering page is nested under its customer, so link to
+        # the public offering route, which is keyed by the offering uuid alone.
+        "offering": "marketplace-public-offering",
     }
-    api_suffix = scope_to_homeport_prefix_map.get(scope_type, "unknown")
+    # ``scope_type`` is the model's verbose_name and its capitalization is not
+    # consistent across models — Customer declares "organization" while
+    # Offering declares "Offering". Match case-insensitively so a capitalized
+    # verbose_name does not silently fall through to /unknown/.
+    api_suffix = scope_to_homeport_prefix_map.get(str(scope_type).lower(), "unknown")
+    if api_suffix == "unknown":
+        logger.warning(
+            "No HomePort route is mapped for invitation scope type %s; "
+            "the notification will contain a dead scope link.",
+            scope_type,
+        )
     return core_utils.format_homeport_link(
         "{api_suffix}/{scope_uuid}/", api_suffix=api_suffix, scope_uuid=scope_uuid
     )
