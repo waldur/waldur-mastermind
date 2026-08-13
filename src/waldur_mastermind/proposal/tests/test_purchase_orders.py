@@ -343,6 +343,47 @@ class AllocationCarryThroughTest(test.APITestCase):
 
         self.assertEqual(self._allocated_order().state, OrderStates.PENDING_PROVIDER)
 
+    def test_an_unmet_offering_requirement_blocks_auto_approval(self):
+        # The call entry snapshots the offering's flag when the offering is
+        # added, so an offering that starts requiring a purchase order later
+        # leaves existing calls collecting nothing. Auto-approving there would
+        # walk the order past a control the provider still holds.
+        self.fixture.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.fixture.offering.save()
+        self.assertFalse(
+            self.requested_resource.requested_offering.require_purchase_order
+        )
+
+        utils.allocate_proposal(self.proposal)
+
+        order = self._allocated_order()
+        self.assertEqual(order.state, OrderStates.PENDING_CONSUMER)
+        self.assertIsNone(order.consumer_reviewed_by)
+
+    def test_a_reference_alone_does_not_satisfy_the_offering_requirement(self):
+        # The proposal accepts either half, the marketplace gate accepts the
+        # document only. Auto-approval must follow the stricter of the two.
+        self.fixture.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.fixture.offering.save()
+        self.requested_resource.purchase_order_reference = "PO-4711"
+        self.requested_resource.save()
+
+        utils.allocate_proposal(self.proposal)
+
+        self.assertEqual(self._allocated_order().state, OrderStates.PENDING_CONSUMER)
+
+    def test_the_document_satisfies_the_offering_requirement(self):
+        self.fixture.offering.plugin_options = {"require_purchase_order_upload": True}
+        self.fixture.offering.save()
+        self.requested_resource.attachment = _pdf()
+        self.requested_resource.save()
+
+        utils.allocate_proposal(self.proposal)
+
+        order = self._allocated_order()
+        self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+        self.assertEqual(order.consumer_reviewed_by, get_system_robot())
+
 
 class AllocationCarryThroughEndToEndTest(test.APITestCase):
     """The document survives the whole path the applicant actually walks.
