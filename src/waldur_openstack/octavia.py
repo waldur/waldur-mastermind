@@ -4,12 +4,12 @@ Octavia Load Balancer API client.
 
 import logging
 
-import openstack as openstack_sdk
 from openstack import exceptions as openstack_exceptions
+from openstack.connection import Connection
 
 from waldur_openstack import models
 from waldur_openstack.exceptions import OpenStackBackendError
-from waldur_openstack.session import get_credentials, get_verify_ssl
+from waldur_openstack.session import create_session, get_credentials, get_verify_ssl
 
 logger = logging.getLogger(__name__)
 
@@ -29,25 +29,18 @@ class OctaviaClient:
             # Use admin credentials from service_settings scoped to the tenant project.
             # Do NOT pass tenant= to get_credentials() — that switches to per-tenant
             # user credentials which may lack the policy rights for Octavia operations.
-            # We use get_credentials() + openstack_sdk.connect(**credentials) rather than
-            # get_keystone_session() because openstack_sdk.connect(session=ks_session)
-            # does not accept a keystoneauth1 Session directly and raises OptionError.
             credentials = get_credentials(self.tenant.service_settings)
             credentials.pop("project_name", None)
             credentials.pop("project_domain_name", None)
             credentials["project_id"] = self.tenant.backend_id
             verify = get_verify_ssl(self.tenant.service_settings)
-            auth_type = credentials.pop("auth_type", "password")
-            if auth_type == "v3applicationcredential":
-                self._connection = openstack_sdk.connect(
-                    auth_url=credentials["auth_url"],
-                    auth_type="v3applicationcredential",
-                    application_credential_id=credentials["username"],
-                    application_credential_secret=credentials["password"],
-                    verify=verify,
-                )
-            else:
-                self._connection = openstack_sdk.connect(**credentials, verify=verify)
+            # Build from an explicit session, not openstack_sdk.connect(verify=...):
+            # connect() installs a process-global "ignore InsecureRequestWarning"
+            # filter when verify is off, silencing it worker-wide (issue #66,
+            # Defect 2). Connection(session=...) avoids that, and create_session
+            # yields a TimedSession so Octavia calls get per-call logging.
+            session = create_session(credentials, verify)
+            self._connection = Connection(session=session)
         return self._connection
 
     @property

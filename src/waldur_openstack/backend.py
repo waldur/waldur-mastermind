@@ -58,6 +58,7 @@ from waldur_openstack.session import (
     get_neutron_client,
     get_nova_client,
     get_placement_client,
+    get_verify_ssl,
 )
 from waldur_openstack.utils import get_external_network_id, is_valid_volume_type_name
 
@@ -7580,9 +7581,10 @@ class OpenStackBackend(ServiceBackend):
         logger.debug(f"Starting upload to {upload_url}")
 
         try:
-            with httpx.Client(
-                verify=self.settings.options.get("verify_ssl", False)
-            ) as client:
+            # Resolve verification the same way the session above does:
+            # get_verify_ssl applies DEFAULTS and returns a CA file path when a
+            # client certificate is configured, which options.get() skipped.
+            with httpx.Client(verify=get_verify_ssl(tenant.service_settings)) as client:
                 upload_response = client.put(
                     upload_url,
                     content=stream_wsgi_input(),

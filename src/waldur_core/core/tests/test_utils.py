@@ -1,10 +1,15 @@
 import logging
+import warnings
+from unittest import mock
 
+import requests
 from django.http import HttpRequest
 from django.test import TestCase
+from urllib3.exceptions import InsecureRequestWarning
 
 from waldur_core.core.models import User
 from waldur_core.core.utils import (
+    QuietSession,
     chunked_queryset,
     get_ip_address,
     ip_in_networks,
@@ -197,3 +202,52 @@ class NormalizeIpAddressTest(TestCase):
 
     def test_none_returns_none(self):
         self.assertIsNone(normalize_ip_address(None))
+
+
+class QuietSessionTest(TestCase):
+    """QuietSession must swallow urllib3's InsecureRequestWarning on unverified
+    requests without over-suppressing verified ones.
+
+    The transport is faked at requests.Session.request (QuietSession.request's
+    super()) so no real HTTP happens; the fake simply emits the warning the way
+    urllib3 does on a new insecure connection.
+    """
+
+    def _record_warnings(self, session, verify):
+        # The reset + simplefilter("always") MUST live inside the recorder.
+        # openstacksdk installs a process-global filterwarnings("ignore",
+        # InsecureRequestWarning) the first time it connects with verify off
+        # (issue #66, Defect 2); without resetting it here a prior test in the
+        # same process would silence the warning and make every assertion below
+        # pass vacuously. The positive control (plain Session) keeps this honest.
+        def emit_insecure_warning(*args, **kwargs):
+            warnings.warn("Unverified HTTPS request", InsecureRequestWarning)
+            return mock.sentinel.response
+
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.resetwarnings()
+            warnings.simplefilter("always", InsecureRequestWarning)
+            with mock.patch.object(
+                requests.Session, "request", side_effect=emit_insecure_warning
+            ):
+                session.request("GET", "https://example.invalid", verify=verify)
+        return [w for w in recorded if issubclass(w.category, InsecureRequestWarning)]
+
+    def test_plain_session_emits_warning(self):
+        # Positive control: without QuietSession the warning reaches the caller.
+        # If this ever stops recording, the negative assertions are worthless.
+        session = requests.Session()
+        recorded = self._record_warnings(session, verify=False)
+        self.assertEqual(len(recorded), 1)
+
+    def test_quiet_session_suppresses_warning_when_unverified(self):
+        session = QuietSession()
+        recorded = self._record_warnings(session, verify=False)
+        self.assertEqual(recorded, [])
+
+    def test_quiet_session_does_not_suppress_when_verified(self):
+        # No over-suppression: a verified request still surfaces the warning
+        # (it just would not normally be raised for a verified connection).
+        session = QuietSession()
+        recorded = self._record_warnings(session, verify=True)
+        self.assertEqual(len(recorded), 1)
