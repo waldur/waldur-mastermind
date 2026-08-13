@@ -2484,19 +2484,19 @@ Validate TLS certificate of FreeIPA web interface / REST API
 
 #### FREEIPA_USERNAME_PREFIX
 
-**Type:** str
+**Type:** non_empty_field
 
 **Default value:** waldur_
 
-Prefix to be appended to all usernames created in FreeIPA by Waldur
+Prefix to be appended to all usernames created in FreeIPA by Waldur. It marks which accounts are managed by Waldur, so it may not be empty.
 
 #### FREEIPA_GROUPNAME_PREFIX
 
-**Type:** str
+**Type:** non_empty_field
 
 **Default value:** waldur_
 
-Prefix to be appended to all group names created in FreeIPA by Waldur
+Prefix to be appended to all group names created in FreeIPA by Waldur. It marks which groups are managed by Waldur, so it may not be empty.
 
 #### FREEIPA_BLACKLISTED_USERNAMES
 

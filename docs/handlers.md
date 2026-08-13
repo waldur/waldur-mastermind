@@ -606,6 +606,7 @@ td:nth-child(4) {
 | `delete_expired_project_if_every_resource_has_been_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Delete an expired project if all its resources have been terminated. |
 | `delete_offering_component_for_volume_type` | `Django Signal (post_delete)` | `openstack.VolumeType` | No description |
 | `delete_offering_user_checklist_completions` | `Django Signal (pre_delete)` | `marketplace.OfferingUser` | Delete related checklist completions when OfferingUser is deleted. |
+| `delete_project_credits_with_customer_credit` | `Django Signal (pre_delete)` | `invoices.CustomerCredit` | Remove the project credits funded by an organization credit with it. |
 | `delete_remote_project` | `Django Signal (post_delete)` | `structure.Project` | No description |
 | `delete_service_setting_when_offering_is_deleted` | `Django Signal (post_delete)` | `marketplace.Offering` | Delete service settings when an offering is deleted. |
 | `delete_stale_price_estimate` | `Django Signal (pre_delete)` | `structure.Project` | Delete price estimates when customer or project is deleted. |
@@ -904,14 +905,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 825
+Total unique handlers found: 826
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 425 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 342 handlers
+- **waldur_mastermind**: 343 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
