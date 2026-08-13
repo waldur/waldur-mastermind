@@ -759,7 +759,13 @@ class ProjectCredit(BaseCredit):
     )
 
     @property
-    def consumption_last_month(self) -> float:
+    def consumption_last_month(self) -> float | None:
+        """Credit drawn by this project in the previous month.
+
+        None when that month has no invoice at all — no billing period is not
+        the same statement as "drew nothing", and callers should be able to
+        tell them apart.
+        """
         last_month = core_utils.get_last_month()
         invoice = Invoice.objects.filter(
             year=last_month.year,
@@ -768,9 +774,17 @@ class ProjectCredit(BaseCredit):
         ).first()
 
         if not invoice:
-            return
+            return None
 
-        credit = CustomerCredit.objects.filter(customer=self.project.customer).get()
+        # Nothing links a ProjectCredit to its CustomerCredit — no FK, no
+        # delete guard — so the organization credit can be removed while
+        # project credits survive. Without it no compensation item can exist,
+        # so nothing was drawn; raising here would 500 every read of the
+        # project credit, which project roles now make.
+        credit = CustomerCredit.objects.filter(customer=self.project.customer).first()
+        if not credit:
+            return 0
+
         items = InvoiceItem.objects.filter(
             invoice=invoice,
             credit=credit,

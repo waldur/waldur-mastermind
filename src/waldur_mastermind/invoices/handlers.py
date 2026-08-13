@@ -264,6 +264,34 @@ def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
         )
 
 
+def delete_project_credits_with_customer_credit(
+    sender, instance: CustomerCredit, **kwargs
+):
+    """Remove the project credits funded by an organization credit with it.
+
+    A project credit is an allocation *out of* the organization credit — it is
+    created only when one exists (ProjectCredit.save validates that) and can
+    draw nothing without it. Leaving them behind produced orphans that no
+    longer meant anything and that every reader had to defend against.
+
+    Implemented as a signal rather than a foreign key because the two are
+    related through the project's customer, and a project can be moved between
+    customers; a FK would have to be rewritten on every move to stay true,
+    whereas resolving by customer at delete time is always correct.
+    """
+    project_credits = ProjectCredit.objects.filter(project__customer=instance.customer)
+    names = list(project_credits.values_list("project__name", flat=True))
+    if not names:
+        return
+    logger.info(
+        "Deleting %s project credit(s) with the organization credit of %s: %s",
+        len(names),
+        instance.customer,
+        ", ".join(names),
+    )
+    project_credits.delete()
+
+
 def log_project_credit(sender, instance: ProjectCredit, created=False, **kwargs):
     # See log_credit() for the rationale behind opt-in suppression.
     if credit_audit_skipped():
