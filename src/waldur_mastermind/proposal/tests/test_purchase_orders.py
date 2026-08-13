@@ -67,6 +67,36 @@ class RequirementDerivationTest(test.APITestCase):
 
         self.assertFalse(requested_offering.require_purchase_order)
 
+    def test_a_call_manager_cannot_write_the_requirement(self):
+        # The flag belongs to the offering's provider — theirs is what gates
+        # order approval. The entry is editable until the provider accepts it,
+        # which let a call manager lower the requirement before the provider had
+        # a say, and neither of them is shown the field anywhere.
+        offering = self.fixture.offering
+        offering.plugin_options = {"require_purchase_order_upload": True}
+        offering.save()
+        # The entry is only writable until the provider accepts it, so that is
+        # the state the rule has to hold in.
+        requested_offering = factories.RequestedOfferingFactory(
+            call=self.fixture.call,
+            offering=offering,
+            state=models.RequestedOffering.States.REQUESTED,
+        )
+        self.assertTrue(requested_offering.require_purchase_order)
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = (
+            factories.CallFactory.get_protected_url(
+                self.fixture.call, action="offerings"
+            )
+            + f"{requested_offering.uuid.hex}/"
+        )
+        response = self.client.patch(url, {"require_purchase_order": False})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        requested_offering.refresh_from_db()
+        self.assertTrue(requested_offering.require_purchase_order)
+
 
 class SubmitValidationTest(test.APITestCase):
     def setUp(self):
