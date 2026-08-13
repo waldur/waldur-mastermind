@@ -9,12 +9,14 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import serializers
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import order_approval
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
     AllocationTimes,
@@ -24,6 +26,83 @@ from waldur_mastermind.proposal.enums import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _requested_end_date(
+    requested_resource: proposal_models.RequestedResource,
+    project: structure_models.Project,
+) -> datetime.date | None:
+    """The end date for the allocated resource, re-anchored at allocation.
+
+    The resource request stores an absolute date, which the form computed from
+    the day the request was drafted. Allocation happens after review, so by then
+    that date is short of the period the applicant chose and the reviewer
+    priced — and once review outlasts the period itself the date has passed,
+    which ``validate_end_date`` rejects outright.
+
+    Carrying the *length* over instead keeps both intact: the resource runs for
+    the number of months that were requested, and the prepaid multiplier
+    reproduces the cost the proposal was accepted on. An absolute date would
+    quietly deliver a shorter grant and invoice less than the approved figure.
+
+    Returns None when no period was requested, or when the re-anchored date
+    breaks the offering's own termination rules — allocation must not fail over
+    a date, so the resource is left open and the operator gets a warning.
+    """
+    attributes = requested_resource.attributes or {}
+    if not attributes.get("end_date"):
+        return None
+
+    try:
+        requested_end = marketplace_utils.parse_date(attributes["end_date"])
+    except serializers.ValidationError:
+        logger.warning(
+            "Requested resource %s carries an unparseable end date %r; the "
+            "allocated resource is left without one.",
+            requested_resource.uuid,
+            attributes["end_date"],
+        )
+        return None
+    if requested_end is None:
+        return None
+
+    months = core_utils.calculate_duration_months(
+        requested_resource.created.date(), requested_end
+    )
+    today = datetime.date.today()
+    end_date = today + relativedelta(months=months)
+
+    offering = requested_resource.requested_offering.offering
+    try:
+        return marketplace_utils.validate_end_date(
+            offering,
+            today,
+            end_date,
+            project_end_date=project.end_date,
+        )
+    except serializers.ValidationError as exc:
+        logger.warning(
+            "End date %s for requested resource %s was rejected by offering %s "
+            "(%s); the allocated resource is left without one, so prepaid "
+            "components are charged for a single month.",
+            end_date,
+            requested_resource.uuid,
+            offering.uuid,
+            exc.detail,
+        )
+        return None
+
+
+def _purchase_order_requirement_met(order: marketplace_models.Order) -> bool:
+    """Whether the offering's own purchase order requirement is satisfied.
+
+    Mirrors the marketplace gate (``order_should_not_be_reviewed_by_consumer``
+    and ``approve_by_consumer``), which accepts the document only — a bare
+    reference satisfies the proposal but not the provider.
+    """
+    if not order.offering.plugin_options.get("require_purchase_order_upload", False):
+        return True
+    return bool(order.attachment)
 
 
 def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
@@ -106,6 +185,11 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
                 **attrs,
                 name=project.name,
             )
+            # Before init_cost: the prepaid multiplier in Plan.get_estimate and
+            # in the invoice item builder both read this field, so setting it
+            # afterwards would price and bill a six-month grant as one month.
+            # The marketplace order path sets it in the same order and says so.
+            resource.end_date = _requested_end_date(requested_resource, project)
             resource.init_cost()
             resource.save()
 
@@ -146,6 +230,24 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             # project and to PENDING_START_DATE where those apply. No
             # select_for_update is taken because the row was created in this
             # transaction and is not yet visible to anyone else.
+            #
+            # The provider's own requirement is not skipped. Its flag lives on
+            # the offering and gates order approval; the call setting only
+            # decides what the proposal collects, and the two can diverge — the
+            # call entry snapshots the flag when the offering is added, so an
+            # offering that starts requiring a purchase order later leaves
+            # existing calls collecting nothing. Auto-approving there would
+            # walk the order straight past a control the provider still holds,
+            # so leave it pending and let the usual gate ask for the document.
+            if not _purchase_order_requirement_met(order):
+                logger.info(
+                    "Order %s allocated from proposal %s awaits a purchase "
+                    "order, so consumer approval is left to a human.",
+                    order.uuid,
+                    proposal.uuid,
+                )
+                continue
+
             order.review_by_consumer(robot)
             outcome = order_approval.transition_order_from_consumer_approval(
                 order, robot
