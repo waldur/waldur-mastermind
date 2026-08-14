@@ -279,11 +279,9 @@ When a grace period is used, the effective date for zeroing credits is always th
 | `roll_back_customer_credit` | Compensation cleared |
 | `roll_back_project_credit` | Compensation cleared |
 
-#### Cost Policies and the Compensation Projection
+#### Cost Policies and Compensation
 
-`waldur_mastermind.policy`'s `ProjectEstimatedCostPolicy` and `CustomerEstimatedCostPolicy` (`src/waldur_mastermind/policy/models.py`) call `MonthlyCompensation.get_resource_compensation()` / `get_project_compensation()` / `total_compensation` to net cost against credit in their own `is_triggered()` check -- reusing the exact algorithm above, but as a **read-only, on-demand simulation**, not the finalization-time `save()` path. Each call constructs a fresh `MonthlyCompensation(customer)`, which fetches the customer's live `CustomerCredit`/`ProjectCredit` rows and re-runs `calculate_current_compensations()` against whatever is currently on the customer's open invoice -- without ever calling `.save()`. The in-memory pool decrements the algorithm performs are discarded once the call returns; nothing about this evaluation touches the persisted `value` column.
-
-This makes `is_triggered()` a two-gate check rather than a single cost comparison:
+`waldur_mastermind.policy`'s `ProjectEstimatedCostPolicy` and `CustomerEstimatedCostPolicy` (`src/waldur_mastermind/policy/models.py`) net cost against credit in two independent steps inside `is_triggered()`, not one combined comparison:
 
 ```mermaid
 graph TD
@@ -296,9 +294,15 @@ graph TD
     D -->|Yes, balance depleted| F
 ```
 
-Gate 1 nets cost against the live compensation simulation described above; gate 2 re-queries `CustomerCredit`/`ProjectCredit` directly, and is only consulted once gate 1 is already open (`use_credit=False` policies skip it and compare gross cost instead). The two can disagree, because gate 1's compensation figure is order-dependent: it depends on which other resources currently share the same invoice and where this resource lands in the cheapest-first walk, not on any commitment the account has actually made yet. A resource can be assigned little or no compensation in one evaluation purely because cheaper siblings exhausted the pool first in that pass, while the real balance behind it is untouched and healthy. Gate 2 exists to catch exactly that: the policy fires only when the projection *and* the real, persisted balance both agree the account is over budget.
+**Gate 1** sums every `InvoiceItem` for the project/customer across the policy's rolling window (1/3/12 months) via `EstimatedCostPolicyMixin._is_triggered` -- cost items and compensation items together, unfiltered by type, since a compensation item is just a negative-priced row on the same invoice. For a month whose invoice has already been finalized -- including one `rebill_historical_usage` has just corrected -- this sum is entirely real, persisted data. There's no simulation involved in reading it.
 
-Example: resource X costs 45,000 against a policy `limit_cost` of 10,000, sharing a 50,000 customer credit with three cheaper siblings totalling 37,000. The cheapest-first walk drains the pool on the siblings first, leaving X only 13,000 of simulated compensation -- net cost 32,000, gate 1 opens. Gate 2 reads the real balance directly: 50,000, nowhere near `limit_cost`, so it stays closed and the policy does not fire. Had the real balance actually been down to 3,000 (drawn down by past, already-finalized months), gate 2 would have opened too, and the policy would fire -- same gate 1 outcome, different verdict, because only gate 2 reflects what has actually happened to the account.
+On top of that sum, `is_triggered()` additionally subtracts a live `MonthlyCompensation.get_resource_compensation()` / `get_project_compensation()` / `total_compensation` call -- but this only ever represents the customer's *current, still-mutable* invoice (`MonthlyCompensation(customer)`, called with no explicit `invoice=` argument, auto-selects it), re-run fresh in memory on every evaluation without ever calling `.save()`. It has no bearing on any past month already reflected in the sum above.
+
+**Gate 2** re-queries `CustomerCredit`/`ProjectCredit` directly, and is only consulted once gate 1 is already open (`use_credit=False` policies skip it and compare gross cost instead).
+
+The two gates read genuinely different facts -- gate 1 is a net invoiced position over a window, gate 2 is the current remaining reserve -- so they can disagree for ordinary reasons. This window's net cost can be high because credit only partially covered it, correctly, if the pool was scarce at finalization time; or because a later correction's compensation update didn't fully rebalance against a sibling sharing the same credit, since `rebill_historical_usage`'s own correction is a simplified 1:1 update to the one resource being fixed, not a full cheapest-first re-run across every resource sharing that credit (see its `sibling_compensations` warning). Either way, the real balance behind it can still have plenty of untouched headroom for other resources or future spend. Gate 2 doesn't re-derive gate 1's number; it checks the one fact that's never in question -- the balance, right now. The policy fires only when both independently say the account is over budget.
+
+Verified example, from `scripts/simulate_rebill_historical_usage.py`'s scenario B: a resource billed 500 node-hours (1,425), fully compensated at finalization time from a 3,000 project credit (1,575 left over). A correction raises the reported usage to 3,000 node-hours (8,550) -- the credit correction aborts (7,125 needed, only 1,575 available), so the compensation item stays at its old value. Gate 1 for that project: 8,550 − 1,425 = 7,125, against a `limit_cost` of 3,000 -- opens. Gate 2: the real project credit balance, 1,575, is also below 3,000 -- opens too. Both gates reflect real, persisted numbers throughout; no simulation was involved in either.
 
 See `EstimatedCostPolicyMixin._is_triggered` and `ProjectEstimatedCostPolicy.is_triggered` / `CustomerEstimatedCostPolicy.is_triggered` in `src/waldur_mastermind/policy/models.py` for the exact implementation.
 
