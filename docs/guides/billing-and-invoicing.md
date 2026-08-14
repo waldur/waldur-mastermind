@@ -279,6 +279,29 @@ When a grace period is used, the effective date for zeroing credits is always th
 | `roll_back_customer_credit` | Compensation cleared |
 | `roll_back_project_credit` | Compensation cleared |
 
+#### Cost Policies and the Compensation Projection
+
+`waldur_mastermind.policy`'s `ProjectEstimatedCostPolicy` and `CustomerEstimatedCostPolicy` (`src/waldur_mastermind/policy/models.py`) call `MonthlyCompensation.get_resource_compensation()` / `get_project_compensation()` / `total_compensation` to net cost against credit in their own `is_triggered()` check -- reusing the exact algorithm above, but as a **read-only, on-demand simulation**, not the finalization-time `save()` path. Each call constructs a fresh `MonthlyCompensation(customer)`, which fetches the customer's live `CustomerCredit`/`ProjectCredit` rows and re-runs `calculate_current_compensations()` against whatever is currently on the customer's open invoice -- without ever calling `.save()`. The in-memory pool decrements the algorithm performs are discarded once the call returns; nothing about this evaluation touches the persisted `value` column.
+
+This makes `is_triggered()` a two-gate check rather than a single cost comparison:
+
+```mermaid
+graph TD
+    A[New invoice item / credit change] --> B{Gate 1:<br>cost this window<br>net of compensation<br>>= limit_cost?}
+    B -->|No| Z[Policy stays clear]
+    B -->|Yes| C{use_credit configured?}
+    C -->|No| F[Policy fires]
+    C -->|Yes| D{Gate 2:<br>credit.value<br><= limit_cost?}
+    D -->|No, balance healthy| Z
+    D -->|Yes, balance depleted| F
+```
+
+Gate 1 nets cost against the live compensation simulation described above; gate 2 re-queries `CustomerCredit`/`ProjectCredit` directly, and is only consulted once gate 1 is already open (`use_credit=False` policies skip it and compare gross cost instead). The two can disagree, because gate 1's compensation figure is order-dependent: it depends on which other resources currently share the same invoice and where this resource lands in the cheapest-first walk, not on any commitment the account has actually made yet. A resource can be assigned little or no compensation in one evaluation purely because cheaper siblings exhausted the pool first in that pass, while the real balance behind it is untouched and healthy. Gate 2 exists to catch exactly that: the policy fires only when the projection *and* the real, persisted balance both agree the account is over budget.
+
+Example: resource X costs 45,000 against a policy `limit_cost` of 10,000, sharing a 50,000 customer credit with three cheaper siblings totalling 37,000. The cheapest-first walk drains the pool on the siblings first, leaving X only 13,000 of simulated compensation -- net cost 32,000, gate 1 opens. Gate 2 reads the real balance directly: 50,000, nowhere near `limit_cost`, so it stays closed and the policy does not fire. Had the real balance actually been down to 3,000 (drawn down by past, already-finalized months), gate 2 would have opened too, and the policy would fire -- same gate 1 outcome, different verdict, because only gate 2 reflects what has actually happened to the account.
+
+See `EstimatedCostPolicyMixin._is_triggered` and `ProjectEstimatedCostPolicy.is_triggered` / `CustomerEstimatedCostPolicy.is_triggered` in `src/waldur_mastermind/policy/models.py` for the exact implementation.
+
 ### Configuration
 
 The grace period is configured in `WALDUR_INVOICES` settings:
@@ -352,3 +375,4 @@ For TOTAL period components, the system:
 | `src/waldur_mastermind/invoices/tasks.py` | `finalize_previous_invoices` | Deferred invoice finalization (grace period) |
 | `src/waldur_mastermind/invoices/compensations.py` | `MonthlyCompensation` | Credit-based compensation logic |
 | `src/waldur_mastermind/marketplace/enums.py` | `BillingTypes`, `LimitPeriods` | Billing type and period enums |
+| `src/waldur_mastermind/policy/models.py` | `ProjectEstimatedCostPolicy`, `CustomerEstimatedCostPolicy` | Cost Policy gate logic, consumes `MonthlyCompensation` as a projection |
