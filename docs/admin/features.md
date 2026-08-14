@@ -36,10 +36,6 @@ Show where the current month's spend is going, by line item, on the project dash
 
 Show credit burn-down with a projected exhaustion date, and a monthly spend forecast with a confidence band, on the project dashboard.
 
-## dashboard.usage_gauges
-
-Show one saturation dial per limit-based component. Components without a limit are omitted.
-
 ## dashboard.usage_limit_horizon
 
 Show a saturation bar per offering component against a timeline, with the current date and the next limit reset marked.
@@ -51,10 +47,6 @@ Show usage against the remaining cap as one stacked bar per offering.
 ## dashboard.usage_period_over_period
 
 Show usage for the current period overlaid on the previous one, per offering component.
-
-## dashboard.usage_timeline
-
-Show per-offering usage bucketed over time.
 
 ## dashboard.usage_treemap
 

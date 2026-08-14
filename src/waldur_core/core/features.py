@@ -232,11 +232,6 @@ class DashboardSection(FeatureSection):
         "Show usage against the remaining cap as one stacked bar per offering."
     )
 
-    usage_gauges = Feature(
-        "Show one saturation dial per limit-based component. Components "
-        "without a limit are omitted."
-    )
-
     usage_treemap = Feature(
         "Show usage as a treemap of offering, billing type and component."
     )
@@ -245,8 +240,6 @@ class DashboardSection(FeatureSection):
         "Show a saturation bar per offering component against a timeline, "
         "with the current date and the next limit reset marked."
     )
-
-    usage_timeline = Feature("Show per-offering usage bucketed over time.")
 
     usage_period_over_period = Feature(
         "Show usage for the current period overlaid on the previous one, "
