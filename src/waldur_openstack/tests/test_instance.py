@@ -1024,6 +1024,29 @@ class InstanceUpdatePortsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertTrue(self.instance.ports.filter(subnet=shared_subnet).exists())
 
+    def test_port_on_a_shared_network_belongs_to_the_instance_tenant(self):
+        # The port used to inherit the subnet's tenant, which on a shared network
+        # is the network owner. push_instance_ports then created it in Neutron
+        # under that project while attaching it with a session scoped to the
+        # instance's tenant, so nova could not see the port and the attach 404ed
+        # on every run.
+        shared_subnet = self._shared_network_from_another_tenant()
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {"subnet": factories.SubNetFactory.get_url(shared_subnet)},
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        port = self.instance.ports.get(subnet=shared_subnet)
+        self.assertNotEqual(shared_subnet.tenant, self.instance.tenant)
+        self.assertEqual(port.tenant, self.instance.tenant)
+        self.assertEqual(port.project, self.instance.project)
+
     def test_user_cannot_pin_an_address_on_another_tenants_network(self):
         """Neutron reserves this to the network owner; Waldur creates ports as admin."""
         subnet = self._shared_network_from_another_tenant()
