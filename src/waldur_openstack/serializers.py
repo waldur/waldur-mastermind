@@ -5286,12 +5286,20 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
                     instance=instance, subnet=port.subnet
                 ).first()
                 if not match:
+                    # The port belongs to the instance's tenant, never to the
+                    # subnet's. push_instance_ports creates it in Neutron under
+                    # this tenant and then attaches it with a session scoped to
+                    # the instance's tenant, so on an RBAC-shared network — where
+                    # the subnet belongs to the network owner and validation
+                    # deliberately allows it — the subnet's tenant would put the
+                    # port in a project nova cannot see, and the attach 404s.
+                    # Instance creation already assigns ownership this way.
                     models.Port.objects.create(
                         instance=instance,
                         subnet=port.subnet,
                         network=port.subnet.network,
-                        tenant=port.subnet.tenant,
-                        project=port.subnet.project,
+                        tenant=instance.tenant,
+                        project=instance.project,
                         service_settings=port.subnet.service_settings,
                         fixed_ips=port.fixed_ips or [],
                     )
