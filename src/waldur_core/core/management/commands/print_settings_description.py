@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from waldur_core.core.fields import COUNTRIES
+
 
 class Command(BaseCommand):
     help = """Prints all Waldur feature description as typescript code."""
@@ -21,6 +23,7 @@ class Command(BaseCommand):
                 default = settings.CONSTANCE_CONFIG[key][0]
                 description = settings.CONSTANCE_CONFIG[key][1].replace("'", "\\'")
                 value_type = None
+                config_type = None
                 if len(settings.CONSTANCE_CONFIG[key]) >= 3:
                     raw_type = settings.CONSTANCE_CONFIG[key][2]
                     if isinstance(raw_type, type):
@@ -31,9 +34,10 @@ class Command(BaseCommand):
                             str: "string",
                             list: "list_field",
                         }
-                        value_type = f"'{type_map.get(raw_type, raw_type.__name__)}'"
+                        config_type = type_map.get(raw_type, raw_type.__name__)
                     else:
-                        value_type = f"'{raw_type}'"
+                        config_type = raw_type
+                    value_type = f"'{config_type}'"
                 formatted_default = (
                     isinstance(default, str)
                     and f"'{default}'"
@@ -52,14 +56,27 @@ class Command(BaseCommand):
                     or isinstance(default, int)
                     and "'integer'"
                 )
-                options_metadata = ""
+                choices = None
                 if (
                     hasattr(settings, "CONSTANCE_CONFIG_CHOICES")
                     and key in settings.CONSTANCE_CONFIG_CHOICES
                 ):
                     choices = settings.CONSTANCE_CONFIG_CHOICES[key]
+                elif config_type == "country_list_field":
+                    # The default is only the shipped subset; expose every valid
+                    # country so the frontend can offer all of them.
+                    choices = COUNTRIES
+
+                options_metadata = ""
+                if choices:
                     formatted_choices = ", ".join(
-                        [f"{{ value: '{c[0]}', label: '{c[1]}' }}" for c in choices]
+                        [
+                            "{{ value: '{}', label: '{}' }}".format(
+                                str(c[0]).replace("'", "\\'"),
+                                str(c[1]).replace("'", "\\'"),
+                            )
+                            for c in choices
+                        ]
                     )
                     options_metadata = f"        options: [{formatted_choices}],\n"
 
