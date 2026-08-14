@@ -52,6 +52,7 @@ from waldur_core.core.authentication import (
 )
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURES
+from waldur_core.core.fields import COUNTRIES
 from waldur_core.core.handlers import emit_user_blocked_event
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP, build_logo_url
 from waldur_core.core.metadata import WaldurConfiguration
@@ -2154,11 +2155,18 @@ class SettingsMetadataView(APIView):
                         "type": formatted_type,
                     }
 
+                    choices = None
                     if (
                         hasattr(settings, "CONSTANCE_CONFIG_CHOICES")
                         and key in settings.CONSTANCE_CONFIG_CHOICES
                     ):
                         choices = settings.CONSTANCE_CONFIG_CHOICES[key]
+                    elif formatted_type == "country_list_field":
+                        # The default is only the shipped subset; expose every
+                        # valid country so clients can offer all of them.
+                        choices = COUNTRIES
+
+                    if choices:
                         item_data["options"] = [
                             {"value": c[0], "label": c[1]} for c in choices
                         ]
