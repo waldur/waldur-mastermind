@@ -5833,7 +5833,13 @@ class OpenStackBackend(ServiceBackend):
         for candidate in candidates:
             if candidate.get("device_id") or candidate.get("device_owner"):
                 continue
-            if candidate.get("tenant_id") != local_port.tenant.backend_id:
+            # Neutron reports ownership as tenant_id, project_id, or both,
+            # depending on API microversion. Reading only tenant_id makes the
+            # ownership check silently fail closed on deployments that report
+            # project_id alone, so a genuinely adoptable port is skipped and the
+            # instance stays stuck on the allocation error.
+            candidate_tenant = candidate.get("tenant_id") or candidate.get("project_id")
+            if not candidate_tenant or candidate_tenant != local_port.tenant.backend_id:
                 continue
             found = {
                 (fixed_ip["subnet_id"], fixed_ip["ip_address"])
