@@ -223,6 +223,53 @@ class MarketplaceSection(FeatureSection):
     )
 
 
+class DashboardSection(FeatureSection):
+    class Meta:
+        key = "dashboard"
+        description = "Project and organization dashboards"
+
+    usage_per_offering_bars = Feature(
+        "Show usage against the remaining cap as one stacked bar per offering."
+    )
+
+    usage_gauges = Feature(
+        "Show one saturation dial per limit-based component. Components "
+        "without a limit are omitted."
+    )
+
+    usage_treemap = Feature(
+        "Show usage as a treemap of offering, billing type and component."
+    )
+
+    usage_limit_horizon = Feature(
+        "Show a saturation bar per offering component against a timeline, "
+        "with the current date and the next limit reset marked."
+    )
+
+    usage_timeline = Feature("Show per-offering usage bucketed over time.")
+
+    usage_period_over_period = Feature(
+        "Show usage for the current period overlaid on the previous one, "
+        "per offering component."
+    )
+
+    spend_forecast = Feature(
+        "Show credit burn-down with a projected exhaustion date, and a "
+        "monthly spend forecast with a confidence band, on the project "
+        "dashboard."
+    )
+
+    spend_breakdown = Feature(
+        "Show where the current month's spend is going, by line item, on the "
+        "project dashboard."
+    )
+
+    policy_matrix = Feature(
+        "Show active policies with their thresholds, current saturation and "
+        "resulting action on the project dashboard."
+    )
+
+
 class SupportSection(FeatureSection):
     class Meta:
         key = "support"
