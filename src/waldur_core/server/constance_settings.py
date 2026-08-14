@@ -81,6 +81,7 @@ LOGIN_PAGE_LAYOUT_CHOICES = [
 ]
 
 SUPPORT_BACKEND_CHOICES = [
+    ("basic", "Basic"),
     ("atlassian", "Atlassian"),
     ("zammad", "Zammad"),
     ("smax", "SMAX"),
