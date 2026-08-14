@@ -1402,9 +1402,11 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 return True
             else:
                 logger.warning(
-                    "No STOMP messages prepared for resource %s (offering %s). "
-                    "Ensure the site agent has periodic_limits.enabled=true "
-                    "and has registered a queue for object_type=resource_periodic_limits.",
+                    "No STOMP messages prepared for resource %s (offering %s): no "
+                    "queue registered for object_type=resource_periodic_limits. "
+                    "Such queues are registered only by a site agent running in "
+                    "event_process mode, with stomp_enabled=true and "
+                    "backend_settings.periodic_limits.enabled=true for this offering.",
                     resource.backend_id,
                     resource.offering.uuid,
                 )

@@ -675,8 +675,16 @@ class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
         ).exists()
         if not queue_exists:
             data["warnings"] = [
-                "No site agent has registered a queue for periodic limits updates on this offering. "
-                "Ensure the site agent has periodic_limits.enabled set to true and is running."
+                "No site agent has registered a queue for periodic limits updates on "
+                "this offering. Periodic settings are delivered over STOMP only, so "
+                "the policy cannot be enforced until a queue is registered.",
+                "Queues are registered exclusively by a site agent running in "
+                "event_process mode — the order_process, membership_sync and report "
+                "modes never register one. Check that such an agent is running for "
+                "this offering, that the offering has stomp_enabled: true and "
+                "backend_settings.periodic_limits.enabled: true in the agent "
+                "configuration, and restart the event_process agent after changing "
+                "its configuration. Requires site agent 0.8.0 or newer.",
             ]
         return data
 
