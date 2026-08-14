@@ -2206,6 +2206,26 @@ class PushInstancePortsTest(BaseBackendTest):
             instance.backend_id, "orphaned-port-id", None, None
         )
 
+    def test_failed_lookup_still_reports_the_allocation_error(self):
+        # Reclaiming is best effort — if the lookup itself fails, the reported
+        # error must still be the taken address, not the lookup failure.
+        instance, port = self._prepare_new_port()
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient(
+                message="address is already allocated"
+            )
+        )
+        admin_neutron.list_ports.side_effect = (
+            neutron_exceptions.NeutronClientException(message="neutron is unreachable")
+        )
+
+        with self.assertRaises(OpenStackBackendError) as raised:
+            self._run_push(instance, tenant_neutron, admin_neutron)
+
+        self.assertIn("address is already allocated", str(raised.exception))
+        self.assertNotIn("neutron is unreachable", str(raised.exception))
+
     def test_address_held_by_an_attached_port_is_not_stolen(self):
         instance, port = self._prepare_new_port()
         tenant_neutron, admin_neutron = self._neutron_clients()
