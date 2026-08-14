@@ -149,6 +149,46 @@ policy.organization_groups.add(research_group)
 
 ## Site Agent Configuration
 
+### Prerequisites
+
+Periodic settings are delivered to the cluster over STOMP only — there is no
+polling fallback. Mastermind publishes them to queues that the site agent
+registers on startup, so all of the following must hold or the policy silently
+enforces nothing:
+
+- **A site agent runs in `event_process` mode for this offering.** This is the
+  only mode that registers event subscriptions. The polling modes
+  (`order_process`, `membership_sync`, `report`) never do, so a deployment
+  running only those cannot use periodic policies. In the Helm chart this is
+  `agents.eventProcess.enabled`.
+- **`stomp_enabled: true` on the offering** in the agent configuration. It
+  defaults to `false`, and an offering without it is skipped entirely.
+- **`backend_settings.periodic_limits.enabled: true`** on the offering, as shown
+  below.
+- **Site agent 0.8.0 or newer.** Earlier versions ignore `periodic_limits`.
+
+Subscriptions are computed once, at agent startup: after changing any of the
+above, restart the **`event_process`** agent specifically.
+
+To confirm registration succeeded, look for these lines in the `event_process`
+agent log:
+
+```text
+Periodic limits enabled for offering <name>, subscribing to periodic limits updates
+Creating event subscription queue for <uuid>, object type ...RESOURCE_PERIODIC_LIMITS
+```
+
+Staff can verify the same from the API:
+
+```text
+GET /api/event-subscription-queues/?offering_uuid=<uuid>&object_type=resource_periodic_limits
+```
+
+An empty result is what drives the "No site agent has registered a queue for
+periodic limits updates" warning on the policy.
+
+### Configuration
+
 Configure the site agent to handle QoS changes:
 
 ```yaml

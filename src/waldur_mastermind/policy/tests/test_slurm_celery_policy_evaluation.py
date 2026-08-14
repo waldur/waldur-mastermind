@@ -1406,8 +1406,10 @@ class TestSlurmPolicySerializerWarnings(TestCase):
         )
         data = serializer.data
         self.assertIn("warnings", data)
-        self.assertEqual(len(data["warnings"]), 1)
         self.assertIn("No site agent has registered a queue", data["warnings"][0])
+        # The remedy must name the agent mode that actually registers the queue:
+        # the polling modes never do, so "restart the agent" is not actionable.
+        self.assertIn("event_process", " ".join(data["warnings"]))
 
     def test_no_warning_when_queue_registered(self):
         """Serializer output has no warnings when an EventSubscriptionQueue exists
