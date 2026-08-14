@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import DateField, IntegerField
+from django.db.models import DateField, IntegerField, Q
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
@@ -25,20 +25,194 @@ from waldur_auth_social.const import (
 )
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
+from waldur_autoprovisioning.models import Rule
 from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.user_attributes import (
     get_enabled_idp_sync_fields,
     get_federated_identity_sync_allowed_fields,
 )
-from waldur_core.core.validators import validate_ssh_public_key
+from waldur_core.core.validators import (
+    matches_access_email_pattern,
+    validate_ssh_public_key,
+)
 from waldur_core.permissions.handlers import reactivate_user_with_logging
+from waldur_core.permissions.models import UserRole
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import GroupInvitation, Invitation
 
 logger = logging.getLogger(__name__)
 
 LIST_USER_FIELDS = set({"affiliations", "nationalities", "eduperson_assurance"})
+
+# User attributes consulted by UserDetailsMatchMixin.evaluate_for_user. Only these
+# are needed to test an about-to-be-created account against autoprovisioning rules.
+RULE_MATCH_USER_FIELDS = (
+    "email",
+    "affiliations",
+    "identity_source",
+    "nationality",
+    "nationalities",
+    "organization_type",
+    "eduperson_assurance",
+)
+
+
+def has_pending_invitation(email: str) -> bool:
+    """Whether the email was invited, either directly or via a group invitation."""
+    if not email:
+        return False
+
+    if Invitation.objects.filter(
+        email__iexact=email, state=InvitationState.PENDING
+    ).exists():
+        return True
+
+    return any(
+        GroupInvitation._is_pattern_match(pattern, email)
+        for gi in GroupInvitation.objects.filter(is_active=True).only(
+            "user_email_patterns"
+        )
+        for pattern in (gi.user_email_patterns or [])
+    )
+
+
+def matches_allowed_email_patterns(email: str | None) -> bool:
+    """Whether the email is allowed by OIDC_ALLOWED_USER_EMAIL_PATTERNS."""
+    return matches_access_email_pattern(
+        config.OIDC_ALLOWED_USER_EMAIL_PATTERNS or [], email
+    )
+
+
+def matches_autoprovisioning_rule(user: User) -> bool:
+    """Whether any autoprovisioning rule explicitly selects this user.
+
+    Such a user is going to be given a project as soon as the account exists, so
+    refusing to create or admit it would contradict the rule.
+
+    A rule with no filter at all is ignored on purpose. By the mixin convention
+    an empty filter set matches everybody - which is right for a *restriction*
+    but not here: "provision whoever gets in" is not "let everybody in", and
+    reading it that way would silently disable account blocking altogether.
+
+    The rule's email patterns are re-checked with the strict matcher, because
+    the mixin matches emails by prefix: a rule for ``.*@example\\.com`` would
+    otherwise admit ``attacker@example.com.evil.net`` through this branch, which
+    is exactly the hole the allowlist itself is anchored against.
+
+    The user may be unsaved - rule evaluation only reads attributes.
+    """
+    for rule in Rule.objects.all():
+        result = Rule.evaluate_for_user(rule, user)
+        if not result.matched:
+            continue
+
+        checks = {check.name: check for check in result.filter_results}
+        if not any(check.configured for check in checks.values()):
+            continue
+
+        email_check = checks["email_patterns"]
+        if email_check.configured and email_check.matched:
+            if not matches_access_email_pattern(
+                rule.user_email_patterns or [], user.email
+            ):
+                # The basic filters are an OR group, so the rule still applies if
+                # another one of them matched on its own merits.
+                if not (
+                    checks["affiliations"].matched or checks["identity_sources"].matched
+                ):
+                    continue
+
+        return True
+    return False
+
+
+def build_unsaved_user(payload: dict) -> User:
+    """Assemble the account that would be created, for rule matching purposes.
+
+    Attributes the identity provider does not map (see
+    ``IdentityProvider.attribute_mapping`` and ``get_enabled_idp_sync_fields``)
+    are simply absent, so rules keyed on them will not match.
+    """
+    return User(
+        **{
+            field: payload[field]
+            for field in RULE_MATCH_USER_FIELDS
+            if payload.get(field)
+        }
+    )
+
+
+def check_login_allowed(
+    identity_provider: IdentityProvider,
+    user: User,
+    payload: dict,
+    roles: list | None,
+) -> None:
+    """Enforce OIDC_ALLOWED_USER_EMAIL_PATTERNS on an already existing account.
+
+    Unlike the signup gate, this runs on every login, so it is deliberately
+    narrow: it is inert unless account blocking is enabled *and* an allowlist is
+    configured, and it never touches the account itself.
+
+    The exemptions all guard against locking someone out with no way back in:
+
+    * staff and support users, so one mistyped pattern cannot shut the
+      administrators out of their own deployment. The incoming roles claim is
+      consulted too, since the flags it drives are only written further down
+      this function - a freshly promoted operator would otherwise be refused;
+    * users holding at least one unexpired role, i.e. anybody already working
+      in the deployment;
+    * users with a pending invitation, who need to log in *in order to* accept
+      it and gain the role that would exempt them;
+    * users covered by an autoprovisioning rule, which is the same allowance
+      the signup path grants.
+
+    The email is taken from the incoming claims when present. Falling back to
+    the stored value alone would be self-perpetuating: a user whose provider
+    moved them into the allowlist would be blocked before the sync that records
+    the new address ever runs.
+    """
+    if not config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS:
+        return
+
+    patterns = config.OIDC_ALLOWED_USER_EMAIL_PATTERNS or []
+    if not patterns:
+        return
+
+    roles = roles or []
+    if user.is_staff or user.is_support or "staff" in roles or "support" in roles:
+        return
+
+    email = payload.get("email") or user.email
+    if matches_access_email_pattern(patterns, email):
+        return
+
+    now = timezone.now()
+    if (
+        UserRole.objects.filter(user=user, is_active=True)
+        .filter(Q(expiration_time__isnull=True) | Q(expiration_time__gt=now))
+        .exists()
+    ):
+        return
+
+    if has_pending_invitation(email):
+        return
+
+    if matches_autoprovisioning_rule(user):
+        return
+
+    logger.info(
+        "Login of user %s (pk=%s) is blocked: email does not match "
+        "OIDC_ALLOWED_USER_EMAIL_PATTERNS and no exemption applies.",
+        user.username,
+        user.pk,
+    )
+    raise OAuthException(
+        identity_provider.provider,
+        config.OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE,
+        user_facing=True,
+    )
 
 
 def normalize_mapped_claim_value(user_field: str, value):
@@ -198,8 +372,17 @@ def get_user_payload(
 
 
 def create_or_update_oauth_user(
-    identity_provider: IdentityProvider, backend_user: dict
+    identity_provider: IdentityProvider,
+    backend_user: dict,
+    is_interactive_login: bool = True,
 ):
+    """Create or refresh the account behind a set of identity provider claims.
+
+    ``is_interactive_login`` must be False for background identity
+    synchronisation: this function is shared with the eduTEAMS pull, which is
+    not a login and must keep syncing attributes for accounts the login policy
+    would refuse.
+    """
     payload = get_user_payload(identity_provider, backend_user)
     lookup_params = get_lookup_params(identity_provider, backend_user)
 
@@ -247,6 +430,11 @@ def create_or_update_oauth_user(
 
     if user is not None:
         # --- Existing user found (primary or email match) ---
+        # Runs before the deactivation handling below so that a blocked account is
+        # not pointlessly reactivated on its way to being refused.
+        if is_interactive_login:
+            check_login_allowed(identity_provider, user, payload, roles)
+
         if not user.is_active:
             # When DEACTIVATE_USER_IF_NO_ROLES is enabled, users are auto-deactivated
             # upon losing all roles. If such a user has a pending invitation or matches
@@ -254,17 +442,7 @@ def create_or_update_oauth_user(
             # Without this, the user is permanently locked out: can't log in → can't
             # accept invitation → can't regain roles → stays deactivated.
             if config.DEACTIVATE_USER_IF_NO_ROLES and user.email:
-                has_pending_invitation = Invitation.objects.filter(
-                    email__iexact=user.email, state=InvitationState.PENDING
-                ).exists()
-                has_group_invitation_match = any(
-                    GroupInvitation._is_pattern_match(pattern, user.email)
-                    for gi in GroupInvitation.objects.filter(is_active=True).only(
-                        "user_email_patterns"
-                    )
-                    for pattern in (gi.user_email_patterns or [])
-                )
-                if has_pending_invitation or has_group_invitation_match:
+                if has_pending_invitation(user.email):
                     reactivate_user_with_logging(
                         user, reason="Pending invitation exists during OIDC login"
                     )
@@ -358,30 +536,25 @@ def create_or_update_oauth_user(
     else:
         # --- No user found, create new ---
         if config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS:
-            if "email" not in payload or not payload["email"]:
+            email = payload.get("email")
+            if not email:
                 raise OAuthException(
                     identity_provider.provider,
                     "User email is not provided. Account creation is blocked.",
                     user_facing=True,
                 )
 
-            if not Invitation.objects.filter(
-                email__iexact=payload["email"], state=InvitationState.PENDING
-            ).exists():
-                email = payload["email"]
-                group_invitation_match = any(
-                    GroupInvitation._is_pattern_match(pattern, email)
-                    for gi in GroupInvitation.objects.filter(is_active=True).only(
-                        "user_email_patterns"
-                    )
-                    for pattern in (gi.user_email_patterns or [])
+            allowed = (
+                has_pending_invitation(email)
+                or matches_allowed_email_patterns(email)
+                or matches_autoprovisioning_rule(build_unsaved_user(payload))
+            )
+            if not allowed:
+                raise OAuthException(
+                    identity_provider.provider,
+                    config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE,
+                    user_facing=True,
                 )
-                if not group_invitation_match:
-                    raise OAuthException(
-                        identity_provider.provider,
-                        config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE,
-                        user_facing=True,
-                    )
         created = True
 
         if "username" not in payload and "username" not in lookup_params:
@@ -489,7 +662,9 @@ def pull_remote_eduteams_user(username):
                 provider=ProviderChoices.REMOTE_EDUTEAMS,
                 **PROVIDER_DEFAULTS[ProviderChoices.REMOTE_EDUTEAMS],
             )
-        user, created = create_or_update_oauth_user(config, user_info)
+        user, created = create_or_update_oauth_user(
+            config, user_info, is_interactive_login=False
+        )
         sync_eduteams_ssh_keys(user, user_info, config)
     return user, created
 

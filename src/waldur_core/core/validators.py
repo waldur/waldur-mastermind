@@ -678,9 +678,15 @@ def validate_unix_path(path):
             )
 
 
+# Quantifier, either a bare one or a bounded repetition: +, *, {2}, {2,}, {2,5}
+_QUANTIFIER = r"(?:[+*]|\{\d+,?\d*\})"
+
 # Patterns that indicate potential ReDoS vulnerability
 _REDOS_PATTERNS = [
-    r"\(\?P?<[^>]*>[^)]*[+*][^)]*\)[+*]",  # Nested quantifiers: (a+)+
+    # Nested quantifiers: (a+)+, (?P<x>a+)+, (?:a{2,})*. The group prefix is
+    # optional - an earlier revision required "(?", which let the plain (a+)+
+    # form, the textbook catastrophic-backtracking case, pass unnoticed.
+    rf"\((?:\?P?<[^>]*>|\?:)?[^)]*{_QUANTIFIER}[^)]*\){_QUANTIFIER}",
     r"\([^)]*\|[^)]*\)[+*]{2,}",  # Overlapping alternations with quantifiers
     r"[+*]\?[+*]",  # Adjacent quantifiers
 ]
@@ -697,3 +703,78 @@ def is_potentially_dangerous_regex(pattern: str) -> bool:
     if len(pattern) > _MAX_REGEX_PATTERN_LENGTH:
         return True
     return bool(_REDOS_REGEX.search(pattern))
+
+
+def collect_access_email_pattern_errors(patterns) -> list[str]:
+    """Collect human-readable problems with a list of access-control email patterns.
+
+    Returns an empty list when every pattern is a usable regular expression.
+    """
+    if not isinstance(patterns, list | tuple):
+        return ["Value must be a list of regular expressions."]
+
+    invalid_patterns = []
+    dangerous_patterns = []
+
+    for pattern in patterns:
+        if not pattern or not isinstance(pattern, str):
+            invalid_patterns.append(pattern)
+            continue
+        try:
+            re.compile(pattern)
+        except re.error:
+            invalid_patterns.append(pattern)
+            continue
+        if is_potentially_dangerous_regex(pattern):
+            dangerous_patterns.append(pattern)
+
+    errors = []
+    if invalid_patterns:
+        errors.append(f"Invalid regex patterns: {invalid_patterns}")
+    if dangerous_patterns:
+        errors.append(
+            "Potentially dangerous patterns (nested quantifiers or too long): "
+            f"{dangerous_patterns}"
+        )
+    return errors
+
+
+def validate_access_email_patterns(patterns) -> None:
+    """Reject email patterns that cannot be used as an access-control allowlist."""
+    errors = collect_access_email_pattern_errors(patterns)
+    if errors:
+        raise ValidationError(errors)
+
+
+def matches_access_email_pattern(patterns, email) -> bool:
+    """Check whether an email is allowed by any of the access-control patterns.
+
+    Unlike :meth:`UserDetailsMatchMixin._is_pattern_match`, which is a convenience
+    filter, this is an authorization decision, so matching is deliberately strict:
+
+    * the whole email must match the pattern (``fullmatch``), otherwise a pattern
+      such as ``.*@example\\.com`` would also admit ``user@example.com.attacker.net``;
+    * matching is case-insensitive, mirroring how emails are compared elsewhere
+      (``email__iexact``);
+    * an unusable pattern (not a string, invalid regex, potential ReDoS) never
+      matches, so a broken configuration denies access rather than granting it.
+    """
+    if not email or not isinstance(email, str):
+        return False
+    if not isinstance(patterns, list | tuple):
+        return False
+
+    for pattern in patterns:
+        if not pattern or not isinstance(pattern, str):
+            continue
+        if is_potentially_dangerous_regex(pattern):
+            logger.warning(
+                "Potentially dangerous regex pattern rejected: '%s'", pattern[:50]
+            )
+            continue
+        try:
+            if re.fullmatch(pattern, email, re.IGNORECASE):
+                return True
+        except re.error as e:
+            logger.warning("Invalid regex pattern '%s': %s", pattern, e)
+    return False

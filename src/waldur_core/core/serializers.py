@@ -32,7 +32,10 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
 from waldur_core.core.signals import pre_serializer_fields
-from waldur_core.core.validators import normalize_network_acl
+from waldur_core.core.validators import (
+    normalize_network_acl,
+    validate_access_email_patterns,
+)
 from waldur_core.permissions.enums import TYPE_KEY_BY_CT, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import get_scope_ancestors, has_any_permission
 from waldur_mastermind.common.serializers import StringListSerializer
@@ -717,6 +720,12 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["allow_blank"] = True
             fields[name] = field_class(**kwargs)
         return fields
+
+    def validate_OIDC_ALLOWED_USER_EMAIL_PATTERNS(self, value):
+        # An unusable pattern never matches, so a silently accepted typo would
+        # lock users out instead of letting them in - reject it on write.
+        validate_access_email_patterns(value)
+        return value
 
     def save(self):
         for name in self.validated_data.keys():

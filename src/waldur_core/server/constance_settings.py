@@ -1130,6 +1130,29 @@ CONSTANCE_CONFIG = {
         "(e.g. https://example.com) so bare URLs are linked.",
         "text_field",
     ),
+    "OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE": (
+        "Access to this deployment is restricted.",
+        "The message to show when an existing account is refused at login because its email "
+        "no longer matches OIDC_ALLOWED_USER_EMAIL_PATTERNS. Kept separate from the account "
+        "creation message so a long-standing user is not told their account cannot be created. "
+        "URLs are rendered as clickable links; include the scheme "
+        "(e.g. https://example.com) so bare URLs are linked.",
+        "text_field",
+    ),
+    "OIDC_ALLOWED_USER_EMAIL_PATTERNS": (
+        [],
+        "Comma-separated list of regular expressions matched against the user email, "
+        "e.g. '.*@example\\.com'. Only has an effect when OIDC_BLOCK_CREATION_OF_UNINVITED_USERS is enabled. "
+        "When non-empty, a user whose email matches any of the patterns may sign up without an invitation, "
+        "and existing users must keep matching in order to log in - except staff and support users, "
+        "users holding at least one unexpired role, users with a pending invitation and users matching "
+        "an autoprovisioning rule, which are always allowed. Only interactive logins are gated; "
+        "background identity synchronisation is not. "
+        "Patterns must match the whole email and are case-insensitive. "
+        "Note: values are split on commas, so a pattern cannot contain a comma - "
+        "'{n,m}' quantifiers are not supported, repeat the expression instead.",
+        "list_field",
+    ),
     "OIDC_MATCHMAKING_BY_EMAIL": (
         False,
         "If true, when OIDC login fails to find a user by the primary lookup field, "
@@ -1977,6 +2000,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "DEACTIVATE_USER_IF_NO_ROLES",
         "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS",
         "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE",
+        "OIDC_ALLOWED_USER_EMAIL_PATTERNS",
+        "OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE",
         "OIDC_MATCHMAKING_BY_EMAIL",
         "OIDC_ACCESS_TOKEN_ENABLED",
         "REMOTE_EDUTEAMS_REFRESH_TOKEN",
