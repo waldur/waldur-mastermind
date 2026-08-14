@@ -24,17 +24,9 @@ Allows to show permission reviews tab and popups for organisations.
 
 Enable display of project digest configuration in organization settings.
 
-## dashboard.policy_matrix
-
-Show active policies with their thresholds, current saturation and resulting action on the project dashboard.
-
-## dashboard.spend_breakdown
-
-Show where the current month's spend is going, by line item, on the project dashboard.
-
 ## dashboard.spend_forecast
 
-Show credit burn-down with a projected exhaustion date, and a monthly spend forecast with a confidence band, on the project dashboard.
+Show credit burn-down with a projected exhaustion date on the project dashboard.
 
 ## dashboard.usage_limit_horizon
 
