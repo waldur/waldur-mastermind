@@ -2240,6 +2240,46 @@ class PushInstancePortsTest(BaseBackendTest):
         port.refresh_from_db()
         self.assertEqual(port.backend_id, "")
 
+    def test_orphaned_port_reported_with_project_id_only_is_reused(self):
+        # Depending on the API microversion Neutron reports ownership as
+        # tenant_id, project_id, or both. Looking at tenant_id alone left the
+        # instance stuck on the allocation error wherever only project_id came
+        # back, even though the port was safe to adopt.
+        instance, port = self._prepare_new_port()
+        backend_port = self._orphaned_backend_port(port)
+        backend_port.pop("tenant_id")
+        backend_port["project_id"] = port.tenant.backend_id
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {"ports": [backend_port]}
+
+        mock_nova = self._run_push(instance, tenant_neutron, admin_neutron)
+
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "orphaned-port-id")
+        mock_nova.return_value.servers.interface_attach.assert_called_once_with(
+            instance.backend_id, "orphaned-port-id", None, None
+        )
+
+    def test_port_with_unknown_owner_is_not_stolen(self):
+        # A port that names no owner at all is not evidence of our own leak.
+        instance, port = self._prepare_new_port()
+        backend_port = self._orphaned_backend_port(port)
+        backend_port.pop("tenant_id")
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {"ports": [backend_port]}
+
+        with self.assertRaises(OpenStackBackendError):
+            self._run_push(instance, tenant_neutron, admin_neutron)
+
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "")
+
     def test_port_already_claimed_by_another_record_is_not_stolen(self):
         instance, port = self._prepare_new_port()
         factories.PortFactory(
