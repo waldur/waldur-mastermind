@@ -4,6 +4,8 @@ from django import forms
 from django.conf import settings
 from django.contrib import admin
 
+from waldur_core.core.validators import collect_access_email_pattern_errors
+
 
 class WaldurConstanceForm(ConstanceForm):
     """Inject per-setting choices from ``CONSTANCE_CONFIG_CHOICES``.
@@ -39,6 +41,15 @@ class WaldurConstanceForm(ConstanceForm):
                 )
             elif isinstance(field, forms.ChoiceField):
                 field.choices = choices_list
+
+    def clean_OIDC_ALLOWED_USER_EMAIL_PATTERNS(self):
+        # Mirrors ConstanceSettingsSerializer: an unusable pattern never matches,
+        # so accepting a typo here would lock users out instead of letting them in.
+        value = self.cleaned_data["OIDC_ALLOWED_USER_EMAIL_PATTERNS"]
+        errors = collect_access_email_pattern_errors(value)
+        if errors:
+            raise forms.ValidationError(errors)
+        return value
 
 
 class WaldurConstanceAdmin(constance_admin.ConstanceAdmin):

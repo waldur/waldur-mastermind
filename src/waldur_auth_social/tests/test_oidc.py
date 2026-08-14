@@ -1,8 +1,10 @@
+from datetime import timedelta
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
 import responses
 from constance.test.unittest import override_config
+from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import ValidationError
@@ -11,14 +13,20 @@ from rest_framework.reverse import reverse
 from waldur_auth_social import models
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_auth_social.serializers import IdentityProviderSerializer
-from waldur_auth_social.utils import parse_schac_personal_unique_id
+from waldur_auth_social.utils import (
+    create_or_update_oauth_user,
+    parse_schac_personal_unique_id,
+)
 from waldur_auth_social.views import (
     OIDC_CODE_VERIFIER_KEY,
     OIDC_REFERRER_KEY,
     OIDC_RETURN_URL_KEY,
     OIDC_STATE_KEY,
 )
+from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
 from waldur_core.core.models import User
+from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.tests import factories as user_factories
@@ -2100,3 +2108,504 @@ class OIDCEmailMatchmakingTest(test.APITransactionTestCase):
         self.assertEqual(existing_user.username, "new_oidc_sub")
         self.assertEqual(existing_user.first_name, "NewFirst")
         self.assertEqual(existing_user.last_name, "NewLast")
+
+
+class OIDCAllowedEmailPatternsTest(test.APITransactionTestCase):
+    """Tests for the OIDC_ALLOWED_USER_EMAIL_PATTERNS allowlist.
+
+    The allowlist widens signup beyond invitations and, once configured, also
+    gates every login of an already existing account.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.provider = models.IdentityProvider.objects.create(
+            provider=ProviderChoices.KEYCLOAK,
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+            discovery_url="http://keycloak.test/.well-known/openid-configuration",
+            userinfo_url="http://keycloak.test/userinfo",
+            token_url="http://keycloak.test/token",
+            auth_url="http://keycloak.test/auth",
+            **PROVIDER_DEFAULTS[ProviderChoices.KEYCLOAK],
+        )
+        self.url = reverse(f"auth_{self.provider.provider}_complete")
+        self.state = "test_state"
+        self.code = "test_code"
+
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session.save()
+
+        responses.start()
+        self.addCleanup(responses.stop)
+
+    def _mock_token_request(self):
+        return responses.add(
+            method="POST",
+            url=self.provider.token_url,
+            json={
+                "access_token": "test_access_token",
+                "refresh_token": "test_refresh_token",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _mock_userinfo_request(self, user_info):
+        responses.add(
+            method="GET",
+            url=self.provider.userinfo_url,
+            json=user_info,
+            status=status.HTTP_200_OK,
+        )
+
+    def _login(self, user_info):
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+        return self.client.get(self.url, {"state": self.state, "code": self.code})
+
+    # --- Signup path ---
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_creation_is_allowed_if_email_matches_allowlist(self):
+        user_info = {
+            "sub": "allowed_user",
+            "given_name": "Allowed",
+            "family_name": "User",
+            "email": "someone@example.com",
+        }
+
+        response = self._login(user_info)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username="allowed_user").exists())
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_creation_is_blocked_if_email_only_partially_matches_allowlist(self):
+        """The pattern must match the whole email, not just its beginning."""
+        user_info = {
+            "sub": "lookalike_user",
+            "given_name": "Look",
+            "family_name": "Alike",
+            "email": "attacker@example.com.attacker.net",
+        }
+
+        response = self._login(user_info)
+
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
+        self.assertFalse(User.objects.filter(username="lookalike_user").exists())
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_allowlist_match_is_case_insensitive(self):
+        user_info = {
+            "sub": "mixed_case_user",
+            "given_name": "Mixed",
+            "family_name": "Case",
+            "email": "Someone@EXAMPLE.CoM",
+        }
+
+        response = self._login(user_info)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username="mixed_case_user").exists())
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=["*broken"],
+    )
+    def test_invalid_allowlist_pattern_never_allows_creation(self):
+        """A pattern that does not compile denies rather than admits."""
+        user_info = {
+            "sub": "broken_pattern_user",
+            "given_name": "Broken",
+            "family_name": "Pattern",
+            "email": "aaa@example.com",
+        }
+
+        response = self._login(user_info)
+
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
+        self.assertFalse(User.objects.filter(username="broken_pattern_user").exists())
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r"(a+)+@example\.com"],
+    )
+    def test_redos_prone_allowlist_pattern_never_allows_creation(self):
+        """A pattern rejected as ReDoS-prone denies rather than admits."""
+        user_info = {
+            "sub": "dangerous_pattern_user",
+            "given_name": "Dangerous",
+            "family_name": "Pattern",
+            "email": "aaa@example.com",
+        }
+
+        response = self._login(user_info)
+
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
+        self.assertFalse(
+            User.objects.filter(username="dangerous_pattern_user").exists()
+        )
+
+    @override_config(OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"])
+    def test_allowlist_is_inert_while_blocking_is_disabled(self):
+        """With the master toggle off, signup stays open to everybody."""
+        user_info = {
+            "sub": "open_signup_user",
+            "given_name": "Open",
+            "family_name": "Signup",
+            "email": "someone@otherdomain.com",
+        }
+
+        response = self._login(user_info)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username="open_signup_user").exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_creation_is_allowed_if_autoprovisioning_rule_matches(self):
+        autoprovisioning_factories.RuleFactory(
+            user_email_patterns=[r".*@example\.com"],
+            plan=None,
+        )
+        user_info = {
+            "sub": "autoprovisioned_user",
+            "given_name": "Auto",
+            "family_name": "Provisioned",
+            "email": "someone@example.com",
+        }
+
+        response = self._login(user_info)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username="autoprovisioned_user").exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_creation_is_blocked_if_autoprovisioning_rule_does_not_match(self):
+        autoprovisioning_factories.RuleFactory(
+            user_email_patterns=[r".*@example\.com"],
+            plan=None,
+        )
+        user_info = {
+            "sub": "unmatched_user",
+            "given_name": "Unmatched",
+            "family_name": "User",
+            "email": "someone@otherdomain.com",
+        }
+
+        response = self._login(user_info)
+
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
+        self.assertFalse(User.objects.filter(username="unmatched_user").exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_creation_is_blocked_if_autoprovisioning_rule_has_no_filters(self):
+        """An unconfigured rule must not admit everybody."""
+        autoprovisioning_factories.RuleFactory(plan=None)
+        user_info = {
+            "sub": "unfiltered_rule_user",
+            "given_name": "Unfiltered",
+            "family_name": "Rule",
+            "email": "someone@otherdomain.com",
+        }
+
+        response = self._login(user_info)
+
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
+        self.assertFalse(User.objects.filter(username="unfiltered_rule_user").exists())
+
+    # --- Login path ---
+
+    def _user_info_for(self, user):
+        return {
+            "sub": user.username,
+            "given_name": user.first_name,
+            "family_name": user.last_name,
+            "email": user.email,
+        }
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_existing_user_login_is_blocked_if_email_does_not_match(self):
+        user = structure_factories.UserFactory(email="someone@otherdomain.com")
+
+        response = self._login(self._user_info_for(user))
+
+        assert_login_failed_redirect(
+            self, response, "Access to this deployment is restricted."
+        )
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+        OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE="Ask your administrator for access.",
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE="Signup is closed.",
+    )
+    def test_blocked_login_uses_the_login_specific_message(self):
+        """An existing user must not be told their account cannot be created."""
+        user = structure_factories.UserFactory(email="someone@otherdomain.com")
+
+        response = self._login(self._user_info_for(user))
+
+        assert_login_failed_redirect(
+            self, response, "Ask your administrator for access."
+        )
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_blocked_login_leaves_the_account_intact(self):
+        user = structure_factories.UserFactory(
+            email="someone@otherdomain.com",
+            first_name="Original",
+        )
+
+        self._login({**self._user_info_for(user), "given_name": "Updated"})
+
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.first_name, "Original")
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_existing_user_login_is_allowed_if_email_matches(self):
+        user = structure_factories.UserFactory(email="someone@example.com")
+
+        response = self._login(self._user_info_for(user))
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_staff_and_support_are_exempt_from_the_login_gate(self):
+        for kwargs in ({"is_staff": True}, {"is_support": True}):
+            with self.subTest(**kwargs):
+                user = structure_factories.UserFactory(
+                    email="someone@otherdomain.com", **kwargs
+                )
+
+                response = self._login(self._user_info_for(user))
+
+                self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_user_holding_a_role_is_exempt_from_the_login_gate(self):
+        user = structure_factories.UserFactory(email="someone@otherdomain.com")
+        project = structure_factories.ProjectFactory()
+        project.add_user(user, ProjectRole.ADMIN)
+
+        response = self._login(self._user_info_for(user))
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_user_matching_an_autoprovisioning_rule_is_exempt_from_the_login_gate(self):
+        user = structure_factories.UserFactory(email="someone@otherdomain.com")
+        autoprovisioning_factories.RuleFactory(
+            user_email_patterns=[r".*@otherdomain\.com"],
+            plan=None,
+        )
+
+        response = self._login(self._user_info_for(user))
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_pending_invitation_exempts_from_the_login_gate(self):
+        """An invited user must be able to log in *in order to* accept the invitation.
+
+        They hold no role until they accept, so without this exemption they are
+        admitted at signup and locked out on every subsequent login.
+        """
+        user = structure_factories.UserFactory(email="invited@otherdomain.com")
+        user_factories.ProjectInvitationFactory(
+            email=user.email,
+            scope=structure_factories.ProjectFactory(),
+            state=InvitationState.PENDING,
+        )
+
+        response = self._login(self._user_info_for(user))
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_login_gate_uses_the_incoming_email(self):
+        """A user the provider moved into the allowlist must not stay locked out.
+
+        The stored address is only refreshed further down the login flow, so
+        judging on it alone would be self-perpetuating.
+        """
+        user = structure_factories.UserFactory(email="mover@otherdomain.com")
+
+        response = self._login(
+            {**self._user_info_for(user), "email": "mover@example.com"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        self.assertEqual(user.email, "mover@example.com")
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+        WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles",
+    )
+    def test_incoming_staff_role_claim_exempts_from_the_login_gate(self):
+        """The is_staff flag is only written after the gate runs."""
+        user = structure_factories.UserFactory(email="operator@otherdomain.com")
+        self.assertFalse(user.is_staff)
+
+        response = self._login({**self._user_info_for(user), "roles": ["staff"]})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        self.assertTrue(user.is_staff)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_expired_role_does_not_exempt_from_the_login_gate(self):
+        """Roles awaiting the expiration sweeper must not grant a grace window."""
+        user = structure_factories.UserFactory(email="former@otherdomain.com")
+        project = structure_factories.ProjectFactory()
+        permission = project.add_user(user, ProjectRole.ADMIN)
+        UserRole.objects.filter(pk=permission.pk).update(
+            expiration_time=timezone.now() - timedelta(days=1)
+        )
+
+        response = self._login(self._user_info_for(user))
+
+        assert_login_failed_redirect(
+            self, response, "Access to this deployment is restricted."
+        )
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_background_sync_is_not_gated(self):
+        """The login policy must not break non-interactive identity sync."""
+        user = structure_factories.UserFactory(
+            username="synced_user",
+            email="synced@otherdomain.com",
+            first_name="Old",
+        )
+
+        synced, created = create_or_update_oauth_user(
+            self.provider,
+            {
+                "sub": "synced_user",
+                "given_name": "New",
+                "family_name": user.last_name,
+                "email": user.email,
+            },
+            is_interactive_login=False,
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(synced.pk, user.pk)
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "New")
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_autoprovisioning_rule_email_pattern_must_match_whole_email(self):
+        """The rule allow path is anchored just like the allowlist itself."""
+        autoprovisioning_factories.RuleFactory(
+            user_email_patterns=[r".*@example\.com"],
+            plan=None,
+        )
+        user_info = {
+            "sub": "rule_lookalike_user",
+            "given_name": "Rule",
+            "family_name": "Lookalike",
+            "email": "attacker@example.com.attacker.net",
+        }
+
+        response = self._login(user_info)
+
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
+        self.assertFalse(User.objects.filter(username="rule_lookalike_user").exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_autoprovisioning_rule_matches_on_another_filter(self):
+        """A non-strict email match must not veto a rule that matches otherwise."""
+        autoprovisioning_factories.RuleFactory(
+            user_email_patterns=[r".*@example\.com"],
+            user_affiliations=["faculty"],
+            plan=None,
+        )
+        self.provider.attribute_mapping = {
+            **self.provider.attribute_mapping,
+            "affiliations": "voperson_external_affiliation",
+        }
+        self.provider.save()
+        user_info = {
+            "sub": "affiliated_user",
+            "given_name": "Affiliated",
+            "family_name": "User",
+            "email": "attacker@example.com.attacker.net",
+            "voperson_external_affiliation": ["faculty"],
+        }
+
+        response = self._login(user_info)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username="affiliated_user").exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_login_gate_is_inert_while_the_allowlist_is_empty(self):
+        """Deployments using only the signup toggle keep their previous behaviour."""
+        user = structure_factories.UserFactory(email="someone@otherdomain.com")
+
+        response = self._login(self._user_info_for(user))
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"])
+    def test_login_gate_is_inert_while_blocking_is_disabled(self):
+        user = structure_factories.UserFactory(email="someone@otherdomain.com")
+
+        response = self._login(self._user_info_for(user))
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
