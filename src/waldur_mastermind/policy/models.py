@@ -149,6 +149,35 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         total = self._scoped_cost(invoice_items)
         return total - compensation > self.limit_cost
 
+    @classmethod
+    def _pending_compensation(cls, invoice_items, projected) -> decimal.Decimal:
+        """The part of `projected` that the cost sum does not already contain.
+
+        Credit compensations are ordinary invoice items with a negative
+        unit_price, and `_scoped_cost` sums every item in the queryset, so once
+        the monthly compensation has been written the cost total is already net
+        of it. MonthlyCompensation, however, always re-simulates the month from
+        the gross items — it has no notion of "already applied" — so deducting
+        its result wholesale subtracts the same credit a second time, and the
+        policy under-enforces by a month's credit draw.
+
+        Only credit that will still be drawn may come off the total: the
+        projection minus what is already written for the current month. The
+        written figure carries tax while the projection does not, so any
+        rounding difference resolves towards deducting less, never twice.
+        """
+        projected = decimal.Decimal(projected or 0)
+        if projected <= 0:
+            return decimal.Decimal(0)
+        month_start = core_utils.month_start(datetime.date.today())
+        written = invoice_items.filter(
+            invoice__year=month_start.year,
+            invoice__month=month_start.month,
+            credit__isnull=False,
+        )
+        applied = -cls._scoped_cost(written)
+        return max(decimal.Decimal(0), projected - applied)
+
     @staticmethod
     def _scoped_cost(invoice_items) -> decimal.Decimal:
         """Sum ``InvoiceItem.total`` over the queryset in the database instead
@@ -253,9 +282,10 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
         if self.use_credit:
             compensation = invoices_compensation.MonthlyCompensation(project.customer)
             if self.resource_id:
-                deduction = compensation.get_resource_compensation(self.resource)
+                projected = compensation.get_resource_compensation(self.resource)
             else:
-                deduction = compensation.get_project_compensation(project)
+                projected = compensation.get_project_compensation(project)
+            deduction = self._pending_compensation(invoice_items, projected)
         else:
             deduction = 0
 
@@ -328,8 +358,11 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
             invoice__customer=customer
         )
         compensation = invoices_compensation.MonthlyCompensation(customer)
+        deduction = self._pending_compensation(
+            invoice_items, compensation.total_compensation
+        )
 
-        if not self._is_triggered(invoice_items, compensation.total_compensation):
+        if not self._is_triggered(invoice_items, deduction):
             return False
 
         try:
