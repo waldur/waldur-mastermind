@@ -247,19 +247,8 @@ class DashboardSection(FeatureSection):
     )
 
     spend_forecast = Feature(
-        "Show credit burn-down with a projected exhaustion date, and a "
-        "monthly spend forecast with a confidence band, on the project "
-        "dashboard."
-    )
-
-    spend_breakdown = Feature(
-        "Show where the current month's spend is going, by line item, on the "
+        "Show credit burn-down with a projected exhaustion date on the "
         "project dashboard."
-    )
-
-    policy_matrix = Feature(
-        "Show active policies with their thresholds, current saturation and "
-        "resulting action on the project dashboard."
     )
 
 
