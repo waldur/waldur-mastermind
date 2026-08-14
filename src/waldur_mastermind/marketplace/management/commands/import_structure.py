@@ -806,14 +806,6 @@ class Command(BaseCommand):
             ),
         )
 
-        # Import SLURM periodic policies (depends on offerings)
-        self._safe_import(
-            "slurm_periodic_policies",
-            lambda: self.import_slurm_periodic_policies(
-                data.get("slurm_periodic_policies", [])
-            ),
-        )
-
         # Import cost policies (depends on projects and customers)
         self._safe_import(
             "project_estimated_cost_policies",
@@ -839,6 +831,17 @@ class Command(BaseCommand):
         self._safe_import(
             "plan_components",
             lambda: self.import_plan_components(data.get("plan_components", [])),
+        )
+
+        # Import SLURM periodic policies after offering components: a policy's
+        # component limits are resolved by component type against the offering,
+        # so importing it earlier silently dropped every limit and left the
+        # policy with no thresholds at all.
+        self._safe_import(
+            "slurm_periodic_policies",
+            lambda: self.import_slurm_periodic_policies(
+                data.get("slurm_periodic_policies", [])
+            ),
         )
 
         # Import OpenStack instances and volumes (before resources, so resource scope linking works)

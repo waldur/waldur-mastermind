@@ -1,3 +1,7 @@
+import collections
+import decimal
+import json
+import pathlib
 from io import StringIO
 
 from ddt import data, ddt
@@ -104,6 +108,35 @@ class DemoPresetManagerTest(TestCase):
         self.assertIsNotNone(preset)
         self.assertGreater(preset.entity_counts.get("projects", 0), 0)
         self.assertGreater(preset.entity_counts.get("service_providers", 0), 0)
+
+    def test_call_management_credits_fit_inside_their_organization_grant(self):
+        """Every project allocation must fit inside its organization's grant.
+
+        The credit history generator draws project allocations against the
+        organization credit, so a project funded above its organization would
+        produce a history that cannot happen in production.
+        """
+        path = DemoPresetManager.get_preset_path("call_management")
+        data = json.loads(pathlib.Path(path).read_text())
+
+        customer_credits = {
+            credit["customer_uuid"]: decimal.Decimal(credit["value"])
+            for credit in data["customer_credits"]
+        }
+        customer_by_project = {
+            project["uuid"]: project["customer_uuid"] for project in data["projects"]
+        }
+        self.assertTrue(customer_credits)
+        self.assertTrue(data["project_credits"])
+
+        granted_per_customer = collections.defaultdict(decimal.Decimal)
+        for credit in data["project_credits"]:
+            customer_uuid = customer_by_project[credit["project_uuid"]]
+            granted_per_customer[customer_uuid] += decimal.Decimal(credit["value"])
+
+        for customer_uuid, granted in granted_per_customer.items():
+            self.assertIn(customer_uuid, customer_credits)
+            self.assertLessEqual(granted, customer_credits[customer_uuid])
 
     def test_load_preset_returns_error_for_invalid_name(self):
         """Test that load_preset returns error for non-existent preset."""

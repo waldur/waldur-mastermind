@@ -273,6 +273,44 @@
       "country": "EE"
     }
   ],
+  "customer_credits": [
+    {
+      "uuid": "afc42000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000002",
+      "value": "240000",
+      "expected_consumption": "20000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "0.1",
+      "apply_as_minimal_consumption": true,
+      "end_date": "2027-07-01",
+      "created": "2026-01-15T00:00:00",
+      "offering_uuids": []
+    },
+    {
+      "uuid": "afc42000000000000000000000000002",
+      "customer_uuid": "b4000000000000000000000000000003",
+      "value": "180000",
+      "expected_consumption": "15000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "0.1",
+      "apply_as_minimal_consumption": true,
+      "end_date": "2027-07-01",
+      "created": "2026-01-15T00:00:00",
+      "offering_uuids": []
+    },
+    {
+      "uuid": "afc42000000000000000000000000003",
+      "customer_uuid": "b4000000000000000000000000000004",
+      "value": "120000",
+      "expected_consumption": "10000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "0.1",
+      "apply_as_minimal_consumption": true,
+      "end_date": "2027-07-01",
+      "created": "2026-01-15T00:00:00",
+      "offering_uuids": []
+    }
+  ],
   "projects": [
     {
       "uuid": "c4000000000000000000000000000001",
@@ -291,6 +329,71 @@
       "name": "Climate Modeling Initiative",
       "description": "High-resolution climate modeling and prediction",
       "customer_uuid": "b4000000000000000000000000000004"
+    }
+  ],
+  "project_credits": [
+    {
+      "uuid": "afc43000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000001",
+      "value": "220000",
+      "expected_consumption": "18000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "0.1",
+      "apply_as_minimal_consumption": true,
+      "end_date": "2027-07-01",
+      "created": "2026-01-20T00:00:00"
+    },
+    {
+      "uuid": "afc43000000000000000000000000002",
+      "project_uuid": "c4000000000000000000000000000002",
+      "value": "160000",
+      "expected_consumption": "13000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "0.1",
+      "apply_as_minimal_consumption": true,
+      "end_date": "2027-07-01",
+      "created": "2026-01-20T00:00:00"
+    },
+    {
+      "uuid": "afc43000000000000000000000000003",
+      "project_uuid": "c4000000000000000000000000000003",
+      "value": "100000",
+      "expected_consumption": "8000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "0.1",
+      "apply_as_minimal_consumption": true,
+      "end_date": "2027-07-01",
+      "created": "2026-01-20T00:00:00"
+    }
+  ],
+  "project_estimated_cost_policies": [
+    {
+      "uuid": "93400000000000000000000000000001",
+      "project_uuid": "c4000000000000000000000000000001",
+      "limit_cost": 20000,
+      "period": 2,
+      "actions": "notify_organization_owners,request_pausing",
+      "options": {},
+      "has_fired": false
+    },
+    {
+      "uuid": "93400000000000000000000000000002",
+      "project_uuid": "c4000000000000000000000000000002",
+      "limit_cost": 12000,
+      "period": 2,
+      "actions": "notify_organization_owners,request_downscaling",
+      "options": {},
+      "has_fired": true,
+      "fired_datetime": "2026-07-18T09:15:00Z"
+    },
+    {
+      "uuid": "93400000000000000000000000000003",
+      "project_uuid": "c4000000000000000000000000000003",
+      "limit_cost": 30000,
+      "period": 2,
+      "actions": "notify_organization_owners",
+      "options": {},
+      "has_fired": false
     }
   ],
   "user_agreements": [
@@ -1530,6 +1633,40 @@
       "max_value": 200
     }
   ],
+  "slurm_periodic_policies": [
+    {
+      "uuid": "9f400000000000000000000000000001",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "apply_to_all": true,
+      "actions": "notify_organization_owners,request_slurm_resource_downscaling",
+      "limit_type": "GrpTRESMins",
+      "tres_billing_enabled": true,
+      "tres_billing_weights": {
+        "CPU": 0.015625,
+        "Mem": 0.001953125,
+        "GRES/gpu": 0.25
+      },
+      "carryover_factor": 25,
+      "grace_ratio": 0.2,
+      "carryover_enabled": true,
+      "raw_usage_reset": true,
+      "qos_strategy": "progressive",
+      "component_limits": [
+        {
+          "type": "cpu",
+          "limit": 100000
+        },
+        {
+          "type": "ram",
+          "limit": 200000
+        },
+        {
+          "type": "gpu",
+          "limit": 2000
+        }
+      ]
+    }
+  ],
   "plans": [
     {
       "uuid": "14000000000000000000000000000001",
@@ -2390,7 +2527,9 @@
       "limits": {
         "cpu_hours": 50000,
         "storage": 500
-      }
+      },
+      "created": "2026-01-15T00:00:00",
+      "end_date": "2027-01-14"
     },
     {
       "uuid": "d4000000000000000000000000000002",
@@ -2403,7 +2542,9 @@
       "limits": {
         "gpu_hours": 2000,
         "cpu_hours": 30000
-      }
+      },
+      "created": "2026-02-01T00:00:00",
+      "end_date": "2026-11-30"
     },
     {
       "uuid": "d4000000000000000000000000000003",
@@ -2415,7 +2556,9 @@
       "attributes": {},
       "limits": {
         "storage": 20
-      }
+      },
+      "created": "2026-03-10T00:00:00",
+      "end_date": "2027-03-09"
     },
     {
       "uuid": "d4000000000000000000000000000004",
@@ -2428,7 +2571,9 @@
       "limits": {
         "cpu_hours": 80000,
         "storage": 800
-      }
+      },
+      "created": "2026-04-01T00:00:00",
+      "end_date": "2026-09-30"
     },
     {
       "uuid": "d4000000000000000000000000000005",
@@ -2441,7 +2586,9 @@
       "limits": {
         "vcpu": 16,
         "ram": 64
-      }
+      },
+      "created": "2026-05-20T00:00:00",
+      "end_date": "2027-05-19"
     },
     {
       "uuid": "d4000000000000000000000000000006",
@@ -2453,7 +2600,9 @@
       "attributes": {},
       "limits": {
         "storage": 50
-      }
+      },
+      "created": "2026-06-01T00:00:00",
+      "end_date": "2026-12-31"
     },
     {
       "uuid": "d4000000000000000000000000000007",
@@ -2466,7 +2615,9 @@
       "limits": {
         "gpu_hours": 1000,
         "cpu_hours": 20000
-      }
+      },
+      "created": "2026-01-15T00:00:00",
+      "end_date": "2027-01-14"
     },
     {
       "uuid": "d4000000000000000000000000000008",
@@ -2479,7 +2630,9 @@
       "limits": {
         "cpu_hours": 60000,
         "storage": 400
-      }
+      },
+      "created": "2026-02-01T00:00:00",
+      "end_date": "2026-11-30"
     },
     {
       "uuid": "d4000000000000000000000000000009",
@@ -2492,7 +2645,9 @@
       "limits": {
         "gpu_hours": 3000,
         "cpu_hours": 25000
-      }
+      },
+      "created": "2026-03-10T00:00:00",
+      "end_date": "2027-03-09"
     },
     {
       "uuid": "d400000000000000000000000000000a",
@@ -2504,7 +2659,9 @@
       "attributes": {},
       "limits": {
         "storage": 30
-      }
+      },
+      "created": "2026-04-01T00:00:00",
+      "end_date": "2026-09-30"
     },
     {
       "uuid": "d400000000000000000000000000000b",
@@ -2517,7 +2674,9 @@
       "limits": {
         "vcpu": 8,
         "ram": 32
-      }
+      },
+      "created": "2026-05-20T00:00:00",
+      "end_date": "2027-05-19"
     },
     {
       "uuid": "d400000000000000000000000000000c",
@@ -2530,7 +2689,9 @@
       "limits": {
         "cpu_hours": 40000,
         "storage": 300
-      }
+      },
+      "created": "2026-06-01T00:00:00",
+      "end_date": "2026-12-31"
     },
     {
       "uuid": "d400000000000000000000000000000d",
@@ -2547,7 +2708,9 @@
         "cpu": 100000,
         "ram": 200000,
         "gpu": 2000
-      }
+      },
+      "created": "2026-01-15T00:00:00",
+      "end_date": "2027-01-14"
     },
     {
       "uuid": "d400000000000000000000000000000e",
@@ -2564,7 +2727,9 @@
         "cpu": 80000,
         "ram": 160000,
         "gpu": 1500
-      }
+      },
+      "created": "2026-02-01T00:00:00",
+      "end_date": "2026-11-30"
     },
     {
       "uuid": "d400000000000000000000000000000f",
@@ -2581,7 +2746,9 @@
         "cpu": 150000,
         "ram": 300000,
         "gpu": 500
-      }
+      },
+      "created": "2026-03-10T00:00:00",
+      "end_date": "2027-03-09"
     }
   ],
   "user_roles": [
