@@ -115,6 +115,7 @@ STANDARD_CLAIM_SUGGESTIONS = {
         "citizenships",
     ],
     "organization_country": [
+        "org_reg_country",
         "org_country",
         "organization_country",
         "schacHomeOrganizationCountry",
