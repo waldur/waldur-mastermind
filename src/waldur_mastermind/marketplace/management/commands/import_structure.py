@@ -1,6 +1,8 @@
+import calendar
 import json
 import os
-from datetime import UTC, datetime, timedelta
+import re
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
@@ -1106,6 +1108,13 @@ class Command(BaseCommand):
             "project_credits",
             lambda: self.import_project_credits(data.get("project_credits", [])),
         )
+
+        self._safe_import(
+            "customer_credit_drawdown",
+            lambda: self.apply_customer_credit_drawdown(
+                data.get("customer_credits", [])
+            ),
+        )
         self._safe_import(
             "invoices", lambda: self.import_invoices(data.get("invoices", []))
         )
@@ -1248,6 +1257,47 @@ class Command(BaseCommand):
             if not flags:
                 continue
             Resource.objects.filter(uuid=uuid).update(**flags)
+
+    def _parse_date(self, value):
+        """Parse a date, supporting ISO dates and relative offsets.
+
+        Beyond `relative:+30days`, a date may be expressed in months and
+        anchored to the start of a month:
+
+            relative:+2months            same day of month, two months out
+            relative:+0months@month_start  the 1st of the current month
+
+        Scenario presets need this: a credit that expires "this month" or a
+        project that ends "in twelve days" is only that if it moves with the
+        clock. Hard-coded dates make such a preset wrong within weeks.
+        """
+        if not value or not isinstance(value, str):
+            return None
+
+        if value.startswith("relative:"):
+            spec = value[9:]
+            anchor_month_start = spec.endswith("@month_start")
+            if anchor_month_start:
+                spec = spec[: -len("@month_start")]
+            match = re.match(r"([+-]?\d+)(day|month)s?$", spec)
+            if not match:
+                return None
+            amount = int(match.group(1))
+            today = timezone.localtime(timezone.now()).date()
+            if match.group(2) == "day":
+                result = today + timedelta(days=amount)
+            else:
+                month_index = today.month - 1 + amount
+                year = today.year + month_index // 12
+                month = month_index % 12 + 1
+                day = min(today.day, calendar.monthrange(year, month)[1])
+                result = date(year, month, day)
+            return result.replace(day=1) if anchor_month_start else result
+
+        try:
+            return datetime.fromisoformat(value).date()
+        except (ValueError, TypeError):
+            return None
 
     def _parse_datetime(self, value):
         """Parse a datetime string, supporting both ISO format and relative offsets.
@@ -2687,18 +2737,11 @@ class Command(BaseCommand):
                 start_date = None
                 end_date = None
                 if project_data.get("start_date"):
-                    try:
-                        start_date = datetime.fromisoformat(
-                            project_data["start_date"]
-                        ).date()
-                    except (ValueError, TypeError):
-                        pass
+                    start_date = self._parse_date(project_data["start_date"])
 
                 if project_data.get("end_date"):
                     try:
-                        end_date = datetime.fromisoformat(
-                            project_data["end_date"]
-                        ).date()
+                        end_date = self._parse_date(project_data["end_date"])
                     except (ValueError, TypeError):
                         pass
 
@@ -6958,6 +7001,30 @@ class Command(BaseCommand):
                 )
                 self.stats["permission_requests"]["errors"] += 1
 
+    def apply_customer_credit_drawdown(self, customer_credits_data):
+        """Lower an organization credit below what its projects already hold.
+
+        `ProjectCredit.save()` refuses an allocation larger than the
+        organization credit, so a fixture cannot create that state directly —
+        yet it is a real one, and the one the dashboard warns about: the
+        organization balance is drawn down *after* the allocation was made, and
+        from then on only part of the allocation can be spent. A preset
+        declares the end state with `value_after_allocations`, applied here with
+        a queryset update, which is the only way past the model guard.
+        """
+        for credit_data in customer_credits_data:
+            final_value = credit_data.get("value_after_allocations")
+            if final_value is None:
+                continue
+            updated = CustomerCredit.objects.filter(
+                uuid=credit_data.get("uuid")
+            ).update(value=Decimal(str(final_value)))
+            if updated:
+                self.stdout.write(
+                    f"Drew organization credit {credit_data.get('uuid')} "
+                    f"down to {final_value}"
+                )
+
     def import_customer_credits(self, customer_credits_data):
         """Import customer credit data."""
         self.stdout.write("Importing customer credits...")
@@ -6989,9 +7056,7 @@ class Command(BaseCommand):
                 end_date = None
                 if credit_data.get("end_date"):
                     try:
-                        end_date = datetime.fromisoformat(
-                            credit_data["end_date"]
-                        ).date()
+                        end_date = self._parse_date(credit_data["end_date"])
                         if end_date.day != 1:
                             original = end_date
                             if end_date.month == 12:
@@ -7274,9 +7339,7 @@ class Command(BaseCommand):
                 end_date = None
                 if credit_data.get("end_date"):
                     try:
-                        end_date = datetime.fromisoformat(
-                            credit_data["end_date"]
-                        ).date()
+                        end_date = self._parse_date(credit_data["end_date"])
                         if end_date.day != 1:
                             original = end_date
                             if end_date.month == 12:

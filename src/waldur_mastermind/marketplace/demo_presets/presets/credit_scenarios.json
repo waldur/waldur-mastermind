@@ -1,0 +1,942 @@
+{
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@demo.waldur.com",
+      "first_name": "Staff",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "00000000000000000000000000000002",
+      "username": "owner",
+      "email": "owner@demo.waldur.com",
+      "first_name": "Olivia",
+      "last_name": "Owner",
+      "is_active": true,
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "00000000000000000000000000000003",
+      "username": "manager",
+      "email": "manager@demo.waldur.com",
+      "first_name": "Mark",
+      "last_name": "Manager",
+      "is_active": true,
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "a3c00000000000000000000000000001",
+      "name": "Credit scenarios",
+      "abbreviation": "CS",
+      "description": "Each project demonstrates one credit dashboard state.",
+      "email": "credits@demo.waldur.com",
+      "country": "EE",
+      "grace_period_days": 30
+    },
+    {
+      "uuid": "a3c00000000000000000000000000002",
+      "name": "Credit scenarios (org-capped)",
+      "abbreviation": "CSC",
+      "description": "Organization credit is smaller than what its project was allocated.",
+      "email": "credits@demo.waldur.com",
+      "country": "EE"
+    },
+    {
+      "uuid": "a3c00000000000000000000000000003",
+      "name": "Credit scenarios (org-exhausted)",
+      "abbreviation": "CSE",
+      "description": "Organization credit is spent, so allocations cannot be drawn.",
+      "email": "credits@demo.waldur.com",
+      "country": "EE"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "fa000000000000000000000000000001",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Credit scenarios service provider"
+    }
+  ],
+  "category_groups": [
+    {
+      "uuid": "eb000000000000000000000000000001",
+      "title": "Research infrastructure",
+      "description": "Services used by the credit scenarios"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "e3c00000000000000000000000000001",
+      "title": "Compute and storage",
+      "description": "Limit-based offerings",
+      "group_uuid": "eb000000000000000000000000000001"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f3c00000000000000000000000000001",
+      "name": "Research Data Storage",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3c00000000000000000000000000001",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Research Data Storage for the credit scenarios preset."
+    },
+    {
+      "uuid": "f3c00000000000000000000000000002",
+      "name": "SLURM HPC Allocation",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3c00000000000000000000000000001",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "SLURM HPC Allocation for the credit scenarios preset."
+    },
+    {
+      "uuid": "f3c00000000000000000000000000003",
+      "name": "Cloud VM Package",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3c00000000000000000000000000001",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Cloud VM Package for the credit scenarios preset."
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "fc100000000000000000000000000001",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "type": "storage",
+      "name": "Storage",
+      "billing_type": "limit",
+      "measured_unit": "TB"
+    },
+    {
+      "uuid": "fc200000000000000000000000000001",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "type": "cpu",
+      "name": "CPU hours",
+      "billing_type": "limit",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "fc200000000000000000000000000002",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "type": "ram",
+      "name": "Memory",
+      "billing_type": "limit",
+      "measured_unit": "GB-hours"
+    },
+    {
+      "uuid": "fc200000000000000000000000000003",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "type": "gpu",
+      "name": "GPU hours",
+      "billing_type": "limit",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "fc300000000000000000000000000001",
+      "offering_uuid": "f3c00000000000000000000000000003",
+      "type": "vcpu",
+      "name": "vCPU",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "fc300000000000000000000000000002",
+      "offering_uuid": "f3c00000000000000000000000000003",
+      "type": "ram",
+      "name": "Memory",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "b3c00000000000000000000000000001",
+      "name": "Research Data Storage plan",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "unit": "month"
+    },
+    {
+      "uuid": "b3c00000000000000000000000000002",
+      "name": "SLURM HPC Allocation plan",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "unit": "month"
+    },
+    {
+      "uuid": "b3c00000000000000000000000000003",
+      "name": "Cloud VM Package plan",
+      "offering_uuid": "f3c00000000000000000000000000003",
+      "unit": "month"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "component_uuid": "fc100000000000000000000000000001",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "component_uuid": "fc200000000000000000000000000001",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "component_uuid": "fc200000000000000000000000000002",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "component_uuid": "fc200000000000000000000000000003",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3c00000000000000000000000000003",
+      "component_uuid": "fc300000000000000000000000000001",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3c00000000000000000000000000003",
+      "component_uuid": "fc300000000000000000000000000002",
+      "price": "0.00",
+      "amount": 0
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "c3c00000000000000000000000000001",
+      "name": "01 On pace",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Healthy: usage tracks the linear ideal, nothing lost, no deadline in sight."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000002",
+      "name": "02 Behind pace - credit being lost",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Draw far below the minimum floor: the shortfall is taken from the balance anyway and shows as Lost."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000003",
+      "name": "03 Ahead of pace - over expected",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Drawing faster than the plan; the pace bar clamps at 100% and flags the overage."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000004",
+      "name": "04 Final month - grace waived",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "The credit ends this month, so the minimum draw jumps to the full expected consumption and the grace coefficient does not apply."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000005",
+      "name": "05 Credit expires in two months",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "A balance that will be forfeited at expiry unless the draw increases."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000006",
+      "name": "06 Balance runs out first",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Days of runway at the current burn: exhaustion is the binding constraint."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000007",
+      "name": "07 Project ends soon",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Project end date in twelve days with a grace period: resources are paused first, terminated later.",
+      "end_date": "relative:+12days"
+    },
+    {
+      "uuid": "c3c00000000000000000000000000008",
+      "name": "08 Resources end before the credit",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "Staggered resource end dates: the work stops long before the money does."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000009",
+      "name": "09 Linear ramp-up",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "LINEAR minimal-consumption logic: the expected draw rises each month so the balance lands at zero on the end date."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000010",
+      "name": "10 Paused by policy",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "description": "A resource paused by a cost policy, with the attribution shown in the expandable row."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000011",
+      "name": "11 Organization credit lower than allocation",
+      "customer_uuid": "a3c00000000000000000000000000002",
+      "description": "The allocation stands but the organization balance behind it is smaller, so only part of it can be drawn."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000012",
+      "name": "12 Organization credit exhausted",
+      "customer_uuid": "a3c00000000000000000000000000003",
+      "description": "The organization balance is zero, so none of the allocation can be drawn."
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d3c00000000000000000000000000101",
+      "name": "01 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000001",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000102",
+      "name": "01 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000001",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000201",
+      "name": "02 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000002",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000202",
+      "name": "02 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000002",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000301",
+      "name": "03 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000003",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000302",
+      "name": "03 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000003",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000401",
+      "name": "04 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000004",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000402",
+      "name": "04 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000004",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000501",
+      "name": "05 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000005",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000502",
+      "name": "05 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000005",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000601",
+      "name": "06 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000006",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000602",
+      "name": "06 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000006",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000701",
+      "name": "07 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000007",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000702",
+      "name": "07 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000007",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000801",
+      "name": "08 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000008",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {},
+      "end_date": "relative:+40days"
+    },
+    {
+      "uuid": "d3c00000000000000000000000000802",
+      "name": "08 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000008",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {},
+      "end_date": "relative:+95days"
+    },
+    {
+      "uuid": "d3c00000000000000000000000000803",
+      "name": "08 Cloud VM Package",
+      "offering_uuid": "f3c00000000000000000000000000003",
+      "project_uuid": "c3c00000000000000000000000000008",
+      "plan_uuid": "b3c00000000000000000000000000003",
+      "state": 2,
+      "limits": {
+        "vcpu": 40,
+        "ram": 160
+      },
+      "attributes": {},
+      "end_date": "relative:+160days"
+    },
+    {
+      "uuid": "d3c00000000000000000000000000901",
+      "name": "09 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000009",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000000902",
+      "name": "09 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000009",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000001001",
+      "name": "10 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000010",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {
+        "_policy_attribution": {
+          "paused": {
+            "policy_class": "ProjectEstimatedCostPolicy",
+            "scope_name": "10 Paused by policy"
+          }
+        }
+      },
+      "paused": true
+    },
+    {
+      "uuid": "d3c00000000000000000000000001002",
+      "name": "10 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000010",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000001101",
+      "name": "11 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000011",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000001102",
+      "name": "11 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000011",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000001201",
+      "name": "12 Research Data Storage",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000012",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000001202",
+      "name": "12 SLURM HPC Allocation",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000012",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "99c00000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000002",
+      "user_username": "owner",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "a3c00000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "99c00000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c3c00000000000000000000000000001",
+      "is_active": true
+    }
+  ],
+  "customer_credits": [
+    {
+      "uuid": "ca000000000000000000000000000001",
+      "customer_uuid": "a3c00000000000000000000000000001",
+      "value": "1000000",
+      "expected_consumption": "90000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "20",
+      "apply_as_minimal_consumption": false
+    },
+    {
+      "uuid": "ca000000000000000000000000000002",
+      "customer_uuid": "a3c00000000000000000000000000002",
+      "value": "50000",
+      "value_after_allocations": "500",
+      "expected_consumption": "8000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "20",
+      "apply_as_minimal_consumption": false
+    },
+    {
+      "uuid": "ca000000000000000000000000000003",
+      "customer_uuid": "a3c00000000000000000000000000003",
+      "value": "50000",
+      "value_after_allocations": "0",
+      "expected_consumption": "8000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "20",
+      "apply_as_minimal_consumption": false
+    }
+  ],
+  "project_credits": [
+    {
+      "uuid": "cbc00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000001",
+      "value": "120000",
+      "expected_consumption": "10000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000002",
+      "value": "93000",
+      "expected_consumption": "10000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000003",
+      "project_uuid": "c3c00000000000000000000000000003",
+      "value": "84400",
+      "expected_consumption": "8000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000004",
+      "project_uuid": "c3c00000000000000000000000000004",
+      "value": "76000",
+      "expected_consumption": "9000",
+      "grace_coefficient": "40",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true,
+      "end_date": "relative:+0months@month_start"
+    },
+    {
+      "uuid": "cbc00000000000000000000000000005",
+      "project_uuid": "c3c00000000000000000000000000005",
+      "value": "79850",
+      "expected_consumption": "9000",
+      "grace_coefficient": "25",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true,
+      "end_date": "relative:+2months@month_start"
+    },
+    {
+      "uuid": "cbc00000000000000000000000000006",
+      "project_uuid": "c3c00000000000000000000000000006",
+      "value": "48900",
+      "expected_consumption": "8000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000007",
+      "project_uuid": "c3c00000000000000000000000000007",
+      "value": "98000",
+      "expected_consumption": "8000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000008",
+      "project_uuid": "c3c00000000000000000000000000008",
+      "value": "93200",
+      "expected_consumption": "8000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000009",
+      "project_uuid": "c3c00000000000000000000000000009",
+      "value": "66000",
+      "expected_consumption": "6000",
+      "grace_coefficient": "0",
+      "minimal_consumption_logic": "linear",
+      "apply_as_minimal_consumption": true,
+      "end_date": "relative:+4months@month_start"
+    },
+    {
+      "uuid": "cbc00000000000000000000000000010",
+      "project_uuid": "c3c00000000000000000000000000010",
+      "value": "76400",
+      "expected_consumption": "8000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000011",
+      "project_uuid": "c3c00000000000000000000000000011",
+      "value": "20000",
+      "expected_consumption": "8000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    },
+    {
+      "uuid": "cbc00000000000000000000000000012",
+      "project_uuid": "c3c00000000000000000000000000012",
+      "value": "15000",
+      "expected_consumption": "8000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
+    }
+  ],
+  "project_estimated_cost_policies": [
+    {
+      "uuid": "93c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000010",
+      "limit_cost": 9000,
+      "actions": "request_pausing,notify_project_team",
+      "period": 2,
+      "has_fired": true
+    }
+  ],
+  "customer_estimated_cost_policies": [
+    {
+      "uuid": "93c00000000000000000000000000002",
+      "customer_uuid": "a3c00000000000000000000000000002",
+      "limit_cost": 9000,
+      "actions": "notify_organization_owners",
+      "period": 2,
+      "has_fired": false
+    }
+  ],
+  "_metadata": {
+    "title": "Credit scenarios",
+    "description": "Twelve projects, each holding the project dashboard's credit views in one state: on/behind/ahead of pace, credit expiring this month and in two months, balance exhaustion, project and resource end dates, linear ramp-up, a policy-paused resource, and organizations whose credit is capped or spent.",
+    "version": "1.0.0",
+    "scenarios": [
+      "01 On pace",
+      "02 Behind pace - credit being lost",
+      "03 Ahead of pace - over expected",
+      "04 Final month - grace waived",
+      "05 Credit expires in two months",
+      "06 Balance runs out first",
+      "07 Project ends soon",
+      "08 Resources end before the credit",
+      "09 Linear ramp-up",
+      "10 Paused by policy",
+      "11 Organization credit lower than allocation",
+      "12 Organization credit exhausted"
+    ],
+    "credit_history": {
+      "c3c00000000000000000000000000001": {
+        "months": [
+          1.0
+        ],
+        "current": 1.0
+      },
+      "c3c00000000000000000000000000002": {
+        "months": [
+          0.2,
+          0.15,
+          0.25,
+          0.2,
+          0.1,
+          0.2
+        ],
+        "current": 0.15
+      },
+      "c3c00000000000000000000000000003": {
+        "months": [
+          1.1,
+          1.2,
+          1.05,
+          1.15,
+          1.1,
+          1.2
+        ],
+        "current": 1.58
+      },
+      "c3c00000000000000000000000000004": {
+        "months": [
+          0.6,
+          0.7,
+          0.5,
+          0.65,
+          0.6,
+          0.55
+        ],
+        "current": 0.33
+      },
+      "c3c00000000000000000000000000005": {
+        "months": [
+          0.8,
+          0.75,
+          0.8,
+          0.7,
+          0.75,
+          0.8
+        ],
+        "current": 0.5
+      },
+      "c3c00000000000000000000000000006": {
+        "months": [
+          0.95,
+          1.0,
+          0.9,
+          1.0,
+          0.95,
+          1.0
+        ],
+        "current": 0.9
+      },
+      "c3c00000000000000000000000000007": {
+        "months": [
+          1.0
+        ],
+        "current": 0.95
+      },
+      "c3c00000000000000000000000000008": {
+        "months": [
+          0.9
+        ],
+        "current": 0.85
+      },
+      "c3c00000000000000000000000000009": {
+        "months": [
+          0.8
+        ],
+        "current": 0.7
+      },
+      "c3c00000000000000000000000000010": {
+        "months": [
+          1.05
+        ],
+        "current": 1.1
+      },
+      "c3c00000000000000000000000000011": {
+        "months": [
+          0.75
+        ],
+        "current": 0.8
+      },
+      "c3c00000000000000000000000000012": {
+        "months": [
+          0.6
+        ],
+        "current": 0.6
+      }
+    }
+  }
+}
