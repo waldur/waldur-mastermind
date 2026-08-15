@@ -16,6 +16,7 @@ items were never attributed to their project. Generating through the live code
 path keeps the demo honest as that code evolves.
 """
 
+import calendar
 import decimal
 import logging
 from io import StringIO
@@ -83,12 +84,27 @@ def _billable_resources(project) -> list:
     )
 
 
-def generate_credit_history(months: int = DEFAULT_MONTHS, stdout: StringIO = None):
+def generate_credit_history(
+    months: int = DEFAULT_MONTHS,
+    stdout: StringIO = None,
+    patterns: dict | None = None,
+):
     """Bill and compensate the past `months` months for every credited customer.
+
+    `patterns` lets a preset give individual projects their own consumption
+    shape, keyed by project UUID:
+
+        {"<project uuid hex>": {"months": [0.2, 0.15], "current": 0.15}}
+
+    `months` is cycled oldest-first for the past months, and `current` bills the
+    month in progress pro rata for the days elapsed, so a project can sit
+    mid-month on any pace. Projects with no entry keep the shared USAGE_PATTERN,
+    which is what every existing preset relies on.
 
     Returns the number of (customer, month) pairs processed.
     """
     write = stdout.write if stdout else (lambda _message: None)
+    patterns = patterns or {}
     processed = 0
 
     customer_credits = invoice_models.CustomerCredit.objects.select_related(
@@ -116,7 +132,13 @@ def generate_credit_history(months: int = DEFAULT_MONTHS, stdout: StringIO = Non
                     continue
 
                 created_items = _bill_month(
-                    invoice, customer, project_credits, customer_credit, fraction
+                    invoice,
+                    customer,
+                    project_credits,
+                    customer_credit,
+                    fraction,
+                    patterns=patterns,
+                    month_index=index,
                 )
                 if not created_items:
                     continue
@@ -128,6 +150,9 @@ def generate_credit_history(months: int = DEFAULT_MONTHS, stdout: StringIO = Non
 
             processed += 1
 
+        if patterns:
+            _bill_current_month(customer, project_credits, customer_credit, patterns)
+
         write(
             f"Generated {months} months of credit history for {customer.name}\n"
             if stdout
@@ -137,39 +162,96 @@ def generate_credit_history(months: int = DEFAULT_MONTHS, stdout: StringIO = Non
     return processed
 
 
-def _bill_month(invoice, customer, project_credits, customer_credit, fraction) -> int:
-    """Create usage invoice items for one month. Returns the item count.
+def _bill_current_month(customer, project_credits, customer_credit, patterns) -> int:
+    """Charge the month in progress, pro rata for the days elapsed.
+
+    Only projects that declare a `current` fraction are billed, and nothing is
+    compensated: mid-month invoices are still pending in production, so
+    compensation items do not exist yet and the dashboards read the gross cost.
+    """
+    today = timezone.localtime(timezone.now()).date()
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    elapsed = decimal.Decimal(today.day) / decimal.Decimal(days_in_month)
+    created = 0
+
+    with transaction.atomic():
+        invoice, _ = invoice_models.Invoice.objects.get_or_create(
+            customer=customer, year=today.year, month=today.month
+        )
+        for project in customer.projects.all():
+            pattern = patterns.get(project.uuid.hex)
+            if not pattern or pattern.get("current") is None:
+                continue
+            credit = project_credits.get(project.id) or customer_credit
+            fraction = decimal.Decimal(str(pattern["current"])) * elapsed
+            created += _bill_month_for_project(
+                invoice, project, credit, fraction, suffix="usage so far"
+            )
+
+    return created
+
+
+def _bill_month(
+    invoice,
+    customer,
+    project_credits,
+    customer_credit,
+    fraction,
+    patterns=None,
+    month_index=0,
+) -> int:
+    """Create usage invoice items for one month. Returns the item count."""
+    created = 0
+    for project in customer.projects.all():
+        credit = project_credits.get(project.id) or customer_credit
+        created += _bill_month_for_project(
+            invoice,
+            project,
+            credit,
+            _project_fraction(project, patterns, month_index, fraction),
+        )
+
+    return created
+
+
+def _project_fraction(project, patterns, month_index, default) -> decimal.Decimal:
+    """The project's own consumption shape for this month, or the shared one."""
+    pattern = (patterns or {}).get(project.uuid.hex)
+    shape = pattern.get("months") if pattern else None
+    if not shape:
+        return default
+    return decimal.Decimal(str(shape[month_index % len(shape)]))
+
+
+def _bill_month_for_project(invoice, project, credit, fraction, suffix="usage") -> int:
+    """Spread one month's consumption across the project's billable resources.
 
     Items are saved individually (not bulk-created) so the denormalising
     post_save handler populates project_name/project_uuid, exactly as the
     marketplace billing path does.
     """
-    created = 0
-    for project in customer.projects.all():
-        resources = _billable_resources(project)
-        if not resources:
-            continue
+    resources = _billable_resources(project)
+    if not resources:
+        return 0
 
-        credit = project_credits.get(project.id) or customer_credit
-        target = _monthly_target(credit) * fraction
-        if target <= 0:
-            continue
+    target = _monthly_target(credit) * fraction
+    if target <= 0:
+        return 0
 
-        per_resource = (target / len(resources)).quantize(decimal.Decimal("0.01"))
-        if per_resource <= 0:
-            continue
+    per_resource = (target / len(resources)).quantize(decimal.Decimal("0.01"))
+    if per_resource <= 0:
+        return 0
 
-        for resource in resources:
-            invoice_models.InvoiceItem.objects.create(
-                invoice=invoice,
-                project=project,
-                resource=resource,
-                unit_price=per_resource,
-                quantity=1,
-                unit=Units.QUANTITY,
-                name=f"{resource.name} usage",
-                details={"demo_generated": True},
-            )
-            created += 1
+    for resource in resources:
+        invoice_models.InvoiceItem.objects.create(
+            invoice=invoice,
+            project=project,
+            resource=resource,
+            unit_price=per_resource,
+            quantity=1,
+            unit=Units.QUANTITY,
+            name=f"{resource.name} {suffix}",
+            details={"demo_generated": True},
+        )
 
-    return created
+    return len(resources)

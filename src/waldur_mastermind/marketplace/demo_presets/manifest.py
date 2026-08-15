@@ -194,7 +194,7 @@ class DemoPresetManager:
             # Generate invoices for imported resources (if not dry run)
             if not dry_run:
                 cls._generate_billing_for_resources(output)
-                cls._generate_credit_history(output)
+                cls._generate_credit_history(output, file_path)
 
             # Get users with passwords for the response
             users = cls.get_preset_users(name)
@@ -265,16 +265,28 @@ class DemoPresetManager:
         output.write(f"\nGenerated billing for {invoice_count} resources\n")
 
     @classmethod
-    def _generate_credit_history(cls, output: StringIO):
+    def _generate_credit_history(cls, output: StringIO, file_path: Path = None):
         """
         Generate historical credit consumption for credited customers.
 
         No-op for presets without credits. Past months are billed and then run
         through the real compensation flow, so compensations, minimal-consumption
         draws and credit balances match what production would produce.
+
+        A preset may shape individual projects through `_metadata.credit_history`;
+        see generate_credit_history.
         """
+        patterns = {}
+        if file_path:
+            try:
+                with open(file_path) as preset_file:
+                    metadata = json.load(preset_file).get("_metadata") or {}
+                patterns = metadata.get("credit_history") or {}
+            except (OSError, ValueError) as e:
+                logger.warning(f"Failed to read credit history patterns: {e}")
+
         try:
-            processed = generate_credit_history(stdout=output)
+            processed = generate_credit_history(stdout=output, patterns=patterns)
         except Exception as e:
             logger.warning(f"Failed to generate credit history: {e}")
             output.write(f"Warning: Failed to generate credit history: {e}\n")
