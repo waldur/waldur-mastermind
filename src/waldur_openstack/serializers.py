@@ -5266,6 +5266,28 @@ class OpenStackInstanceAllowedAddressPairsUpdateSerializer(serializers.Serialize
 class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
     ports = OpenStackCreatePortSerializer(many=True)
 
+    @staticmethod
+    def _address_changed(existing: models.Port, requested: models.Port) -> bool:
+        """Does the declaration ask for a different address than the row holds?
+
+        Only an explicit request counts. A declaration that names no fixed_ips
+        is asking the backend to allocate, which an already-allocated port
+        already satisfies -- treating that as a change would recreate every
+        unpinned port on every update.
+        """
+        wanted = requested.fixed_ips or []
+        if not wanted:
+            return False
+
+        def pairs(fixed_ips):
+            return {
+                (ip.get("subnet_id"), ip.get("ip_address"))
+                for ip in fixed_ips or []
+                if ip.get("ip_address")
+            }
+
+        return pairs(wanted) != pairs(existing.fixed_ips)
+
     def validate_ports(self, ports):
         _validate_instance_ports(
             ports,
@@ -5293,6 +5315,23 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
                 match = models.Port.objects.filter(
                     instance=instance, subnet=port.subnet
                 ).first()
+                if match and self._address_changed(match, port):
+                    # The row is matched on (instance, subnet) alone, so a
+                    # re-declaration that keeps the subnet but names a different
+                    # address used to land here and be dropped: the caller got a
+                    # success and the old address stayed. Declarative callers
+                    # cannot see that their change did nothing.
+                    #
+                    # Editing the row in place would not work either — the
+                    # backend port still holds the old address, and
+                    # push_instance_ports skips rows whose backend_id is already
+                    # attached, so the database would simply start lying.
+                    # Dropping the row instead lets the push delete the stale
+                    # backend port (it deletes attached ports no local row
+                    # claims) before creating the replacement below, which is
+                    # what actually moves the address.
+                    match.delete()
+                    match = None
                 if not match:
                     # The port belongs to the instance's tenant, never to the
                     # subnet's. push_instance_ports creates it in Neutron under
