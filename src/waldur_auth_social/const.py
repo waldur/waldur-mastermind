@@ -95,7 +95,7 @@ PROVIDER_DEFAULTS = {
             "address": "address",
             "country_of_residence": "schacCountryOfResidence",
             "nationality": "schacCountryOfCitizenship",
-            "organization_country": "org_country",
+            "organization_country": "org_reg_country org_country",
             "organization_type": "schacHomeOrganizationType",
             "organization_registry_code": "organization_registry_code",
             "organization_vat_code": "organization_vat_code",

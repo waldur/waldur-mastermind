@@ -1718,7 +1718,7 @@ class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
             "email": "list_scalar@example.com",
             "schacCountryOfResidence": ["EE"],
             "schacCountryOfCitizenship": ["EE"],
-            "org_country": ["EE"],
+            "org_reg_country": ["EE"],
         }
         self._mock_token_request()
         self._mock_userinfo_request(user_info)
@@ -1729,6 +1729,24 @@ class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
         user = User.objects.get(username=user_info["sub"])
         self.assertEqual(user.country_of_residence, "EE")
         self.assertEqual(user.nationality, "EE")
+        self.assertEqual(user.organization_country, "EE")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["organization_country"])
+    def test_legacy_org_country_claim_is_used_as_fallback(self):
+        user_info = {
+            "sub": "test_legacy_org_country",
+            "given_name": "Legacy",
+            "family_name": "Claim",
+            "email": "legacy_claim@example.com",
+            "org_country": "EE",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
         self.assertEqual(user.organization_country, "EE")
 
     @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["country_of_residence"])
