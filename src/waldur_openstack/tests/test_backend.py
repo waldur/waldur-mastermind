@@ -2301,6 +2301,8 @@ class PushInstancePortsTest(BaseBackendTest):
         self.assertEqual(port.backend_id, "")
 
     def test_port_already_claimed_by_another_record_is_not_stolen(self):
+        # A standalone port row (no instance) owns its backend port just as
+        # legitimately as an instance's does, so this claim is never stale.
         instance, port = self._prepare_new_port()
         factories.PortFactory(
             tenant=self.fixture.tenant,
@@ -2320,3 +2322,74 @@ class PushInstancePortsTest(BaseBackendTest):
 
         port.refresh_from_db()
         self.assertEqual(port.backend_id, "")
+
+    def test_decline_on_a_claimed_port_names_the_claiming_resource(self):
+        # An unbound port that another row already claims looks adoptable on
+        # every other count, so the reported failure has to say what blocked it
+        # — otherwise it is indistinguishable from a busy address, and the two
+        # call for opposite responses.
+        instance, port = self._prepare_new_port()
+        other_instance = factories.InstanceFactory(
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            state=CoreStates.OK,
+        )
+        claimant = factories.PortFactory(
+            tenant=self.fixture.tenant,
+            subnet=self.fixture.subnet,
+            instance=other_instance,
+            backend_id="orphaned-port-id",
+        )
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {
+            "ports": [self._orphaned_backend_port(port)]
+        }
+
+        with self.assertLogs("waldur_openstack.backend", level="WARNING") as logs:
+            with self.assertRaises(OpenStackBackendError) as raised:
+                self._run_push(instance, tenant_neutron, admin_neutron)
+
+        diagnosis = "\n".join(logs.output)
+        self.assertIn(claimant.uuid.hex, diagnosis)
+        self.assertIn(str(other_instance), diagnosis)
+        # ...but never in error_message, which the resource owner can read and
+        # which must not name resources that may belong to somebody else.
+        message = str(raised.exception)
+        self.assertNotIn(claimant.uuid.hex, message)
+        self.assertNotIn(str(other_instance), message)
+        port.refresh_from_db()
+        self.assertFalse(port.backend_id)
+
+    def test_decline_names_the_address_holder(self):
+        # The whole point of the reclaim path is invisible without this: an
+        # instance that erreds carrying only Neutron's "already allocated" gives
+        # an operator no way to tell a genuinely busy address from a stale row.
+        instance, port = self._prepare_new_port()
+        tenant_neutron, admin_neutron = self._neutron_clients()
+        admin_neutron.create_port.side_effect = (
+            neutron_exceptions.IpAddressAlreadyAllocatedClient()
+        )
+        admin_neutron.list_ports.return_value = {
+            "ports": [
+                self._orphaned_backend_port(
+                    port, device_id="some-instance", device_owner="compute:nova"
+                )
+            ]
+        }
+
+        with self.assertLogs("waldur_openstack.backend", level="WARNING") as logs:
+            with self.assertRaises(OpenStackBackendError) as raised:
+                self._run_push(instance, tenant_neutron, admin_neutron)
+
+        # The owner gets the address and a remediation, not Neutron's bare string.
+        message = str(raised.exception)
+        self.assertIn("10.0.0.5", message)
+        self.assertIn("Choose a different IP address", message)
+        # The operator gets the holder, which is what separates a busy address
+        # from a stale row of our own.
+        diagnosis = "\n".join(logs.output)
+        self.assertIn("Could not reclaim", diagnosis)
+        self.assertIn("compute:nova", diagnosis)
