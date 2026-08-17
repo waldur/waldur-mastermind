@@ -482,6 +482,12 @@ Build docker image for tests:
 
 Publish the latest multiarch docker image:
   extends: .Publish multiarch latest docker image template
+  # The template's dind service comes from public.ecr.aws, which rate-limits
+  # anonymous pulls ("toomanyrequests: Rate exceeded"). Use the UT mirror.
+  services:
+    - name: registry.hpc.ut.ee/mirror/library/docker:27-dind
+      command: ["--mtu=1400"]
+      alias: docker
   script:
     - docker context create builder
     - docker buildx create builder --use
@@ -499,6 +505,11 @@ Publish the latest multiarch docker image:
 Publish the YOLO multiarch docker image:
   extends: .Publish multiarch latest docker image template
   stage: test
+  # See the comment above: avoid the rate-limited public.ecr.aws dind image.
+  services:
+    - name: registry.hpc.ut.ee/mirror/library/docker:27-dind
+      command: ["--mtu=1400"]
+      alias: docker
   variables:
     IMAGE_TAG: "opennode/${CI_PROJECT_NAME}:yolo"
   before_script:
