@@ -15,3 +15,12 @@ class OpenStackAuthorizationFailed(OpenStackBackendError):
 
 class OpenStackTenantNotFound(OpenStackBackendError):
     pass
+
+
+class OpenStackRBACPolicyDuplicate(OpenStackBackendError):
+    """Neutron already holds a policy for this (network, target, action).
+
+    Kept distinct from the generic backend error so the API layer can answer
+    409 rather than 500: a duplicate is a request the caller can correct, not
+    an internal failure.
+    """
