@@ -5807,31 +5807,50 @@ class OpenStackBackend(ServiceBackend):
     def _find_reusable_port(self, admin_neutron, local_port: models.Port):
         """Find a leftover Neutron port holding the address `local_port` asks for.
 
-        Returns the port to adopt, or None when the address is held by something we
-        must not touch — in which case the caller re-raises the allocation error.
+        Returns `(port_to_adopt, reasons)`, where `port_to_adopt` is None when the
+        address is held by something we must not touch — in which case the caller
+        re-raises the allocation error. `reasons` describes every candidate that
+        was examined and why it was rejected; the caller logs it, because
+        otherwise a decline is indistinguishable from a genuinely taken address
+        and the instance simply erreds with Neutron's bare message.
 
         Ports stranded by an earlier failed attach keep their address allocated
         while no longer being reachable: they are unbound, so they never show up in
         `list_ports(device_id=...)`, and the local row that would have named them
         was never given a backend_id. Adopting one is only safe when it sits in the
         expected subnet, belongs to the same tenant, is attached to nothing, and is
-        claimed by no other local port.
+        not claimed by a local port row that is still in use.
         """
+        reasons: list[str] = []
         wanted = {
             (fixed_ip["subnet_id"], fixed_ip["ip_address"])
             for fixed_ip in local_port.fixed_ips or []
             if fixed_ip.get("subnet_id") and fixed_ip.get("ip_address")
         }
         if not wanted:
-            return None
+            reasons.append(
+                "the port asks for no concrete subnet/address pair, so there is "
+                "nothing to look up"
+            )
+            return None, reasons
 
         subnet_id, ip_address = sorted(wanted)[0]
         candidates = admin_neutron.list_ports(
             fixed_ips=[f"subnet_id={subnet_id}", f"ip_address={ip_address}"]
         )["ports"]
+        if not candidates:
+            reasons.append(
+                f"no port in subnet {subnet_id} reports holding {ip_address}"
+            )
+            return None, reasons
 
         for candidate in candidates:
             if candidate.get("device_id") or candidate.get("device_owner"):
+                reasons.append(
+                    f"{candidate['id']}: in use — device_owner="
+                    f"{candidate.get('device_owner') or '-'}, device_id="
+                    f"{candidate.get('device_id') or '-'}"
+                )
                 continue
             # Neutron reports ownership as tenant_id, project_id, or both,
             # depending on API microversion. Reading only tenant_id makes the
@@ -5839,18 +5858,47 @@ class OpenStackBackend(ServiceBackend):
             # project_id alone, so a genuinely adoptable port is skipped and the
             # instance stays stuck on the allocation error.
             candidate_tenant = candidate.get("tenant_id") or candidate.get("project_id")
-            if not candidate_tenant or candidate_tenant != local_port.tenant.backend_id:
+            if not candidate_tenant:
+                reasons.append(f"{candidate['id']}: reports no owning tenant")
+                continue
+            if candidate_tenant != local_port.tenant.backend_id:
+                reasons.append(
+                    f"{candidate['id']}: owned by tenant {candidate_tenant}, "
+                    f"not {local_port.tenant.backend_id}"
+                )
                 continue
             found = {
                 (fixed_ip["subnet_id"], fixed_ip["ip_address"])
                 for fixed_ip in candidate["fixed_ips"]
             }
             if found != wanted:
+                reasons.append(
+                    f"{candidate['id']}: holds {sorted(found)}, not {sorted(wanted)}"
+                )
                 continue
-            if models.Port.objects.filter(backend_id=candidate["id"]).exists():
+
+            # A local row naming this port is never safe to override: it is
+            # either a standalone port (created through /api/openstack-ports/,
+            # which owns its backend port outright) or another instance's,
+            # which means two resources are configured with the same address.
+            # Adopting anyway would also break (tenant, backend_id) uniqueness.
+            # So decline — but say who holds it, because that is the difference
+            # between a duplicate in the caller's configuration and a genuinely
+            # busy address.
+            claimant = models.Port.objects.filter(backend_id=candidate["id"]).first()
+            if claimant is not None:
+                owner = (
+                    f"instance {claimant.instance}"
+                    if claimant.instance_id
+                    else "a standalone port"
+                )
+                reasons.append(
+                    f"{candidate['id']}: already claimed by port "
+                    f"{claimant.uuid.hex} of {owner}"
+                )
                 continue
-            return candidate
-        return None
+            return candidate, reasons
+        return None, reasons
 
     @log_backend_action()
     def push_instance_ports(self, instance: models.Instance):
@@ -5941,7 +5989,7 @@ class OpenStackBackend(ServiceBackend):
                         # error with a secondary one, or the reported failure
                         # points at the lookup rather than the taken address.
                         try:
-                            created_port = self._find_reusable_port(
+                            created_port, reasons = self._find_reusable_port(
                                 admin_neutron, new_port
                             )
                         except neutron_exceptions.NeutronClientException:
@@ -5952,7 +6000,36 @@ class OpenStackBackend(ServiceBackend):
                             )
                             raise allocation_error from None
                         if created_port is None:
-                            raise
+                            # Without this the instance erreds carrying only
+                            # Neutron's "already allocated", which reads the
+                            # same whether the address is genuinely in use, is
+                            # held by a router or DHCP port, or is blocked by a
+                            # stale row of our own. Say which.
+                            requested = ", ".join(
+                                fixed_ip["ip_address"]
+                                for fixed_ip in new_port.fixed_ips or []
+                                if fixed_ip.get("ip_address")
+                            )
+                            logger.warning(
+                                "Could not reclaim the address requested for "
+                                "instance %s on subnet %s (%s). Candidates: %s.",
+                                instance.backend_id,
+                                new_port.subnet.backend_id,
+                                requested or "auto-assigned",
+                                "; ".join(reasons) or "none examined",
+                            )
+                            # The reasons stay in the log: a holder may sit in
+                            # another tenant, and error_message is shown to the
+                            # resource's owner, who must not learn foreign port,
+                            # instance or tenant ids from it.
+                            raise OpenStackBackendError(
+                                f"Failed to create port on subnet "
+                                f"{new_port.subnet.backend_id}: the requested "
+                                f"address ({requested or 'auto-assigned'}) is "
+                                f"already allocated to something that cannot be "
+                                f"reused. Choose a different IP address, or free "
+                                f"the one above and retry."
+                            ) from allocation_error
                         logger.info(
                             "Reusing unattached port %s, which already holds the "
                             "address requested for instance %s.",
