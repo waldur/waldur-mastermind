@@ -1,6 +1,7 @@
 from unittest import mock
 
 from ddt import data, ddt
+from neutronclient.common import exceptions as neutron_exceptions
 from rest_framework import status, test
 
 from waldur_core.logging.enums import EventType
@@ -84,6 +85,72 @@ class CreateRbacPolicyTest(test.APITestCase):
         }
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_target_tenant_on_other_service_settings_is_rejected(self):
+        # Neutron will not catch this: target_tenant is an opaque string to it,
+        # and a real cloud answers 201 for a project id it has never heard of.
+        # This check is the only guard, and it stopped running on this endpoint
+        # when the action moved to a standalone viewset — the validation was
+        # keyed on a context value only the old action supplied.
+        foreign_tenant = factories.TenantFactory(backend_id="foreign_backend_id")
+        self.assertNotEqual(
+            foreign_tenant.service_settings, self.network.tenant.service_settings
+        )
+        foreign_tenant.project.add_user(self.fixture.staff, ProjectRole.ADMIN)
+
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "network": factories.NetworkFactory.get_url(self.network),
+            "target_tenant": factories.TenantFactory.get_url(foreign_tenant),
+            "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("target_tenant", response.data)
+        self.assertFalse(
+            models.NetworkRBACPolicy.objects.filter(
+                network=self.network, target_tenant=foreign_tenant
+            ).exists()
+        )
+
+    def test_duplicate_policy_is_rejected(self):
+        self.target_tenant.project.add_user(self.fixture.staff, ProjectRole.ADMIN)
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "network": factories.NetworkFactory.get_url(self.network),
+            "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
+            "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
+        }
+        self.assertEqual(
+            self.client.post(self.url, payload).status_code,
+            status.HTTP_201_CREATED,
+        )
+        self.assertEqual(
+            self.client.post(self.url, payload).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(models.NetworkRBACPolicy.objects.count(), 1)
+
+    def test_backend_duplicate_is_a_conflict_not_a_server_error(self):
+        # Reached when two requests clear the uniqueness check before either
+        # commits. Neutron answers 409 DuplicateRbacPolicy, but neutronclient
+        # has no class for that type, so it arrives as the generic Conflict —
+        # which used to escape as an unhandled backend error, i.e. a 500.
+        self.mock_neutron_client().create_rbac_policy.side_effect = (
+            neutron_exceptions.Conflict(
+                message="An RBAC policy already exists with those values."
+            )
+        )
+        self.target_tenant.project.add_user(self.fixture.staff, ProjectRole.ADMIN)
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "network": factories.NetworkFactory.get_url(self.network),
+            "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
+            "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(models.NetworkRBACPolicy.objects.exists())
 
     def test_user_with_only_target_tenant_permissions_cannot_create_rbac_policy(self):
         # Symmetric guard for the source-side AND-clause in

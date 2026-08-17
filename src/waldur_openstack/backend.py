@@ -47,6 +47,7 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_openstack.exceptions import (
     OpenStackAuthorizationFailed,
     OpenStackBackendError,
+    OpenStackRBACPolicyDuplicate,
     OpenStackTenantNotFound,
 )
 from waldur_openstack.octavia import get_octavia_client
@@ -6859,7 +6860,20 @@ class OpenStackBackend(ServiceBackend):
                 "target_tenant": target_tenant.backend_id,
             }
         }
-        response = neutron.create_rbac_policy(rbac_policy)
+        try:
+            response = neutron.create_rbac_policy(rbac_policy)
+        except neutron_exceptions.Conflict as e:
+            # Neutron keys a policy on (object, target, action) and answers 409
+            # DuplicateRbacPolicy for a repeat. neutronclient has no
+            # DuplicateRbacPolicyClient class, so that arrives as the generic
+            # Conflict parent and would otherwise become an unhandled
+            # OpenStackBackendError -- a 500 for what is a request the caller
+            # can fix. Our own uniqueness check normally catches this first;
+            # concurrent requests can pass it before either commits.
+            raise OpenStackRBACPolicyDuplicate(
+                "An RBAC policy for this network, target tenant and policy type "
+                "already exists."
+            ) from e
         return response.get("rbac_policy", {}).get("id")
 
     @reraise_exceptions

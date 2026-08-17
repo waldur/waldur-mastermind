@@ -43,7 +43,10 @@ from waldur_mastermind.marketplace_openstack.utils import delete_instance
 from waldur_openstack import routes, topology
 from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
-from waldur_openstack.exceptions import OpenStackBackendError
+from waldur_openstack.exceptions import (
+    OpenStackBackendError,
+    OpenStackRBACPolicyDuplicate,
+)
 from waldur_openstack.models import Instance, Network, Volume
 
 from . import audit, executors, filters, models, serializers, utils
@@ -2516,11 +2519,18 @@ class NetworkViewSet(structure_views.ResourceViewSet):
 
         backend = network.tenant.get_backend()
 
-        backend_id = backend.create_network_rbac_policy(
-            network,
-            target_tenant=target_tenant,
-            policy_type=policy_type,
-        )
+        try:
+            backend_id = backend.create_network_rbac_policy(
+                network,
+                target_tenant=target_tenant,
+                policy_type=policy_type,
+            )
+        except OpenStackRBACPolicyDuplicate as e:
+            # The uniqueness check in the serializer runs before this, so
+            # reaching here means two requests passed it before either
+            # committed. That is a 409 the caller can retry or drop, not the
+            # 500 an unhandled backend error would produce.
+            raise core_exceptions.IncorrectStateException(str(e)) from e
 
         logger.info("RBAC policy created in backend with ID: %s", backend_id)
 
@@ -3784,11 +3794,18 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
 
         backend = network.tenant.get_backend()
 
-        backend_id = backend.create_network_rbac_policy(
-            network,
-            target_tenant=target_tenant,
-            policy_type=policy_type,
-        )
+        try:
+            backend_id = backend.create_network_rbac_policy(
+                network,
+                target_tenant=target_tenant,
+                policy_type=policy_type,
+            )
+        except OpenStackRBACPolicyDuplicate as e:
+            # The uniqueness check in the serializer runs before this, so
+            # reaching here means two requests passed it before either
+            # committed. That is a 409 the caller can retry or drop, not the
+            # 500 an unhandled backend error would produce.
+            raise core_exceptions.IncorrectStateException(str(e)) from e
 
         logger.info("RBAC policy created in backend with ID: %s", backend_id)
 

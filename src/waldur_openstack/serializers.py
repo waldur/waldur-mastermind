@@ -2294,35 +2294,43 @@ class NetworkRBACPolicySerializer(
             return self.DIRECTION_OUTBOUND
         return self.DIRECTION_INBOUND
 
-    def validate_target_tenant(self, target_tenant):
-        network = self.context.get("network")
-        if (
-            network
-            and target_tenant.service_settings != network.tenant.service_settings
-        ):
-            raise serializers.ValidationError(
-                _(
-                    "Target tenant must belong to the same service settings as the network's tenant."
-                )
-            )
-        return target_tenant
-
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        network = self.context.get("network")
-        if network:
-            target_tenant = attrs["target_tenant"]
-            policy_type = attrs["policy_type"]
+        # The deprecated network action passes the network in the context, since
+        # its serializer has the field read-only; the standalone viewset takes it
+        # from the payload. Reading both keeps one implementation covering the
+        # two, and is why this no longer lives in validate_target_tenant(): that
+        # only ever saw the context, so on the standalone endpoint — where the
+        # payload is the only source — the check silently stopped running.
+        network = self.context.get("network") or attrs.get("network")
+        target_tenant = attrs.get("target_tenant")
+        if not network or not target_tenant:
+            return attrs
 
-            # Check if policy with the same network, tenant and type already exists
-            if models.NetworkRBACPolicy.objects.filter(
-                network=network, target_tenant=target_tenant, policy_type=policy_type
-            ).exists():
-                raise serializers.ValidationError(
-                    _(
-                        "Policy with this network, target tenant and policy type already exists."
+        if target_tenant.service_settings != network.tenant.service_settings:
+            # Neutron will not catch this for us: target_tenant is an opaque
+            # string to it, and a real deployment answers 201 for a project id
+            # that exists on no cloud it knows. This check is the only guard.
+            raise serializers.ValidationError(
+                {
+                    "target_tenant": _(
+                        "Target tenant must belong to the same service settings as the network's tenant."
                     )
+                }
+            )
+
+        # Redundant with the UniqueTogetherValidator on the standalone endpoint,
+        # but the deprecated action's serializer makes `network` read-only, which
+        # drops the field from the validator's scope.
+        policy_type = attrs.get("policy_type")
+        if models.NetworkRBACPolicy.objects.filter(
+            network=network, target_tenant=target_tenant, policy_type=policy_type
+        ).exists():
+            raise serializers.ValidationError(
+                _(
+                    "Policy with this network, target tenant and policy type already exists."
                 )
+            )
 
         return attrs
 
