@@ -956,6 +956,113 @@ class InstanceUpdatePortsTest(test.APITestCase):
         self.assertFalse(self.instance.ports.filter(pk=ip_to_delete.pk).exists())
         self.assertTrue(self.instance.ports.filter(subnet=subnet_to_connect).exists())
 
+    def test_changed_pinned_address_replaces_the_port(self):
+        # Rows are matched on (instance, subnet), so a re-declaration keeping
+        # the subnet but naming a different address used to be dropped: the
+        # caller got a success and the old address stayed. Declarative callers
+        # cannot see that their change did nothing.
+        existing = factories.PortFactory(
+            instance=self.instance,
+            subnet=self.fixture.subnet,
+            backend_id="already-created",
+            fixed_ips=[
+                {"subnet_id": self.fixture.subnet.backend_id, "ip_address": "10.0.0.10"}
+            ],
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+                        "fixed_ips": [
+                            {
+                                "subnet_id": self.fixture.subnet.backend_id,
+                                "ip_address": "10.0.0.99",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        # The old row is gone, so push_instance_ports will delete the backend
+        # port still holding the old address before creating the replacement.
+        self.assertFalse(models.Port.objects.filter(pk=existing.pk).exists())
+        port = self.instance.ports.get(subnet=self.fixture.subnet)
+        self.assertEqual(
+            port.fixed_ips,
+            [
+                {
+                    "subnet_id": self.fixture.subnet.backend_id,
+                    "ip_address": "10.0.0.99",
+                }
+            ],
+        )
+        self.assertFalse(port.backend_id, "the replacement must be pushed afresh")
+
+    def test_unchanged_pinned_address_keeps_the_port(self):
+        # The replacement above costs a backend port rebuild, so it must happen
+        # only on an actual change — re-running an unchanged declaration is the
+        # common case for declarative automation.
+        existing = factories.PortFactory(
+            instance=self.instance,
+            subnet=self.fixture.subnet,
+            backend_id="already-created",
+            fixed_ips=[
+                {"subnet_id": self.fixture.subnet.backend_id, "ip_address": "10.0.0.10"}
+            ],
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+                        "fixed_ips": [
+                            {
+                                "subnet_id": self.fixture.subnet.backend_id,
+                                "ip_address": "10.0.0.10",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        existing.refresh_from_db()
+        self.assertEqual(existing.backend_id, "already-created")
+
+    def test_declaration_without_fixed_ips_keeps_an_allocated_port(self):
+        # No fixed_ips means "allocate one", which an already-allocated port
+        # satisfies. Treating it as a change would rebuild every unpinned port
+        # on every update.
+        existing = factories.PortFactory(
+            instance=self.instance,
+            subnet=self.fixture.subnet,
+            backend_id="already-created",
+            fixed_ips=[
+                {"subnet_id": self.fixture.subnet.backend_id, "ip_address": "10.0.0.10"}
+            ],
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {"subnet": factories.SubNetFactory.get_url(self.fixture.subnet)}
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        existing.refresh_from_db()
+        self.assertEqual(existing.backend_id, "already-created")
+
     def test_user_cannot_add_port_from_different_settings(self):
         subnet = factories.SubNetFactory()
 
