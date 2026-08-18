@@ -640,7 +640,9 @@ class RebillHistoricalUsageTest(test.APITestCase):
                 stdout=io.StringIO(),
             )
 
-        self.assertTrue(any("old_item=" in message for message in logs.output))
+        self.assertTrue(
+            any("billed item exists:" in message for message in logs.output)
+        )
 
     def test_default_verbosity_does_not_enable_debug_logging(self):
         self._create_stale_usage(2023, 12, old_amount=5, new_amount=8)

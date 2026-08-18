@@ -226,6 +226,7 @@ class BillingUsageProcessor:
         )
 
         if item:
+            old_quantity = item.quantity
             item.quantity = converted_usage
             update_fields = ["quantity"]
             # Keep the aggregation volume in sync with re-reported usage; the
@@ -237,7 +238,8 @@ class BillingUsageProcessor:
                 update_fields.append("details")
             item.save(update_fields=update_fields)
             logger.info(
-                f"Updated invoice item {item.pk} for resource '{resource.uuid}'. New quantity: {item.quantity}"
+                f"Updated invoice item {item.pk} for resource '{resource.uuid}'. "
+                f"Quantity: {old_quantity} -> {item.quantity}"
             )
         else:
             # Create a new invoice item
