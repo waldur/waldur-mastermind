@@ -25,10 +25,10 @@ from waldur_mastermind.marketplace.secret_options import is_sensitive_key
 from waldur_mastermind.marketplace.tests import factories
 
 _backfill = importlib.import_module(
-    "waldur_mastermind.marketplace.migrations.0265_encrypt_existing_secret_options"
+    "waldur_mastermind.marketplace.migrations.0269_encrypt_existing_secret_options"
 )
 _scrub = importlib.import_module(
-    "waldur_mastermind.marketplace.migrations.0266_scrub_secret_options_from_reversion"
+    "waldur_mastermind.marketplace.migrations.0270_scrub_secret_options_from_reversion"
 )
 
 

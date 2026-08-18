@@ -7,7 +7,7 @@ import waldur_mastermind.marketplace.secret_options
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0263_remove_category_default_tenant_category"),
+        ("marketplace", "0267_terminate_slurm_resources"),
     ]
 
     operations = [

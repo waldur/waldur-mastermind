@@ -81,7 +81,7 @@ def scrub_secret_options(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0265_encrypt_existing_secret_options"),
+        ("marketplace", "0269_encrypt_existing_secret_options"),
         ("reversion", "0002_add_index_on_version_for_content_type_and_db"),
     ]
 

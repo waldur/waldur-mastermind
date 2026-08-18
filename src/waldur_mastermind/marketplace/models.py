@@ -5012,7 +5012,7 @@ reversion.register(Plan, follow=("components",))
 # secret_options is excluded: it holds credentials that are encrypted at rest, and
 # reversion would otherwise serialize the decrypted plaintext into version history.
 # Reverting secrets is not a use case anyway. Existing history is scrubbed in a
-# data migration (see 0266_scrub_secret_options_from_reversion).
+# data migration (see 0270_scrub_secret_options_from_reversion).
 reversion.register(
     Offering, follow=("components", "plans", "screenshots"), exclude=["secret_options"]
 )
