@@ -11,7 +11,6 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_slurm.tests import factories as slurm_factories
 
 
 def add_posix_ranges(offering, uid_start=1001, gid_start=2001):
@@ -48,13 +47,6 @@ class MarketplaceSiteAgentFixture(marketplace_fixtures.MarketplaceFixture):
             offering=self.offering,
             plan=self.plan,
             project=self.project,
-            scope=self.allocation,
-        )
-
-    @cached_property
-    def allocation(self):
-        return slurm_factories.AllocationFactory(
-            project=self.offering_project,
         )
 
 

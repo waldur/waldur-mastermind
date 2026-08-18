@@ -4,11 +4,11 @@ import logging
 import openportal
 
 from waldur_core.structure import models as structure_models
-from waldur_slurm.structures import Account
 
 from . import exceptions
 from . import utils as openportal_utils
 from .client import OpenPortalRunner, _trim_cmd
+from .structures import Account
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,6 @@ class OpenPortalConfig(AppConfig):
 
     def ready(self):
         # These need to be imported here to avoid circular imports
-        # This is the same as in waldur_slurm.apps.py
         from waldur_core.core import models as core_models
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas.fields import CounterQuotaField, QuotaField

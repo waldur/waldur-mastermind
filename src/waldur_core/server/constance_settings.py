@@ -174,7 +174,6 @@ OFFERING_TYPE_CHOICES = [
     ("VMware.VirtualMachine", "VMware Virtual Machine"),
     ("Waldur.RemoteOffering", "Remote Offering"),
     ("Marketplace.Script", "Script"),
-    ("SlurmInvoices.SlurmPackage", "SLURM Package"),
     ("Marketplace.Slurm", "Site Agent"),
 ]
 

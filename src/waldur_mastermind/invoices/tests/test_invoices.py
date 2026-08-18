@@ -187,15 +187,13 @@ class MeasuredUnitTest(test.APITestCase):
         self.assertEqual(item.get_measured_unit(), _("percents from a month"))
 
     def test_quantity(self):
-        from waldur_slurm.tests.factories import AllocationFactory
-
         item = self.get_invoice_item(UnitPriceMixin.Units.QUANTITY)
         resource = marketplace_factories.ResourceFactory()
-        resource.scope = AllocationFactory()
+        resource.scope = structure_factories.ProjectFactory()
         resource.save()
         item.resource = resource
         item.save()
-        self.assertEqual(item.get_measured_unit(), _("allocations"))
+        self.assertEqual(item.get_measured_unit(), _("projects"))
 
 
 class InvoiceStatsTest(test.APITestCase):

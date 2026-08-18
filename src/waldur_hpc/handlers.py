@@ -16,9 +16,12 @@ from waldur_mastermind.marketplace.tasks import (
     notify_consumer_about_pending_order,
     process_order_on_commit,
 )
-from waldur_slurm.utils import sanitize_allocation_name
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_allocation_name(name):
+    return re.sub(r"[^a-zA-Z0-9\-_]+", "", name)
 
 
 def get_internal_customer():

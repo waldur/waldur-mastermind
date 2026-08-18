@@ -3,9 +3,8 @@ import logging
 
 import openportal
 
-from waldur_slurm.structures import Account
-
 from . import config, exceptions
+from .structures import Account
 
 logger = logging.getLogger(__name__)
 

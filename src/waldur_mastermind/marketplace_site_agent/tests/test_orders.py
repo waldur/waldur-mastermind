@@ -1,16 +1,13 @@
 import datetime
 from unittest import mock
 
-from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import CoreStates
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     OrderStates,
@@ -88,78 +85,6 @@ class SendMessagesAboutPendingOrdersTest(test.APITestCase):
         self.assertEqual(mocked_publish_messages.call_count, 2)
         last_messages = mocked_publish_messages.call_args_list[-1].args[0]
         self.assertIn('"order_state": "done"', last_messages[0]["payload"])
-
-
-class AllocationDeleteTest(test.APITestCase):
-    def setUp(self):
-        self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
-        self.allocation = self.fixture.allocation
-        self.resource = self.fixture.resource
-        self.order = marketplace_factories.OrderFactory(
-            project=self.fixture.project,
-            state=OrderStates.EXECUTING,
-            resource=self.resource,
-            type=OrderTypes.TERMINATE,
-        )
-
-    def test_allocation_deletion_is_handled_by_agent(self):
-        """
-        This test checks that when an allocation deletion is triggered:
-        1. The order stays in EXECUTING state
-        2. The resource goes to TERMINATING state
-        3. The allocation stays in OK state (since deletion is handled by agent)
-        4. After manual deletion, all states are updated correctly
-        """
-
-        self.trigger_deletion()
-
-        # Verify the order is in executing state and resource is terminating
-        self.order.refresh_from_db()
-        self.resource.refresh_from_db()
-        # When there's no backend_id, the allocation should stay in OK state
-        # since deletion is handled by the agent
-        self.assertEqual(
-            self.order.state,
-            OrderStates.EXECUTING,
-            f"Order {self.order.id} should be EXECUTING, but got {self.order.state}",
-        )
-        self.assertEqual(
-            self.resource.state,
-            ResourceStates.TERMINATING,
-            f"Resource {self.resource.id} should be TERMINATING, but got {self.resource.state}",
-        )
-        self.assertEqual(
-            self.allocation.state,
-            CoreStates.OK,
-            f"Allocation {self.allocation.id} should be OK, but got {self.allocation.state}",
-        )
-
-        # Simulate agent processing by manually deleting the allocation
-        self.allocation.delete()
-
-        # Refresh states after deletion
-        self.order.refresh_from_db()
-        self.resource.refresh_from_db()
-
-        # After deletion completes, order should be DONE and resource TERMINATED and allocation should not exist
-        self.assertEqual(
-            self.order.state,
-            OrderStates.DONE,
-            f"Order {self.order.id} should be DONE, but got {self.order.state}",
-        )
-        self.assertEqual(
-            self.resource.state,
-            ResourceStates.TERMINATED,
-            f"Resource {self.resource.id} should be TERMINATED, but got {self.resource.state}",
-        )
-        self.assertRaises(ObjectDoesNotExist, self.allocation.refresh_from_db)
-
-    def trigger_deletion(self):
-        marketplace_utils.process_order(self.order, self.fixture.staff)
-
-        self.order.refresh_from_db()
-        self.resource.refresh_from_db()
-        self.allocation.refresh_from_db()
 
 
 class AllocationCreationFailureTest(test.APITestCase):
@@ -253,7 +178,6 @@ class AllocationCreationFailureTest(test.APITestCase):
 class AllocationCleanupTest(test.APITestCase):
     def setUp(self):
         self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
-        self.allocation = self.fixture.allocation
         self.resource = self.fixture.resource
         self.project = self.fixture.project
 
