@@ -3671,7 +3671,7 @@ def sync_component_user_usage(allocation_user_usage, plugin_name):
 def update_component_quota(allocation, plugin_name):
     """Shared handler for syncing allocation component quotas to marketplace resources.
 
-    Used by marketplace_slurm, marketplace_openportal, and marketplace_openportal_remote
+    Used by marketplace_openportal and marketplace_openportal_remote
     plugins to update ComponentQuota, ComponentUsage, and Resource.limits when an
     allocation's usage or limit fields change.
     """

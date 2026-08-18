@@ -90,7 +90,6 @@ waldur_hpc:
 - waldur_core.permissions
 - waldur_core.structure
 - waldur_mastermind.marketplace
-- waldur_slurm
 waldur_lexis:
 - waldur_core.core
 - waldur_core.permissions
@@ -198,10 +197,6 @@ waldur_mastermind.marketplace_site_agent:
 - waldur_core.permissions
 - waldur_core.structure
 - waldur_mastermind.marketplace
-waldur_mastermind.marketplace_slurm:
-- waldur_core.core
-- waldur_mastermind.marketplace
-- waldur_slurm
 waldur_mastermind.marketplace_support:
 - waldur_core.core
 - waldur_core.permissions
@@ -260,7 +255,6 @@ waldur_openportal:
 - waldur_core.users
 - waldur_mastermind.invoices
 - waldur_mastermind.marketplace
-- waldur_slurm
 waldur_openstack:
 - waldur_core.core
 - waldur_core.logging
@@ -287,12 +281,6 @@ waldur_rancher:
 - waldur_core.structure
 - waldur_mastermind.marketplace
 - waldur_openstack
-waldur_slurm:
-- waldur_core.core
-- waldur_core.permissions
-- waldur_core.quotas
-- waldur_core.structure
-- waldur_freeipa
 waldur_vmware:
 - waldur_core.core
 - waldur_core.structure
