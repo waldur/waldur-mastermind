@@ -16,6 +16,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`DeleteExecutorMixin`](#deleteexecutormixin) | `waldur_core.core.executors` | Delete object on success or if force flag is enabled |
 | [`ErrorExecutorMixin`](#errorexecutormixin) | `waldur_core.core.executors` | Set object as erred on fail |
 | [`SuccessExecutorMixin`](#successexecutormixin) | `waldur_core.core.executors` | Set object as OK on success, cleanup action and its details |
+| [`SelectiveEncryptionMixin`](#selectiveencryptionmixin) | `waldur_core.core.fields` | Encrypts the values under sensitive keys of a JSON-valued field |
 | [`GenericKeyMixin`](#generickeymixin) | `waldur_core.core.managers` | Filtering by generic key field  Support filtering by:  - generic key directly... |
 | [`CreateExecutorMixin`](#createexecutormixin) | `waldur_core.core.mixins` | Mixin to execute create operations using background executors |
 | [`DeleteExecutorMixin`](#deleteexecutormixin) | `waldur_core.core.mixins` | Mixin to execute delete operations using background executors |
@@ -126,7 +127,6 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SettingsMixin`](#settingsmixin) | `waldur_rancher.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`SyncDestroyMixin`](#syncdestroymixin) | `waldur_rancher.views` | No description available |
 | [`YamlMixin`](#yamlmixin) | `waldur_rancher.views` | No description available |
-| [`UsageMixin`](#usagemixin) | `waldur_slurm.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`VirtualMachineMixin`](#virtualmachinemixin) | `waldur_vmware.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 
 ## Detailed Descriptions
@@ -270,6 +270,34 @@ Set object as erred on fail.
 **Description:**
 
 Set object as OK on success, cleanup action and its details.
+
+### SelectiveEncryptionMixin
+
+**Module:** `waldur_core.core.fields`
+
+**Description:**
+
+Encrypts the values under sensitive keys of a JSON-valued field.
+
+Only the values whose key satisfies :meth:`_is_sensitive_key` are Fernet-encrypted;
+JSON keys and non-sensitive values stay plaintext, so ``has_key`` / value lookups
+keep working against the column.
+
+Encryption and decryption use the **same** key predicate, and encryption is
+unconditional: a token-shaped value under a sensitive key is wrapped rather than
+passed through, and only sensitive keys are decrypted on read. That symmetry is
+what stops the field being used as a decryption oracle (a caller planting a stolen
+ciphertext under a non-sensitive key, or a token-shaped value under a sensitive
+one, cannot read back another row's plaintext).
+
+Encryption happens in ``pre_save`` and never writes ciphertext back to the instance
+attribute — the attribute stays the plaintext dict, so FieldTracker compares
+plaintext on both sides and handlers do not fire on an unchanged save.
+
+Mixed into a concrete JSON field class, so the same behaviour applies to the
+``jsonb``-backed :class:`EncryptedJSONField` and to the legacy text-backed
+:class:`EncryptedOptionsField` without duplicating the logic. Subclasses must
+implement :meth:`_is_sensitive_key`.
 
 ### GenericKeyMixin
 
@@ -1715,16 +1743,6 @@ Make subclasses preserve the alters_data attribute on overridden methods.
 **Module:** `waldur_rancher.views`
 
 **Description:** No description available.
-
-### UsageMixin
-
-**Module:** `waldur_slurm.models`
-
-**Description:**
-
-Make subclasses preserve the alters_data attribute on overridden methods.
-
-**Base classes:** `Model`
 
 ### VirtualMachineMixin
 
