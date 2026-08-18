@@ -74,6 +74,7 @@ from ..common import formula as common_formula
 from ..common import mixins as common_mixins
 from . import managers, plugins, signals
 from .attribute_types import ATTRIBUTE_TYPES
+from .secret_options import SecretOptionsField
 
 logger = logging.getLogger(__name__)
 
@@ -703,7 +704,7 @@ class Offering(
             "Public data used by specific plugin, such as storage mode for OpenStack."
         ),
     )
-    secret_options = models.JSONField(
+    secret_options = SecretOptionsField(
         blank=True,
         default=dict,
         help_text=_(
@@ -5008,7 +5009,13 @@ reversion.register(Screenshot)
 reversion.register(OfferingComponent)
 reversion.register(PlanComponent)
 reversion.register(Plan, follow=("components",))
-reversion.register(Offering, follow=("components", "plans", "screenshots"))
+# secret_options is excluded: it holds credentials that are encrypted at rest, and
+# reversion would otherwise serialize the decrypted plaintext into version history.
+# Reverting secrets is not a use case anyway. Existing history is scrubbed in a
+# data migration (see 0266_scrub_secret_options_from_reversion).
+reversion.register(
+    Offering, follow=("components", "plans", "screenshots"), exclude=["secret_options"]
+)
 reversion.register(
     Resource,
     fields=[

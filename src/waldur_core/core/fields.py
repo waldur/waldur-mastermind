@@ -4,13 +4,14 @@ import uuid
 from typing import cast
 
 import pycountry
+from cryptography.fernet import InvalidToken
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from waldur_core.core import utils
+from waldur_core.core import encryption, utils
 from waldur_core.core import validators as core_validators
 
 
@@ -225,6 +226,110 @@ class JSONField(models.TextField):
             return copy.deepcopy(self.default)
         # If the field doesn't have a default, then we punt to models.Field.
         return super().get_default()
+
+
+class SelectiveEncryptionMixin:
+    """Encrypts the values under sensitive keys of a JSON-valued field.
+
+    Only the values whose key satisfies :meth:`_is_sensitive_key` are Fernet-encrypted;
+    JSON keys and non-sensitive values stay plaintext, so ``has_key`` / value lookups
+    keep working against the column.
+
+    Encryption and decryption use the **same** key predicate, and encryption is
+    unconditional: a token-shaped value under a sensitive key is wrapped rather than
+    passed through, and only sensitive keys are decrypted on read. That symmetry is
+    what stops the field being used as a decryption oracle (a caller planting a stolen
+    ciphertext under a non-sensitive key, or a token-shaped value under a sensitive
+    one, cannot read back another row's plaintext).
+
+    Encryption happens in ``pre_save`` and never writes ciphertext back to the instance
+    attribute — the attribute stays the plaintext dict, so FieldTracker compares
+    plaintext on both sides and handlers do not fire on an unchanged save.
+
+    Mixed into a concrete JSON field class, so the same behaviour applies to the
+    ``jsonb``-backed :class:`EncryptedJSONField` and to the legacy text-backed
+    :class:`EncryptedOptionsField` without duplicating the logic. Subclasses must
+    implement :meth:`_is_sensitive_key`.
+    """
+
+    def _is_sensitive_key(self, key) -> bool:
+        """Whether the value under ``key`` must be encrypted. Override in subclass."""
+        raise NotImplementedError
+
+    def from_db_value(self, value, expression, connection):
+        value = super().from_db_value(value, expression, connection)
+        return encryption.decrypt_dict_values(value, self._is_sensitive_key)
+
+    def pre_save(self, model_instance, add):
+        value = super().pre_save(model_instance, add)
+        return encryption.encrypt_dict_values(value, self._is_sensitive_key)
+
+    def encrypt_for_update(self, value):
+        """Encrypt a value bound for ``QuerySet.update()``, which skips ``pre_save``.
+
+        See :func:`waldur_core.core.encryption.encrypt_defaults_for_update`.
+        """
+        return encryption.encrypt_dict_values(value, self._is_sensitive_key)
+
+
+class EncryptedJSONField(SelectiveEncryptionMixin, models.JSONField):
+    """A ``jsonb`` JSONField that encrypts the values under sensitive keys at rest."""
+
+
+class EncryptedOptionsField(SelectiveEncryptionMixin, JSONField):
+    """The legacy text-backed :class:`JSONField`, encrypting credential-named values.
+
+    Backs ``ServiceSettings.options``, which mixes ordinary backend configuration
+    (endpoints, tenant ids, tuning flags) with real credentials — ``client_secret``,
+    ``keycloak_password``, ``vault_token``. Only the latter are encrypted, so the
+    column stays readable for support and no existing consumer of an option changes
+    behaviour.
+
+    Kept on the legacy text-backed base deliberately: ``options`` is a ``text`` column
+    holding serialised JSON, and it is never queried through JSON lookups, so there is
+    nothing to gain from a ``jsonb`` rewrite of a large table — and a type change would
+    turn a metadata-only migration into a full rewrite.
+    """
+
+    def _is_sensitive_key(self, key) -> bool:
+        return encryption.is_credential_key(key)
+
+
+class EncryptedTextField(models.TextField):
+    """A text field whose whole value is Fernet-encrypted at rest.
+
+    The value is a single credential, so it is always encrypted (unlike the
+    selective :class:`EncryptedJSONField`). Encryption happens in ``pre_save`` so the
+    instance attribute stays plaintext and FieldTracker compares plaintext; reads
+    decrypt by token shape. Backed by TextField (like ``ResourceApiKey.key_ciphertext``)
+    so the longer ciphertext never overflows a length bound. Value lookups no longer
+    match — acceptable for opaque secrets that are never queried by value.
+
+    Encryption is unconditional (not gated on token shape): a token-shaped value is
+    wrapped rather than stored verbatim, so the field cannot be used as a decryption
+    oracle for a chosen ciphertext.
+    """
+
+    def from_db_value(self, value, expression, connection):
+        if value and encryption.is_encrypted(value):
+            try:
+                return encryption.decrypt_value(value)
+            except InvalidToken:
+                return value
+        return value
+
+    def pre_save(self, model_instance, add):
+        value = super().pre_save(model_instance, add)
+        if value:
+            return encryption.encrypt_value(value)
+        return value
+
+    def encrypt_for_update(self, value):
+        """Encrypt a value bound for ``QuerySet.update()``, which skips ``pre_save``.
+
+        See :func:`waldur_core.core.encryption.encrypt_defaults_for_update`.
+        """
+        return encryption.encrypt_value(value) if value else value
 
 
 class YearMonthField(serializers.CharField):

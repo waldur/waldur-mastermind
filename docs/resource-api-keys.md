@@ -199,6 +199,9 @@ the offering customer:
 
 ## Encryption at rest {#encryption-at-rest}
 
+This is one of several encrypted columns; see [Field encryption](field-encryption.md)
+for the general feature (what is encrypted, key configuration, rotation, backups).
+
 Keys are encrypted with Fernet via `waldur_core.core.encryption`
 (`encrypt_value` / `decrypt_value` / `is_encrypted`), keyed by
 `settings.FIELD_ENCRYPTION_KEY`. `FIELD_ENCRYPTION_KEY` is a separate setting

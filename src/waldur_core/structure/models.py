@@ -1402,16 +1402,18 @@ class ServiceSettings(
     )
     backend_url = core_fields.BackendURLField(max_length=200, blank=True, null=True)
     username = models.CharField(max_length=100, blank=True, null=True)
-    password = models.CharField(max_length=100, blank=True, null=True)
+    password = core_fields.EncryptedTextField(blank=True, null=True)
     domain = models.CharField(max_length=200, blank=True, null=True)
-    token = models.CharField(max_length=255, blank=True, null=True)
+    token = core_fields.EncryptedTextField(blank=True, null=True)
     certificate = models.FileField(
         upload_to="certs", blank=True, null=True, validators=[CertificateValidator]
     )
     type = models.CharField(
         max_length=255, db_index=True, validators=[validate_service_type]
     )
-    options = JSONField(default=dict, help_text=_("Extra options"), blank=True)
+    options = core_fields.EncryptedOptionsField(
+        default=dict, help_text=_("Extra options"), blank=True
+    )
     shared = models.BooleanField(default=False, help_text=_("Anybody can use it"))
     terms_of_services = models.URLField(max_length=255, blank=True)
 
