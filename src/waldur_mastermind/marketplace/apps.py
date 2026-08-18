@@ -65,6 +65,11 @@ class MarketplaceConfig(AppConfig):
             sender=models.Offering,
             dispatch_uid="waldur_mastermind.marketplace.reconcile_offering_profile_on_offering_changed",
         )
+        signals.pre_save.connect(
+            handlers.encrypt_secret_options_on_raw_save,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.encrypt_secret_options_on_raw_save",
+        )
 
         from waldur_core.core.handlers import create_initial_revision
 

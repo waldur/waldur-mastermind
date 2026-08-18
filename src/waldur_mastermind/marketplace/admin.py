@@ -290,7 +290,6 @@ class OfferingAdminForm(ModelForm):
         widgets = {
             "attributes": JsonWidget(),
             "options": JsonWidget(),
-            "secret_options": JsonWidget(),
             "plugin_options": JsonWidget(),
             "referrals": JsonWidget(),
         }
@@ -409,6 +408,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         "scope_link",
         "citation_count",
         "uuid",
+        "secret_options",
     )
 
     def scope_link(self, obj):

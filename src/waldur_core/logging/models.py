@@ -20,6 +20,7 @@ from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail, validate_outbound_url
 from waldur_core.logging.enums import ObservableObjectType
+from waldur_core.logging.log import scrub_sensitive
 
 logger = logging.getLogger(__name__)
 
@@ -133,10 +134,12 @@ class WebHook(BaseHook):
             )
             return
 
+        # Scrub credential-named keys from the context before it leaves for an
+        # external URL — defence in depth against a secret ever reaching a context.
         payload = dict(
             created=event.created.isoformat(),
             message=event.message,
-            context=event.context,
+            context=scrub_sensitive(event.context),
             event_type=event.event_type,
         )
 

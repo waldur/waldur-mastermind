@@ -21,6 +21,7 @@ from waldur_core.checklist.models import (
     QuestionDependency,
     QuestionOption,
 )
+from waldur_core.core import encryption
 from waldur_core.core.features import FEATURES
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import Feature, SshPublicKey, User
@@ -3054,7 +3055,19 @@ class Command(BaseCommand):
                     if existing_offering:
                         if self.update_existing:
                             with transaction.atomic():
-                                Offering.objects.filter(uuid=uuid).update(**defaults)
+                                # .update() never calls pre_save, so secret_options
+                                # would be stored as the imported plaintext; encrypt
+                                # it here. Saving through the instance instead would
+                                # also encrypt, but it would fire the whole Offering
+                                # post_save chain (event log, reversion revision,
+                                # OpenStack IP re-sync, Google Calendar rename,
+                                # Celery fan-out) for every row of a bulk import,
+                                # which this command has never done.
+                                Offering.objects.filter(uuid=uuid).update(
+                                    **encryption.encrypt_defaults_for_update(
+                                        Offering, defaults
+                                    )
+                                )
                             self.stats["offerings"]["updated"] += 1
                         else:
                             self.stats["offerings"]["skipped"] += 1
@@ -10273,8 +10286,15 @@ class Command(BaseCommand):
                     if existing:
                         if self.update_existing:
                             with transaction.atomic():
+                                # .update() never calls pre_save, so password, token
+                                # and the credential values inside options would be
+                                # stored as the imported plaintext; encrypt them here
+                                # rather than saving through the instance, which would
+                                # fire signal handlers this bulk import never ran.
                                 ServiceSettings.objects.filter(uuid=uuid).update(
-                                    **defaults
+                                    **encryption.encrypt_defaults_for_update(
+                                        ServiceSettings, defaults
+                                    )
                                 )
                             self.stats["openstack_service_settings"]["updated"] += 1
                         else:

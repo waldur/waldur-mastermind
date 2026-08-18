@@ -99,13 +99,52 @@ class TCPEventHandler(logging.handlers.SocketHandler):
         return self.formatter.format(record).encode("utf-8") + b"\n"
 
 
-_SENSITIVE_RE = re.compile(
-    r"(?i)"
-    r"(password|passwd|pwd|token|secret|api_key|apikey|access_key|"
-    r"private_key|auth_token|authorization|credential|client_secret)"
-    r"(\s*[=:]\s*)"
-    r"(\S+)",
+_SENSITIVE_KEY_TERMS = (
+    "password",
+    "passwd",
+    "pwd",
+    "token",
+    "secret",
+    "api_key",
+    "apikey",
+    "access_key",
+    "private_key",
+    "auth_token",
+    "authorization",
+    "credential",
+    "client_secret",
+    "kubeconfig",
 )
+
+# Text scrubber for log lines: matches "<term> = value" / "<term>: value".
+_SENSITIVE_RE = re.compile(
+    r"(?i)(" + "|".join(_SENSITIVE_KEY_TERMS) + r")(\s*[=:]\s*)(\S+)",
+)
+
+_SCRUBBED = "***"
+
+
+def _is_sensitive_key(key) -> bool:
+    return isinstance(key, str) and any(
+        term in key.lower() for term in _SENSITIVE_KEY_TERMS
+    )
+
+
+def scrub_sensitive(value):
+    """Recursively mask values under sensitive keys in a JSON-like structure.
+
+    The text scrubber (_SENSITIVE_RE) only reaches log strings; this covers
+    structured data such as event contexts / webhook payloads that are sent to
+    external URLs, where a stray credential-named key would otherwise leak.
+    """
+    if isinstance(value, dict):
+        return {
+            key: (_SCRUBBED if _is_sensitive_key(key) else scrub_sensitive(val))
+            for key, val in value.items()
+        }
+    if isinstance(value, list | tuple):
+        return [scrub_sensitive(item) for item in value]
+    return value
 
 
 class DatabaseLogHandler(logging.Handler):

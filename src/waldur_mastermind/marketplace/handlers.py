@@ -17,6 +17,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
+from waldur_core.core import encryption
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.middleware import get_skip_side_effects
@@ -70,6 +71,7 @@ from waldur_mastermind.marketplace.models import (
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
+from waldur_mastermind.marketplace.secret_options import is_sensitive_key
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
 from . import callbacks, log, models, order_approval, posix_ids, tasks, utils
@@ -485,6 +487,30 @@ def revoke_roles_on_offering_deletion(sender, instance: Offering, **kwargs):
         scope=instance, is_active=True
     ):
         permission.revoke(reason="Offering deletion")
+
+
+def encrypt_secret_options_on_raw_save(sender, instance, raw=False, **kwargs):
+    """Encrypt secret_options on a raw save (django-reversion revert, loaddata).
+
+    A raw save skips the field's pre_save, so secret_options would be stored without
+    encryption. On a revert it also arrives empty — the field is excluded from reversion
+    — which would wipe the live credentials; restore the current value first in that
+    case. Then encrypt here. skip_encrypted keeps an already-encrypted value (e.g. one
+    that no configured key can decrypt) from being wrapped a second time.
+    """
+    if not raw:
+        return
+
+    data = instance.secret_options
+    if not data and instance.pk:
+        data = (
+            sender._base_manager.filter(pk=instance.pk)
+            .values_list("secret_options", flat=True)
+            .first()
+        ) or {}
+    instance.secret_options = encryption.encrypt_dict_values(
+        data, is_sensitive_key, skip_encrypted=True
+    )
 
 
 def update_category_offerings_count(sender, **kwargs):

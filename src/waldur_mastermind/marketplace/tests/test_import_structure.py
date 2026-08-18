@@ -6,6 +6,7 @@ from io import StringIO
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
+from django.db import connection
 from django.test import TestCase
 
 from waldur_core.core.models import User
@@ -272,6 +273,56 @@ class ImportStructureCommandTest(TestCase):
         self.assertTrue(offering.shared)
         self.assertFalse(offering.billable)
         self.assertEqual(offering.attributes, {"key": "value"})
+
+    def test_update_existing_offering_encrypts_secret_options(self):
+        """--update must save through the instance so secret_options is encrypted,
+        not stored verbatim from the (plaintext) export dump via .update()."""
+        customer = structure_factories.CustomerFactory(
+            uuid="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        )
+        category = marketplace_factories.CategoryFactory(
+            uuid="cccccccc-cccc-cccc-cccc-cccccccccccc"
+        )
+        offering = marketplace_factories.OfferingFactory(
+            uuid="dddddddd-dddd-dddd-dddd-dddddddddddd",
+            customer=customer,
+            category=category,
+            type="Test.Type",
+            secret_options={},
+        )
+        data = {
+            "offerings": [
+                {
+                    "uuid": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+                    "name": "Updated",
+                    "type": "Test.Type",
+                    "state": 1,
+                    "customer_uuid": str(customer.uuid),
+                    "category_uuid": str(category.uuid),
+                    "attributes": {},
+                    "options": {},
+                    "resource_options": {},
+                    "plugin_options": {},
+                    "secret_options": {"token": "imported-secret"},
+                }
+            ]
+        }
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT secret_options FROM marketplace_offering WHERE id = %s",
+                [offering.id],
+            )
+            raw = cursor.fetchone()[0]
+        raw = json.loads(raw) if isinstance(raw, str) else raw
+        self.assertTrue(raw["token"].startswith("gAAAA"))
+        self.assertEqual(
+            Offering.objects.get(pk=offering.pk).secret_options["token"],
+            "imported-secret",
+        )
 
     # Update Mode Tests
 
