@@ -334,7 +334,8 @@ def customer_credit_changed_handler(
         return
 
     logger.info(
-        "%s has changed, scheduling async customer and project policy evaluation",
+        "%s has changed; customer and project policy evaluation will be "
+        "scheduled once this transaction commits (never, if it's rolled back)",
         customer_credit,
     )
     customer_id = customer_credit.customer_id
@@ -359,7 +360,9 @@ def project_credit_changed_handler(
         return
 
     logger.info(
-        "%s has changed, scheduling async project policy evaluation", project_credit
+        "%s has changed; project policy evaluation will be scheduled once "
+        "this transaction commits (never, if it's rolled back)",
+        project_credit,
     )
     project_id = project_credit.project_id
     _debounced_evaluate(

@@ -12,12 +12,22 @@ from waldur_mastermind.marketplace import billing_discount
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
 from waldur_mastermind.marketplace.billing_utils import convert_quantity
-from waldur_mastermind.marketplace.enums import BillingTypes, DiscountAggregations
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    DiscountAggregations,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.models import (
     ComponentUsage,
     Offering,
     PlanComponent,
     Resource,
+)
+from waldur_mastermind.policy import models as policy_models
+from waldur_mastermind.policy.policy_actions import (
+    POLICY_ACTIONS,
+    _filter_resources_by_scope,
+    _resources_locked_by_other_policies,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,6 +38,42 @@ class _DryRunRollback(Exception):
 
 
 class Command(BaseCommand):
+    # Cost Policy actions that flip a per-resource state flag (and therefore
+    # can be previewed as "these resources would change"). block_creation_*,
+    # block_modification_*, and notify_* are deliberately excluded: they
+    # don't touch existing resources the same way, so listing resources for
+    # them would be misleading. filter_kwargs/exclude_states mirror each
+    # action's own queryset in policy_actions.py exactly -- they differ per
+    # action (e.g. request_pausing excludes only TERMINATED, request_downscaling
+    # excludes TERMINATED and TERMINATING too), so this can't be one shared
+    # queryset. field_name is the boolean flag _apply_generic_action compares
+    # against the target value to decide whether a resource is a no-op for
+    # this action; None for terminate_resources, which isn't a flag flip.
+    _POLICY_RESOURCE_ACTIONS = {
+        "request_pausing": {
+            "field_name": "paused",
+            "filter_kwargs": {"offering__plugin_options__supports_pausing": True},
+            "exclude_states": (ResourceStates.TERMINATED,),
+        },
+        "request_downscaling": {
+            "field_name": "downscaled",
+            "filter_kwargs": {"offering__plugin_options__supports_downscaling": True},
+            "exclude_states": (ResourceStates.TERMINATED, ResourceStates.TERMINATING),
+        },
+        "restrict_members": {
+            "field_name": "restrict_member_access",
+            "filter_kwargs": {
+                "offering__plugin_options__service_provider_can_create_offering_user": True
+            },
+            "exclude_states": (ResourceStates.TERMINATED,),
+        },
+        "terminate_resources": {
+            "field_name": None,
+            "filter_kwargs": {},
+            "exclude_states": (ResourceStates.TERMINATED, ResourceStates.TERMINATING),
+        },
+    }
+
     help = (
         "Re-bill ComponentUsage records whose invoice item is missing or stale "
         "because their invoice was already finalized when the usage was "
@@ -334,10 +380,11 @@ class Command(BaseCommand):
             billing_type=offering_component.billing_type,
         )
         logger.debug(
-            "%s: old_item=%s expected_quantity=%s",
+            "%s: quantity %s -> %s (billed item exists: %s)",
             label,
             old_item.quantity if old_item else None,
             expected_quantity,
+            old_item is not None,
         )
         if (
             old_item is not None
@@ -350,14 +397,213 @@ class Command(BaseCommand):
         logger.debug("%s: applying correction (dry_run=%s)", label, dry_run)
         try:
             with transaction.atomic():
+                policies_before = self._snapshot_cost_policies(resource)
                 self._apply_correction(
                     usage, resource, offering_component, invoice, plan_period, dry_run
                 )
+                # Still inside the transaction the correction just ran in, so
+                # this sees the corrected numbers -- for dry-run, before the
+                # rollback below discards them. is_triggered() itself has no
+                # side effects (it neither writes has_fired nor fires any
+                # action), so evaluating it here is safe in both modes.
+                self._report_policy_impact(resource, policies_before, dry_run)
                 if dry_run:
                     raise _DryRunRollback()
         except _DryRunRollback:
             pass
         return True
+
+    def _snapshot_cost_policies(self, resource):
+        """Every Cost Policy in scope for this resource's project, customer,
+        or offering, with its currently-persisted `has_fired` -- captured
+        before the correction runs, so the post-correction preview can
+        report exactly what would change.
+
+        OfferingEstimatedCostPolicy is included alongside the project/customer
+        ones: it's an EstimatedCostPolicyMixin too, with trigger_class =
+        InvoiceItem wired to post_save (policy/apps.py), so the invoice item
+        this command rewrites triggers it exactly like the other two. It has
+        no resource-state actions in its available_actions, so it never
+        produces a resource listing below -- it can still fire and block new
+        orders or notify owners, which is worth previewing.
+
+        SLURM Periodic Usage Policy is deliberately not included: it only
+        reacts to ComponentUsage.usage, which this command never touches --
+        the plan_period backfill above uses .update(), which fires no
+        signal, and never writes to usage itself -- so it can never be
+        affected by anything this command does.
+        """
+        project = resource.project
+        policies = (
+            list(policy_models.ProjectEstimatedCostPolicy.objects.filter(scope=project))
+            + list(
+                policy_models.CustomerEstimatedCostPolicy.objects.filter(
+                    scope=project.customer
+                )
+            )
+            + list(
+                policy_models.OfferingEstimatedCostPolicy.objects.filter(
+                    scope=resource.offering
+                )
+            )
+        )
+        return [(policy, policy.has_fired) for policy in policies]
+
+    _POLICY_SCOPE_LABELS = {
+        policy_models.ProjectEstimatedCostPolicy: "Project",
+        policy_models.CustomerEstimatedCostPolicy: "Customer",
+        policy_models.OfferingEstimatedCostPolicy: "Offering",
+    }
+
+    def _report_policy_impact(self, resource, policies_before, dry_run) -> None:
+        """Log every in-scope Cost Policy's gate state after the correction.
+
+        Calls each policy's own `_cost_inputs()` / `_evaluated_cost()` --
+        the exact methods `is_triggered()` itself calls -- instead of
+        re-deriving the cost sum and credit deduction by hand. An earlier
+        version did the latter and silently went stale when
+        fix/cost-policy-double-credit-deduction changed how the deduction is
+        computed (`_pending_compensation`, not the raw MonthlyCompensation
+        projection): reusing the policy's own methods means this can't
+        happen again short of `is_triggered()` itself changing, in which
+        case this preview changes with it for free.
+        """
+        prefix = "[DRY RUN] " if dry_run else ""
+        label = f"{resource.name} ({resource.uuid.hex})"
+
+        if not policies_before:
+            self.stdout.write(
+                f"{prefix}{label}: no Cost Policy configured for this project, "
+                f"customer, or offering -- nothing to evaluate. (SLURM Periodic "
+                f"Usage Policy is never affected by this command -- it only "
+                f"reacts to ComponentUsage changes, which this command never "
+                f"makes.)"
+            )
+            return
+
+        for policy, was_fired in policies_before:
+            policy.refresh_from_db()
+            scope_label = self._POLICY_SCOPE_LABELS[type(policy)]
+
+            invoice_items, deduction = policy._cost_inputs()
+            cost_total = policy._scoped_cost(invoice_items)
+            net_cost = policy._evaluated_cost(invoice_items, deduction)
+            # Match _is_triggered's strict `>`: cost exactly on limit_cost is
+            # not triggered, so gate 1 must read closed there too.
+            gate1 = "open" if net_cost > policy.limit_cost else "closed"
+
+            credit_balance = None
+            if isinstance(policy, policy_models.ProjectEstimatedCostPolicy):
+                if policy.use_credit:
+                    project_credit = invoice_models.ProjectCredit.objects.filter(
+                        project=policy.scope
+                    ).first()
+                    if project_credit:
+                        credit_balance = project_credit.value
+                    else:
+                        customer_credit = invoice_models.CustomerCredit.objects.filter(
+                            customer=policy.scope.customer
+                        ).first()
+                        credit_balance = (
+                            customer_credit.value if customer_credit else None
+                        )
+            elif isinstance(policy, policy_models.CustomerEstimatedCostPolicy):
+                customer_credit = invoice_models.CustomerCredit.objects.filter(
+                    customer=policy.scope
+                ).first()
+                credit_balance = customer_credit.value if customer_credit else None
+            # OfferingEstimatedCostPolicy: no single customer's credit applies
+            # (_cost_inputs always returns deduction=0), so credit_balance
+            # stays None -- there is no gate 2 for this policy type.
+
+            credit_note = ""
+            if credit_balance is not None:
+                gate2 = "open" if credit_balance <= policy.limit_cost else "closed"
+                credit_note = f" credit_balance={credit_balance} (gate 2: {gate2})"
+
+            now_triggered = policy.is_triggered()
+            changed = was_fired != now_triggered
+            verdict = ""
+            if changed:
+                verdict = (
+                    " *** WOULD FIRE ***" if now_triggered else " *** WOULD RESET ***"
+                )
+
+            self.stdout.write(
+                f"{prefix}{label}: [{scope_label} Cost Policy {policy.uuid.hex}] "
+                f"limit_cost={policy.limit_cost} cost_this_window={net_cost} "
+                f"(gate 1: {gate1}){credit_note} fired: {was_fired} -> "
+                f"{now_triggered}{verdict}"
+            )
+            logger.debug(
+                "%s: policy=%s scope=%s cost_total=%s deduction=%s net_cost=%s "
+                "credit_balance=%s fired_before=%s fired_after=%s",
+                label,
+                policy.uuid.hex,
+                scope_label,
+                cost_total,
+                deduction,
+                net_cost,
+                credit_balance,
+                was_fired,
+                now_triggered,
+            )
+
+            if not changed:
+                continue
+
+            action_names = [a for a in policy.actions.split(",") if a]
+            resource_actions = [
+                a for a in action_names if a in self._POLICY_RESOURCE_ACTIONS
+            ]
+            other_actions = [a for a in action_names if a not in resource_actions]
+            if other_actions:
+                self.stdout.write(
+                    f"{prefix}{label}:   also configured: "
+                    f"{', '.join(other_actions)} (not a resource pause / "
+                    f"downscale / terminate action -- not previewed here)"
+                )
+            for action_name in resource_actions:
+                meta = self._POLICY_RESOURCE_ACTIONS[action_name]
+
+                if (
+                    not now_triggered
+                    and POLICY_ACTIONS[action_name].reset_method is None
+                ):
+                    # e.g. terminate_resources: nothing runs on a fired -> clear
+                    # transition, so a resource list here would read as if
+                    # terminated resources get restored.
+                    self.stdout.write(
+                        f"{prefix}{label}:   {action_name} has no reset -- "
+                        f"nothing would run for it on this reset"
+                    )
+                    continue
+
+                candidates = Resource.objects.filter(**meta["filter_kwargs"]).exclude(
+                    state__in=meta["exclude_states"]
+                )
+                affected = _filter_resources_by_scope(candidates, policy)
+                if affected is None:
+                    continue
+
+                field_name = meta["field_name"]
+                if field_name is not None:
+                    # Mirror _apply_generic_action exactly: a resource already
+                    # at the target value is a no-op the real action skips,
+                    # and (only when clearing) one another still-firing policy
+                    # wants kept set is left alone too.
+                    affected = affected.exclude(**{field_name: now_triggered})
+                    if not now_triggered:
+                        locked = _resources_locked_by_other_policies(policy, field_name)
+                        if locked:
+                            affected = affected.exclude(pk__in=locked)
+
+                names = [f"{r.name} ({r.uuid.hex})" for r in affected]
+                direction = "would apply to" if now_triggered else "would reset on"
+                self.stdout.write(
+                    f"{prefix}{label}:   {action_name} {direction} "
+                    f"{len(names)} resource(s): {', '.join(names) if names else '(none)'}"
+                )
 
     def _apply_correction(
         self, usage, resource, offering_component, invoice, plan_period, dry_run
@@ -399,11 +645,13 @@ class Command(BaseCommand):
 
         new_price = new_item.price
         logger.debug(
-            "%s: item price %s -> %s (item id=%s)",
+            "%s: item id=%s quantity %s -> %s, price %s -> %s",
             label,
+            new_item.pk,
+            old_item.quantity if old_item else None,
+            new_item.quantity,
             old_price,
             new_price,
-            new_item.pk,
         )
         self.stdout.write(
             f"{prefix}{label}: invoice item price {old_price} -> {new_price}"
@@ -634,7 +882,13 @@ class Command(BaseCommand):
         available = customer_credit.value
         if project_credit:
             available = min(available, project_credit.value)
-        logger.debug("%s: available=%s", label, available)
+        logger.debug(
+            "%s: available=%s (min of customer_credit=%s%s)",
+            label,
+            available,
+            customer_credit.value,
+            f", project_credit={project_credit.value}" if project_credit else "",
+        )
         if delta_draw > 0 and delta_draw > available:
             logger.debug(
                 "%s: delta_draw exceeds available, aborting credit correction", label
@@ -655,9 +909,11 @@ class Command(BaseCommand):
 
         if existing_compensation is not None:
             logger.debug(
-                "%s: updating existing compensation item id=%s",
+                "%s: updating existing compensation item id=%s, unit_price %s -> %s",
                 label,
                 existing_compensation.pk,
+                existing_compensation.unit_price,
+                -new_compensation,
             )
             existing_compensation.unit_price = -new_compensation
             existing_compensation.details = dict(existing_compensation.details or {})
@@ -703,14 +959,18 @@ class Command(BaseCommand):
                 f"was corrected after the invoice had already been finalized."
             ),
         ):
+            old_customer_credit_value = customer_credit.value
+            old_project_credit_value = project_credit.value if project_credit else None
             customer_credit.value -= delta_draw
             customer_credit.save(update_fields=["value"])
             if project_credit:
                 project_credit.value -= delta_draw
                 project_credit.save(update_fields=["value"])
             logger.debug(
-                "%s: customer_credit -> %s, project_credit -> %s",
+                "%s: customer_credit %s -> %s, project_credit %s -> %s",
                 label,
+                old_customer_credit_value,
                 customer_credit.value,
+                old_project_credit_value,
                 project_credit.value if project_credit else None,
             )
