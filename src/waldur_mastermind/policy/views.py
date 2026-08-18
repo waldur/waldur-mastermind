@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
-    queryset = models.ProjectEstimatedCostPolicy.objects.all().order_by("-created")
+    queryset = (
+        models.ProjectEstimatedCostPolicy.objects.all()
+        .select_related("scope", "scope__customer", "created_by")
+        .order_by("-created")
+    )
     serializer_class = serializers.ProjectEstimatedCostPolicySerializer
     filter_backends = [
         DjangoFilterBackend,
@@ -65,7 +69,11 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
 
 
 class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
-    queryset = models.CustomerEstimatedCostPolicy.objects.all().order_by("-created")
+    queryset = (
+        models.CustomerEstimatedCostPolicy.objects.all()
+        .select_related("scope", "created_by")
+        .order_by("-created")
+    )
     serializer_class = serializers.CustomerEstimatedCostPolicySerializer
     filter_backends = [
         DjangoFilterBackend,

@@ -1,3 +1,4 @@
+import decimal
 import json
 import logging
 from typing import cast
@@ -7,6 +8,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -14,6 +16,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import _get_customer
+from waldur_mastermind.invoices import compensations as invoices_compensations
 from waldur_mastermind.invoices.models import CustomerCredit, PeriodMixin, ProjectCredit
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, ResourceStates
@@ -200,15 +203,49 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class EstimatedCostPolicySerializer(PolicySerializer):
+class EstimatedCostPolicySerializer(
+    core_serializers.RestrictedSerializerMixin, PolicySerializer
+):
     period_name = serializers.CharField(read_only=True, source="get_period_display")
+    current_cost = serializers.SerializerMethodField()
 
     class Meta(PolicySerializer.Meta):
         fields = PolicySerializer.Meta.fields + (
             "limit_cost",
             "period",
             "period_name",
+            "current_cost",
         )
+
+    @extend_schema_field(serializers.DecimalField(max_digits=16, decimal_places=2))
+    def get_current_cost(self, instance) -> decimal.Decimal:
+        """The cost the policy compares against `limit_cost` right now.
+
+        Clients showing saturation must not re-derive this: the figure is the
+        period's invoice total less the credit still to be drawn, and only the
+        server can simulate the latter. Pass `?field=` without `current_cost`
+        to skip the simulation on requests that do not need it.
+        """
+        # Building a MonthlyCompensation costs two queries before it is asked
+        # anything, so skip it for policies that deduct no credit.
+        compensation = (
+            self._compensation_for(instance)
+            if instance.uses_credit_compensation
+            else None
+        )
+        return instance.get_current_cost(compensation)
+
+    def _compensation_for(self, instance):
+        """One MonthlyCompensation per customer, shared across the response.
+
+        Serializing a list of policies for one customer would otherwise re-run
+        the same simulation for every row.
+        """
+        customer = getattr(instance.scope, "customer", instance.scope)
+        cache = self.context.setdefault("_monthly_compensations", {})
+        if customer.id not in cache:
+            cache[customer.id] = invoices_compensations.MonthlyCompensation(customer)
+        return cache[customer.id]
 
 
 class ProjectEstimatedCostPolicySerializer(
