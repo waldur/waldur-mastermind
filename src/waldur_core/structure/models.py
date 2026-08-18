@@ -1082,6 +1082,12 @@ class Project(
             "Number of extra days after project end date before resources are terminated. Overrides customer-level setting."
         ),
     )
+    display_credit_reports = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Show credit and usage analytics widgets on this project's dashboard."
+        ),
+    )
     affiliation = models.ForeignKey(
         AffiliatedOrganization,
         related_name="projects",

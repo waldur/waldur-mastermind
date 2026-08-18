@@ -660,6 +660,7 @@ class ProjectSerializer(
             "customer_abbreviation",
             "description",
             "customer_display_billing_info_in_projects",
+            "display_credit_reports",
             "created",
             "type",
             "type_name",
@@ -763,8 +764,10 @@ class ProjectSerializer(
                     # Support users can see but not edit
                     fields["staff_notes"].read_only = True
 
-        # Handle grace_period_days field visibility and permissions
-        if "grace_period_days" in fields:
+        # Handle staff-only override fields (visible to all, editable by staff)
+        for field_name in ("grace_period_days", "display_credit_reports"):
+            if field_name not in fields:
+                continue
             user = self.context["request"].user
             # Check if this is schema generation context (drf-spectacular)
             # When generating schema, we want to include all fields
@@ -775,7 +778,7 @@ class ProjectSerializer(
             if not is_schema_generation:
                 if not user.is_staff:
                     # Make field read-only for non-staff users
-                    fields["grace_period_days"].read_only = True
+                    fields[field_name].read_only = True
 
         # Make all fields read-only for terminated (soft-deleted) projects
         if isinstance(self.instance, models.Project) and self.instance.is_removed:
