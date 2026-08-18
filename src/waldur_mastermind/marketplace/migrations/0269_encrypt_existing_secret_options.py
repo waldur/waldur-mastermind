@@ -97,7 +97,7 @@ def encrypt_existing_secret_options(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0264_alter_offering_secret_options"),
+        ("marketplace", "0268_alter_offering_secret_options"),
     ]
 
     operations = [
