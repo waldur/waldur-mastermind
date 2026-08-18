@@ -117,7 +117,22 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
 
     limit_cost = models.IntegerField()
 
+    #: Whether the evaluated cost is reduced by a customer's credit. False here
+    #: because an offering policy spans many customers, so no single credit
+    #: applies; the scoped policies below override it.
+    uses_credit_compensation = False
+
     def _is_triggered(self, invoice_items, compensation=0):
+        return self._evaluated_cost(invoice_items, compensation) > self.limit_cost
+
+    def _evaluated_cost(self, invoice_items, compensation=0) -> decimal.Decimal:
+        """The cost this policy compares against ``limit_cost``.
+
+        Exposed as ``current_cost`` on the API so clients render the figure the
+        policy actually evaluates instead of re-deriving it. The derivation has
+        moved twice already, and each time a client copy silently fell out of
+        step.
+        """
         customers = structure_models.Customer.objects.filter(
             blocked=False,
             archived=False,
@@ -147,7 +162,7 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         invoice_items = invoice_items.filter(query)
 
         total = self._scoped_cost(invoice_items)
-        return total - compensation > self.limit_cost
+        return total - compensation
 
     @classmethod
     def _pending_compensation(cls, invoice_items, projected) -> decimal.Decimal:
@@ -273,14 +288,25 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
     # existing policies.
     use_credit = models.BooleanField(default=True)
 
-    def is_triggered(self):
+    @property
+    def uses_credit_compensation(self) -> bool:
+        return self.use_credit
+
+    def _cost_inputs(self, compensation=None):
+        """The item queryset and credit deduction this policy is judged on.
+
+        `compensation` lets a caller serializing several policies for one
+        customer reuse a single MonthlyCompensation simulation.
+        """
         project = self.scope
         invoice_items = invoices_models.InvoiceItem.objects.filter(project=project)
         if self.resource_id:
             invoice_items = invoice_items.filter(resource_id=self.resource_id)
 
         if self.use_credit:
-            compensation = invoices_compensation.MonthlyCompensation(project.customer)
+            compensation = compensation or invoices_compensation.MonthlyCompensation(
+                project.customer
+            )
             if self.resource_id:
                 projected = compensation.get_resource_compensation(self.resource)
             else:
@@ -288,6 +314,14 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
             deduction = self._pending_compensation(invoice_items, projected)
         else:
             deduction = 0
+        return invoice_items, deduction
+
+    def get_current_cost(self, compensation=None) -> decimal.Decimal:
+        return self._evaluated_cost(*self._cost_inputs(compensation))
+
+    def is_triggered(self):
+        project = self.scope
+        invoice_items, deduction = self._cost_inputs()
 
         if not self._is_triggered(invoice_items, deduction):
             return False
@@ -352,15 +386,27 @@ class CustomerPolicy(Policy):
 
 
 class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
-    def is_triggered(self):
+    uses_credit_compensation = True
+
+    def _cost_inputs(self, compensation=None):
         customer = self.scope
         invoice_items = invoices_models.InvoiceItem.objects.filter(
             invoice__customer=customer
         )
-        compensation = invoices_compensation.MonthlyCompensation(customer)
+        compensation = compensation or invoices_compensation.MonthlyCompensation(
+            customer
+        )
         deduction = self._pending_compensation(
             invoice_items, compensation.total_compensation
         )
+        return invoice_items, deduction
+
+    def get_current_cost(self, compensation=None) -> decimal.Decimal:
+        return self._evaluated_cost(*self._cost_inputs(compensation))
+
+    def is_triggered(self):
+        customer = self.scope
+        invoice_items, deduction = self._cost_inputs()
 
         if not self._is_triggered(invoice_items, deduction):
             return False
@@ -446,7 +492,10 @@ class OfferingPolicy(Policy):
 
 
 class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
-    def is_triggered(self):
+    def _cost_inputs(self, compensation=None):
+        """An offering policy spans many customers, so no single customer's
+        credit applies: the deduction is always zero and `compensation` is
+        accepted only to match the other estimated-cost policies."""
         # Use optimized query based on apply_to_all setting
         if self.apply_to_all:
             # Direct filter on invoice items without customer IN clause
@@ -465,7 +514,13 @@ class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
                 resource__offering=self.scope,
                 invoice__customer__in=customers,
             )
-        return self._is_triggered(items)
+        return items, 0
+
+    def get_current_cost(self, compensation=None) -> decimal.Decimal:
+        return self._evaluated_cost(*self._cost_inputs(compensation))
+
+    def is_triggered(self):
+        return self._is_triggered(*self._cost_inputs())
 
     class Meta:
         verbose_name_plural = "Offering estimated cost policies"
