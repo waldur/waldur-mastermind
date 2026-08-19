@@ -1033,7 +1033,7 @@ class Command(BaseCommand):
                     "billing_period": usage.billing_period.isoformat()
                     if usage.billing_period
                     else None,
-                    "recurring": usage.recurring,
+                    "missing_usage_policy": usage.missing_usage_policy,
                     "description": usage.description,
                     "backend_id": usage.backend_id,
                     "modified": usage.modified.isoformat() if usage.modified else None,

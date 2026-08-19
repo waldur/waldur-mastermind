@@ -42,6 +42,7 @@ from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
     MaintenanceState,
+    MissingUsagePolicies,
     OfferingStates,
     OrderStates,
     OrderTypes,
@@ -847,6 +848,28 @@ def pull_offering_orders(serialized_offering):
         OrderPullTask().delay(serialize_instance(order))
 
 
+def _resolve_missing_usage_policy(remote_usage) -> str:
+    """Read the missing-usage policy off a remote usage record.
+
+    A remote Waldur older than the one that introduced ``missing_usage_policy``
+    only returns the deprecated ``recurring`` boolean.
+
+    The generated client model is attrs-slotted with no ``__getattr__``, so
+    until the pinned SDK is regenerated the field never becomes an attribute —
+    it arrives in ``additional_properties``. Read both, so an upgraded remote
+    is honoured without waiting for the SDK bump.
+    """
+    policy = getattr(remote_usage, "missing_usage_policy", None)
+    if policy is None:
+        extra = getattr(remote_usage, "additional_properties", None) or {}
+        policy = extra.get("missing_usage_policy")
+    if isinstance(policy, str) and policy in dict(MissingUsagePolicies.CHOICES):
+        return policy
+    if getattr(remote_usage, "recurring", False) is True:
+        return MissingUsagePolicies.REUSE
+    return MissingUsagePolicies.NONE
+
+
 class UsagePullTask(BackgroundPullTask):
     def run(self, serialized_instance, **kwargs):
         instance = deserialize_instance(serialized_instance)
@@ -950,7 +973,9 @@ class UsagePullTask(BackgroundPullTask):
                 "description": remote_usage.description,
                 "created": remote_usage.created,
                 "date": usage_date,
-                "recurring": remote_usage.recurring,
+                # Older remote Waldur deployments only expose the deprecated
+                # `recurring` boolean; map it onto the policy in that case.
+                "missing_usage_policy": _resolve_missing_usage_policy(remote_usage),
                 "backend_id": remote_usage.uuid.hex,
             }
             plan_period = get_or_create_plan_period(local_resource, usage_date)

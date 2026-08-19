@@ -10450,7 +10450,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
                             "type": "ram",
                             "amount": 240.00,
                             "description": "RAM usage for the last period",
-                            "recurring": True,
+                            "missing_usage_policy": "reuse",
                         },
                     ],
                 },
@@ -10536,7 +10536,6 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
                     usage=0,
                     date=date_to_use,
                     description="Created for user usage backfill",
-                    recurring=False,
                     modified_by=request.user,
                 )
 
@@ -10631,7 +10630,6 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
                         usage=0,
                         date=date_to_use,
                         description="Created for user usage backfill",
-                        recurring=False,
                         modified_by=request.user,
                     )
 

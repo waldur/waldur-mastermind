@@ -45,7 +45,11 @@ from waldur_mastermind.invoices.models import (
     InvoiceItem,
     ProjectCredit,
 )
-from waldur_mastermind.marketplace.enums import LimitPeriods, RobotAccountStates
+from waldur_mastermind.marketplace.enums import (
+    LimitPeriods,
+    MissingUsagePolicies,
+    RobotAccountStates,
+)
 from waldur_mastermind.marketplace.models import (
     Category,
     CategoryGroup,
@@ -4863,7 +4867,14 @@ class Command(BaseCommand):
                     "date": date or timezone.now(),
                     "billing_period": billing_period or timezone.now().date(),
                     "plan_period": plan_period,
-                    "recurring": usage_data.get("recurring", False),
+                    "missing_usage_policy": usage_data.get(
+                        "missing_usage_policy",
+                        # dumps produced before the policy field existed only
+                        # carry the deprecated `recurring` boolean
+                        MissingUsagePolicies.REUSE
+                        if usage_data.get("recurring")
+                        else MissingUsagePolicies.NONE,
+                    ),
                     "description": usage_data.get("description", ""),
                     "backend_id": usage_data.get("backend_id", ""),
                 }

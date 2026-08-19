@@ -198,7 +198,7 @@ class UsagesTest(InvoicesBaseTest):
         self.fixture.offering_component_ram.delete()
 
         with freeze_time("2018-01-15"):
-            self._create_usage(usage=10, recurring=True)
+            self._create_usage(usage=10, missing_usage_policy="reuse")
 
         with freeze_time("2018-02-01"):
             create_monthly_invoices()

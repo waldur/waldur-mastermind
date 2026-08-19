@@ -1283,7 +1283,7 @@ class ImportStructureCommandTest(TestCase):
                 "usage": "100.50",
                 "date": "2024-03-15T10:30:00Z",
                 "billing_period": "2024-03-01",
-                "recurring": True,
+                "missing_usage_policy": "zero",
                 "description": "CPU usage for March",
             },
             {
@@ -1293,7 +1293,8 @@ class ImportStructureCommandTest(TestCase):
                 "usage": "500.00",
                 "date": "2024-03-15T10:30:00Z",
                 "billing_period": "2024-03-01",
-                "recurring": False,
+                # legacy dumps only carry the deprecated boolean
+                "recurring": True,
                 "description": "Storage usage for March",
             },
         ]
@@ -1310,12 +1311,12 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(usage1.resource.uuid, resource.uuid)
         self.assertEqual(usage1.component.uuid, component1.uuid)
         self.assertEqual(float(usage1.usage), 100.5)
-        self.assertTrue(usage1.recurring)
+        self.assertEqual(usage1.missing_usage_policy, "zero")
         self.assertEqual(usage1.description, "CPU usage for March")
 
         usage2 = ComponentUsage.objects.get(uuid="dddddddd-eeee-ffff-aaaa-222222222222")
         self.assertEqual(float(usage2.usage), 500.0)
-        self.assertFalse(usage2.recurring)
+        self.assertEqual(usage2.missing_usage_policy, "reuse")
 
     def test_import_invoices_creates_new_invoices(self):
         """Test that importing invoices creates new invoice objects."""
