@@ -385,15 +385,19 @@ mcp__playwright__browser_take_screenshot --element "Submit button"
 mcp__playwright__browser_resize --width 375 --height 667
 ```
 
-### Jira Issue Workflow
+### Issue Workflow
 
-When working on tasks from Jira (e.g., `https://opennode.atlassian.net/browse/WAL-9564`):
+Issues live in GitLab, in the tracker of the repo they belong to — this repo's are at
+`waldur/waldur-mastermind`. Jira (`WAL-1234`) was the tracker until August 2026; its unresolved
+backlog was migrated here under the `jira-migrated` label, and no new Jira issues are opened.
 
 #### 1. Analyze the Issue
 
-- Fetch issue details using Atlassian MCP tools
+- Fetch issue details with `glab issue view <n>` (`-c` for comments, `-F json` to parse). Use
+  `glab` for all GitLab access — not the `mcp__gitlab__*` tools
 - Determine issue type: **bug** (fix) or **feature/improvement** (other)
 - Check if the issue is already resolved or needs work
+- Comment the analysis on the issue before starting, and set `workflow::in-progress`
 
 #### 2. Prepare the Branch
 
@@ -402,13 +406,15 @@ When working on tasks from Jira (e.g., `https://opennode.atlassian.net/browse/WA
 git checkout develop
 git pull origin develop
 
-# Create appropriate branch
-# For bugs:
-git checkout -b bug/WAL-XXXX
-
-# For features/improvements:
-git checkout -b feature/WAL-XXXX
+# Create appropriate branch, numbered after the issue in THIS repo:
+git checkout -b fix/46-short-desc        # bugs
+git checkout -b feature/46-short-desc    # features/improvements
 ```
+
+Do not use GitLab's "create branch from issue" default (`46-project-credit-ledger`) — it carries
+no repo context, and copying such a name into homeport or docs points it at a different issue.
+When the driving issue lives in **another** repo, leave the number out of the branch name
+entirely (`feature/short-desc`) and qualify it in the commit subject instead.
 
 #### 3. Implement Changes
 
@@ -422,9 +428,16 @@ git checkout -b feature/WAL-XXXX
 # Only add files created/modified as part of this work
 git add <specific-files>
 
-# Commit with proper descriptive message, ticket reference at end of first line
-git commit -m "Add validation for resource quota limits [WAL-XXXX]"
+# Commit with proper descriptive message, issue reference at end of first line
+git commit -m "Add validation for resource quota limits [#46]"
+
+# ...or, when the issue lives in another repo, qualify it — a bare #46 would
+# autolink to THIS project's issue 46, which is unrelated work
+git commit -m "Expose the country list in settings metadata [waldur/waldur-homeport#50]"
 ```
+
+`Closes #46` belongs in the MR description, and only in the MR of the repo that owns the issue,
+so that a docs or frontend MR merging first cannot close a half-finished issue.
 
 **Important**: Do NOT add unrelated files to the commit.
 
