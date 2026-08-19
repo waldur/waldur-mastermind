@@ -2,6 +2,7 @@ import collections
 import decimal
 import json
 import pathlib
+import uuid
 from io import StringIO
 
 from ddt import data, ddt
@@ -137,6 +138,59 @@ class DemoPresetManagerTest(TestCase):
         for customer_uuid, granted in granted_per_customer.items():
             self.assertIn(customer_uuid, customer_credits)
             self.assertLessEqual(granted, customer_credits[customer_uuid])
+
+    def test_every_preset_uuid_is_parseable(self):
+        """No preset may carry a uuid that UUIDField cannot parse.
+
+        core.fields.UUIDField coerces an unparseable value to None instead of
+        raising, so a malformed uuid in a preset is stored as NULL and only
+        surfaces as a not-null violation on insert -- an error that names
+        neither the value nor the row. hpc_ai_platform shipped 1039 of them
+        (34-character component usage ids, and order ids beginning "o3"),
+        which silently dropped every order and every usage row it defined.
+        """
+        offenders = []
+        for metadata in DemoPresetManager.list_presets():
+            path = DemoPresetManager.get_preset_path(metadata.name)
+            payload = json.loads(pathlib.Path(path).read_text())
+
+            def visit(node, trail):
+                if isinstance(node, dict):
+                    for key, value in node.items():
+                        if key == "uuid" and isinstance(value, str) and value:
+                            try:
+                                uuid.UUID(value.replace("-", ""))
+                            except ValueError:
+                                offenders.append(
+                                    f"{metadata.name}: {trail}.{key} = {value!r}"
+                                )
+                        else:
+                            visit(value, f"{trail}.{key}")
+                elif isinstance(node, list):
+                    for index, item in enumerate(node):
+                        visit(item, f"{trail}[{index}]")
+
+            visit(payload, "$")
+
+        self.assertEqual(offenders, [], "\n".join(offenders[:20]))
+
+    def test_hpc_ai_platform_usage_rows_reference_real_component_usages(self):
+        """component_user_usages must point at component_usages that exist.
+
+        The uuid repair renumbered both collections; this pins the references
+        so a future renumbering cannot orphan them.
+        """
+        path = DemoPresetManager.get_preset_path("hpc_ai_platform")
+        payload = json.loads(pathlib.Path(path).read_text())
+
+        usage_uuids = {row["uuid"] for row in payload["component_usages"]}
+        referenced = {
+            row["component_usage_uuid"] for row in payload["component_user_usages"]
+        }
+
+        self.assertTrue(usage_uuids)
+        self.assertTrue(referenced)
+        self.assertEqual(referenced - usage_uuids, set())
 
     def test_load_preset_returns_error_for_invalid_name(self):
         """Test that load_preset returns error for non-existent preset."""

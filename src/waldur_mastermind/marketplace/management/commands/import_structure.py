@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
@@ -151,6 +151,72 @@ class Command(BaseCommand):
         if uuid_str is None:
             return None
         return str(uuid_str).replace("-", "")
+
+    @classmethod
+    def _collect_invalid_uuids(cls, data):
+        """Find identity uuids in the payload that UUIDField cannot parse.
+
+        core.fields.UUIDField._parse_uuid returns None for anything UUID() rejects,
+        so a malformed identity uuid is silently coerced to NULL and only surfaces
+        as "null value in column uuid violates not-null constraint" -- an error
+        naming neither the offending value nor the row it came from. Checking up
+        front turns that into an actionable message.
+
+        Only the object's own "uuid" is checked. Reference fields ("customer_uuid",
+        "component_usage_uuid", ...) are deliberately left alone: an unresolvable
+        reference is already handled by each importer, which skips the row and says
+        which target was not found. Rejecting those here would break that path.
+
+        Returns a list of (path, key, value) tuples.
+        """
+        invalid = []
+
+        def visit(node, path):
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    child = f"{path}.{key}"
+                    if key == "uuid" and isinstance(value, str) and value:
+                        try:
+                            UUID(cls._normalize_uuid(value))
+                        except (ValueError, AttributeError, TypeError):
+                            invalid.append((path, key, value))
+                    else:
+                        visit(value, child)
+            elif isinstance(node, list):
+                for index, item in enumerate(node):
+                    visit(item, f"{path}[{index}]")
+
+        visit(data, "$")
+        return invalid
+
+    def _validate_uuids(self, data):
+        """Report malformed uuids in the payload. Returns True when the data is usable."""
+        invalid = self._collect_invalid_uuids(data)
+        if not invalid:
+            return True
+
+        self.stdout.write(
+            self.style.ERROR(
+                f"Found {len(invalid)} malformed UUID value(s) in the input. "
+                "These would be silently stored as NULL and fail on insert."
+            )
+        )
+        # Group by collection and key so a systematic generator bug reads as one
+        # problem rather than hundreds of identical lines.
+        grouped = {}
+        for path, key, value in invalid:
+            collection = path.split("[")[0]
+            grouped.setdefault((collection, key), []).append(value)
+
+        for (collection, key), values in sorted(grouped.items()):
+            sample = values[0]
+            self.stdout.write(
+                self.style.ERROR(
+                    f"  {collection}.{key}: {len(values)} value(s), "
+                    f"e.g. {sample!r} ({len(str(sample))} chars)"
+                )
+            )
+        return False
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -613,6 +679,12 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Failed to read file: {e}"))
             return
+
+        if not self._validate_uuids(data):
+            self.stdout.write(
+                self.style.ERROR("Aborting import: fix the UUID values above first.")
+            )
+            raise CommandError("Input contains malformed UUID values")
 
         if self.dry_run:
             self.stdout.write(
