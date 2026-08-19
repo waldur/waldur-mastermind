@@ -516,6 +516,18 @@ Invitation has expired
 
 ```
 
+### call_invitation_created_subject.txt (waldur_core.users)
+
+```txt
+
+{% if reminder %}
+REMINDER: Invitation to the call "{{ name }}"
+{% else %}
+Invitation to the call "{{ name }}"
+{% endif %}
+
+```
+
 ### invitation_created_message.html (waldur_core.users)
 
 ```html
@@ -550,11 +562,86 @@ Account has been created
 
 ```
 
+### call_invitation_created_message.html (waldur_core.users)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Invitation to the call "{{ name }}"</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    {{ sender }} has invited you to take part in the call for proposals
+    "<strong>{{ name }}</strong>"{% if organizer_name %} organised by {{ organizer_name }}{% endif %}
+    as {{ role }}.<br>
+    Please visit <a href="{{ link }}">this page</a> to sign up and accept your invitation.
+    Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+</p>
+{% if scope_link %}
+<p>
+    Once you have accepted it, the call is available <a href="{{ scope_link }}">here</a>.
+</p>
+{% endif %}
+<p>
+    {{ extra_invitation_text }}
+</p>
+</body>
+</html>
+
+```
+
+### proposal_invitation_created_message.txt (waldur_core.users)
+
+```txt
+
+Hello!
+
+{{ sender }} has invited you to join the team of the proposal "{{ name }}"{% if call_name %} submitted to the call for proposals "{{ call_name }}"{% endif %} as {{ role }}.
+{% if round_cutoff_time %}
+The submission deadline of the round is {{ round_cutoff_time|date:'d.m.Y H:i' }}.
+{% endif %}
+Please visit the link below to sign up and accept your invitation:
+{{ link }}
+
+Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+{% if scope_link %}
+Once you have accepted it, the proposal is available at:
+{{ scope_link }}
+{% endif %}
+{{ extra_invitation_text }}
+
+```
+
 ### permission_request_submitted_subject.txt (waldur_core.users)
 
 ```txt
 
 Permission request has been submitted.
+
+```
+
+### call_invitation_created_message.txt (waldur_core.users)
+
+```txt
+
+Hello!
+
+{{ sender }} has invited you to take part in the call for proposals "{{ name }}"{% if organizer_name %} organised by {{ organizer_name }}{% endif %} as {{ role }}.
+
+Please visit the link below to sign up and accept your invitation:
+{{ link }}
+
+Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+{% if scope_link %}
+Once you have accepted it, the call is available at:
+{{ scope_link }}
+{% endif %}
+{{ extra_invitation_text }}
 
 ```
 
@@ -641,6 +728,18 @@ Job title: {{ invitation.job_title }}
 Please visit the link below to approve invitation: {{ approve_link }}
 
 Alternatively, you may reject invitation: {{ reject_link }}
+
+```
+
+### proposal_invitation_created_subject.txt (waldur_core.users)
+
+```txt
+
+{% if reminder %}
+REMINDER: Invitation to the proposal "{{ name }}"
+{% else %}
+Invitation to the proposal "{{ name }}"
+{% endif %}
 
 ```
 
@@ -885,6 +984,40 @@ Reviewer comment: {{ permission_request.review_comment }}
   Reviewer comment: {{ permission_request.review_comment }}
 </p>
 {% endif %}
+</body>
+</html>
+
+```
+
+### proposal_invitation_created_message.html (waldur_core.users)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Invitation to the proposal "{{ name }}"</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    {{ sender }} has invited you to join the team of the proposal
+    "<strong>{{ name }}</strong>"{% if call_name %} submitted to the call for proposals
+    "{{ call_name }}"{% endif %} as {{ role }}.<br>
+    {% if round_cutoff_time %}The submission deadline of the round is {{ round_cutoff_time|date:'d.m.Y H:i' }}.<br>{% endif %}
+    Please visit <a href="{{ link }}">this page</a> to sign up and accept your invitation.
+    Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+</p>
+{% if scope_link %}
+<p>
+    Once you have accepted it, the proposal is available <a href="{{ scope_link }}">here</a>.
+</p>
+{% endif %}
+<p>
+    {{ extra_invitation_text }}
+</p>
 </body>
 </html>
 
