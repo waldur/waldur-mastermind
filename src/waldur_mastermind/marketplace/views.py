@@ -2325,6 +2325,7 @@ class ProviderOfferingViewSet(
                 "qos_profiles",
                 "partitions__qos_options__qos",
             )
+            queryset = utils.annotate_scope_resource(queryset)
 
         return queryset
 
@@ -6006,7 +6007,7 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return proposal_managers.annotate_offerings_open_for_proposals(
+        queryset = proposal_managers.annotate_offerings_open_for_proposals(
             self.queryset.filter_by_ordering_availability_for_user(user).select_related(
                 # get_filtered_plans reads offering.parent; the details serializer
                 # walks customer and category.
@@ -6015,6 +6016,9 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
                 "category",
             )
         )
+        if self.detail:
+            queryset = utils.annotate_scope_resource(queryset)
+        return queryset
 
     @extend_schema(
         summary="List plans for an offering",

@@ -605,6 +605,28 @@ def get_marketplace_category_name(serializer, scope) -> str | None:
         return
 
 
+def annotate_scope_resource(queryset):
+    """Annotate offerings with the marketplace resource sharing their scope.
+
+    An offering may be scoped to an object which is itself backed by a
+    marketplace resource: for example, per-tenant offerings for creation of
+    instances and volumes are scoped to an OpenStack tenant, and the tenant is
+    the scope of a marketplace resource too. Both models keep the scope in the
+    same (content_type, object_id) pair, so the resource is resolved with a
+    subquery instead of a per-object generic foreign key lookup.
+
+    Offerings without a scope have content_type set to NULL, which never
+    matches a scopeless resource, since NULL is not equal to NULL in SQL.
+    """
+    scope_resources = models.Resource.objects.filter(
+        content_type=OuterRef("content_type"), object_id=OuterRef("object_id")
+    )
+    return queryset.annotate(
+        scope_resource_uuid=Subquery(scope_resources.values("uuid")[:1]),
+        scope_resource_name=Subquery(scope_resources.values("name")[:1]),
+    )
+
+
 def get_marketplace_resource_uuid(serializer, scope) -> str | None:
     try:
         return models.Resource.objects.get(scope=scope).uuid.hex
