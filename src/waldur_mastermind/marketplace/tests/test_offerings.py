@@ -5402,3 +5402,115 @@ class OfferingHistorySecretOptionsTest(test.APITestCase):
         for version in response.data:
             self.assertNotIn("secret_options", version["serialized_data"])
         self.assertNotIn("backend.example.com", json.dumps(response.data, default=str))
+
+
+class OfferingScopeResourceTest(test.APITestCase):
+    """If offering scope is also a scope of a marketplace resource, the resource
+    is exposed in the offering serializer. The lookup is done in detail view only."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.service_settings = structure_factories.ServiceSettingsFactory()
+        self.offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            scope=self.service_settings,
+        )
+        self.scope_resource = factories.ResourceFactory(
+            project=self.fixture.project, scope=self.service_settings
+        )
+        self.staff = structure_factories.UserFactory(is_staff=True)
+
+    def test_scope_resource_is_exposed_in_provider_detail_view(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(factories.OfferingFactory.get_url(self.offering))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["scope_resource_uuid"], self.scope_resource.uuid.hex
+        )
+        self.assertEqual(response.data["scope_resource_name"], self.scope_resource.name)
+        self.assertTrue(
+            response.data["scope_resource"].endswith(
+                factories.ResourceFactory.get_url(self.scope_resource)
+            )
+        )
+        # The scope itself is a different object with its own URL.
+        self.assertNotEqual(response.data["scope_resource"], response.data["scope"])
+
+    def test_scope_resource_is_exposed_in_public_detail_view(self):
+        self.client.force_authenticate(self.fixture.user)
+
+        response = self.client.get(
+            factories.OfferingFactory.get_public_url(self.offering)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["scope_resource_uuid"], self.scope_resource.uuid.hex
+        )
+        self.assertEqual(response.data["scope_resource_name"], self.scope_resource.name)
+        self.assertTrue(
+            response.data["scope_resource"].endswith(
+                factories.ResourceFactory.get_url(self.scope_resource)
+            )
+        )
+
+    def test_scope_resource_is_not_exposed_in_provider_list_view(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(
+            factories.OfferingFactory.get_list_url(),
+            {"name_exact": self.offering.name},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertIsNone(response.data[0]["scope_resource_uuid"])
+        self.assertIsNone(response.data[0]["scope_resource_name"])
+        self.assertIsNone(response.data[0]["scope_resource"])
+
+    def test_scope_resource_is_not_exposed_in_public_list_view(self):
+        self.client.force_authenticate(self.fixture.user)
+
+        response = self.client.get(
+            factories.OfferingFactory.get_public_list_url(),
+            {"name_exact": self.offering.name},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertIsNone(response.data[0]["scope_resource_uuid"])
+        self.assertIsNone(response.data[0]["scope_resource_name"])
+        self.assertIsNone(response.data[0]["scope_resource"])
+
+    def test_scope_resource_is_empty_if_scope_is_not_related_to_resource(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            scope=structure_factories.ServiceSettingsFactory(),
+        )
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(factories.OfferingFactory.get_url(offering))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["scope_resource_uuid"])
+        self.assertIsNone(response.data["scope_resource_name"])
+        self.assertIsNone(response.data["scope_resource"])
+
+    def test_scope_resource_is_empty_if_offering_has_no_scope(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, state=OfferingStates.ACTIVE
+        )
+        # A resource without scope must not be matched against a scopeless offering.
+        factories.ResourceFactory(project=self.fixture.project)
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(factories.OfferingFactory.get_url(offering))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["scope_resource_uuid"])
+        self.assertIsNone(response.data["scope_resource_name"])
+        self.assertIsNone(response.data["scope_resource"])

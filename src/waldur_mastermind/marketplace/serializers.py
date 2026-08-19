@@ -29,6 +29,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import SAFE_METHODS
+from rest_framework.reverse import reverse
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
@@ -3755,6 +3756,9 @@ class ProviderOfferingDetailsSerializer(
     )
     scope_state = serializers.SerializerMethodField()
     scope_error_message = serializers.SerializerMethodField()
+    scope_resource = serializers.SerializerMethodField()
+    scope_resource_uuid = serializers.SerializerMethodField()
+    scope_resource_name = serializers.SerializerMethodField()
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
     organization_groups = structure_serializers.OrganizationGroupSerializer(
@@ -3852,6 +3856,9 @@ class ProviderOfferingDetailsSerializer(
             "scope_name",
             "scope_state",
             "scope_error_message",
+            "scope_resource",
+            "scope_resource_uuid",
+            "scope_resource_name",
             "files",
             "quotas",
             "paused_reason",
@@ -4004,6 +4011,32 @@ class ProviderOfferingDetailsSerializer(
             return offering.scope.error_message
         except AttributeError:
             return None
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_scope_resource(self, offering: models.Offering):
+        # The URL is built from the annotated UUID, so that resolving it does
+        # not cost an extra query. See get_scope_resource_uuid.
+        uuid = getattr(offering, "scope_resource_uuid", None)
+        request = self.context.get("request")
+        if not uuid or request is None:
+            return None
+        return reverse(
+            "marketplace-resource-detail",
+            kwargs={"uuid": uuid.hex},
+            request=request,
+        )
+
+    def get_scope_resource_uuid(self, offering: models.Offering) -> str | None:
+        # Added via annotate in offering viewsets, in detail view only,
+        # because the lookup is not worth an extra join in the list view.
+        try:
+            return offering.scope_resource_uuid.hex
+        except AttributeError:
+            return None
+
+    def get_scope_resource_name(self, offering: models.Offering) -> str | None:
+        # See get_scope_resource_uuid.
+        return getattr(offering, "scope_resource_name", None)
 
     @extend_schema_field(QuotaSerializer(many=True))
     def get_quotas(self, offering: models.Offering):

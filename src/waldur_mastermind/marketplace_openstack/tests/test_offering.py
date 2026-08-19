@@ -168,6 +168,28 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         ).exclude(state=OfferingStates.ARCHIVED)
         self.assertEqual(live_offerings.count(), 1)
 
+    @data(OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING)
+    def test_tenant_resource_is_exposed_in_offering_details(self, offering_type):
+        tenant = self.trigger_offering_creation()
+        tenant_resource = marketplace_models.Resource.objects.get(scope=tenant)
+        offering = marketplace_models.Offering.objects.get(
+            type=offering_type, scope=tenant
+        )
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+
+        response = self.client.get(
+            marketplace_factories.OfferingFactory.get_url(offering)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["scope_resource_uuid"], tenant_resource.uuid.hex)
+        self.assertEqual(response.data["scope_resource_name"], tenant_resource.name)
+        self.assertTrue(
+            response.data["scope_resource"].endswith(
+                marketplace_factories.ResourceFactory.get_url(tenant_resource)
+            )
+        )
+
     def trigger_offering_creation(self):
         fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
