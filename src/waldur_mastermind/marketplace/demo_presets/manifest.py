@@ -219,6 +219,21 @@ class DemoPresetManager:
                     "============================================================\n"
                 )
 
+            # import_structure reports per-entity failures as warnings and still
+            # exits 0, so a preset can lose whole collections while the load looks
+            # clean. Surface that here rather than letting it pass as success.
+            error_count = cls._count_import_errors(output.getvalue())
+            if error_count:
+                return {
+                    "success": False,
+                    "message": (
+                        f"Preset '{name}' loaded with {error_count} failed "
+                        f"entit{'y' if error_count == 1 else 'ies'} — see output"
+                    ),
+                    "output": output.getvalue(),
+                    "users": users,
+                }
+
             return {
                 "success": True,
                 "message": f"Preset '{name}' loaded successfully"
@@ -234,6 +249,20 @@ class DemoPresetManager:
                 "output": output.getvalue(),
                 "users": [],
             }
+
+    @staticmethod
+    def _count_import_errors(output: str) -> int:
+        """Count per-entity import failures reported by import_structure.
+
+        The command writes one "Failed to import <thing> <id>: <error>" line per
+        failed row and then exits 0, so the count has to be recovered from the
+        captured output.
+        """
+        return sum(
+            1
+            for line in output.splitlines()
+            if line.lstrip().startswith("Failed to import ")
+        )
 
     @classmethod
     def _generate_billing_for_resources(cls, output: StringIO):

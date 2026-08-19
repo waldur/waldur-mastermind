@@ -6,6 +6,7 @@ from io import StringIO
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import connection
 from django.test import TestCase
 
@@ -77,6 +78,83 @@ class ImportStructureCommandTest(TestCase):
         kwargs.setdefault("stdout", output)
         call_command("import_structure", *args, **kwargs)
         return output.getvalue()
+
+    # UUID validation tests
+
+    def test_import_aborts_on_malformed_uuid(self):
+        """A uuid UUIDField cannot parse must stop the import, not become NULL.
+
+        UUIDField coerces an unparseable value to None rather than raising, so
+        without this check the row reaches the database as NULL and fails with
+        "null value in column uuid violates not-null constraint" -- naming
+        neither the bad value nor the collection it came from.
+        """
+        self._create_test_json(
+            {
+                "users": [
+                    {
+                        "uuid": "1111111111111111111111111111111111",
+                        "username": "toolonguuid",
+                        "email": "toolong@example.com",
+                    }
+                ]
+            }
+        )
+
+        with self.assertRaises(CommandError):
+            self._call_import_command("-i", self.test_file_path)
+
+        self.assertFalse(User.objects.filter(username="toolonguuid").exists())
+
+    def test_import_reports_every_malformed_uuid_collection(self):
+        """The abort message must name each offending collection and field."""
+        self._create_test_json(
+            {
+                "users": [
+                    {
+                        "uuid": "o1111111111111111111111111111111",
+                        "username": "nonhex",
+                        "email": "nonhex@example.com",
+                    }
+                ],
+                "customers": [
+                    {"uuid": "222222222222222222222222222222222", "name": "Too long"}
+                ],
+            }
+        )
+
+        output = StringIO()
+        with self.assertRaises(CommandError):
+            call_command("import_structure", "-i", self.test_file_path, stdout=output)
+
+        rendered = output.getvalue()
+        self.assertIn("malformed UUID", rendered)
+        self.assertIn("$.users.uuid", rendered)
+        self.assertIn("$.customers.uuid", rendered)
+
+    def test_import_accepts_hyphenated_and_bare_uuids(self):
+        """Both renderings are valid input and must survive validation."""
+        self._create_test_json(
+            {
+                "users": [
+                    {
+                        "uuid": "33333333-3333-3333-3333-333333333333",
+                        "username": "hyphenated",
+                        "email": "hyphenated@example.com",
+                    },
+                    {
+                        "uuid": "44444444444444444444444444444444",
+                        "username": "bare",
+                        "email": "bare@example.com",
+                    },
+                ]
+            }
+        )
+
+        self._call_import_command("-i", self.test_file_path)
+
+        self.assertTrue(User.objects.filter(username="hyphenated").exists())
+        self.assertTrue(User.objects.filter(username="bare").exists())
 
     # Basic Import Tests
 
@@ -2134,11 +2212,16 @@ class ImportStructureCommandTest(TestCase):
         customer1 = structure_factories.CustomerFactory()
         customer2 = structure_factories.CustomerFactory()
 
-        # Create data with invalid invoice (missing customer) and valid offering users
+        # Create data with an invoice and an offering user whose references do not
+        # resolve, so both rows fail while the customers around them still import.
+        # Their own uuids are well formed on purpose: a malformed identity uuid is
+        # rejected up front by _validate_uuids and would abort the whole run.
+        failing_invoice_uuid = "aaaaaaaaaaaa4aaaaaaaaaaaaaaaaaa1"
+        failing_offering_user_uuid = "aaaaaaaaaaaa4aaaaaaaaaaaaaaaaaa2"
         data = {
             "invoices": [
                 {
-                    "uuid": "invalid-invoice-uuid",
+                    "uuid": failing_invoice_uuid,
                     "customer_uuid": "nonexistent-customer-uuid",  # This will fail
                     "month": 1,
                     "year": 2024,
@@ -2147,7 +2230,7 @@ class ImportStructureCommandTest(TestCase):
             ],
             "offering_users": [
                 {
-                    "uuid": "valid-offering-user-uuid",
+                    "uuid": failing_offering_user_uuid,
                     "offering_uuid": "nonexistent-offering-uuid",  # This will also fail
                     "user_uuid": "nonexistent-user-uuid",
                     "username": "testuser",
@@ -2181,11 +2264,13 @@ class ImportStructureCommandTest(TestCase):
 
         # Verify error messages are shown for failed individual objects
         self.assertIn(
-            "Skipping invoice invalid-invoice-uuid: customer nonexistent-customer-uuid not found",
+            f"Skipping invoice {failing_invoice_uuid}: "
+            "customer nonexistent-customer-uuid not found",
             output,
         )
         self.assertIn(
-            "Skipping offering user valid-offering-user-uuid: offering nonexistent-offering-uuid not found",
+            f"Skipping offering user {failing_offering_user_uuid}: "
+            "offering nonexistent-offering-uuid not found",
             output,
         )
 
