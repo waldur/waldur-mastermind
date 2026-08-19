@@ -18,6 +18,7 @@ def backfill_user_initial_revisions(apps, schema_editor):
     - are backfilled too.
     """
     from django.core import serializers as core_serializers
+    from django.db import transaction
     from django.utils import timezone
 
     ContentType = apps.get_model("contenttypes", "ContentType")
@@ -38,37 +39,58 @@ def backfill_user_initial_revisions(apps, schema_editor):
     def flush(batch):
         # Bulk inserted in batches: the user table is typically the largest
         # versioned one, and a row-by-row backfill costs two round trips each.
-        revisions = Revision.objects.bulk_create(
-            [
-                Revision(date_created=now, comment="Initial version (backfill)")
-                for _ in batch
-            ]
-        )
-        Version.objects.bulk_create(
-            [
-                Version(
-                    revision=revision,
-                    content_type=content_type,
-                    object_id=str(user.pk),
-                    db=db_alias,
-                    format="json",
-                    serialized_data=core_serializers.serialize("json", [user]),
-                    object_repr=user.username,
-                )
-                for user, revision in zip(batch, revisions)
-            ]
-        )
+        # Wrapped in atomic() so an interruption never leaves a Revision without
+        # its matching Version - the user-level idempotency check above only
+        # covers users that already got both rows.
+        with transaction.atomic(using=db_alias):
+            revisions = Revision.objects.bulk_create(
+                [
+                    Revision(date_created=now, comment="Initial version (backfill)")
+                    for _ in batch
+                ]
+            )
+            Version.objects.bulk_create(
+                [
+                    Version(
+                        revision=revision,
+                        content_type=content_type,
+                        object_id=str(user.pk),
+                        db=db_alias,
+                        format="json",
+                        serialized_data=core_serializers.serialize("json", [user]),
+                        object_repr=user.username,
+                    )
+                    for user, revision in zip(batch, revisions)
+                ]
+            )
 
-    batch = []
-    for user in User._base_manager.iterator(chunk_size=BATCH_SIZE):
-        if str(user.pk) in versioned_ids:
-            continue
-        batch.append(user)
-        if len(batch) >= BATCH_SIZE:
+    connection = schema_editor.connection
+    # User._base_manager.iterator() and the serializer's per-user m2m field
+    # iteration (groups, user_permissions via PermissionsMixin) both open named
+    # server-side cursors. Behind a transaction-mode pooler (e.g. the Zalando
+    # operator's built-in PgBouncer sidecar) those cursors can be routed to a
+    # different backend between DECLARE and FETCH/CLOSE, raising
+    # psycopg.errors.InvalidCursorName. Force client-side cursors for the
+    # duration of this migration only.
+    original_disable_server_side_cursors = connection.settings_dict.get(
+        "DISABLE_SERVER_SIDE_CURSORS"
+    )
+    connection.settings_dict["DISABLE_SERVER_SIDE_CURSORS"] = True
+    try:
+        batch = []
+        for user in User._base_manager.iterator(chunk_size=BATCH_SIZE):
+            if str(user.pk) in versioned_ids:
+                continue
+            batch.append(user)
+            if len(batch) >= BATCH_SIZE:
+                flush(batch)
+                batch = []
+        if batch:
             flush(batch)
-            batch = []
-    if batch:
-        flush(batch)
+    finally:
+        connection.settings_dict["DISABLE_SERVER_SIDE_CURSORS"] = (
+            original_disable_server_side_cursors
+        )
 
 
 class Migration(migrations.Migration):
