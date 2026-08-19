@@ -295,6 +295,9 @@ class DiscoverMetadataResponseSerializer(serializers.Serializer):
 
 SOURCE_PATTERN = re.compile(r"^[a-z]+:[a-zA-Z0-9._-]+$")
 
+# Upper bound of Django's PositiveBigIntegerField.
+POSITIVE_BIG_INTEGER_MAX = 9223372036854775807
+
 
 class IdentityBridgeRequestSerializer(serializers.Serializer):
     username = serializers.CharField(
@@ -347,8 +350,31 @@ class IdentityBridgeRequestSerializer(serializers.Serializer):
     organization_type = serializers.CharField(
         max_length=255, required=False, allow_blank=True
     )
+    organization_registry_code = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    organization_vat_code = serializers.CharField(
+        max_length=20, required=False, allow_blank=True
+    )
+    organization_address = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
     eduperson_assurance = serializers.ListField(
         child=serializers.CharField(), required=False
+    )
+    # Bounds mirror User.uid_number / User.primary_gid (PositiveBigIntegerField),
+    # so an out-of-range value is a 400 instead of a database error.
+    uid_number = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=0,
+        max_value=POSITIVE_BIG_INTEGER_MAX,
+    )
+    primary_gid = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=0,
+        max_value=POSITIVE_BIG_INTEGER_MAX,
     )
 
     def validate_source(self, value):
@@ -375,6 +401,19 @@ class IdentityBridgeRequestSerializer(serializers.Serializer):
         if disallowed:
             raise ValidationError(
                 f"Fields not allowed by Identity Bridge configuration: {', '.join(sorted(disallowed))}"
+            )
+
+        # attrs only ever holds declared fields, so the loop above cannot see a
+        # field that configuration allows but this serializer forgot to declare.
+        # Such a field would be dropped silently, so catch it from the raw
+        # payload. Scoped to the allowed set on purpose: rejecting arbitrary
+        # unknown keys would break callers that send extra attributes.
+        requested = set(getattr(self, "initial_data", None) or {})
+        undeclared = (requested & allowed) - set(self.fields)
+        if undeclared:
+            raise ValidationError(
+                f"Fields allowed by Identity Bridge configuration but not supported "
+                f"by this API version: {', '.join(sorted(undeclared))}"
             )
         return attrs
 

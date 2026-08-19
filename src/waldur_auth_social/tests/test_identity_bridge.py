@@ -6,11 +6,17 @@ from rest_framework import status
 from rest_framework.reverse import reverse
 from rest_framework.test import APIClient
 
+from waldur_auth_social.const import WRITABLE_USER_FIELDS
+from waldur_auth_social.serializers import (
+    POSITIVE_BIG_INTEGER_MAX,
+    IdentityBridgeRequestSerializer,
+)
 from waldur_auth_social.utils import (
     remove_user_from_isd,
     update_user_attributes_from_source,
 )
 from waldur_core.core.models import User
+from waldur_core.core.user_attributes import ALL_PROFILE_ATTRIBUTES
 from waldur_core.structure.tests import factories as structure_factories
 
 BRIDGE_URL = reverse("auth_identity_bridge")
@@ -941,3 +947,165 @@ class IdentityBridgeAllowedFieldsTest(TestCase):
         response = self.client.get(BRIDGE_ALLOWED_FIELDS_URL)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("allowed_fields", response.data)
+
+
+ALL_ATTRIBUTES = list(ALL_PROFILE_ATTRIBUTES)
+
+
+class IdentityBridgeSerializerCoverageTest(TestCase):
+    """Guard against drift between the writable whitelist and the bridge serializer.
+
+    An undeclared field never reaches validated_data, so it is dropped without
+    an error. Pin the two lists so the drift is caught in CI, not in production.
+    """
+
+    # Fields deliberately not settable over the bridge. Keep empty unless there
+    # is a documented reason, and state it here.
+    EXCLUDED_FROM_BRIDGE: set[str] = set()
+
+    def test_every_writable_field_is_declared_on_the_serializer(self):
+        declared = set(IdentityBridgeRequestSerializer().fields)
+        missing = set(WRITABLE_USER_FIELDS) - declared - self.EXCLUDED_FROM_BRIDGE
+        self.assertEqual(
+            missing,
+            set(),
+            f"Fields in WRITABLE_USER_FIELDS are not declared on "
+            f"IdentityBridgeRequestSerializer and would be silently dropped: "
+            f"{', '.join(sorted(missing))}",
+        )
+
+    def test_serializer_declares_no_field_outside_the_whitelist(self):
+        declared = set(IdentityBridgeRequestSerializer().fields) - {
+            "username",
+            "source",
+        }
+        self.assertEqual(declared - set(WRITABLE_USER_FIELDS), set())
+
+
+@override_config(
+    FEDERATED_IDENTITY_SYNC_ENABLED=True,
+    FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES=ALL_ATTRIBUTES,
+    ENABLED_USER_PROFILE_ATTRIBUTES=ALL_ATTRIBUTES,
+)
+class IdentityBridgePosixAndOrganizationFieldsTest(TestCase):
+    """POSIX and organization registry attributes must survive the round trip."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(self.staff)
+        self.payload = {
+            "username": "posix@myaccessid.org",
+            "source": "isd:puhuri",
+            "uid_number": 100000,
+            "primary_gid": 200000,
+            "organization_registry_code": "12345678",
+            "organization_vat_code": "EE123456789",
+            "organization_address": "Narva mnt 18, Tartu",
+        }
+        self.fields = [k for k in self.payload if k not in ("username", "source")]
+
+    def test_create_persists_fields(self):
+        response = self.client.post(BRIDGE_URL, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["created"])
+
+        user = User.objects.get(username="posix@myaccessid.org")
+        for field in self.fields:
+            self.assertEqual(getattr(user, field), self.payload[field])
+
+    def test_create_reports_fields_as_updated(self):
+        response = self.client.post(BRIDGE_URL, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in self.fields:
+            self.assertIn(field, response.data["updated_fields"])
+
+    def test_create_records_attribute_sources(self):
+        self.client.post(BRIDGE_URL, self.payload, format="json")
+
+        user = User.objects.get(username="posix@myaccessid.org")
+        for field in self.fields:
+            self.assertIn(field, user.attribute_sources)
+            self.assertEqual(user.attribute_sources[field]["source"], "isd:puhuri")
+            self.assertIn("timestamp", user.attribute_sources[field])
+
+    def test_update_persists_fields(self):
+        target = structure_factories.UserFactory(username="posix@myaccessid.org")
+        response = self.client.post(BRIDGE_URL, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["created"])
+
+        target.refresh_from_db()
+        for field in self.fields:
+            self.assertEqual(getattr(target, field), self.payload[field])
+            self.assertIn(field, response.data["updated_fields"])
+            self.assertEqual(target.attribute_sources[field]["source"], "isd:puhuri")
+
+    def test_null_posix_ids_are_accepted(self):
+        payload = dict(self.payload, uid_number=None, primary_gid=None)
+        response = self.client.post(BRIDGE_URL, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user = User.objects.get(username="posix@myaccessid.org")
+        self.assertIsNone(user.uid_number)
+        self.assertIsNone(user.primary_gid)
+
+    def test_negative_uid_number_rejected(self):
+        payload = dict(self.payload, uid_number=-1)
+        response = self.client.post(BRIDGE_URL, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("uid_number", response.data)
+        self.assertFalse(User.objects.filter(username="posix@myaccessid.org").exists())
+
+    def test_out_of_range_primary_gid_rejected(self):
+        payload = dict(self.payload, primary_gid=POSITIVE_BIG_INTEGER_MAX + 1)
+        response = self.client.post(BRIDGE_URL, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("primary_gid", response.data)
+        self.assertFalse(User.objects.filter(username="posix@myaccessid.org").exists())
+
+
+class IdentityBridgeAllowListStillAppliesTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(self.staff)
+
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES=["first_name"],
+        ENABLED_USER_PROFILE_ATTRIBUTES=["first_name"],
+    )
+    def test_uid_number_rejected_when_not_in_allowed_attributes(self):
+        payload = {
+            "username": "posix@myaccessid.org",
+            "source": "isd:puhuri",
+            "uid_number": 100000,
+        }
+        response = self.client.post(BRIDGE_URL, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(username="posix@myaccessid.org").exists())
+
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES=["uid_number"],
+        ENABLED_USER_PROFILE_ATTRIBUTES=["uid_number"],
+    )
+    def test_allowed_but_undeclared_field_is_reported_not_dropped(self):
+        """A configuration-allowed field the serializer forgot must fail loudly."""
+
+        class SerializerMissingUidNumber(IdentityBridgeRequestSerializer):
+            def get_fields(self):
+                fields = super().get_fields()
+                fields.pop("uid_number")
+                return fields
+
+        serializer = SerializerMissingUidNumber(
+            data={
+                "username": "posix@myaccessid.org",
+                "source": "isd:puhuri",
+                "uid_number": 100000,
+            }
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("uid_number", str(serializer.errors))
