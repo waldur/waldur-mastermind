@@ -1,0 +1,27 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Invitation to the proposal "{{ name }}"</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    {{ sender }} has invited you to join the team of the proposal
+    "<strong>{{ name }}</strong>"{% if call_name %} submitted to the call for proposals
+    "{{ call_name }}"{% endif %} as {{ role }}.<br>
+    {% if round_cutoff_time %}The submission deadline of the round is {{ round_cutoff_time|date:'d.m.Y H:i' }}.<br>{% endif %}
+    Please visit <a href="{{ link }}">this page</a> to sign up and accept your invitation.
+    Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+</p>
+{% if scope_link %}
+<p>
+    Once you have accepted it, the proposal is available <a href="{{ scope_link }}">here</a>.
+</p>
+{% endif %}
+<p>
+    {{ extra_invitation_text }}
+</p>
+</body>
+</html>

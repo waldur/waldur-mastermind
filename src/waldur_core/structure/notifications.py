@@ -199,8 +199,24 @@ class InvitationCreatedContext(BaseInvitationContext):
     reminder: bool = Field(
         description="A boolean flag, set to `True` if this is a reminder for a pending invitation."
     )
+    scope_link: str = Field(description="The URL of the scope the user is invited to.")
     invitation: Any = Field(
         description="The GroupInvitation instance. Used to access `invitation.get_expiration_time`."
+    )
+
+
+class CallInvitationCreatedContext(InvitationCreatedContext):
+    organizer_name: str = Field(
+        description="The name of the organization managing the call."
+    )
+
+
+class ProposalInvitationCreatedContext(InvitationCreatedContext):
+    call_name: str = Field(
+        description="The name of the call the proposal is submitted to."
+    )
+    round_cutoff_time: Any = Field(
+        description="The submission deadline of the round the proposal belongs to."
     )
 
 
@@ -266,6 +282,16 @@ class UserSection(NotificationSection):
         key="invitation_created",
         description="Sent to an invited user so they can accept the invitation.",
         context_model=InvitationCreatedContext,
+    )
+    call_invitation_created = Notification(
+        key="call_invitation_created",
+        description="Sent to a user invited to a call for proposals so they can accept the invitation.",
+        context_model=CallInvitationCreatedContext,
+    )
+    proposal_invitation_created = Notification(
+        key="proposal_invitation_created",
+        description="Sent to a user invited to a proposal team so they can accept the invitation.",
+        context_model=ProposalInvitationCreatedContext,
     )
     invitation_expired = Notification(
         key="invitation_expired",

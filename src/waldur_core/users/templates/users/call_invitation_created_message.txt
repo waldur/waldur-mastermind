@@ -1,0 +1,13 @@
+Hello!
+
+{{ sender }} has invited you to take part in the call for proposals "{{ name }}"{% if organizer_name %} organised by {{ organizer_name }}{% endif %} as {{ role }}.
+
+Please visit the link below to sign up and accept your invitation:
+{{ link }}
+
+Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+{% if scope_link %}
+Once you have accepted it, the call is available at:
+{{ scope_link }}
+{% endif %}
+{{ extra_invitation_text }}

@@ -1,0 +1,15 @@
+Hello!
+
+{{ sender }} has invited you to join the team of the proposal "{{ name }}"{% if call_name %} submitted to the call for proposals "{{ call_name }}"{% endif %} as {{ role }}.
+{% if round_cutoff_time %}
+The submission deadline of the round is {{ round_cutoff_time|date:'d.m.Y H:i' }}.
+{% endif %}
+Please visit the link below to sign up and accept your invitation:
+{{ link }}
+
+Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+{% if scope_link %}
+Once you have accepted it, the proposal is available at:
+{{ scope_link }}
+{% endif %}
+{{ extra_invitation_text }}

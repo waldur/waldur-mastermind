@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import requests
 from constance import config
@@ -29,9 +30,48 @@ from waldur_freeipa.utils import generate_username
 
 logger = logging.getLogger(__name__)
 
+# Calls and proposals are valid invitation scopes, but the shared
+# users/invitation_created template is phrased for organization and project
+# roles, so they render their own notifications instead. Scopes are matched by
+# model label rather than by class because waldur_core must not import
+# waldur_mastermind.
+CALL_LABEL = "proposal.call"
+PROPOSAL_LABEL = "proposal.proposal"
+
+DEFAULT_INVITATION_EVENT_TYPE = "invitation_created"
+
+SCOPE_INVITATION_EVENT_TYPES = {
+    CALL_LABEL: "call_invitation_created",
+    PROPOSAL_LABEL: "proposal_invitation_created",
+}
+
+
+def get_invitation_event_type(invitation: models.Invitation) -> str:
+    """Return the notification key matching the invitation scope."""
+    if invitation.scope is None:
+        return DEFAULT_INVITATION_EVENT_TYPE
+    return SCOPE_INVITATION_EVENT_TYPES.get(
+        invitation.scope._meta.label_lower, DEFAULT_INVITATION_EVENT_TYPE
+    )
+
+
+def get_scope_specific_context(scope) -> dict[str, Any]:
+    """Return extra template variables for the call-for-proposals scopes."""
+    label = scope._meta.label_lower
+    if label == CALL_LABEL:
+        return {"organizer_name": scope.manager.customer.name}
+    if label == PROPOSAL_LABEL:
+        return {
+            "call_name": scope.round.call.name,
+            "round_cutoff_time": scope.round.cutoff_time,
+        }
+    return {}
+
 
 def get_invitation_context(invitation: models.Invitation, sender):
-    context = {"extra_invitation_text": invitation.extra_invitation_text}
+    context: dict[str, Any] = {
+        "extra_invitation_text": invitation.extra_invitation_text
+    }
 
     if invitation.scope is None:
         raise ValueError(
@@ -48,6 +88,7 @@ def get_invitation_context(invitation: models.Invitation, sender):
             role=invitation.role.description,
         )
     )
+    context.update(get_scope_specific_context(invitation.scope))
     context["sender"] = sender
     context["invitation"] = invitation
     return context
@@ -168,6 +209,7 @@ def get_scope_link(scope_type, scope_uuid):
         "project": "projects",
         "organization": "organizations",
         "call": "calls",
+        "proposal": "proposals",
         "resource": "resources",
         "resource project": "resource-projects",
         # Offerings are a valid invitation scope (see TYPE_MAP). The

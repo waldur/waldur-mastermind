@@ -186,7 +186,12 @@ def send_invitation_created(invitation_uuid, sender):
             )
         )
         try:
-            broadcast_mail("users", "invitation_created", context, [invitation.email])
+            broadcast_mail(
+                "users",
+                utils.get_invitation_event_type(invitation),
+                context,
+                [invitation.email],
+            )
 
             invitation.set_ok()
             invitation.save(update_fields=["execution_state"])
@@ -280,6 +285,9 @@ def send_reminder_for_pending_invitations():
         )
         context = utils.get_invitation_context(invitation, sender)
         context["link"] = utils.get_invitation_link(invitation.uuid)
+        context["scope_link"] = utils.get_scope_link(
+            context["type"], invitation.scope.uuid.hex
+        )
         site_link = format_homeport_link()
         context["site_host"] = urlparse(site_link).hostname
         context["reminder"] = True
@@ -292,7 +300,7 @@ def send_reminder_for_pending_invitations():
 
         broadcast_mail(
             "users",
-            "invitation_created",
+            utils.get_invitation_event_type(invitation),
             context,
             [
                 invitation.email,
