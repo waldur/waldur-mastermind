@@ -734,7 +734,7 @@ class ExportStructureCommandTest(TestCase):
             resource=resource,
             component=component,
             usage=100.5,
-            recurring=True,
+            missing_usage_policy="reuse",
             description="Monthly storage usage",
         )
 
@@ -752,7 +752,7 @@ class ExportStructureCommandTest(TestCase):
         self.assertEqual(exported_usage["component_type"], "storage")
         self.assertEqual(exported_usage["component_name"], "Storage")
         self.assertEqual(exported_usage["usage"], "100.50")
-        self.assertTrue(exported_usage["recurring"])
+        self.assertEqual(exported_usage["missing_usage_policy"], "reuse")
         self.assertEqual(exported_usage["description"], "Monthly storage usage")
         self.assertIsNotNone(exported_usage["date"])
         self.assertIsNotNone(exported_usage["billing_period"])

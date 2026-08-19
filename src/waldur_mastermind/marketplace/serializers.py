@@ -94,6 +94,7 @@ from waldur_mastermind.marketplace.enums import (
     DiscountAggregations,
     LimitPeriods,
     MaintenanceTimingBucket,
+    MissingUsagePolicies,
     OfferingStates,
     OfferingUserRuntimeStates,
     OfferingUserStates,
@@ -7858,6 +7859,13 @@ class CategoryComponentUsageSerializer(
 class BaseComponentUsageSerializer(
     BaseComponentSerializer, serializers.ModelSerializer
 ):
+    # Deprecated alias for missing_usage_policy == REUSE, kept so that existing
+    # API consumers (including older remote Waldur deployments) keep working.
+    recurring = serializers.SerializerMethodField(
+        help_text="Deprecated, use missing_usage_policy instead. "
+        "True when the reported value is reused every month until changed."
+    )
+
     class Meta:
         model = models.ComponentUsage
         fields = (
@@ -7869,8 +7877,12 @@ class BaseComponentUsageSerializer(
             "measured_unit",
             "usage",
             "date",
+            "missing_usage_policy",
             "recurring",
         )
+
+    def get_recurring(self, instance) -> bool:
+        return instance.missing_usage_policy == MissingUsagePolicies.REUSE
 
 
 class ComponentUsageSerializer(BaseComponentUsageSerializer):
@@ -7901,7 +7913,6 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
             "project_uuid",
             "customer_name",
             "customer_uuid",
-            "recurring",
             "billing_period",
             "modified_by",
         )
@@ -8295,9 +8306,41 @@ class ComponentUsageItemSerializer(serializers.Serializer):
     description = serializers.CharField(
         required=False, allow_blank=True, help_text="Optional description of usage"
     )
-    recurring = serializers.BooleanField(
-        default=False, help_text="Whether this usage is recurring"
+    missing_usage_policy = serializers.ChoiceField(
+        choices=MissingUsagePolicies.CHOICES,
+        required=False,
+        help_text="What to record for this component when the following billing "
+        "period passes with no usage report.",
     )
+    recurring = serializers.BooleanField(
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text="Deprecated, use missing_usage_policy instead. "
+        "True is equivalent to missing_usage_policy='reuse'.",
+    )
+
+    def validate(self, attrs):
+        policy = attrs.get("missing_usage_policy")
+        recurring = attrs.pop("recurring", None)
+
+        if policy is None:
+            attrs["missing_usage_policy"] = (
+                MissingUsagePolicies.REUSE if recurring else MissingUsagePolicies.NONE
+            )
+        elif recurring is not None and recurring != (
+            policy == MissingUsagePolicies.REUSE
+        ):
+            raise rf_exceptions.ValidationError(
+                {
+                    "recurring": _(
+                        "Conflicting values of recurring and missing_usage_policy. "
+                        "Use missing_usage_policy alone."
+                    )
+                }
+            )
+
+        return attrs
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
@@ -8507,14 +8550,14 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             amount = usage["amount"]
             description = usage.get("description", "")
             component = components_map[usage["type"]]
-            recurring = usage["recurring"]
+            missing_usage_policy = usage["missing_usage_policy"]
             if component.billing_type == BillingTypes.USAGE:
                 component.validate_amount(resource, amount, now)
             models.ComponentUsage.objects.filter(
                 resource=resource,
                 component=component,
                 billing_period=billing_period,
-            ).update(recurring=False)
+            ).update(missing_usage_policy=MissingUsagePolicies.NONE)
 
             if not plan_period:
                 plan_period = utils.get_plan_period_for_billing(resource, now)
@@ -8536,7 +8579,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 existing.usage = amount
                 existing.date = now
                 existing.description = description
-                existing.recurring = recurring
+                existing.missing_usage_policy = missing_usage_policy
                 existing.modified_by = user
                 existing.save()
                 usage = existing
@@ -8550,7 +8593,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     usage=amount,
                     date=now,
                     description=description,
-                    recurring=recurring,
+                    missing_usage_policy=missing_usage_policy,
                     modified_by=user,
                 )
                 created = True

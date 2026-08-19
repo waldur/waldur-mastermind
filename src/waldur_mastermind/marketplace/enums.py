@@ -55,6 +55,31 @@ class LimitPeriods:
     )
 
 
+class MissingUsagePolicies:
+    """What to record for a component when a period passes with no usage report.
+
+    Stored on ``ComponentUsage`` and carried onto the row created for the next
+    billing period by
+    ``invoices.handlers.create_carried_over_usage_if_invoice_has_been_created``.
+    """
+
+    NONE = "none"
+    REUSE = "reuse"
+    ZERO = "zero"
+
+    CHOICES = (
+        # nothing is recorded — the period stays unreported
+        (NONE, "Leave the period unreported."),
+        # the last reported value is repeated until the provider reports a new one
+        (REUSE, "Reuse the reported value every month until changed."),
+        # silence is treated as an explicit zero
+        (ZERO, "Record zero when no usage is reported."),
+    )
+
+    # Policies that materialize a row for the following billing period.
+    CARRIED_OVER = (REUSE, ZERO)
+
+
 class UsageLimitAction:
     """Restriction applied to a resource when reported usage reaches a component limit.
 

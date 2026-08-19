@@ -28,6 +28,7 @@ from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
+    MissingUsagePolicies,
     OfferingStates,
     OrderStates,
     OrderTypes,
@@ -1665,6 +1666,35 @@ class UsagePullTest(testcases.TransactionTestCase):
         self.assertEqual(component_usage.backend_id, usage_data["uuid"])
         self.assertEqual(user_usage.usage, 50)
         self.assertEqual(user_usage.user, offering_user)
+        self.assertEqual(
+            component_usage.missing_usage_policy, MissingUsagePolicies.NONE
+        )
+
+    def test_deprecated_recurring_flag_from_remote_maps_to_reuse_policy(self):
+        """A remote Waldur predating missing_usage_policy only sends `recurring`."""
+        models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU Hours",
+        )
+        usage_data = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu_k_hours",
+            "usage": 100,
+            "description": "Test usage",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": True,
+            "billing_period": "2024-03-01",
+        }
+        self.mock_component_usages([usage_data])
+        self.mock_component_user_usages([])
+        tasks.UsagePullTask().pull(self.resource)
+
+        component_usage = models.ComponentUsage.objects.get(resource=self.resource)
+        self.assertEqual(
+            component_usage.missing_usage_policy, MissingUsagePolicies.REUSE
+        )
 
     def _usage_payloads(self, usernames, billing_period):
         """One component usage plus one user usage per username."""

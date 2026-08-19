@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
+    MissingUsagePolicies,
     OrderStates,
     OrderTypes,
     ResourceStates,
@@ -141,35 +142,73 @@ class SubmitUsageTest(test.APITestCase):
             ).exists()
         )
 
-    def test_set_recurring_to_false_for_other_usages_in_this_period(self):
+    def _submit_usage_data(self, payload):
         self.client.force_authenticate(self.fixture.staff)
-        payload = self.get_usage_data()
-        payload["usages"][0]["recurring"] = True
         response = self.client.post(
             "/api/marketplace-component-usages/set_usage/", payload
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        date = timezone.now()
-        billing_period = core_utils.month_start(date)
-        usage = models.ComponentUsage.objects.get(
+        return models.ComponentUsage.objects.get(
             resource=self.resource,
             component=self.offering_component,
-            date=date,
-            billing_period=billing_period,
+            billing_period=core_utils.month_start(timezone.now()),
         )
-        self.assertTrue(usage.recurring)
+
+    def test_missing_usage_policy_is_reset_for_other_usages_in_this_period(self):
+        payload = self.get_usage_data()
+        payload["usages"][0]["missing_usage_policy"] = MissingUsagePolicies.REUSE
+        usage = self._submit_usage_data(payload)
+        self.assertEqual(usage.missing_usage_policy, MissingUsagePolicies.REUSE)
+
         new_plan_period = models.ResourcePlanPeriod.objects.create(
             resource=self.plan_period.resource,
             plan=self.plan_period.plan,
         )
         self.plan_period = new_plan_period
+        self._submit_usage_data(self.get_usage_data())
+        usage.refresh_from_db()
+        self.assertEqual(usage.missing_usage_policy, MissingUsagePolicies.NONE)
+
+    def test_missing_usage_policy_defaults_to_none(self):
+        usage = self._submit_usage_data(self.get_usage_data())
+        self.assertEqual(usage.missing_usage_policy, MissingUsagePolicies.NONE)
+
+    def test_zero_missing_usage_policy_is_stored(self):
         payload = self.get_usage_data()
+        payload["usages"][0]["missing_usage_policy"] = MissingUsagePolicies.ZERO
+        usage = self._submit_usage_data(payload)
+        self.assertEqual(usage.missing_usage_policy, MissingUsagePolicies.ZERO)
+
+    def test_deprecated_recurring_flag_maps_to_reuse_policy(self):
+        payload = self.get_usage_data()
+        payload["usages"][0]["recurring"] = True
+        usage = self._submit_usage_data(payload)
+        self.assertEqual(usage.missing_usage_policy, MissingUsagePolicies.REUSE)
+
+    def test_deprecated_recurring_flag_is_exposed_in_the_api(self):
+        payload = self.get_usage_data()
+        payload["usages"][0]["missing_usage_policy"] = MissingUsagePolicies.REUSE
+        usage = self._submit_usage_data(payload)
+        response = self.client.get(
+            "/api/marketplace-component-usages/",
+            {"resource_uuid": self.resource.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = {row["uuid"]: row for row in response.data}
+        self.assertTrue(rows[usage.uuid.hex]["recurring"])
+        self.assertEqual(
+            rows[usage.uuid.hex]["missing_usage_policy"], MissingUsagePolicies.REUSE
+        )
+
+    def test_conflicting_recurring_and_policy_are_rejected(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self.get_usage_data()
+        payload["usages"][0]["recurring"] = True
+        payload["usages"][0]["missing_usage_policy"] = MissingUsagePolicies.ZERO
         response = self.client.post(
             "/api/marketplace-component-usages/set_usage/", payload
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        usage.refresh_from_db()
-        self.assertFalse(usage.recurring)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_submit_usage_with_description(self):
         description = "My first usage report"

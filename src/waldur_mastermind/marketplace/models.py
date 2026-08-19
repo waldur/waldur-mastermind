@@ -56,6 +56,7 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceState,
     MaintenanceTimingBucket,
     MaintenanceType,
+    MissingUsagePolicies,
     OfferingStates,
     OfferingUserRuntimeStates,
     OfferingUserStates,
@@ -2974,8 +2975,8 @@ class ComponentUsage(
     Detailed usage tracking for resource components.
 
     Tracks component usage with billing period and plan period associations.
-    Supports recurring usage patterns and provides detailed consumption
-    data for billing and reporting.
+    Each row carries a missing-usage policy telling Waldur what to record for
+    the following billing period if the provider reports nothing.
     """
 
     resource = models.ForeignKey(
@@ -2994,8 +2995,11 @@ class ComponentUsage(
         null=True,
     )
     billing_period = models.DateField()
-    recurring = models.BooleanField(
-        default=False, help_text="Reported value is reused every month until changed."
+    missing_usage_policy = models.CharField(
+        max_length=10,
+        choices=MissingUsagePolicies.CHOICES,
+        default=MissingUsagePolicies.NONE,
+        help_text="What to record when no usage is reported for the following billing period.",
     )
     modified_by = models.ForeignKey[User](
         to=User, related_name="+", blank=True, null=True, on_delete=models.SET_NULL

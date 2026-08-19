@@ -17,8 +17,12 @@ from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
-from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    MissingUsagePolicies,
+    ResourceStates,
+)
 
 from .models import CustomerCredit, Invoice, InvoiceItem, ProjectCredit
 
@@ -190,9 +194,17 @@ def projects_customer_has_been_changed(
         invoice.items.filter(project=project).update(invoice=new_invoice)
 
 
-def create_recurring_usage_if_invoice_has_been_created(
+def create_carried_over_usage_if_invoice_has_been_created(
     sender, instance: Invoice, created=False, **kwargs
 ):
+    """Materialize usage for the new billing period from the previous one.
+
+    Rows whose ``missing_usage_policy`` is REUSE repeat their last reported
+    value; rows set to ZERO get an explicit zero, so that a period the provider
+    stays silent about is recorded as "no usage" rather than left unreported.
+    The policy is copied onto the new row so the behaviour survives beyond a
+    single month.
+    """
     if not created:
         return
 
@@ -201,28 +213,53 @@ def create_recurring_usage_if_invoice_has_been_created(
     now = timezone.now()
     prev_month = (now.replace(day=1) - datetime.timedelta(days=1)).date()
     prev_month_start = prev_month.replace(day=1)
+    # Source rows come from the previous month only. Matching the current month
+    # too would make a row that is both a source and a target of this loop, so
+    # the value written would depend on unordered row iteration.
     usages = marketplace_models.ComponentUsage.objects.filter(
         resource__project__customer=invoice.customer,
-        recurring=True,
-        billing_period__gte=prev_month_start,
+        missing_usage_policy__in=MissingUsagePolicies.CARRIED_OVER,
+        billing_period=prev_month_start,
     ).exclude(resource__state=ResourceStates.TERMINATED)
 
     if not usages:
         return
 
+    billing_period = core_utils.month_start(now)
+
     for usage in usages:
-        marketplace_models.ComponentUsage.objects.update_or_create(
+        # Both policies only fill a gap. A row already present for the new
+        # period means the provider has since reported for it, and that report
+        # — its value, its own policy and the plan period it was measured
+        # against — is the more current statement of intent.
+        #
+        # A usage row is identified by (resource, component, billing_period);
+        # plan_period is a mutable attribute, not part of the identity. Keying
+        # the check on it too would miss a row reported under a newer plan
+        # period and create the (resource, component, billing_period)
+        # duplicates that migration 0212 had to clean up.
+        if marketplace_models.ComponentUsage.objects.filter(
             resource=usage.resource,
             component=usage.component,
-            plan_period=usage.plan_period,
-            billing_period=core_utils.month_start(now),
-            defaults={
-                "usage": usage.usage,
-                "date": now,
-                "description": usage.description,
-                "recurring": usage.recurring,
-                "modified_by": usage.modified_by,
-            },
+            billing_period=billing_period,
+        ).exists():
+            continue
+
+        marketplace_models.ComponentUsage.objects.create(
+            resource=usage.resource,
+            component=usage.component,
+            plan_period=marketplace_utils.get_plan_period_for_billing(
+                usage.resource, now
+            )
+            or usage.plan_period,
+            billing_period=billing_period,
+            usage=0
+            if usage.missing_usage_policy == MissingUsagePolicies.ZERO
+            else usage.usage,
+            date=now,
+            description=usage.description,
+            missing_usage_policy=usage.missing_usage_policy,
+            modified_by=usage.modified_by,
         )
 
 

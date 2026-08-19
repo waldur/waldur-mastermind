@@ -61,9 +61,9 @@ class InvoiceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.create_recurring_usage_if_invoice_has_been_created,
+            handlers.create_carried_over_usage_if_invoice_has_been_created,
             sender=models.Invoice,
-            dispatch_uid="waldur_mastermind.invoices.create_recurring_usage_if_invoice_has_been_created",
+            dispatch_uid="waldur_mastermind.invoices.create_carried_over_usage_if_invoice_has_been_created",
         )
 
         signals.post_save.connect(
