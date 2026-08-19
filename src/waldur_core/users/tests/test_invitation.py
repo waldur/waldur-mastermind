@@ -13,11 +13,17 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole, ProposalRole
+from waldur_core.permissions.fixtures import (
+    CallRole,
+    CustomerRole,
+    ProjectRole,
+    ProposalRole,
+)
 from waldur_core.permissions.models import (
     CustomerRoleConcealment,
     Role,
@@ -30,7 +36,7 @@ from waldur_core.users import models, tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.tests import factories
 from waldur_core.users.utils import get_invitation_link, get_invitation_token
-from waldur_mastermind.proposal.tests.factories import ProposalFactory
+from waldur_mastermind.proposal.tests.factories import CallFactory, ProposalFactory
 
 
 class InvitationFieldValidationTest(test.APITestCase):
@@ -3018,3 +3024,116 @@ class InvitationOrgScopedRoleTest(test.APITestCase):
     def test_system_role_invitation_still_works(self):
         response = self._post_invitation(ProjectRole.MANAGER)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+
+@override_settings(task_always_eager=True)
+@override_config(HOMEPORT_URL="https://example.com/")
+class CallAndProposalInvitationTemplateTest(test.APITestCase):
+    """Calls and proposals render their own invitation emails.
+
+    The shared users.invitation_created template is phrased for organization and
+    project roles, which reads wrong for the call for proposals workflow.
+    """
+
+    def setUp(self):
+        # The call and proposal notifications are seeded by a data migration,
+        # so they are enabled in place rather than created from scratch.
+        for event_type in (
+            "invitation_created",
+            "call_invitation_created",
+            "proposal_invitation_created",
+        ):
+            core_models.Notification.objects.update_or_create(
+                key=f"users.{event_type}", defaults={"enabled": True}
+            )
+        self.sender = structure_factories.UserFactory()
+
+    def _create_call_invitation(self):
+        call = CallFactory()
+        return models.Invitation.objects.create(
+            email="manager@example.com",
+            scope=call,
+            customer=call.manager.customer,
+            role=CallRole.MANAGER,
+            created_by=self.sender,
+        )
+
+    def _create_proposal_invitation(self):
+        proposal = ProposalFactory()
+        return models.Invitation.objects.create(
+            email="member@example.com",
+            scope=proposal,
+            customer=proposal.round.call.manager.customer,
+            role=ProposalRole.MEMBER,
+            created_by=self.sender,
+        )
+
+    def test_call_invitation_uses_call_template(self):
+        invitation = self._create_call_invitation()
+
+        tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(
+            f'Invitation to the call "{invitation.scope.name}"', message.subject
+        )
+        self.assertIn("call for proposals", message.body)
+        self.assertIn(invitation.scope.manager.customer.name, message.body)
+
+    def test_proposal_invitation_uses_proposal_template(self):
+        invitation = self._create_proposal_invitation()
+
+        tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(
+            f'Invitation to the proposal "{invitation.scope.name}"', message.subject
+        )
+        self.assertIn("team of the proposal", message.body)
+        self.assertIn(invitation.scope.round.call.name, message.body)
+
+    def test_proposal_invitation_links_to_proposal_page(self):
+        invitation = self._create_proposal_invitation()
+
+        tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(
+            f"proposals/{invitation.scope.uuid.hex}/",
+            mail.outbox[0].body,
+        )
+
+    def test_project_invitation_still_uses_shared_template(self):
+        invitation = factories.ProjectInvitationFactory(created_by=self.sender)
+
+        tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(
+            f"Invitation to {invitation.scope.name} project", message.subject
+        )
+        self.assertIn("has invited you to join", message.body)
+
+    def test_proposal_invitation_reminder_uses_proposal_template(self):
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)
+        invitation = self._create_proposal_invitation()
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            models.Invitation.objects.filter(pk=invitation.pk).update(
+                created=timezone.now()
+                - waldur_section["INVITATION_LIFETIME"]
+                + timedelta(days=1)
+            )
+            tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(
+            f'REMINDER: Invitation to the proposal "{invitation.scope.name}"',
+            message.subject,
+        )
+        self.assertIn(invitation.scope.round.call.name, message.body)

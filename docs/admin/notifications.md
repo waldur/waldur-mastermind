@@ -294,6 +294,77 @@ A notification sent out when a role is granted. The recipient is the user who re
 
 ## WALDUR_CORE.USERS
 
+### users.call_invitation_created
+
+Sent to a user invited to a call for proposals so they can accept the invitation.
+
+#### Templates
+
+=== "users/call_invitation_created_subject.txt"
+
+```txt
+
+    {% if reminder %}
+    REMINDER: Invitation to the call "{{ name }}"
+    {% else %}
+    Invitation to the call "{{ name }}"
+    {% endif %}
+
+```
+
+=== "users/call_invitation_created_message.txt"
+
+```txt
+
+    Hello!
+
+    {{ sender }} has invited you to take part in the call for proposals "{{ name }}"{% if organizer_name %} organised by {{ organizer_name }}{% endif %} as {{ role }}.
+
+    Please visit the link below to sign up and accept your invitation:
+    {{ link }}
+
+    Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+    {% if scope_link %}
+    Once you have accepted it, the call is available at:
+    {{ scope_link }}
+    {% endif %}
+    {{ extra_invitation_text }}
+
+```
+
+=== "users/call_invitation_created_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Invitation to the call "{{ name }}"</title>
+    </head>
+    <body>
+    <p>
+        Hello!
+    </p>
+    <p>
+        {{ sender }} has invited you to take part in the call for proposals
+        "<strong>{{ name }}</strong>"{% if organizer_name %} organised by {{ organizer_name }}{% endif %}
+        as {{ role }}.<br>
+        Please visit <a href="{{ link }}">this page</a> to sign up and accept your invitation.
+        Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+    </p>
+    {% if scope_link %}
+    <p>
+        Once you have accepted it, the call is available <a href="{{ scope_link }}">here</a>.
+    </p>
+    {% endif %}
+    <p>
+        {{ extra_invitation_text }}
+    </p>
+    </body>
+    </html>
+
+```
+
 ### users.invitation_approved
 
 Sent to a new user after their invitation is approved and a new account is created for them.
@@ -743,6 +814,80 @@ Sent about a submitted permission request to the organization owners and manager
     </p>
     <p>
       Please visit the <a href="{{ requests_link }}">link</a> to approve or reject permission request.
+    </p>
+    </body>
+    </html>
+
+```
+
+### users.proposal_invitation_created
+
+Sent to a user invited to a proposal team so they can accept the invitation.
+
+#### Templates
+
+=== "users/proposal_invitation_created_subject.txt"
+
+```txt
+
+    {% if reminder %}
+    REMINDER: Invitation to the proposal "{{ name }}"
+    {% else %}
+    Invitation to the proposal "{{ name }}"
+    {% endif %}
+
+```
+
+=== "users/proposal_invitation_created_message.txt"
+
+```txt
+
+    Hello!
+
+    {{ sender }} has invited you to join the team of the proposal "{{ name }}"{% if call_name %} submitted to the call for proposals "{{ call_name }}"{% endif %} as {{ role }}.
+    {% if round_cutoff_time %}
+    The submission deadline of the round is {{ round_cutoff_time|date:'d.m.Y H:i' }}.
+    {% endif %}
+    Please visit the link below to sign up and accept your invitation:
+    {{ link }}
+
+    Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+    {% if scope_link %}
+    Once you have accepted it, the proposal is available at:
+    {{ scope_link }}
+    {% endif %}
+    {{ extra_invitation_text }}
+
+```
+
+=== "users/proposal_invitation_created_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Invitation to the proposal "{{ name }}"</title>
+    </head>
+    <body>
+    <p>
+        Hello!
+    </p>
+    <p>
+        {{ sender }} has invited you to join the team of the proposal
+        "<strong>{{ name }}</strong>"{% if call_name %} submitted to the call for proposals
+        "{{ call_name }}"{% endif %} as {{ role }}.<br>
+        {% if round_cutoff_time %}The submission deadline of the round is {{ round_cutoff_time|date:'d.m.Y H:i' }}.<br>{% endif %}
+        Please visit <a href="{{ link }}">this page</a> to sign up and accept your invitation.
+        Please note: this invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}!
+    </p>
+    {% if scope_link %}
+    <p>
+        Once you have accepted it, the proposal is available <a href="{{ scope_link }}">here</a>.
+    </p>
+    {% endif %}
+    <p>
+        {{ extra_invitation_text }}
     </p>
     </body>
     </html>

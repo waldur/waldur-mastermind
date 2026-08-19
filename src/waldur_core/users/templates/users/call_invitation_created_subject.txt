@@ -1,0 +1,5 @@
+{% if reminder %}
+REMINDER: Invitation to the call "{{ name }}"
+{% else %}
+Invitation to the call "{{ name }}"
+{% endif %}
