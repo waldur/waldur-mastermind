@@ -200,6 +200,69 @@ class SubmitUsageTest(test.APITestCase):
             rows[usage.uuid.hex]["missing_usage_policy"], MissingUsagePolicies.REUSE
         )
 
+    def test_usages_can_be_filtered_by_missing_usage_policy(self):
+        """Support needs to list every component set to carry values forward."""
+        self.client.force_authenticate(self.fixture.staff)
+        for component_type, policy in (
+            ("cpu", MissingUsagePolicies.ZERO),
+            ("ram", MissingUsagePolicies.REUSE),
+        ):
+            # One entry per request: get_usage_data() always reports "ram" as
+            # its second component, and a later entry for the same component
+            # resets the policy set by an earlier one.
+            response = self.client.post(
+                "/api/marketplace-component-usages/set_usage/",
+                {
+                    "plan_period": self.plan_period.uuid.hex,
+                    "usages": [
+                        {
+                            "type": component_type,
+                            "amount": 5,
+                            "missing_usage_policy": policy,
+                        }
+                    ],
+                },
+            )
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        def list_policies(**query):
+            response = self.client.get("/api/marketplace-component-usages/", query)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            return sorted(row["missing_usage_policy"] for row in response.data)
+
+        self.assertEqual(
+            list_policies(),
+            sorted([MissingUsagePolicies.ZERO, MissingUsagePolicies.REUSE]),
+        )
+        self.assertEqual(
+            list_policies(missing_usage_policy=MissingUsagePolicies.ZERO),
+            [MissingUsagePolicies.ZERO],
+        )
+        self.assertEqual(
+            list_policies(missing_usage_policy=MissingUsagePolicies.REUSE),
+            [MissingUsagePolicies.REUSE],
+        )
+        self.assertEqual(
+            list_policies(
+                missing_usage_policy=[
+                    MissingUsagePolicies.ZERO,
+                    MissingUsagePolicies.REUSE,
+                ]
+            ),
+            sorted([MissingUsagePolicies.ZERO, MissingUsagePolicies.REUSE]),
+        )
+        self.assertEqual(
+            list_policies(missing_usage_policy=MissingUsagePolicies.NONE), []
+        )
+
+    def test_invalid_missing_usage_policy_filter_is_rejected(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            "/api/marketplace-component-usages/",
+            {"missing_usage_policy": "nonsense"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_conflicting_recurring_and_policy_are_rejected(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = self.get_usage_data()
