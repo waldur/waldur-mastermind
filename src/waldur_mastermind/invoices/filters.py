@@ -173,12 +173,35 @@ class CreditTransactionFilter(django_filters.FilterSet):
     credit_uuid = core_filters.RelatedUUIDFilter(
         view_name="customer-credit-detail", field_name="credit__uuid"
     )
+    # A row moves either the organization balance or a project allocation, so
+    # scoping to an organization has to reach it either way.
     customer_uuid = core_filters.RelatedUUIDFilter(
-        view_name="customer-detail", field_name="credit__customer__uuid"
+        view_name="customer-detail", method="filter_customer_uuid"
     )
+    project_credit_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-credit-detail", field_name="project_credit__uuid"
+    )
+    # Against the denormalised column, not the allocation, so a project's
+    # drawdown stays queryable after the allocation is deleted.
+    project_uuid = django_filters.CharFilter(field_name="project_uuid")
     transaction_type = django_filters.CharFilter()
+    billing_period = django_filters.DateFilter()
+    billing_period_after = django_filters.DateFilter(
+        field_name="billing_period", lookup_expr="gte"
+    )
+    billing_period_before = django_filters.DateFilter(
+        field_name="billing_period", lookup_expr="lte"
+    )
 
-    o = django_filters.OrderingFilter(fields=(("created", "created"),))
+    o = django_filters.OrderingFilter(
+        fields=(("created", "created"), ("billing_period", "billing_period"))
+    )
+
+    def filter_customer_uuid(self, queryset, name, value):
+        return queryset.filter(
+            django_models.Q(credit__customer__uuid=value)
+            | django_models.Q(project_credit__project__customer__uuid=value)
+        )
 
     class Meta:
         model = models.CreditTransaction

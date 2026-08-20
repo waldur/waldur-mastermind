@@ -145,6 +145,8 @@ Waldur supports a two-level credit system: **CustomerCredit** (organization-wide
 
 **ProjectCredit** is a sub-allocation of the customer credit. The sum of all project credit values cannot exceed the customer credit value.
 
+Every change to either balance is recorded in the [credit ledger](../credit-ledger.md), which is what makes the drawdown below observable after the fact: the minimal-consumption tail writes no invoice item, so the ledger is the only place it is visible.
+
 #### Invoice Finalization Flow
 
 During invoice finalization, credits are processed via `process_invoice_credits()`:
@@ -205,6 +207,11 @@ sequenceDiagram
         end
     end
 ```
+
+Both deductions against a balance — what usage consumed and what the floor took
+— land in a single `value` write. The flow declares the breakdown so that the
+ledger can record them as separate `compensation` and `minimal_draw` rows; see
+[Credit ledger](../credit-ledger.md).
 
 #### Minimal Consumption
 

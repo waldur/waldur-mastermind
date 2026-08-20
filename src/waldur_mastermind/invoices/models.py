@@ -815,6 +815,8 @@ class ProjectCredit(BaseCredit):
         """True when the organization balance, not this allocation, is binding."""
         return self.spendable_value < self.value
 
+    # Also read by the ledger post_save handler, which needs the previous value
+    # to compute the delta it records.
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
@@ -858,7 +860,7 @@ class ProjectCredit(BaseCredit):
 
 
 class CreditTransaction(core_models.UuidMixin, models.Model):
-    """Append-only ledger of CustomerCredit value changes.
+    """Append-only ledger of credit value changes, organization and project.
 
     Rows are written by the ``record_credit_transaction`` post_save handler
     for every value mutation; the semantic type comes from the innermost
@@ -870,6 +872,7 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
     class Types:
         STAFF_GRANT = "staff_grant"
         COMPENSATION = "compensation"
+        MINIMAL_DRAW = "minimal_draw"
         AFFILIATE_FEE = "affiliate_fee"
         TRANSFER_IN = "transfer_in"
         TRANSFER_OUT = "transfer_out"
@@ -882,6 +885,7 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
         CHOICES = (
             (STAFF_GRANT, "Staff grant"),
             (COMPENSATION, "Compensation"),
+            (MINIMAL_DRAW, "Minimal consumption draw"),
             (AFFILIATE_FEE, "Affiliate fee"),
             (TRANSFER_IN, "Transfer in"),
             (TRANSFER_OUT, "Transfer out"),
@@ -905,8 +909,33 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
         )
 
     credit = models.ForeignKey(
-        CustomerCredit, on_delete=models.CASCADE, related_name="transactions"
+        CustomerCredit,
+        on_delete=models.CASCADE,
+        related_name="transactions",
+        null=True,
+        blank=True,
     )
+    # Project allocations are drawn on their own — for usage and, separately, to
+    # reach the minimal-consumption floor — and neither movement touches the
+    # organization balance, so they are ledgered in their own rows.
+    project_credit = models.ForeignKey(
+        "ProjectCredit",
+        on_delete=models.SET_NULL,
+        related_name="transactions",
+        null=True,
+        blank=True,
+    )
+    # Denormalised so the trace survives its project: ProjectCredit is deleted
+    # with the project, and a ledger that loses its attribution on a delete is
+    # not a ledger.
+    project_uuid = models.CharField(max_length=32, blank=True, db_index=True)
+    project_name = models.CharField(
+        max_length=structure_models.PROJECT_NAME_LENGTH, blank=True
+    )
+    # First day of the month the movement belongs to. A real column because the
+    # dashboards group by month, and `reference` is a GenericForeignKey that SQL
+    # cannot group on.
+    billing_period = models.DateField(null=True, blank=True, db_index=True)
     created = models.DateTimeField(auto_now_add=True, db_index=True)
     # Signed delta applied to CustomerCredit.value.
     amount = models.DecimalField(max_digits=16, decimal_places=5)
@@ -919,8 +948,29 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
     object_id = models.PositiveIntegerField(null=True, blank=True)
     reference = GenericForeignKey("content_type", "object_id")
 
+    @property
+    def customer(self):
+        """The organization the movement belongs to, whichever balance moved.
+
+        None once a project allocation has been deleted: the row keeps the
+        project it names, but the path back to the organization went with the
+        allocation. Staff still see such rows; nobody else can, which is the
+        same answer the permission paths below give.
+        """
+        if self.credit_id:
+            return self.credit.customer
+        if self.project_credit_id:
+            return self.project_credit.project.customer
+        return None
+
     class Permissions:
-        customer_path = "credit__customer"
+        # Both balances, because a row moves exactly one of them. An
+        # organization owner reads the whole ledger of their organization;
+        # project roles read their own project's drawdown, mirroring
+        # ProjectCredit itself, which they can already read so that the project
+        # dashboard has something to render.
+        customer_path = ("credit__customer", "project_credit__project__customer")
+        project_path = "project_credit__project"
 
     class Meta:
         ordering = ["-created"]
@@ -930,10 +980,16 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
         return "credit-transaction"
 
     def __str__(self):
-        return (
-            f"{self.get_transaction_type_display()} of {self.amount} "
-            f"for {self.credit.customer.name}"
-        )
+        # Project rows carry no organization credit, and a row outlives the
+        # allocation it describes, so the scope is whichever of the three is
+        # still there to name.
+        if self.credit_id:
+            scope = self.credit.customer.name
+        elif self.project_name:
+            scope = self.project_name
+        else:
+            scope = "a removed project"
+        return f"{self.get_transaction_type_display()} of {self.amount} for {scope}"
 
 
 class CustomerAffiliate(core_models.UuidMixin, core_models.TimeStampedModel):

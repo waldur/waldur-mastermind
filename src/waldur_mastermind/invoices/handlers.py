@@ -498,15 +498,19 @@ def refund_project_credit_on_project_removal(sender, instance: Project, **kwargs
             )
 
 
-def record_credit_transaction(
-    sender, instance: CustomerCredit, created=False, **kwargs
-):
-    """Write a CreditTransaction ledger row for every CustomerCredit value
-    change. The semantic type comes from the innermost
-    ``ledger.credit_transaction_type`` block; untyped mutations (staff UI,
-    REST API, shell) are recorded as staff grants. Unlike the audit events,
-    ledger writes are never suppressed — the withdrawable balance is
-    derived from them.
+def record_credit_transaction(sender, instance, created=False, **kwargs):
+    """Write ledger rows for every credit value change, organization or project.
+
+    The semantic type comes from the innermost ``ledger.credit_transaction_type``
+    block; untyped mutations (staff UI, REST API, shell) are recorded as staff
+    grants. A writer that applies two different kinds of movement in one save —
+    compensation against usage, plus the top-up to the minimal-consumption floor
+    — declares the breakdown with ``ledger.credit_transaction_parts`` and gets
+    one row per part instead; a breakdown that does not add up to the delta is
+    refused, and the movement falls back to one row of the enclosing type.
+
+    Unlike the audit events, ledger writes are never suppressed: the
+    withdrawable balance and the drawdown history are derived from them.
     """
     update_fields = kwargs.get("update_fields")
     if update_fields and "value" not in update_fields:
@@ -523,13 +527,62 @@ def record_credit_transaction(
     if not delta:
         return
 
-    transaction_type, reference, comment = ledger.current_credit_transaction_type()
+    is_project_credit = isinstance(instance, models.ProjectCredit)
+    attribution = {}
+    if is_project_credit:
+        project = instance.project
+        attribution = {
+            "project_credit": instance,
+            "project_uuid": project.uuid.hex,
+            "project_name": project.name,
+        }
+    else:
+        attribution = {"credit": instance}
+
+    parts, parts_reference, parts_comment = ledger.current_credit_transaction_parts(
+        instance
+    )
+    if parts:
+        total = sum(part.amount for part in parts)
+        if total == delta:
+            for part in parts:
+                if not part.amount:
+                    continue
+                models.CreditTransaction.objects.create(
+                    amount=part.amount,
+                    transaction_type=part.transaction_type,
+                    reference=parts_reference,
+                    comment=parts_comment or "",
+                    billing_period=part.billing_period,
+                    **attribution,
+                )
+            return
+        # A breakdown that does not add up would misstate the balance it claims
+        # to explain, so fall through to a single row rather than trust it. The
+        # enclosing credit_transaction_type block then says what the movement
+        # was; a writer that declares parts should declare that too, or the
+        # refusal files the movement as an untyped staff grant.
+        logger.warning(
+            "Credit transaction parts for %s sum to %s but the value moved by %s; "
+            "recording the movement as one row instead.",
+            instance,
+            total,
+            delta,
+        )
+
+    (
+        transaction_type,
+        reference,
+        comment,
+        billing_period,
+    ) = ledger.current_credit_transaction_type()
     models.CreditTransaction.objects.create(
-        credit=instance,
         amount=delta,
         transaction_type=transaction_type or models.CreditTransaction.Types.STAFF_GRANT,
         reference=reference,
         comment=comment or "",
+        billing_period=billing_period,
+        **attribution,
     )
 
 

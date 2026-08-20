@@ -152,25 +152,29 @@ Robustness guarantees:
 
 ## Credit ledger and withdrawable balance
 
-Every change to `CustomerCredit.value` — from any source — is recorded as a
-`CreditTransaction` row by a `post_save` handler. The semantic type of the
-change is declared by the programmatic flow that makes it, via the
-`ledger.credit_transaction_type(...)` context manager; any untyped change
-(staff UI, REST API, shell) is conservatively recorded as a **staff grant**.
+Every change to a credit balance — from any source, on an organization credit
+or a project allocation — is recorded as a `CreditTransaction` row by a
+`post_save` handler, typed by the flow that makes it and recorded as a **staff
+grant** when untyped. See [Credit ledger](credit-ledger.md) for the full
+mechanism; what matters here is which of those rows count as *earnings*.
 
 ```mermaid
 flowchart TB
     subgraph Sources["Value mutations"]
         SG["Staff grant<br/>(untyped default)"]
         AFFEE["Affiliate fee"]
-        COMP["Compensation"]
+        TR["Transfer in / out"]
+        PO["Payout"]
+        DRAW["Compensation /<br/>minimal consumption draw"]
         EXP["Expiry"]
         RB["Rollback / adjustment"]
     end
 
     SG --> LED["CreditTransaction ledger"]
     AFFEE --> LED
-    COMP --> LED
+    TR --> LED
+    PO --> LED
+    DRAW --> LED
     EXP --> LED
     RB --> LED
 
@@ -178,12 +182,16 @@ flowchart TB
 ```
 
 The **withdrawable balance** is the sum of *earnings-typed* ledger entries
-(`affiliate_fee`, `transfer_in`, `transfer_out`, `payout`), capped by the current
-credit value. Two consequences fall out of this definition:
+(`affiliate_fee`, `transfer_in`, `transfer_out`, `payout` and
+`withdrawable_adjustment`), capped by the current credit value. Two consequences
+fall out of this definition:
 
 - Staff-granted (promotional) credit is **never** withdrawable.
 - Credit **expiry wipes earnings too** — when the value is zeroed, the cap drops
   the withdrawable balance to zero.
+
+Drawdown types — `compensation` and `minimal_draw` — are not earnings and never
+raise the withdrawable balance; they lower the cap by lowering the value.
 
 Example — an affiliate with a 1000 promotional grant earns a 30 fee:
 
@@ -194,7 +202,9 @@ Example — an affiliate with a 1000 promotional grant earns a 30 fee:
 | Credit expires (value → 0) | 0 | 0 |
 
 The ledger is **append-only** — it is the source of truth for the withdrawable
-balance, so rows are never edited or deleted; corrections are new rows.
+balance, so rows are never edited or deleted; corrections are new rows. The one
+exception is reconstructing history that predates the ledger, described in
+[Backfilling the credit ledger](admin/credit-ledger-backfill.md).
 
 ## Worked scenarios
 
