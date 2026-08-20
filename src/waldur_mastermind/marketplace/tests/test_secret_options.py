@@ -386,6 +386,10 @@ KNOWN_PLAINTEXT_KEYS = {
     "vault_tls_verify",
     "dns_nameservers",
     "ipv4_external_ip_mapping",
+    # Notification recipients — contact details, not credentials. They live in
+    # secret_options only to keep them out of the publicly readable plugin_options.
+    "order_notification_emails",
+    "order_notification_roles",
     # Public material and free text.
     "openstack_api_tls_certificate",
     "cloud_init_template",

@@ -64,6 +64,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.utils import (
     evaluate_usage_limit_restriction,
     get_consumer_approvers,
+    get_new_order_notification_recipients,
     get_provider_approvers,
 )
 
@@ -226,6 +227,37 @@ def notify_provider_about_pending_order(order_uuid):
 
     core_utils.broadcast_mail(
         "marketplace", "notify_provider_about_pending_order", context, approvers
+    )
+
+
+@shared_task
+def notify_about_new_order(order_uuid):
+    order = models.Order.objects.get(uuid=order_uuid)
+
+    recipients = get_new_order_notification_recipients(order)
+    if not recipients:
+        return
+
+    link = core_utils.format_homeport_link(
+        "marketplace-order-details/{order_uuid}/",
+        order_uuid=order.uuid,
+    )
+
+    context = {
+        "order_url": link,
+        "order": order,
+        "order_type": order.get_type_display().lower(),
+        "site_name": config.SITE_NAME,
+    }
+
+    logger.info(
+        "About to send email regarding new order %s to recipients: %s",
+        order,
+        recipients,
+    )
+
+    core_utils.broadcast_mail(
+        "marketplace", "notify_about_new_order", context, recipients
     )
 
 

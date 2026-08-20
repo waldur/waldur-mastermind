@@ -268,6 +268,44 @@ def notify_approvers_when_order_is_created(
             )
 
 
+def notify_recipients_when_order_is_created(
+    sender, instance: Order, created=False, **kwargs
+):
+    """Notify the recipients configured on the offering about a new order.
+
+    Fires on creation regardless of the approval state, so that offerings which
+    auto-approve are covered too. The task re-reads the order after commit, so
+    state changes made later in the creating transaction are irrelevant.
+
+    Orders nobody placed are skipped, on two signals. Import commands and the
+    orphan-resource reconciliation sweep insert orders directly in a terminal
+    state, as audit records for work that already happened. Robots place orders
+    on their own initiative: the cost-policy sweep creates one termination order
+    per over-budget resource, and openportal mirrors remote activity. Announcing
+    either as a new order would be wrong, and both arrive in bulk.
+    """
+    if get_skip_side_effects():
+        return
+
+    if not created:
+        return
+
+    if instance.state in OrderStates.TERMINAL_STATES:
+        return
+
+    if instance.created_by is None or core_utils.is_robot_user(instance.created_by):
+        return
+
+    secret_options = instance.offering.secret_options or {}
+    if not secret_options.get("order_notification_emails") and not secret_options.get(
+        "order_notification_roles"
+    ):
+        return
+
+    order_uuid = instance.uuid
+    transaction.on_commit(lambda: tasks.notify_about_new_order.delay(order_uuid))
+
+
 def maybe_auto_approve_order_for_project(
     sender, instance: Order, created=False, **kwargs
 ):

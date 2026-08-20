@@ -133,6 +133,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.notify_recipients_when_order_is_created,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.notify_recipients_when_order_is_created",
+        )
+
+        signals.post_save.connect(
             handlers.maybe_auto_approve_order_for_project,
             sender=models.Order,
             dispatch_uid="waldur_mastermind.marketplace.maybe_auto_approve_order_for_project",
