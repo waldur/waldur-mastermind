@@ -1999,6 +1999,58 @@ A notification about usages. The recipients are organization owners.
 
 ```
 
+### marketplace.notify_about_new_order
+
+Notifies the recipients configured on the offering about every new order for it, regardless of whether the order needs approval.
+
+#### Templates
+
+=== "marketplace/notify_about_new_order_subject.txt"
+
+```txt
+
+    A new {{ order_type }} order for {{ order.offering.name }} has been placed by {{ order.created_by.get_full_name|default:"a user" }}.
+
+```
+
+=== "marketplace/notify_about_new_order_message.txt"
+
+```txt
+
+    Hello!
+
+    {{ order.created_by.get_full_name|default:"A user" }} has placed a new {{ order_type }} order for {{ order.offering.name }}
+    in project {{ order.project.name }} of organization {{ order.project.customer.name }}.
+
+    Please visit {{ order_url }} to find out more details.
+
+```
+
+=== "marketplace/notify_about_new_order_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>A new {{ order_type }} order for {{ order.offering.name }} has been placed by {{ order.created_by.get_full_name|default:"a user" }}.</title>
+    </head>
+    <body>
+    <p>
+        Hello!
+    </p>
+    <p>
+        {{ order.created_by.get_full_name|default:"A user" }} has placed a new {{ order_type }} order for {{ order.offering.name }}
+        in project {{ order.project.name }} of organization {{ order.project.customer.name }}.
+    </p>
+    <p>
+        Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
+    </p>
+    </body>
+    </html>
+
+```
+
 ### marketplace.notify_consumer_about_pending_order
 
 Notifies project members with approval permissions about a pending order.

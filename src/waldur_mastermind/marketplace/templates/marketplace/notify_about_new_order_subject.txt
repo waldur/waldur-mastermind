@@ -1,0 +1,1 @@
+A new {{ order_type }} order for {{ order.offering.name }} has been placed by {{ order.created_by.get_full_name|default:"a user" }}.

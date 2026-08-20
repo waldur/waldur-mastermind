@@ -1,0 +1,6 @@
+Hello!
+
+{{ order.created_by.get_full_name|default:"A user" }} has placed a new {{ order_type }} order for {{ order.offering.name }}
+in project {{ order.project.name }} of organization {{ order.project.customer.name }}.
+
+Please visit {{ order_url }} to find out more details.

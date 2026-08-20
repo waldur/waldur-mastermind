@@ -391,6 +391,12 @@ class NotifyProviderAboutPendingOrderContext(BaseOrderContext):
     )
 
 
+class NewOrderNotificationContext(NotifyProviderAboutPendingOrderContext):
+    order_type: str = Field(
+        description="The display name of the order type (e.g., 'create', 'update', 'terminate')."
+    )
+
+
 class OrderRejectedContext(BaseOrderContext):
     link: str = Field(description="A URL to the rejected order's details page.")
     order_type: str = Field(
@@ -606,6 +612,12 @@ class MarketplaceSection(NotificationSection):
         key="notification_usages",
         description="A notification about usages. The recipients are organization owners.",
         context_model=UsagesNotificationContext,
+    )
+    notify_about_new_order = Notification(
+        key="notify_about_new_order",
+        description="Notifies the recipients configured on the offering about every "
+        "new order for it, regardless of whether the order needs approval.",
+        context_model=NewOrderNotificationContext,
     )
     notify_consumer_about_pending_order = Notification(
         key="notify_consumer_about_pending_order",

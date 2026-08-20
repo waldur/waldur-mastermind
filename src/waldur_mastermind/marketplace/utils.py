@@ -34,6 +34,7 @@ from django.db.models import (
     OuterRef,
     Prefetch,
     Q,
+    QuerySet,
     Subquery,
     Sum,
 )
@@ -3417,6 +3418,67 @@ def get_provider_approvers(order):
     )
 
     return approvers
+
+
+def _as_string_list(value, option_name: str) -> list[str]:
+    """The string members of a list-valued option, or an empty list.
+
+    The serializer guarantees a list of strings, but secret_options is also
+    editable as raw JSON in the Django admin, which bypasses it. A bare string
+    there would iterate per character, and a mixed list would reach sorted() as
+    a TypeError, so anything that is not a string is dropped.
+    """
+    if not isinstance(value, list):
+        if value:
+            logger.warning(
+                "Expected a list in %s, got %s: %s", option_name, type(value), value
+            )
+        return []
+    members = [member for member in value if isinstance(member, str)]
+    if len(members) != len(value):
+        logger.warning("Ignoring non-string members of %s: %s", option_name, value)
+    return members
+
+
+def _get_users_holding_roles(scope, role_names) -> QuerySet:
+    user_ids = UserRole.objects.filter(
+        is_active=True, scope=scope, role__name__in=role_names
+    ).values_list("user_id", flat=True)
+    return User.objects.filter(id__in=user_ids)
+
+
+def get_new_order_notification_recipients(order) -> list[str]:
+    """Addresses configured on the offering to be notified about a new order.
+
+    Explicit addresses are taken as configured: there is no user behind them, so
+    they cannot be filtered by notifications_enabled. Role names are resolved on
+    the provider organization and on the offering itself, and the users behind
+    them are filtered like in get_provider_approvers.
+    """
+    secret_options = order.offering.secret_options or {}
+    emails = set(
+        _as_string_list(
+            secret_options.get("order_notification_emails"),
+            "order_notification_emails",
+        )
+    )
+    role_names = _as_string_list(
+        secret_options.get("order_notification_roles"), "order_notification_roles"
+    )
+
+    if role_names:
+        users = _get_users_holding_roles(
+            order.offering.customer, role_names
+        ) | _get_users_holding_roles(order.offering, role_names)
+
+        emails.update(
+            users.distinct()
+            .exclude(email="")
+            .exclude(notifications_enabled=False)
+            .values_list("email", flat=True)
+        )
+
+    return sorted(emails)
 
 
 def check_pending_order_exists(resource):

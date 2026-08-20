@@ -134,6 +134,9 @@ from . import log, models, permissions, plugins, posix_ids, utils
 
 logger = logging.getLogger(__name__)
 
+MAX_ORDER_NOTIFICATION_EMAILS = 10
+MAX_ORDER_NOTIFICATION_ROLES = 10
+
 
 def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options):
     """Reject a non-staff user setting or changing auto_approve_for_roles.
@@ -167,27 +170,48 @@ def validate_disable_grace_period_is_staff_only(user, instance, plugin_options):
         )
 
 
-def validate_project_or_customer_role_names(value):
-    """Reject any name that is not an active project- or organization-scoped
-    role. Shared by the restricted_to_roles / auto_approve_for_roles options."""
+def validate_role_names(value, scope_models, scopes_label):
+    """Reject any name that is not an active role scoped to one of scope_models.
+
+    A role name is only meaningful where the option resolves it, so each option
+    passes the models it resolves names on and a label naming them in the error.
+    """
     if not value:
         return value
-    project_ct = ContentType.objects.get_for_model(structure_models.Project)
-    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    content_types = [ContentType.objects.get_for_model(model) for model in scope_models]
     existing = set(
         permission_models.Role.objects.filter(
             name__in=value,
             is_active=True,
-            content_type__in=[project_ct, customer_ct],
+            content_type__in=content_types,
         ).values_list("name", flat=True)
     )
     invalid = [name for name in value if name not in existing]
     if invalid:
         raise rf_exceptions.ValidationError(
-            _("The following are not valid project or organization roles: %s")
-            % ", ".join(invalid)
+            _("The following are not valid %(scopes)s roles: %(names)s")
+            % {"scopes": scopes_label, "names": ", ".join(invalid)}
         )
     return value
+
+
+def validate_project_or_customer_role_names(value):
+    """Shared by the restricted_to_roles / auto_approve_for_roles options."""
+    return validate_role_names(
+        value,
+        [structure_models.Project, structure_models.Customer],
+        _("project or organization"),
+    )
+
+
+def validate_provider_role_names(value):
+    """Used by the order_notification_roles option, whose names are resolved on
+    the provider organization and on the offering itself."""
+    return validate_role_names(
+        value,
+        [structure_models.Customer, models.Offering],
+        _("organization or offering"),
+    )
 
 
 class LifecyclePluginOptionsSerializer(serializers.Serializer):
@@ -1132,11 +1156,50 @@ class RancherSecretOptionsSerializer(serializers.Serializer):
     )
 
 
+class OrderNotificationSecretOptionsSerializer(serializers.Serializer):
+    """Who gets told about a new order.
+
+    Declared as secret options rather than plugin options: plugin_options is
+    rendered to every marketplace consumer (public offering endpoint, order and
+    resource serializers), and provider-internal mailboxes are contact details,
+    not catalogue data. secret_options is gated by can_see_secret_options, so
+    only the provider organization sees these.
+    """
+
+    order_notification_emails = serializers.ListField(
+        child=serializers.EmailField(),
+        required=False,
+        allow_empty=True,
+        max_length=MAX_ORDER_NOTIFICATION_EMAILS,
+        help_text="Email addresses notified about every new order for this "
+        "offering, regardless of whether the order needs approval. Intended for "
+        "provider-side mailboxes which do not belong to a Waldur user, so these "
+        "addresses are notified even if a user with the same address disabled "
+        f"notifications. At most {MAX_ORDER_NOTIFICATION_EMAILS} addresses.",
+    )
+    order_notification_roles = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=True,
+        max_length=MAX_ORDER_NOTIFICATION_ROLES,
+        help_text="List of organization or offering role names (e.g. "
+        "'CUSTOMER.OWNER', 'OFFERING.MANAGER') whose holders are notified about "
+        "every new order for this offering, regardless of whether the order "
+        "needs approval. Names are resolved on the provider organization and on "
+        "the offering itself. Users who disabled notifications in their profile "
+        f"are skipped. At most {MAX_ORDER_NOTIFICATION_ROLES} names.",
+    )
+
+    def validate_order_notification_roles(self, value):
+        return validate_provider_role_names(value)
+
+
 class GenericSecretOptionsSerializer(serializers.Serializer):
     pass
 
 
 class MergedSecretOptionsSerializer(
+    OrderNotificationSecretOptionsSerializer,
     HeappeSecretOptionsSerializer,
     OpenstackSecretOptionsSerializer,
     GLAuthSecretOptionsSerializer,
