@@ -50,6 +50,7 @@ from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CourseAccountState,
+    MissingUsagePolicies,
     OfferingStates,
     OfferingUserRuntimeStates,
     OfferingUserStates,
@@ -2085,11 +2086,16 @@ class ComponentUsageFilter(django_filters.FilterSet):
     type = django_filters.CharFilter(
         field_name="component__type", label="Component type"
     )
+    missing_usage_policy = django_filters.MultipleChoiceFilter(
+        choices=MissingUsagePolicies.CHOICES,
+        label="Missing usage policy",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
             "billing_period",
             "usage",
+            "missing_usage_policy",
         )
     )
 
