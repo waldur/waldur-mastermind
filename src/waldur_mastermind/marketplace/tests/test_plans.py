@@ -501,6 +501,72 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
         )
         self.assertEqual(plan_component.future_price, 2)
 
+    def test_future_price_can_be_set_to_zero(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+        factories.ResourceFactory(offering=self.offering, plan=plan)
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering, type="ram"
+        )
+        models.PlanComponent.objects.create(
+            plan=plan, component=offering_component, price=10
+        )
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.update_prices(plan, "owner", {"prices": {"ram": 0}})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        plan_component = models.PlanComponent.objects.get(
+            plan=plan, component=offering_component
+        )
+        self.assertEqual(plan_component.future_price, 0)
+        self.assertEqual(plan_component.price, 10)
+
+    def test_price_can_be_set_to_zero_if_there_are_no_resources(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering, type="ram"
+        )
+        models.PlanComponent.objects.create(
+            plan=plan, component=offering_component, price=10
+        )
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.update_prices(plan, "owner", {"prices": {"ram": 0}})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        plan_component = models.PlanComponent.objects.get(
+            plan=plan, component=offering_component
+        )
+        self.assertEqual(plan_component.price, 0)
+
+    def test_future_price_is_not_set_if_new_price_matches_current_price(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+        factories.ResourceFactory(offering=self.offering, plan=plan)
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering, type="ram"
+        )
+        models.PlanComponent.objects.create(
+            plan=plan, component=offering_component, price=10
+        )
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.update_prices(plan, "owner", {"prices": {"ram": 10}})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        plan_component = models.PlanComponent.objects.get(
+            plan=plan, component=offering_component
+        )
+        self.assertIsNone(plan_component.future_price)
+
     def test_it_should_be_possible_to_archive_plan(self):
         # Arrange
         plan = factories.PlanFactory(offering=self.offering)
