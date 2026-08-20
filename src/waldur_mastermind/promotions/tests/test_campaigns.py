@@ -18,6 +18,7 @@ class CreateCampaignTest(test.APITestCase):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.url = factories.CampaignFactory.get_list_url()
+        self.other_sp = marketplace_factories.ServiceProviderFactory()
 
     def _get_payload(self, **kwargs):
         payload = {
@@ -57,6 +58,33 @@ class CreateCampaignTest(test.APITestCase):
         response = self.client.post(self.url, data=self._get_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @data("staff", "offering_owner", "service_manager")
+    # can access campaign but not create for a service provider
+    def test_service_provider_can_not_create_campaign_in_offering(self, user):
+        self.other_offering = marketplace_factories.OfferingFactory(
+            customer=self.other_sp.customer
+        )
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(
+            self.url, data=self._get_payload(offerings=[self.other_offering.uuid.hex])
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["offering"][0],
+            "You do not have permissions to create campaign in selected offering.",
+        )
+
+    def test_offering_exists_in_campaign(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_payload(
+            offerings=[],
+        )
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(
+            response.data["offerings"]["offering"], "An offering must be specified."
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_validate_start_date(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = self._get_payload(
@@ -65,6 +93,10 @@ class CreateCampaignTest(test.APITestCase):
         )
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["start_date"][0],
+            "Campaign start cannot be before the current date.",
+        )
 
     def test_validate_end_date(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -74,6 +106,10 @@ class CreateCampaignTest(test.APITestCase):
         )
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["end_date"][0],
+            "Campaign end cannot be before the start date.",
+        )
 
     def test_validate_stock(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -82,6 +118,10 @@ class CreateCampaignTest(test.APITestCase):
         )
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["stock"][0],
+            "Stock cannot be defined if auto_apply is true.",
+        )
 
 
 @ddt
