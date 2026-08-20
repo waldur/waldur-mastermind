@@ -1341,14 +1341,18 @@ class CustomerAffiliateViewSet(core_views.ActionsViewSet):
 
 
 class CreditTransactionViewSet(core_views.ReadOnlyActionsViewSet):
-    """Read-only ledger of a customer credit's value changes (the withdrawable
-    balance trace). Visible to staff and to the credit's customer organization
-    owner via ``GenericRoleFilter`` against ``Permissions.customer_path``.
+    """Read-only ledger of credit value changes: the withdrawable balance trace
+    for an organization credit, and the drawdown history — used against usage,
+    lost to the minimal-consumption floor — for a project allocation.
+
+    ``GenericRoleFilter`` scopes it against ``Permissions``: staff see
+    everything, an organization owner their organization's rows on either
+    balance, and project roles their own project's.
     """
 
     lookup_field = "uuid"
     queryset = models.CreditTransaction.objects.select_related(
-        "credit__customer"
+        "credit__customer", "project_credit__project__customer"
     ).order_by("-created")
     serializer_class = serializers.CreditTransactionSerializer
     filter_backends = (

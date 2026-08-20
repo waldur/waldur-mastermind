@@ -44,6 +44,12 @@ class MonthlyCompensation:
         self._total_compensation = 0
         self._tail = 0
         self._project_tails: dict[models.ProjectCredit, float] = {}
+        # What each balance gave up to real usage this run. Measured at the
+        # point of each subtraction rather than derived from the compensation
+        # items afterwards: the last partial compensation of an exhausted credit
+        # is reduced by tax, so the item and the balance movement differ there.
+        self._customer_usage_draw = decimal.Decimal(0)
+        self._project_usage_draws: dict[models.ProjectCredit, decimal.Decimal] = {}
 
         self.credit = models.CustomerCredit.objects.filter(
             customer=self.customer
@@ -128,20 +134,24 @@ class MonthlyCompensation:
                     credit_compensation = project_credit.value  # item compensation
                     project_credit.value = 0
                     self.credit.value -= credit_compensation
+                    self._record_usage_draw(project_credit, credit_compensation)
                 else:
                     credit_compensation = cost
                     project_credit.value -= cost
                     self.credit.value -= cost
+                    self._record_usage_draw(project_credit, cost)
 
             else:
                 if cost >= self.credit.value:
                     credit_compensation = self.credit.value / (
                         1 + decimal.Decimal(self.invoice.tax_percent) / 100
                     )
+                    self._record_usage_draw(None, self.credit.value)
                     self.credit.value = 0
                 else:
                     credit_compensation = cost
                     self.credit.value -= cost
+                    self._record_usage_draw(None, cost)
 
             if credit_compensation:
                 # Copy the source item's details and link back to it, so the UI
@@ -237,6 +247,18 @@ class MonthlyCompensation:
         self.calculate_current_compensations()
         return self._tail
 
+    @property
+    def billing_period(self) -> datetime.date | None:
+        """First day of the month under compensation.
+
+        None when the customer has no invoice open — there is then no month to
+        bill and nothing to draw, and every caller here is a no-op rather than
+        an error.
+        """
+        if not self.invoice:
+            return None
+        return datetime.date(self.invoice.year, self.invoice.month, 1)
+
     def update_linear_expected_consumption(self):
         if (
             self.credit
@@ -296,6 +318,63 @@ class MonthlyCompensation:
                 scopes=[self.customer, project_credit.project],
             )
 
+    def _record_usage_draw(self, project_credit, amount):
+        """Remember what a balance gave up to usage, as it happens."""
+        amount = decimal.Decimal(amount)
+        if project_credit is None:
+            self._customer_usage_draw += amount
+            return
+        self._project_usage_draws[project_credit] = (
+            self._project_usage_draws.get(project_credit, decimal.Decimal(0)) + amount
+        )
+        # Usage drawn against a project allocation is drawn from the
+        # organization pool as well, in the same movement.
+        self._customer_usage_draw += amount
+
+    def _ledger_parts(self):
+        """The breakdown of this run's value changes, per credit.
+
+        Two kinds of movement share one save: what usage consumed, and the
+        top-up to the minimal-consumption floor. The floor draw is the "Lost"
+        figure — credit spent without buying anything — so it has to stay
+        separable from compensation in the ledger.
+        """
+        if not self.invoice:
+            return {}
+
+        billing_period = self.billing_period
+        parts = {}
+
+        customer_parts = [
+            ledger.TransactionPart(
+                models.CreditTransaction.Types.COMPENSATION,
+                -self._customer_usage_draw,
+                billing_period,
+            ),
+            ledger.TransactionPart(
+                models.CreditTransaction.Types.MINIMAL_DRAW,
+                -decimal.Decimal(self.tail or 0),
+                billing_period,
+            ),
+        ]
+        parts[ledger.part_key(self.credit)] = customer_parts
+
+        for project_credit in self.projects_credits:
+            parts[ledger.part_key(project_credit)] = [
+                ledger.TransactionPart(
+                    models.CreditTransaction.Types.COMPENSATION,
+                    -self._project_usage_draws.get(project_credit, decimal.Decimal(0)),
+                    billing_period,
+                ),
+                ledger.TransactionPart(
+                    models.CreditTransaction.Types.MINIMAL_DRAW,
+                    -decimal.Decimal(self._project_tails.get(project_credit, 0)),
+                    billing_period,
+                ),
+            ]
+
+        return parts
+
     def get_total_project_compensation(self, project: Project):
         return sum(
             c.unit_price * -1
@@ -312,10 +391,22 @@ class MonthlyCompensation:
 
         # The compensation flow emits its own REDUCTION_OF_*_CREDIT* events below;
         # suppress the generic UPDATE_OF_*_CREDIT_BY_STAFF audit to avoid duplicates.
+        #
+        # The declared breakdown is refused if it does not add up to the delta
+        # it claims to explain, so the enclosing type says what the movement is
+        # when that happens: still this month's compensation run, just no longer
+        # apportioned. Without it a refused breakdown would degrade all the way
+        # to an undated, unreferenced staff grant, and a run that already looks
+        # wrong would be filed as a grant of credit.
         with (
             skip_credit_audit(),
             ledger.credit_transaction_type(
-                models.CreditTransaction.Types.COMPENSATION, reference=self.invoice
+                models.CreditTransaction.Types.COMPENSATION,
+                reference=self.invoice,
+                billing_period=self.billing_period,
+            ),
+            ledger.credit_transaction_parts(
+                self._ledger_parts(), reference=self.invoice
             ),
         ):
             for pc in self.projects_credits:
@@ -497,10 +588,18 @@ class MonthlyCompensation:
 
         # The roll-back flow emits its own ROLL_BACK_*_CREDIT events below;
         # suppress the generic UPDATE_OF_*_CREDIT_BY_STAFF audit to avoid duplicates.
+        #
+        # Dated to the month it reverses, not left open: applying compensations
+        # is clear-then-save, and staff can run it against a pending invoice as
+        # often as they like. An undated roll-back leaves each superseded run's
+        # drawdown standing in its month, so the month reports the drawdown once
+        # per run instead of once.
         with (
             skip_credit_audit(),
             ledger.credit_transaction_type(
-                models.CreditTransaction.Types.ROLLBACK, reference=self.invoice
+                models.CreditTransaction.Types.ROLLBACK,
+                reference=self.invoice,
+                billing_period=self.billing_period,
             ),
         ):
             old_credit_value = self.credit.value

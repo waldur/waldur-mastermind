@@ -1,5 +1,6 @@
 """Staff withdrawable-balance adjustments and the credit-transaction trace."""
 
+import datetime
 from decimal import Decimal
 
 from django.urls import reverse
@@ -8,7 +9,7 @@ from rest_framework import status, test
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models
-from waldur_mastermind.invoices.tests import factories
+from waldur_mastermind.invoices.tests import factories, fixtures
 
 
 class WithdrawableAdjustmentTest(test.APITestCase):
@@ -127,3 +128,98 @@ class CreditTransactionTraceTest(test.APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+
+class ProjectCreditTransactionTraceTest(test.APITestCase):
+    """A project allocation's drawdown is half the ledger, and the half the
+    project dashboard is about. It has to be readable by the people the
+    dashboard is for, and carry enough on the row to group and attribute it."""
+
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.customer = self.fixture.customer
+        self.project = self.fixture.project
+        self.fixture.customer_credit.value = Decimal("100")
+        self.fixture.customer_credit.save(update_fields=["value"])
+        self.project_credit = factories.ProjectCreditFactory(
+            project=self.project, value=Decimal("40")
+        )
+        self.period = datetime.date(2024, 3, 1)
+        self.row = models.CreditTransaction.objects.create(
+            project_credit=self.project_credit,
+            project_uuid=self.project.uuid.hex,
+            project_name=self.project.name,
+            amount=Decimal("-10"),
+            transaction_type=models.CreditTransaction.Types.COMPENSATION,
+            billing_period=self.period,
+        )
+        self.list_url = reverse("credit-transaction-list")
+
+    def get(self, user, **query):
+        self.client.force_authenticate(user)
+        response = self.client.get(self.list_url, query)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def uuids(self, rows):
+        return {row["uuid"] for row in rows}
+
+    def test_owner_sees_project_rows(self):
+        self.assertIn(self.row.uuid.hex, self.uuids(self.get(self.fixture.owner)))
+
+    def test_project_role_sees_its_own_project_rows(self):
+        # Mirrors ProjectCredit itself, which project roles can already read so
+        # the project dashboard has something to render.
+        self.assertIn(self.row.uuid.hex, self.uuids(self.get(self.fixture.manager)))
+
+    def test_unrelated_user_sees_nothing(self):
+        self.assertEqual(self.get(structure_factories.UserFactory()), [])
+
+    def test_row_carries_its_project_and_month(self):
+        (row,) = [
+            row
+            for row in self.get(self.fixture.owner)
+            if row["uuid"] == self.row.uuid.hex
+        ]
+        self.assertEqual(row["project_uuid"], self.project.uuid.hex)
+        self.assertEqual(row["project_name"], self.project.name)
+        self.assertEqual(row["billing_period"], self.period)
+        # The organization is still named on a project row: a client scoping the
+        # ledger to one organization has nothing else to filter on.
+        self.assertEqual(row["customer_name"], self.customer.name)
+
+    def test_rows_can_be_narrowed_to_a_project_and_a_month(self):
+        other = factories.ProjectCreditFactory(
+            project=structure_factories.ProjectFactory(customer=self.customer)
+        )
+        other_row = models.CreditTransaction.objects.create(
+            project_credit=other,
+            project_uuid=other.project.uuid.hex,
+            project_name=other.project.name,
+            amount=Decimal("-5"),
+            transaction_type=models.CreditTransaction.Types.MINIMAL_DRAW,
+            billing_period=self.period,
+        )
+
+        by_project = self.uuids(
+            self.get(self.fixture.owner, project_uuid=self.project.uuid.hex)
+        )
+        self.assertIn(self.row.uuid.hex, by_project)
+        self.assertNotIn(other_row.uuid.hex, by_project)
+
+        # The allocations were granted outside any billing month, so only the
+        # drawdown rows answer to a month.
+        by_month = self.uuids(self.get(self.fixture.owner, billing_period="2024-03-01"))
+        self.assertEqual(by_month, {self.row.uuid.hex, other_row.uuid.hex})
+        self.assertEqual(self.get(self.fixture.owner, billing_period="2024-04-01"), [])
+
+    def test_a_row_outliving_its_allocation_still_names_its_project(self):
+        self.project_credit.delete()
+
+        (row,) = [
+            row
+            for row in self.get(self.fixture.staff)
+            if row["uuid"] == self.row.uuid.hex
+        ]
+        self.assertEqual(row["project_uuid"], self.project.uuid.hex)
+        self.assertIsNone(row["customer_uuid"])

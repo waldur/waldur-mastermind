@@ -1394,8 +1394,15 @@ class CreditTransactionSerializer(serializers.ModelSerializer):
     transaction_type_display = serializers.CharField(
         source="get_transaction_type_display", read_only=True
     )
-    customer_uuid = serializers.UUIDField(source="credit.customer.uuid", read_only=True)
-    customer_name = serializers.ReadOnlyField(source="credit.customer.name")
+    # Resolved through the model, because a row moves either the organization
+    # balance or a project allocation, and null once a deleted allocation has
+    # taken the path back to the organization with it.
+    customer_uuid = serializers.UUIDField(
+        source="customer.uuid", read_only=True, allow_null=True
+    )
+    customer_name = serializers.CharField(
+        source="customer.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = models.CreditTransaction
@@ -1408,6 +1415,14 @@ class CreditTransactionSerializer(serializers.ModelSerializer):
             "comment",
             "customer_uuid",
             "customer_name",
+            # Denormalised on the row, so a project keeps its drawdown in the
+            # response after its allocation is gone.
+            "project_uuid",
+            "project_name",
+            # The month the movement belongs to, which is not the month it was
+            # recorded in: a roll-back and a re-run both land in the month they
+            # are about.
+            "billing_period",
         )
 
 
