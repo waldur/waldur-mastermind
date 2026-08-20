@@ -137,6 +137,46 @@ positional arguments:
 
 ```
 
+## backfill_credit_ledger
+
+Reconstruct credit drawdown that predates the transaction ledger, from compensation invoice items and minimal-consumption audit events. Run with --dry-run first to see how much evidence survives.
+
+```bash
+
+usage: waldur backfill_credit_ledger [--dry-run] [--customer CUSTOMER_UUID]
+                                     [--project PROJECT_UUID] [--since SINCE]
+                                     [--until UNTIL]
+                                     [--infer-period {previous-month,none}]
+                                     [--no-opening-balance] [--force]
+
+options:
+  --dry-run             Report what would be written, and write nothing.
+  --customer CUSTOMER_UUID
+                        Only the credits of the organization with this UUID.
+  --project PROJECT_UUID
+                        Only the allocation of the project with this UUID. The
+                        organization credit is a separate balance and is left
+                        alone.
+  --since SINCE         Ignore evidence before this billing month (YYYY-MM).
+  --until UNTIL         Ignore evidence after this billing month (YYYY-MM).
+  --infer-period {previous-month,none}
+                        How to date minimal-consumption draws, whose events
+                        carry no billing period. 'previous-month' assumes the
+                        run billed the month before it was emitted, which
+                        holds for scheduled finalization; 'none' leaves the
+                        period empty, so the rows count towards the totals but
+                        towards no month — and are then not subject to
+                        --since/--until.
+  --no-opening-balance  Skip the balancing row, leaving only rows backed by
+                        evidence. Totals then no longer reconcile to the
+                        current value of any credit granted before the ledger
+                        existed.
+  --force               Redo credits that already carry backfilled rows: the
+                        previous reconstruction is deleted and written again.
+                        Only rows this command wrote are touched.
+
+```
+
 ## backfill_plan_periods
 
 Backfill plan_period on ComponentUsage records where it is NULL. This fixes incorrect quarterly/annual/total usage calculations caused by ComponentUsage records created without a plan_period.

@@ -1540,6 +1540,31 @@ You can submit resource usage via API or do it manually at {{ public_resources_u
 
 ```
 
+### notify_about_new_order_message.html (waldur_mastermind.marketplace)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>A new {{ order_type }} order for {{ order.offering.name }} has been placed by {{ order.created_by.get_full_name|default:"a user" }}.</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    {{ order.created_by.get_full_name|default:"A user" }} has placed a new {{ order_type }} order for {{ order.offering.name }}
+    in project {{ order.project.name }} of organization {{ order.project.customer.name }}.
+</p>
+<p>
+    Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
+</p>
+</body>
+</html>
+
+```
+
 ### notification_to_user_that_order_been_rejected_message.txt (waldur_mastermind.marketplace)
 
 ```txt
@@ -2294,6 +2319,19 @@ Thank you!
 
 ```
 
+### notify_about_new_order_message.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Hello!
+
+{{ order.created_by.get_full_name|default:"A user" }} has placed a new {{ order_type }} order for {{ order.offering.name }}
+in project {{ order.project.name }} of organization {{ order.project.customer.name }}.
+
+Please visit {{ order_url }} to find out more details.
+
+```
+
 ### tos_reconsent_required_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -2630,6 +2668,14 @@ Resource {{ resource_name }} creation has failed.
 ```txt
 
 Resource {{ resource_name }} has been deleted.
+
+```
+
+### notify_about_new_order_subject.txt (waldur_mastermind.marketplace)
+
+```txt
+
+A new {{ order_type }} order for {{ order.offering.name }} has been placed by {{ order.created_by.get_full_name|default:"a user" }}.
 
 ```
 
