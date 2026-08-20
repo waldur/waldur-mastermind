@@ -2203,7 +2203,11 @@ class PricesUpdateSerializer(serializers.Serializer):
             price_field = "price"
         for key, old_component in component_map.items():
             new_price = future_prices.get(key, 0)
-            old_price = getattr(old_component, price_field) or 0
+            old_price = getattr(old_component, price_field)
+            if old_price is None:
+                # A missing future price means the current price carries over,
+                # so that is the value the new one has to be compared against.
+                old_price = old_component.price
             if not prices_are_equal(old_price, new_price):
                 setattr(old_component, price_field, new_price)
                 old_component.save(update_fields=[price_field])

@@ -5193,10 +5193,10 @@ class ProviderOfferingViewSet(
                         else None,
                         "amount": plan_component.amount,
                         "price": float(plan_component.price)
-                        if plan_component.price
+                        if plan_component.price is not None
                         else 0,
                         "future_price": float(plan_component.future_price)
-                        if plan_component.future_price
+                        if plan_component.future_price is not None
                         else None,
                     }
                 )
