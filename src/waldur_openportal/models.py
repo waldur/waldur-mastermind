@@ -71,6 +71,9 @@ class UsageMixin(models.Model):
 
 
 class Allocation(UsageMixin, structure_models.BaseResource, core_models.AvailableMixin):
+    class Meta(structure_models.BaseResource.Meta):
+        pass
+
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 
@@ -163,6 +166,9 @@ class Allocation(UsageMixin, structure_models.BaseResource, core_models.Availabl
 class RemoteAllocation(
     UsageMixin, structure_models.BaseResource, core_models.AvailableMixin
 ):
+    class Meta(structure_models.BaseResource.Meta):
+        pass
+
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 
@@ -1682,7 +1688,7 @@ class ProjectTemplate(core_models.UuidMixin, models.Model):
     # Combination of name, offering and portal must be unique
     class Meta:
         unique_together = ("name", "offering", "portal")
-        ordering = ["name"]
+        ordering = ["name", "id"]
         verbose_name = _("Project class")
         verbose_name_plural = _("Project classes")
 
@@ -2639,7 +2645,7 @@ class ManagedProjectAuditEntry(models.Model):
     )
 
     class Meta:
-        ordering = ["-timestamp"]
+        ordering = ["-timestamp", "id"]
         verbose_name = _("Managed Project Audit Entry")
         verbose_name_plural = _("Managed Project Audit Entries")
 
@@ -3274,7 +3280,7 @@ class RemoteProjectAttachment(models.Model):
     )
 
     class Meta:
-        ordering = ["-attached_at"]
+        ordering = ["-attached_at", "id"]
         verbose_name = _("Remote Project Attachment")
         verbose_name_plural = _("Remote Project Attachments")
 
@@ -3379,7 +3385,7 @@ class RemoteProjectAllocationEntry(models.Model):
     )
 
     class Meta:
-        ordering = ["-submitted_at"]
+        ordering = ["-submitted_at", "id"]
         verbose_name = _("Remote Project Allocation Entry")
         verbose_name_plural = _("Remote Project Allocation Entries")
 
@@ -3524,7 +3530,7 @@ class RemoteProjectAuditEntry(models.Model):
     )
 
     class Meta:
-        ordering = ["-timestamp"]
+        ordering = ["-timestamp", "id"]
         verbose_name = _("Remote Project Audit Entry")
         verbose_name_plural = _("Remote Project Audit Entries")
 

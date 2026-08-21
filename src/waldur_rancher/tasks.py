@@ -560,7 +560,9 @@ def sync_rancher_roles():
             existing_role.save(update_fields=["display_name"])
 
     clusters = models.Cluster.objects.filter(state=CoreStates.OK)
-    rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
+    rancher_settings_ids = (
+        clusters.order_by().values_list("settings", flat=True).distinct()
+    )
     for rancher_settings_id in rancher_settings_ids:
         settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
         try:
@@ -584,7 +586,9 @@ def delete_leftover_keycloak_groups():
     Delete remote Keycloak groups with no linked groups in Waldur
     """
     clusters = models.Cluster.objects.filter(state=CoreStates.OK)
-    rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
+    rancher_settings_ids = (
+        clusters.order_by().values_list("settings", flat=True).distinct()
+    )
     for rancher_settings_id in rancher_settings_ids:
         settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
         try:
@@ -627,7 +631,9 @@ def delete_leftover_keycloak_memberships():
     Delete remote Keycloak user memberships in groups with no linked instances in Waldur
     """
     clusters = models.Cluster.objects.filter(state=CoreStates.OK)
-    rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
+    rancher_settings_ids = (
+        clusters.order_by().values_list("settings", flat=True).distinct()
+    )
     for rancher_settings_id in rancher_settings_ids:
         settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
         try:

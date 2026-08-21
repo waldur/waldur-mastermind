@@ -251,6 +251,7 @@ class AnonymousChatInteraction(models.Model):
     created = AutoCreatedField()
 
     class Meta:
+        ordering = ["-created", "id"]
         verbose_name = _("Anonymous Chat Interaction")
         verbose_name_plural = _("Anonymous Chat Interactions")
         indexes = [
@@ -335,6 +336,7 @@ class AnonymousChatFeedback(models.Model):
     modified_at = AutoLastModifiedField()
 
     class Meta:
+        ordering = ["-interaction_id"]
         verbose_name = _("Anonymous Chat Feedback")
         verbose_name_plural = _("Anonymous Chat Feedbacks")
         indexes = [

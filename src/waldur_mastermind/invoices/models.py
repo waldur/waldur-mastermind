@@ -973,7 +973,7 @@ class CreditTransaction(core_models.UuidMixin, models.Model):
         project_path = "project_credit__project"
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -1031,7 +1031,7 @@ class CustomerAffiliate(core_models.UuidMixin, core_models.TimeStampedModel):
 
     class Meta:
         unique_together = ("customer", "affiliate")
-        ordering = ["created"]
+        ordering = ["created", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -1078,7 +1078,7 @@ class AffiliateFeeAccrual(core_models.UuidMixin, core_models.TimeStampedModel):
 
     class Meta:
         unique_together = ("affiliate_link", "invoice")
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     @classmethod
     def get_url_name(cls):

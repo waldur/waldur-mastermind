@@ -54,7 +54,7 @@ class EventTypesMixin(models.Model):
 
 class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     user = models.ForeignKey[core_models.User](
         on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL
@@ -218,7 +218,7 @@ class Event(UuidMixin):
     context = models.JSONField(blank=True)
 
     class Meta:
-        ordering = ("-created",)
+        ordering = ["-created", "id"]
         indexes = [
             models.Index(fields=["-created", "event_type"]),
         ]
@@ -291,7 +291,7 @@ class EventSubscriptionQueue(UuidMixin, TimeStampedModel):
     class Meta:
         unique_together = ("event_subscription", "offering_uuid", "object_type")
         verbose_name = _("Subscription queue")
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     @property
     def queue_name(self) -> str:
@@ -418,7 +418,7 @@ class EmailLog(UuidMixin):
         return f"Email to {self.emails} at {self.sent_at}"
 
     class Meta:
-        ordering = ["-sent_at"]
+        ordering = ["-sent_at", "id"]
 
 
 class SystemLog(TimeStampedModel):
@@ -430,7 +430,7 @@ class SystemLog(TimeStampedModel):
         BEAT = "beat", "Beat"
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
         indexes = [
             models.Index(
                 fields=["-created", "source"], name="logging_syslog_created_idx"
@@ -517,7 +517,7 @@ class UserDataAccessLog(UuidMixin):
     )
 
     class Meta:
-        ordering = ["-timestamp"]
+        ordering = ["-timestamp", "id"]
         indexes = [
             models.Index(fields=["target_user", "-timestamp"]),
         ]

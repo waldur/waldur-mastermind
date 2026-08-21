@@ -74,6 +74,7 @@ class UserAction(UuidMixin, TimeStampedModel):
     corrective_actions = JSONField(default=list, blank=True)
 
     class Meta:
+        ordering = ["-created", "id"]
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "action_type", "object_id", "content_type"],
@@ -150,6 +151,7 @@ class UserActionProvider(models.Model):
     last_execution_status = models.CharField(max_length=50, blank=True)
 
     class Meta:
+        ordering = ["app_name", "id"]
         constraints = [
             models.UniqueConstraint(
                 fields=["app_name", "action_type"],
@@ -181,6 +183,7 @@ class UserActionExecution(TimeStampedModel):
     execution_metadata = JSONField(default=dict, blank=True)
 
     class Meta:
+        ordering = ["-created", "id"]
         indexes = [
             models.Index(fields=["action", "executed_at"]),
             models.Index(fields=["user", "executed_at"]),

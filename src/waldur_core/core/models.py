@@ -844,7 +844,7 @@ class SshPublicKey(TimeStampedModel, LoggableMixin, UuidMixin, models.Model):
         unique_together = ("user", "name")
         verbose_name = _("SSH public key")
         verbose_name_plural = _("SSH public keys")
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
     def save(
         self, force_insert=False, force_update=False, using=None, update_fields=None
@@ -1050,7 +1050,7 @@ class NotificationTemplate(UuidMixin, NameMixin, TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["name", "path"]
+        ordering = ["name", "path", "id"]
 
     def __str__(self):
         return self.path
@@ -1443,7 +1443,7 @@ class DailyTableSizeHistory(models.Model):
         unique_together = ("table_name", "date")
         verbose_name = "Daily table size history"
         verbose_name_plural = "Daily table size history"
-        ordering = ["-date", "table_name"]
+        ordering = ["-date", "table_name", "id"]
 
     def __str__(self):
         return f"{self.table_name} ({self.date})"
@@ -1478,7 +1478,7 @@ class PersonalAccessToken(UuidMixin, NameMixin, TimeStampedModel):
     use_count = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     def __str__(self):
         return f"{self.name} ({self.token_prefix}...)"

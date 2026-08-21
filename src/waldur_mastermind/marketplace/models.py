@@ -196,7 +196,7 @@ class CategoryGroup(
     class Meta:
         verbose_name = _("Category group")
         verbose_name_plural = _("Category groups")
-        ordering = ("title",)
+        ordering = ["title", "id"]
 
     def __str__(self):
         return str(self.title)
@@ -238,7 +238,7 @@ class OfferingGroup(
     class Meta:
         verbose_name = _("Offering group")
         verbose_name_plural = _("Offering groups")
-        ordering = ("title",)
+        ordering = ["title", "id"]
 
     def __str__(self):
         return str(self.title)
@@ -319,7 +319,7 @@ class Category(
     class Meta:
         verbose_name = _("Category")
         verbose_name_plural = _("Categories")
-        ordering = ("title",)
+        ordering = ["title", "id"]
 
     def __str__(self):
         return str(self.title)
@@ -349,7 +349,7 @@ class CategoryColumn(
     """
 
     class Meta:
-        ordering = ("category", "index")
+        ordering = ["category", "index", "id"]
 
     category = models.ForeignKey(
         on_delete=models.CASCADE, to=Category, related_name="columns"
@@ -588,7 +588,7 @@ class OfferingProfile(
     )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
 
 class Offering(
@@ -789,7 +789,7 @@ class Offering(
 
     class Meta:
         verbose_name = _("Offering")
-        ordering = ["name"]
+        ordering = ["name", "id"]
         indexes = [
             Index(fields=["customer", "state"], name="mp_offering_customer_state_idx"),
             Index(fields=["name"], name="mp_offering_name_idx"),
@@ -968,6 +968,7 @@ class UserOfferingConsent(TimeStampedModel, core_models.UuidMixin, LoggableMixin
     )
 
     class Meta:
+        ordering = ["-created", "id"]
         unique_together = (
             "user",
             "offering",
@@ -1014,7 +1015,7 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
         constraints = [
             models.UniqueConstraint(
                 fields=["offering"],
@@ -1207,7 +1208,7 @@ class OfferingComponent(
 
     class Meta:
         unique_together = ("type", "offering")
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
     offering = models.ForeignKey(
@@ -1380,7 +1381,7 @@ class Plan(
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -1526,7 +1527,7 @@ class PlanComponent(LoggableMixin, models.Model):
 
     class Meta:
         unique_together = ("plan", "component")
-        ordering = ("component__name",)
+        ordering = ["component__name", "id"]
 
     plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name="components"
@@ -1838,7 +1839,7 @@ class Resource(
         list_permission = PermissionEnum.LIST_RESOURCES
 
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
         unique_together = ("content_type", "object_id")
         indexes = [
             Index(fields=["offering", "state"], name="mp_resource_offering_state_idx"),
@@ -2469,7 +2470,7 @@ class AccessSubnetOfferingScope(core_models.UuidMixin, LoggableMixin):
 
     class Meta:
         unique_together = ("access_subnet", "offering")
-        ordering = ["offering__name"]
+        ordering = ["offering__name", "id"]
 
     def __str__(self):
         return f"{self.access_subnet} | {self.offering.name}"
@@ -2502,7 +2503,7 @@ class OfferingAccessSubnet(
 
     class Meta:
         unique_together = ("offering", "inet")
-        ordering = ["inet"]
+        ordering = ["inet", "id"]
 
     def __str__(self):
         return self.offering.name + " | " + str(self.inet)
@@ -2664,7 +2665,7 @@ class Order(
 
     class Meta:
         verbose_name = _("Order")
-        ordering = ("created",)
+        ordering = ["created", "id"]
         indexes = [
             Index(fields=["state", "-created"], name="mp_order_state_created_idx"),
         ]
@@ -3168,6 +3169,7 @@ class ComponentUsageMonthly(models.Model):
     )
 
     class Meta:
+        ordering = ["-billing_period", "id"]
         unique_together = ("component", "billing_period")
         indexes = [
             models.Index(fields=["billing_period", "component"]),
@@ -3265,7 +3267,7 @@ class OfferingUser(
 
     class Meta:
         unique_together = ("offering", "user")
-        ordering = ["username"]
+        ordering = ["username", "id"]
         indexes = [
             Index(fields=["offering", "user"], name="mp_offeringuser_offer_user_idx"),
         ]
@@ -3682,7 +3684,7 @@ class PosixIdentity(
     class Meta:
         verbose_name = _("POSIX identity")
         verbose_name_plural = _("POSIX identities")
-        ordering = ("pool", "uid", "gid")
+        ordering = ["pool", "uid", "gid", "id"]
         constraints = [
             UniqueConstraint(
                 fields=["pool", "uid"],
@@ -3786,7 +3788,7 @@ class BaseServiceAccount(
 
     class Meta:
         abstract = True
-        ordering = ["created"]
+        ordering = ["created", "id"]
 
     def get_log_fields(self):
         return ("username",)
@@ -3819,7 +3821,7 @@ class ScopedServiceAccount(BaseServiceAccount):
     user details and scope-specific management.
     """
 
-    class Meta:
+    class Meta(BaseServiceAccount.Meta):
         abstract = True
 
     email = models.EmailField(max_length=320, default="")
@@ -3852,7 +3854,7 @@ class ProjectServiceAccount(ScopedServiceAccount):
         ),
     )
 
-    class Meta:
+    class Meta(ScopedServiceAccount.Meta):
         verbose_name = _("Project service account")
 
     def __str__(self):
@@ -3881,7 +3883,7 @@ class CustomerServiceAccount(ScopedServiceAccount):
         ),
     )
 
-    class Meta:
+    class Meta(ScopedServiceAccount.Meta):
         verbose_name = _("Customer service account")
 
     def __str__(self):
@@ -3964,7 +3966,7 @@ class RobotAccount(
 
     class Meta:
         unique_together = ("resource", "type")
-        ordering = ["created"]
+        ordering = ["created", "id"]
 
     def get_log_fields(self):
         return super().get_log_fields() + ("type",)
@@ -4052,7 +4054,7 @@ class SoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
 
     class Meta:
         unique_together = ("name", "version", "catalog_type")
-        ordering = ["name", "catalog_type", "version"]
+        ordering = ["name", "catalog_type", "version", "id"]
 
     def __str__(self):
         return f"{self.name} {self.version} ({self.get_catalog_type_display()})"
@@ -4104,7 +4106,7 @@ class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
 
     class Meta:
         unique_together = ("catalog", "name")
-        ordering = ["name"]
+        ordering = ["name", "id"]
         indexes = [
             models.Index(fields=["catalog", "name"]),
             models.Index(fields=["name"]),
@@ -4157,7 +4159,7 @@ class SoftwareVersion(core_models.UuidMixin, TimeStampedModel):
 
     class Meta:
         unique_together = ("package", "version", "module_version")
-        ordering = ["package", "version", "module_version"]
+        ordering = ["package", "version", "module_version", "id"]
         indexes = [
             models.Index(fields=["package", "version"]),
             models.Index(fields=["package", "module_version"]),
@@ -4238,6 +4240,7 @@ class SoftwareTarget(core_models.UuidMixin, TimeStampedModel):
     )
 
     class Meta:
+        ordering = ["-created", "id"]
         unique_together = ("version", "target_type", "target_name", "target_subtype")
         indexes = [
             models.Index(fields=["target_type", "target_name"]),
@@ -4608,7 +4611,7 @@ class ResourceProject(
         return ("uuid", "name", "backend_id", "resource")
 
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
         # Partial unique constraint: only enforce uniqueness for active rows so
         # a soft-deleted project can be recreated with the same name.
         constraints = [
@@ -4864,6 +4867,7 @@ class IntegrationStatus(core_models.UuidMixin):
     service_name = models.CharField(_("Service name"), max_length=150, default="")
 
     class Meta:
+        ordering = ["id"]
         unique_together = ("offering", "agent_type")
 
     @transition(
@@ -5104,7 +5108,7 @@ class MaintenanceAnnouncement(
     class Meta:
         verbose_name = _("Maintenance announcement")
         verbose_name_plural = _("Maintenance announcements")
-        ordering = ["-scheduled_start"]
+        ordering = ["-scheduled_start", "id"]
 
     class Permissions:
         customer_path = "service_provider__customer"
@@ -5265,7 +5269,7 @@ class MaintenanceAnnouncementTemplate(
     class Meta:
         verbose_name = _("Maintenance announcement")
         verbose_name_plural = _("Maintenance announcements")
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     class Permissions:
         customer_path = "service_provider__customer"
@@ -5333,7 +5337,7 @@ class CourseAccount(
 
     class Meta:
         verbose_name = _("Course account")
-        ordering = ["created"]
+        ordering = ["created", "id"]
 
     def __str__(self):
         user_name = self.user.username if self.user else "unknown"
@@ -5373,7 +5377,7 @@ class ResourceLimitChangeRequest(
     """
 
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
         verbose_name = _("Resource limit change request")
         verbose_name_plural = _("Resource limit change requests")
         constraints = [
@@ -5424,7 +5428,7 @@ class ResourceEndDateChangeRequest(
     """
 
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
         verbose_name = _("Resource end date change request")
         verbose_name_plural = _("Resource end date change requests")
         constraints = [

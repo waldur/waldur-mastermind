@@ -15,6 +15,9 @@ class TestNewInstance(
 ):
     __test__ = False
 
+    class Meta(structure_models.VirtualMachine.Meta):
+        pass
+
     flavor_name = models.CharField(max_length=255, blank=True)
     tracker = cast(FieldInstanceTracker, FieldTracker())
 

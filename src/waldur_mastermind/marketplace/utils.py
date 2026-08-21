@@ -1045,7 +1045,7 @@ def get_service_provider_user_ids(user, service_provider, customer=None):
     )
     if user.is_authenticated and not user.is_staff and not user.is_support:
         qs = qs.filter(user__is_active=True)
-    return qs.values_list("user_id", flat=True).distinct()
+    return qs.order_by().values_list("user_id", flat=True).distinct()
 
 
 def get_plan_period(resource, date):

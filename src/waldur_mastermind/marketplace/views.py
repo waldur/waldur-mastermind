@@ -770,7 +770,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         customer_name = request.query_params.get("customer_name")
         if customer_name:
             qs = qs.filter(resource__project__customer__name__icontains=customer_name)
-        customer_ids = qs.values_list("resource__project__customer_id").distinct()
+        customer_ids = (
+            qs.order_by().values_list("resource__project__customer_id").distinct()
+        )
         customers = structure_models.Customer.objects.filter(
             id__in=customer_ids
         ).order_by("name")
@@ -813,7 +815,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         project_name = request.query_params.get("project_name")
         if project_name:
             qs = qs.filter(resource__offering__project__name__icontains=project_name)
-        project_ids = qs.values_list("resource__project_id").distinct()
+        project_ids = qs.order_by().values_list("resource__project_id").distinct()
         projects = structure_models.Project.objects.filter(id__in=project_ids).order_by(
             "name"
         )
@@ -1311,7 +1313,9 @@ class ServiceProviderOfferingsViewSet(
     )
     @action(detail=False, methods=["GET"])
     def types(self, request, **kwargs):
-        types = sorted(self.get_queryset().values_list("type", flat=True).distinct())
+        types = sorted(
+            self.get_queryset().order_by().values_list("type", flat=True).distinct()
+        )
         serializer = drf_serializers.ListSerializer(
             instance=types, child=drf_serializers.CharField()
         )
@@ -13228,7 +13232,9 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
         )
 
         # Count distinct offerings with resources
-        offerings_count = active_resources.values("offering__uuid").distinct().count()
+        offerings_count = (
+            active_resources.order_by().values("offering__uuid").distinct().count()
+        )
 
         data = {
             "total_resources": total_resources,

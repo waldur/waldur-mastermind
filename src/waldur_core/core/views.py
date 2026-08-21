@@ -2181,6 +2181,8 @@ class SettingsMetadataView(APIView):
 class PersonalAccessTokenViewSet(ActionsViewSet):
     """Manage personal access tokens for programmatic API access."""
 
+    # Declared so the model stays introspectable; get_queryset() narrows it.
+    queryset = models.PersonalAccessToken.objects.all()
     serializer_class = PersonalAccessTokenSerializer
     create_serializer_class = PersonalAccessTokenCreateSerializer
     lookup_field = "uuid"

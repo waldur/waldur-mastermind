@@ -136,7 +136,9 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Count by action type
         type_counts = {}
-        action_types = queryset.values_list("action_type", flat=True).distinct()
+        action_types = (
+            queryset.order_by().values_list("action_type", flat=True).distinct()
+        )
         for action_type in action_types:
             type_counts[action_type] = queryset.filter(action_type=action_type).count()
 

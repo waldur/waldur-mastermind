@@ -43,7 +43,7 @@ class DryRun(
 
     class Meta:
         verbose_name = _("Dry run")
-        ordering = ("created",)
+        ordering = ["created", "id"]
 
     class Permissions:
         customer_path = "order_offering__customer"

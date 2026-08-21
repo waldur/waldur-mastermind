@@ -12,7 +12,7 @@ from waldur_core.structure import models as structure_models
 
 class Region(structure_models.GeneralServiceProperty):
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -21,7 +21,7 @@ class Region(structure_models.GeneralServiceProperty):
 
 class Image(structure_models.GeneralServiceProperty):
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
     region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
 
@@ -39,7 +39,7 @@ class Image(structure_models.GeneralServiceProperty):
 
 class Size(structure_models.GeneralServiceProperty):
     class Meta:
-        ordering = ["cores", "ram"]
+        ordering = ["cores", "ram", "id"]
 
     regions = models.ManyToManyField(Region)
     cores = models.PositiveSmallIntegerField(help_text=_("Number of cores in a VM"))
@@ -102,6 +102,9 @@ class Instance(structure_models.VirtualMachine):
 
 
 class Volume(RuntimeStateMixin, structure_models.BaseResource):
+    class Meta(structure_models.BaseResource.Meta):
+        pass
+
     VOLUME_TYPES = (
         ("gp2", _("General Purpose SSD")),
         ("io1", _("Provisioned IOPS SSD")),

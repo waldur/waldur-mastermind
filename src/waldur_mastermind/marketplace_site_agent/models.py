@@ -50,7 +50,7 @@ class AgentIdentity(
 
     class Meta:
         verbose_name = _("Agent identity")
-        ordering = ["created"]
+        ordering = ["created", "id"]
 
     def __str__(self):
         return self.name
@@ -69,7 +69,7 @@ class AgentService(core_models.UuidMixin, TimeStampedModel, core_models.NameMixi
 
     class Meta:
         verbose_name = _("Agent service")
-        ordering = ["created"]
+        ordering = ["created", "id"]
         unique_together = ("identity", "name")
 
     def __str__(self) -> str:
@@ -94,7 +94,7 @@ class AgentProcessor(core_models.UuidMixin, TimeStampedModel, core_models.NameMi
 
     class Meta:
         verbose_name = _("Agent processor")
-        ordering = ["created"]
+        ordering = ["created", "id"]
         unique_together = ("service", "name")
 
     def __str__(self) -> str:
@@ -126,4 +126,4 @@ class SiteAgentLog(core_models.UuidMixin, TimeStampedModel):
 
     class Meta:
         verbose_name = _("Site agent log")
-        ordering = ["-timestamp"]
+        ordering = ["-timestamp", "id"]

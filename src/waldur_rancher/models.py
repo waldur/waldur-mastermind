@@ -43,6 +43,9 @@ class SettingsMixin(models.Model):
 
 
 class Cluster(SettingsMixin, BaseResource, core_models.AvailableMixin):
+    class Meta(BaseResource.Meta):
+        pass
+
     class RuntimeStates:
         ACTIVE = "active"
 
@@ -97,7 +100,9 @@ class Cluster(SettingsMixin, BaseResource, core_models.AvailableMixin):
         Returns all tenants linked to this cluster.
         """
         return list(
-            self.node_set.values_list("instance__tenant_id", flat=True).distinct()
+            self.node_set.order_by()
+            .values_list("instance__tenant_id", flat=True)
+            .distinct()
         )
 
     @classmethod
@@ -163,7 +168,7 @@ class Node(
     cluster_id: int
 
     class Meta:
-        ordering = ("name",)
+        ordering = ["name", "id"]
         unique_together = ("cluster", "name")
 
     class Permissions:
@@ -195,7 +200,7 @@ class RancherUser(
 
     class Meta:
         unique_together = (("user", "settings"),)
-        ordering = ("user__username",)
+        ordering = ["user__username", "id"]
 
     class Permissions:
         customer_path = "settings__customer"
@@ -260,6 +265,9 @@ class Catalog(
     commit = models.CharField(max_length=40, blank=True)
     username = models.CharField(max_length=255, blank=True)
     password = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["-created", "id"]
 
     def get_backend(self):
         scope = cast(ServiceSettings | Cluster, self.scope)
@@ -357,7 +365,7 @@ class Template(
         return "rancher-template"
 
     class Meta:
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
 
 class Workload(
@@ -387,7 +395,7 @@ class Workload(
         project_path = "cluster__project"
 
     class Meta:
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -434,7 +442,7 @@ class HPA(
         project_path = "cluster__project"
 
     class Meta:
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -451,7 +459,7 @@ class ClusterTemplate(
     nodes: models.Manager["ClusterTemplateNode"]
 
     class Meta:
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -471,6 +479,9 @@ class ClusterTemplateNode(RoleMixin):
 
 
 class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
+    class Meta(BaseResource.Meta):
+        pass
+
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
     template = models.ForeignKey(Template, on_delete=models.CASCADE)
     rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -493,6 +504,9 @@ class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
 
 class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
+    class Meta(BaseResource.Meta):
+        pass
+
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
     rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -507,6 +521,9 @@ class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
 
 class Service(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
+    class Meta(BaseResource.Meta):
+        pass
+
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
     cluster_ip = models.GenericIPAddressField(protocol="IPv4", blank=True, null=True)
     target_workloads = models.ManyToManyField(Workload)

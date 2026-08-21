@@ -46,7 +46,7 @@ class Checklist(
         return f"{self.name} ({self.get_checklist_type_display()})"
 
     class Meta:
-        ordering = ("checklist_type", "name")
+        ordering = ["checklist_type", "name", "id"]
 
 
 class Question(core_models.UuidMixin, core_models.DescribableMixin):
@@ -231,10 +231,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
     )
 
     class Meta:
-        ordering = (
-            "checklist",
-            "order",
-        )
+        ordering = ["checklist", "order", "id"]
 
     def is_dependant(self):
         return self.dependencies.exists()
@@ -576,7 +573,7 @@ class QuestionOption(core_models.UuidMixin):
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["order"]
+        ordering = ["order", "id"]
 
     def __str__(self):
         return f"{self.question.description[:30]}... - {self.label}"
@@ -650,7 +647,7 @@ class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
     class Meta:
         verbose_name = "Question dependency"
         verbose_name_plural = "Question dependencies"
-        ordering = ("created",)
+        ordering = ["created", "id"]
 
 
 class ChecklistCompletion(
@@ -700,7 +697,7 @@ class ChecklistCompletion(
         unique_together = ["scope_content_type", "scope_object_id", "checklist"]
         verbose_name = "Checklist completion"
         verbose_name_plural = "Checklist completions"
-        ordering = ["-modified"]
+        ordering = ["-modified", "id"]
 
     def __str__(self):
         return f"{self.scope} - {self.checklist.name}"

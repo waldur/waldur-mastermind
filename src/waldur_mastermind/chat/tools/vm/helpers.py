@@ -342,14 +342,22 @@ def resolve_subnet(tenant: Tenant, network_uuid=None) -> SubNet:
         except (ValueError, AttributeError):
             raise ValueError(f"Invalid network UUID: {network_uuid}") from None
 
-        subnet = SubNet.objects.filter(
-            tenant=tenant, network__uuid=uuid_obj, state=CoreStates.OK
-        ).first()
+        subnet = (
+            SubNet.objects.filter(
+                tenant=tenant, network__uuid=uuid_obj, state=CoreStates.OK
+            )
+            .order_by("created", "id")
+            .first()
+        )
         if not subnet:
             raise ValueError(f"Network '{network_uuid}' not found or has no subnets.")
         return subnet
 
-    subnet = SubNet.objects.filter(tenant=tenant, state=CoreStates.OK).first()
+    subnet = (
+        SubNet.objects.filter(tenant=tenant, state=CoreStates.OK)
+        .order_by("created", "id")
+        .first()
+    )
     if not subnet:
         raise ValueError("No available networks in this tenant.")
     return subnet

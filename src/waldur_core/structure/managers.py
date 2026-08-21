@@ -355,7 +355,11 @@ def get_active_tokens():
     # Get tokens that are either:
     # 1. Within their lifetime (created + token_lifetime > now)
     # 2. Have no lifetime limit (token_lifetime is NULL)
-    return authtoken_models.Token.objects.filter(
-        Q(created__gte=Now() - F("user__token_lifetime") * timedelta(seconds=1))
-        | Q(user__token_lifetime__isnull=True)
-    ).select_related("user")
+    return (
+        authtoken_models.Token.objects.filter(
+            Q(created__gte=Now() - F("user__token_lifetime") * timedelta(seconds=1))
+            | Q(user__token_lifetime__isnull=True)
+        )
+        .select_related("user")
+        .order_by("-created", "key")
+    )

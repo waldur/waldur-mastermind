@@ -180,6 +180,8 @@ class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
     Use /api/hooks/ to get a list of all the hooks of any type that a user can see.
     """
 
+    # Declared so the model stays introspectable; get_queryset() narrows it.
+    queryset = models.BaseHook.objects.all()
     serializer_class = serializers.SummaryHookSerializer
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
     filterset_class = filters.BaseHookFilter

@@ -14,7 +14,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 
 class ProjectUpdateRequest(core_models.UuidMixin, ReviewMixin):
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="+")
     offering = models.ForeignKey(

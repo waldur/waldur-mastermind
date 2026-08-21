@@ -38,6 +38,9 @@ class VirtualMachine(
     structure_models.BaseResource,
     core_models.AvailableMixin,
 ):
+    class Meta(structure_models.BaseResource.Meta):
+        pass
+
     disks: models.Manager["Disk"]
 
     class RuntimeStates:
@@ -134,6 +137,9 @@ class VirtualMachine(
 
 
 class Port(core_models.RuntimeStateMixin, structure_models.BaseResource):
+    class Meta(structure_models.BaseResource.Meta):
+        pass
+
     vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine)
     network = models.ForeignKey(on_delete=models.CASCADE, to="Network")
     mac_address = models.CharField(

@@ -149,7 +149,7 @@ class Tenant(
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
-    class Meta:
+    class Meta(structure_models.BaseResource.Meta):
         unique_together = ("service_settings", "backend_id")
 
     @classmethod
@@ -473,7 +473,7 @@ class HypervisorInventory(core_models.UuidMixin, models.Model):
 
     class Meta:
         unique_together = ("hypervisor", "resource_class")
-        ordering = ("hypervisor", "resource_class")
+        ordering = ["hypervisor", "resource_class", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -785,7 +785,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
-    class Meta:
+    class Meta(structure_models.BaseResource.Meta):
         unique_together = ("tenant", "address")
         verbose_name = _("Floating IP")
         verbose_name_plural = _("Floating IPs")
@@ -1181,6 +1181,9 @@ class HealthMonitor(structure_models.BaseResource):
 
 
 class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
+    class Meta(structure_models.BaseResource.Meta):
+        pass
+
     subnets: models.Manager["SubNet"]
     ports: models.Manager["Port"]
     rbac_policies: models.Manager["NetworkRBACPolicy"]
@@ -1306,7 +1309,7 @@ class SubNet(structure_models.BaseResource):
         default=True, help_text=_("Is subnet connected to the default tenant router.")
     )
 
-    class Meta:
+    class Meta(structure_models.BaseResource.Meta):
         verbose_name = _("Subnet")
         verbose_name_plural = _("Subnets")
 
@@ -1633,7 +1636,7 @@ class Volume(
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
-    class Meta:
+    class Meta(structure_models.BaseResource.Meta):
         unique_together = ("service_settings", "backend_id")
 
     def get_quota_deltas(self):
@@ -1723,7 +1726,7 @@ class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Stora
         help_text=_("Guaranteed time of snapshot retention. If null - keep forever."),
     )
 
-    class Meta:
+    class Meta(structure_models.BaseResource.Meta):
         unique_together = ("service_settings", "backend_id")
 
     @classmethod
@@ -1919,9 +1922,9 @@ class Instance(
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
-    class Meta:
+    class Meta(structure_models.BaseResource.Meta):
         unique_together = ("service_settings", "backend_id")
-        ordering = ["name", "created"]
+        ordering = ["name", "created", "id"]
 
     @property
     def external_ips(self) -> list[str]:
@@ -2117,7 +2120,7 @@ class NetworkRBACPolicy(
         verbose_name = "Network RBAC Policy"
         verbose_name_plural = "Network RBAC Policies"
         unique_together = ("network", "target_tenant", "policy_type")
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     def __str__(self):
         return f"RBAC policy for {self.network} to {self.target_tenant}"

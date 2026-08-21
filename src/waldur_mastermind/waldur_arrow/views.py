@@ -551,7 +551,9 @@ class ArrowVendorOfferingMappingViewSet(core_views.ActionsViewSet):
                     billing_sync__customer_mapping__settings__uuid=settings_uuid
                 )
 
-            db_vendors = queryset.values_list("vendor_name", flat=True).distinct()
+            db_vendors = (
+                queryset.order_by().values_list("vendor_name", flat=True).distinct()
+            )
             vendor_names.update(db_vendors)
 
         # Return as list of objects with value/label for dropdown

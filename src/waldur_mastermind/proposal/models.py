@@ -132,6 +132,9 @@ class Call(
 ):
     """Main entity representing calls for proposals with states (draft, active, archived). Contains configuration for reviewer visibility, review settings, and fixed duration parameters."""
 
+    class Meta:
+        ordering = ["-created", "id"]
+
     class States(CallStates):
         pass
 
@@ -377,7 +380,7 @@ class CallWorkflowStep(
 
     class Meta:
         unique_together = ("call", "step")
-        ordering = ["created"]
+        ordering = ["created", "id"]
         verbose_name = _("Workflow step")
         verbose_name_plural = _("Workflow steps")
 
@@ -616,6 +619,9 @@ class Round(
     scheduling (submission window, review duration, allocation timing).
     """
 
+    class Meta:
+        ordering = ["-created", "id"]
+
     class Statuses(RoundStatuses):
         pass
 
@@ -790,7 +796,7 @@ class Proposal(
         return "proposal-proposal"
 
     class Meta:
-        ordering = ["round__start_time"]
+        ordering = ["round__start_time", "id"]
 
     @property
     def checklist_completion(self):
@@ -923,6 +929,9 @@ class RequestedResource(
 ):
     """Specific resource requests within proposals, linking to marketplace resources with attributes and limits configuration."""
 
+    class Meta:
+        ordering = ["-created", "id"]
+
     class Permissions:
         project_path = "proposal__project"
 
@@ -1045,7 +1054,7 @@ class ProposalWorkflowStepInstance(
 
     class Meta:
         unique_together = ("proposal", "step")
-        ordering = ["created"]
+        ordering = ["created", "id"]
         verbose_name = _("Proposal workflow step")
         verbose_name_plural = _("Proposal workflow steps")
         constraints = [
@@ -1065,6 +1074,9 @@ class Review(
     core_models.UuidMixin,
 ):
     """Peer review system with detailed scoring, public/private comments, and field-specific feedback for all proposal aspects."""
+
+    class Meta:
+        ordering = ["-created", "id"]
 
     class States:
         IN_REVIEW = "in_review"
@@ -1298,7 +1310,7 @@ class ReviewerAffiliation(
     class Meta:
         verbose_name = _("Reviewer affiliation")
         verbose_name_plural = _("Reviewer affiliations")
-        ordering = ["-start_date"]
+        ordering = ["-start_date", "id"]
         indexes = [
             models.Index(fields=["organization"]),
             models.Index(fields=["organization_name"]),
@@ -1400,6 +1412,7 @@ class ReviewerExpertise(
     )
 
     class Meta:
+        ordering = ["-created", "id"]
         verbose_name = _("Reviewer expertise")
         verbose_name_plural = _("Reviewer expertise")
         unique_together = ("reviewer_profile", "expertise_keyword")
@@ -1464,7 +1477,7 @@ class ReviewerPublication(
     class Meta:
         verbose_name = _("Reviewer publication")
         verbose_name_plural = _("Reviewer publications")
-        ordering = ["-publication_year"]
+        ordering = ["-publication_year", "id"]
         indexes = [
             models.Index(fields=["doi"]),
             models.Index(fields=["publication_year"]),
@@ -1758,7 +1771,7 @@ class ConflictOfInterest(
     class Meta:
         verbose_name = _("Conflict of interest")
         verbose_name_plural = _("Conflicts of interest")
-        ordering = ["-detected_at"]
+        ordering = ["-detected_at", "id"]
         indexes = [
             models.Index(fields=["call", "status"]),
             models.Index(fields=["reviewer", "proposal"]),
@@ -1832,7 +1845,7 @@ class COIDisclosureForm(
     class Meta:
         verbose_name = _("COI disclosure form")
         verbose_name_plural = _("COI disclosure forms")
-        ordering = ["-certification_date"]
+        ordering = ["-certification_date", "id"]
         indexes = [
             models.Index(fields=["reviewer", "call"]),
             models.Index(fields=["is_current", "valid_until"]),
@@ -1995,7 +2008,7 @@ class CallReviewerPool(
     class Meta:
         verbose_name = _("Call reviewer pool member")
         verbose_name_plural = _("Call reviewer pool members")
-        ordering = ["-invited_at"]
+        ordering = ["-invited_at", "id"]
         indexes = [
             models.Index(fields=["invitation_status"]),
             models.Index(fields=["invitation_token"]),
@@ -2118,7 +2131,7 @@ class ReviewerSuggestion(
         verbose_name = _("Reviewer suggestion")
         verbose_name_plural = _("Reviewer suggestions")
         unique_together = ("call", "reviewer")
-        ordering = ["-affinity_score"]
+        ordering = ["-affinity_score", "id"]
         indexes = [
             models.Index(fields=["status"]),
         ]
@@ -2167,7 +2180,7 @@ class COIDetectionJob(
     class Meta:
         verbose_name = _("COI detection job")
         verbose_name_plural = _("COI detection jobs")
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     def __str__(self):
         return f"COI Job {self.uuid} - {self.call.name} ({self.state})"
@@ -2354,7 +2367,7 @@ class ProposedAssignment(
         verbose_name = _("Proposed assignment")
         verbose_name_plural = _("Proposed assignments")
         unique_together = ("call", "reviewer", "proposal")
-        ordering = ["proposal", "rank"]
+        ordering = ["proposal", "rank", "id"]
 
     def __str__(self):
         return (
@@ -2406,7 +2419,7 @@ class ReviewerBid(
         verbose_name = _("Reviewer bid")
         verbose_name_plural = _("Reviewer bids")
         unique_together = ("call", "reviewer", "proposal")
-        ordering = ["-submitted_at"]
+        ordering = ["-submitted_at", "id"]
 
     def __str__(self):
         return f"{self.reviewer.user.full_name} - {self.proposal.name}: {self.bid}"
@@ -2465,6 +2478,7 @@ class CallAssignmentConfiguration(
     )
 
     class Meta:
+        ordering = ["-created", "id"]
         verbose_name = _("Call assignment configuration")
         verbose_name_plural = _("Call assignment configurations")
 
@@ -2583,7 +2597,7 @@ class AssignmentBatch(
     class Meta:
         verbose_name = _("Assignment batch")
         verbose_name_plural = _("Assignment batches")
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
         indexes = [
             models.Index(fields=["status"]),
             models.Index(fields=["invitation_token"]),
@@ -2770,7 +2784,7 @@ class AssignmentItem(
         verbose_name = _("Assignment item")
         verbose_name_plural = _("Assignment items")
         unique_together = ("batch", "proposal")
-        ordering = ["-affinity_score"]
+        ordering = ["-affinity_score", "id"]
         indexes = [
             models.Index(fields=["status"]),
         ]

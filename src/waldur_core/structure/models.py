@@ -271,7 +271,7 @@ class OrganizationGroup(core_models.UuidMixin, core_models.NameMixin, models.Mod
 
     class Meta:
         verbose_name = _("organization group")
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -316,7 +316,7 @@ class AffiliatedOrganization(
     class Meta:
         verbose_name = _("affiliation")
         verbose_name_plural = _("affiliations")
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -347,7 +347,7 @@ class ScienceDomain(
 
     class Meta:
         verbose_name = _("science domain")
-        ordering = ("code", "name")
+        ordering = ["code", "name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -398,7 +398,7 @@ class ScienceSubDomain(
 
     class Meta:
         verbose_name = _("science sub-domain")
-        ordering = ("code", "name")
+        ordering = ["code", "name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -548,7 +548,7 @@ class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, Loggable
 
     class Meta:
         unique_together = ("customer", "inet")
-        ordering = ["inet"]
+        ordering = ["inet", "id"]
 
     def __str__(self):
         return self.customer.name + " | " + str(self.inet)
@@ -775,7 +775,7 @@ class Customer(
 
     class Meta:
         verbose_name = _("organization")
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
@@ -876,7 +876,7 @@ class ProjectType(
     class Meta:
         verbose_name = _("Project type")
         verbose_name_plural = _("Project types")
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -1281,7 +1281,7 @@ class Project(
 
     class Meta:
         base_manager_name = "objects"
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
 
 class PermissionReview(core_models.UuidMixin, LoggableMixin):
@@ -1317,6 +1317,9 @@ class CustomerPermissionReview(PermissionReview):
     Inherits from PermissionReview and adds customer-specific fields.
     """
 
+    class Meta:
+        ordering = ["-created", "id"]
+
     class Permissions:
         customer_path = "customer"
         list_permission = PermissionEnum.LIST_CUSTOMER_PERMISSION_REVIEWS
@@ -1339,6 +1342,9 @@ class ProjectPermissionReview(PermissionReview):
 
     Inherits from PermissionReview and adds project-specific fields.
     """
+
+    class Meta:
+        ordering = ["-created", "id"]
 
     class Permissions:
         customer_path = "project__customer"
@@ -1391,7 +1397,7 @@ class ServiceSettings(
     class Meta:
         verbose_name = "Service settings"
         verbose_name_plural = "Service settings"
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     class Permissions:
         customer_path = "customer"
@@ -1588,7 +1594,7 @@ class BaseResource(
 
     class Meta:
         abstract = True
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     class Permissions:
         customer_path = "project__customer"
@@ -1680,7 +1686,7 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseReso
     for all VM implementations across different cloud providers.
     """
 
-    class Meta:
+    class Meta(BaseResource.Meta):
         abstract = True
 
     cores = models.PositiveSmallIntegerField(
@@ -1752,7 +1758,7 @@ class Storage(core_models.RuntimeStateMixin, BaseResource):
 
     size = models.PositiveIntegerField(help_text=_("Size in MiB"))
 
-    class Meta:
+    class Meta(BaseResource.Meta):
         abstract = True
 
 
@@ -1790,7 +1796,7 @@ class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
         unique_together = [("agreement_type", "language")]
 
     def __str__(self):
@@ -1819,7 +1825,7 @@ class ExternalLink(
     class Meta:
         verbose_name = _("External link")
         verbose_name_plural = _("External links")
-        ordering = ("name",)
+        ordering = ["name", "id"]
 
     link = models.URLField(max_length=500)
 
@@ -1884,7 +1890,7 @@ class ProjectEndDateChangeRequest(core_models.UuidMixin, core_mixins.ReviewMixin
     """
 
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
         verbose_name = _("Project end date change request")
         verbose_name_plural = _("Project end date change requests")
         constraints = [
