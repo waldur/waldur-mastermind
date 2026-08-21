@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("invoices", "0027_backfill_compensation_project_uuid"),
+        ("invoices", "0028_credittransaction_billing_period_and_more"),
     ]
 
     operations = [
