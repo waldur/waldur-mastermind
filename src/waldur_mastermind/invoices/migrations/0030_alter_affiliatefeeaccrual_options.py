@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("invoices", "0028_alter_credittransaction_options_and_more"),
+        ("invoices", "0029_alter_credittransaction_options_and_more"),
     ]
 
     operations = [
