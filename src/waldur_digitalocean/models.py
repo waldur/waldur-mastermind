@@ -9,6 +9,9 @@ from waldur_core.structure import models as structure_models
 
 
 class Region(structure_models.GeneralServiceProperty):
+    class Meta:
+        ordering = ["name", "id"]
+
     @classmethod
     def get_url_name(cls):
         return "digitalocean-region"

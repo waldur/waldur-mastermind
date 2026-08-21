@@ -53,6 +53,7 @@ class OnboardingQuestionMetadata(UuidMixin, TimeStampedModel):
     )
 
     class Meta:
+        ordering = ["-created", "id"]
         verbose_name = _("Onboarding Question Metadata")
         verbose_name_plural = _("Onboarding Question Metadata")
 
@@ -152,7 +153,7 @@ class OnboardingVerification(
     tracker = FieldTracker(fields=["status"])
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     def __str__(self):
         method_display = self.validation_method or "manual"
@@ -496,6 +497,9 @@ class OnboardingJustification(UuidMixin, TimeStampedModel):
     automatic validation fails (e.g., research groups, subsidiaries).
     """
 
+    class Meta:
+        ordering = ["-created", "id"]
+
     verification = models.ForeignKey(
         OnboardingVerification, on_delete=models.CASCADE, related_name="justifications"
     )
@@ -602,7 +606,7 @@ class OnboardingJustificationDocumentation(
     )
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     def __str__(self):
         return f"Documentation for {self.justification} - {self.file.name if self.file else 'No file'}"

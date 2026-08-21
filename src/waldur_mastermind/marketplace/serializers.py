@@ -11363,7 +11363,13 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         return get_payment_profiles(self, customer)
 
     def get_projects_count(self, customer) -> int:
-        return self.get_resources(customer).values_list("project_id").distinct().count()
+        return (
+            self.get_resources(customer)
+            .order_by()
+            .values_list("project_id")
+            .distinct()
+            .count()
+        )
 
     def get_users_count(self, customer) -> int:
         return self.get_users_qs(customer).count()

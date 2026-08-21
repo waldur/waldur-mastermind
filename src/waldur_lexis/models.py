@@ -85,7 +85,7 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
 
     class Meta:
         verbose_name = _("Lexis Link")
-        ordering = ("created",)
+        ordering = ["created", "id"]
 
     @transition(
         field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING

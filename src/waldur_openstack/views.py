@@ -103,7 +103,12 @@ class UsageReporter:
 
         running_stats = self.get_stats(Instance.RuntimeStates.ACTIVE)
         created_stats = self.get_stats()
-        qs = self.get_initial_queryset().values_list("name", flat=True).distinct()
+        qs = (
+            self.get_initial_queryset()
+            .order_by()
+            .values_list("name", flat=True)
+            .distinct()
+        )
 
         page = self.view.paginate_queryset(qs)
         result = self.serialize_result(page, running_stats, created_stats)
@@ -2435,7 +2440,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
 
     def get_queryset(self):
         user: structure_models.User = self.request.user
-        queryset = Network.objects.all().order_by("name")
+        queryset = Network.objects.all().order_by("name", "id")
 
         if user.is_staff or user.is_support:
             return queryset
@@ -2443,7 +2448,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         if not user.is_authenticated:
             return queryset.none()
 
-        return NetworkViewSet.get_related_networks(user)
+        return NetworkViewSet.get_related_networks(user).order_by("name", "id")
 
     @extend_schema(
         summary="Create subnet",

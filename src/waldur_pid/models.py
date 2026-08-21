@@ -6,10 +6,7 @@ from waldur_core.core import models as core_models
 
 class DataciteReferral(core_models.UuidMixin, core_mixins.ScopeMixin):
     class Meta:
-        ordering = (
-            "relation_type",
-            "published",
-        )
+        ordering = ["relation_type", "published", "id"]
 
     pid = models.CharField(max_length=255, blank=True)
     relation_type = models.CharField(max_length=255, blank=True)

@@ -1532,7 +1532,7 @@ class SlurmCommandHistory(core_models.UuidMixin, TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["-executed_at"]
+        ordering = ["-executed_at", "id"]
         verbose_name = _("SLURM Command History")
         verbose_name_plural = _("SLURM Command History")
         indexes = [
@@ -1619,7 +1619,7 @@ class SlurmPolicyEvaluationLog(core_models.UuidMixin, TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["-evaluated_at"]
+        ordering = ["-evaluated_at", "id"]
         verbose_name = _("SLURM Policy Evaluation Log")
         verbose_name_plural = _("SLURM Policy Evaluation Logs")
         indexes = [

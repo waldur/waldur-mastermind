@@ -171,7 +171,11 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
     def update_subnets(self, tenants: list[os_models.Tenant]):
         # Limit applocation pools for subnets used for Rancher nodes
         for tenant in tenants:
-            subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
+            subnet = (
+                os_models.SubNet.objects.filter(tenant=tenant)
+                .order_by("created", "id")
+                .first()
+            )
             if not subnet:
                 continue
 
@@ -264,7 +268,11 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
             ]
             data_volume_size = self.order.attributes["worker_nodes_data_volume_size"]
 
-        subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
+        subnet = (
+            os_models.SubNet.objects.filter(tenant=tenant)
+            .order_by("created", "id")
+            .first()
+        )
         if not subnet:
             raise rf_serializers.ValidationError(
                 f'Subnets for tenant "{tenant.name}" not found'
@@ -404,7 +412,11 @@ class RancherCreateProcessor(processors.AbstractCreateResourceProcessor):
                     "Unable to create load balance because OpenStack image does not exist."
                 )
 
-            subnet = os_models.SubNet.objects.filter(tenant=tenant).first()
+            subnet = (
+                os_models.SubNet.objects.filter(tenant=tenant)
+                .order_by("created", "id")
+                .first()
+            )
             if not subnet:
                 raise rf_serializers.ValidationError(
                     "Unable to create load balance because OpenStack subnet does not exist."

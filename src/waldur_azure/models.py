@@ -17,7 +17,7 @@ class Location(CoordinatesMixin, structure_models.ServiceProperty):
     )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -32,7 +32,7 @@ class Image(structure_models.ServiceProperty):
     location = models.ForeignKey(Location, on_delete=models.CASCADE)
 
     class Meta(structure_models.ServiceProperty.Meta):
-        ordering = ["publisher", "offer", "name", "sku"]
+        ordering = ["publisher", "offer", "name", "sku", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -47,7 +47,7 @@ class Size(structure_models.ServiceProperty):
     resource_disk_size_in_mb = models.PositiveIntegerField()
 
     class Meta(structure_models.ServiceProperty.Meta):
-        ordering = ["number_of_cores", "memory_in_mb"]
+        ordering = ["number_of_cores", "memory_in_mb", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -61,7 +61,7 @@ class SizeAvailabilityZone(models.Model):
 
 
 class BaseResource(core_models.RuntimeStateMixin, structure_models.BaseResource):
-    class Meta:
+    class Meta(structure_models.BaseResource.Meta):
         abstract = True
 
 
@@ -79,7 +79,7 @@ class ResourceGroup(BaseResource):
 class BaseResourceGroupModel(BaseResource):
     resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
 
-    class Meta:
+    class Meta(BaseResource.Meta):
         abstract = True
 
 

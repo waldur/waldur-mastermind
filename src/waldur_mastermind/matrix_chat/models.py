@@ -266,7 +266,7 @@ class MatrixHistoryExport(core_models.UuidMixin, TimeStampedModel):
     class Meta:
         verbose_name = "Matrix history export"
         verbose_name_plural = "Matrix history exports"
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
 
     def __str__(self):
         return f"Export {self.uuid} for {self.room}"
@@ -278,7 +278,7 @@ class MatrixAppserviceTransaction(models.Model):
     event_count = models.IntegerField(default=0)
 
     class Meta:
-        ordering = ["-processed_at"]
+        ordering = ["-processed_at", "id"]
 
     def __str__(self):
         return f"Transaction {self.txn_id} ({self.event_count} events)"

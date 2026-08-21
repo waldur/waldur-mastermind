@@ -179,7 +179,9 @@ def reconcile_user_roles_against_availability() -> None:
     Catches drift from manual DB edits / failed signals.
     """
     role_ids = list(
-        models.RoleAvailability.objects.values_list("role_id", flat=True).distinct()
+        models.RoleAvailability.objects.order_by()
+        .values_list("role_id", flat=True)
+        .distinct()
     )
     total_revoked = 0
     for role in chunked_queryset(

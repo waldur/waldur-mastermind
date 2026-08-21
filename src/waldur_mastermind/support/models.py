@@ -53,7 +53,7 @@ class Issue(
     attachments: models.Manager["Attachment"]
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
         unique_together = ("backend_name", "backend_id")
 
     class Permissions:
@@ -362,7 +362,7 @@ class SupportUser(
     attachments: models.Manager["Attachment"]
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "id"]
         unique_together = ("backend_name", "backend_id", "user")
 
     user = models.ForeignKey[core_models.User](
@@ -399,7 +399,7 @@ class Comment(
     core_models.StateMixin,
 ):
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
         unique_together = ("backend_name", "backend_id")
 
     class Permissions:
@@ -502,6 +502,7 @@ class Attachment(
 
     class Meta:
         unique_together = ("backend_name", "backend_id")
+        ordering = ["created", "id"]
 
     issue = models.ForeignKey(
         on_delete=models.CASCADE, to=Issue, related_name="attachments"
@@ -620,7 +621,7 @@ class RequestType(
     )
 
     class Meta:
-        ordering = ["order", "name"]
+        ordering = ["order", "name", "id"]
 
     def __str__(self):
         return self.name
@@ -758,7 +759,7 @@ class IssueStatusTransition(core_models.UuidMixin, models.Model):
 
     class Meta:
         unique_together = ("from_status", "to_status")
-        ordering = ["from_status", "to_status"]
+        ordering = ["from_status", "to_status", "id"]
 
     @classmethod
     def is_transition_allowed(cls, from_status, to_status):
@@ -825,7 +826,7 @@ class ProviderHelpdesk(
     failed_routing_count = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
         verbose_name = _("Provider helpdesk")
         verbose_name_plural = _("Provider helpdesks")
 
@@ -890,7 +891,7 @@ class ProviderSupportUser(core_models.UuidMixin, TimeStampedModel):
 
     class Meta:
         unique_together = ("provider_helpdesk", "user")
-        ordering = ["user__first_name", "user__last_name"]
+        ordering = ["user__first_name", "user__last_name", "id"]
 
     @property
     def open_ticket_count(self):
@@ -928,7 +929,7 @@ class ProviderCannedResponse(
     usage_count = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ["-usage_count", "name"]
+        ordering = ["-usage_count", "name", "id"]
 
     def render(self, context_dict=None):
         from django.template import Context, Template
@@ -953,7 +954,7 @@ class IssueTag(core_models.UuidMixin, core_models.NameMixin, models.Model):
     )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -993,7 +994,7 @@ class IssueLink(core_models.UuidMixin, models.Model):
 
     class Meta:
         unique_together = ("source", "target")
-        ordering = ["source", "target"]
+        ordering = ["source", "target", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -1019,7 +1020,7 @@ class SavedFilter(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
     )
 
     class Meta:
-        ordering = ["-modified"]
+        ordering = ["-modified", "id"]
 
     @classmethod
     def get_url_name(cls):
@@ -1048,7 +1049,7 @@ class CannedResponse(
     )
 
     class Meta:
-        ordering = ["category", "name"]
+        ordering = ["category", "name", "id"]
 
     def render(self, context_dict=None):
         from django.template import Context, Template

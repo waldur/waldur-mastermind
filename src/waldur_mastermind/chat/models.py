@@ -464,7 +464,7 @@ class Message(UuidMixin, TimeStampedModel):
     )
 
     class Meta:
-        ordering = ["sequence_index"]
+        ordering = ["sequence_index", "id"]
         verbose_name = _("Message")
         indexes = [
             models.Index(fields=["thread"]),
@@ -552,7 +552,7 @@ class SystemPrompt(UuidMixin, NameMixin, DescribableMixin, TimeStampedModel):
     class Meta:
         verbose_name = _("System Prompt")
         verbose_name_plural = _("System Prompts")
-        ordering = ["-created"]
+        ordering = ["-created", "id"]
         constraints = [
             models.UniqueConstraint(
                 fields=["is_active"],

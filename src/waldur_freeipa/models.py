@@ -22,6 +22,9 @@ def validate_username(value):
 
 
 class Profile(core_models.UuidMixin, models.Model):
+    class Meta:
+        ordering = ["username", "id"]
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     username = models.CharField(
         _("username"),

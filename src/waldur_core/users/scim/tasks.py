@@ -81,7 +81,7 @@ def get_user_ssh_login_nodes(user: User):
     user_roles = UserRole.objects.filter(
         user=user, is_active=True, content_type=project_ct
     )
-    project_ids = user_roles.values_list("object_id", flat=True).distinct()
+    project_ids = user_roles.order_by().values_list("object_id", flat=True).distinct()
 
     if not project_ids:
         return {}
@@ -98,7 +98,7 @@ def get_user_ssh_login_nodes(user: User):
         ]
     )
 
-    offering_ids = resources.values_list("offering_id", flat=True).distinct()
+    offering_ids = resources.order_by().values_list("offering_id", flat=True).distinct()
 
     if not offering_ids:
         return {}

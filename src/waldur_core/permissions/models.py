@@ -61,7 +61,7 @@ class Role(DescribableMixin, UuidMixin):
     )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ["name", "id"]
 
     def save(self, *args, **kwargs):
         # Enforce name+content_type uniqueness for non-resource scopes.
@@ -239,7 +239,7 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
         )
 
     class Meta:
-        ordering = ["created"]
+        ordering = ["created", "id"]
 
     def __str__(self):
         return f"{self.user.username} ({self.role}, {self.expiration_time}, {self.is_active})"

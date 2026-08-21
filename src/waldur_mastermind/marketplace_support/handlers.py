@@ -424,7 +424,9 @@ def _create_issue_for_project_membership_changed(instance, summary):
             "Found %d active resources with enabled membership change notifications",
             resources.count(),
         )
-        offering_ids = resources.values_list("offering_id", flat=True).distinct()
+        offering_ids = (
+            resources.order_by().values_list("offering_id", flat=True).distinct()
+        )
         offerings = marketplace_models.Offering.objects.filter(id__in=offering_ids)
 
         for offering in offerings:
