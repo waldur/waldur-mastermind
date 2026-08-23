@@ -8,7 +8,7 @@ from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import serializers, tasks
-from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
+from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
@@ -131,6 +131,91 @@ class NewOrderNotificationTest(test.APITestCase):
         tasks.notify_about_new_order(self.order.uuid.hex)
 
         self.assertEqual(len(mail.outbox), 0)
+
+
+class NewOrderNotificationContentTest(test.APITestCase):
+    """The mail spells out what was ordered, so the recipient needs no UI to read it."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.options = factories.OFFERING_OPTIONS
+        self.offering.secret_options["order_notification_emails"] = ["ops@example.com"]
+        self.offering.save(update_fields=["options", "secret_options"])
+        self.order = self.fixture.order
+        structure_factories.NotificationFactory(
+            key="marketplace.notify_about_new_order"
+        )
+
+    def send(self, attributes=None, limits=None):
+        self.order.attributes = attributes or {}
+        self.order.limits = limits or {}
+        self.order.save(update_fields=["attributes", "limits"])
+        tasks.notify_about_new_order(self.order.uuid.hex)
+        self.assertEqual(len(mail.outbox), 1)
+        return mail.outbox[0]
+
+    def add_limit_component(self, **kwargs):
+        return factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.LIMIT,
+            **kwargs,
+        )
+
+    def test_attributes_are_listed_under_their_form_labels(self):
+        message = self.send(attributes={"storage": 100, "ram": 8})
+
+        self.assertIn("Requested configuration:", message.body)
+        self.assertIn("* Max storage, GB: 100", message.body)
+        self.assertIn("* Max RAM, GB: 8", message.body)
+
+    def test_attribute_without_a_declared_option_falls_back_to_its_key(self):
+        message = self.send(attributes={"undeclared": "value"})
+
+        self.assertIn("* undeclared: value", message.body)
+
+    def test_secret_attributes_are_left_out(self):
+        with mock.patch(
+            "waldur_mastermind.marketplace.plugins.manager.get_secret_attributes",
+            return_value=["password"],
+        ):
+            message = self.send(attributes={"storage": 100, "password": "hunter2"})
+
+        self.assertIn("* Max storage, GB: 100", message.body)
+        self.assertNotIn("hunter2", message.body)
+
+    def test_limits_are_listed_with_the_component_name_and_unit(self):
+        self.add_limit_component(type="cores", name="Cores", measured_unit="hours")
+        message = self.send(limits={"cores": 10})
+
+        self.assertIn("Requested limits:", message.body)
+        self.assertIn("* Cores: 10 hours", message.body)
+
+    def test_limit_of_an_unknown_component_falls_back_to_its_key(self):
+        message = self.send(limits={"gpu": 4})
+
+        self.assertIn("* gpu: 4", message.body)
+
+    def test_order_without_attributes_and_limits_has_no_section_headers(self):
+        message = self.send()
+
+        self.assertNotIn("Requested configuration:", message.body)
+        self.assertNotIn("Requested limits:", message.body)
+
+    def test_html_alternative_lists_the_same_values(self):
+        self.add_limit_component(type="cores", name="Cores", measured_unit="hours")
+        message = self.send(attributes={"storage": 100}, limits={"cores": 10})
+        html_message = message.alternatives[0][0]
+
+        self.assertIn("<li>Max storage, GB: 100</li>", html_message)
+        self.assertIn("<li>Cores: 10 hours</li>", html_message)
+
+    def test_html_alternative_escapes_attribute_values(self):
+        message = self.send(attributes={"undeclared": "<script>alert(1)</script>"})
+        html_message = message.alternatives[0][0]
+
+        self.assertNotIn("<script>", html_message)
+        self.assertIn("&lt;script&gt;", html_message)
 
 
 @mock.patch("waldur_mastermind.marketplace.tasks.notify_about_new_order.delay")

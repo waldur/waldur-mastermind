@@ -2041,6 +2041,38 @@ def format_limits_list(components_map, limits):
     return ", ".join(f"{format_label(key)}: {value}" for key, value in limits.items())
 
 
+def format_order_attributes(order) -> list[tuple[str, str]]:
+    """
+    Label/value pairs of the order attributes, labelled as in the offering form.
+
+    Attributes declared secret by the plugin are left out.
+    """
+    options = (order.offering.options or {}).get("options") or {}
+    result = []
+    for key, value in order.safe_attributes.items():
+        option = options.get(key) or {}
+        result.append((option.get("label") or key, value))
+    return result
+
+
+def format_order_limits(order) -> list[tuple[str, str]]:
+    """Label/value pairs of the order limits, with the measured unit appended."""
+    components_map = order.offering.get_limit_components()
+    result = []
+    for key, value in (order.limits or {}).items():
+        component = components_map.get(key)
+        if component is None:
+            result.append((key, str(value)))
+            continue
+        result.append(
+            (
+                component.name or component.type,
+                f"{value} {component.measured_unit}".strip(),
+            )
+        )
+    return result
+
+
 def get_resource_users(resource):
     project_user_ids = get_project_users(resource.project_id)
     customer_user_ids = get_customer_users(resource.project.customer_id)

@@ -2021,7 +2021,13 @@ Notifies the recipients configured on the offering about every new order for it,
 
     {{ order.created_by.get_full_name|default:"A user" }} has placed a new {{ order_type }} order for {{ order.offering.name }}
     in project {{ order.project.name }} of organization {{ order.project.customer.name }}.
-
+    {% if order_attributes %}
+    Requested configuration:
+    {% for label, value in order_attributes %}* {{ label }}: {{ value }}
+    {% endfor %}{% endif %}{% if order_limits %}
+    Requested limits:
+    {% for label, value in order_limits %}* {{ label }}: {{ value }}
+    {% endfor %}{% endif %}
     Please visit {{ order_url }} to find out more details.
 
 ```
@@ -2043,6 +2049,24 @@ Notifies the recipients configured on the offering about every new order for it,
         {{ order.created_by.get_full_name|default:"A user" }} has placed a new {{ order_type }} order for {{ order.offering.name }}
         in project {{ order.project.name }} of organization {{ order.project.customer.name }}.
     </p>
+    {% if order_attributes %}
+    <p>
+        Requested configuration:
+    </p>
+    <ul>
+        {% for label, value in order_attributes %}<li>{{ label|escape }}: {{ value|escape }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if order_limits %}
+    <p>
+        Requested limits:
+    </p>
+    <ul>
+        {% for label, value in order_limits %}<li>{{ label|escape }}: {{ value|escape }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
     <p>
         Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
     </p>
