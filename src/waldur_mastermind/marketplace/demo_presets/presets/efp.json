@@ -795,7 +795,7 @@
     {
       "uuid": "f30000000000000000000000000000a0",
       "name": "New Offering?",
-      "type": "SlurmInvoices.SlurmPackage",
+      "type": "Marketplace.Slurm",
       "state": 2,
       "shared": true,
       "billable": true,

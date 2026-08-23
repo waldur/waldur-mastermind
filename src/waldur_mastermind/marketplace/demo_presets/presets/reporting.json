@@ -113,7 +113,7 @@
       "category_uuid": "f4000000000000000000000000000601",
       "customer_uuid": "f4000000000000000000000000000101",
       "name": "High Performance Cluster",
-      "type": "SlurmInvoices.SlurmPackage",
+      "type": "Marketplace.Slurm",
       "state": 2,
       "shared": true,
       "billable": true
