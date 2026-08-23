@@ -247,6 +247,8 @@ def notify_about_new_order(order_uuid):
         "order_url": link,
         "order": order,
         "order_type": order.get_type_display().lower(),
+        "order_attributes": utils.format_order_attributes(order),
+        "order_limits": utils.format_order_limits(order),
         "site_name": config.SITE_NAME,
     }
 
