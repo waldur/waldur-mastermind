@@ -1,6 +1,13 @@
 import os
 
-bind = ":8080"
+# Bind the IPv6 wildcard when the kernel has IPv6: with the Linux default
+# net.ipv6.bindv6only=0 that single socket also accepts IPv4 connections (as
+# v4-mapped), so it is correct on IPv4-only, dual-stack and IPv6-only clusters
+# alike. A bare ":8080" resolves to host "" -> AF_INET -> 0.0.0.0 only, leaving
+# the pod unreachable at its IPv6 address. /proc/net/if_inet6 is absent exactly
+# when IPv6 is compiled out or disabled at boot, where binding "[::]" would fail
+# outright. Override with GUNICORN_CMD_ARGS="--bind <addr>" if needed.
+bind = "[::]:8080" if os.path.exists("/proc/net/if_inet6") else ":8080"
 # `... or <default>` so an env var that is present but empty (e.g. passed
 # through from docker-compose / helm without a value) falls back to the default
 # rather than blowing up on int("") or silently disabling preload.
