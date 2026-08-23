@@ -49,6 +49,12 @@ def create_notification_about_permission_request_has_been_submitted(
     ):
         return
 
+    # Auto-approving invitations grant access immediately after submit() in the
+    # same request (see GroupInvitationViewSet.submit_request), so there is
+    # never anything for a Customer Owner to review here.
+    if permission_request.invitation.auto_approve:
+        return
+
     transaction.on_commit(
         lambda: (
             tasks.send_mail_notification_about_permission_request_has_been_submitted.delay(
