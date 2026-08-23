@@ -1625,6 +1625,50 @@ class GroupInvitationAutoApprovalTest(BaseGroupInvitationTest):
         # Check that user has NOT been granted the role yet
         self.assertFalse(has_user(self.customer, user, manual_approval_invitation.role))
 
+    @mock.patch(
+        "waldur_core.users.handlers.tasks."
+        "send_mail_notification_about_permission_request_has_been_submitted.delay"
+    )
+    def test_auto_approved_request_does_not_notify_owners(self, mock_tasks: mock.Mock):
+        """Auto-approved requests grant access immediately, so owners should not
+        get a 'please approve' email for them."""
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["auto_approved"])
+
+        mock_tasks.assert_not_called()
+
+    @mock.patch(
+        "waldur_core.users.handlers.tasks."
+        "send_mail_notification_about_permission_request_has_been_submitted.delay"
+    )
+    def test_manual_approval_request_notifies_owners(self, mock_tasks: mock.Mock):
+        """Requests that actually need review should still notify owners."""
+        manual_approval_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=False,
+            user_email_patterns=[".*@example.com"],
+            user_affiliations=["staff"],
+        )
+        url = factories.CustomerGroupInvitationFactory.get_url(
+            manual_approval_invitation, "submit_request"
+        )
+
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["auto_approved"])
+
+        permission_request = models.PermissionRequest.objects.get(
+            invitation=manual_approval_invitation, created_by=user
+        )
+        mock_tasks.assert_called_once_with(permission_request.id)
+
     def test_auto_approval_with_project_creation(self):
         """Test auto-approval works with auto_create_project enabled."""
         project_invitation = factories.CustomerGroupInvitationFactory(
