@@ -2237,8 +2237,12 @@ def setup_linux_related_data(
             "login_shell", "/bin/bash"
         )
 
-    homedir_prefix = offering.plugin_options.get("homedir_prefix", "/home/")
-    instance.backend_metadata["homeDir"] = f"{homedir_prefix}{instance.username}"
+    if instance.username:
+        # Derived from the username, so it is only meaningful once one exists —
+        # an account materialised before its username is known keeps no homeDir
+        # rather than a "/home/None" placeholder.
+        homedir_prefix = offering.plugin_options.get("homedir_prefix", "/home/")
+        instance.backend_metadata["homeDir"] = f"{homedir_prefix}{instance.username}"
 
 
 def get_plans_available_for_user(
@@ -2862,16 +2866,20 @@ def get_offering_user_posix_groups(offering_user, viewer=None):
     )
 
     # Map each group to the pool its GID was allocated from (if any), so the row
-    # can show pool provenance like the per-user UID/GID table does.
+    # can show pool provenance like the per-user UID/GID table does. Scoped to
+    # the offering's currently resolved pool: a group may legally hold an active
+    # identity in more than one pool (the active-consumer constraint is per
+    # pool), and an unscoped lookup would keep whichever row came last.
     group_ct = ContentType.objects.get_for_model(models.OfferingUserGroup)
-    group_pools = {
-        identity.object_id: identity.pool
-        for identity in models.PosixIdentity.objects.filter(
-            content_type=group_ct,
-            object_id__in=[group.id for group in groups],
-            released_at__isnull=True,
-        ).select_related("pool")
-    }
+    resolved_pool = models.PosixIdPool.resolve(offering)
+    group_identities = models.PosixIdentity.objects.filter(
+        content_type=group_ct,
+        object_id__in=[group.id for group in groups],
+        released_at__isnull=True,
+    ).select_related("pool")
+    if resolved_pool is not None:
+        group_identities = group_identities.filter(pool=resolved_pool)
+    group_pools = {identity.object_id: identity.pool for identity in group_identities}
 
     rows = []
     for group in groups:
@@ -2900,10 +2908,16 @@ def get_offering_user_posix_groups(offering_user, viewer=None):
                 "customer_uuid": customer.uuid.hex if customer else None,
                 "project_accessible": accessible,
                 "pool_uuid": pool.uuid.hex if pool else None,
+                "pool_scope": pool.scope if pool else None,
             }
         )
     rows.sort(key=lambda r: r["gid"])
     return rows
+
+
+# Distinguishes "the caller did not resolve a pool" from "the caller resolved
+# this offering to no pool at all".
+_UNSET = object()
 
 
 def _posix_pool_scope_name(pool) -> str | None:
@@ -2916,12 +2930,50 @@ def _posix_pool_scope_name(pool) -> str | None:
     return None
 
 
-def get_offering_user_posix_allocations(offering_user):
+def get_offerings_sharing_pool(user, pool, exclude_offering_id=None):
+    """Offerings of ``user`` whose accounts resolve to ``pool``.
+
+    A user identity is shared, so this is the set of accounts that carry the same
+    UID and primary GID. Ordered by name for a stable report.
+
+    Accounts soft-deleted into ``OfferingUserStates.DELETED`` are included on
+    purpose: release is tied to actual row deletion, so such an account is
+    exactly why the value is still reserved, and hiding it would leave the
+    reservation unexplained.
+    """
+    if user is None or pool is None:
+        return []
+    offerings = []
+    for offering_user in models.OfferingUser.objects.filter(user=user).select_related(
+        "offering"
+    ):
+        offering = offering_user.offering
+        if offering.id == exclude_offering_id:
+            continue
+        if not posix_ids.pool_sourced_namespaces(offering):
+            continue
+        resolved = models.PosixIdPool.resolve(offering)
+        if resolved is not None and resolved.pk == pool.pk:
+            offerings.append({"uuid": offering.uuid.hex, "name": offering.name})
+    offerings.sort(key=lambda item: item["name"])
+    return offerings
+
+
+def get_offering_user_posix_allocations(
+    offering_user, resolved_pool=_UNSET, shared_offerings=None
+):
     """Return the offering user's POSIX identifiers and their originating pool.
 
     One row per identifier (UID, primary GID) present in ``backend_metadata``.
-    The row carries the pool that tracks the value and its scope; ``pool_uuid``
-    is ``None`` when the value is not tracked by a pool (e.g. seeded manually).
+    The row carries the pool that tracks the value and its scope, plus the other
+    offerings of the same user that share it — the value belongs to the user
+    within the pool, not to this single account. ``pool_uuid`` is ``None`` when
+    the value is not tracked by a pool (e.g. seeded manually).
+
+    ``resolved_pool`` and ``shared_offerings`` let a caller that already walked
+    the user's accounts pass what it knows, instead of making this function walk
+    them again per account. ``resolved_pool=None`` is a real answer — "this
+    offering resolves to no pool" — and is honoured; omitting it resolves here.
     """
     metadata = offering_user.backend_metadata or {}
     identifiers = [
@@ -2929,17 +2981,33 @@ def get_offering_user_posix_allocations(offering_user):
         (posix_ids.GID, metadata.get("primarygroup")),
     ]
 
-    ct = ContentType.objects.get_for_model(models.OfferingUser)
-    identity = (
-        models.PosixIdentity.objects.filter(
-            content_type=ct,
-            object_id=offering_user.pk,
-            released_at__isnull=True,
-        )
-        .select_related("pool__offering", "pool__service_provider__customer")
-        .first()
+    pool = (
+        models.PosixIdPool.resolve(offering_user.offering)
+        if resolved_pool is _UNSET
+        else resolved_pool
     )
+    identity = None
+    if pool is not None:
+        identity = (
+            models.PosixIdentity.objects.filter(
+                pool=pool,
+                released_at__isnull=True,
+                **posix_ids.principal_filter(offering_user),
+            )
+            .select_related("pool__offering", "pool__service_provider__customer")
+            .first()
+        )
     pool = identity.pool if identity else None
+    if shared_offerings is not None:
+        shared_with = [
+            offering
+            for offering in shared_offerings
+            if offering["uuid"] != offering_user.offering.uuid.hex
+        ]
+    else:
+        shared_with = get_offerings_sharing_pool(
+            offering_user.user, pool, exclude_offering_id=offering_user.offering_id
+        )
 
     rows = []
     for namespace, value in identifiers:
@@ -2953,48 +3021,122 @@ def get_offering_user_posix_allocations(offering_user):
                 "pool_uuid": pool.uuid.hex if (tracked and pool) else None,
                 "scope": pool.scope if (tracked and pool) else None,
                 "scope_name": _posix_pool_scope_name(pool) if tracked else None,
+                "shared_with_offerings": shared_with if tracked else [],
             }
         )
     return rows
 
 
 def get_user_posix_identities(offering_users, viewer=None):
-    """Flatten a user's POSIX identities across all their offering accounts.
+    """Consolidate a user's POSIX identities across all their offering accounts.
 
-    One row per identifier — personal UID / primary GID and each project group
-    GID — tagged with the owning offering and the pool it came from, so a
-    consolidated cross-offering view can be rendered. The same project may
-    appear under several offerings with different GIDs (each offering runs its
-    own directory and pool).
+    One row per ``(pool, namespace, value)`` — personal UID / primary GID and
+    each project group GID — carrying the offerings that use it. A user's UID is
+    allocated once per pool, so the accounts on every offering of a provider that
+    has no override pool collapse into a single row. An offering with its own
+    pool resolves elsewhere and therefore appears as a separate row.
+
+    Values not tracked by any pool cannot be proven to be the same allocation, so
+    they are never merged across offerings.
     """
-    rows = []
+    offering_users = list(offering_users)
+    # Resolve each offering's pool once, then derive the sharing sets from that
+    # single pass: resolving per identifier per account would make the endpoint
+    # quadratic in the number of the user's accounts.
+    pool_by_offering = {}
     for offering_user in offering_users:
         offering = offering_user.offering
-        base = {
-            "offering_name": offering.name,
-            "offering_uuid": offering.uuid.hex,
-        }
-        for allocation in get_offering_user_posix_allocations(offering_user):
-            rows.append(
-                {
-                    **base,
-                    "namespace": allocation["namespace"],
-                    "value": allocation["value"],
-                    "context": None,
-                    "pool_uuid": allocation["pool_uuid"],
-                }
+        if offering.id in pool_by_offering:
+            continue
+        pool_by_offering[offering.id] = (
+            models.PosixIdPool.resolve(offering)
+            if posix_ids.pool_sourced_namespaces(offering)
+            else None
+        )
+    sharing = defaultdict(list)
+    for offering_user in offering_users:
+        offering = offering_user.offering
+        pool = pool_by_offering[offering.id]
+        if pool is None:
+            continue
+        entry = {"uuid": offering.uuid.hex, "name": offering.name}
+        if entry not in sharing[pool.pk]:
+            sharing[pool.pk].append(entry)
+    for entries in sharing.values():
+        entries.sort(key=lambda item: item["name"])
+
+    rows = {}
+    order = []
+
+    def add(key, namespace, value, context, pool_uuid, scope, offering):
+        row = rows.get(key)
+        if row is None:
+            row = {
+                "namespace": namespace,
+                "value": value,
+                "context": context,
+                "pool_uuid": pool_uuid,
+                "pool_scope": scope,
+                "offerings": [],
+            }
+            rows[key] = row
+            order.append(key)
+        if all(item["uuid"] != offering.uuid.hex for item in row["offerings"]):
+            row["offerings"].append({"uuid": offering.uuid.hex, "name": offering.name})
+
+    for offering_user in offering_users:
+        offering = offering_user.offering
+        pool = pool_by_offering[offering.id]
+        allocations = get_offering_user_posix_allocations(
+            offering_user,
+            resolved_pool=pool,
+            shared_offerings=sharing[pool.pk] if pool is not None else [],
+        )
+        for allocation in allocations:
+            pool_uuid = allocation["pool_uuid"]
+            key = (
+                pool_uuid or f"untracked:{offering.uuid.hex}",
+                allocation["namespace"],
+                allocation["value"],
+                None,
+            )
+            add(
+                key,
+                allocation["namespace"],
+                allocation["value"],
+                None,
+                pool_uuid,
+                allocation["scope"],
+                offering,
             )
         for group in get_offering_user_posix_groups(offering_user, viewer=viewer):
-            rows.append(
-                {
-                    **base,
-                    "namespace": posix_ids.GID,
-                    "value": group["gid"],
-                    "context": group["project_name"],
-                    "pool_uuid": group["pool_uuid"],
-                }
+            pool_uuid = group["pool_uuid"]
+            key = (
+                pool_uuid or f"untracked:{offering.uuid.hex}",
+                posix_ids.GID,
+                group["gid"],
+                group["project_uuid"],
             )
-    return rows
+            add(
+                key,
+                posix_ids.GID,
+                group["gid"],
+                group["project_name"],
+                pool_uuid,
+                group["pool_scope"],
+                offering,
+            )
+
+    for row in rows.values():
+        row["offerings"].sort(key=lambda item: item["name"])
+        # Deprecated compatibility projection: the endpoint used to return one
+        # row per offering. Keeping the singular fields populated from the first
+        # sharing offering makes the SDK bump additive, so a client that has not
+        # migrated to `offerings` yet keeps rendering a name instead of a blank.
+        first = row["offerings"][0] if row["offerings"] else None
+        row["offering_name"] = first["name"] if first else None
+        row["offering_uuid"] = first["uuid"] if first else None
+    return [rows[key] for key in order]
 
 
 def build_glauth_tree(offering, *, resource_filter=None):

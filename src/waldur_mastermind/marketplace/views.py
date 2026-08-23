@@ -206,6 +206,7 @@ from . import (
     permissions,
     plugins,
     posix_ids,
+    posix_maintenance,
     serializers,
     tasks,
     utils,
@@ -581,22 +582,47 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             .values_list("offering_id", flat=True)
         )
 
-        for offering_id in offering_ids:
-            offering_user, created = models.OfferingUser.objects.get_or_create(
-                user=user, offering_id=offering_id
-            )
-            # Update username - only set if non-empty to avoid unwanted state transitions
-            if username:
-                offering_user.username = username
-                offering_user.save()  # This triggers the FSM transition via model save method
-            else:
-                logger.info(
-                    "ServiceProvider set_offerings_username called with empty username: service_provider_uuid=%s user_uuid=%s offering_id=%s actor_uuid=%s",
-                    uuid,
-                    user_uuid.hex,
-                    offering_id,
-                    getattr(request.user, "uuid", None) and request.user.uuid.hex,
+        # One transaction: the allocator can raise 409 when a pool is exhausted,
+        # and this action is the entry point of the Terraform provisioning flow —
+        # failing on the third of five offerings must not leave the first two
+        # half-applied.
+        with transaction.atomic():
+            for offering in models.Offering.objects.filter(id__in=set(offering_ids)):
+                offering_user, created = models.OfferingUser.objects.get_or_create(
+                    user=user, offering=offering
                 )
+                old_username = offering_user.username
+                previous_home_dir = (offering_user.backend_metadata or {}).get(
+                    "homeDir"
+                )
+                # Update username - only set if non-empty to avoid unwanted state transitions
+                if username:
+                    offering_user.username = username
+                else:
+                    logger.info(
+                        "ServiceProvider set_offerings_username called with empty username: service_provider_uuid=%s user_uuid=%s offering_id=%s actor_uuid=%s",
+                        uuid,
+                        user_uuid.hex,
+                        offering.id,
+                        getattr(request.user, "uuid", None) and request.user.uuid.hex,
+                    )
+                # Populate the POSIX projection (UID, primary GID, home directory,
+                # login shell). Without this an account first materialised here
+                # carries a username and empty backend_metadata, so the site agent
+                # has nothing to write into the provider's directory. The allocator
+                # is idempotent and shares the user's identity across the provider's
+                # offerings, so repeated calls keep handing out the same values.
+                utils.setup_linux_related_data(offering_user, offering)
+                # Same rule as OfferingUsersViewSet.perform_update: the derived
+                # home directory is re-applied only when the stored one was
+                # absent or still matched the previous username. An operator's
+                # explicit override survives both paths.
+                prefix = offering.plugin_options.get("homedir_prefix", "/home/")
+                if previous_home_dir not in (None, f"{prefix}{old_username}"):
+                    offering_user.backend_metadata["homeDir"] = previous_home_dir
+                # save() without update_fields so OfferingUser.save() runs the FSM
+                # transition once the username becomes available.
+                offering_user.save()
 
         return Response(
             {
@@ -1983,6 +2009,16 @@ class OfferingGroupViewSet(core_views.ActionsViewSet):
     ]
 
 
+def posix_id_pool_is_offering_scoped(pool: models.PosixIdPool):
+    if pool.offering_id is None:
+        raise rf_exceptions.ValidationError(
+            _(
+                "Re-pointing applies to an offering-level override pool; a "
+                "provider pool is already the default for its offerings."
+            )
+        )
+
+
 def posix_id_pool_has_no_active_identities(pool: models.PosixIdPool):
     if pool.identities.filter(released_at__isnull=True).exists():
         raise rf_exceptions.ValidationError(
@@ -2066,18 +2102,97 @@ class PosixIdPoolViewSet(core_views.ActionsViewSet):
         )
         return Response(serializer.data)
 
+    @extend_schema(
+        summary="Preview re-pointing existing accounts onto this pool",
+        description=(
+            "Adding an override pool to an offering that already has accounts "
+            "changes nothing by itself: accounts created afterwards draw from "
+            "the override pool, while existing ones keep the values they were "
+            "given by the previously resolved pool. This action reports which "
+            "offering users would change and from which value to which, without "
+            "writing anything. Offering-level pools only."
+        ),
+        responses={200: serializers.PosixIdPoolRepointSerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def repoint_preview(self, request, uuid=None):
+        pool = self.get_object()
+        return Response(
+            serializers.PosixIdPoolRepointSerializer(
+                posix_maintenance.plan_repoint(pool)
+            ).data
+        )
+
+    repoint_preview_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_POSIX_ID_POOL,
+            ["customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Re-point existing accounts onto this pool",
+        description=(
+            "Moves the offering's existing accounts onto this override pool and "
+            "returns the identifiers that changed. Requires 'confirm': true - "
+            "preview the impact with repoint_preview first, and reconcile the "
+            "provider's filesystem afterwards, since the accounts' files still "
+            "carry the old numbers. Values freed in the previously resolved pool "
+            "are withheld from recycling until an operator returns them. "
+            "Offering-level pools only."
+        ),
+        request=serializers.PosixIdPoolRepointRequestSerializer,
+        responses={200: serializers.PosixIdPoolRepointSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def repoint(self, request, uuid=None):
+        pool = self.get_object()
+        serializer = serializers.PosixIdPoolRepointRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not serializer.validated_data["confirm"]:
+            raise rf_exceptions.ValidationError(
+                {"confirm": _("Re-pointing must be confirmed explicitly.")}
+            )
+        return Response(
+            serializers.PosixIdPoolRepointSerializer(
+                posix_maintenance.apply_repoint(pool)
+            ).data
+        )
+
+    repoint_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_POSIX_ID_POOL,
+            ["customer", "customer.serviceprovider"],
+        )
+    ]
+    repoint_serializer_class = serializers.PosixIdPoolRepointRequestSerializer
+    repoint_validators = repoint_preview_validators = [posix_id_pool_is_offering_scoped]
+
 
 class PosixIdentityViewSet(core_views.ReadOnlyActionsViewSet):
     """Read-only audit view of allocated POSIX identities.
 
+    An identity belongs to a principal: the Waldur user for offering accounts
+    (shared across the offerings that resolve to one pool), the consumer row
+    itself for robot accounts and groups. ``offering`` names the offering that
+    first triggered the allocation, not the identity's owner.
+
     Released values are recycled automatically on the next allocation from the
-    same pool and namespace; released rows are retained here as an audit trail.
+    same pool and namespace, unless the row is flagged as not recyclable -
+    the retrofit and the re-point action withhold values that are still stamped
+    on files in the provider's filesystem. Released rows are retained here as an
+    audit trail.
+
+    A pool spans a whole numeric range, so this list is paginated: narrow it with
+    the filters (``keyword``, ``uid``/``gid``, the ``uid_min``/``uid_max`` band,
+    ``consumer_type``, ``is_released``, ``recyclable``) and order it with ``o``
+    rather than paging through the range client-side.
     """
 
     queryset = (
         models.PosixIdentity.objects.all()
         .order_by("id")
-        .select_related("pool", "offering", "content_type")
+        .select_related("pool", "offering", "content_type", "user")
         .prefetch_related("consumer")
     )
     serializer_class = serializers.PosixIdentitySerializer
@@ -10872,20 +10987,18 @@ class OfferingUsersViewSet(
 
         if "username" in serializer.validated_data and old_username != new_username:
             # The home directory is derived from the username (homedir_prefix +
-            # username). Under the service_provider username policy it is first
-            # computed while the username is still empty, so re-derive it now
-            # that the provider has assigned one. An explicit per-user override
-            # (a homeDir that no longer matches the derived pattern) is left
-            # untouched.
+            # username). Under the service_provider username policy the account
+            # is materialised before a username exists and therefore carries no
+            # homeDir at all, so derive it now that the provider has assigned
+            # one. An explicit per-user override (a homeDir that no longer
+            # matches the derived pattern) is left untouched.
             backend_metadata = instance.backend_metadata or {}
-            if "homeDir" in backend_metadata:
-                prefix = instance.offering.plugin_options.get(
-                    "homedir_prefix", "/home/"
-                )
-                if backend_metadata.get("homeDir") == f"{prefix}{old_username}":
-                    backend_metadata["homeDir"] = f"{prefix}{new_username}"
-                    instance.backend_metadata = backend_metadata
-                    instance.save(update_fields=["backend_metadata"])
+            prefix = instance.offering.plugin_options.get("homedir_prefix", "/home/")
+            current_home = backend_metadata.get("homeDir")
+            if new_username and current_home in (None, f"{prefix}{old_username}"):
+                backend_metadata["homeDir"] = f"{prefix}{new_username}"
+                instance.backend_metadata = backend_metadata
+                instance.save(update_fields=["backend_metadata"])
             logger.info(
                 "OfferingUser username update via API: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r source_user_uuid=%s",
                 instance.uuid.hex,
@@ -10913,6 +11026,10 @@ class OfferingUsersViewSet(
             "which no pool resolves. The action is all-or-nothing - a "
             "conflict on the second identifier rolls back the change made for "
             "the first.\n\n"
+            "A UID or primary GID belongs to the user within the pool, not to "
+            "this single account, so the pin applies across every offering of "
+            "the provider that resolves to the same pool. An offering with its "
+            "own pool is unaffected.\n\n"
             "The response 'warnings' list carries only non-fatal advisories "
             "about values that were accepted: the reserved POSIX ids 65534 "
             "and 65535, and values of 2^31 or above, which may break software "
@@ -10931,6 +11048,8 @@ class OfferingUsersViewSet(
         data = serializer.validated_data
 
         warnings = []
+        shared_changes = []
+        pinned_namespaces = []
         posix_id_overrides = (
             ("uidnumber", posix_ids.UID, "UID"),
             ("primarygroup", posix_ids.GID, "primary GID"),
@@ -10965,9 +11084,22 @@ class OfferingUsersViewSet(
                     raise rf_exceptions.ValidationError({field: exc.messages[0]})
                 backend_metadata[field] = value
                 warnings.extend(posix_ids.posix_value_advisories(label, value))
+                pinned_namespaces.append(namespace)
 
             offering_user.backend_metadata = backend_metadata
             offering_user.save(update_fields=["backend_metadata"])
+
+            if pinned_namespaces:
+                # The pin lands on the user's identity in the pool, which every
+                # account of theirs on an offering resolving there shares. Push
+                # the new value into those accounts' projections too, or the
+                # ledger and their directory entries drift apart.
+                pool = posix_ids.resolve(offering_user.offering)
+                shared_changes = posix_maintenance.project_shared_values(
+                    offering_user, pool
+                )
+
+        posix_maintenance.emit_change_events(shared_changes)
 
         # Echo the just-persisted values from backend_metadata (the source the
         # allocator/GLAuth read). Building the response from the action's input
@@ -11011,8 +11143,10 @@ class OfferingUsersViewSet(
         summary="List POSIX UID/GID allocations of an offering user",
         description=(
             "Returns the user's POSIX identifiers (UID, primary GID) and, for "
-            "each, the POSIX ID pool that tracks it. The pool fields are null "
-            "when the value is not tracked by a pool."
+            "each, the POSIX ID pool that tracks it plus the user's other "
+            "offerings that resolve to the same pool and therefore carry the "
+            "very same value. The pool fields are null when the value is not "
+            "tracked by a pool."
         ),
         responses={200: serializers.OfferingUserPosixAllocationSerializer(many=True)},
     )
@@ -11027,9 +11161,11 @@ class OfferingUsersViewSet(
         summary="List a user's POSIX identities across all their offerings",
         description=(
             "Consolidated view of one user's POSIX identifiers (UID, primary "
-            "GID and project group GIDs) across every offering they have an "
-            "account on, each with the range it was allocated from. Scoped to "
-            "the offering users the requester is allowed to see."
+            "GID and project group GIDs), one row per pool and namespace: a "
+            "UID allocated once for the user is reported once, listing every "
+            "offering that uses it. An offering with its own pool yields its "
+            "own row. Scoped to the offering users the requester is allowed to "
+            "see."
         ),
         parameters=[
             OpenApiParameter(

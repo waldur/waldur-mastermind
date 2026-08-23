@@ -1923,10 +1923,69 @@ class PosixIdPoolStatsSerializer(serializers.Serializer):
     utilization_threshold = serializers.IntegerField()
 
 
+class PosixIdPoolRepointChangeSerializer(serializers.Serializer):
+    """One POSIX identifier that a re-point moves (read-only)."""
+
+    offering_user_uuid = serializers.CharField()
+    offering_uuid = serializers.CharField()
+    offering_name = serializers.CharField()
+    user_uuid = serializers.CharField()
+    username = serializers.CharField()
+    namespace = serializers.CharField()
+    old_value = serializers.IntegerField(allow_null=True)
+    new_value = serializers.IntegerField()
+
+
+class PosixIdPoolLeftBehindConsumerSerializer(serializers.Serializer):
+    """A non-user consumer that keeps its value from the previous pool."""
+
+    kind = serializers.CharField()
+    uid = serializers.IntegerField(allow_null=True)
+    gid = serializers.IntegerField(allow_null=True)
+    identity_uuid = serializers.CharField()
+
+
+class PosixIdPoolRepointSerializer(serializers.Serializer):
+    """Impact of re-pointing an offering's existing accounts onto its own pool."""
+
+    changes = PosixIdPoolRepointChangeSerializer(many=True)
+    released = serializers.IntegerField(
+        help_text="Identities freed in the previously resolved pool. Their values "
+        "are withheld from recycling until an operator returns them."
+    )
+    retained = serializers.IntegerField(
+        help_text="Users whose previous identity stays active because this pool "
+        "does not manage every namespace they hold a value in."
+    )
+    other_consumers = PosixIdPoolLeftBehindConsumerSerializer(
+        many=True,
+        help_text="Robot accounts and groups of the offering that keep their "
+        "values from the previously resolved pool; re-pointing moves offering "
+        "accounts only.",
+    )
+
+
+class PosixIdPoolRepointRequestSerializer(serializers.Serializer):
+    confirm = serializers.BooleanField(
+        help_text="Must be true. Re-pointing rewrites identifiers that the "
+        "provider's directory and filesystem already carry, so it is never "
+        "applied implicitly - preview it first with repoint_preview."
+    )
+
+
 class PosixIdentitySerializer(serializers.HyperlinkedModelSerializer):
+    """Audit view of one allocated identity.
+
+    ``offering`` names the offering that first triggered the allocation; a user
+    identity is shared by every offering of the provider that resolves to the
+    same pool, so it must not be read as the identity's owner.
+    """
+
     pool_uuid = serializers.ReadOnlyField(source="pool.uuid")
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
-    offering_name = serializers.ReadOnlyField(source="offering.name")
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid", allow_null=True)
+    offering_name = serializers.ReadOnlyField(source="offering.name", allow_null=True)
+    user_uuid = serializers.ReadOnlyField(source="user.uuid", allow_null=True)
+    user_username = serializers.ReadOnlyField(source="user.username", allow_null=True)
     consumer_type = serializers.SerializerMethodField()
     consumer_name = serializers.SerializerMethodField()
 
@@ -1939,9 +1998,12 @@ class PosixIdentitySerializer(serializers.HyperlinkedModelSerializer):
             "uid",
             "gid",
             "released_at",
+            "recyclable",
             "pool_uuid",
             "offering_uuid",
             "offering_name",
+            "user_uuid",
+            "user_username",
             "consumer_type",
             "consumer_name",
         )
@@ -1954,12 +2016,16 @@ class PosixIdentitySerializer(serializers.HyperlinkedModelSerializer):
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_consumer_type(self, identity):
-        return identity.content_type.model
+        if identity.user_id:
+            return "user"
+        return identity.content_type.model if identity.content_type_id else None
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_consumer_name(self, identity):
         # Consumer may be deleted (released rows) and some consumer models
         # have no uuid field — fall back to str() rendering only.
+        if identity.user_id:
+            return str(identity.user)
         consumer = identity.consumer
         return str(consumer) if consumer is not None else None
 
@@ -8758,13 +8824,23 @@ class OfferingUserPosixGroupSerializer(serializers.Serializer):
     customer_uuid = serializers.CharField(allow_null=True)
     project_accessible = serializers.BooleanField()
     pool_uuid = serializers.CharField(allow_null=True)
+    pool_scope = serializers.CharField(allow_null=True)
+
+
+class PosixSharingOfferingSerializer(serializers.Serializer):
+    """An offering that uses a shared POSIX identity (read-only)."""
+
+    uuid = serializers.CharField()
+    name = serializers.CharField()
 
 
 class OfferingUserPosixAllocationSerializer(serializers.Serializer):
     """An offering user's POSIX identifier and the pool it came from (read-only).
 
     ``namespace`` is ``uid`` or ``gid``; ``pool_*`` / ``scope_*`` are null when
-    the value is not tracked by a POSIX ID pool.
+    the value is not tracked by a POSIX ID pool. ``shared_with_offerings`` lists
+    the user's other offerings that resolve to the same pool and therefore carry
+    the very same value.
     """
 
     namespace = serializers.CharField()
@@ -8772,21 +8848,38 @@ class OfferingUserPosixAllocationSerializer(serializers.Serializer):
     pool_uuid = serializers.CharField(allow_null=True)
     scope = serializers.CharField(allow_null=True)
     scope_name = serializers.CharField(allow_null=True)
+    shared_with_offerings = PosixSharingOfferingSerializer(many=True)
 
 
 class UserPosixIdentitySerializer(serializers.Serializer):
-    """One of a user's POSIX identifiers across all their offering accounts.
+    """One of a user's POSIX identifiers, consolidated across their accounts.
 
+    One row per ``(pool, namespace, value)``: a UID allocated once for the user
+    is reported once, with ``offerings`` naming every account that uses it.
+    ``offering_name`` / ``offering_uuid`` repeat the first of those for clients
+    written against the previous one-row-per-offering shape; they are deprecated
+    and go away once those clients read ``offerings``.
     ``namespace`` is ``uid`` or ``gid``; ``context`` holds the project name for
-    group GIDs. ``pool_uuid`` is null when the value is not tracked by a pool.
+    group GIDs. ``pool_uuid`` / ``pool_scope`` are null when the value is not
+    tracked by a pool.
     """
 
-    offering_name = serializers.CharField()
-    offering_uuid = serializers.CharField()
     namespace = serializers.CharField()
     value = serializers.IntegerField()
     context = serializers.CharField(allow_null=True)
     pool_uuid = serializers.CharField(allow_null=True)
+    pool_scope = serializers.CharField(allow_null=True)
+    offerings = PosixSharingOfferingSerializer(many=True)
+    offering_name = serializers.CharField(
+        allow_null=True,
+        help_text="Deprecated: the first entry of 'offerings'. The endpoint "
+        "used to return one row per offering; read 'offerings' instead.",
+    )
+    offering_uuid = serializers.CharField(
+        allow_null=True,
+        help_text="Deprecated: the first entry of 'offerings'. Read "
+        "'offerings' instead.",
+    )
 
 
 class OfferingUserPosixAttributesSerializer(serializers.Serializer):

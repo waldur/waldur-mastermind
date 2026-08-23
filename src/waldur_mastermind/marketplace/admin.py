@@ -146,8 +146,32 @@ class PosixIdPoolAdmin(admin.ModelAdmin):
 
 class PosixIdentityAdmin(admin.ModelAdmin):
     model = models.PosixIdentity
-    list_display = ("uid", "gid", "pool", "offering", "released_at")
-    raw_id_fields = ("pool", "offering")
+    list_display = (
+        "uid",
+        "gid",
+        "pool",
+        "user",
+        "offering",
+        "released_at",
+        "recyclable",
+    )
+    list_filter = ("recyclable",)
+    raw_id_fields = ("pool", "offering", "user")
+    actions = ["return_values_to_the_pool"]
+
+    @admin.action(description="Return withheld values to the pool")
+    def return_values_to_the_pool(self, request, queryset):
+        """Clear the recycling hold on released identities.
+
+        The retrofit and the re-point action free values that are still stamped
+        on files in the provider's filesystem, so they are withheld from
+        recycling until an operator confirms the filesystem has been reconciled.
+        This is that confirmation.
+        """
+        count = queryset.filter(released_at__isnull=False, recyclable=False).update(
+            recyclable=True
+        )
+        self.message_user(request, f"{count} value(s) returned to their pool.")
 
 
 class ScreenshotsInline(admin.StackedInline):

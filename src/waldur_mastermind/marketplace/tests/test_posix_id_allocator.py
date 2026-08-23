@@ -5,7 +5,6 @@ released values, idempotency, exhaustion (409), the DB-unique collision
 backstop, and release-on-delete.
 """
 
-from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 from rest_framework import test
 
@@ -33,10 +32,11 @@ class PosixIdAllocatorTest(test.APITestCase):
     def consumer(self):
         return factories.OfferingUserFactory(offering=self.offering)
 
-    def active_identity(self, consumer):
-        ct = ContentType.objects.get_for_model(consumer.__class__)
+    def active_identity(self, consumer, pool=None):
         return models.PosixIdentity.objects.filter(
-            content_type=ct, object_id=consumer.pk, released_at__isnull=True
+            pool=pool or self.pool,
+            released_at__isnull=True,
+            **posix_ids.principal_filter(consumer),
         ).first()
 
     def test_resolve_prefers_offering_pool_over_provider(self):
@@ -97,7 +97,9 @@ class PosixIdAllocatorTest(test.APITestCase):
         second = self.consumer()
         posix_ids.allocate(self.offering, posix_ids.UID, second)
 
-        posix_ids.release_posix_allocations(first)
+        # Release is tied to row deletion: an account still present keeps its
+        # value reserved.
+        first.delete()
         # The lowest released, in-bounds, not-active value is handed back first.
         third = self.consumer()
         recycled = posix_ids.allocate(self.offering, posix_ids.UID, third)
@@ -123,20 +125,20 @@ class PosixIdAllocatorTest(test.APITestCase):
                 pool=self.pool, uid=1000, consumer=second, offering=self.offering
             )
 
-    def test_release_marks_identity_released(self):
+    def test_deleting_the_account_releases_the_identity(self):
         consumer = self.consumer()
         posix_ids.allocate(self.offering, posix_ids.UID, consumer)
         self.assertIsNotNone(self.active_identity(consumer))
-        posix_ids.release_posix_allocations(consumer)
+        consumer.delete()
         self.assertIsNone(self.active_identity(consumer))
 
-    def test_existing_identity_stays_in_its_pool_when_override_added(self):
-        # Allocate a UID from the provider pool, then add an offering override
-        # pool. The later GID allocation must stay in the consumer's original
-        # pool, so both namespaces share one partition for the unique constraint.
+    def test_pool_is_resolved_from_the_offering_on_every_call(self):
+        # An offering override always wins, so a value allocated after the
+        # override appears comes from the override pool. Values already handed
+        # out are not moved implicitly - that is the re-point action's job.
         consumer = self.consumer()
-        posix_ids.allocate(self.offering, posix_ids.UID, consumer)
-        factories.PosixIdPoolFactory(
+        uid = posix_ids.allocate(self.offering, posix_ids.UID, consumer)
+        override = factories.PosixIdPoolFactory(
             offering=self.offering,
             min_uid=5000,
             max_uid=5999,
@@ -146,14 +148,16 @@ class PosixIdAllocatorTest(test.APITestCase):
             next_gid=6000,
         )
         gid = posix_ids.allocate(self.offering, posix_ids.GID, consumer)
-        identity = self.active_identity(consumer)
-        self.assertEqual(identity.pool_id, self.pool.pk)
-        self.assertEqual(gid, 2000)  # the provider pool's GID sequence, not 6000
+
+        self.assertEqual(uid, 1000)
+        self.assertEqual(gid, 6000)
+        self.assertEqual(self.active_identity(consumer).uid, 1000)
+        self.assertEqual(self.active_identity(consumer, override).gid, 6000)
 
     def test_gid_only_pool_skips_uid_allocation(self):
         # An offering-override pool that manages only GIDs (UIDs come from an
         # external source such as OIDC): allocate(UID) is a no-op, GID works.
-        factories.PosixIdPoolFactory(
+        gid_only = factories.PosixIdPoolFactory(
             offering=self.offering,
             min_uid=None,
             max_uid=None,
@@ -167,7 +171,7 @@ class PosixIdAllocatorTest(test.APITestCase):
         gid = posix_ids.allocate(self.offering, posix_ids.GID, consumer)
         self.assertIsNone(uid)
         self.assertEqual(gid, 6000)
-        identity = self.active_identity(consumer)
+        identity = self.active_identity(consumer, gid_only)
         self.assertIsNone(identity.uid)
         self.assertEqual(identity.gid, 6000)
 

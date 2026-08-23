@@ -3163,6 +3163,11 @@ def log_resource_end_date_change_request_events(
 def release_posix_allocations_on_consumer_deletion(sender, instance, **kwargs):
     """Mark the deleted POSIX id consumer's identity as released.
 
+    A user identity is shared across the offerings that resolve to one pool, so
+    deleting an offering user releases nothing while another account of that user
+    still resolves there; only the last one frees the value. Robot accounts and
+    groups are released per consumer.
+
     A released value is recycled automatically on the next allocation from the
     same pool and namespace; the released row is kept as an audit trail. Note:
     OfferingUser also has a soft DELETED lifecycle state — release is

@@ -5,7 +5,6 @@ that are free succeed; out-of-range values and values already held by another
 active identity (in either namespace) are rejected.
 """
 
-from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -44,9 +43,8 @@ class OfferingUserPosixIdOverrideTest(test.APITestCase):
         )
 
     def active_identity(self, consumer):
-        ct = ContentType.objects.get_for_model(consumer.__class__)
         return models.PosixIdentity.objects.filter(
-            content_type=ct, object_id=consumer.pk, released_at__isnull=True
+            released_at__isnull=True, **posix_ids.principal_filter(consumer)
         ).first()
 
     def post(self, body, offering_user=None):
@@ -131,9 +129,9 @@ class OfferingUserPosixIdOverrideTest(test.APITestCase):
         # pinned to another account.
         ghost = factories.OfferingUserFactory(offering=self.offering)
         identity = models.PosixIdentity.objects.create(
-            pool=self.pool, uid=100050, consumer=ghost, offering=self.offering
+            pool=self.pool, uid=100050, user=ghost.user, offering=self.offering
         )
-        posix_ids.release_posix_allocations(ghost)
+        ghost.delete()
         identity.refresh_from_db()
         self.assertIsNotNone(identity.released_at)
 

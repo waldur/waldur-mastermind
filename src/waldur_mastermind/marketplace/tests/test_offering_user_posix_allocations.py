@@ -8,7 +8,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import utils
+from waldur_mastermind.marketplace import models, utils
 from waldur_mastermind.marketplace.tests import factories
 
 
@@ -37,6 +37,23 @@ class OfferingUserPosixAllocationsTest(test.APITestCase):
         return factories.OfferingUserFactory.get_url(
             offering_user or self.offering_user, action="posix-allocations"
         )
+
+    def test_shared_offerings_are_listed(self):
+        second_offering = factories.OfferingFactory(
+            customer=self.customer, name="HPC Cluster 2"
+        )
+        sibling = factories.OfferingUserFactory(
+            offering=second_offering, user=self.offering_user.user
+        )
+        utils.setup_linux_related_data(sibling, second_offering)
+        sibling.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.get_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        # The offering has its own pool, so nothing is shared with the sibling.
+        for row in response.data:
+            self.assertEqual(row["shared_with_offerings"], [])
 
     def test_lists_uid_and_gid_with_originating_pool(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -116,14 +133,59 @@ class UserPosixIdentitiesTest(test.APITestCase):
         response = self.client.get(self.get_url(), {"user_uuid": self.user.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        offerings = {row["offering_name"] for row in response.data}
-        self.assertEqual(offerings, {"Cluster A", "Cluster B"})
-        for name in ("Cluster A", "Cluster B"):
-            namespaces = {
-                r["namespace"] for r in response.data if r["offering_name"] == name
-            }
-            self.assertEqual(namespaces, {"uid", "gid"})
-        self.assertTrue(all(row["pool_uuid"] for row in response.data))
+        # One shared UID and one shared primary GID, not one pair per offering.
+        by_namespace = {row["namespace"]: row for row in response.data}
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(set(by_namespace), {"uid", "gid"})
+        for row in response.data:
+            self.assertEqual(
+                {offering["name"] for offering in row["offerings"]},
+                {"Cluster A", "Cluster B"},
+            )
+            self.assertTrue(row["pool_uuid"])
+            self.assertEqual(row["pool_scope"], "service_provider")
+
+    def test_deprecated_offering_fields_mirror_the_first_sharing_offering(self):
+        # Kept for one cycle so clients written against the previous
+        # one-row-per-offering shape keep rendering a name.
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.get_url(), {"user_uuid": self.user.uuid.hex})
+        for row in response.data:
+            self.assertEqual(row["offering_name"], row["offerings"][0]["name"])
+            self.assertEqual(row["offering_uuid"], row["offerings"][0]["uuid"])
+
+    def test_offering_with_its_own_pool_is_reported_separately(self):
+        factories.PosixIdPoolFactory(
+            offering=self.offering_b,
+            min_uid=500000,
+            max_uid=599999,
+            next_uid=500000,
+            min_gid=600000,
+            max_gid=699999,
+            next_gid=600000,
+        )
+        offering_user = models.OfferingUser.objects.get(
+            offering=self.offering_b, user=self.user
+        )
+        offering_user.backend_metadata = {}
+        utils.setup_linux_related_data(offering_user, self.offering_b)
+        offering_user.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.get_url(), {"user_uuid": self.user.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        uid_rows = [row for row in response.data if row["namespace"] == "uid"]
+        self.assertEqual(len(uid_rows), 2)
+        by_value = {row["value"]: row for row in uid_rows}
+        self.assertEqual(
+            [offering["name"] for offering in by_value[100000]["offerings"]],
+            ["Cluster A"],
+        )
+        self.assertEqual(
+            [offering["name"] for offering in by_value[500000]["offerings"]],
+            ["Cluster B"],
+        )
 
     def test_user_uuid_is_required(self):
         self.client.force_authenticate(self.fixture.staff)
