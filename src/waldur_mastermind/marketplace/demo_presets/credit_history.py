@@ -8,6 +8,9 @@ invariant the production flow guarantees:
 * a compensation never exceeds the cost of the item it offsets;
 * the minimal-consumption draw reduces ``credit.value`` and produces **no**
   invoice item, so it is invisible to anything reading invoice items alone;
+* a credit whose end date has passed is zeroed before the month is
+  compensated, exactly as finalization does it, so the balance it gave up is
+  recorded as forfeiture rather than quietly surviving;
 * ``credit.value`` reconciles to granted minus compensations minus floor draws.
 
 Hand-authored credit fixtures have historically violated all three — which made
@@ -17,6 +20,7 @@ path keeps the demo honest as that code evolves.
 """
 
 import calendar
+import datetime
 import decimal
 import logging
 from io import StringIO
@@ -27,6 +31,7 @@ from django.utils import timezone
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import compensations
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices import tasks as invoice_tasks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 
@@ -124,6 +129,13 @@ def generate_credit_history(
 
         for index, (year, month) in enumerate(_previous_months(months)):
             fraction = USAGE_PATTERN[index % len(USAGE_PATTERN)]
+            # Finalization expires overdue credit before it compensates the
+            # month, and the order matters: a credit that lapsed earlier in the
+            # simulated history must not go on paying for usage after its end
+            # date. Without this the generator produced histories no real
+            # deployment could have, and no `expiry` row ever existed in demo
+            # data — leaving the dashboards' forfeiture figure untestable.
+            _expire_overdue(datetime.date(year, month, 1))
             with transaction.atomic():
                 invoice, _ = invoice_models.Invoice.objects.get_or_create(
                     customer=customer, year=year, month=month
@@ -150,6 +162,8 @@ def generate_credit_history(
 
             processed += 1
 
+        _expire_overdue(timezone.localtime(timezone.now()).date().replace(day=1))
+
         if patterns:
             _bill_current_month(customer, project_credits, customer_credit, patterns)
 
@@ -160,6 +174,16 @@ def generate_credit_history(
         )
 
     return processed
+
+
+def _expire_overdue(effective_date) -> None:
+    """Zero credit whose end date preceded this month, as finalization does.
+
+    Never dated into the future: the task refuses a future effective date, and
+    the current month's first day is the furthest the simulated clock reaches.
+    """
+    today = timezone.localtime(timezone.now()).date()
+    invoice_tasks.set_to_zero_overdue_credits(min(effective_date, today))
 
 
 def _bill_current_month(customer, project_credits, customer_credit, patterns) -> int:

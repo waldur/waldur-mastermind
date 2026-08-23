@@ -2832,6 +2832,11 @@ class Command(BaseCommand):
                     "oecd_fos_2007_code": project_data.get("oecd_fos_2007_code", ""),
                     "slug": project_data.get("slug", ""),
                     "backend_id": project_data.get("backend_id", ""),
+                    # Opt-in for the credit dashboards. A preset built to
+                    # demonstrate them cannot do so without it.
+                    "display_credit_reports": project_data.get(
+                        "display_credit_reports", False
+                    ),
                 }
 
                 if not self.dry_run:
