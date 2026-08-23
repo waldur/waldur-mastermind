@@ -549,6 +549,50 @@ class CustomerCreditTest(test.APITestCase):
         # Customer credit should not be affected
         self.assertEqual(customer_credit.value, old_customer_value)
 
+    def test_expired_project_credit_is_ledgered_as_forfeiture(self):
+        """A project allocation that expires unspent has to be visible as such.
+
+        The organization balance has recorded its own expiry since the ledger
+        existed; project allocations only started being recorded when the
+        handler was wired to ProjectCredit, and nothing pinned that they are.
+        The dashboard reads forfeiture as `minimal_draw` plus `expiry`, so an
+        unrecorded project expiry is credit that leaves the balance and appears
+        nowhere.
+        """
+        factories.CustomerCreditFactory(customer=self.invoice.customer, value=1000)
+        project = structure_factories.ProjectFactory(customer=self.invoice.customer)
+        credit = factories.ProjectCreditFactory(
+            project=project,
+            value=500,
+            end_date=datetime.date.today().replace(day=1) - datetime.timedelta(days=31),
+        )
+
+        tasks.set_to_zero_overdue_credits()
+
+        (row,) = credit.transactions.filter(
+            transaction_type=models.CreditTransaction.Types.EXPIRY
+        )
+        self.assertEqual(row.amount, -500)
+        self.assertEqual(row.project_uuid, project.uuid.hex)
+        self.assertEqual(row.project_name, project.name)
+        # Dated to the month the balance was forfeited in, so a per-month total
+        # of forfeited credit includes it rather than silently dropping it.
+        self.assertEqual(row.billing_period, datetime.date.today().replace(day=1))
+
+    def test_expired_organization_credit_is_dated_too(self):
+        credit = factories.CustomerCreditFactory(
+            value=700,
+            end_date=datetime.date.today().replace(day=1) - datetime.timedelta(days=31),
+        )
+
+        tasks.set_to_zero_overdue_credits()
+
+        (row,) = credit.transactions.filter(
+            transaction_type=models.CreditTransaction.Types.EXPIRY
+        )
+        self.assertEqual(row.amount, -700)
+        self.assertEqual(row.billing_period, datetime.date.today().replace(day=1))
+
     def test_set_to_zero_continues_after_failing_customer_credit(self):
         """One credit failing to save must not block zeroing of the rest."""
         bad_credit = factories.CustomerCreditFactory(

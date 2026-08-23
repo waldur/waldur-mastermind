@@ -392,7 +392,16 @@ def set_to_zero_overdue_credits(effective_date=None):
     with (
         transaction.atomic(),
         skip_credit_audit(),
-        ledger.credit_transaction_type(models.CreditTransaction.Types.EXPIRY),
+        ledger.credit_transaction_type(
+            models.CreditTransaction.Types.EXPIRY,
+            # The month the balance was forfeited in. Expiry answers to no
+            # invoice, so unlike a compensation there is no billed month to
+            # borrow — but leaving it open drops forfeiture out of any
+            # per-month total, which is where "Lost" is read. The month the
+            # movement happened is the honest answer, and the only one the
+            # evidence supports.
+            billing_period=effective_date.replace(day=1),
+        ),
     ):
         for credit in (
             models.CustomerCredit.objects.select_for_update()
