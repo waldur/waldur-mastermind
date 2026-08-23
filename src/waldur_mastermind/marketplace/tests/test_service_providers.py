@@ -511,6 +511,156 @@ class SetOfferingUsersTest(test.APITestCase):
         )
         self.assertEqual("ADMIN_NEW", offering_user.username)
 
+    def test_posix_attributes_are_populated(self):
+        # The action is the entry point of the Terraform provisioning flow, so
+        # an account it materialises must come out complete: without the POSIX
+        # projection the site agent has nothing to write into the directory.
+        factories.PosixIdPoolFactory(
+            service_provider=self.fixture.service_provider,
+            min_uid=100000,
+            max_uid=100099,
+            next_uid=100000,
+            min_gid=200000,
+            max_gid=200099,
+            next_gid=200000,
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.post(
+            self.url,
+            {"user_uuid": self.admin.uuid, "username": "alice"},
+        )
+
+        self.assertEqual(201, response.status_code)
+        offering_user = models.OfferingUser.objects.get(
+            user=self.admin, offering=self.offering
+        )
+        self.assertEqual(offering_user.backend_metadata["uidnumber"], 100000)
+        self.assertEqual(offering_user.backend_metadata["primarygroup"], 200000)
+        self.assertEqual(offering_user.backend_metadata["homeDir"], "/home/alice")
+        self.assertEqual(offering_user.backend_metadata["loginShell"], "/bin/bash")
+
+    def test_pinned_home_directory_survives_a_repeated_call(self):
+        # The provisioning flow re-runs this action; re-deriving the home
+        # directory when the username has not changed would undo an override.
+        factories.PosixIdPoolFactory(
+            service_provider=self.fixture.service_provider,
+            min_uid=100000,
+            max_uid=100099,
+            next_uid=100000,
+            min_gid=200000,
+            max_gid=200099,
+            next_gid=200000,
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        payload = {"user_uuid": self.admin.uuid, "username": "alice"}
+        self.client.post(self.url, payload)
+
+        offering_user = models.OfferingUser.objects.get(
+            user=self.admin, offering=self.offering
+        )
+        offering_user.backend_metadata["homeDir"] = "/data/alice"
+        offering_user.save()
+
+        self.client.post(self.url, payload)
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.backend_metadata["homeDir"], "/data/alice")
+
+    def test_overridden_home_directory_survives_a_username_change(self):
+        # The PATCH path preserves an operator's override; this path must agree.
+        factories.PosixIdPoolFactory(
+            service_provider=self.fixture.service_provider,
+            min_uid=100000,
+            max_uid=100099,
+            next_uid=100000,
+            min_gid=200000,
+            max_gid=200099,
+            next_gid=200000,
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        self.client.post(self.url, {"user_uuid": self.admin.uuid, "username": "alice"})
+        offering_user = models.OfferingUser.objects.get(
+            user=self.admin, offering=self.offering
+        )
+        offering_user.backend_metadata["homeDir"] = "/data/alice"
+        offering_user.save()
+
+        self.client.post(self.url, {"user_uuid": self.admin.uuid, "username": "alice2"})
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.username, "alice2")
+        self.assertEqual(offering_user.backend_metadata["homeDir"], "/data/alice")
+
+    def test_derived_home_directory_follows_a_username_change(self):
+        factories.PosixIdPoolFactory(
+            service_provider=self.fixture.service_provider,
+            min_uid=100000,
+            max_uid=100099,
+            next_uid=100000,
+            min_gid=200000,
+            max_gid=200099,
+            next_gid=200000,
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        self.client.post(self.url, {"user_uuid": self.admin.uuid, "username": "alice"})
+        self.client.post(self.url, {"user_uuid": self.admin.uuid, "username": "alice2"})
+        offering_user = models.OfferingUser.objects.get(
+            user=self.admin, offering=self.offering
+        )
+        self.assertEqual(offering_user.backend_metadata["homeDir"], "/home/alice2")
+
+    def test_an_exhausted_pool_leaves_no_account_half_applied(self):
+        # The allocator raises 409; the action must be all-or-nothing rather than
+        # applying the offerings it got through first.
+        second_offering = factories.OfferingFactory(
+            customer=self.fixture.customer, name="Cluster B"
+        )
+        factories.ResourceFactory(
+            offering=second_offering, project=self.consumer_project
+        )
+        factories.PosixIdPoolFactory(
+            service_provider=self.fixture.service_provider,
+            min_uid=100000,
+            max_uid=100000,
+            next_uid=100001,
+            min_gid=200000,
+            max_gid=200000,
+            next_gid=200001,
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.post(
+            self.url, {"user_uuid": self.admin.uuid, "username": "alice"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+        self.assertFalse(models.OfferingUser.objects.filter(user=self.admin).exists())
+
+    def test_posix_attributes_are_shared_across_the_providers_offerings(self):
+        factories.PosixIdPoolFactory(
+            service_provider=self.fixture.service_provider,
+            min_uid=100000,
+            max_uid=100099,
+            next_uid=100000,
+            min_gid=200000,
+            max_gid=200099,
+            next_gid=200000,
+        )
+        second_offering = factories.OfferingFactory(
+            customer=self.fixture.customer, name="Cluster B"
+        )
+        factories.ResourceFactory(
+            offering=second_offering, project=self.consumer_project
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        self.client.post(
+            self.url,
+            {"user_uuid": self.admin.uuid, "username": "alice"},
+        )
+
+        values = {
+            offering_user.backend_metadata["uidnumber"]
+            for offering_user in models.OfferingUser.objects.filter(user=self.admin)
+        }
+        self.assertEqual(len(values), 1)
+
 
 class ServiceProviderUserCustomersTest(test.APITestCase):
     def setUp(self):

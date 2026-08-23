@@ -390,6 +390,22 @@ class OfferingUserPosixAttributesTest(test.APITestCase):
             self.offering_user.backend_metadata["homeDir"], "/home/hpc/alice2"
         )
 
+    def test_home_directory_is_derived_when_the_account_had_none(self):
+        # Under the service_provider username policy the account is materialised
+        # before a username exists, so it carries no homeDir at all. Assigning
+        # the username has to produce one, or the account never reaches GLAuth.
+        offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=UserFactory(),
+            backend_metadata={"uidnumber": 1001, "loginShell": "/bin/bash"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = OfferingUserFactory.get_url(offering_user)
+        response = self.client.patch(url, {"username": "bob"})
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.backend_metadata["homeDir"], "/home/hpc/bob")
+
     def test_overridden_home_directory_is_preserved_on_username_change(self):
         self.offering_user.backend_metadata["homeDir"] = "/custom/alice"
         self.offering_user.save()

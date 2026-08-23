@@ -3652,18 +3652,29 @@ class PosixIdentity(
     TimeStampedModel,
 ):
     """
-    Allocated POSIX identity for one consumer, drawn from a :class:`PosixIdPool`.
+    Allocated POSIX identity for one principal, drawn from a :class:`PosixIdPool`.
 
-    The consumer is an OfferingUser, RobotAccount, OfferingUserGroup or
-    OfferingRoleGroup. User and robot rows carry both a ``uid`` and a primary
-    ``gid``; group rows carry only a ``gid``. This table is the source of truth;
-    the values are mirrored into the consumer's ``backend_metadata`` for GLAuth
-    and the site agent.
+    A principal is either a Waldur user (``user``) or a single non-user consumer
+    row (``consumer``: RobotAccount, OfferingUserGroup or OfferingRoleGroup).
+    Exactly one of the two is set. User and robot rows carry both a ``uid`` and a
+    primary ``gid``; group rows carry only a ``gid``. This table is the source of
+    truth; the values are mirrored into the consumer's ``backend_metadata`` for
+    GLAuth and the site agent.
 
-    Deleting a consumer marks the row released (``released_at``). Released values
-    are recycled automatically: a released row leaves the partial-unique active
-    set, so its value is offered again on the next allocation from the same pool
-    and namespace. Released rows are retained as an audit trail.
+    A user identity is shared by every offering account of that user that
+    resolves to the same pool, so one user has one UID and one primary GID per
+    pool — the provider's LDAP tree sees a single consistent entry even when the
+    user has accounts on several of the provider's offerings. An offering with
+    its own pool resolves elsewhere and therefore gets its own identity.
+
+    Deleting a consumer marks the row released (``released_at``) once no other
+    consumer still uses it. Released values are recycled automatically: a
+    released row leaves the partial-unique active set, so its value is offered
+    again on the next allocation from the same pool and namespace. A released row
+    with ``recyclable=False`` is withheld from that recycling — the retrofit and
+    the re-point action set it, because the value is still present on the
+    provider's filesystem until an operator has reconciled it. Released rows are
+    retained as an audit trail.
     """
 
     pool = models.ForeignKey(
@@ -3671,15 +3682,33 @@ class PosixIdentity(
     )
     uid = models.BigIntegerField(null=True, blank=True)
     gid = models.BigIntegerField(null=True, blank=True)
-    content_type = models.ForeignKey(
-        ContentType, on_delete=models.CASCADE, related_name="+"
+    # Principal: exactly one of user / (content_type, object_id) is set.
+    user = models.ForeignKey(
+        core_models.User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="posix_identities",
     )
-    object_id = models.PositiveIntegerField()
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name="+", null=True, blank=True
+    )
+    object_id = models.PositiveIntegerField(null=True, blank=True)
     consumer = GenericForeignKey("content_type", "object_id")
+    # The offering that first triggered the allocation. Audit only: a user
+    # identity is shared by every offering that resolves to the same pool, so
+    # this must not be read as "the offering this identity belongs to" — and
+    # deleting it must not take the row (and the reservation the other
+    # offerings' accounts depend on) with it.
     offering = models.ForeignKey(
-        Offering, on_delete=models.CASCADE, related_name="posix_identities"
+        Offering,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="posix_identities",
     )
     released_at = models.DateTimeField(null=True, blank=True)
+    recyclable = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = _("POSIX identity")
@@ -3696,10 +3725,35 @@ class PosixIdentity(
                 condition=Q(released_at__isnull=True, gid__isnull=False),
                 name="marketplace_posixidentity_active_gid",
             ),
+            # Per pool, like the user constraint: an offering that gains its own
+            # pool must still be able to allocate for a robot account or group
+            # that already holds a value in the provider's pool.
             UniqueConstraint(
-                fields=["content_type", "object_id"],
-                condition=Q(released_at__isnull=True),
+                fields=["pool", "content_type", "object_id"],
+                condition=Q(released_at__isnull=True, content_type__isnull=False),
                 name="marketplace_posixidentity_active_consumer",
+            ),
+            # One identity per user per pool: this is what makes the value shared
+            # across the offerings of a provider that resolve to the same pool.
+            UniqueConstraint(
+                fields=["pool", "user"],
+                condition=Q(released_at__isnull=True, user__isnull=False),
+                name="marketplace_posixidentity_active_user",
+            ),
+            models.CheckConstraint(
+                name="marketplace_posixidentity_exactly_one_principal",
+                condition=(
+                    Q(
+                        user__isnull=False,
+                        content_type__isnull=True,
+                        object_id__isnull=True,
+                    )
+                    | Q(
+                        user__isnull=True,
+                        content_type__isnull=False,
+                        object_id__isnull=False,
+                    )
+                ),
             ),
         ]
         indexes = [
@@ -3709,10 +3763,12 @@ class PosixIdentity(
             ),
             Index(fields=["pool", "uid"], name="mp_posixidentity_pool_uid_idx"),
             Index(fields=["pool", "gid"], name="mp_posixidentity_pool_gid_idx"),
+            Index(fields=["user"], name="mp_posixidentity_user_idx"),
         ]
 
     def __str__(self):
-        return f"POSIX identity uid={self.uid} gid={self.gid} ({self.consumer})"
+        principal = self.user if self.user_id else self.consumer
+        return f"POSIX identity uid={self.uid} gid={self.gid} ({principal})"
 
     @classmethod
     def get_url_name(cls):

@@ -4,6 +4,12 @@ A :class:`marketplace.models.PosixIdPool` reserves a UID range and a GID range
 for a service provider (the default) or, as an override, a single offering. The
 allocator hands out values under a row lock on the pool and records each one in
 the :class:`marketplace.models.PosixIdentity` table — the source of truth.
+
+An identity belongs to a *principal*, not to a single account: for offering users
+the principal is the Waldur user, so all of that user's accounts on offerings
+resolving to the same pool share one UID and one primary GID. Robot accounts and
+groups have no user behind them and stay per-consumer.
+
 Consumers keep the value projected into their ``backend_metadata`` (``uidnumber``
 / ``primarygroup`` for offering users and robot accounts, ``gid`` for groups) so
 the GLAuth rendering and site-agent contracts stay unchanged.
@@ -143,20 +149,37 @@ def resolve(offering: models.Offering) -> models.PosixIdPool | None:
     return models.PosixIdPool.resolve(offering)
 
 
-def _active_identity(consumer):
+def principal_filter(consumer) -> dict:
+    """Lookup keys identifying the principal that owns ``consumer``'s identity.
+
+    An offering user's identity belongs to the Waldur **user**, so every offering
+    account of that user which resolves to the same pool shares one UID and one
+    primary GID. Robot accounts and groups have no user behind them, so they stay
+    keyed on the consumer row itself.
+    """
+    if isinstance(consumer, models.OfferingUser):
+        return {"user_id": consumer.user_id}
     ct = ContentType.objects.get_for_model(consumer.__class__)
+    return {"content_type": ct, "object_id": consumer.pk}
+
+
+def _active_identity(pool, consumer):
+    """The consumer's active identity **in this pool**, if any.
+
+    Scoped to the pool because one user may hold accounts with several providers,
+    each drawing from its own pool.
+    """
     return models.PosixIdentity.objects.filter(
-        content_type=ct, object_id=consumer.pk, released_at__isnull=True
+        pool=pool, released_at__isnull=True, **principal_filter(consumer)
     ).first()
 
 
 def _get_or_create_active_identity(consumer, pool, offering):
-    ct = ContentType.objects.get_for_model(consumer.__class__)
     identity, _created = models.PosixIdentity.objects.get_or_create(
-        content_type=ct,
-        object_id=consumer.pk,
+        pool=pool,
         released_at__isnull=True,
-        defaults={"pool": pool, "offering": offering},
+        defaults={"offering": offering},
+        **principal_filter(consumer),
     )
     return identity
 
@@ -167,6 +190,11 @@ def _next_value(pool: models.PosixIdPool, namespace: str) -> int | None:
     Released values in bounds are recycled first (auto-recycle policy), lowest
     first; otherwise the high-water mark ``next_*`` is used, skipping any value
     held by an in-range manual override. ``None`` means the pool is exhausted.
+
+    A released row flagged ``recyclable=False`` is skipped: the retrofit and the
+    re-point action free values that are still stamped on files on the provider's
+    filesystem, and handing such a number to a different user is a security
+    problem. An operator returns them to circulation deliberately.
     """
     min_v = getattr(pool, f"min_{namespace}")
     max_v = getattr(pool, f"max_{namespace}")
@@ -181,6 +209,7 @@ def _next_value(pool: models.PosixIdPool, namespace: str) -> int | None:
         models.PosixIdentity.objects.filter(
             pool=pool,
             released_at__isnull=False,
+            recyclable=True,
             **{f"{namespace}__gte": min_v, f"{namespace}__lte": max_v},
         )
         .filter(~Exists(active.filter(**{namespace: OuterRef(namespace)})))
@@ -219,23 +248,32 @@ def allocate(offering: models.Offering, namespace: str, consumer) -> int | None:
     come from an external identity source) — the caller skips the assignment.
     Raises :class:`PosixIdPoolExhausted` (HTTP 409) when the pool is exhausted.
 
-    Idempotent: if the consumer already holds a value for this namespace, that
-    value is returned, so a retried provisioning does not leak identifiers.
+    Idempotent: if the principal already holds a value for this namespace in the
+    resolved pool, that value is returned, so a retried provisioning does not
+    leak identifiers — and a second offering of the same provider hands the user
+    the value already allocated for the first one.
     """
-    existing = _active_identity(consumer)
-    if existing is not None and getattr(existing, namespace) is not None:
-        return getattr(existing, namespace)
+    if isinstance(
+        consumer, models.OfferingUser
+    ) and namespace not in pool_sourced_namespaces(offering):
+        # The offering takes this identifier from the user rather than from the
+        # allocator (or manages no POSIX account at all). Allocating here would
+        # hand out a pool value that then overwrites the external one — the
+        # re-point action reaches this path directly, not only via
+        # ``setup_linux_related_data``.
+        return None
 
-    # A consumer that already has an identity stays bound to that identity's
-    # pool; only a brand-new consumer is placed into the offering's currently
-    # resolved pool. This keeps both of a consumer's namespaces in one pool, so
-    # the per-pool unique constraints guard the right partition even after the
-    # offering's pool scoping changes (e.g. an override pool is added later).
-    pool = (
-        existing.pool if existing is not None else models.PosixIdPool.resolve(offering)
-    )
+    # The pool is resolved from the offering on every call, so an offering-level
+    # override always wins over the provider default. Pre-existing accounts are
+    # not moved implicitly when an override appears later — that is what the
+    # explicit re-point action is for.
+    pool = models.PosixIdPool.resolve(offering)
     if pool is None or not pool.manages(namespace):
         return None
+
+    existing = _active_identity(pool, consumer)
+    if existing is not None and getattr(existing, namespace) is not None:
+        return getattr(existing, namespace)
 
     with transaction.atomic():
         pool = models.PosixIdPool.objects.select_for_update().get(pk=pool.pk)
@@ -259,7 +297,11 @@ def allocate(offering: models.Offering, namespace: str, consumer) -> int | None:
 
 
 def set_value(consumer, namespace: str, value: int, offering: models.Offering) -> None:
-    """Pin ``value`` as ``consumer``'s ``namespace`` id (manual override).
+    """Pin ``value`` as the principal's ``namespace`` id (manual override).
+
+    For an offering user the principal is the Waldur user, so the pin applies
+    across every offering of the provider that resolves to the same pool — not
+    to that single offering account.
 
     Locks the same pool row the allocator locks, so an override and a concurrent
     automatic allocation serialize. The value must fall inside the resolved
@@ -267,14 +309,7 @@ def set_value(consumer, namespace: str, value: int, offering: models.Offering) -
     is out of range, and :class:`PosixIdValueConflict` when the value is already
     held by another active identity (the DB unique constraint is the backstop).
     """
-    # An override pins a value for an existing account, so it targets that
-    # account's current pool; only a consumer without an identity yet falls back
-    # to the offering's resolved pool. This keeps the value and the per-pool
-    # unique constraint in the same partition.
-    existing = _active_identity(consumer)
-    pool = (
-        existing.pool if existing is not None else models.PosixIdPool.resolve(offering)
-    )
+    pool = models.PosixIdPool.resolve(offering)
     if pool is None:
         raise ValidationError(_("No POSIX ID pool is configured for this offering."))
     if not pool.manages(namespace):
@@ -304,8 +339,68 @@ def set_value(consumer, namespace: str, value: int, offering: models.Offering) -
             raise PosixIdValueConflict
 
 
+def pool_sourced_namespaces(offering) -> set:
+    """Namespaces an offering's **accounts** actually draw from the pool.
+
+    Two per-offering plugin options narrow this, and both matter because the
+    pool is normally per-provider while they are not:
+
+    * ``enable_posix_account=False`` opts the offering out of POSIX accounts
+      entirely, so it neither allocates nor keeps a value reserved;
+    * ``uid_source`` / ``gid_source`` set to ``user_attribute`` mean the value
+      comes from the Waldur user (an OIDC claim, typically), not from Waldur's
+      allocator — a legal mix, since offering A of a provider may allocate UIDs
+      from the shared pool while offering B takes them from the claim.
+
+    A namespace sourced externally must never be allocated, projected onto by a
+    pin or the retrofit, or counted as holding the pool's value. Mirrors the
+    gate in ``utils.setup_linux_related_data``, which is where the external
+    value is read.
+
+    Group GIDs are not covered: a project or role group has no user behind it,
+    so ``gid_source`` says nothing about it and its GID always comes from the
+    pool.
+    """
+    plugin_options = offering.plugin_options or {}
+    if not plugin_options.get("enable_posix_account", True):
+        return set()
+    return {
+        namespace
+        for namespace in NAMESPACES
+        if plugin_options.get(f"{namespace}_source", "pool") == "pool"
+    }
+
+
+def _pool_ids_still_in_use_by(user_id: int) -> set:
+    """Pools the user still holds a POSIX-relevant offering account in."""
+    pool_ids = set()
+    resolved: dict[int, int | None] = {}
+    offering_users = models.OfferingUser.objects.filter(user_id=user_id).select_related(
+        "offering"
+    )
+    for offering_user in offering_users:
+        offering_id = offering_user.offering_id
+        if offering_id not in resolved:
+            offering = offering_user.offering
+            pool = (
+                models.PosixIdPool.resolve(offering)
+                if pool_sourced_namespaces(offering)
+                else None
+            )
+            resolved[offering_id] = pool.pk if pool is not None else None
+        pool_id = resolved[offering_id]
+        if pool_id is not None:
+            pool_ids.add(pool_id)
+    return pool_ids
+
+
 def release_posix_allocations(consumer) -> int:
     """Mark the deleted consumer's active POSIX identity as released.
+
+    A user identity is shared, so deleting one offering user releases nothing
+    while another offering account of that user still resolves to the same pool;
+    only the last one frees the value. Robot accounts and groups are released
+    per consumer.
 
     Released rows are retained for audit and become recycle candidates for the
     next allocation from the same pool and namespace.
@@ -322,13 +417,58 @@ def release_posix_allocations(consumer) -> int:
             consumer.__class__.__name__,
             consumer.pk,
         )
+    if isinstance(consumer, models.OfferingUser):
+        # The consumer-scoped pass above is not dead code for offering users:
+        # deployments retrofitted by the migration keep the duplicate rows of a
+        # (pool, user) group consumer-scoped until the collapse command is run,
+        # and those rows belong to one account each.
+        count += release_user_allocations(consumer.user_id)
+    return count
+
+
+def release_user_allocations(user_id: int | None, recyclable: bool = True) -> int:
+    """Release the user's identities in pools they no longer have an account in.
+
+    Called after an offering user row is deleted, and by the re-point action when
+    accounts move to an override pool. Identities in pools that are still
+    reachable through another offering account of the same user stay active, so
+    the shared UID/GID keeps its reservation. Takes the id rather than the
+    instance: during a cascading user deletion the related row may already be
+    gone.
+
+    ``recyclable=False`` withholds the freed values from the recycle pool — the
+    caller knows they are still stamped on files on the provider's filesystem.
+    """
+    if user_id is None:
+        return 0
+    active = models.PosixIdentity.objects.filter(
+        user_id=user_id, released_at__isnull=True
+    )
+    if not active.exists():
+        # Runs from post_delete for every deleted offering user, so keep the
+        # common case to a single indexed lookup instead of walking the user's
+        # accounts and resolving a pool per offering.
+        return 0
+    in_use = _pool_ids_still_in_use_by(user_id)
+    count = active.exclude(pool_id__in=in_use).update(
+        released_at=timezone.now(), recyclable=recyclable
+    )
+    if count:
+        logger.info(
+            "Released %s POSIX identity row(s) of user %s: no offering account "
+            "of theirs resolves to those pools any more.",
+            count,
+            user_id,
+        )
     return count
 
 
 def get_pool_stats(pool: models.PosixIdPool) -> dict:
     """Per-namespace capacity, active count and utilization for a pool.
 
-    A namespace the pool does not manage is reported as ``None``.
+    ``used`` counts principals — a user with accounts on several offerings of the
+    provider consumes one UID, not one per offering. A namespace the pool does
+    not manage is reported as ``None``.
     """
     stats = {"utilization_threshold": config.POSIX_ID_POOL_UTILIZATION_THRESHOLD}
     for ns in NAMESPACES:

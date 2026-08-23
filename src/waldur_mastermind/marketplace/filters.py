@@ -2531,6 +2531,21 @@ class PosixIdPoolFilter(django_filters.FilterSet):
 
 
 class PosixIdentityFilter(django_filters.FilterSet):
+    """Filters for the POSIX identity audit list.
+
+    A pool covers a whole numeric range, so the list is paginated and has to be
+    narrowed server-side: filtering the page the client happens to hold would
+    report "not found" for values that exist further down the range.
+    """
+
+    # Non-user principals whose identity can be looked up by consumer kind. The
+    # user-scoped rows are keyed on ``user`` instead of a content type.
+    CONSUMER_TYPES = {
+        "robotaccount": models.RobotAccount,
+        "offeringusergroup": models.OfferingUserGroup,
+        "offeringrolegroup": models.OfferingRoleGroup,
+    }
+
     class Meta:
         model = models.PosixIdentity
         fields = []
@@ -2545,9 +2560,81 @@ class PosixIdentityFilter(django_filters.FilterSet):
         field_name="offering__uuid",
         label="Offering UUID",
     )
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail",
+        field_name="user__uuid",
+        label="User UUID",
+    )
     is_released = django_filters.BooleanFilter(
         field_name="released_at", lookup_expr="isnull", exclude=True
     )
+    recyclable = django_filters.BooleanFilter(
+        field_name="recyclable",
+        label="Recyclable (false lists released values withheld from the pool)",
+    )
+    uid = django_filters.NumberFilter(field_name="uid", label="UID")
+    gid = django_filters.NumberFilter(field_name="gid", label="GID")
+    uid_min = django_filters.NumberFilter(
+        field_name="uid", lookup_expr="gte", label="Minimum UID"
+    )
+    uid_max = django_filters.NumberFilter(
+        field_name="uid", lookup_expr="lte", label="Maximum UID"
+    )
+    gid_min = django_filters.NumberFilter(
+        field_name="gid", lookup_expr="gte", label="Minimum GID"
+    )
+    gid_max = django_filters.NumberFilter(
+        field_name="gid", lookup_expr="lte", label="Maximum GID"
+    )
+    consumer_type = django_filters.ChoiceFilter(
+        method="filter_consumer_type",
+        label="Principal kind",
+        choices=[
+            ("user", "User"),
+            ("robotaccount", "Robot account"),
+            ("offeringusergroup", "Project group"),
+            ("offeringrolegroup", "Role group"),
+        ],
+    )
+    keyword = django_filters.CharFilter(
+        method="filter_keyword",
+        label="Keyword (account username, first or last name, robot account name)",
+    )
+    o = django_filters.OrderingFilter(
+        fields=("uid", "gid", "created", "released_at"),
+        field_labels={
+            "uid": "UID",
+            "gid": "GID",
+            "created": "Issued",
+            "released_at": "Released",
+        },
+    )
+
+    def filter_consumer_type(self, queryset, name, value):
+        if value == "user":
+            return queryset.filter(user__isnull=False)
+        model = self.CONSUMER_TYPES.get(value)
+        if model is None:
+            return queryset.none()
+        return queryset.filter(content_type=ContentType.objects.get_for_model(model))
+
+    def filter_keyword(self, queryset, name, value):
+        # Only two principal kinds carry a name: the Waldur user behind an
+        # offering account, and a robot account. Groups are found by their GID.
+        # The generic FK cannot be joined, so robot accounts are matched through
+        # a subquery on their own table.
+        robot_accounts = models.RobotAccount.objects.filter(
+            username__icontains=value
+        ).values("id")
+        return queryset.filter(
+            Q(user__username__icontains=value)
+            | Q(user__first_name__icontains=value)
+            | Q(user__last_name__icontains=value)
+            | Q(
+                content_type=ContentType.objects.get_for_model(models.RobotAccount),
+                object_id__in=robot_accounts,
+            )
+        )
 
 
 class CategoryFilter(django_filters.FilterSet):

@@ -297,6 +297,21 @@ options:
 
 ```
 
+## collapse_posix_identities
+
+Collapse per-offering POSIX identities of a user into one identity per POSIX ID pool. Dry run unless --apply is given.
+
+```bash
+
+usage: waldur collapse_posix_identities [--pool POOL] [--apply]
+
+options:
+  --pool POOL  Limit the run to the POSIX ID pool with the given UUID. May be
+               given multiple times.
+  --apply      Perform the collapse. Without it the command only reports.
+
+```
+
 ## copy_category
 
 Copy structure of categories for the Marketplace
