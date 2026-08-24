@@ -3201,6 +3201,70 @@ class OfferingTermsOfServiceFilterTest(APITestCase):
         )
 
 
+class PublicOfferingDetailsUserHasOfferingUserTest(APITestCase):
+    """Test user_has_offering_user field on PublicOfferingDetailsSerializer."""
+
+    def setUp(self):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_RESOURCES)
+
+        self.user = UserFactory()
+        self.customer = CustomerFactory()
+        self.project = ProjectFactory(customer=self.customer)
+        self.offering = OfferingFactory(
+            customer=self.customer,
+            type="Marketplace.Basic",
+            shared=True,
+            state=OfferingStates.ACTIVE,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+        self.plan = PlanFactory(offering=self.offering)
+        self.resource = ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            state=ResourceStates.OK,
+        )
+        add_user_to_project(self.user, self.project, role=ProjectRole.MANAGER)
+        self.public_offering_url = reverse(
+            "marketplace-public-offering-detail",
+            kwargs={"uuid": self.offering.uuid.hex},
+        )
+        self.resource_offering_url = ResourceFactory.get_url(self.resource, "offering")
+
+    def test_user_has_offering_user_true_on_public_offering_detail(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.public_offering_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["user_has_offering_user"])
+
+    def test_user_has_offering_user_false_when_no_offering_user(self):
+        models.OfferingUser.objects.filter(
+            user=self.user,
+            offering=self.offering,
+        ).delete()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.public_offering_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["user_has_offering_user"])
+
+    def test_user_has_offering_user_on_resource_offering_action(self):
+        models.OfferingUser.objects.filter(
+            user=self.user,
+            offering=self.offering,
+        ).delete()
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(self.resource_offering_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("user_has_offering_user", response.data)
+        self.assertFalse(response.data["user_has_offering_user"])
+
+
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class TermsOfServiceConsentEventLoggingTest(APITestCase):
     """Test event logging for Terms of Service consent operations."""

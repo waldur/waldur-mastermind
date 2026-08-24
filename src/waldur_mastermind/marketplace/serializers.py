@@ -4319,12 +4319,14 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
             if f != "backend_id_rules"
         ) + (
             "user_has_consent",
+            "user_has_offering_user",
             "is_accessible",
             "open_for_proposals",
         )
 
     plugin_options = MergedPluginOptionsField(read_only=True)
     user_has_consent = serializers.SerializerMethodField()
+    user_has_offering_user = serializers.SerializerMethodField()
     is_accessible = serializers.SerializerMethodField()
     open_for_proposals = serializers.SerializerMethodField()
 
@@ -4346,6 +4348,17 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
 
         return models.UserOfferingConsent.objects.filter(
             user=request.user, offering=offering, revocation_date__isnull=True
+        ).exists()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_user_has_offering_user(self, offering: models.Offering) -> bool:
+        """Check if the current user has an OfferingUser record for this offering."""
+        request = self.context.get("request")
+        if not request or not request.user or request.user.is_anonymous:
+            return False
+
+        return models.OfferingUser.objects.filter(
+            user=request.user, offering=offering
         ).exists()
 
     @extend_schema_field(serializers.BooleanField())
