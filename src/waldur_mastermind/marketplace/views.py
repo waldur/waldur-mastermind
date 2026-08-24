@@ -16964,11 +16964,16 @@ class UserOfferingConsentViewSet(core_views.ActionsViewSet):
 
     def get_queryset(self):
         """Filter queryset based on user permissions."""
+        queryset = self.queryset.select_related(
+            "user",
+            "offering",
+            "offering__user_attribute_config",
+        ).prefetch_related("offering__terms_of_service_configs")
         user = self.request.user
         if user.is_staff or user.is_support:
-            return self.queryset
+            return queryset
 
-        return self.queryset.filter(user=user)
+        return queryset.filter(user=user)
 
     create_serializer_class = serializers.UserOfferingConsentCreateSerializer
 

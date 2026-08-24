@@ -12806,9 +12806,23 @@ class UserOfferingConsentSerializer(
         if obj.revocation_date is not None:
             return False
 
-        active_tos = obj.offering.terms_of_service_configs.filter(
-            is_active=True
-        ).first()
+        offering = obj.offering
+        if (
+            hasattr(offering, "_prefetched_objects_cache")
+            and "terms_of_service_configs" in offering._prefetched_objects_cache
+        ):
+            active_tos = next(
+                (
+                    tos
+                    for tos in offering.terms_of_service_configs.all()
+                    if tos.is_active
+                ),
+                None,
+            )
+        else:
+            active_tos = offering.terms_of_service_configs.filter(
+                is_active=True
+            ).first()
         if not active_tos or not active_tos.requires_reconsent:
             return False
         return active_tos.version != obj.version
