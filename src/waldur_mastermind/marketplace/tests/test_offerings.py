@@ -377,6 +377,44 @@ class SecretOptionsTests(test.APITestCase):
             ["ops@example.com"],
         )
 
+    def test_secret_options_are_rendered_in_a_list_for_an_entitled_row(self):
+        """A list is gated the same way a detail is, not more coarsely."""
+        self.client.force_authenticate(self.fixture.owner)
+
+        detail = self.client.get(self.url)
+        self.assertIn("secret_options", detail.data)
+
+        listing = self.client.get(factories.OfferingFactory.get_list_url())
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        row = next(row for row in listing.data if row["uuid"] == self.offering.uuid.hex)
+        self.assertIn("secret_options", row)
+
+    def test_a_page_is_gated_row_by_row(self):
+        """The regression: entitlement on one row used to decide the whole page."""
+        other = fixtures.ProjectFixture()
+        their_offering = factories.OfferingFactory(
+            shared=True,
+            customer=other.customer,
+            project=other.project,
+            secret_options={"order_notification_emails": ["theirs@example.com"]},
+        )
+        # Enough for filter_for_user to put their offering on the same page,
+        # without granting any provider rights over it.
+        other.customer.add_user(self.fixture.owner, CustomerRole.SUPPORT)
+
+        self.client.force_authenticate(self.fixture.owner)
+        listing = self.client.get(factories.OfferingFactory.get_list_url())
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        rows = {row["uuid"]: row for row in listing.data}
+        self.assertEqual(len(rows), 2)
+
+        mine = rows[self.offering.uuid.hex]
+        self.assertIn("secret_options", mine)
+
+        theirs = rows[their_offering.uuid.hex]
+        self.assertNotIn("secret_options", theirs)
+        self.assertNotIn("service_attributes", theirs)
+
     def test_offering_scoped_writer_may_read_back_what_it_wrote(self):
         self.client.force_authenticate(self._offering_manager())
 
