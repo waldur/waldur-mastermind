@@ -533,6 +533,59 @@ class TermsOfServiceConsentTest(APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertFalse(response.data[0]["requires_reconsent"])
 
+    def test_requires_reconsent_filter_true_excludes_matching_version(self):
+        """Test requires_reconsent=true excludes consents already on active ToS version."""
+        self.client.force_authenticate(user=self.user)
+
+        deactivate_tos_config(self.tos_config)
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Updated Terms of Service",
+            version="2.0",
+            requires_reconsent=True,
+            is_active=True,
+        )
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="2.0",
+        )
+
+        response = self.client.get(
+            self.consent_list_url, {"requires_reconsent": "true"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_requires_reconsent_filter_false_includes_matching_version(self):
+        """Test requires_reconsent=false includes consents on active ToS version."""
+        self.client.force_authenticate(user=self.user)
+
+        deactivate_tos_config(self.tos_config)
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Updated Terms of Service",
+            version="2.0",
+            requires_reconsent=True,
+            is_active=True,
+        )
+
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="2.0",
+        )
+
+        response = self.client.get(
+            self.consent_list_url, {"requires_reconsent": "false"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertFalse(response.data[0]["requires_reconsent"])
+
     def test_offering_user_creation_with_consent(self):
         """Test that OfferingUser is created when user has consented to ToS."""
         models.UserOfferingConsent.objects.create(

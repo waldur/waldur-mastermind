@@ -3151,18 +3151,18 @@ class UserOfferingConsentFilter(django_filters.FilterSet):
             return queryset.exclude(revocation_date__isnull=True)
 
     def filter_requires_reconsent(self, queryset, name, value):
+        outdated_consent = models.OfferingTermsOfService.objects.filter(
+            offering=OuterRef("offering"),
+            is_active=True,
+            requires_reconsent=True,
+        ).exclude(version=OuterRef("version"))
+        requires_reconsent_q = Q(revocation_date__isnull=True) & Q(
+            Exists(outdated_consent)
+        )
+
         if value:
-            return queryset.filter(
-                revocation_date__isnull=True,
-                offering__terms_of_service_configs__is_active=True,
-                offering__terms_of_service_configs__requires_reconsent=True,
-            )
-        else:
-            return queryset.exclude(
-                revocation_date__isnull=True,
-                offering__terms_of_service_configs__is_active=True,
-                offering__terms_of_service_configs__requires_reconsent=True,
-            )
+            return queryset.filter(requires_reconsent_q)
+        return queryset.exclude(requires_reconsent_q)
 
     o = django_filters.OrderingFilter(
         fields=(
