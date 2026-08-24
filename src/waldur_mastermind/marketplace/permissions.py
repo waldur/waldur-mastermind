@@ -8,7 +8,11 @@ from waldur_core.core import exceptions as core_exceptions
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import has_permission, permission_factory
+from waldur_core.permissions.utils import (
+    has_permission,
+    has_permission_on_any_source,
+    permission_factory,
+)
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace.enums import (
@@ -18,6 +22,12 @@ from waldur_mastermind.marketplace.enums import (
 )
 
 from . import models, utils
+
+# Scopes an offering's integration settings may be administered from: the
+# offering itself, its organization, or that organization's service provider.
+# Shared with the update_integration actions so the read gate for
+# secret_options cannot drift from the permission required to write them.
+OFFERING_INTEGRATION_SOURCES = ["*", "customer", "customer.serviceprovider"]
 
 
 def can_register_service_provider(request, customer):
@@ -380,33 +390,29 @@ def user_can_update_thumbnail(request, view, obj: models.Offering | None = None)
     raise exceptions.PermissionDenied()
 
 
-def can_see_secret_options(request, instance):
-    user = None
-    try:
-        user = request.user
-        if user.is_anonymous:
-            return
+def can_see_secret_options(request, instance) -> bool:
+    """Whether the user may see an offering's secret options.
 
-    except (KeyError, AttributeError):
-        pass
-
+    Gated on the same permission, held on the same scopes, as changing them —
+    so whoever may edit the integration settings may read them back. Anything
+    narrower means a user editing a field rendered empty, overwriting a value
+    they were never shown.
+    """
     if isinstance(instance, list):
-        offering = instance[0]
+        # A many=True serializer passes the whole page; every offering in it
+        # shares one serializer instance, so the first stands for all.
+        offering = instance[0] if instance else None
     else:
         offering = instance
 
-    return (
-        offering
-        and user
-        and (
-            structure_permissions._has_owner_access(user, offering.customer)
-            or (
-                structure_permissions._has_service_manager_access(
-                    user, offering.customer
-                )
-                and offering.customer.has_user(user)
-            )
-        )
+    if not offering:
+        return False
+
+    return has_permission_on_any_source(
+        request,
+        PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+        offering,
+        OFFERING_INTEGRATION_SOURCES,
     )
 
 

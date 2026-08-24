@@ -303,12 +303,30 @@ class OfferingPlanInfoTest(test.APITestCase):
 
 @ddt
 class SecretOptionsTests(test.APITestCase):
+    """Reading secret_options is gated on the permission that changes them.
+
+    Whoever may edit an offering's integration settings may read them back —
+    anything narrower means editing a field rendered empty and overwriting a
+    value that was never displayed.
+    """
+
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer, project=self.fixture.project
         )
         self.url = factories.OfferingFactory.get_url(self.offering)
+        self.update_url = factories.OfferingFactory.get_url(
+            self.offering, "update_integration"
+        )
+        # Mirrors the shipped default role permissions.
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+
+    def _offering_manager(self):
+        user = structure_factories.UserFactory()
+        self.offering.add_user(user, OfferingRole.MANAGER)
+        return user
 
     @data("staff", "owner")
     def test_secret_options_are_visible_to_authorized_user(self, user):
@@ -325,6 +343,54 @@ class SecretOptionsTests(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse("secret_options" in response.data)
+
+    def test_secret_options_are_visible_to_offering_scoped_role(self):
+        self.client.force_authenticate(self._offering_manager())
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue("secret_options" in response.data)
+
+    def test_secret_options_are_hidden_when_the_permission_is_not_granted(self):
+        OfferingRole.MANAGER.delete_permission(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION
+        )
+        self.client.force_authenticate(self._offering_manager())
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse("secret_options" in response.data)
+
+    @data("staff", "owner")
+    def test_everyone_who_may_write_secret_options_may_read_them(self, user):
+        """The invariant the gate exists to hold, asserted on both directions."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        write = self.client.post(
+            self.update_url,
+            {"secret_options": {"order_notification_emails": ["ops@example.com"]}},
+        )
+        self.assertEqual(write.status_code, status.HTTP_200_OK)
+
+        read = self.client.get(self.url)
+        self.assertEqual(
+            read.data["secret_options"]["order_notification_emails"],
+            ["ops@example.com"],
+        )
+
+    def test_offering_scoped_writer_may_read_back_what_it_wrote(self):
+        self.client.force_authenticate(self._offering_manager())
+
+        write = self.client.post(
+            self.update_url,
+            {"secret_options": {"order_notification_emails": ["ops@example.com"]}},
+        )
+        self.assertEqual(write.status_code, status.HTTP_200_OK)
+
+        read = self.client.get(self.url)
+        self.assertEqual(
+            read.data["secret_options"]["order_notification_emails"],
+            ["ops@example.com"],
+        )
 
 
 class OfferingFilterTest(test.APITestCase):

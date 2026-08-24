@@ -1384,9 +1384,10 @@ class VersionHistoryUserSerializer(serializers.Serializer):
 # Field names stripped from version history payloads. A version holds the raw
 # serialized model, so returning it verbatim bypasses whatever that model's own
 # serializer withholds: User.password would hand out the password hash, and
-# Offering.secret_options is restricted to staff, owners and service managers by
-# can_see_secret_options - while the history endpoint is open to support users
-# too. Keep this in sync with any field a serializer deliberately hides.
+# Offering.secret_options is restricted by can_see_secret_options to holders of
+# the permission that edits integration settings - while the history endpoint is
+# open to support users too. Keep this in sync with any field a serializer
+# deliberately hides.
 REDACTED_VERSION_FIELDS = frozenset(
     {
         "password",
