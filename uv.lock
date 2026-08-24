@@ -367,7 +367,7 @@ wheels = [
 
 [[package]]
 name = "celery"
-version = "5.5.3"
+version = "5.6.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "billiard" },
@@ -377,23 +377,24 @@ dependencies = [
     { name = "click-repl" },
     { name = "kombu" },
     { name = "python-dateutil" },
+    { name = "tzlocal" },
     { name = "vine" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/7d/6c289f407d219ba36d8b384b42489ebdd0c84ce9c413875a8aae0c85f35b/celery-5.5.3.tar.gz", hash = "sha256:6c972ae7968c2b5281227f01c3a3f984037d21c5129d07bf3550cc2afc6b10a5", size = 1667144, upload-time = "2025-06-01T11:08:12.563Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/b4/a1233943ab5c8ea05fb877a88a0a0622bf47444b99e4991a8045ac37ea1d/celery-5.6.3.tar.gz", hash = "sha256:177006bd2054b882e9f01be59abd8529e88879ef50d7918a7050c5a9f4e12912", size = 1742243, upload-time = "2026-03-26T12:14:51.76Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/af/0dcccc7fdcdf170f9a1585e5e96b6fb0ba1749ef6be8c89a6202284759bd/celery-5.5.3-py3-none-any.whl", hash = "sha256:0b5761a07057acee94694464ca482416b959568904c9dfa41ce8413a7d65d525", size = 438775, upload-time = "2025-06-01T11:08:09.94Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/c9/6eccdda96e098f7ae843162db2d3c149c6931a24fda69fe4ab84d0027eb5/celery-5.6.3-py3-none-any.whl", hash = "sha256:0808f42f80909c4d5833202360ffafb2a4f83f4d8e23e1285d926610e9a7afa6", size = 451235, upload-time = "2026-03-26T12:14:49.491Z" },
 ]
 
 [[package]]
 name = "celery-types"
-version = "0.23.0"
+version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e9/d1/0823e71c281e4ad0044e278cf1577d1a68e05f2809424bf94e1614925c5d/celery_types-0.23.0.tar.gz", hash = "sha256:402ed0555aea3cd5e1e6248f4632e4f18eec8edb2435173f9e6dc08449fa101e", size = 31479, upload-time = "2025-03-03T23:56:51.547Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/38/813dd7534e41682684d3a5c2cc4a8710e3acc51b364920b9c4d747c7b18f/celery_types-0.26.0.tar.gz", hash = "sha256:fa318136fdad83f83f1531deecd9fe664b5dfffff29f3c31e9120a46b8e3908f", size = 106210, upload-time = "2026-03-12T23:06:49.941Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6f/8b/92bb54dd74d145221c3854aa245c84f4dc04cc9366147496182cec8e88e3/celery_types-0.23.0-py3-none-any.whl", hash = "sha256:0cc495b8d7729891b7e070d0ec8d4906d2373209656a6e8b8276fe1ed306af9a", size = 50189, upload-time = "2025-03-03T23:56:50.458Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/e5/c5ec98f7fd7817d077c9a5a5e705d54f74d4ca08ee3f14dee881c93c0511/celery_types-0.26.0-py3-none-any.whl", hash = "sha256:eb9da76f461786091970df466ec647d9a27956399852542cb6cab9309970f950", size = 211260, upload-time = "2026-03-12T23:06:48.588Z" },
 ]
 
 [[package]]
@@ -1518,7 +1519,7 @@ wheels = [
 
 [[package]]
 name = "kombu"
-version = "5.5.4"
+version = "5.6.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "amqp" },
@@ -1526,9 +1527,9 @@ dependencies = [
     { name = "tzdata" },
     { name = "vine" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/d3/5ff936d8319ac86b9c409f1501b07c426e6ad41966fedace9ef1b966e23f/kombu-5.5.4.tar.gz", hash = "sha256:886600168275ebeada93b888e831352fe578168342f0d1d5833d88ba0d847363", size = 461992, upload-time = "2025-06-01T10:19:22.281Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/a5/607e533ed6c83ae1a696969b8e1c137dfebd5759a2e9682e26ff1b97740b/kombu-5.6.2.tar.gz", hash = "sha256:8060497058066c6f5aed7c26d7cd0d3b574990b09de842a8c5aaed0b92cc5a55", size = 472594, upload-time = "2025-12-29T20:30:07.779Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ef/70/a07dcf4f62598c8ad579df241af55ced65bed76e42e45d3c368a6d82dbc1/kombu-5.5.4-py3-none-any.whl", hash = "sha256:a12ed0557c238897d8e518f1d1fdf84bd1516c5e305af2dacd85c2015115feb8", size = 210034, upload-time = "2025-06-01T10:19:20.436Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/0f/834427d8c03ff1d7e867d3db3d176470c64871753252b21b4f4897d1fa45/kombu-5.6.2-py3-none-any.whl", hash = "sha256:efcfc559da324d41d61ca311b0c64965ea35b4c55cc04ee36e55386145dace93", size = 214219, upload-time = "2025-12-29T20:30:05.74Z" },
 ]
 
 [[package]]
@@ -3321,6 +3322,18 @@ wheels = [
 ]
 
 [[package]]
+name = "tzlocal"
+version = "5.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/81/5b/879b2f932adfa7a053c360d50bc896c977fa6426109185f7c12ebdd0cb9d/tzlocal-5.4.4.tar.gz", hash = "sha256:8dbb8660838688a7b6ba4fed31d18dedf842afb4d47ca050d6d891c2c15f3be4", size = 31170, upload-time = "2026-06-29T08:03:40.026Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/a4/017a7a6cbe387d961a688ec31364ae60a5c4e22c96ae9921b79a947c855d/tzlocal-5.4.4-py3-none-any.whl", hash = "sha256:aae09f0126a8a86fa736be266eb4a471380d26a0de3bc14844e7821fee3e2a15", size = 18115, upload-time = "2026-06-29T08:03:38.666Z" },
+]
+
+[[package]]
 name = "ua-parser"
 version = "0.18.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3505,7 +3518,7 @@ requires-dist = [
     { name = "azure-mgmt-sql", specifier = ">=3.0.1,<4.0.0" },
     { name = "azure-mgmt-storage", specifier = ">=24.0.0,<25.0.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },
-    { name = "celery", specifier = "==5.5.3" },
+    { name = "celery", specifier = "==5.6.3" },
     { name = "cryptography", specifier = "==50.0.0" },
     { name = "django", specifier = ">=6.0.4,<7.0" },
     { name = "django-auth-ldap", specifier = ">=5.2.0,<6.0.0" },
@@ -3574,7 +3587,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "celery-types", specifier = ">=0.23.0,<1.0.0" },
+    { name = "celery-types", specifier = ">=0.26.0,<1.0.0" },
     { name = "ddt", specifier = ">=1.7.2" },
     { name = "django-stubs-ext", specifier = ">=5.2.2,<6.0.0" },
     { name = "django-types", specifier = ">=0.22.0,<1.0.0" },
