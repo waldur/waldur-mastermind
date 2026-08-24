@@ -216,6 +216,51 @@ def has_all_permissions(
     return all(has_permission(request, p, scope) for p in permissions)
 
 
+def has_permission_on_any_source(
+    request: "HttpRequest | User",
+    permission: enums.PermissionEnum,
+    scope: "Model | None",
+    sources: list[str] | None = None,
+) -> bool:
+    """Whether the user holds permission on scope or on any of its named sources.
+
+    `sources` are attribute paths relative to scope, with `"*"` standing for
+    scope itself — e.g. `["*", "customer"]` accepts the permission held either
+    on the object or on its organization. An empty list means scope only.
+
+    This is the traversal `permission_factory` enforces, exposed as a predicate
+    so that a read gate and the write gate it has to agree with can be built
+    from the same rule instead of restating it.
+    """
+    if not scope:
+        return False
+
+    if not sources:
+        return has_permission(request, permission, scope)
+
+    attribute_errors = 0
+    for path in sources:
+        try:
+            source = scope
+            if path != "*":
+                for part in path.split("."):
+                    source = getattr(source, part)
+            if has_permission(request, permission, source):
+                return True
+        except AttributeError:
+            # Continue to next path if attribute doesn't exist
+            attribute_errors += 1
+            continue
+
+    # If all paths failed due to AttributeError, raise AttributeError
+    if attribute_errors == len(sources):
+        raise AttributeError(
+            f"None of the attribute paths {sources} exist on the scope object"
+        )
+
+    return False
+
+
 def permission_factory(permission, sources=None):
     if not isinstance(permission, enums.PermissionEnum):
         raise ValueError(f"permission must be PermissionEnum, got {type(permission)}")
@@ -226,29 +271,8 @@ def permission_factory(permission, sources=None):
         if not scope:
             return
 
-        if not sources:
-            if has_permission(request, permission, scope):
-                return
-        else:
-            attribute_errors = 0
-            for path in sources:
-                try:
-                    source = scope
-                    if path != "*":
-                        for part in path.split("."):
-                            source = getattr(source, part)
-                    if has_permission(request, permission, source):
-                        return
-                except AttributeError:
-                    # Continue to next path if attribute doesn't exist
-                    attribute_errors += 1
-                    continue
-
-            # If all paths failed due to AttributeError, raise AttributeError
-            if attribute_errors == len(sources):
-                raise AttributeError(
-                    f"None of the attribute paths {sources} exist on the scope object"
-                )
+        if has_permission_on_any_source(request, permission, scope, sources):
+            return
 
         raise exceptions.PermissionDenied()
 
