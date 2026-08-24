@@ -1,5 +1,13 @@
 workflow:
   rules:
+    # Release pipelines triggered by waldur-docs must not be auto-cancelled by a
+    # later push to develop: the tag job sits pending behind the whole test chain,
+    # and `conservative` mode cancels a pipeline whose non-interruptible job has
+    # not started yet. This block overrides the one from tag-release.yml, so the
+    # rule has to be repeated here.
+    - if: '$CI_PIPELINE_SOURCE == "pipeline" && $RELEASE_VERSION'
+      auto_cancel:
+        on_new_commit: none
     - if: '$CI_PIPELINE_SOURCE == "child_pipeline"'
       when: always
     - when: always
