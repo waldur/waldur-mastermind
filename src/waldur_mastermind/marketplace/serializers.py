@@ -69,7 +69,6 @@ from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
-    get_connected_projects,
 )
 from waldur_core.structure.serializers import get_options_serializer_class
 from waldur_mastermind.billing.serializers import (
@@ -2060,7 +2059,6 @@ class TagSerializer(
         Staff sees all offerings.
         Service providers see their own + active/paused/archived public offerings.
         """
-        from waldur_core.structure.managers import get_connected_customers
 
         request = self.context.get("request")
         if not request:
@@ -6860,22 +6858,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             ).data
 
     def _user_can_see_order_workflow(self, resource: models.Resource) -> bool:
-        """A user with only a direct Resource or ResourceProject UserRole has
-        intentional minimal visibility — order workflow timeline is a
-        project/customer-level concern and should be hidden from them."""
         request = self.context.get("request")
         if not request or getattr(request, "user", None) is None:
             return True
-        user = request.user
-        if user.is_anonymous:
-            return False
-        if user.is_staff or user.is_support:
-            return True
-        if resource.project_id in get_connected_projects(
-            user
-        ) or resource.project.customer_id in get_connected_customers(user):
-            return True
-        return False
+        return utils.user_can_see_resource_order_workflow(request.user, resource)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

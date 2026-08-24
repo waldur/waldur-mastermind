@@ -2752,6 +2752,53 @@ class ProviderResourcesTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+class ProviderResourceOrderWorkflowTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_provider_resource_url(self.resource)
+        self.creation_order = self.fixture.order
+
+    def test_provider_owner_sees_creation_order(self):
+        self.client.force_authenticate(self.fixture.provider_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data["creation_order"])
+        self.assertEqual(
+            response.data["creation_order"]["uuid"], self.creation_order.uuid.hex
+        )
+
+    def test_provider_manager_sees_order_in_progress(self):
+        in_progress = models.Order.objects.create(
+            project=self.resource.project,
+            resource=self.resource,
+            state=OrderStates.EXECUTING,
+            created_by=self.fixture.owner,
+            offering=self.resource.offering,
+            type=OrderTypes.UPDATE,
+        )
+        self.client.force_authenticate(self.fixture.provider_manager)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data["order_in_progress"])
+        self.assertEqual(
+            response.data["order_in_progress"]["uuid"], in_progress.uuid.hex
+        )
+
+    def test_provider_project_member_cannot_see_order_workflow(self):
+        # offering_admin holds only a project role on the provider's internal
+        self.assertFalse(
+            marketplace_utils.user_can_see_resource_order_workflow(
+                self.fixture.offering_admin, self.resource
+            )
+        )
+
+    def test_provider_project_member_cannot_access_provider_resource(self):
+        self.client.force_authenticate(self.fixture.offering_admin)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
 @ddt
 class ProviderResourceLimitsSetTest(test.APITestCase):
     def setUp(self):

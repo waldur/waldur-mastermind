@@ -5974,6 +5974,28 @@ def _is_field_empty_q(user_field_name):
         return Q(**{f"{prefix}__isnull": True})
 
 
+def user_can_see_resource_order_workflow(user, resource) -> bool:
+    """Return whether ``user`` may see ``order_in_progress`` / ``creation_order``.
+
+    Visible to consumer project/customer members and to service providers with
+    access to the resource's offering. Hidden from users whose only connection
+    is a direct Resource or ResourceProject role.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_staff or user.is_support:
+        return True
+    if resource.project_id in get_connected_projects(user):
+        return True
+    if resource.project.customer_id in get_connected_customers(user):
+        return True
+    return (
+        models.Resource.objects.filter(pk=resource.pk)
+        .filter_for_service_provider(user)
+        .exists()
+    )
+
+
 def is_resource_project_only_viewer(user, resource) -> bool:
     """True when ``user`` can only see ``resource`` via a ResourceProject role.
 

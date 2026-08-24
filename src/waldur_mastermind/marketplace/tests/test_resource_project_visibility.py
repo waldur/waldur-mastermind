@@ -316,3 +316,23 @@ class ResourceProjectInviteeListUsersGateTest(ResourceProjectVisibilityTest):
         url = _customer_url(self.customer) + "list_users/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class ResourceProjectInviteeOrderWorkflowTest(ResourceProjectVisibilityTest):
+    """Order workflow fields stay hidden from resource-only role holders."""
+
+    def test_rp_only_viewer_does_not_see_creation_order(self):
+        self.client.force_authenticate(self.rp_invitee)
+        response = self.client.get(_resource_url(self.resource))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("creation_order", response.data)
+        self.assertIsNone(response.data["creation_order"])
+
+    def test_project_member_sees_creation_order(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(_resource_url(self.resource))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data["creation_order"])
+        self.assertEqual(
+            response.data["creation_order"]["uuid"], self.fixture.order.uuid.hex
+        )
