@@ -4073,9 +4073,6 @@ class ProviderOfferingDetailsSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
-        if self.instance and not self.can_see_secret_options():
-            fields.pop("secret_options", None)
-            fields.pop("service_attributes", None)
         method = self.context["view"].request.method
         if method == "GET":
             if "components" in fields:
@@ -4101,9 +4098,40 @@ class ProviderOfferingDetailsSerializer(
 
         return fields
 
-    def can_see_secret_options(self) -> bool:
+    #: Rendered only for a caller entitled to this particular offering.
+    PROVIDER_ONLY_FIELDS = ("secret_options", "service_attributes")
+
+    def can_see_secret_options(self, offering=None) -> bool:
+        """Whether the caller may see the provider-only fields of one offering.
+
+        Decided per offering rather than per serializer: a page is rendered by a
+        single child serializer, so a decision taken once would apply whichever
+        offering sorted first to every other row.
+        """
         request = self.context.get("request")
-        return request and permissions.can_see_secret_options(request, self.instance)
+        if not request:
+            return False
+        offering = offering if offering is not None else self.instance
+        if not offering:
+            return False
+        # The gate costs a query per source path, and a serializer may render
+        # the same offering more than once, so remember the verdict. The context
+        # is shared by every child of a list serializer.
+        memo = self.context.setdefault("_provider_field_access", {})
+        key = getattr(offering, "pk", None)
+        if key is None:
+            return bool(permissions.can_see_secret_options(request, offering))
+        if key not in memo:
+            memo[key] = bool(permissions.can_see_secret_options(request, offering))
+        return memo[key]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if any(field in data for field in self.PROVIDER_ONLY_FIELDS):
+            if not self.can_see_secret_options(instance):
+                for field in self.PROVIDER_ONLY_FIELDS:
+                    data.pop(field, None)
+        return data
 
     def get_total_customers(self, offering: models.Offering) -> int | None:
         # Added via annotate in ProviderOfferingViewSet.get_queryset
@@ -4213,6 +4241,10 @@ class ProviderOfferingDetailsSerializer(
 
     @extend_schema_field(dict)
     def get_service_attributes(self, offering: models.Offering) -> dict[str, any]:
+        # Resolving offering.scope costs a query per row, and to_representation
+        # drops the key for a caller who may not see it — so do not pay for it.
+        if not self.can_see_secret_options(offering):
+            return {}
         try:
             service = offering.scope
         except AttributeError:
