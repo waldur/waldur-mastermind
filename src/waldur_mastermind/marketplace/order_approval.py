@@ -60,6 +60,10 @@ def evaluate_auto_approval(
         and not order.attachment
     ):
         return None
+    if order.type != OrderTypes.TERMINATE and order.offering.plugin_options.get(
+        "disable_autoapprove", False
+    ):
+        return None
 
     rule = models.ProjectOrderAutoApproval.objects.filter(
         project=order.project, enabled=True

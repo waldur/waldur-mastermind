@@ -12,13 +12,14 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import models, plugins
+from waldur_mastermind.marketplace import models, permissions, plugins
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SUPPORT_OFFERING,
     BillingTypes,
     LimitPeriods,
     OfferingStates,
+    OrderTypes,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
@@ -755,6 +756,115 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
             mocked_task.assert_called()
         else:
             mocked_task.assert_not_called()
+
+    def test_disable_autoapprove_overrides_owner_self_approval(self, mocked_task):
+        """Owners hold APPROVE_ORDER by default, which would otherwise let them
+        self-approve via the general permission fallback. disable_autoapprove must
+        override that too, not just auto_approve_in_service_provider_projects."""
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            shared=False,
+            billable=False,
+            customer=self.project.customer,
+            type="TEST_TYPE",
+            plugin_options={"disable_autoapprove": True},
+        )
+
+        response = self.create_order(self.fixture.owner, offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["state"], "pending-consumer")
+        mocked_task.assert_called()
+
+    def test_disable_autoapprove_overrides_owner_self_approval_on_shared_offering(
+        self, mocked_task
+    ):
+        """Same as above but for a shared/public offering with
+        auto_approve_in_service_provider_projects unset, so the owner's
+        self-approval would otherwise come from the general APPROVE_ORDER
+        permission fallback rather than the private-offering branch."""
+        consumer_fixture = provider_fixture = structure_fixtures.ProjectFixture()
+        public_offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            billable=True,
+            customer=provider_fixture.customer,
+            type="TEST_TYPE",
+            plugin_options={"disable_autoapprove": True},
+        )
+
+        response = self.create_order(
+            consumer_fixture.owner,
+            public_offering,
+            add_payload={
+                "project": structure_factories.ProjectFactory.get_url(
+                    consumer_fixture.project
+                ),
+                "attributes": {"name": "test"},
+                "plan": factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=public_offering)
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["state"], "pending-consumer")
+        mocked_task.assert_called()
+
+    def test_disable_autoapprove_does_not_block_termination(self, mocked_task):
+        """disable_autoapprove gates spend approval on provisioning orders; a
+        termination reduces spend, so it must keep following the normal
+        termination rules instead of being forced to pending-consumer -- else
+        a provider-initiated termination could get stuck with no consumer-side
+        actor able to clear it."""
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            shared=False,
+            billable=False,
+            customer=self.project.customer,
+            type="TEST_TYPE",
+            plugin_options={"disable_autoapprove": True},
+        )
+        resource = factories.ResourceFactory(offering=offering, project=self.project)
+        order = factories.OrderFactory(
+            offering=offering,
+            project=self.project,
+            created_by=self.fixture.owner,
+            type=OrderTypes.TERMINATE,
+            resource=resource,
+        )
+        self.assertTrue(permissions.order_should_not_be_reviewed_by_consumer(order))
+
+    def test_same_org_termination_auto_approves_despite_disable_autoapprove(
+        self, mocked_task
+    ):
+        """Deliberate consequence of exempting terminations, not an oversight.
+
+        The same-organization branch no longer carries its own disable_autoapprove
+        check, so with both options set a termination auto-approves there. A
+        project admin is the interesting actor: they are not an owner of the
+        offering's customer, so the termination branch below does not cover them,
+        and they hold no APPROVE_ORDER, so neither does the fallback. Before the
+        flag was hoisted above these branches such a termination required review.
+        """
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            billable=True,
+            customer=self.project.customer,
+            type="TEST_TYPE",
+            plugin_options={
+                "auto_approve_in_service_provider_projects": True,
+                "disable_autoapprove": True,
+            },
+        )
+        resource = factories.ResourceFactory(offering=offering, project=self.project)
+        order = factories.OrderFactory(
+            offering=offering,
+            project=self.project,
+            created_by=self.fixture.admin,
+            type=OrderTypes.TERMINATE,
+            resource=resource,
+        )
+        self.assertTrue(permissions.order_should_not_be_reviewed_by_consumer(order))
 
 
 @ddt

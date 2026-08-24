@@ -13,6 +13,7 @@ from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
+    user_can_approve_order_as_consumer,
 )
 from waldur_mastermind.marketplace.serializers import validate_plan
 from waldur_mastermind.marketplace_openstack import AVAILABLE_LIMITS
@@ -187,7 +188,9 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             created_by=user,
             type=OrderTypes.CREATE,
         )
-        if not order_should_not_be_reviewed_by_consumer(order):
+        if not order_should_not_be_reviewed_by_consumer(
+            order
+        ) and not user_can_approve_order_as_consumer(user, order):
             raise serializers.ValidationError(
                 "User does not have enough permissions to migrate resource.",
             )

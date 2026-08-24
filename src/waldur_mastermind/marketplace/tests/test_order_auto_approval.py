@@ -146,6 +146,24 @@ class EligibilityHelperTest(test.APITestCase):
         order.save(update_fields=["attachment"])
         self.assertEqual(order_approval.evaluate_auto_approval(order), rule)
 
+    def test_disable_autoapprove_blocks_auto_approval(self):
+        """A project auto-approval rule must not silently clear an order that
+        disable_autoapprove sent to pending-consumer for manual review -- else
+        an owner who can create such a rule for their own project defeats the
+        offering-level flag entirely."""
+        self.offering.plugin_options = {"disable_autoapprove": True}
+        self.offering.save()
+        self._make_rule(limit="9999")
+        order = self._make_order()
+        self.assertIsNone(order_approval.evaluate_auto_approval(order))
+
+    def test_disable_autoapprove_terminate_order_exempt(self):
+        self.offering.plugin_options = {"disable_autoapprove": True}
+        self.offering.save()
+        rule = self._make_rule(limit="9999")
+        order = self._make_order(type=OrderTypes.TERMINATE)
+        self.assertEqual(order_approval.evaluate_auto_approval(order), rule)
+
 
 class EstimatedMonthlyCostTest(test.APITestCase):
     def setUp(self):
