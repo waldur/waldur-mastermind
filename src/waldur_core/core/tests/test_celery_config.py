@@ -9,7 +9,7 @@ from django.test import TestCase
 from health_check.contrib.celery_ping.backends import CeleryPingHealthCheck
 from kombu import Queue
 
-from waldur_core.server.celeryconf import PriorityRouter
+from waldur_core.server.celeryconf import PriorityRouter, app
 
 
 class CeleryConfigurationTest(TestCase):
@@ -46,6 +46,37 @@ class CeleryConfigurationTest(TestCase):
             expected_queues,
             f"Expected queues {expected_queues}, got {queue_names}",
         )
+
+    def test_control_plane_queues_are_exclusive(self):
+        """Verify the pidbox and gossip queues declare as exclusive, not plain transient.
+
+        RabbitMQ 4.3 denies ``transient_nonexcl_queues`` by default; a worker
+        declaring one dies with ``INTERNAL_ERROR (541)`` on startup. Exclusive
+        transient queues are accepted by every supported broker version, so
+        these two settings are what lets a single build run against 4.1, 4.2
+        and 4.3 brokers without a broker-side permit flag.
+        """
+        self.assertTrue(
+            settings.CELERY_CONTROL_QUEUE_EXCLUSIVE,
+            "Pidbox/reply queues must be exclusive for RabbitMQ 4.3 compatibility",
+        )
+        self.assertTrue(
+            settings.CELERY_EVENT_QUEUE_EXCLUSIVE,
+            "Gossip/event queue must be exclusive for RabbitMQ 4.3 compatibility",
+        )
+
+        # Assert on what actually reaches the broker, not just the settings:
+        # kombu builds the pidbox queues from the app config.
+        mailbox = app.control.mailbox
+        for queue in (mailbox.get_queue("worker@example"), mailbox.get_reply_queue()):
+            self.assertTrue(
+                queue.exclusive,
+                f"Queue {queue.name} must be declared exclusive",
+            )
+            self.assertFalse(
+                queue.durable,
+                f"Queue {queue.name} is expected to stay transient",
+            )
 
     def test_queue_exchanges_are_configured(self):
         """Verify that queues have proper exchange configuration."""

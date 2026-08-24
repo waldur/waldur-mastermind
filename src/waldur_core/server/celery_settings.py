@@ -33,6 +33,31 @@ CELERY_TASK_ROUTES = ("waldur_core.server.celeryconf.PriorityRouter",)
 CELERY_TRACK_STARTED = True
 CELERY_SEND_EVENTS = True
 
+# Declare Celery's internal bookkeeping queues as exclusive rather than plain
+# transient.
+#
+# Two queues are involved, and neither carries task payloads:
+#   * kombu's pidbox queue (``<hostname>.celery.pidbox``) plus its reply queue,
+#     used for remote control -- this is what ``current_app.control.ping()`` in
+#     waldur_core/core/health_checks.py and the ``control.inspect()`` callers
+#     ride on, and what mingle uses at worker startup;
+#   * the gossip/event receiver queue (``celeryev.<uuid>``).
+#
+# Both default to transient and non-exclusive. RabbitMQ deprecated that
+# combination: from 4.3 on, ``transient_nonexcl_queues`` is denied by default
+# and declaring one fails with ``INTERNAL_ERROR (541)``, which crash-loops the
+# worker on startup. Exclusive transient queues are unaffected and are legal on
+# every RabbitMQ version we support, so declaring them exclusive keeps a single
+# Waldur build working against 4.1, 4.2 and 4.3 brokers alike -- broker
+# upgrades no longer have to be sequenced with Waldur upgrades, and no
+# broker-side ``deprecated_features.permit`` escape hatch is needed.
+#
+# Exclusivity is correct on the merits too: each of these queues is consumed
+# only by the connection that declares it, so tying its lifetime to that
+# connection is what was always meant. Requires celery >= 5.6.0 / kombu >= 5.6.0.
+CELERY_CONTROL_QUEUE_EXCLUSIVE = True
+CELERY_EVENT_QUEUE_EXCLUSIVE = True
+
 # Fix for Celery 6.0 deprecation warning
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
