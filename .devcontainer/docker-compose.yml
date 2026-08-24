@@ -28,14 +28,14 @@ services:
       RABBITMQ_PASSWORD: rabbitmq
 
   queue:
-    image: bitnami/rabbitmq:latest
+    image: rabbitmq:4.3.5
     environment:
       RABBITMQ_USERNAME: rabbitmq
       RABBITMQ_PASSWORD: rabbitmq
-    command: "/bin/bash -c \"rabbitmq-plugins enable --offline rabbitmq_stomp rabbitmq_web_stomp rabbitmq_management; /opt/bitnami/scripts/rabbitmq/run.sh\""
     volumes:
       - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
-      - rabbitmq-data:/bitnami/rabbitmq/mnesia
+      - ./rabbitmq-enabled-plugins:/etc/rabbitmq/enabled_plugins
+      - rabbitmq-data:/var/lib/rabbitmq/mnesia
     restart: unless-stopped
 
 volumes:

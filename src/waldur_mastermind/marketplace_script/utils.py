@@ -5,10 +5,10 @@ import tempfile
 from enum import Enum
 
 from constance import config
+from docker.errors import ContainerError, DockerException
 from rest_framework import serializers as rf_serializers
 
 import docker
-from docker.errors import ContainerError, DockerException
 from waldur_kubernetes import backend as kubernetes_backend
 
 from . import serializers

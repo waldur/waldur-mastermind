@@ -8,8 +8,8 @@ repos:
       - id: check-yaml
         files: ^src/|docker/
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.12.5
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
     hooks:
       - id: ruff-format
       - id: ruff-check
