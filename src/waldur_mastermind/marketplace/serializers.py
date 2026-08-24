@@ -262,7 +262,7 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     )
     disable_autoapprove = serializers.BooleanField(
         required=False,
-        help_text="If set to True, orders for this offering will always require manual approval, overriding auto_approve_in_service_provider_projects",
+        help_text="If set to True, orders for this offering will always require manual consumer approval, overriding every other consumer-side auto-approve mechanism (auto_approve_in_service_provider_projects, auto_approve_for_roles, project auto-approval rules, and the ORDER.APPROVE permission). Termination orders, staff users and provider approval are not affected",
     )
     supports_downscaling = serializers.BooleanField(
         required=False,

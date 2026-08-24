@@ -5,6 +5,8 @@ from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tests.factories import (
@@ -53,6 +55,61 @@ class MigrationTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data["dst_resource_name"], "replicated vpc")
+
+    def test_disable_autoapprove_does_not_block_authorized_non_staff_user(self):
+        """An offering-level disable_autoapprove flag gates order *approval*,
+        not the migration permission check. A project owner who could clear
+        consumer review on their own must still be allowed to migrate, even
+        though order_should_not_be_reviewed_by_consumer(order) is False for
+        such an offering."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.offering.plugin_options["disable_autoapprove"] = True
+        self.offering.save()
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.client.force_login(self.fixture.owner)
+        response = self.client.post(
+            reverse("openstack-migrations-list"),
+            {
+                "name": "replicated vpc",
+                "src_resource": resource.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
+                "dst_plan": plan.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_unauthorized_non_staff_user_cannot_migrate_even_with_disable_autoapprove(
+        self,
+    ):
+        """What blocks this user is the missing APPROVE_ORDER permission, not the
+        flag -- a project admin holds neither side of the migration gate. The flag
+        is set to pin that it does not accidentally open the gate either."""
+        self.offering.plugin_options["disable_autoapprove"] = True
+        self.offering.save()
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.client.force_login(self.fixture.admin)
+        response = self.client.post(
+            reverse("openstack-migrations-list"),
+            {
+                "name": "replicated vpc",
+                "src_resource": resource.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
+                "dst_plan": plan.uuid.hex,
+            },
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
     def test_tenant_has_credentials(self):
         plan = PlanFactory(offering=self.offering)

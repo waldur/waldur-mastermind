@@ -149,6 +149,21 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
     if user.is_staff:
         return True
 
+    # disable_autoapprove forces manual approval for all orders, overriding
+    # every auto-approve mechanism below it -- including the general
+    # APPROVE_ORDER permission fallback at the end of this function, which
+    # would otherwise let any Owner/Manager self-approve their own order
+    # regardless of this flag. See docs/core-concepts/offering.md "Approval Flow".
+    # TERMINATE is exempt for the same reason require_purchase_order_upload
+    # exempts it above: the flag gates spend approval, and a termination
+    # reduces spend rather than committing it. Also avoids stranding a
+    # provider-initiated termination in TERMINATING with no consumer-side
+    # owner action possible to clear it.
+    if order.type != OrderTypes.TERMINATE and order.offering.plugin_options.get(
+        "disable_autoapprove", False
+    ):
+        return False
+
     # Skip approval of private offering for project users
     if order.offering.is_private:
         return has_project_permission(
@@ -156,7 +171,6 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
         )
 
     # Skip approval of public offering belonging to the same organization under which the request is done
-    # UNLESS the offering has disabled auto-approval
     if (
         order.offering.shared
         and order.offering.customer == order.project.customer
@@ -164,7 +178,6 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
             "auto_approve_in_service_provider_projects"
         )
         is True
-        and not order.offering.plugin_options.get("disable_autoapprove", False)
     ):
         return True
 

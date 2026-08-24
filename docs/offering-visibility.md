@@ -86,6 +86,7 @@ When set:
 - The role must be held in the order's own project/customer scope — holding it in an unrelated project does not auto-approve.
 - Provider-side review still applies: the order proceeds to `PENDING_PROVIDER` unless the provider also auto-approves.
 - Offerings requiring a purchase-order upload still block auto-approval until the attachment is present.
+- The `disable_autoapprove` plugin option, when set, trumps this and every other consumer-side auto-approve mechanism (except termination orders, and staff, who are already past the gate) — see "Approval Flow" in `docs/core-concepts/offering.md`.
 
 This option is orthogonal to `restricted_to_roles`: an offering can be public and still auto-approve for a role, restricted without auto-approving, or both. Role names must be valid project- or organization-scoped roles.
 
