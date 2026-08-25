@@ -290,7 +290,9 @@ def cleanup_stale_agent_queues() -> None:
     )
 
     rmq_backend = logging_backend.RabbitMQManagementBackend()
-    for consumer in stale.iterator():
+    # Client-side chunks: RabbitMQ calls and a save happen between fetches,
+    # which a server-side cursor would not survive behind a pooler.
+    for consumer in core_utils.chunked_queryset(stale):
         queue_name = consumer.queue_name
         try:
             rmq_backend.delete_queue(consumer.user.uuid.hex, queue_name)
@@ -331,7 +333,8 @@ def cleanup_dangling_agent_queues() -> None:
     candidates = logging_models.EventConsumer.objects.filter(
         queue_created=True
     ).exclude(rmq_username="")
-    for consumer in candidates.iterator():
+    # See cleanup_stale_agent_queues: same pooler-safe walk.
+    for consumer in core_utils.chunked_queryset(candidates):
         try:
             rmq_user_info = rmq_backend.get_user(consumer.rmq_username)
         except Exception as exc:

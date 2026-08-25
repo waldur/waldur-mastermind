@@ -175,7 +175,9 @@ def terminate_child_resources_of_terminated_tenants():
     )
 
     count = 0
-    for resource in orphaned_resources.iterator():
+    # Client-side chunks: each iteration opens its own transaction below, so
+    # a server-side cursor would not survive a transaction-mode pooler.
+    for resource in core_utils.chunked_queryset(orphaned_resources):
         try:
             with transaction.atomic():
                 # DONE state => no order processing / executor / backend call is

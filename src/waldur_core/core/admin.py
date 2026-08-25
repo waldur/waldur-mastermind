@@ -32,6 +32,7 @@ from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import constance_admin as waldur_constance_admin  # noqa: F401
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
+from waldur_core.core.utils import chunked_queryset
 
 
 def get_admin_url(obj):
@@ -318,7 +319,9 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
         # SQL and fires no signals: that skipped personal access token
         # revocation, the audit event and the revision snapshot alike.
         count = 0
-        for user in queryset.filter(is_active=True).iterator():
+        # Client-side chunks: the save() below commits between fetches, which
+        # a server-side cursor would not survive behind a pooler.
+        for user in chunked_queryset(queryset.filter(is_active=True)):
             user.is_active = False
             user.is_admin_deactivated = True
             user.deactivation_reason = reason
@@ -347,7 +350,8 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
     def reactivate(self, request, queryset):
         # See administratively_deactivate for why this is not a queryset update.
         count = 0
-        for user in queryset.filter(is_active=False).iterator():
+        # See administratively_deactivate: same pooler-safe walk.
+        for user in chunked_queryset(queryset.filter(is_active=False)):
             user.is_active = True
             user.is_admin_deactivated = False
             user.deactivation_reason = ""
