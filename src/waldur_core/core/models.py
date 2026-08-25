@@ -1425,6 +1425,21 @@ class AvailableMixin(models.Model):
     can_be_managed = models.BooleanField(default=True)
 
 
+class BackendMissingMixin(models.Model):
+    """
+    Mixin for resources that may disappear from the backend.
+
+    Records the moment a resource was first observed as missing, so that a fresh
+    disappearance can be told apart from a long-dead leftover. The field is
+    cleared as soon as the resource is seen at the backend again.
+    """
+
+    class Meta:
+        abstract = True
+
+    backend_missing_since = models.DateTimeField(null=True, blank=True)
+
+
 class DailyTableSizeHistory(models.Model):
     """
     Stores daily snapshots of database table sizes for trend analysis.
