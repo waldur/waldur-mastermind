@@ -30,6 +30,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`UpdateExecutorMixin`](#updateexecutormixin) | `waldur_core.core.mixins` | Mixin to execute update operations using background executors |
 | [`ActionMixin`](#actionmixin) | `waldur_core.core.models` | Mixin for action tracking with state management |
 | [`AvailableMixin`](#availablemixin) | `waldur_core.core.models` | Make subclasses preserve the alters_data attribute on overridden methods |
+| [`BackendMissingMixin`](#backendmissingmixin) | `waldur_core.core.models` | Mixin for resources that may disappear from the backend |
 | [`BackendMixin`](#backendmixin) | `waldur_core.core.models` | Mixin to add standard backend_id field |
 | [`BackendModelMixin`](#backendmodelmixin) | `waldur_core.core.models` | Mixin for models connected to backend objects |
 | [`DescendantMixin`](#descendantmixin) | `waldur_core.core.models` | Mixin to provide child-parent relationships |
@@ -433,6 +434,20 @@ Used for models that need to track ongoing operations.
 **Description:**
 
 Make subclasses preserve the alters_data attribute on overridden methods.
+
+**Base classes:** `Model`
+
+### BackendMissingMixin
+
+**Module:** `waldur_core.core.models`
+
+**Description:**
+
+Mixin for resources that may disappear from the backend.
+
+Records the moment a resource was first observed as missing, so that a fresh
+disappearance can be told apart from a long-dead leftover. The field is
+cleared as soon as the resource is seen at the backend again.
 
 **Base classes:** `Model`
 

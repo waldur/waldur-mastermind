@@ -864,6 +864,20 @@ options:
 
 ```
 
+## list_missing_resources
+
+List OpenStack resources which are marked as missing at the backend. Deletion is left to the operator: each resource is linked to a marketplace resource, invoice items and order history.
+
+```bash
+
+usage: waldur list_missing_resources [--days DAYS]
+
+options:
+  --days DAYS  Only report resources missing for at least this many days
+               (default: 7).
+
+```
+
 ## load_categories
 
 Loads a categories for the Marketplace

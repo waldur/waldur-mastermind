@@ -3167,13 +3167,13 @@ The round "{{ round_name }}" for call "{{ call_name }}" has now closed.
 
 Round summary:
 - Total proposals submitted: {{ total_proposals }}
+- Reviews on record: {{ total_reviews }}
 - Start date: {{ start_date }}
 - Closed date: {{ close_date }}
 
-Based on the review strategy selected for this round ({{ review_strategy }}), the system has:
-- Set all draft proposals to "canceled" state
-- Moved all submitted proposals to "in_review" state
-- Created {{ total_reviews }} review assignments
+No further proposals can be submitted to this round. Proposals that had not been
+accepted or rejected by the cutoff are cancelled automatically, drafts included,
+so only proposals with a final decision remain.
 
 You can view the round details and manage proposals by visiting:
 {{ round_url }}
@@ -3582,16 +3582,12 @@ All reviews complete for proposal: {{ proposal_name }}
     <h4>Round summary:</h4>
     <ul>
         <li><strong>Total proposals submitted:</strong> {{ total_proposals }}</li>
+        <li><strong>Reviews on record:</strong> {{ total_reviews }}</li>
         <li><strong>Start date:</strong> {{ start_date }}</li>
         <li><strong>Closed date:</strong> {{ close_date }}</li>
     </ul>
 
-    <p>Based on the review strategy selected for this round ({{ review_strategy }}), the system has:</p>
-    <ul>
-        <li>Set all draft proposals to "canceled" state</li>
-        <li>Moved all submitted proposals to "in_review" state</li>
-        <li>Created {{ total_reviews }} review assignments</li>
-    </ul>
+    <p>No further proposals can be submitted to this round. Proposals that had not been accepted or rejected by the cutoff are cancelled automatically, drafts included, so only proposals with a final decision remain.</p>
 
     <p>You can view the round details and manage proposals by visiting: <a href="{{ round_url }}">{{ round_url }}</a></p>
 
