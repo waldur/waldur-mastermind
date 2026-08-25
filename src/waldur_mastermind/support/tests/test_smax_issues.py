@@ -154,7 +154,7 @@ class IssueNotificationTest(smax_base.BaseTest):
         )
         mock_send_mail.assert_called_once_with(
             f"Updated issue: {self.issue.key} {self.issue.summary}",
-            "New: message\n\n, old: old message\n\n",
+            "New: message, old: old message",
             [self.issue.caller.email],
             html_message="New: <p>message</p>, old: <p>old message</p>",
         )

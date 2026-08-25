@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 from smtplib import SMTPException
 
-import html2text
 from celery import shared_task
 from constance import config
 from django.core import signing
@@ -11,6 +10,7 @@ from django.db.models import Q
 from django.template import Context, Template
 from django.template.loader import get_template
 from django.utils import timezone
+from markdownify import markdownify
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
@@ -180,9 +180,7 @@ def _send_email(
     for k in list(text_context):
         if k.startswith("format_"):
             if html_format:
-                text_context[k.replace("format_", "")] = html2text.html2text(
-                    text_context[k]
-                )
+                text_context[k.replace("format_", "")] = markdownify(text_context[k])
             else:
                 text_context[k.replace("format_", "")] = text_context[k]
 
