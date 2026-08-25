@@ -33,6 +33,8 @@ include:
     file: "/templates/deploy/dev-env-update.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/vulnerability-scan.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/test/license-scan.yml"
   # Temporarily disabled - SBOMs taking too much space in docs
   # - project: "waldur/waldur-pipelines"
   #   file: "/templates/sbom/generate-python-codebase-sbom.yml"
@@ -793,3 +795,19 @@ Trigger integration tests:
 
 Release tag:
   extends: .release-tag-base
+
+# Fails when a dependency arrives under a licence Waldur cannot ship — strong
+# copyleft (GPL, AGPL), source-available (SSPL, BUSL, Elastic) or non-OSI
+# use-restricted (Hippocratic, JSON). LGPL and MPL pass but stay listed in the
+# artifact. See #285.
+#
+# The two exemptions are defective upstream metadata, not incompatible licences:
+# matrix-nio ships its whole licence text in the `License:` field (it is ISC),
+# and django-jsoneditor publishes an empty one.
+#
+# allow_failure is inherited as true from the template. Drop it to false once
+# #286 (html2text is GPL-3.0-or-later) is closed.
+Check dependency licences:
+  extends: .Licence gate (python) template
+  variables:
+    LICENCE_EXEMPT_PACKAGES: "matrix-nio django-jsoneditor"
