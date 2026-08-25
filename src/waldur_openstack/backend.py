@@ -48,6 +48,7 @@ from waldur_openstack.exceptions import (
     OpenStackAuthorizationFailed,
     OpenStackBackendError,
     OpenStackRBACPolicyDuplicate,
+    OpenStackSessionExpired,
     OpenStackTenantNotFound,
 )
 from waldur_openstack.octavia import get_octavia_client
@@ -342,7 +343,9 @@ class OpenStackBackend(ServiceBackend):
         for tenant in tenants:
             backend_tenant = backend_tenants_mapping.get(tenant.backend_id)
             if backend_tenant is None:
-                logger.warning(
+                # handle_resource_not_found reports the tenant itself, so keep
+                # this line at debug level to avoid warning about it twice.
+                logger.debug(
                     "Tenant %s (backend_id: %s) not found in backend",
                     tenant.name,
                     tenant.backend_id,
@@ -4152,6 +4155,8 @@ class OpenStackBackend(ServiceBackend):
             tenant=tenant,
             state__in=[CoreStates.OK, CoreStates.ERRED],
         )
+        pulled = 0
+        last_error = None
         for instance in instances:
             try:
                 # Use pull_instance which has all the enhanced logic including image detection
@@ -4159,11 +4164,33 @@ class OpenStackBackend(ServiceBackend):
                 # XXX: can be optimized after https://goo.gl/BZKo8Y will be resolved.
                 self.pull_instance_security_groups(instance)
                 handle_resource_update_success(instance)
+                pulled += 1
             except nova_exceptions.NotFound:
                 handle_resource_not_found(instance)
-            except nova_exceptions.ClientException:
-                # Log the error but continue with other instances
-                handle_resource_update_success(instance)
+                pulled += 1
+            except (
+                OpenStackSessionExpired,
+                OpenStackAuthorizationFailed,
+                OpenStackTenantNotFound,
+            ):
+                # Not attributable to a single instance, let the pull task mark
+                # the whole tenant as erred.
+                raise
+            except (OpenStackBackendError, nova_exceptions.ClientException) as e:
+                # Transient backend failure: leave the state untouched and
+                # continue with the other instances. import_instance re-raises
+                # NotFound as is and wraps every other Nova error into
+                # OpenStackBackendError, so both have to be caught here.
+                last_error = e
+                logger.warning(
+                    "Failed to pull instance %s (PK: %s): %s", instance, instance.pk, e
+                )
+
+        if last_error is not None and not pulled:
+            # Every instance failed, so the backend itself is the problem rather
+            # than any single instance. Propagate so that the tenant is marked as
+            # erred instead of being silently recovered.
+            raise last_error
 
     def pull_instance_server_group(self, instance: models.Instance):
         session = get_tenant_session(instance.tenant)

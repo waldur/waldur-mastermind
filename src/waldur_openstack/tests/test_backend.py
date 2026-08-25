@@ -15,7 +15,10 @@ from novaclient.v2.servers import Server
 from waldur_core.core.models import CoreStates
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
-from waldur_openstack.exceptions import OpenStackBackendError
+from waldur_openstack.exceptions import (
+    OpenStackAuthorizationFailed,
+    OpenStackBackendError,
+)
 from waldur_openstack.models import Port
 from waldur_openstack.tests.factories import (
     FloatingIPFactory,
@@ -1840,6 +1843,74 @@ class EnhancedImageDetectionTest(BaseBackendTest):
         instance.refresh_from_db()
         self.assertEqual(instance.state, CoreStates.ERRED)
         self.assertIn("Does not exist at backend", instance.error_message)
+
+    def make_instance(self, backend_id, **kwargs):
+        return factories.InstanceFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=backend_id,
+            **kwargs,
+        )
+
+    def test_pull_tenant_instances_continues_after_transient_error(self):
+        from novaclient import exceptions as nova_exceptions
+
+        missing = self.make_instance("MISSING_ID", state=CoreStates.OK)
+        failing = self.make_instance(
+            self.backend_id,
+            state=CoreStates.ERRED,
+            error_message="Does not exist at backend.",
+        )
+
+        def get_server(backend_id, *args, **kwargs):
+            if backend_id == "MISSING_ID":
+                raise nova_exceptions.NotFound(code=404)
+            raise nova_exceptions.ClientException(code=503)
+
+        self.mocked_nova.servers.get.side_effect = get_server
+
+        with self.assertLogs("waldur_openstack.backend", "WARNING") as logs:
+            self.backend.pull_tenant_instances(self.tenant)
+
+        # A failure on one instance does not abort the loop before the others
+        # are reached.
+        failures = [r for r in logs.records if "Failed to pull instance" in r.message]
+        self.assertEqual(len(failures), 1)
+
+        failing.refresh_from_db()
+        self.assertEqual(failing.state, CoreStates.ERRED)
+        self.assertEqual(failing.error_message, "Does not exist at backend.")
+
+        missing.refresh_from_db()
+        self.assertEqual(missing.state, CoreStates.ERRED)
+        self.assertIn("Does not exist at backend", missing.error_message)
+
+    def test_pull_tenant_instances_propagates_failure_of_every_instance(self):
+        from novaclient import exceptions as nova_exceptions
+
+        self.make_instance(self.backend_id, state=CoreStates.OK)
+        self.make_instance("OTHER_ID", state=CoreStates.OK)
+
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.ClientException(
+            code=503
+        )
+
+        # Nothing could be pulled, so the tenant itself has to be reported as
+        # erred rather than silently recovered by the pull task.
+        with self.assertRaises(OpenStackBackendError):
+            self.backend.pull_tenant_instances(self.tenant)
+
+    def test_pull_tenant_instances_propagates_authorization_failure(self):
+        self.make_instance(self.backend_id, state=CoreStates.OK)
+        self.make_instance("OTHER_ID", state=CoreStates.OK)
+
+        self.mocked_nova.servers.get.side_effect = OpenStackAuthorizationFailed()
+
+        with self.assertRaises(OpenStackAuthorizationFailed):
+            self.backend.pull_tenant_instances(self.tenant)
+
+        # The tenant is unreachable, so the remaining instances are not tried.
+        self.assertEqual(self.mocked_nova.servers.get.call_count, 1)
 
 
 class GetConsoleUrlDomainOverrideTest(BaseBackendTest):

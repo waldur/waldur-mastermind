@@ -55,6 +55,7 @@ class Tenant(
     core_models.RuntimeStateMixin,
     structure_models.BaseResource,
     core_models.AvailableMixin,
+    core_models.BackendMissingMixin,
 ):
     flavors: models.Manager["Flavor"]
     images: models.Manager["Image"]
@@ -1547,6 +1548,7 @@ class Volume(
     TenantQuotaMixin,
     structure_models.Storage,
     core_models.AvailableMixin,
+    core_models.BackendMissingMixin,
 ):
     snapshots: models.Manager["Snapshot"]
     restoration: models.Manager["SnapshotRestoration"]
@@ -1684,7 +1686,12 @@ class Volume(
             return False
 
 
-class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
+class Snapshot(
+    core_models.ActionMixin,
+    TenantQuotaMixin,
+    structure_models.Storage,
+    core_models.BackendMissingMixin,
+):
     volumes: models.Manager["Volume"]
     restorations: models.Manager["SnapshotRestoration"]
     backups: models.Manager["Backup"]
@@ -1809,6 +1816,7 @@ class Instance(
     TenantQuotaMixin,
     structure_models.VirtualMachine,
     core_models.AvailableMixin,
+    core_models.BackendMissingMixin,
 ):
     tracker = cast(FieldInstanceTracker, FieldTracker())
 

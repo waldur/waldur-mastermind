@@ -4,6 +4,7 @@ from typing import Any
 from django.conf import settings
 from django.db import transaction
 from django.db.models import QuerySet
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
@@ -16,6 +17,10 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
+
+# Error message set on a resource which is gone from the backend. Reports filter
+# on it, so keep it in sync with them when rewording.
+RESOURCE_MISSING_MESSAGE = "Does not exist at backend."
 
 
 def get_identity_provider_field(registration_method, field):
@@ -129,17 +134,32 @@ def update_pulled_fields(instance, imported_instance, fields):
 def handle_resource_not_found(resource):
     """
     Set resource state to ERRED and append/create "not found" error message.
+
+    Pull tasks re-check resources in ERRED state as well, so a resource that is
+    gone for good is handled on every cycle. Report it at WARNING level only on
+    the transition to missing and remember when that happened, to keep the
+    remaining warnings meaningful.
     """
+    message = RESOURCE_MISSING_MESSAGE
+    was_missing = (
+        resource.state == CoreStates.ERRED and message in resource.error_message
+    )
+    unchanged = was_missing and not getattr(resource, "runtime_state", "")
+
     resource.set_erred()
     resource.runtime_state = ""
-    message = "Does not exist at backend."
     if message not in resource.error_message:
         if not resource.error_message:
             resource.error_message = message
         else:
             resource.error_message += " (%s)" % message
-    resource.save()
-    logger.warning(
+    if hasattr(resource, "backend_missing_since") and not was_missing:
+        resource.backend_missing_since = timezone.now()
+    if not unchanged:
+        resource.save()
+
+    log = logger.debug if was_missing else logger.warning
+    log(
         f"{resource.__class__.__name__} {resource} (PK: {resource.pk}) does not exist at backend."
     )
 
@@ -164,6 +184,13 @@ def handle_resource_update_success(resource):
     if hasattr(resource, "task_id") and resource.task_id is not None:
         resource.task_id = None
         update_fields.append("task_id")
+
+    if (
+        hasattr(resource, "backend_missing_since")
+        and resource.backend_missing_since is not None
+    ):
+        resource.backend_missing_since = None
+        update_fields.append("backend_missing_since")
 
     if update_fields:
         resource.save(update_fields=update_fields)
