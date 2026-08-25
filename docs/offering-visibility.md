@@ -70,8 +70,9 @@ Independently of `RESTRICTED_OFFERING_VISIBILITY_MODE` (which governs organizati
 When set:
 
 - The offering is **hidden from the catalog** for users who do not hold one of the listed roles in any scope. Users who already consume resources from the offering keep access.
-- Only users holding one of the listed roles **on the target project or its customer** can create an order; others are rejected with HTTP 403. Staff and support bypass the check.
+- Only users holding one of the listed roles **on the target project or its customer** can create an order; others are rejected with HTTP 403.
 - `is_accessible` is `false` for users who lack the roles.
+- **Staff and support are not subject to the restriction at all**: the offering stays in their catalog (including under the `accessible=true` filter and in the category offering counts that back the "Add resource" quick-add), `is_accessible` stays `true`, and they can create orders for it. The option narrows access for regular users; it never narrows it below what the role grants globally.
 - The order form's organization and project selectors are limited to scopes where the user holds one of the roles.
 
 Approval is unaffected: whether an order skips consumer review still depends on the role's `ORDER.APPROVE` permission, exactly as for any other offering. Role names must be valid project- or organization-scoped roles.

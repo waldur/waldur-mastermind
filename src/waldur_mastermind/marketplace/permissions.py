@@ -253,7 +253,10 @@ user_can_terminate_resource = permission_factory(
 
 def check_offering_restriction(user, project, offering):
     """Raise unless the user holds one of the roles the offering is restricted
-    to, in the given project or its customer."""
+    to, in the given project or its customer. Staff and support outrank the
+    restriction."""
+    if user.is_authenticated and (user.is_staff or user.is_support):
+        return
     if offering_is_restricted(offering) and not user_holds_restricted_role(
         user, project, offering
     ):
