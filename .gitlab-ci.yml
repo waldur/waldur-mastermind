@@ -490,6 +490,54 @@ Build docker image for tests:
       ${CI_PROJECT_DIR}
     - buildah push "$WALDUR_MASTERMIND_TEST_IMAGE"
 
+# Builds the image the downstream E2E suite actually runs on for merge requests.
+#
+# Before this job existed, "Trigger integration tests" passed
+# ${CI_REGISTRY_IMAGE}:latest on every pipeline — but the two jobs that write
+# that tag ("Publish the YOLO multiarch docker image" and "Publish the latest
+# multiarch docker image") both inherit `$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH`
+# from waldur-pipelines /templates/release/publish-multiarch.yml. Nothing in an
+# MR pipeline built an MR image, so every MR ran the full 13-job E2E suite
+# against whatever develop last published: ~800s of blocking wall-clock and
+# ~67 runner-minutes spent on a result that could not describe the MR. See #293.
+#
+# Mirrors waldur-homeport's "Build test docker image", which has always pinned
+# its downstream to ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e.
+Build MR image for integration tests:
+  stage: test
+  interruptible: true
+  image: "quay.io/buildah/stable"
+  rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    # Same change filter as the trigger that consumes this image — building it
+    # for a docs-only MR would be pure cost, since the trigger would not fire.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: &integration_test_changes
+        - src/**/*
+        - docker/**/*
+        - Dockerfile
+        - pyproject.toml
+        - uv.lock
+        - .gitlab-ci.yml
+  variables:
+    DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
+  cache: []
+  before_script:
+    - echo "[+] Build image for merge request ${CI_MERGE_REQUEST_ID}"
+    # Baked into the image at / by `COPY docker/rootfs /`, same as the YOLO job.
+    - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT_SHA
+    - echo "${CI_REGISTRY_PASSWORD}" | buildah login -u "${CI_REGISTRY_USER}" --password-stdin "${CI_REGISTRY}"
+  script:
+    - buildah bud
+      --platform=linux/amd64
+      --build-arg DOCKER_REGISTRY="${DOCKER_REGISTRY}"
+      -t "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e"
+      -f "${CI_PROJECT_DIR}/Dockerfile"
+      "${CI_PROJECT_DIR}"
+    - buildah push "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e"
+
 Publish the latest multiarch docker image:
   extends: .Publish multiarch latest docker image template
   # The template's dind service comes from public.ecr.aws, which rate-limits
@@ -771,8 +819,19 @@ Trigger integration tests:
     project: waldur/waldur-integration-testing
     branch: main
     strategy: depend
+  # Without `needs:` this bridge is only stage-ordered, so it could not start
+  # until every job in `test`, `build` and `release` had finished — including the
+  # ~23-minute 15-shard unit suite — although all it depends on is one image.
+  # Naming the image producers lets the E2E suite overlap the unit tests instead
+  # of queueing behind them. Both are `optional` because only one exists in any
+  # given pipeline: the MR build on merge requests, the release job on develop.
+  # See #293.
+  needs:
+    - job: Build MR image for integration tests
+      optional: true
+    - job: Publish the latest multiarch docker image
+      optional: true
   variables:
-    WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
     # TRIGGER_SOURCE is forwarded to the downstream E2E suite so it can identify
     # which upstream repo triggered it (backend-only jobs stay on for mastermind).
     TRIGGER_SOURCE: mastermind
@@ -782,16 +841,19 @@ Trigger integration tests:
       when: never
     # Only run E2E when a change can affect backend behaviour or the stack image.
     # Docs-only / lint-config-only changes (CHANGELOG, *.md, docs/**) skip it.
+    #
+    # WALDUR_MASTERMIND_IMAGE is set per-rule, not in `variables:` above: on
+    # develop the release job has just republished :latest, but on a merge
+    # request :latest is still develop's image and testing it says nothing about
+    # the MR — so MRs get the image built from their own code.
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      changes: &integration_test_changes
-        - src/**/*
-        - docker/**/*
-        - Dockerfile
-        - pyproject.toml
-        - uv.lock
-        - .gitlab-ci.yml
+      changes: *integration_test_changes
+      variables:
+        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: *integration_test_changes
+      variables:
+        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-e2e"
 
 Release tag:
   extends: .release-tag-base
