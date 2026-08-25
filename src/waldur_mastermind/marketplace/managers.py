@@ -50,8 +50,16 @@ class OfferingQuerySet(django_models.QuerySet):
     def _restricted_forbidden_ids(queryset, user):
         """Ids of offerings in queryset that restrict access via
         plugin_options['restricted_to_roles'] to roles the user does not hold.
+        Empty for staff and support, who are not subject to the restriction.
         The check is coarse (role held in any scope); precise per-project
         authorization happens at order creation."""
+        # Staff and support outrank offering-level role restrictions, exactly as
+        # they do in filter_by_ordering_availability_for_user. Without this the
+        # `accessible` filter hides restricted offerings from staff, who then
+        # cannot reach them in the catalog to order from at all.
+        if not user.is_anonymous and (user.is_staff or user.is_support):
+            return set()
+
         restricted = queryset.filter(
             plugin_options__has_key="restricted_to_roles"
         ).values_list("id", "plugin_options")

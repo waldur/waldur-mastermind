@@ -100,6 +100,17 @@ class RestrictedOfferingVisibilityTest(test.APITestCase):
         uuids = self.list_offering_uuids(self.fixture.manager, accessible=True)
         self.assertIn(self.restricted_offering.uuid.hex, uuids)
 
+    def test_accessible_filter_keeps_restricted_offering_for_staff(self):
+        # Staff outranks the offering-level restriction: an offering they can
+        # see in the catalog must not disappear once the catalog asks for
+        # orderable offerings only.
+        uuids = self.list_offering_uuids(self.fixture.staff, accessible=True)
+        self.assertIn(self.restricted_offering.uuid.hex, uuids)
+
+    def test_accessible_filter_keeps_restricted_offering_for_support(self):
+        uuids = self.list_offering_uuids(self.fixture.global_support, accessible=True)
+        self.assertIn(self.restricted_offering.uuid.hex, uuids)
+
     def test_accessible_false_does_not_filter(self):
         # accessible=false is a no-op: default catalog behaviour applies.
         factories.ResourceFactory(
@@ -208,6 +219,18 @@ class RestrictedOfferingCategoryCountTest(test.APITestCase):
             ),
             2,
         )
+
+    def test_accessible_count_keeps_restricted_offering_for_staff(self):
+        self.assertEqual(
+            self.get_offering_count(
+                self.mixed_category, self.fixture.staff, accessible=True
+            ),
+            2,
+        )
+
+    def test_accessible_filter_keeps_restricted_only_category_for_staff(self):
+        uuids = self.list_category_uuids(self.fixture.staff, accessible=True)
+        self.assertIn(self.restricted_only_category.uuid.hex, uuids)
 
     def test_accessible_filter_drops_restricted_only_category_for_member(self):
         uuids = self.list_category_uuids(self.fixture.member, accessible=True)
