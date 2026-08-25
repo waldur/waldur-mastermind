@@ -28,28 +28,33 @@ from waldur_mastermind.proposal.enums import (
 logger = logging.getLogger(__name__)
 
 
-def _requested_end_date(
+def _requested_months(
     requested_resource: proposal_models.RequestedResource,
-    project: structure_models.Project,
-) -> datetime.date | None:
-    """The end date for the allocated resource, re-anchored at allocation.
+) -> int | None:
+    """How many whole months the request asks for, or None when it names none.
 
-    The resource request stores an absolute date, which the form computed from
-    the day the request was drafted. Allocation happens after review, so by then
-    that date is short of the period the applicant chose and the reviewer
-    priced — and once review outlasts the period itself the date has passed,
-    which ``validate_end_date`` rejects outright.
-
-    Carrying the *length* over instead keeps both intact: the resource runs for
-    the number of months that were requested, and the prepaid multiplier
-    reproduces the cost the proposal was accepted on. An absolute date would
-    quietly deliver a shorter grant and invoice less than the approved figure.
-
-    Returns None when no period was requested, or when the re-anchored date
-    breaks the offering's own termination rules — allocation must not fail over
-    a date, so the resource is left open and the operator gets a warning.
+    The length is the contract. ``attributes.end_date`` is the older form of the
+    same answer, kept for requests written before the form asked for months, and
+    measured from the day that request was created because that is the day its
+    date was computed from.
     """
     attributes = requested_resource.attributes or {}
+
+    stored_length = attributes.get("prepaid_duration_months")
+    if stored_length is not None:
+        try:
+            months = int(stored_length)
+        except (TypeError, ValueError):
+            months = 0
+        if months > 0:
+            return months
+        logger.warning(
+            "Requested resource %s carries an unusable subscription length %r; "
+            "falling back to its end date.",
+            requested_resource.uuid,
+            stored_length,
+        )
+
     if not attributes.get("end_date"):
         return None
 
@@ -66,9 +71,33 @@ def _requested_end_date(
     if requested_end is None:
         return None
 
-    months = core_utils.calculate_duration_months(
+    return core_utils.calculate_duration_months(
         requested_resource.created.date(), requested_end
     )
+
+
+def _requested_end_date(
+    requested_resource: proposal_models.RequestedResource,
+    project: structure_models.Project,
+) -> datetime.date | None:
+    """The end date for the allocated resource, anchored at allocation.
+
+    A resource request names a length, not a date: the day the resource is
+    granted is unknown while the proposal is being written and reviewed. Running
+    the grant for that many months from allocation keeps both the period the
+    applicant chose and the cost the reviewer priced, where an absolute date
+    would quietly deliver a shorter grant and invoice less than the approved
+    figure — and, once review outlasts the period, would have passed altogether,
+    which ``validate_end_date`` rejects outright.
+
+    Returns None when no period was requested, or when the anchored date breaks
+    the offering's own termination rules — allocation must not fail over a date,
+    so the resource is left open and the operator gets a warning.
+    """
+    months = _requested_months(requested_resource)
+    if months is None:
+        return None
+
     today = datetime.date.today()
     end_date = today + relativedelta(months=months)
 
