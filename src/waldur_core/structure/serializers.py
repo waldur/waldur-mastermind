@@ -660,7 +660,6 @@ class ProjectSerializer(
             "customer_abbreviation",
             "description",
             "customer_display_billing_info_in_projects",
-            "display_credit_reports",
             "created",
             "type",
             "type_name",
@@ -765,7 +764,7 @@ class ProjectSerializer(
                     fields["staff_notes"].read_only = True
 
         # Handle staff-only override fields (visible to all, editable by staff)
-        for field_name in ("grace_period_days", "display_credit_reports"):
+        for field_name in ("grace_period_days",):
             if field_name not in fields:
                 continue
             user = self.context["request"].user

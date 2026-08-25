@@ -602,7 +602,6 @@ class Command(BaseCommand):
                 "end_date": project.end_date.isoformat() if project.end_date else None,
                 "oecd_fos_2007_code": project.oecd_fos_2007_code,
                 "backend_id": project.backend_id,
-                "display_credit_reports": project.display_credit_reports,
                 "modified": project.modified.isoformat() if project.modified else None,
             }
 

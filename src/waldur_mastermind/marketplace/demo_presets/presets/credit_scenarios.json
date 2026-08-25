@@ -229,93 +229,80 @@
       "uuid": "c3c00000000000000000000000000001",
       "name": "01 On pace",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "Healthy: usage tracks the linear ideal, nothing lost, no deadline in sight.",
-      "display_credit_reports": true
+      "description": "Healthy: usage tracks the linear ideal, nothing lost, no deadline in sight."
     },
     {
       "uuid": "c3c00000000000000000000000000002",
       "name": "02 Behind pace - credit being lost",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "Draw far below the minimum floor: the shortfall is taken from the balance anyway and shows as Lost.",
-      "display_credit_reports": true
+      "description": "Draw far below the minimum floor: the shortfall is taken from the balance anyway and shows as Lost."
     },
     {
       "uuid": "c3c00000000000000000000000000003",
       "name": "03 Ahead of pace - over expected",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "Drawing faster than the plan; the pace bar clamps at 100% and flags the overage.",
-      "display_credit_reports": true
+      "description": "Drawing faster than the plan; the pace bar clamps at 100% and flags the overage."
     },
     {
       "uuid": "c3c00000000000000000000000000004",
       "name": "04 Final month - grace waived",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "The credit ends this month, so the minimum draw jumps to the full expected consumption and the grace coefficient does not apply.",
-      "display_credit_reports": true
+      "description": "The credit ends this month, so the minimum draw jumps to the full expected consumption and the grace coefficient does not apply."
     },
     {
       "uuid": "c3c00000000000000000000000000005",
       "name": "05 Credit expires in two months",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "A balance that will be forfeited at expiry unless the draw increases.",
-      "display_credit_reports": true
+      "description": "A balance that will be forfeited at expiry unless the draw increases."
     },
     {
       "uuid": "c3c00000000000000000000000000006",
       "name": "06 Balance runs out first",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "Days of runway at the current burn: exhaustion is the binding constraint.",
-      "display_credit_reports": true
+      "description": "Days of runway at the current burn: exhaustion is the binding constraint."
     },
     {
       "uuid": "c3c00000000000000000000000000007",
       "name": "07 Project ends soon",
       "customer_uuid": "a3c00000000000000000000000000001",
       "description": "Project end date in twelve days with a grace period: resources are paused first, terminated later.",
-      "end_date": "relative:+12days",
-      "display_credit_reports": true
+      "end_date": "relative:+12days"
     },
     {
       "uuid": "c3c00000000000000000000000000008",
       "name": "08 Resources end before the credit",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "Staggered resource end dates: the work stops long before the money does.",
-      "display_credit_reports": true
+      "description": "Staggered resource end dates: the work stops long before the money does."
     },
     {
       "uuid": "c3c00000000000000000000000000009",
       "name": "09 Linear ramp-up",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "LINEAR minimal-consumption logic: the expected draw rises each month so the balance lands at zero on the end date.",
-      "display_credit_reports": true
+      "description": "LINEAR minimal-consumption logic: the expected draw rises each month so the balance lands at zero on the end date."
     },
     {
       "uuid": "c3c00000000000000000000000000010",
       "name": "10 Paused by policy",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "A resource paused by a cost policy, with the attribution shown in the expandable row.",
-      "display_credit_reports": true
+      "description": "A resource paused by a cost policy, with the attribution shown in the expandable row."
     },
     {
       "uuid": "c3c00000000000000000000000000011",
       "name": "11 Organization credit lower than allocation",
       "customer_uuid": "a3c00000000000000000000000000002",
-      "description": "The allocation stands but the organization balance behind it is smaller, so only part of it can be drawn.",
-      "display_credit_reports": true
+      "description": "The allocation stands but the organization balance behind it is smaller, so only part of it can be drawn."
     },
     {
       "uuid": "c3c00000000000000000000000000012",
       "name": "12 Organization credit exhausted",
       "customer_uuid": "a3c00000000000000000000000000003",
-      "description": "The organization balance is zero, so none of the allocation can be drawn.",
-      "display_credit_reports": true
+      "description": "The organization balance is zero, so none of the allocation can be drawn."
     },
     {
       "uuid": "c3c00000000000000000000000000013",
       "name": "13 Credit expired unspent",
       "customer_uuid": "a3c00000000000000000000000000001",
-      "description": "The credit's end date has passed. Everything left on the balance was forfeited at the start of this month and shows as Lost.",
-      "display_credit_reports": true
+      "description": "The credit's end date has passed. Everything left on the balance was forfeited at the start of this month and shows as Lost."
     }
   ],
   "resources": [
