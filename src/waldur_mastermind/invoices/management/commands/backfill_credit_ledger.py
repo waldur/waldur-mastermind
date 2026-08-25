@@ -13,8 +13,9 @@ be partly recovered, and it is worth being precise about which parts:
   never wrote an invoice item; their only trace is the audit event
   `reduction_of_{customer,project}_credit_due_to_minimal_consumption`, whose
   `consumption` is a full Decimal. The event carries no billing period, so the
-  month is inferred from when it was emitted — right for scheduled
-  finalization, wrong for a manual re-run or a seeded history.
+  month is inferred from when it was emitted, read in the deployment's own
+  timezone because that is the one finalization is scheduled in — right for
+  scheduled finalization, wrong for a manual re-run or a seeded history.
 * **The granted amount is not recoverable.** Every event that moves a balance
   in bulk — grants, staff edits, expiry, rollback, termination — truncates both
   values to whole units, so chaining them accumulates error. What the evidence
@@ -34,6 +35,7 @@ import decimal
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import Min, Sum
+from django.utils import timezone
 
 from waldur_core.logging import models as logging_models
 from waldur_mastermind.invoices import models
@@ -259,7 +261,11 @@ class Command(BaseCommand):
                 continue
             period = None
             if self.infer_period == "previous-month":
-                period = previous_month(event.created.date())
+                # In the deployment's own timezone, not UTC. Finalization is
+                # scheduled at local midnight on the 1st, which east of UTC is
+                # stored as the last day of the month before — so reading the
+                # stored date directly dates the draw a whole month early.
+                period = previous_month(timezone.localdate(event.created))
                 if not self._in_range(period):
                     continue
             rows.append(

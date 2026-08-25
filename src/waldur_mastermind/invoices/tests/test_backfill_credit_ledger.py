@@ -14,7 +14,7 @@ the ledger already has.
 from io import StringIO
 
 from django.core.management import call_command
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from freezegun import freeze_time
 
 from waldur_core.logging import models as logging_models
@@ -48,7 +48,7 @@ class BackfillCreditLedgerTest(TransactionTestCase):
 
     # --- billing -----------------------------------------------------------
 
-    def bill(self, year, month):
+    def bill(self, year, month, finalized_at=None):
         """Bill one month, at the time its finalization would have run.
 
         Real finalization bills a month from the month after it, which is the
@@ -65,7 +65,7 @@ class BackfillCreditLedgerTest(TransactionTestCase):
             unit_price=10,
             quantity=self.usage / 10,
         )
-        finalized_on = f"{year + month // 12}-{month % 12 + 1:02}-01"
+        finalized_on = finalized_at or f"{year + month // 12}-{month % 12 + 1:02}-01"
         with freeze_time(finalized_on):
             compensations.MonthlyCompensation(
                 self.customer, invoice=invoice
@@ -169,6 +169,20 @@ class BackfillCreditLedgerTest(TransactionTestCase):
             self.months(TYPES.MINIMAL_DRAW),
             ["2024-01-01", "2024-02-01", "2024-03-01"],
         )
+
+    @override_settings(TIME_ZONE="Europe/Zurich")
+    def test_the_inferred_month_is_read_in_the_deployment_timezone(self):
+        # Finalization is scheduled at local midnight on the 1st. East of UTC
+        # that instant is stored on the last day of the month before, so an
+        # inference that reads the stored date rather than the local one dates
+        # every floor draw a whole month early — silently, since the amounts
+        # still add up. Zurich was where this showed up.
+        self.bill(2024, 1, finalized_at="2024-01-31 23:00:00")
+        self.forget()
+
+        self.backfill()
+
+        self.assertEqual(self.months(TYPES.MINIMAL_DRAW), ["2024-01-01"])
 
     def test_months_the_ledger_already_records_are_left_alone(self):
         # The common case: the ledger was deployed mid-life, so recent months
