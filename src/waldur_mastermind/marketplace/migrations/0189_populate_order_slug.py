@@ -3,6 +3,7 @@ import logging
 from django.db import migrations
 
 from waldur_core.core.models import generate_slug
+from waldur_core.core.utils import chunked_queryset
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,15 @@ def fill_slug(apps, schema_editor):
     orders_to_update = []
     processed_count = 0
 
-    # Process only orders without slugs in batches to avoid memory issues
-    order_queryset = (
-        Order.objects.filter(slug="")
-        .select_related("project__customer", "offering")
-        .iterator(chunk_size=batch_size)
+    # Process only orders without slugs in batches to avoid memory issues.
+    # Client-side chunks rather than a server-side cursor: this migration is
+    # atomic = False and bulk_updates between fetches, so a cursor would be
+    # declared and fetched across transaction boundaries — which a
+    # transaction-mode pooler does not keep on one backend. The keyset walk
+    # only moves forward by pk, so rows this loop stamps cannot be revisited.
+    order_queryset = chunked_queryset(
+        Order.objects.filter(slug="").select_related("project__customer", "offering"),
+        chunk_size=batch_size,
     )
 
     for order in order_queryset:

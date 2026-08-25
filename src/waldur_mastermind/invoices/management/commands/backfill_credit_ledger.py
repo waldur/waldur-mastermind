@@ -37,6 +37,7 @@ from django.db import transaction
 from django.db.models import Min, Sum
 from django.utils import timezone
 
+from waldur_core.core.utils import chunked_queryset
 from waldur_core.logging import models as logging_models
 from waldur_mastermind.invoices import models
 
@@ -252,7 +253,12 @@ class Command(BaseCommand):
             events = events.filter(created__lt=ledger_start)
 
         rows = []
-        for event in events.order_by("created").iterator():
+        # Client-side chunks, not a server-side cursor: this walk runs in
+        # autocommit, so a cursor declared here can be handed a different
+        # backend by a transaction-mode pooler before the next fetch. The
+        # keyset walk orders by pk; each row is derived from its own event
+        # alone, so the created-order this replaces bought nothing.
+        for event in chunked_queryset(events):
             try:
                 amount = decimal.Decimal(str((event.context or {}).get("consumption")))
             except (decimal.InvalidOperation, TypeError):

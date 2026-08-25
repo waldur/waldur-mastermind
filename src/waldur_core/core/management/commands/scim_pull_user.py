@@ -16,6 +16,7 @@ import time
 from django.core.management.base import BaseCommand, CommandError
 
 from waldur_core.core.models import User
+from waldur_core.core.utils import chunked_queryset
 from waldur_core.users.scim.pull.client import ScimError
 from waldur_core.users.scim.pull.service import (
     ScimPullConfigError,
@@ -74,7 +75,10 @@ class Command(BaseCommand):
         total = qs.count()
         self.stdout.write(f"Pulling SCIM attributes for {total} active users...")
         ok = errors = 0
-        for user in qs.iterator():
+        # Client-side chunks: the loop sleeps and makes SCIM calls between
+        # fetches, so a server-side cursor here would be left open across
+        # transaction boundaries and lost by a transaction-mode pooler.
+        for user in chunked_queryset(qs):
             try:
                 self._pull_one(user, client, source)
                 ok += 1
