@@ -174,7 +174,7 @@ class CommentNotificationTest(smax_base.BaseTest):
         tasks.send_comment_added_notification(serialized_comment)
         mock_send_mail.assert_called_once_with(
             "New comment.",
-            "message\n\n",
+            "message",
             [self.fixture.issue.caller.email],
             html_message="<p>message</p>",
         )
@@ -200,7 +200,7 @@ class CommentNotificationTest(smax_base.BaseTest):
         tasks.send_comment_updated_notification(serialized_comment, old_description)
         mock_send_mail.assert_called_once_with(
             "Update comment.",
-            "New: message\n\n, old: old message\n\n",
+            "New: message, old: old message",
             [self.fixture.issue.caller.email],
             html_message="New: <p>message</p>, old: <p>old message</p>",
         )
