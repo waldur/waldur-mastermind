@@ -1855,8 +1855,6 @@ class Command(BaseCommand):
                     "duration_in_days": proposal.duration_in_days,
                     "project_summary": proposal.project_summary,
                     "project_duration": proposal.project_duration,
-                    "project_is_confidential": proposal.project_is_confidential,
-                    "project_has_civilian_purpose": proposal.project_has_civilian_purpose,
                     "allocation_comment": proposal.allocation_comment,
                     "slug": proposal.slug,
                     "created": proposal.created.isoformat()
@@ -1924,8 +1922,6 @@ class Command(BaseCommand):
                     "comment_project_summary": review.comment_project_summary,
                     "comment_project_description": review.comment_project_description,
                     "comment_project_duration": review.comment_project_duration,
-                    "comment_project_is_confidential": review.comment_project_is_confidential,
-                    "comment_project_has_civilian_purpose": review.comment_project_has_civilian_purpose,
                     "comment_project_supporting_documentation": review.comment_project_supporting_documentation,
                     "comment_resource_requests": review.comment_resource_requests,
                     "comment_team": review.comment_team,

@@ -469,8 +469,6 @@ class ProposalReviewSerializer(
             "call_managing_organisation_uuid",
             "comment_project_title",
             "comment_project_summary",
-            "comment_project_is_confidential",
-            "comment_project_has_civilian_purpose",
             "comment_project_description",
             "comment_project_duration",
             "comment_project_supporting_documentation",
@@ -1607,16 +1605,21 @@ class ProposalDetachDocumentsSerializer(serializers.Serializer):
 
 
 class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):
+    science_sub_domain = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=structure_models.ScienceSubDomain.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
     class Meta:
         model = models.Proposal
         fields = [
             "name",
             "description",
             "project_summary",
-            "project_is_confidential",
-            "project_has_civilian_purpose",
             "duration_in_days",
-            "oecd_fos_2007_code",
+            "science_sub_domain",
         ]
 
 
@@ -1754,8 +1757,6 @@ class ProposalSerializer(
             "description",
             "project_name",
             "project_summary",
-            "project_is_confidential",
-            "project_has_civilian_purpose",
             "supporting_documentation",
             "state",
             "approved_by",
