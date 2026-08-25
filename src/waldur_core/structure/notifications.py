@@ -1069,10 +1069,8 @@ class RoundClosingForManagersContext(BaseModel):
     start_date: Any = Field(description="The round start date.")
     close_date: Any = Field(description="The round close date.")
     total_reviews: int = Field(
-        description="The total number of review assignments created for this round."
-    )
-    review_strategy: str = Field(
-        description="The display name of the review strategy (e.g., 'After round')."
+        description="The number of reviews recorded against this round's proposals, "
+        "excluding rejected ones."
     )
     round_url: str = Field(description="A URL to the round management page.")
 

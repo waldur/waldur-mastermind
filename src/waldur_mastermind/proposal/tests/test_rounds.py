@@ -343,6 +343,12 @@ class RoundNotificationsTest(test.APITestCase):
         self.assertIn("Dear call manager", body)
         self.assertIn(self.round.name, body)
         self.assertIn(self.call.name, body)
+        # The template must only describe what closing actually does: no review
+        # strategy exists any more, and the cutoff neither moves proposals into
+        # review nor creates assignments.
+        self.assertNotIn("review strategy", body)
+        self.assertNotIn("in_review", body)
+        self.assertIn("cancelled automatically", body)
 
     @override_settings(task_always_eager=True)
     def test_proposal_creator_is_notified_before_submission_deadline(self):
