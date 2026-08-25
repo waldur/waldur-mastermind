@@ -181,7 +181,6 @@ class ProposalOverviewTool(BaseTool):
             if proposal.project_summary
             else "",
             "duration_days": proposal.duration_in_days,
-            "is_confidential": proposal.project_is_confidential,
             "resource_requests": resources,
             "reviews": {
                 "total": review_stats["total"],

@@ -754,8 +754,6 @@ class Proposal(
     )
     project_summary = models.TextField(blank=True)
     project_duration = models.PositiveIntegerField(null=True, blank=True)
-    project_is_confidential = models.BooleanField(default=False)
-    project_has_civilian_purpose = models.BooleanField(default=False)
 
     resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
     allocation_comment = models.CharField(blank=True, max_length=150, null=True)
@@ -1108,12 +1106,6 @@ class Review(
         max_length=255, null=True, blank=True
     )
     comment_project_duration = models.CharField(max_length=255, null=True, blank=True)
-    comment_project_is_confidential = models.CharField(
-        max_length=255, null=True, blank=True
-    )
-    comment_project_has_civilian_purpose = models.CharField(
-        max_length=255, null=True, blank=True
-    )
     comment_project_supporting_documentation = models.CharField(
         max_length=255, null=True, blank=True
     )

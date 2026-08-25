@@ -8206,12 +8206,6 @@ class Command(BaseCommand):
                     "duration_in_days": proposal_data.get("duration_in_days"),
                     "project_summary": proposal_data.get("project_summary", ""),
                     "project_duration": proposal_data.get("project_duration"),
-                    "project_is_confidential": proposal_data.get(
-                        "project_is_confidential", False
-                    ),
-                    "project_has_civilian_purpose": proposal_data.get(
-                        "project_has_civilian_purpose", False
-                    ),
                     "allocation_comment": proposal_data.get("allocation_comment", ""),
                 }
 
@@ -8465,12 +8459,6 @@ class Command(BaseCommand):
                     ),
                     "comment_project_duration": review_data.get(
                         "comment_project_duration"
-                    ),
-                    "comment_project_is_confidential": review_data.get(
-                        "comment_project_is_confidential"
-                    ),
-                    "comment_project_has_civilian_purpose": review_data.get(
-                        "comment_project_has_civilian_purpose"
                     ),
                     "comment_project_supporting_documentation": review_data.get(
                         "comment_project_supporting_documentation"

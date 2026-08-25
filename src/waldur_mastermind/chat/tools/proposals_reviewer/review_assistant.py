@@ -231,8 +231,6 @@ class ReviewAssistantTool(BaseTool):
                 if proposal.project_summary
                 else "",
                 "duration_days": proposal.duration_in_days,
-                "is_confidential": proposal.project_is_confidential,
-                "has_civilian_purpose": proposal.project_has_civilian_purpose,
             },
             "call_name": call.name if call else "",
             "call_description": call.description[:500]

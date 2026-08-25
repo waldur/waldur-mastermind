@@ -299,6 +299,42 @@ class UpdateProposalProjectDetailsTest(test.APITestCase):
         self.proposal.refresh_from_db()
         return response
 
+    def test_science_sub_domain_can_be_set(self):
+        sub_domain = structure_factories.ScienceSubDomainFactory()
+        self.client.force_authenticate(self.fixture.proposal_creator)
+
+        response = self.client.post(
+            self.url,
+            {
+                "name": self.proposal.name,
+                "duration_in_days": 10,
+                "science_sub_domain": sub_domain.uuid.hex,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.science_sub_domain, sub_domain)
+
+    def test_science_sub_domain_can_be_cleared(self):
+        self.proposal.science_sub_domain = structure_factories.ScienceSubDomainFactory()
+        self.proposal.save()
+        self.client.force_authenticate(self.fixture.proposal_creator)
+
+        response = self.client.post(
+            self.url,
+            {
+                "name": self.proposal.name,
+                "duration_in_days": 10,
+                "science_sub_domain": None,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.proposal.refresh_from_db()
+        self.assertIsNone(self.proposal.science_sub_domain)
+
 
 @ddt
 class ProposalDeleteTest(test.APITestCase):

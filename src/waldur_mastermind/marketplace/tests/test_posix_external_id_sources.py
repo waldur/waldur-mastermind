@@ -162,7 +162,15 @@ class DisabledPosixAccountTest(test.APITestCase):
         self.assertIsNone(by_offering["Object storage"]["pool_scope"])
         self.assertIsNotNone(by_offering["Cluster A"]["pool_uuid"])
         # ...and the two are not merged into one shared row.
+        # Sorted because the row order follows the OfferingUser queryset, whose
+        # Meta.ordering is ["username", "id"]: the usernames come from a factory
+        # sequence, so which of the two rows sorts first depends on the counter
+        # the sequence happens to have reached — i.e. on what else ran in the
+        # same process. The claim under test is that there are two rows, not
+        # which one comes back first.
         self.assertEqual(
-            [row["offerings"][0]["name"] for row in rows if row["value"] == 100000],
+            sorted(
+                row["offerings"][0]["name"] for row in rows if row["value"] == 100000
+            ),
             ["Cluster A", "Object storage"],
         )
