@@ -461,14 +461,47 @@ RULES_YAML = textwrap.dedent("""\
     """)
 
 
-def test_section_map_attributes_second_level_keys():
-    from select_tests import build_line_to_section_map
+def test_changed_job_keys_sees_through_merge_anchors():
+    """Swapping which rules anchor a job merges reads as a `rules` change.
 
-    m = build_line_to_section_map(RULES_YAML)
-    assert m[1] == ("Generate OpenAPI schema", None)  # the job header
-    assert m[3] == ("Generate OpenAPI schema", "stage")
-    assert m[5] == ("Generate OpenAPI schema", "rules")  # list item under rules
-    assert m[7] == ("Generate OpenAPI schema", "script")
+    The diff line says `<<: *other`, but PyYAML resolves merge keys, so the
+    comparison sees `rules` and nothing else. Line attribution reported `<<`
+    and so missed the exemption.
+    """
+    from select_tests import GitLabSafeLoader, changed_job_keys
+
+    def load(anchor_rules):
+        return yaml.load(
+            textwrap.dedent(f"""\
+                .a: &a
+                  rules: [{{if: A}}]
+                .b: &b
+                  rules: [{{if: B}}]
+                Job:
+                  <<: *{anchor_rules}
+                  stage: test
+                  script: [pytest]
+                """),
+            Loader=GitLabSafeLoader,
+        )
+
+    assert changed_job_keys("Job", load("a"), load("b")) == {"rules"}
+    assert changed_job_keys("Job", load("a"), load("a")) == set()
+    assert changed_job_keys("Nope", load("a"), load("a")) is None
+
+
+def test_changed_job_keys_ignores_comments():
+    """A comment changes no key, so the job compares as unchanged."""
+    from select_tests import GitLabSafeLoader, changed_job_keys
+
+    base = yaml.load(
+        "Job:\n  stage: test\n  script: [pytest]\n", Loader=GitLabSafeLoader
+    )
+    head = yaml.load(
+        "Job:\n  # explanatory comment\n  stage: test\n  script: [pytest]\n",
+        Loader=GitLabSafeLoader,
+    )
+    assert changed_job_keys("Job", base, head) == set()
 
 
 def test_no_full_run_when_only_rules_change(fake_diff_inputs):
@@ -505,3 +538,58 @@ def test_full_run_when_script_changes_alongside_rules(fake_diff_inputs):
     from select_tests import ci_diff_affects_tests
 
     assert ci_diff_affects_tests("BASE", "HEAD") is True
+
+
+def test_no_full_run_when_new_anchor_added_after_test_infrastructure(fake_diff_inputs):
+    """The !6137 case.
+
+    Adding a documented anchor immediately after `.unit_test_rules` blamed the
+    new comment block on `.unit_test_rules` — test infrastructure — and forced a
+    full run, even though that key was untouched and the jobs below only swapped
+    which rules anchor they merge.
+    """
+    base = textwrap.dedent("""\
+        .unit_test_rules: &unit_test_rules
+          rules:
+            - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+              changes: [src/**/*, .gitlab-ci.yml]
+        Check Action decorators:
+          stage: test
+          <<: *unit_test_rules
+          script: [check]
+        """)
+    head = textwrap.dedent("""\
+        .unit_test_rules: &unit_test_rules
+          rules:
+            - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+              changes: [src/**/*, .gitlab-ci.yml]
+
+        # Documentation for the new anchor. These comment lines sit between the
+        # two keys and were previously attributed to .unit_test_rules.
+        .source_analysis_rules: &source_analysis_rules
+          rules:
+            - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+              changes: [src/**/*]
+        Check Action decorators:
+          stage: test
+          <<: *source_analysis_rules
+          script: [check]
+        """)
+    fake_diff_inputs["base"] = base
+    fake_diff_inputs["head"] = head
+    fake_diff_inputs["diff"] = textwrap.dedent("""\
+        @@ -4,0 +5,8 @@
+        +
+        +# Documentation for the new anchor. These comment lines sit between the
+        +# two keys and were previously attributed to .unit_test_rules.
+        +.source_analysis_rules: &source_analysis_rules
+        +  rules:
+        +    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+        +      changes: [src/**/*]
+        @@ -7,1 +15,1 @@
+        -  <<: *unit_test_rules
+        +  <<: *source_analysis_rules
+        """)
+    from select_tests import ci_diff_affects_tests
+
+    assert ci_diff_affects_tests("BASE", "HEAD") is False
