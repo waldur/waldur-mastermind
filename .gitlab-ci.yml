@@ -161,7 +161,18 @@ Generate OpenAPI schema:
       when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    # This rule had no `changes:` filter at all, so the job ran on every merge
+    # request — including docs-only ones — for ~93s. The schema is generated
+    # from the Python source, so only these paths can change its output:
+    # serializers/views/models under src/, and the drf-spectacular pin.
+    # `.gitlab-ci.yml` is included because this job's own script (the dev
+    # version computation below) lives there. See #293.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/**/*
+        - pyproject.toml
+        - uv.lock
+        - .gitlab-ci.yml
   script:
     - export VERSION="${RELEASE_VERSION:-$CI_COMMIT_TAG}"
     - |
