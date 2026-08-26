@@ -7,6 +7,7 @@ from waldur_core.server.constance_settings import (
     NOTIFY_SYSTEM_CHOICES,
     OFFERING_TYPE_CHOICES,
     ONBOARDING_VALIDATION_CHOICES,
+    PROPOSAL_CONFIGURABLE_FIELD_CHOICES,
     USER_ATTRIBUTE_CHOICES,
 )
 from waldur_core.users.enums import InvitationState
@@ -34,6 +35,7 @@ from waldur_mastermind.proposal.enums import (
     COISeverityLevels,
     COITypes,
     MatchingAlgorithms,
+    ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
     RoundStatuses,
@@ -109,6 +111,10 @@ SPECTACULAR_SETTINGS = {
         # COI type codes are shared by the ConflictOfInterest.coi_type field and
         # the three CallCOIConfiguration rule lists;
         "CoiTypeEnum": COITypes.CHOICES,
+        # All four CallProposalFieldConfig columns and the per-field metadata
+        # carry the same three states; name the set once so drf-spectacular
+        # does not emit one enum per column.
+        "ProposalFieldStateEnum": ProposalFieldStates.CHOICES,
         # CallWorkflowStep.step and Proposal.workflow_step share this choice
         # set; name it once so drf-spectacular doesn't emit two enums for it.
         "StepEnum": WORKFLOW_STEPS_CHOICES,
@@ -139,6 +145,8 @@ SPECTACULAR_SETTINGS = {
             (4, "12 month"),
         ),
         "UserAttributeEnum": USER_ATTRIBUTE_CHOICES,
+        # Shared by the two DEFAULT_PROPOSAL_*_FIELDS Constance settings.
+        "ProposalConfigurableFieldEnum": PROPOSAL_CONFIGURABLE_FIELD_CHOICES,
         "OfferingTypeEnum": OFFERING_TYPE_CHOICES,
         "OnboardingValidationEnum": ONBOARDING_VALIDATION_CHOICES,
         "NotifySystemEnum": NOTIFY_SYSTEM_CHOICES,

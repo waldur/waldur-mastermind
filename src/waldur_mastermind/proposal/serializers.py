@@ -36,12 +36,14 @@ from waldur_mastermind.marketplace.serializers import (
 )
 from waldur_mastermind.proposal.enums import (
     MANDATORY_STEPS,
+    PROPOSAL_CONFIGURABLE_FIELDS,
     WORKFLOW_STEPS_MAP,
     AllocationTimes,
     BulkRoundCadence,
     CallStates,
     COISeverityLevels,
     COITypes,
+    ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
@@ -865,6 +867,70 @@ class CallResourceTemplateSerializer(
         return super().create(validated_data)
 
 
+class CallProposalFieldConfigSerializer(serializers.ModelSerializer):
+    """The per-call Project details field states, as a flat map of field -> state."""
+
+    class Meta:
+        model = models.CallProposalFieldConfig
+        fields = [
+            models.CallProposalFieldConfig.column_for(field_name)
+            for field_name in models.CallProposalFieldConfig.field_names()
+        ]
+        extra_kwargs = {field: {"required": False} for field in fields}
+
+
+class ProposalFieldMetadataSerializer(serializers.Serializer):
+    """What the call configuration UI needs to render one field's row.
+
+    ``usage`` names the consumers that field feeds, so the manager can see what
+    switching it off costs; ``allowed_states`` and ``locked_reason`` carry the
+    locking rule, so the UI never has to reimplement it.
+    """
+
+    field = serializers.CharField()
+    state = serializers.ChoiceField(choices=ProposalFieldStates.CHOICES)
+    allowed_states = serializers.ListField(child=serializers.CharField())
+    locked_reason = serializers.CharField(allow_null=True)
+    usage = serializers.ListField(child=serializers.CharField())
+
+
+def get_proposal_field_metadata(call) -> list[dict]:
+    """Per-field state, permitted transitions and consumers for one call.
+
+    A field may not become required once the call has a proposal: tightening
+    then invalidates drafts that were complete under the form the applicant was
+    shown, and nothing tells them. Loosening stays open in both directions.
+    """
+    states = models.CallProposalFieldConfig.get_states_for_call(call)
+    has_proposals = models.Proposal.objects.filter(round__call=call).exists()
+    every_state = [state for state, _label in ProposalFieldStates.CHOICES]
+    metadata = []
+    for field_name, usage in PROPOSAL_CONFIGURABLE_FIELDS.items():
+        current = states[field_name]
+        locked = has_proposals and current != ProposalFieldStates.REQUIRED
+        metadata.append(
+            {
+                "field": field_name,
+                "state": current,
+                "allowed_states": [
+                    state
+                    for state in every_state
+                    if not (locked and state == ProposalFieldStates.REQUIRED)
+                ],
+                "locked_reason": (
+                    "A field cannot be made required once the call has proposals: "
+                    "drafts that were complete under the published form would "
+                    "silently stop being submittable. Duplicate the call to run a "
+                    "stricter round."
+                    if locked
+                    else None
+                ),
+                "usage": list(usage),
+            }
+        )
+    return metadata
+
+
 class PublicCallSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -872,6 +938,9 @@ class PublicCallSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField()
+    # Read-only here, writable on the protected serializer: the applicant's form
+    # renders from this, the call manager configures it.
+    proposal_field_config = CallProposalFieldConfigSerializer(read_only=True)
     customer_name = serializers.ReadOnlyField(source="manager.customer.name")
     customer_uuid = serializers.UUIDField(
         read_only=True, source="manager.customer.uuid"
@@ -915,6 +984,7 @@ class PublicCallSerializer(
             "reviewer_identity_visible_to_submitters",
             "reviews_visible_to_submitters",
             "has_eligibility_restrictions",
+            "proposal_field_config",
         )
         view_name = "proposal-public-call-detail"
         extra_kwargs = {
@@ -1348,6 +1418,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
         allow_null=True,
     )
 
+    proposal_field_config = CallProposalFieldConfigSerializer(required=False)
+    proposal_field_metadata = serializers.SerializerMethodField(
+        help_text="Per-field state, permitted transitions and downstream "
+        "consumers for the Project details step."
+    )
+
+    @extend_schema_field(ProposalFieldMetadataSerializer(many=True))
+    def get_proposal_field_metadata(self, obj) -> list[dict]:
+        return get_proposal_field_metadata(obj)
+
     has_proposals = serializers.SerializerMethodField(
         help_text="Whether any proposal has been submitted to this call. "
         "Used by the frontend to gate slug-template and checklist fields."
@@ -1371,6 +1451,8 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "user_organization_types",
             "user_assurance_levels",
             "applicant_visibility_config",
+            "proposal_field_config",
+            "proposal_field_metadata",
             "has_proposals",
         )
         view_name = "proposal-protected-call-detail"
@@ -1391,6 +1473,39 @@ class ProtectedCallSerializer(PublicCallSerializer):
             )
 
         return manager
+
+    def validate_proposal_field_config(self, value):
+        """Refuse to make a field required once the call has proposals.
+
+        Only that direction is refused. Hiding a field, or dropping it back to
+        optional, cannot invalidate a draft that was already complete; demanding
+        something the applicant was never asked for can, and silently — nothing
+        notifies them that the form they filled in has changed under them. A
+        manager who wants a stricter next round duplicates the call, where the
+        copy starts in draft with no proposals.
+        """
+        call: models.Call = self.instance
+        if call is None or not value:
+            return value
+        if not models.Proposal.objects.filter(round__call=call).exists():
+            return value
+
+        current = models.CallProposalFieldConfig.get_states_for_call(call)
+        tightened = [
+            field_name
+            for field_name in models.CallProposalFieldConfig.field_names()
+            if value.get(models.CallProposalFieldConfig.column_for(field_name))
+            == ProposalFieldStates.REQUIRED
+            and current[field_name] != ProposalFieldStates.REQUIRED
+        ]
+        if tightened:
+            raise serializers.ValidationError(
+                "Cannot make %(fields)s required: this call already has proposals, "
+                "and drafts that were complete under the published form would stop "
+                "being submittable. Duplicate the call to run a stricter round."
+                % {"fields": ", ".join(sorted(tightened))}
+            )
+        return value
 
     def validate_compliance_checklist(self, value):
         """Prevent changing compliance checklist if proposals exist."""
@@ -1480,7 +1595,12 @@ class ProtectedCallSerializer(PublicCallSerializer):
         validated_data["created_by"] = request.user
         has_visibility = "applicant_visibility_config" in validated_data
         visibility_data = validated_data.pop("applicant_visibility_config", None)
+        field_config_data = validated_data.pop("proposal_field_config", None)
         call = super().create(validated_data)
+        # The row itself is seeded by the post_save handler from the Constance
+        # defaults; an explicit config on the request overrides those columns.
+        if field_config_data:
+            self._apply_field_config(call, field_config_data)
         if has_visibility and visibility_data is not None:
             seed = models.CallApplicantVisibilityConfig.get_default_exposure_flags()
             models.CallApplicantVisibilityConfig.objects.create(
@@ -1501,7 +1621,10 @@ class ProtectedCallSerializer(PublicCallSerializer):
 
         has_visibility = "applicant_visibility_config" in validated_data
         visibility_data = validated_data.pop("applicant_visibility_config", None)
+        field_config_data = validated_data.pop("proposal_field_config", None)
         call = super().update(instance, validated_data)
+        if field_config_data:
+            self._apply_field_config(call, field_config_data)
         if has_visibility:
             if visibility_data is None:
                 models.CallApplicantVisibilityConfig.objects.filter(call=call).delete()
@@ -1522,6 +1645,19 @@ class ProtectedCallSerializer(PublicCallSerializer):
                     call=call, **{**seed, **visibility_data}
                 )
         return call
+
+    @staticmethod
+    def _apply_field_config(call, field_config_data: dict):
+        """Write the supplied field states onto the call's config row.
+
+        A PATCH carries only the fields it changes, so the row is updated in
+        place rather than replaced. get_or_create covers calls that predate the
+        seeding handler.
+        """
+        config, _ = models.CallProposalFieldConfig.objects.get_or_create(call=call)
+        for column, state in field_config_data.items():
+            setattr(config, column, state)
+        config.save()
 
 
 class ProtectedRoundSerializer(
@@ -3700,6 +3836,7 @@ class DuplicateCallRequestSerializer(serializers.Serializer):
     copy_applicant_visibility_config = serializers.BooleanField(
         required=False, default=True
     )
+    copy_proposal_field_config = serializers.BooleanField(required=False, default=True)
     copy_coi_configuration = serializers.BooleanField(required=False, default=True)
     copy_matching_configuration = serializers.BooleanField(required=False, default=True)
     copy_assignment_configuration = serializers.BooleanField(

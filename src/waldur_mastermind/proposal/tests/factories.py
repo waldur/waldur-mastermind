@@ -251,6 +251,10 @@ class ProposalFactory(
     duration_in_days = 10
     created_by = factory.SubFactory(structure_factories.UserFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
+    # A summary is required by default (CallProposalFieldConfig), and submission
+    # now enforces that server-side, so a factory-built proposal must carry one
+    # to be submittable. Tests that care about an empty summary clear it.
+    project_summary = factory.Sequence(lambda n: "Project summary %s" % n)
 
     @classmethod
     def get_url(cls, proposal=None, action=None):

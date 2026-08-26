@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Literal, cast
 
+from constance import config as constance_config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -31,6 +32,7 @@ from waldur_mastermind.marketplace.models import (
 )
 from waldur_mastermind.proposal import enums
 from waldur_mastermind.proposal.enums import (
+    PROPOSAL_CONFIGURABLE_FIELDS,
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     AssignmentSources,
@@ -48,6 +50,7 @@ from waldur_mastermind.proposal.enums import (
     MatchingAffinityMethods,
     MatchingAlgorithms,
     ProposalDisclosureLevels,
+    ProposalFieldStates,
     ProposalStates,
     PublicationVenueTypes,
     RequestedOfferingStates,
@@ -253,6 +256,101 @@ class CallApplicantVisibilityConfig(UserAttributeConfigBase):
     @classmethod
     def get_exposed_fields_for_call(cls, call, default_attributes=None) -> list[str]:
         return cls.get_exposed_fields_for_scope(call, default_attributes)
+
+
+class CallProposalFieldConfig(TimeStampedModel, core_models.UuidMixin):
+    """Which Project details fields this call asks for, and which it insists on.
+
+    One row per call, seeded at call creation from the Constance defaults (see
+    ``handlers.seed_proposal_field_config``) rather than resolved lazily. A call
+    that resolved its defaults at read time would tighten retroactively the day
+    an operator raised the installation default, which the locking rule below
+    exists to prevent.
+
+    ``name`` and ``duration_in_days`` are deliberately absent: the first becomes
+    the awarded project, the second states the length of the award.
+    """
+
+    FIELD_PREFIX = "field_"
+
+    call = models.OneToOneField(
+        Call,
+        on_delete=models.CASCADE,
+        related_name="proposal_field_config",
+    )
+
+    field_project_summary = models.CharField(
+        max_length=10,
+        choices=ProposalFieldStates.CHOICES,
+        default=ProposalFieldStates.REQUIRED,
+    )
+    field_description = models.CharField(
+        max_length=10,
+        choices=ProposalFieldStates.CHOICES,
+        default=ProposalFieldStates.OPTIONAL,
+    )
+    field_science_sub_domain = models.CharField(
+        max_length=10,
+        choices=ProposalFieldStates.CHOICES,
+        default=ProposalFieldStates.OPTIONAL,
+    )
+    field_supporting_documentation = models.CharField(
+        max_length=10,
+        choices=ProposalFieldStates.CHOICES,
+        default=ProposalFieldStates.OPTIONAL,
+    )
+
+    def __str__(self):
+        return f"Proposal field config for {self.call}"
+
+    @classmethod
+    def field_names(cls) -> list[str]:
+        return list(PROPOSAL_CONFIGURABLE_FIELDS)
+
+    @classmethod
+    def column_for(cls, field_name: str) -> str:
+        return f"{cls.FIELD_PREFIX}{field_name}"
+
+    @classmethod
+    def default_states(cls) -> dict[str, str]:
+        """Installation defaults, as a field -> state map.
+
+        Read from Constance so an operator can set the house style once, and
+        applied only when a call is created. Anything neither required nor
+        hidden is optional.
+        """
+        required = set(constance_config.DEFAULT_PROPOSAL_REQUIRED_FIELDS or [])
+        hidden = set(constance_config.DEFAULT_PROPOSAL_HIDDEN_FIELDS or [])
+        states = {}
+        for field_name in cls.field_names():
+            if field_name in hidden:
+                states[field_name] = ProposalFieldStates.HIDDEN
+            elif field_name in required:
+                states[field_name] = ProposalFieldStates.REQUIRED
+            else:
+                states[field_name] = ProposalFieldStates.OPTIONAL
+        return states
+
+    def get_states(self) -> dict[str, str]:
+        return {
+            field_name: getattr(self, self.column_for(field_name))
+            for field_name in self.field_names()
+        }
+
+    @classmethod
+    def get_states_for_call(cls, call) -> dict[str, str]:
+        """States for a call, falling back to the model defaults.
+
+        Calls created before this model existed have no row; they keep the
+        behaviour the form had before it was configurable.
+        """
+        config = getattr(call, "proposal_field_config", None)
+        if config is not None:
+            return config.get_states()
+        return {
+            field_name: cls._meta.get_field(cls.column_for(field_name)).default
+            for field_name in cls.field_names()
+        }
 
 
 class CallWorkflowStep(

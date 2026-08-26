@@ -86,6 +86,7 @@ from waldur_mastermind.proposal.enums import (
     COISeverityLevels,
     COIStatuses,
     COITypes,
+    ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
@@ -122,6 +123,35 @@ def validate_round_is_open(proposal):
     if round_status == RoundStatuses.ENDED:
         raise exceptions.ValidationError(
             _("Round has closed, so the proposal can no longer be submitted.")
+        )
+
+
+def validate_project_details_complete(proposal):
+    """Every field the call marked required carries a value.
+
+    Until now requiredness lived only in the frontend, which disabled the submit
+    button while a step reported itself incomplete — an API client could submit
+    a proposal with an empty summary. A per-call configuration that only the
+    form respected would be no stronger, so the rule is enforced here.
+
+    Hidden and optional fields are never checked: the applicant was either not
+    asked, or asked without obligation.
+    """
+    states = models.CallProposalFieldConfig.get_states_for_call(proposal.round.call)
+    missing = []
+    for field_name, state in states.items():
+        if state != ProposalFieldStates.REQUIRED:
+            continue
+        if field_name == "supporting_documentation":
+            if not proposal.proposaldocumentation_set.exists():
+                missing.append(field_name)
+            continue
+        if not getattr(proposal, field_name, None):
+            missing.append(field_name)
+    if missing:
+        raise exceptions.ValidationError(
+            _("The following required fields are empty: %(fields)s.")
+            % {"fields": ", ".join(sorted(missing))}
         )
 
 
@@ -2822,6 +2852,7 @@ class ProposalViewSet(
     submit_validators = [
         core_validators.StateValidator(ProposalStates.DRAFT),
         validate_round_is_open,
+        validate_project_details_complete,
         validate_requested_amounts_present,
         validate_purchase_orders_present,
     ]
