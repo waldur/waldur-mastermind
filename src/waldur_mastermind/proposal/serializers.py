@@ -5275,3 +5275,48 @@ class CompleteWorkflowStepResponseSerializer(serializers.Serializer):
 class RejectWorkflowStepResponseSerializer(serializers.Serializer):
     detail = serializers.CharField()
     proposal_state = serializers.CharField()
+
+
+class DashboardReviewDeadlineSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    proposal_uuid = serializers.UUIDField(read_only=True)
+    proposal_name = serializers.CharField(read_only=True)
+    call_uuid = serializers.UUIDField(read_only=True)
+    call_name = serializers.CharField(read_only=True)
+    due_date = serializers.DateTimeField(read_only=True, allow_null=True)
+
+
+class DashboardReviewerStatsSerializer(serializers.Serializer):
+    assigned = serializers.IntegerField(read_only=True)
+    pending = serializers.IntegerField(read_only=True)
+    completed = serializers.IntegerField(read_only=True)
+    deadlines = DashboardReviewDeadlineSerializer(many=True, read_only=True)
+    # How many reviews have a deadline at all, which is not `pending`: a review
+    # whose round leaves review_duration_in_days unset is pending but has no
+    # deadline. `deadlines` above is capped, so this is the only way a client
+    # can tell a full list from a truncated one.
+    deadlines_total = serializers.IntegerField(read_only=True)
+
+
+class DashboardCallManagerStatsSerializer(serializers.Serializer):
+    pending_assessments = serializers.IntegerField(read_only=True)
+    active_calls = serializers.IntegerField(read_only=True)
+    overdue_reviews = serializers.IntegerField(read_only=True)
+
+
+class DashboardUpcomingDeadlineSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    call_uuid = serializers.UUIDField(read_only=True)
+    call_name = serializers.CharField(read_only=True)
+    round_name = serializers.CharField(read_only=True)
+    due_date = serializers.DateTimeField(read_only=True, allow_null=True)
+
+
+class DashboardSubmitterStatsSerializer(serializers.Serializer):
+    total = serializers.IntegerField(read_only=True)
+    draft = serializers.IntegerField(read_only=True)
+    submitted = serializers.IntegerField(read_only=True)
+    in_review = serializers.IntegerField(read_only=True)
+    accepted = serializers.IntegerField(read_only=True)
+    rejected = serializers.IntegerField(read_only=True)
+    canceled = serializers.IntegerField(read_only=True)

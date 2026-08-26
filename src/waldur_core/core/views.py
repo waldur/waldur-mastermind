@@ -120,6 +120,24 @@ def count_action(func):
     return func
 
 
+def no_count_action(func):
+    """Opt a collection-scoped @action out of its HEAD `count` companion.
+
+    The inverse of :func:`count_action`. Collection endpoints get a `_count`
+    HEAD operation automatically, which reaches the SDK as a `*Count` method
+    described as "Get number of items in the collection". That is a dead method
+    for an action that does not paginate — one returning a single object, or a
+    list built with a plain ``Response`` so no ``X-Result-Count`` header is ever
+    set.
+
+    An action that paginates has a working count and should **not** use this;
+    let it keep the companion and short-circuit ``request.method == "HEAD"``
+    before serialising the page, as ``list_users`` does.
+    """
+    func.count_disabled = True
+    return func
+
+
 def validate_authentication_method(method):
     def wrapper(view_func):
         @functools.wraps(view_func)

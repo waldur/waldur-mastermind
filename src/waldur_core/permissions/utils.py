@@ -137,7 +137,17 @@ def has_permission(
     request: "HttpRequest | User",
     permission: enums.PermissionEnum,
     scope: "Model | None",
+    role_index: "dict | None" = None,
 ) -> bool:
+    """Whether the user may exercise ``permission`` on ``scope``.
+
+    ``role_index`` is an optional lookup table from :func:`build_role_index`,
+    for callers checking many scopes in a row. It replaces **only** the final
+    role query — the PAT ceiling, the inactive-user guard and the staff bypass
+    all still run, so a batched caller cannot accidentally widen the answer.
+    A key the index does not cover falls through to the query, which makes an
+    incomplete index a slow answer rather than a wrong one.
+    """
     if isinstance(request, User):
         user = request
     else:
@@ -159,6 +169,12 @@ def has_permission(
     # Handle None scope
     if scope is None:
         return False
+
+    if role_index is not None:
+        ct_id = ContentType.objects.get_for_model(type(scope)).id
+        cached = role_index.get((permission, ct_id, scope.id))
+        if cached is not None:
+            return cached
 
     # Single query with join instead of two separate queries
     return models.UserRole.objects.filter(
@@ -864,6 +880,44 @@ def holds_any_role_on_scope_or_ancestor(user, scope) -> bool:
         .filter(scope_keys_q(keys))
         .exists()
     )
+
+
+def build_role_index(user, pairs) -> dict:
+    """Answer many ``has_permission`` checks for one user in a few queries.
+
+    The scope axis of :func:`users_with_role_on_any_scope_key`: that one asks
+    "which of these users hold a role in this scope chain", this one asks
+    "which of these scopes does this user hold each permission on". Takes an
+    iterable of ``(permission, scope)`` pairs and returns a dict keyed
+    ``(permission, content_type_id, object_id)``, suitable for passing to
+    ``has_permission(..., role_index=index)``.
+
+    One query per **distinct permission**, not per pair, so the cost is flat in
+    the number of scopes. Callers may over-collect: a pair that never gets
+    checked only widens an ``object_id IN (...)``, while a pair that is checked
+    but missing from the index falls back to its own query.
+    """
+    scopes_by_permission: dict = {}
+    for permission, scope in pairs:
+        if permission is None or scope is None:
+            continue
+        ct_id = ContentType.objects.get_for_model(type(scope)).id
+        scopes_by_permission.setdefault(permission, set()).add((ct_id, scope.id))
+
+    index: dict = {}
+    for permission, scope_keys in scopes_by_permission.items():
+        for ct_id, object_id in scope_keys:
+            index[(permission, ct_id, object_id)] = False
+        held = (
+            models.UserRole.objects.filter(
+                user=user, is_active=True, role__permissions__permission=permission
+            )
+            .filter(scope_keys_q(scope_keys))
+            .values_list("content_type_id", "object_id")
+        )
+        for ct_id, object_id in held:
+            index[(permission, ct_id, object_id)] = True
+    return index
 
 
 def users_with_role_on_any_scope_key(user_ids, scope_keys) -> set[int]:

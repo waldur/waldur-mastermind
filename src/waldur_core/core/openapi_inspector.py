@@ -79,8 +79,12 @@ class WaldurOpenApiInspector(AutoSchema):
         # Detail views (a single-object retrieve, or a detail-scoped custom
         # action) do not get one by default, since a count is usually
         # meaningless there. A detail action that returns a list can opt in
-        # with @count_action (e.g. `/projects/{uuid}/list_users/`).
+        # with @count_action (e.g. `/projects/{uuid}/list_users/`), and a
+        # collection action returning a single object can opt out with
+        # @no_count_action (e.g. `/users/dashboard-general-stats/`).
         if method == "HEAD":
+            if self._count_action_disabled():
+                return None
             if getattr(self.view, "detail", False) and not self._count_action_enabled():
                 return None
             else:
@@ -130,6 +134,14 @@ class WaldurOpenApiInspector(AutoSchema):
             return False
         action = getattr(self.view, action_name, None)
         return bool(getattr(action, "count_enabled", False))
+
+    def _count_action_disabled(self) -> bool:
+        """Whether the current action opted out of a HEAD `count` variant."""
+        action_name = getattr(self.view, "action", None)
+        if not action_name:
+            return False
+        action = getattr(self.view, action_name, None)
+        return bool(getattr(action, "count_disabled", False))
 
     def get_description(self) -> str:
         action_or_method = getattr(

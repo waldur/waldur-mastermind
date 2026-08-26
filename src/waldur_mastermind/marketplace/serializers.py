@@ -5482,6 +5482,31 @@ class OrderInfoResponseSerializer(serializers.Serializer):
     detail = serializers.CharField(read_only=True)
 
 
+class DashboardMyOrderSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    offering_uuid = serializers.UUIDField(read_only=True)
+    offering_name = serializers.CharField(read_only=True)
+    resource_uuid = serializers.UUIDField(read_only=True)
+    resource_name = serializers.CharField(read_only=True)
+    project_uuid = serializers.UUIDField(read_only=True)
+    project_name = serializers.CharField(read_only=True)
+    customer_uuid = serializers.UUIDField(read_only=True)
+    customer_name = serializers.CharField(read_only=True)
+    # Both fields are machine-readable values the frontend maps to translated
+    # labels, rather than the mixed conventions the underlying enums carry
+    # (OrderStates labels are lowercase-hyphen, OrderTypes labels are title
+    # case). `type` is therefore lowercased here and gets its own schema enum
+    # instead of reusing RequestTypes; `state` already matches OrderState.
+    state = serializers.ChoiceField(
+        choices=[(value, value) for value in OrderStates.VALUES], read_only=True
+    )
+    type = serializers.ChoiceField(
+        choices=[(value.lower(), value.lower()) for value in OrderTypes.VALUES],
+        read_only=True,
+    )
+    created = serializers.DateTimeField(read_only=True)
+
+
 class OrderDetailsSerializer(BaseOrderSerializer):
     class Meta(BaseOrderSerializer.Meta):
         fields = BaseOrderSerializer.Meta.fields + (
