@@ -118,6 +118,23 @@ list_permissions = [permission_factory(PermissionEnum.VIEW_RESOURCE)]
 
 See `docs/guides/waldur-permissions.md` for details.
 
+### Media access
+
+Every `FileField`/`ImageField` is served by one endpoint, `/api/media/<uuid>/`,
+which is **deny by default**. Adding a file field therefore means also declaring
+who may download it, in your app's `media_access.py`:
+
+```python
+access.register(
+    access.upload_prefix(Payment, "proof"),
+    access.queryset_rule(Payment, ["proof"], filter_queryset_for_user),
+)
+```
+
+Derive the prefix with `upload_prefix()` / `image_prefix()` -- never hardcode the
+`upload_to` string. `CoverageTest` fails until every file field has a rule.
+See `docs/guides/media-access.md`.
+
 ### Serializers
 
 ```python
@@ -317,6 +334,7 @@ Detailed guides are in `docs/guides/`:
 - **Testing Guide**: `waldur-testing-guide.md` - Test writing best practices
 - **Code Style**: `waldur-code-style.md` - Formatting and conventions
 - **Permissions**: `waldur-permissions.md` - Permission system details
+- **Media Access**: `media-access.md` - Who may download an uploaded file
 - **Resource Projects**: `resource-projects.md` - ResourceProject model, offering roles, invitations, and RoleAvailability
 - **Build Commands**: `build-commands.md` - Test/lint/build commands
 - **OpenAPI Schema**: `openapi.md` - drf-spectacular customization patterns

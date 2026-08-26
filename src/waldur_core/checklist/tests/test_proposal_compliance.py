@@ -360,8 +360,14 @@ class ProposalComplianceFileAccessTest(test.APITestCase):
         response = self.client.get(media_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Verify that superuser/staff can access (fallback mechanism)
+        # Staff can access as a fallback
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+        response = self.client.get(media_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # is_superuser is a Django flag with no access meaning in Waldur
         superuser = structure_factories.UserFactory(is_superuser=True)
         self.client.force_authenticate(user=superuser)
         response = self.client.get(media_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

@@ -434,6 +434,36 @@ def get_connected_offerings_by_permission(user, permission):
     return get_connected_offerings(user, roles)
 
 
+def filter_orders_for_user(queryset, user):
+    """Restrict an Order queryset to the rows the user is allowed to list.
+
+    Orders are visible to both the service consumer and the service provider.
+    Shared by OrderViewSet and by the media access rule for order attachments,
+    so a download cannot outlive the permission that the API itself enforces.
+    """
+    if not user.is_authenticated:
+        return queryset.none()
+
+    if user.is_staff or user.is_support:
+        return queryset
+
+    connected_projects = get_connected_projects_by_permission(
+        user, PermissionEnum.LIST_ORDERS
+    )
+    connected_customers = get_connected_customers_by_permission(
+        user, PermissionEnum.LIST_ORDERS
+    )
+    connected_offerings = get_connected_offerings_by_permission(
+        user, PermissionEnum.LIST_ORDERS
+    )
+    return queryset.filter(
+        Q(project__in=connected_projects)
+        | Q(project__customer__in=connected_customers)
+        | Q(offering__customer__in=connected_customers)
+        | Q(offering__in=connected_offerings)
+    )
+
+
 def get_connected_serviceproviders(user, role=None):
     content_type = ContentType.objects.get_for_model(models.ServiceProvider)
     return get_scope_ids(user, content_type, role)

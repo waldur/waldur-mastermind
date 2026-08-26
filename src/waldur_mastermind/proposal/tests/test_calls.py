@@ -283,6 +283,38 @@ class CallUpdateTest(test.APITransactionTestCase):
             self.assertTrue(document.file.storage.exists(document.file.name))
             self.assertGreater(document.file.size, 0)
 
+    def test_attaching_a_string_instead_of_a_file_is_rejected(self):
+        """The endpoint used to write request.data straight into a FileField.
+
+        A caller could therefore store an arbitrary storage path rather than an
+        upload, and the media rule would then hand out that file's URL.
+        """
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CallFactory.get_protected_url(
+            self.call, action="attach_documents"
+        )
+
+        response = self.client.post(
+            url,
+            {"documents": ["marketplace_order_attachments/someone-elses.pdf"]},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(models.CallDocument.objects.filter(call=self.call).exists())
+
+    def test_detaching_an_unknown_document_returns_404(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CallFactory.get_protected_url(
+            self.call, action="detach_documents"
+        )
+
+        response = self.client.post(
+            url, {"documents": [uuid.uuid4().hex]}, format="multipart"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     @data(
         "staff",
         "call_manager",

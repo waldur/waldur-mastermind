@@ -5,6 +5,7 @@ from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.checklist import models
+from waldur_core.checklist.media_access import user_can_access_checklist_file
 from waldur_core.checklist.tests import factories, fixtures
 from waldur_core.media import models as media_models
 from waldur_core.structure.tests import factories as structure_factories_direct
@@ -82,20 +83,70 @@ class ReviewerFileAccessTest(test.APITestCase):
         self.assertIn("attachment", response["Content-Disposition"])
         self.assertIn("confidential_report.pdf", response["Content-Disposition"])
 
-    def test_admin_can_access_uploaded_files_for_review(self):
-        """Test that admin users can access files uploaded to checklists."""
+    def test_project_admin_can_access_uploaded_files_for_review(self):
+        """A project admin reaches the file through the completion's scope."""
         media_url = reverse("media", kwargs={"uuid": self.stored_file_id})
 
-        # Make admin a superuser for this test
-        self.admin.is_superuser = True
-        self.admin.save()
-
-        # Admin should be able to access the file
         self.client.force_authenticate(user=self.admin)
         response = self.client.get(media_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.content, self.pdf_content)
+
+    def test_bare_superuser_cannot_access_uploaded_files(self):
+        """is_superuser is a Django flag; Waldur gates on is_staff/is_support."""
+        media_url = reverse("media", kwargs={"uuid": self.stored_file_id})
+
+        superuser = structure_factories_direct.UserFactory(is_superuser=True)
+        self.client.force_authenticate(user=superuser)
+        response = self.client.get(media_url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_support_can_access_uploaded_files_for_review(self):
+        """Support users are intended to be able to review checklist files."""
+        media_url = reverse("media", kwargs={"uuid": self.stored_file_id})
+
+        support = structure_factories_direct.UserFactory(is_support=True)
+        self.client.force_authenticate(user=support)
+        response = self.client.get(media_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.content, self.pdf_content)
+
+    def test_query_count_does_not_grow_with_answers_on_one_completion(self):
+        """Several answers can reference one file; checking a completion is ~5
+        queries, so looping over answers used to re-run the identical check
+        once per answer (10 answers cost 52 queries). The rule iterates
+        distinct completions instead, which must stay flat.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def measure(extra_answers):
+            for _ in range(extra_answers):
+                models.Answer.objects.create(
+                    user=structure_factories_direct.UserFactory(),
+                    question=factories.QuestionFactory(
+                        checklist=self.checklist,
+                        question_type=enums.QuestionTypes.FILE,
+                    ),
+                    completion=self.completion,
+                    answer_data={"stored_file_id": self.stored_file_id},
+                )
+            media_file = media_models.File.objects.get(uuid=self.stored_file_id)
+            outsider = structure_factories_direct.UserFactory()
+            with CaptureQueriesContext(connection) as ctx:
+                user_can_access_checklist_file(media_file, outsider)
+            return len(ctx.captured_queries)
+
+        with_two = measure(1)
+        with_many = measure(7)
+        self.assertEqual(
+            with_two,
+            with_many,
+            "query count grew with the number of answers on one completion",
+        )
 
     def test_file_uploader_can_access_their_own_files(self):
         """Test that users who uploaded files can access their own files."""
@@ -133,11 +184,6 @@ class ReviewerFileAccessTest(test.APITestCase):
     def test_reviewers_can_access_files_through_completion_data(self, user_type):
         """Test that reviewers can discover file IDs through checklist completion data."""
         user_obj = getattr(self.structure_fixture, user_type)
-
-        # Make admin a superuser for this test
-        if user_type == "admin":
-            user_obj.is_superuser = True
-            user_obj.save()
 
         # Mock reviewer endpoint - in real implementation this would be through proper ViewSet
         # but we're testing the data accessibility part
@@ -970,8 +1016,8 @@ class EdgeCasesAndErrorConditionsTest(test.APITestCase):
         response = self.client.get(media_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_non_checklist_file_passthrough(self):
-        """Test that non-checklist files are handled by existing permission logic."""
+    def test_non_checklist_file_is_denied(self):
+        """A prefix no app declared a rule for is served to nobody."""
         from waldur_core.media.models import File
 
         # Create a non-checklist file (doesn't start with "checklist_files/")
@@ -984,12 +1030,9 @@ class EdgeCasesAndErrorConditionsTest(test.APITestCase):
 
         media_url = reverse("media", kwargs={"uuid": other_file.uuid})
 
-        # Should be handled by existing permission logic (not our checklist logic)
-        # In this case, since it's not a support attachment, it should be accessible
         self.client.force_authenticate(user=self.user)
-        self.client.get(media_url)
-        # This should pass through to existing logic (no checklist file check)
-        # The exact behavior depends on existing media permission logic
+        response = self.client.get(media_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_permission_exception_handling(self):
         """Test that permission checking exceptions are handled gracefully."""
