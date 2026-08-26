@@ -299,6 +299,89 @@ class RebillHistoricalUsageTest(test.APITestCase):
         self.assertIsNotNone(transaction)
         self.assertEqual(transaction.amount, decimal.Decimal("30"))
 
+    def test_credit_correction_is_partial_when_credit_is_insufficient(self):
+        # Corrected usage costs far more than the available credit. The
+        # correction must draw only what's left, not refuse the whole
+        # compensation and leave the entire cost uncompensated -- otherwise a
+        # Cost Policy watching cost_this_window would jump by the FULL
+        # period cost the moment credit runs out, instead of by just the
+        # uncovered overage.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=20)
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("100")
+        )
+
+        out = io.StringIO()
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=out,
+        )
+
+        old_item = invoice.items.get(
+            resource=self.resource,
+            details__offering_component_type="cpu",
+            unit_price__gte=0,
+        )
+        compensation = invoice.items.get(
+            resource=self.resource,
+            details__offering_component_type="cpu",
+            unit_price__lt=0,
+        )
+        credit.refresh_from_db()
+
+        self.assertEqual(old_item.quantity, decimal.Decimal("20"))
+        self.assertEqual(old_item.price, decimal.Decimal("200"))
+        # Only the available 100 gets drawn, not the full 200 the corrected
+        # cost would need -- the remaining 100 stays real, uncompensated cost.
+        self.assertEqual(compensation.unit_price, decimal.Decimal("-100"))
+        self.assertEqual(credit.value, decimal.Decimal("0"))
+        self.assertIn("more credit than available", out.getvalue())
+        self.assertIn("leaving 100", out.getvalue())
+
+        transaction = invoice_models.CreditTransaction.objects.filter(
+            credit=credit,
+            transaction_type=invoice_models.CreditTransaction.Types.ADJUSTMENT,
+        ).first()
+        self.assertIsNotNone(transaction)
+        # Ledger amount is the raw change in credit.value -- negative for a
+        # draw (matches test_credit_delta_is_corrected's +30 for a refund).
+        self.assertEqual(transaction.amount, decimal.Decimal("-100"))
+
+    def test_credit_correction_is_a_noop_when_no_credit_remains(self):
+        # Credit is already fully exhausted (e.g. an earlier resource-period
+        # in the same run drew it all). No compensation item should be
+        # created for a draw that can't happen at all -- the period's cost
+        # simply stays uncompensated, silently, with nothing to write.
+        invoice = self._create_stale_usage(2023, 12, old_amount=5, new_amount=20)
+        credit = invoice_factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=decimal.Decimal("0")
+        )
+
+        call_command(
+            "rebill_historical_usage",
+            resource=self.resource.uuid.hex,
+            execute=True,
+            stdout=io.StringIO(),
+        )
+
+        old_item = invoice.items.get(
+            resource=self.resource,
+            details__offering_component_type="cpu",
+            unit_price__gte=0,
+        )
+        self.assertEqual(old_item.quantity, decimal.Decimal("20"))
+        self.assertFalse(
+            invoice.items.filter(
+                resource=self.resource,
+                details__offering_component_type="cpu",
+                unit_price__lt=0,
+            ).exists()
+        )
+        credit.refresh_from_db()
+        self.assertEqual(credit.value, decimal.Decimal("0"))
+
     def test_new_compensation_item_gets_correct_billing_period(self):
         # No compensation item exists yet (e.g. the credit was configured
         # only after the invoice was already frozen), so the correction must

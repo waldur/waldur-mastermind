@@ -12,6 +12,7 @@ Run with ``-s`` to print the full trace each test builds:
 import datetime
 import decimal
 import io
+import re
 
 from django.core.management import call_command
 from freezegun import freeze_time
@@ -194,8 +195,13 @@ class ReportedCostMatchesEvaluatedCostTest(BasePolicyPreviewTest):
 
     def test_reported_gate_state_agrees_with_verdict(self):
         # Historical usage billed and frozen before any credit exists, so the
-        # frozen invoice carries no compensation item of its own.
-        self._create_stale_usage(2023, 12, old_amount=5, new_amount=1200)
+        # frozen invoice carries no compensation item of its own. Large
+        # enough that even after _apply_credit_correction now draws whatever
+        # credit remains (see rebill_historical_usage.py) and leaves only the
+        # true shortfall as cost, that shortfall alone still clears
+        # limit_cost below -- this test is about gate/verdict agreement, not
+        # about how much of the correction credit can cover.
+        self._create_stale_usage(2023, 12, old_amount=5, new_amount=2000)
 
         # Ample credit plus current-month usage, compensated for real: this is
         # what writes the "already applied" credit items into the current month.
@@ -322,3 +328,101 @@ class AffectedResourceListMatchesActionTest(BasePolicyPreviewTest):
         # The action does pause the TERMINATING one, so it must be listed.
         self.assertTrue(terminating.paused)
         self.assertIn(terminating.uuid.hex, listed)
+
+
+class MultiPeriodDryRunAccumulatesTest(BasePolicyPreviewTest):
+    """Each resource-period used to run in (and immediately roll back) its
+    own transaction, so a dry run of period N's Cost Policy preview never saw
+    period 1..N-1's corrections -- even though they're part of the same dry
+    run and --execute commits them in order, so period N's real evaluation
+    DOES see them. A dry run of several periods for the same resource
+    therefore understated cost_this_window for every period after the first.
+    """
+
+    def test_second_period_preview_includes_first_periods_correction(self):
+        # Both periods fall inside the MONTH_12 window anchored on the frozen
+        # "today" (2024-07-15: Aug 2023 .. Jul 2024), so both should count
+        # toward cost_this_window by the time the second period is evaluated.
+        self._create_stale_usage(2023, 12, old_amount=1, new_amount=10)
+        self._create_stale_usage(2024, 1, old_amount=1, new_amount=5)
+        policy = policy_models.ProjectEstimatedCostPolicy.objects.create(
+            scope=self.fixture.project,
+            limit_cost=1000,
+            actions="request_pausing",
+            use_credit=False,
+            period=invoice_models.PeriodMixin.Periods.MONTH_12,
+            has_fired=False,
+        )
+
+        output = self._rebill()
+        cost_windows = [
+            decimal.Decimal(value)
+            for value in re.findall(r"cost_this_window=([\d.]+)", output)
+        ]
+        self.assertEqual(len(cost_windows), 2)
+        first_period_cost, second_period_cost = cost_windows
+
+        # Ground truth: actually apply both corrections for real, then ask
+        # the policy itself (the same _cost_inputs/_evaluated_cost the
+        # preview calls) what the cumulative window cost is.
+        self._rebill(execute=True)
+        policy.refresh_from_db()
+        real_invoice_items, real_deduction = policy._cost_inputs()
+        real_cost = policy._evaluated_cost(real_invoice_items, real_deduction)
+
+        print("\n--- multi-period dry run accumulation ---")
+        print(output.rstrip())
+        print("ground truth cost_this_window after --execute:", real_cost)
+
+        self.assertEqual(second_period_cost, real_cost)
+        # The first period's own preview runs before the second period's
+        # correction exists, so it can't already include that money.
+        self.assertLess(first_period_cost, second_period_cost)
+
+
+class CreditExhaustionOnlyCountsTheUncoveredOverageTest(BasePolicyPreviewTest):
+    """When a period's corrected cost exceeds available credit,
+    _apply_credit_correction used to abort the whole credit correction,
+    leaving that period's ENTIRE incurred cost uncompensated instead of just
+    the genuine shortfall. cost_this_window then jumped by the full period
+    cost the moment credit ran out, rather than by the true overage -- firing
+    a Cost Policy far earlier than the customer's actual credit exhaustion
+    warrants. Reproduces a customer-reported scenario with a hand-derived
+    expected cumulative overage.
+    """
+
+    def test_cost_this_window_is_the_cumulative_uncovered_overage(self):
+        invoice_models.CustomerCredit.objects.create(
+            customer=self.fixture.customer,
+            value=decimal.Decimal("60"),
+            end_date=datetime.date(2030, 1, 1),
+        )
+        # $10/unit (setUp). Period 1's $50 is fully covered by the $60
+        # credit, leaving $10 available. Period 2's $80 can only draw that
+        # remaining $10, leaving $70 uncovered. Period 3's $60 draws nothing
+        # (credit is now fully exhausted), so all $60 is uncovered.
+        # Cumulative uncovered overage = 0 + 70 + 60 = 130.
+        self._create_stale_usage(2023, 12, old_amount=1, new_amount=5)  # $50
+        self._create_stale_usage(2024, 1, old_amount=1, new_amount=8)  # $80
+        self._create_stale_usage(2024, 2, old_amount=1, new_amount=6)  # $60
+        policy_models.ProjectEstimatedCostPolicy.objects.create(
+            scope=self.fixture.project,
+            limit_cost=100,
+            actions="request_pausing",
+            use_credit=False,
+            period=invoice_models.PeriodMixin.Periods.MONTH_12,
+            has_fired=False,
+        )
+
+        output = self._rebill()
+        cost_windows = [
+            decimal.Decimal(value)
+            for value in re.findall(r"cost_this_window=([\d.]+)", output)
+        ]
+        self.assertEqual(len(cost_windows), 3)
+
+        print("\n--- credit exhaustion: cumulative uncovered overage ---")
+        print(output.rstrip())
+
+        self.assertEqual(cost_windows[-1], decimal.Decimal("130"))
+        self.assertIn("WOULD FIRE", output)

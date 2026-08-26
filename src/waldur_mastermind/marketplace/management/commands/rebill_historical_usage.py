@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 
 
 class _DryRunRollback(Exception):
-    """Raised inside an atomic block to discard a simulated dry run."""
+    """Raised inside the outer atomic block in handle() to discard an entire
+    simulated dry run (every resource-period in the run) in one go."""
 
 
 class Command(BaseCommand):
@@ -89,8 +90,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Actually apply the correction. Without this flag the command "
             "always runs as a dry run -- it computes and prints the exact same "
-            "plan (inside a transaction that's deliberately rolled back at the "
-            "end) but writes nothing to the database. This default is "
+            "plan (inside one transaction spanning every resource-period in "
+            "the run, deliberately rolled back at the very end) but writes "
+            "nothing to the database. Cost Policy previews therefore see "
+            "earlier periods' corrections in the same dry run too, matching "
+            "what --execute would actually produce. This default is "
             "deliberate: review the printed plan first, then re-run with "
             "--execute once it looks right.",
         )
@@ -238,35 +242,66 @@ class Command(BaseCommand):
             candidate_count,
         )
 
-        for usage in usages.order_by("resource_id", "billing_period"):
-            label = (
-                f"{usage.resource.name} ({usage.resource.uuid.hex}) / "
-                f"{usage.component.type} / {usage.billing_period}"
-            )
-            logger.debug(
-                "Processing %s (ComponentUsage id=%s, usage=%s)",
-                label,
-                usage.pk,
-                usage.usage,
-            )
-            try:
-                if self._process_usage(usage, dry_run):
-                    corrected += 1
-                else:
-                    unaffected += 1
-            except Exception:
-                # One broken resource-period must not abort the whole run --
-                # every prior correction already committed in its own
-                # transaction.atomic() and would otherwise be stranded with
-                # no final summary to show for it.
-                logger.exception("Unable to process usage for %s", label)
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"{prefix}{label}: unexpected error, skipped. See "
-                        f"logs for details."
-                    )
+        def _process_all():
+            nonlocal corrected, unaffected
+            for usage in usages.order_by("resource_id", "billing_period"):
+                label = (
+                    f"{usage.resource.name} ({usage.resource.uuid.hex}) / "
+                    f"{usage.component.type} / {usage.billing_period}"
                 )
-                unaffected += 1
+                logger.debug(
+                    "Processing %s (ComponentUsage id=%s, usage=%s)",
+                    label,
+                    usage.pk,
+                    usage.usage,
+                )
+                try:
+                    if self._process_usage(usage, dry_run):
+                        corrected += 1
+                    else:
+                        unaffected += 1
+                except Exception:
+                    # One broken resource-period must not abort the whole run --
+                    # every prior correction already committed to its own
+                    # savepoint (or, in --execute, its own transaction) and
+                    # would otherwise be stranded with no final summary to
+                    # show for it.
+                    logger.exception("Unable to process usage for %s", label)
+                    self.stdout.write(
+                        self.style.ERROR(
+                            f"{prefix}{label}: unexpected error, skipped. See "
+                            f"logs for details."
+                        )
+                    )
+                    unaffected += 1
+
+        if dry_run:
+            # Every resource-period used to run in its own transaction.atomic()
+            # that rolled back immediately after that period's own preview was
+            # printed (see _process_usage). That meant each period's Cost
+            # Policy preview was evaluated as if it were the ONLY correction
+            # that would ever be applied -- a dry run of periods 1..N-1 was
+            # invisible to period N's preview, even though --execute commits
+            # them in order and period N's real evaluation DOES see them.
+            # Wrapping the whole batch in one outer transaction (rolled back
+            # here, at the very end) makes each period's nested
+            # transaction.atomic() in _process_usage a savepoint instead of an
+            # independent transaction, so later periods' previews see earlier
+            # periods' not-yet-discarded corrections too -- matching what
+            # --execute would actually produce. The trade-off: any row locks
+            # taken along the way (e.g. select_for_update() on credit rows in
+            # _apply_credit_correction) are held for the whole dry run instead
+            # of being released after each period, unlike --execute. Acceptable
+            # for this staff-only, one-off tool; avoid dry-running huge batches
+            # against a live system for long stretches.
+            try:
+                with transaction.atomic():
+                    _process_all()
+                    raise _DryRunRollback()
+            except _DryRunRollback:
+                pass
+        else:
+            _process_all()
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -395,22 +430,24 @@ class Command(BaseCommand):
             return False
 
         logger.debug("%s: applying correction (dry_run=%s)", label, dry_run)
-        try:
-            with transaction.atomic():
-                policies_before = self._snapshot_cost_policies(resource)
-                self._apply_correction(
-                    usage, resource, offering_component, invoice, plan_period, dry_run
-                )
-                # Still inside the transaction the correction just ran in, so
-                # this sees the corrected numbers -- for dry-run, before the
-                # rollback below discards them. is_triggered() itself has no
-                # side effects (it neither writes has_fired nor fires any
-                # action), so evaluating it here is safe in both modes.
-                self._report_policy_impact(resource, policies_before, dry_run)
-                if dry_run:
-                    raise _DryRunRollback()
-        except _DryRunRollback:
-            pass
+        # Nested inside the outer dry-run transaction (see handle()) this is a
+        # savepoint, not an independent transaction -- it isolates just this
+        # resource-period from an exception in another one, but does NOT
+        # discard this period's corrections on its own. The whole batch is
+        # rolled back together, once, at the end of handle() when dry_run.
+        with transaction.atomic():
+            policies_before = self._snapshot_cost_policies(resource)
+            self._apply_correction(
+                usage, resource, offering_component, invoice, plan_period, dry_run
+            )
+            # Still inside the transaction the correction just ran in, so this
+            # sees the corrected numbers -- for dry-run, including every prior
+            # resource-period's corrections in this same run, before the
+            # outer rollback in handle() discards all of them together.
+            # is_triggered() itself has no side effects (it neither writes
+            # has_fired nor fires any action), so evaluating it here is safe
+            # in both modes.
+            self._report_policy_impact(resource, policies_before, dry_run)
         return True
 
     def _snapshot_cost_policies(self, resource):
@@ -890,17 +927,45 @@ class Command(BaseCommand):
             f", project_credit={project_credit.value}" if project_credit else "",
         )
         if delta_draw > 0 and delta_draw > available:
+            # Used to abort the whole credit correction here, leaving this
+            # period's ENTIRE incurred cost uncompensated instead of just the
+            # part credit can't cover. That's wrong in two ways: it silently
+            # diverges from what a live MonthlyCompensation pass would do
+            # once credit runs out (draw what's left, don't refuse the
+            # whole thing), and it makes a Cost Policy's cost_this_window
+            # jump by the full period cost the moment credit is exhausted --
+            # rather than by just the uncovered overage -- so the policy
+            # fires far earlier than the customer's actual credit exhaustion
+            # would warrant. Draw whatever credit remains instead, and leave
+            # only the genuine shortfall as real incurred cost.
+            applied_draw = max(decimal.Decimal(0), available)
+            uncovered = delta_draw - applied_draw
             logger.debug(
-                "%s: delta_draw exceeds available, aborting credit correction", label
+                "%s: delta_draw %s exceeds available %s; drawing only %s, "
+                "leaving %s of this period's cost uncompensated",
+                label,
+                delta_draw,
+                available,
+                applied_draw,
+                uncovered,
             )
             self.stdout.write(
-                self.style.ERROR(
-                    f"{prefix}{label}: correction would draw {delta_draw} more "
-                    f"credit than available ({available}); ABORTING credit "
-                    f"correction for this resource. Needs manual review."
+                self.style.WARNING(
+                    f"{prefix}{label}: correction would draw {delta_draw} "
+                    f"more credit than available ({available}); drawing only "
+                    f"the remaining {applied_draw} of credit and leaving "
+                    f"{uncovered} of this period's cost as real, uncompensated "
+                    f"incurred cost (matches what a live MonthlyCompensation "
+                    f"pass does once credit runs out)."
                 )
             )
-            return
+            new_compensation = old_compensation + applied_draw
+            delta_draw = applied_draw
+            if delta_draw == 0:
+                # No credit left at all for this resource -- nothing to draw,
+                # and any existing compensation item is already correct at
+                # its current value, so there's nothing to write.
+                return
 
         self.stdout.write(
             f"{prefix}{label}: credit compensation {-old_compensation} -> "
