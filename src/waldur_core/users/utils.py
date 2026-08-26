@@ -13,14 +13,20 @@ from rest_framework import serializers
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import pwgen
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import (
+    build_role_index,
     get_create_permission,
     get_customer,
+    get_scope_ancestors,
+    get_scope_ids,
     get_users_with_permission,
+    get_valid_content_types,
     has_permission,
 )
+from waldur_core.structure import managers as structure_managers
 from waldur_core.users import models
 from waldur_core.users.enums import InvitationState
 from waldur_freeipa import tasks
@@ -233,7 +239,14 @@ def get_scope_link(scope_type, scope_uuid):
     )
 
 
-def can_manage_invitation_with(request, scope):
+def can_manage_invitation_with(request, scope, role_index=None):
+    """Whether the user may manage an invitation whose scope is ``scope``.
+
+    ``role_index`` is an optional lookup table from
+    ``permissions.utils.build_role_index``, threaded straight through to every
+    ``has_permission`` call so a batched caller runs this exact decision tree
+    rather than a second, drifting copy of it.
+    """
     # Check if the scope is a soft-deleted project
     if scope._meta.model_name == "project" and getattr(scope, "is_removed", False):
         return False
@@ -245,17 +258,17 @@ def can_manage_invitation_with(request, scope):
     if not permission:
         return False
 
-    if has_permission(request, permission, scope):
+    if has_permission(request, permission, scope, role_index):
         return True
 
     # Walk up to the parent project (e.g. Resource → Project) so project
     # admins/managers can invite into resources within their project.
     project = getattr(scope, "project", None)
-    if project is not None and has_permission(request, permission, project):
+    if project is not None and has_permission(request, permission, project, role_index):
         return True
 
     customer = get_customer(scope)
-    if has_permission(request, permission, customer):
+    if has_permission(request, permission, customer, role_index):
         return True
 
     # Also allow users who have authority over the customer org itself (e.g. CUSTOMER.OWNER)
@@ -263,19 +276,21 @@ def can_manage_invitation_with(request, scope):
     if customer is not scope:
         customer_permission = get_create_permission(customer)
         if customer_permission and has_permission(
-            request, customer_permission, customer
+            request, customer_permission, customer, role_index
         ):
             return True
 
     # In the call scope, to allow call_organizer role to manage invitation, we have to set permission scope to callmanagingorganisation
     if scope._meta.model_name == "call" and customer.callmanagingorganisation:
-        if has_permission(request, permission, customer.callmanagingorganisation):
+        if has_permission(
+            request, permission, customer.callmanagingorganisation, role_index
+        ):
             return True
 
     return False
 
 
-def can_manage_permission_request(request, invitation):
+def can_manage_permission_request(request, invitation, role_index=None):
     # Approving an auto_create_project invitation creates a project and grants a
     # PROJECT role on it (see PermissionRequest.approve), so the relevant authority
     # is project creation within the customer rather than customer membership
@@ -289,8 +304,101 @@ def can_manage_permission_request(request, invitation):
             request,
             PermissionEnum.CREATE_PROJECT_PERMISSION,
             invitation.customer,
+            role_index,
         )
-    return can_manage_invitation_with(request, invitation.scope)
+    return can_manage_invitation_with(request, invitation.scope, role_index)
+
+
+def get_manageable_permission_requests(request):
+    """Pending permission requests the user is actually able to act on.
+
+    ``can_manage_permission_request`` is the authority — it is what
+    ``PermissionRequestViewSet.perform_action`` gates on — but it walks scope
+    parents and branches on ``auto_create_project``, so it has no single SQL
+    equivalent. Narrowing in SQL to the scopes the user holds a create-role on
+    (plus their customers) and confirming each candidate in Python keeps a
+    badge count and the approve endpoint from ever disagreeing.
+
+    Deliberately not ``filter_queryset_for_user``: ``PermissionRequest`` has no
+    ``list_permission``, so that yields who may *see* a request — any role on
+    the customer, plus its author — not who may approve it.
+
+    Staff are narrowed by the same SQL as everyone else even though
+    ``can_manage_permission_request`` lets them approve anything: this backs a
+    personal dashboard, not an admin queue, matching how the resource and
+    invoice providers scope staff to their own organizations.
+
+    The per-candidate confirmation runs against a role index built once up
+    front, so the query count stays flat rather than growing with the number of
+    pending requests — see ``_build_permission_request_role_index``.
+    """
+    user = request.user
+    subquery = Q(
+        invitation__customer__in=structure_managers.get_connected_customers(user)
+    )
+    for content_type in get_valid_content_types():
+        permission = get_create_permission(content_type.model_class())
+        if not permission:
+            continue
+        subquery |= Q(
+            invitation__content_type=content_type,
+            invitation__object_id__in=get_scope_ids(
+                user, content_type, permission=permission
+            ),
+        )
+
+    candidates = list(
+        models.PermissionRequest.objects.filter(subquery, state=ReviewStates.PENDING)
+        .select_related("invitation", "invitation__customer")
+        # can_manage_invitation_with reads invitation.scope, a generic FK, so
+        # without this each candidate costs its own query.
+        .prefetch_related("invitation__scope")
+    )
+    role_index = _build_permission_request_role_index(user, candidates)
+    return [
+        permission_request
+        for permission_request in candidates
+        if can_manage_permission_request(
+            request, permission_request.invitation, role_index
+        )
+    ]
+
+
+def _build_permission_request_role_index(user, permission_requests):
+    """Pre-answer every role lookup ``can_manage_permission_request`` will make.
+
+    The prefetch above only spares the generic-FK fetch; without this, each
+    candidate still costs up to four ``has_permission`` queries as the tree
+    walks scope → parent project → customer → call organiser. That is a per-row
+    cost on an endpoint hit on every page load.
+
+    The pairs collected here deliberately **over-cover** the decision tree
+    rather than mirroring it — a pair the tree never consults only widens an
+    ``IN`` list, whereas a pair it consults but which is missing falls back to
+    its own query (see ``has_permission``). So this stays correct as the tree
+    changes.
+    """
+    pairs = []
+    for permission_request in permission_requests:
+        invitation = permission_request.invitation
+        customer = invitation.customer
+        scope = invitation.scope
+        permissions = {PermissionEnum.CREATE_PROJECT_PERMISSION}
+        if scope is not None:
+            permissions.add(get_create_permission(scope))
+        if customer is not None:
+            permissions.add(get_create_permission(customer))
+        scopes = [customer]
+        if scope is not None:
+            scopes.extend(get_scope_ancestors(scope))
+            if scope._meta.model_name == "call" and customer is not None:
+                scopes.append(
+                    getattr(customer, "callmanagingorganisation", None),
+                )
+        for permission in permissions:
+            for candidate_scope in scopes:
+                pairs.append((permission, candidate_scope))
+    return build_role_index(user, pairs)
 
 
 def get_invitation_duplicates(scope, invitations):

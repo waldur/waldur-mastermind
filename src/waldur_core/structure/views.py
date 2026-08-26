@@ -53,6 +53,8 @@ from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import UserDataAccessLog
+from waldur_core.onboarding.enums import VerificationStatus
+from waldur_core.onboarding.models import OnboardingVerification
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
@@ -89,12 +91,18 @@ from waldur_core.structure.utils import (
     get_components_usage_data_from_resources,
 )
 from waldur_core.structure.utils_data_access import bulk_log_user_data_access
+from waldur_core.user_actions import providers as user_action_providers
 from waldur_core.user_actions import serializers as user_action_serializers
 from waldur_core.user_actions import tasks as user_action_tasks
+from waldur_core.user_actions.providers import (
+    DASHBOARD_LIST_LIMIT,
+    DASHBOARD_VARIANT_ORDER,
+)
 from waldur_core.users import tasks as user_tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
 from waldur_core.users.scim import tasks as scim_tasks
+from waldur_core.users.utils import get_manageable_permission_requests
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import ResourceStates
@@ -1680,6 +1688,112 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
         """Check if user profile is complete with all mandatory attributes."""
         completeness = get_profile_completeness_details(request.user)
         return Response(completeness, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get pending dashboard actions feed",
+        description=(
+            "Returns a typed feed of actions the current user should take, "
+            "aggregating pending orders, failed resources, overdue invoices, "
+            "missing Terms of Service consents, and incomplete profile state."
+        ),
+        responses={200: serializers.DashboardPendingActionSerializer(many=True)},
+    )
+    @core_views.no_count_action
+    @action(detail=False, methods=["get"], url_path="dashboard-pending-actions")
+    def dashboard_pending_actions(self, request):
+        # Aggregate dashboard feed items contributed by registered
+        # ``BaseDashboardProvider`` instances. Each owning app exposes its own
+        # provider via ``<app>.user_actions``; this view stays agnostic of
+        # what those apps actually surface (orders, invoices, ToS, etc.).
+        feed: list[dict] = []
+        for provider in user_action_providers.get_all_dashboard_providers().values():
+            try:
+                items = provider.get_dashboard_pending_actions(request.user)
+            except Exception:
+                logger.exception(
+                    "Dashboard provider %s failed for user %s",
+                    provider.action_type,
+                    request.user.pk,
+                )
+                continue
+            # Capped per provider as well as in aggregate. This does not change
+            # what the caller sees — the sort and slice below decide that — it
+            # bounds the work: most providers aggregate into a single item, but
+            # one that emits a row per object (ToS consent, one per offering)
+            # would otherwise build and sort an unbounded list to render ten.
+            feed.extend(items[:DASHBOARD_LIST_LIMIT])
+        # Severity decides what survives the cap, rather than provider
+        # registration order — that order is an accident of
+        # apps.get_app_configs(), so without this an "error" row silently falls
+        # off the end as soon as an extension is reordered. sorted() is stable,
+        # so items of equal severity keep their provider's order.
+        feed.sort(key=lambda item: DASHBOARD_VARIANT_ORDER.get(item["variant"], 99))
+        serializer = serializers.DashboardPendingActionSerializer(
+            feed[:DASHBOARD_LIST_LIMIT], many=True
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get general dashboard stats",
+        description=(
+            "Returns counts shown on the general dashboard for the current "
+            "user: pending permission requests they can act on, active "
+            "invitations addressed to them, and their pending onboarding "
+            "applications."
+        ),
+        responses={200: serializers.DashboardGeneralStatsSerializer},
+    )
+    @core_views.no_count_action
+    @action(detail=False, methods=["get"], url_path="dashboard-general-stats")
+    def dashboard_general_stats(self, request):
+        user = request.user
+        # Whether a request can be approved is decided per object by
+        # users.utils.can_manage_permission_request — project-scoped group
+        # invitations and auto_create_project ones answer to different
+        # authorities. Counting by a single customer permission badged requests
+        # the user cannot act on and missed ones they can.
+        pending_permission_requests = len(get_manageable_permission_requests(request))
+        # Only PENDING invitations can be accepted: PENDING_PROJECT means the
+        # invitation has not been sent yet (the project start date is still in
+        # the future) and Invitation.accept rejects it with a 404, so counting
+        # it produced a badge the user had no way to clear. Recipient matching
+        # mirrors the "addressed to me" branch of InvitationFilterBackend —
+        # note that filter_pending_invitations is an accept-time authorisation
+        # gate, not a listing predicate: its Q(civil_number="") arm matches
+        # every blank-civil-number invitation on the platform.
+        # Each identifier is only an arm when the user actually has it.
+        # User.civil_number is nullable with default=None while
+        # Invitation.civil_number is NOT NULL (blank meaning "anyone may
+        # accept"), so feeding None straight into the Q made Django emit
+        # `civil_number IS NULL` — an always-false arm that read as if it
+        # matched something. User.email is blank=True and gets the same
+        # treatment.
+        addressed_to_user = Q()
+        if user.email:
+            addressed_to_user |= Q(email__iexact=user.email)
+        if user.civil_number:
+            addressed_to_user |= Q(civil_number=user.civil_number)
+        # An empty Q() matches every row, so a user carrying neither identifier
+        # has to short-circuit rather than be counted the whole platform's
+        # pending invitations.
+        active_invitations = (
+            Invitation.objects.filter(
+                addressed_to_user, state=InvitationState.PENDING
+            ).count()
+            if addressed_to_user
+            else 0
+        )
+        pending_onboarding_applications = OnboardingVerification.objects.filter(
+            user=user, status=VerificationStatus.PENDING
+        ).count()
+        return Response(
+            {
+                "pending_permission_requests": pending_permission_requests,
+                "active_invitations": active_invitations,
+                "pending_onboarding_applications": pending_onboarding_applications,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @extend_schema(
         summary="Get user data access visibility",

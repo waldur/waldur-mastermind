@@ -4007,3 +4007,26 @@ class SetErredSerializer(serializers.Serializer):
     error_traceback = serializers.CharField(
         required=False, allow_blank=True, default=""
     )
+
+
+class DashboardGeneralStatsSerializer(serializers.Serializer):
+    pending_permission_requests = serializers.IntegerField(read_only=True)
+    active_invitations = serializers.IntegerField(read_only=True)
+    pending_onboarding_applications = serializers.IntegerField(read_only=True)
+
+
+class DashboardPendingActionSerializer(serializers.Serializer):
+    type = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    variant = serializers.ChoiceField(
+        read_only=True, choices=["info", "warning", "error"]
+    )
+    deadline = serializers.DateTimeField(read_only=True, allow_null=True)
+    count = serializers.IntegerField(read_only=True, allow_null=True)
+    # The object the action is about (invoice, offering, ...) and the customer
+    # it belongs to, so the frontend can deep-link: an invoice detail page
+    # needs both the organisation and the invoice uuid. Route names live in
+    # the frontend, so the feed carries identifiers rather than URLs.
+    target_uuid = serializers.UUIDField(read_only=True, allow_null=True)
+    customer_uuid = serializers.UUIDField(read_only=True, allow_null=True)

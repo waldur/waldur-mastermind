@@ -9,6 +9,20 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
+# Every dashboard endpoint is hit on each page load, so none of them returns an
+# unbounded list: a reviewer carrying hundreds of assignments, or an owner with
+# a backlog of unpaid invoices, would pull all of it down to render a handful
+# of rows. Counts are aggregated server-side, so they stay exact while the rows
+# below them are capped.
+DASHBOARD_LIST_LIMIT = 10
+
+# Rank of DashboardPendingActionSerializer.variant, used to decide what survives
+# DASHBOARD_LIST_LIMIT. Without it the feed is truncated in provider
+# registration order, which is whatever order apps.get_app_configs() happens to
+# yield — an overdue invoice would drop off the end because an unrelated
+# extension moved in INSTALLED_APPS.
+DASHBOARD_VARIANT_ORDER = {"error": 0, "warning": 1, "info": 2}
+
 
 class ActionCategory(StrEnum):
     """Semantic categories for corrective actions"""
@@ -117,6 +131,31 @@ class BaseActionProvider(ABC):
         return True
 
 
+class BaseDashboardProvider(ABC):
+    """Base class for providers contributing items to the dashboard feed.
+
+    Deliberately not a ``BaseActionProvider``: that one backs the persistent
+    ``UserAction`` queue, and its periodic refresh task fans out over every
+    registered provider. Dashboard providers compute their items live, so
+    joining that registry would only buy no-op celery tasks and phantom
+    ``UserActionProvider`` rows.
+    """
+
+    action_type: str = None
+    display_name: str = None
+
+    @abstractmethod
+    def get_dashboard_pending_actions(self, user: User) -> list[dict[str, Any]]:
+        """Return zero or more dashboard feed items for the given user.
+
+        Each dict must conform to
+        ``waldur_core.structure.serializers.DashboardPendingActionSerializer``:
+        ``{type, title, description, variant, deadline, count, target_uuid,
+        customer_uuid}``. The dashboard endpoint dispatches across every
+        registered provider and concatenates the results.
+        """
+
+
 # Registry for providers
 _providers = {}
 
@@ -146,3 +185,29 @@ def clear_providers():
     """Clear all providers (mainly for testing)"""
     global _providers
     _providers = {}
+
+
+# Registry for dashboard providers
+_dashboard_providers = {}
+
+
+def register_dashboard_provider(provider_class: BaseDashboardProvider):
+    """Register a dashboard feed provider"""
+    if not hasattr(provider_class, "action_type") or not provider_class.action_type:
+        raise ValueError(
+            f"Provider {provider_class} must have an action_type attribute"
+        )
+
+    provider = provider_class()
+    _dashboard_providers[provider.action_type] = provider
+
+
+def get_all_dashboard_providers() -> dict[str, BaseDashboardProvider]:
+    """Get all registered dashboard providers"""
+    return _dashboard_providers.copy()
+
+
+def clear_dashboard_providers():
+    """Clear all dashboard providers (mainly for testing)"""
+    global _dashboard_providers
+    _dashboard_providers = {}

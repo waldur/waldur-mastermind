@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import (
     Avg,
     Count,
+    DateTimeField,
     DurationField,
     Exists,
     ExpressionWrapper,
@@ -41,6 +42,7 @@ from waldur_core.core.views import (
     ActionMethodMixin,
     ActionsViewSet,
     ReadOnlyActionsViewSet,
+    no_count_action,
 )
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -60,6 +62,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _get_customer
+from waldur_core.user_actions.providers import DASHBOARD_LIST_LIMIT
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
@@ -2567,6 +2570,56 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
     ]
 
+    @extend_schema(
+        summary="Get call manager dashboard stats",
+        description=(
+            "Returns counts for the call manager dashboard: pending "
+            "assessments, active calls managed by the user, and overdue "
+            "reviews on calls they manage."
+        ),
+        responses={200: serializers.DashboardCallManagerStatsSerializer},
+    )
+    @no_count_action
+    @decorators.action(detail=False, methods=["get"], url_path="dashboard-stats")
+    def dashboard_stats(self, request):
+        user = request.user
+        managed_call_ids = get_connected_calls(user, CallRole.MANAGER)
+
+        active_calls = models.Call.objects.filter(
+            id__in=managed_call_ids, state=CallStates.ACTIVE
+        ).count()
+        pending_assessments = models.Proposal.objects.filter(
+            round__call_id__in=managed_call_ids,
+            state__in=[ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW],
+        ).count()
+        # review_end_date is created + review_duration_in_days, which Postgres
+        # can evaluate directly — no need to pull every pending review into
+        # Python to compare dates.
+        overdue_reviews = (
+            models.Review.objects.filter(
+                state=models.Review.States.IN_REVIEW,
+                proposal__round__call_id__in=managed_call_ids,
+                proposal__round__review_duration_in_days__isnull=False,
+            )
+            .annotate(
+                deadline=ExpressionWrapper(
+                    F("created")
+                    + timedelta(days=1) * F("proposal__round__review_duration_in_days"),
+                    output_field=DateTimeField(),
+                )
+            )
+            .filter(deadline__lt=timezone.now())
+            .count()
+        )
+        return response.Response(
+            {
+                "pending_assessments": pending_assessments,
+                "active_calls": active_calls,
+                "overdue_reviews": overdue_reviews,
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 def _terminal_workflow_detail(proposal_state):
     """Human-readable detail for a workflow that reached its terminal step."""
@@ -3675,6 +3728,29 @@ class ProposalViewSet(
         proposal_permissions.can_view_step_checklist_responses
     ]
 
+    @extend_schema(
+        summary="Get submitter dashboard stats",
+        description=(
+            "Returns counts of the current user's own proposals grouped by "
+            "state, covering both in-progress and decided proposals."
+        ),
+        responses={200: serializers.DashboardSubmitterStatsSerializer},
+    )
+    @no_count_action
+    @decorators.action(detail=False, methods=["get"], url_path="dashboard-stats")
+    def dashboard_stats(self, request):
+        payload = models.Proposal.objects.filter(created_by=request.user).aggregate(
+            total=Count("id"),
+            draft=Count("id", filter=Q(state=ProposalStates.DRAFT)),
+            submitted=Count("id", filter=Q(state=ProposalStates.SUBMITTED)),
+            in_review=Count("id", filter=Q(state=ProposalStates.IN_REVIEW)),
+            accepted=Count("id", filter=Q(state=ProposalStates.ACCEPTED)),
+            rejected=Count("id", filter=Q(state=ProposalStates.REJECTED)),
+            canceled=Count("id", filter=Q(state=ProposalStates.CANCELED)),
+        )
+        serializer = serializers.DashboardSubmitterStatsSerializer(payload)
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class ReviewViewSet(ActionsViewSet):
     lookup_field = "uuid"
@@ -3834,6 +3910,70 @@ class ReviewViewSet(ActionsViewSet):
     accept_permissions = reject_permissions = submit_permissions = (
         update_permissions
     ) = partial_update_permissions = [action_permission_check]
+
+    @extend_schema(
+        summary="Get reviewer dashboard stats and deadlines",
+        description=(
+            "Returns counts (assigned, pending, completed) for every review "
+            "assigned to the current user, plus their nearest review "
+            "deadlines ordered by due date. Overdue reviews sort first and "
+            "are included; the counts cover all reviews, the deadline list is "
+            "capped and deadlines_total gives its true length."
+        ),
+        responses={200: serializers.DashboardReviewerStatsSerializer},
+    )
+    @no_count_action
+    @decorators.action(detail=False, methods=["get"], url_path="dashboard-stats")
+    def dashboard_stats(self, request):
+        user = request.user
+        own_reviews = models.Review.objects.filter(reviewer=user)
+        counts = own_reviews.aggregate(
+            assigned=Count("id"),
+            pending=Count("id", filter=Q(state=models.Review.States.IN_REVIEW)),
+            completed=Count("id", filter=Q(state=models.Review.States.SUBMITTED)),
+        )
+
+        # A deadline only exists when the round sets review_duration_in_days;
+        # annotating it lets Postgres do the filtering and the ordering.
+        reviews_with_deadline = (
+            own_reviews.filter(
+                state=models.Review.States.IN_REVIEW,
+                proposal__round__review_duration_in_days__isnull=False,
+            )
+            .annotate(
+                deadline=ExpressionWrapper(
+                    F("created")
+                    + timedelta(days=1) * F("proposal__round__review_duration_in_days"),
+                    output_field=DateTimeField(),
+                )
+            )
+            .select_related("proposal", "proposal__round", "proposal__round__call")
+            .order_by("deadline")
+        )
+        # This list is embedded in an object, so it cannot be paginated the way
+        # the standalone dashboard lists are. It carries its own total instead —
+        # `pending` is not it, since a review whose round sets no review
+        # duration has no deadline and never appears here.
+        deadlines_total = reviews_with_deadline.count()
+        deadlines = [
+            {
+                "uuid": review.uuid,
+                "proposal_uuid": review.proposal.uuid,
+                "proposal_name": review.proposal.name,
+                "call_uuid": review.proposal.round.call.uuid,
+                "call_name": review.proposal.round.call.name,
+                "due_date": review.deadline,
+            }
+            for review in reviews_with_deadline[:DASHBOARD_LIST_LIMIT]
+        ]
+
+        payload = {
+            **counts,
+            "deadlines": deadlines,
+            "deadlines_total": deadlines_total,
+        }
+        serializer = serializers.DashboardReviewerStatsSerializer(payload)
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
@@ -4026,6 +4166,49 @@ class RoundViewSet(ReadOnlyActionsViewSet):
         serializer = serializers.RoundReviewerSerializer(
             page, many=True, context={"round_obj": round_obj}
         )
+        return self.get_paginated_response(serializer.data)
+
+    @extend_schema(
+        summary="Get upcoming round deadlines for the call manager dashboard",
+        description=(
+            "Returns the rounds in calls managed by the current user that are "
+            "still open (cutoff time in the future), nearest first. Paginated: "
+            "the exact total is in the X-Result-Count header."
+        ),
+        responses={200: serializers.DashboardUpcomingDeadlineSerializer(many=True)},
+    )
+    @decorators.action(detail=False, methods=["get"], url_path="dashboard-deadlines")
+    def dashboard_deadlines(self, request):
+        user = request.user
+        managed_call_ids = get_connected_calls(user, CallRole.MANAGER)
+        rounds = (
+            models.Round.objects.filter(
+                call_id__in=managed_call_ids,
+                cutoff_time__gte=timezone.now(),
+            )
+            .select_related("call")
+            .order_by("cutoff_time")
+        )
+        # Paginated rather than sliced to DASHBOARD_LIST_LIMIT: PAGE_SIZE is
+        # also 10, so the page the dashboard renders is unchanged, but a manager
+        # running more than ten open rounds no longer sees the first ten
+        # presented as all of them.
+        page = self.paginate_queryset(rounds)
+        if request.method == "HEAD":
+            # Count-only request (the `_count` companion): the X-Result-Count
+            # header is set from the paginator, so skip serialising the page.
+            return self.get_paginated_response([])
+        payload = [
+            {
+                "uuid": round_obj.uuid,
+                "call_uuid": round_obj.call.uuid,
+                "call_name": round_obj.call.name,
+                "round_name": round_obj.name,
+                "due_date": round_obj.cutoff_time,
+            }
+            for round_obj in page
+        ]
+        serializer = serializers.DashboardUpcomingDeadlineSerializer(payload, many=True)
         return self.get_paginated_response(serializer.data)
 
 

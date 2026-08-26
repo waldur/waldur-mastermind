@@ -7,21 +7,30 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from django.utils.translation import ngettext
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission
+from waldur_core.structure.managers import (
+    filter_queryset_for_user,
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_core.structure.models import Customer, Project
 from waldur_core.user_actions.providers import (
     ActionCategory,
     ActionSeverity,
     BaseActionProvider,
+    BaseDashboardProvider,
     CorrectiveAction,
+    register_dashboard_provider,
     register_provider,
 )
 
 from . import models
-from .enums import OrderStates
+from .enums import OrderStates, ResourceStates
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -470,6 +479,164 @@ class ExpiringResourceProvider(BaseActionProvider):
         return has_permission(user, PermissionEnum.TERMINATE_RESOURCE, resource.project)
 
 
+class DashboardOrdersPendingApprovalProvider(BaseDashboardProvider):
+    """Provider for orders the user placed that are awaiting provider approval."""
+
+    action_type = "orders_pending_approval"
+    display_name = "Orders Pending Provider Approval"
+
+    def get_dashboard_pending_actions(self, user: User) -> list[dict[str, Any]]:
+        count = models.Order.objects.filter(
+            created_by=user, state=OrderStates.PENDING_PROVIDER
+        ).count()
+        if not count:
+            return []
+        return [
+            {
+                "type": "orders_pending_approval",
+                "title": ngettext(
+                    "%(count)d order pending approval",
+                    "%(count)d orders pending approval",
+                    count,
+                )
+                % {"count": count},
+                "description": _(
+                    "You placed orders still waiting for provider approval."
+                ),
+                "variant": "warning",
+                "deadline": None,
+                "count": count,
+                "target_uuid": None,
+                "customer_uuid": None,
+            }
+        ]
+
+
+def _visible_resources(user: User):
+    # Honour Resource.Permissions.list_permission (LIST_RESOURCES) rather than
+    # rolling the scoping by hand, which counted resources for roles holding no
+    # resource access at all (CUSTOMER.READER sees nothing at
+    # /api/marketplace-resources/). Narrowed to the user's own project and
+    # customer scopes so staff get their own dashboard, not the platform's.
+    return filter_queryset_for_user(models.Resource.objects.all(), user).filter(
+        Q(project__in=get_connected_projects(user))
+        | Q(project__customer__in=get_connected_customers(user))
+    )
+
+
+class DashboardErredResourcesProvider(BaseDashboardProvider):
+    """Provider for resources that failed during provisioning."""
+
+    action_type = "resources_erred"
+    display_name = "Erred Resources"
+
+    def get_dashboard_pending_actions(self, user: User) -> list[dict[str, Any]]:
+        count = _visible_resources(user).filter(state=ResourceStates.ERRED).count()
+        if not count:
+            return []
+        return [
+            {
+                "type": "resources_erred",
+                "title": ngettext(
+                    "%(count)d resource failed",
+                    "%(count)d resources failed",
+                    count,
+                )
+                % {"count": count},
+                "description": _("Some of your resources failed during provisioning."),
+                "variant": "error",
+                "deadline": None,
+                "count": count,
+                "target_uuid": None,
+                "customer_uuid": None,
+            }
+        ]
+
+
+class DashboardTOSAcceptanceProvider(BaseDashboardProvider):
+    """Provider for offerings whose Terms of Service are unaccepted."""
+
+    action_type = "tos_acceptance_required"
+    display_name = "Terms of Service Acceptance"
+
+    def get_dashboard_pending_actions(self, user: User) -> list[dict[str, Any]]:
+        # The prompt has to name the same audience the enforcement does.
+        # ENFORCE_USER_CONSENT_FOR_OFFERINGS and the staff/support skip are
+        # both gates in permissions.check_tos_consent_permission; without them
+        # the dashboard nags people no endpoint would ever block.
+        if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+            return []
+        if user.is_staff or user.is_support:
+            return []
+
+        # OfferingUser, not "offerings I can see a resource of". The latter
+        # included TERMINATED resources and colleagues' resources in a shared
+        # project, so an owner was prompted to accept terms for an offering
+        # they never used and could not stop being asked about.
+        #
+        # The plugin option is filtered explicitly rather than inferred from the
+        # existence of an OfferingUser row: rows are also created without it by
+        # marketplace_rancher.handlers.create_offering_user_for_rancher_user,
+        # marketplace_remote.tasks (remote sync) and the set_offerings_username
+        # action, and check_tos_consent_permission returns early for those
+        # offerings — so the prompt would name terms nothing ever enforces.
+        # tasks._get_eligible_offerings_for_project narrows the same way.
+        offering_ids_with_account = models.OfferingUser.objects.filter(
+            user=user,
+            offering__plugin_options__service_provider_can_create_offering_user=True,
+        ).values_list("offering_id", flat=True)
+
+        active_terms = models.OfferingTermsOfService.objects.filter(
+            offering_id__in=offering_ids_with_account, is_active=True
+        ).select_related("offering")
+        # Consent is version-scoped: an offering that bumps its terms with
+        # requires_reconsent leaves the old consent active until the grace
+        # period expires, and that window is exactly when the prompt matters.
+        # Mirrors the check in tasks.notify_users_about_tos_update.
+        consented_versions = dict(
+            models.UserOfferingConsent.objects.filter(
+                user=user,
+                offering_id__in=active_terms.values_list("offering_id", flat=True),
+                revocation_date__isnull=True,
+            ).values_list("offering_id", "version")
+        )
+        items = []
+        for terms in active_terms:
+            offering = terms.offering
+            # requires_reconsent gates the version comparison everywhere else
+            # (permissions.check_tos_consent, serializers.get_has_user_consent,
+            # tasks.send_tos_reconsent_notification). Comparing unconditionally
+            # re-prompted everyone who already consented whenever a provider
+            # edited its terms without asking for re-consent.
+            if offering.id in consented_versions and (
+                not terms.requires_reconsent
+                or consented_versions[offering.id] == terms.version
+            ):
+                continue
+            items.append(
+                {
+                    "type": "tos_acceptance_required",
+                    "title": _("Terms of Service acceptance required – %(name)s")
+                    % {"name": offering.name},
+                    "description": _(
+                        "Accept the updated Terms of Service to continue "
+                        "using %(name)s."
+                    )
+                    % {"name": offering.name},
+                    "variant": "warning",
+                    "deadline": None,
+                    "count": None,
+                    "target_uuid": offering.uuid,
+                    "customer_uuid": None,
+                }
+            )
+        return items
+
+
 # Register all providers
 register_provider(PendingOrderProvider)
 register_provider(ExpiringResourceProvider)
+
+register_dashboard_provider(DashboardOrdersPendingApprovalProvider)
+register_dashboard_provider(DashboardErredResourcesProvider)
+register_dashboard_provider(DashboardTOSAcceptanceProvider)

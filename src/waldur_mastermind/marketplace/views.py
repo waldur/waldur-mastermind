@@ -7330,6 +7330,56 @@ class OrderViewSet(
         )
         return self.queryset.filter(id__in=order_ids)
 
+    @extend_schema(
+        summary="List current user's unfinished orders",
+        description=(
+            "Returns the orders created by the current user that are still "
+            "pending approval or being processed, newest first. Scoped to the "
+            "requesting user only, so requesters can track their orders even "
+            "without list permissions on the project or organization. "
+            "Paginated: the exact total is in the X-Result-Count header."
+        ),
+        responses={200: serializers.DashboardMyOrderSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], url_path="dashboard-my-orders")
+    def dashboard_my_orders(self, request):
+        orders = (
+            models.Order.objects.filter(
+                created_by=request.user,
+                state__in=OrderStates.PENDING_STATES,
+            )
+            .select_related("offering", "resource", "project", "project__customer")
+            .order_by("-created", "id")
+        )
+        # Paginated rather than sliced to DASHBOARD_LIST_LIMIT: PAGE_SIZE is
+        # also 10, so the page the dashboard renders is unchanged, but the
+        # client now learns how many orders there really are instead of
+        # presenting the first ten as the whole set.
+        page = self.paginate_queryset(orders)
+        if request.method == "HEAD":
+            # Count-only request (the `_count` companion): the X-Result-Count
+            # header is set from the paginator, so skip serialising the page.
+            return self.get_paginated_response([])
+        payload = [
+            {
+                "uuid": order.uuid,
+                "offering_uuid": order.offering.uuid,
+                "offering_name": order.offering.name,
+                "resource_uuid": order.resource.uuid,
+                "resource_name": order.resource.name,
+                "project_uuid": order.project.uuid,
+                "project_name": order.project.name,
+                "customer_uuid": order.project.customer.uuid,
+                "customer_name": order.project.customer.name,
+                "state": order.get_state_display(),
+                "type": order.get_type_display().lower(),
+                "created": order.created,
+            }
+            for order in page
+        ]
+        serializer = serializers.DashboardMyOrderSerializer(payload, many=True)
+        return self.get_paginated_response(serializer.data)
+
     approve_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,

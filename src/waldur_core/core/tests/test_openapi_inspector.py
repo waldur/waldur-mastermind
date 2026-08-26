@@ -62,12 +62,17 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
         # Assert
         self.assertNotIn("x-permissions", operation)
 
-    def _head_operation(self, *, detail, action="list", count_enabled=False):
+    def _head_operation(
+        self, *, detail, action="list", count_enabled=False, count_disabled=False
+    ):
         self.view.action = action
         self.view.detail = detail
-        # The action callable carries the @count_action opt-in flag.
+        # The action callable carries the @count_action / @no_count_action
+        # flags. Both are set explicitly because a bare MagicMock answers any
+        # getattr with a truthy Mock, which would silently satisfy either flag.
         action_fn = MagicMock()
         action_fn.count_enabled = count_enabled
+        action_fn.count_disabled = count_disabled
         setattr(self.view, action, action_fn)
         inspector = WaldurOpenApiInspector()
         inspector.view = self.view
@@ -110,6 +115,18 @@ class WaldurOpenApiInspectorTest(unittest.TestCase):
     def test_head_count_suppressed_for_object_detail(self):
         """A single-object detail view (retrieve) does not get a HEAD `count`."""
         operation = self._head_operation(detail=True, action="retrieve")
+
+        self.assertIsNone(operation)
+
+    def test_head_count_suppressed_for_opted_out_collection_action(self):
+        """
+        A collection action returning a single object opts out via
+        @no_count_action (e.g. `/users/dashboard-general-stats/`), so the SDK
+        does not gain a dead `*Count` method.
+        """
+        operation = self._head_operation(
+            detail=False, action="dashboard_general_stats", count_disabled=True
+        )
 
         self.assertIsNone(operation)
 
