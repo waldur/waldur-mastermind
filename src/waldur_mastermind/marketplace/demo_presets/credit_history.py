@@ -106,73 +106,108 @@ def generate_credit_history(
     mid-month on any pace. Projects with no entry keep the shared USAGE_PATTERN,
     which is what every existing preset relies on.
 
+    A project may also declare cost its credit does not cover:
+
+        {"<uuid>": {"months": [...], "current": 1.0,
+                    "uncovered": {"months": [...], "current": 4.8}}}
+
+    A credit covers the offerings named on the organization balance and no
+    others, so a project can carry real cost no compensation will ever touch.
+    `uncovered` bills the resources outside that list at its own fractions,
+    leaving `months`/`current` to describe the covered ones. Without the key the
+    project is billed as one, so no existing preset changes.
+
     Returns the number of (customer, month) pairs processed.
     """
     write = stdout.write if stdout else (lambda _message: None)
     patterns = patterns or {}
     processed = 0
 
-    customer_credits = invoice_models.CustomerCredit.objects.select_related(
-        "customer"
-    ).all()
+    customer_credits = (
+        invoice_models.CustomerCredit.objects.select_related("customer")
+        .order_by("id")
+        .all()
+    )
     if not customer_credits:
         return 0
 
     for customer_credit in customer_credits:
-        customer = customer_credit.customer
-        project_credits = {
-            project_credit.project_id: project_credit
-            for project_credit in invoice_models.ProjectCredit.objects.filter(
-                project__customer=customer
-            ).select_related("project")
-        }
+        # One customer must not take the rest down with it. A preset may hold a
+        # deliberately impossible organization on purpose — the capped and
+        # exhausted scenarios allocate more to their projects than the balance
+        # holds, which is the state they exist to demonstrate, and which makes
+        # ProjectCredit.save() refuse. Before this, the first such customer
+        # aborted the whole run, and which customers kept their history came
+        # down to the order the queryset happened to return.
+        try:
+            processed += _generate_for_customer(
+                customer_credit, months, patterns, write
+            )
+        except Exception as exc:
+            logger.warning(
+                "Skipped credit history for %s: %s",
+                customer_credit.customer.name,
+                exc,
+            )
 
-        for index, (year, month) in enumerate(_previous_months(months)):
-            fraction = USAGE_PATTERN[index % len(USAGE_PATTERN)]
-            # Finalization expires overdue credit before it compensates the
-            # month, and the order matters: a credit that lapsed earlier in the
-            # simulated history must not go on paying for usage after its end
-            # date. Without this the generator produced histories no real
-            # deployment could have, and no `expiry` row ever existed in demo
-            # data — leaving the dashboards' forfeiture figure untestable.
-            _expire_overdue(datetime.date(year, month, 1))
-            with transaction.atomic():
-                invoice, _ = invoice_models.Invoice.objects.get_or_create(
-                    customer=customer, year=year, month=month
-                )
-                if invoice.state != invoice_models.Invoice.States.PENDING:
-                    continue
+    return processed
 
-                created_items = _bill_month(
-                    invoice,
-                    customer,
-                    project_credits,
-                    customer_credit,
-                    fraction,
-                    patterns=patterns,
-                    month_index=index,
-                )
-                if not created_items:
-                    continue
 
-                compensations.MonthlyCompensation(
-                    customer, invoice=invoice
-                ).apply_compensations()
-                invoice.set_created()
+def _generate_for_customer(customer_credit, months, patterns, write) -> int:
+    """Bill and compensate `months` months for one credited customer.
 
-            processed += 1
+    Returns the number of months that produced an invoice.
+    """
+    customer = customer_credit.customer
+    project_credits = {
+        project_credit.project_id: project_credit
+        for project_credit in invoice_models.ProjectCredit.objects.filter(
+            project__customer=customer
+        ).select_related("project")
+    }
 
-        _expire_overdue(timezone.localtime(timezone.now()).date().replace(day=1))
+    processed = 0
+    for index, (year, month) in enumerate(_previous_months(months)):
+        fraction = USAGE_PATTERN[index % len(USAGE_PATTERN)]
+        # Finalization expires overdue credit before it compensates the
+        # month, and the order matters: a credit that lapsed earlier in the
+        # simulated history must not go on paying for usage after its end
+        # date. Without this the generator produced histories no real
+        # deployment could have, and no `expiry` row ever existed in demo
+        # data — leaving the dashboards' forfeiture figure untestable.
+        _expire_overdue(datetime.date(year, month, 1))
+        with transaction.atomic():
+            invoice, _ = invoice_models.Invoice.objects.get_or_create(
+                customer=customer, year=year, month=month
+            )
+            if invoice.state != invoice_models.Invoice.States.PENDING:
+                continue
 
-        if patterns:
-            _bill_current_month(customer, project_credits, customer_credit, patterns)
+            created_items = _bill_month(
+                invoice,
+                customer,
+                project_credits,
+                customer_credit,
+                fraction,
+                patterns=patterns,
+                month_index=index,
+            )
+            if not created_items:
+                continue
 
-        write(
-            f"Generated {months} months of credit history for {customer.name}\n"
-            if stdout
-            else ""
-        )
+            compensations.MonthlyCompensation(
+                customer, invoice=invoice
+            ).apply_compensations()
+            invoice.set_created()
 
+        processed += 1
+
+    _expire_overdue(timezone.localtime(timezone.now()).date().replace(day=1))
+
+    if patterns:
+        _bill_current_month(customer, project_credits, customer_credit, patterns)
+
+    write(f"Generated {months} months of credit history for {customer.name}\n")
     return processed
 
 
@@ -202,14 +237,27 @@ def _bill_current_month(customer, project_credits, customer_credit, patterns) ->
         invoice, _ = invoice_models.Invoice.objects.get_or_create(
             customer=customer, year=today.year, month=today.month
         )
+        covered_offering_ids = _covered_offering_ids(customer_credit)
         for project in customer.projects.all():
             pattern = patterns.get(project.uuid.hex)
             if not pattern or pattern.get("current") is None:
                 continue
             credit = project_credits.get(project.id) or customer_credit
             fraction = decimal.Decimal(str(pattern["current"])) * elapsed
+            uncovered_current = (pattern.get("uncovered") or {}).get("current")
+            uncovered_fraction = (
+                decimal.Decimal(str(uncovered_current)) * elapsed
+                if uncovered_current is not None
+                else None
+            )
             created += _bill_month_for_project(
-                invoice, project, credit, fraction, suffix="usage so far"
+                invoice,
+                project,
+                credit,
+                fraction,
+                suffix="usage so far",
+                uncovered_fraction=uncovered_fraction,
+                covered_offering_ids=covered_offering_ids,
             )
 
     return created
@@ -226,6 +274,7 @@ def _bill_month(
 ) -> int:
     """Create usage invoice items for one month. Returns the item count."""
     created = 0
+    covered_offering_ids = _covered_offering_ids(customer_credit)
     for project in customer.projects.all():
         credit = project_credits.get(project.id) or customer_credit
         created += _bill_month_for_project(
@@ -233,6 +282,8 @@ def _bill_month(
             project,
             credit,
             _project_fraction(project, patterns, month_index, fraction),
+            uncovered_fraction=_uncovered_fraction(project, patterns, month_index),
+            covered_offering_ids=covered_offering_ids,
         )
 
     return created
@@ -247,8 +298,46 @@ def _project_fraction(project, patterns, month_index, default) -> decimal.Decima
     return decimal.Decimal(str(shape[month_index % len(shape)]))
 
 
-def _bill_month_for_project(invoice, project, credit, fraction, suffix="usage") -> int:
+def _uncovered_fraction(project, patterns, month_index) -> decimal.Decimal | None:
+    """Cost this project carries outside what the credit covers, if it declares any.
+
+    None means the project makes no such distinction, and the whole of it is
+    billed as one — which is what every preset without an `uncovered` block
+    wants, and what this generator did before the key existed.
+    """
+    pattern = (patterns or {}).get(project.uuid.hex) or {}
+    shape = (pattern.get("uncovered") or {}).get("months")
+    if not shape:
+        return None
+    return decimal.Decimal(str(shape[month_index % len(shape)]))
+
+
+def _covered_offering_ids(customer_credit) -> set:
+    """Offerings the credit covers. Empty means unrestricted, as it does in
+    MonthlyCompensation — so a credit naming none covers everything and no
+    project under it can have uncovered cost."""
+    return set(customer_credit.offerings.values_list("id", flat=True))
+
+
+def _bill_month_for_project(
+    invoice,
+    project,
+    credit,
+    fraction,
+    suffix="usage",
+    uncovered_fraction=None,
+    covered_offering_ids=None,
+) -> int:
     """Spread one month's consumption across the project's billable resources.
+
+    `uncovered_fraction` splits the project in two: resources whose offering the
+    organization credit covers are billed at `fraction`, and the rest at
+    `uncovered_fraction`. Both are fractions of the same monthly target, so a
+    preset can say "this project spends its plan on compute and four times that
+    again on storage the credit does not cover" in one legible pair of numbers.
+
+    Left as None — which every preset but the partly-covered scenario does — the
+    whole project is billed together at `fraction`, as before.
 
     Items are saved individually (not bulk-created) so the denormalising
     post_save handler populates project_name/project_uuid, exactly as the
@@ -258,24 +347,42 @@ def _bill_month_for_project(invoice, project, credit, fraction, suffix="usage") 
     if not resources:
         return 0
 
-    target = _monthly_target(credit) * fraction
-    if target <= 0:
-        return 0
+    target = _monthly_target(credit)
+    if uncovered_fraction is None:
+        groups = [(resources, fraction)]
+    else:
+        covered_offering_ids = covered_offering_ids or set()
+        groups = [
+            ([r for r in resources if r.offering_id in covered_offering_ids], fraction),
+            (
+                [r for r in resources if r.offering_id not in covered_offering_ids],
+                uncovered_fraction,
+            ),
+        ]
 
-    per_resource = (target / len(resources)).quantize(decimal.Decimal("0.01"))
-    if per_resource <= 0:
-        return 0
+    created = 0
+    for group, group_fraction in groups:
+        if not group:
+            continue
+        group_target = target * group_fraction
+        if group_target <= 0:
+            continue
 
-    for resource in resources:
-        invoice_models.InvoiceItem.objects.create(
-            invoice=invoice,
-            project=project,
-            resource=resource,
-            unit_price=per_resource,
-            quantity=1,
-            unit=Units.QUANTITY,
-            name=f"{resource.name} {suffix}",
-            details={"demo_generated": True},
-        )
+        per_resource = (group_target / len(group)).quantize(decimal.Decimal("0.01"))
+        if per_resource <= 0:
+            continue
 
-    return len(resources)
+        for resource in group:
+            invoice_models.InvoiceItem.objects.create(
+                invoice=invoice,
+                project=project,
+                resource=resource,
+                unit_price=per_resource,
+                quantity=1,
+                unit=Units.QUANTITY,
+                name=f"{resource.name} {suffix}",
+                details={"demo_generated": True},
+            )
+        created += len(group)
+
+    return created

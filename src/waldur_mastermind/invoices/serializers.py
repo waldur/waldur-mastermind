@@ -1170,6 +1170,12 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
     spendable_value = serializers.DecimalField(
         max_digits=16, decimal_places=5, read_only=True
     )
+    # Declared for the same reason as spendable_value: a bare ReadOnlyField
+    # leaves drf-spectacular nothing to infer from, and the generated SDK then
+    # types as a number what the API renders as a string.
+    creditable_cost_this_month = serializers.DecimalField(
+        max_digits=16, decimal_places=5, read_only=True, allow_null=True
+    )
     is_limited_by_organization_credit = serializers.ReadOnlyField()
 
     # Organization-wide figures. ProjectCredit is readable by project roles so
@@ -1232,6 +1238,7 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "customer_credit",
             "allocated_customer_credit",
             "consumption_last_month",
+            "creditable_cost_this_month",
             "spendable_value",
             "is_limited_by_organization_credit",
             "offerings",

@@ -609,6 +609,85 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
         return "payment"
 
 
+def creditable_items(
+    invoice, credit, project=None
+) -> tuple[list["InvoiceItem"], dict[str, decimal.Decimal]]:
+    """Items on an invoice that a credit may be drawn against.
+
+    Returns the chargeable items and, keyed by item uuid, the volume discounts
+    paired with them.
+
+    Eligibility lives here because two callers must agree on it: the monthly
+    compensation run, which draws the credit, and the credit's own report of
+    what the open month will draw, which has to answer before any compensation
+    item exists.
+
+    An item with no resource cannot be attributed to an offering, so no credit
+    covers it. An empty offering list on the credit means unrestricted, not
+    "nothing" — the restriction only applies when one is stated.
+    """
+    items_queryset = invoice.items.exclude(resource__isnull=True).select_related(
+        "resource", "resource__offering", "resource__project", "project"
+    )
+
+    credit_offering_ids = set(credit.offerings.values_list("id", flat=True))
+    if credit_offering_ids:
+        items_queryset = items_queryset.filter(
+            resource__offering_id__in=credit_offering_ids
+        )
+
+    if project is not None:
+        items_queryset = items_queryset.filter(resource__project=project)
+
+    # Volume-discount line items are already negative reductions paired with
+    # a chargeable item (via details["discount_of_item"]). They are not
+    # compensated themselves, but their reduction must lower the credit
+    # drawn for the item they discount — otherwise credit is consumed on the
+    # gross price and the invoice can go negative. Sum each item's paired
+    # discounts so compensation operates on the net cost. Filtered in Python
+    # to avoid JSON-key exclude semantics dropping items whose details lack
+    # the key entirely.
+    discount_by_item: dict[str, decimal.Decimal] = {}
+    chargeable_items: list[InvoiceItem] = []
+    for it in items_queryset:
+        details = it.details or {}
+        # A compensation is a draw already made, not a cost to draw against.
+        # The compensation run clears them before recalculating, so it never
+        # sees one; the open-month report is not so lucky.
+        if details.get("is_compensation"):
+            continue
+        if details.get("is_discount"):
+            target = details.get("discount_of_item")
+            if target:
+                discount_by_item[target] = (
+                    discount_by_item.get(target, decimal.Decimal(0)) + it.price
+                )
+        else:
+            chargeable_items.append(it)
+
+    return chargeable_items, discount_by_item
+
+
+def creditable_cost(invoice, credit, project=None) -> decimal.Decimal:
+    """Cost on an invoice that a credit is eligible to be drawn against.
+
+    Net of paired volume discounts and floored per item, matching what the
+    compensation run will actually draw. Uncapped by the credit balance: this
+    reports the demand on the credit, not what it can afford to meet.
+    """
+    chargeable_items, discount_by_item = creditable_items(invoice, credit, project)
+    return sum(
+        (
+            max(
+                item.price + discount_by_item.get(item.uuid.hex, decimal.Decimal(0)),
+                decimal.Decimal(0),
+            )
+            for item in chargeable_items
+        ),
+        decimal.Decimal(0),
+    )
+
+
 class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     class MinimalConsumptionLogic:
         FIXED = "fixed"
@@ -792,6 +871,43 @@ class ProjectCredit(BaseCredit):
         )
         consumption = sum([i.total for i in items]) or 0
         return consumption * -1
+
+    @property
+    def creditable_cost_this_month(self) -> float | None:
+        """Cost booked so far this month that this credit will be drawn against.
+
+        Not a draw: compensation is written when the month is closed, so until
+        then the ledger says nothing about the open month and the only honest
+        forecast is the eligible cost standing on the invoice.
+
+        Eligible is the operative word. A credit covers the offerings named on
+        the organization balance and no others, so a project buying storage
+        outside that list carries cost its credit will never touch. Reporting
+        the whole project invoice here instead compares that cost against a
+        credit-scoped target and overstates the draw by whatever the credit
+        does not cover.
+
+        None when the customer has no open invoice for this month — no billing
+        period is not the same statement as "nothing to draw".
+        """
+        today = datetime.date.today()
+        invoice = Invoice.objects.filter(
+            year=today.year,
+            month=today.month,
+            customer=self.project.customer,
+        ).first()
+
+        if not invoice:
+            return None
+
+        # As in consumption_last_month: the organization credit can be deleted
+        # while project allocations survive, and without it nothing defines
+        # which offerings are covered, so nothing is drawable.
+        credit = CustomerCredit.objects.filter(customer=self.project.customer).first()
+        if not credit:
+            return 0
+
+        return creditable_cost(invoice, credit, project=self.project)
 
     @property
     def spendable_value(self) -> decimal.Decimal:

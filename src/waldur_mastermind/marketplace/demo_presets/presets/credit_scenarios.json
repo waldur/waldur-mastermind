@@ -57,6 +57,14 @@
       "description": "Organization credit is spent, so allocations cannot be drawn.",
       "email": "credits@demo.waldur.com",
       "country": "EE"
+    },
+    {
+      "uuid": "a3c00000000000000000000000000004",
+      "name": "Credit scenarios (partly covered)",
+      "abbreviation": "CSP",
+      "description": "The credit covers compute only, so the project's storage cost is never compensated.",
+      "email": "credits@demo.waldur.com",
+      "country": "EE"
     }
   ],
   "service_providers": [
@@ -303,6 +311,12 @@
       "name": "13 Credit expired unspent",
       "customer_uuid": "a3c00000000000000000000000000001",
       "description": "The credit's end date has passed. Everything left on the balance was forfeited at the start of this month and shows as Lost."
+    },
+    {
+      "uuid": "c3c00000000000000000000000000014",
+      "name": "14 Cost outside the credit",
+      "customer_uuid": "a3c00000000000000000000000000004",
+      "description": "Compute is credit-funded, storage is not. The month's invoice is several times the draw, so pacing must count only the covered part."
     }
   ],
   "resources": [
@@ -653,6 +667,32 @@
         "storage": 20
       },
       "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000001401",
+      "name": "14 Research Data Storage (outside the credit)",
+      "offering_uuid": "f3c00000000000000000000000000001",
+      "project_uuid": "c3c00000000000000000000000000014",
+      "plan_uuid": "b3c00000000000000000000000000001",
+      "state": 2,
+      "limits": {
+        "storage": 20
+      },
+      "attributes": {}
+    },
+    {
+      "uuid": "d3c00000000000000000000000001402",
+      "name": "14 SLURM HPC Allocation (covered)",
+      "offering_uuid": "f3c00000000000000000000000000002",
+      "project_uuid": "c3c00000000000000000000000000014",
+      "plan_uuid": "b3c00000000000000000000000000002",
+      "state": 2,
+      "limits": {
+        "cpu": 300000,
+        "ram": 900000,
+        "gpu": 12000
+      },
+      "attributes": {}
     }
   ],
   "user_roles": [
@@ -672,6 +712,24 @@
       "role_name": "PROJECT.MANAGER",
       "scope_type": "structure.project",
       "scope_uuid": "c3c00000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "99c00000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000002",
+      "user_username": "owner",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "a3c00000000000000000000000000004",
+      "is_active": true
+    },
+    {
+      "uuid": "99c00000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "c3c00000000000000000000000000014",
       "is_active": true
     }
   ],
@@ -704,6 +762,18 @@
       "minimal_consumption_logic": "fixed",
       "grace_coefficient": "20",
       "apply_as_minimal_consumption": false
+    },
+    {
+      "uuid": "ca000000000000000000000000000004",
+      "customer_uuid": "a3c00000000000000000000000000004",
+      "value": "200000",
+      "expected_consumption": "10000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "20",
+      "apply_as_minimal_consumption": false,
+      "offering_uuids": [
+        "f3c00000000000000000000000000002"
+      ]
     }
   ],
   "project_credits": [
@@ -827,6 +897,15 @@
       "minimal_consumption_logic": "fixed",
       "apply_as_minimal_consumption": true,
       "end_date": "relative:-1months@month_start"
+    },
+    {
+      "uuid": "cbc00000000000000000000000000014",
+      "project_uuid": "c3c00000000000000000000000000014",
+      "value": "120000",
+      "expected_consumption": "10000",
+      "grace_coefficient": "20",
+      "minimal_consumption_logic": "fixed",
+      "apply_as_minimal_consumption": true
     }
   ],
   "project_estimated_cost_policies": [
@@ -851,8 +930,8 @@
   ],
   "_metadata": {
     "title": "Credit scenarios",
-    "description": "Thirteen projects, each holding the project dashboard's credit views in one state: on/behind/ahead of pace, credit expiring this month and in two months, balance exhaustion, project and resource end dates, linear ramp-up, a policy-paused resource, organizations whose credit is capped or spent, and a credit forfeited unspent when its end date passed.",
-    "version": "1.1.0",
+    "description": "Fourteen projects, each holding the project dashboard's credit views in one state: on/behind/ahead of pace, credit expiring this month and in two months, balance exhaustion, project and resource end dates, linear ramp-up, a policy-paused resource, organizations whose credit is capped or spent, a credit forfeited unspent when its end date passed, and a project whose credit covers only some of the offerings it buys from.",
+    "version": "1.2.0",
     "scenarios": [
       "01 On pace",
       "02 Behind pace - credit being lost",
@@ -866,7 +945,8 @@
       "10 Paused by policy",
       "11 Organization credit lower than allocation",
       "12 Organization credit exhausted",
-      "13 Credit expired unspent"
+      "13 Credit expired unspent",
+      "14 Cost outside the credit"
     ],
     "credit_history": {
       "c3c00000000000000000000000000001": {
@@ -976,6 +1056,28 @@
           0.15
         ],
         "current": 0.0
+      },
+      "c3c00000000000000000000000000014": {
+        "months": [
+          1.0,
+          0.95,
+          1.05,
+          1.0,
+          0.9,
+          1.0
+        ],
+        "current": 1.0,
+        "uncovered": {
+          "months": [
+            4.8,
+            5.0,
+            4.6,
+            5.2,
+            4.9,
+            5.0
+          ],
+          "current": 5.0
+        }
       }
     }
   }

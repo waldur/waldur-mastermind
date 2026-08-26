@@ -72,46 +72,9 @@ class MonthlyCompensation:
                 project_id__in=items_projects_ids
             ).select_related("project")
         }
-        credit_offerings = list(self.credit.offerings.all())
-        credit_offering_ids = (
-            set(offering.id for offering in credit_offerings)
-            if credit_offerings
-            else set()
+        chargeable_items, discount_by_item = models.creditable_items(
+            self.invoice, self.credit
         )
-
-        # Optimize query to avoid N+1 problem by using select_related and filtering in database
-        items_queryset = self.invoice.items.exclude(
-            resource__isnull=True
-        ).select_related(
-            "resource", "resource__offering", "resource__project", "project"
-        )
-
-        # Filter by credit offerings in the database if they exist
-        if credit_offering_ids:
-            items_queryset = items_queryset.filter(
-                resource__offering_id__in=credit_offering_ids
-            )
-
-        # Volume-discount line items are already negative reductions paired with
-        # a chargeable item (via details["discount_of_item"]). They are not
-        # compensated themselves, but their reduction must lower the credit
-        # drawn for the item they discount — otherwise credit is consumed on the
-        # gross price and the invoice can go negative. Sum each item's paired
-        # discounts so compensation operates on the net cost. Filtered in Python
-        # to avoid JSON-key exclude semantics dropping items whose details lack
-        # the key entirely.
-        discount_by_item: dict[str, decimal.Decimal] = {}
-        chargeable_items: list[models.InvoiceItem] = []
-        for it in items_queryset:
-            details = it.details or {}
-            if details.get("is_discount"):
-                target = details.get("discount_of_item")
-                if target:
-                    discount_by_item[target] = (
-                        discount_by_item.get(target, decimal.Decimal(0)) + it.price
-                    )
-            else:
-                chargeable_items.append(it)
 
         items: list[models.InvoiceItem] = sorted(
             chargeable_items,
