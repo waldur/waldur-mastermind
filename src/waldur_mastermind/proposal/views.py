@@ -167,20 +167,18 @@ def validate_purchase_orders_present(proposal):
     ``require_purchase_order_upload`` but owned by the call manager afterwards —
     the offering flag alone gates *order approval*, which happens well after a
     proposal is reviewed.
+
+    The rule itself lives on the model so ``Proposal.can_submit`` reports
+    exactly what this enforces, and the form can say what is missing rather
+    than letting the applicant discover it from a rejected request.
     """
-    missing = [
-        requested_resource.requested_offering.offering.name
-        for requested_resource in proposal.requestedresource_set.filter(
-            requested_offering__require_purchase_order=True
-        ).select_related("requested_offering__offering")
-        if not requested_resource.has_purchase_order
-    ]
+    missing = proposal.offerings_missing_purchase_orders()
     if missing:
         raise exceptions.ValidationError(
             _(
                 "A purchase order is required for the following offerings: %(offerings)s."
             )
-            % {"offerings": ", ".join(sorted(missing))}
+            % {"offerings": ", ".join(missing)}
         )
 
 
@@ -195,23 +193,13 @@ def validate_requested_amounts_present(proposal):
     Offerings with nothing to ask for (no limit or prepaid component) are
     exempt: there is no amount to name in the first place.
     """
-    missing = []
-    for requested_resource in proposal.requestedresource_set.select_related(
-        "requested_offering__offering"
-    ):
-        offering = requested_resource.requested_offering.offering
-        requestable = offering.get_limit_components()
-        if not requestable:
-            continue
-        limits = requested_resource.limits or {}
-        if not any(limits.get(component_type) for component_type in requestable):
-            missing.append(offering.name)
+    missing = proposal.offerings_missing_requested_amounts()
     if missing:
         raise exceptions.ValidationError(
             _(
                 "Requested amounts are missing for the following offerings: %(offerings)s."
             )
-            % {"offerings": ", ".join(sorted(set(missing)))}
+            % {"offerings": ", ".join(missing)}
         )
 
 

@@ -488,3 +488,61 @@ class AllocationCarryThroughEndToEndTest(test.APITestCase):
             self.assertEqual(document.read(), PDF_BODY)
         self.assertEqual(order.request_comment, "PO-4711")
         self.assertNotEqual(order.state, OrderStates.PENDING_CONSUMER)
+
+
+class CanSubmitReportingTest(test.APITestCase):
+    """What the form is told, before the applicant presses Submit.
+
+    The submit action has always refused these; can_submit is how the reason
+    reaches the button instead of arriving as a rejected request.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.requested_offering = factories.RequestedOfferingFactory(
+            call=self.fixture.call, offering=self.fixture.offering
+        )
+        self.requested_resource = factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.requested_offering,
+            resource=None,
+            limits={list(self.fixture.offering.get_limit_components())[0]: 10}
+            if self.fixture.offering.get_limit_components()
+            else {},
+        )
+
+    def test_nothing_missing_is_reported_as_submittable(self):
+        can_submit, error = self.proposal.can_submit()
+
+        self.assertTrue(can_submit)
+        self.assertIsNone(error)
+
+    def test_a_missing_purchase_order_is_named(self):
+        self.requested_offering.require_purchase_order = True
+        self.requested_offering.save()
+
+        can_submit, error = self.proposal.can_submit()
+
+        self.assertFalse(can_submit)
+        self.assertIn(self.fixture.offering.name, str(error))
+
+    def test_a_reference_alone_clears_it(self):
+        self.requested_offering.require_purchase_order = True
+        self.requested_offering.save()
+        self.requested_resource.purchase_order_reference = "PO-1"
+        self.requested_resource.save()
+
+        can_submit, _error = self.proposal.can_submit()
+
+        self.assertTrue(can_submit)
+
+    def test_a_missing_amount_is_named(self):
+        self.requested_resource.limits = {}
+        self.requested_resource.save()
+
+        can_submit, error = self.proposal.can_submit()
+
+        if self.fixture.offering.get_limit_components():
+            self.assertFalse(can_submit)
+            self.assertIn(self.fixture.offering.name, str(error))

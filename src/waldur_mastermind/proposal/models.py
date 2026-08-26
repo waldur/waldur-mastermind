@@ -934,10 +934,59 @@ class Proposal(
         )
         return completion
 
+    def offerings_missing_purchase_orders(self) -> list[str]:
+        """Offerings whose call entry demands a purchase order and has none."""
+        return sorted(
+            {
+                requested_resource.requested_offering.offering.name
+                for requested_resource in self.requestedresource_set.filter(
+                    requested_offering__require_purchase_order=True
+                ).select_related("requested_offering__offering")
+                if not requested_resource.has_purchase_order
+            }
+        )
+
+    def offerings_missing_requested_amounts(self) -> list[str]:
+        """Offerings asked for without naming any amount.
+
+        Offerings with nothing to ask for (no limit or prepaid component) are
+        exempt: there is no amount to name in the first place.
+        """
+        missing = set()
+        for requested_resource in self.requestedresource_set.select_related(
+            "requested_offering__offering"
+        ):
+            offering = requested_resource.requested_offering.offering
+            requestable = offering.get_limit_components()
+            if not requestable:
+                continue
+            limits = requested_resource.limits or {}
+            if not any(limits.get(component_type) for component_type in requestable):
+                missing.add(offering.name)
+        return sorted(missing)
+
     def can_submit(self):
-        """Check if proposal can be submitted."""
-        # Compliance checklists are for evaluation only, not submission blocking
-        # Only basic validation - proposals can always be submitted
+        """Whether the proposal may leave draft, and why not when it may not.
+
+        Reports the same conditions the submit action enforces, so the form can
+        say what is missing instead of letting the applicant find out from a
+        rejected request. Compliance checklists are for evaluation only and
+        never block submission.
+        """
+        missing_amounts = self.offerings_missing_requested_amounts()
+        if missing_amounts:
+            return False, _(
+                "Requested amounts are missing for the following offerings: "
+                "%(offerings)s."
+            ) % {"offerings": ", ".join(missing_amounts)}
+
+        missing_orders = self.offerings_missing_purchase_orders()
+        if missing_orders:
+            return False, _(
+                "A purchase order is required for the following offerings: "
+                "%(offerings)s."
+            ) % {"offerings": ", ".join(missing_orders)}
+
         return True, None
 
     def save(self, *args, **kwargs):

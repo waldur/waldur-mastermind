@@ -385,6 +385,20 @@ class MarketplaceBillingService:
                     quantity *= core_utils.calculate_duration_months(
                         start_date, resource.end_date
                     )
+                else:
+                    # A prepaid component with no period is charged for a single
+                    # month. That is occasionally right — an open-ended grant —
+                    # but it is also what a lost end date looks like, and the
+                    # difference is a whole subscription's worth of invoice, so
+                    # say which one happened rather than let it pass in silence.
+                    logger.warning(
+                        "Prepaid component %s of resource %s (UUID: %s) is being "
+                        "charged for a single period: the resource carries no end "
+                        "date, so there is no duration to multiply by.",
+                        component_type,
+                        resource.name,
+                        resource.uuid.hex,
+                    )
             elif is_one or is_switch:
                 unit = invoice_models.Units.QUANTITY
                 quantity = 1
