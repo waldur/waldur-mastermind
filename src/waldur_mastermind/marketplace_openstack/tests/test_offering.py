@@ -500,6 +500,51 @@ class OfferingDetailsTest(test.APITestCase):
         self.assertEqual(actual_types, expected_types)
 
 
+class OfferingQuotasVisibilityTest(test.APITestCase):
+    """The public payload may carry tenant quotas, but not provider capacity.
+
+    The tenant offering is scoped to the provider's service settings; the
+    per-tenant offerings created for it are scoped to a single customer's tenant.
+    """
+
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.fixture.settings.set_quota_limit("vcpu", 100)
+        self.fixture.settings.set_quota_usage("vcpu", 40)
+        self.tenant_offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING,
+            shared=True,
+            scope=self.fixture.settings,
+        )
+        marketplace_factories.PlanFactory(offering=self.tenant_offering)
+
+        self.tenant = self.fixture.tenant
+        self.tenant.set_quota_limit("vcpu", 8)
+        self.tenant.set_quota_usage("vcpu", 3)
+        self.instance_offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING,
+            shared=False,
+            customer=self.tenant.project.customer,
+            project=self.tenant.project,
+            parent=self.tenant_offering,
+            scope=self.tenant,
+        )
+
+    def _get_public_quotas(self, offering):
+        self.client.force_authenticate(self.fixture.staff)
+        url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {quota["name"]: quota for quota in response.data["quotas"]}
+
+    def test_tenant_offering_conceals_provider_capacity(self):
+        self.assertEqual(self._get_public_quotas(self.tenant_offering), {})
+
+    def test_per_tenant_offering_exposes_tenant_quotas(self):
+        quotas = self._get_public_quotas(self.instance_offering)
+        self.assertEqual(quotas["vcpu"], {"name": "vcpu", "usage": 3, "limit": 8})
+
+
 @ddt
 class OfferingNameTest(test.APITestCase):
     def setUp(self):
