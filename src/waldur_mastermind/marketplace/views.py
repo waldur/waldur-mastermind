@@ -181,8 +181,8 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     filter_offering_permissions,
+    filter_orders_for_user,
     get_connected_offerings,
-    get_connected_offerings_by_permission,
     get_user_resource_project_ids,
 )
 from waldur_mastermind.marketplace.utils import (
@@ -7323,25 +7323,10 @@ class OrderViewSet(
         if user.is_staff or user.is_support:
             return self.queryset
 
-        connected_projects = get_connected_projects_by_permission(
-            user, PermissionEnum.LIST_ORDERS
-        )
-        connected_customers = get_connected_customers_by_permission(
-            user, PermissionEnum.LIST_ORDERS
-        )
-        connected_offerings = get_connected_offerings_by_permission(
-            user, PermissionEnum.LIST_ORDERS
-        )
-
         # Use a subquery to find matching order IDs to avoid
         # SELECT DISTINCT across all select_related columns (Fixes PUHURI-PORTALS-ETK)
         order_ids = Subquery(
-            models.Order.objects.filter(
-                Q(project__in=connected_projects)
-                | Q(project__customer__in=connected_customers)
-                | Q(offering__customer__in=connected_customers)
-                | Q(offering__in=connected_offerings)
-            ).values("id")
+            filter_orders_for_user(models.Order.objects.all(), user).values("id")
         )
         return self.queryset.filter(id__in=order_ids)
 

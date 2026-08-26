@@ -6,4 +6,6 @@ class MediaConfig(AppConfig):
     verbose_name = "Media"
 
     def ready(self):
-        pass
+        from . import access
+
+        access.autodiscover()

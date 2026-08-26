@@ -4,6 +4,7 @@ import uuid
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.indexes import GinIndex
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
@@ -13,6 +14,10 @@ from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
 
 from . import enums, utils
+
+# Storage prefix for answer attachments. Shared with checklist.media_access so
+# the access rule cannot drift from where the files are actually written.
+CHECKLIST_FILE_PREFIX = "checklist_files/"
 
 
 class Checklist(
@@ -471,7 +476,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         """Store file content using Waldur's media system."""
         # Generate unique filename
 
-        unique_filename = f"checklist_files/{uuid.uuid4().hex}_{filename}"
+        unique_filename = f"{CHECKLIST_FILE_PREFIX}{uuid.uuid4().hex}_{filename}"
 
         # Create file record
         content_hash = media_utils.get_image_hash(content)
@@ -794,6 +799,11 @@ class Answer(core_models.UuidMixin, TimeStampedModel):
 
     class Meta:
         unique_together = ["completion", "question", "user"]
+        indexes = [
+            # Media downloads resolve a stored file back to its answer with a
+            # jsonb containment query on answer_data.
+            GinIndex(fields=["answer_data"], name="checklist_answer_data_gin"),
+        ]
 
     def __str__(self):
         return f"{self.user.username} - {self.question.description[:30]}..."

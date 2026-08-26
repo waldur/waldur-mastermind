@@ -994,11 +994,14 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         if instance.state == CallStates.ARCHIVED:
             raise IncorrectStateException()
 
-        if hasattr(request.data, "getlist"):
-            documents = request.data.getlist("documents", [])
-        else:
-            documents = request.data.get("documents", [])
-        description = request.data.get("description", "")
+        # Validate through the serializer the schema already advertises.
+        # Reading request.data directly let any string be written straight into
+        # CallDocument.file, so a caller could store an arbitrary storage path
+        # instead of an upload.
+        serializer = serializers.CallAttachDocumentsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        documents = serializer.validated_data["documents"]
+        description = serializer.validated_data.get("description", "")
 
         for file_data in documents:
             obj, created = models.CallDocument.objects.get_or_create(
@@ -1031,15 +1034,20 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         instance: models.Call = self.get_object()
         if instance.state == CallStates.ARCHIVED:
             raise IncorrectStateException()
-        if hasattr(request.data, "getlist"):
-            documents = request.data.getlist("documents", [])
-        else:
-            documents = request.data.get("documents", [])
-        for file_data in documents:
-            models.CallDocument.objects.get(
-                call=instance,
-                uuid=file_data,
-            ).delete()
+        serializer = serializers.CallDetachDocumentsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        documents = serializer.validated_data["documents"]
+        for document_uuid in documents:
+            try:
+                document = models.CallDocument.objects.get(
+                    call=instance,
+                    uuid=document_uuid,
+                )
+            except models.CallDocument.DoesNotExist:
+                raise exceptions.NotFound(
+                    f"Document {document_uuid} is not attached to this call."
+                )
+            document.delete()
             event_logger.emit(
                 f"Attachment for call {instance.name} has been removed.",
                 event_type=EventType.CALL_DOCUMENT_REMOVED,

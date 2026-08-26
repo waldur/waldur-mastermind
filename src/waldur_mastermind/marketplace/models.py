@@ -2696,6 +2696,24 @@ class Order(
         ordering = ["created", "id"]
         indexes = [
             Index(fields=["state", "-created"], name="mp_order_state_created_idx"),
+            # Media downloads resolve an attachment back to its order by
+            # storage path. Partial, because the overwhelming majority of
+            # orders carry no attachment.
+            Index(
+                fields=["attachment"],
+                name="mp_order_attachment_idx",
+                condition=Q(attachment__isnull=False),
+            ),
+            Index(
+                fields=["provider_message_attachment"],
+                name="mp_order_provider_att_idx",
+                condition=Q(provider_message_attachment__isnull=False),
+            ),
+            Index(
+                fields=["consumer_message_attachment"],
+                name="mp_order_consumer_att_idx",
+                condition=Q(consumer_message_attachment__isnull=False),
+            ),
         ]
 
     def _get_cost_dates(self):

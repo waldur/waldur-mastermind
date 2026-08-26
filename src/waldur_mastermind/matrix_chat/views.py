@@ -8,7 +8,6 @@ import yaml
 from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
 from django.http import FileResponse, Http404
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
@@ -25,11 +24,11 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import (
     get_connected_customers,
-    get_connected_projects,
 )
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Project
 
 from . import filters, livekit_client, matrix_client, models, serializers, tasks
+from .managers import get_accessible_room_ids
 
 logger = logging.getLogger(__name__)
 
@@ -46,26 +45,6 @@ def _token_fingerprint(token):
     """Return a short SHA-256 fingerprint of a secret token for display."""
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return f"sha256:{digest[:12]}"
-
-
-def _get_accessible_room_ids(user):
-    """Get MatrixRoom IDs accessible to the user based on project/customer roles."""
-    project_ct = ContentType.objects.get_for_model(Project)
-    customer_ct = ContentType.objects.get_for_model(Customer)
-
-    connected_projects = get_connected_projects(user)
-    connected_customers = get_connected_customers(user)
-
-    # Include projects that belong to user's connected customers
-    projects_via_customer = Project.objects.filter(
-        customer__in=connected_customers
-    ).values_list("id", flat=True)
-
-    return models.MatrixRoom.objects.filter(
-        Q(content_type=project_ct, object_id__in=connected_projects)
-        | Q(content_type=project_ct, object_id__in=projects_via_customer)
-        | Q(content_type=customer_ct, object_id__in=connected_customers)
-    ).values_list("id", flat=True)
 
 
 class MatrixEnabledWriteGuardMixin:
@@ -103,7 +82,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
             return queryset.none()
         if user.is_staff or user.is_support:
             return queryset
-        return queryset.filter(id__in=_get_accessible_room_ids(user))
+        return queryset.filter(id__in=get_accessible_room_ids(user))
 
     @extend_schema(
         request=serializers.MatrixRoomCreateSerializer,
@@ -448,7 +427,7 @@ class MatrixHistoryExportViewSet(ActionsViewSet):
             return queryset.none()
         if user.is_staff or user.is_support:
             return queryset
-        return queryset.filter(room__id__in=_get_accessible_room_ids(user))
+        return queryset.filter(room__id__in=get_accessible_room_ids(user))
 
 
 class MatrixCredentialsView(views.APIView):
@@ -1168,7 +1147,7 @@ class MatrixHistoryExportDownloadView(views.APIView):
 
         user = request.user
         if not (user.is_staff or user.is_support):
-            if export.room.id not in _get_accessible_room_ids(user):
+            if export.room.id not in get_accessible_room_ids(user):
                 raise Http404
 
         file_field = export.export_file if kind == "export" else export.media_file
