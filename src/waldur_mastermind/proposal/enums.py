@@ -797,9 +797,10 @@ class ProposalFieldUsages:
 
 
 # Every configurable Project details field, with the consumers traced in
-# waldur/waldur-mastermind#291. `name` is not here: it becomes the project at
-# allocation and is always required. `duration_in_days` is not here either: a
-# call must state the length of what it awards.
+# waldur/waldur-mastermind#291. `name` is not here: it is always required, and
+# `allocate_proposal` builds the granted project's name from the call, the
+# round's start date and it. `duration_in_days` is not here either: a call must
+# state the length of what it awards.
 PROPOSAL_CONFIGURABLE_FIELDS = {
     "project_summary": (
         ProposalFieldUsages.APPLICANT_FORM,
