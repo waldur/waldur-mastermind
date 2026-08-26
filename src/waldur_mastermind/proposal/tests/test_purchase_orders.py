@@ -1,6 +1,8 @@
 from unittest import mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -546,3 +548,51 @@ class CanSubmitReportingTest(test.APITestCase):
         if self.fixture.offering.get_limit_components():
             self.assertFalse(can_submit)
             self.assertIn(self.fixture.offering.name, str(error))
+
+
+class CanSubmitQueryCountTest(test.APITestCase):
+    """can_submit runs on every proposal a list serializes.
+
+    ProposalViewSet prefetches what it reads, and the model filters that
+    prefetch in Python; a ``.filter()`` on the relation would ignore it and
+    cost a query per row. The neighbouring annotations on the same queryset
+    exist for exactly this reason.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.requested_offering = factories.RequestedOfferingFactory(
+            call=self.fixture.call, offering=self.fixture.offering
+        )
+
+    def _add_proposals(self, count):
+        for _ in range(count):
+            proposal = factories.ProposalFactory(round=self.fixture.round)
+            factories.RequestedResourceFactory(
+                proposal=proposal,
+                requested_offering=self.requested_offering,
+                resource=None,
+            )
+
+    def _queries_now(self):
+        queryset = models.Proposal.objects.prefetch_related(
+            "requestedresource_set__requested_offering__offering__components"
+        )
+        with CaptureQueriesContext(connection) as captured:
+            for proposal in queryset:
+                proposal.can_submit()
+        return len(captured.captured_queries)
+
+    def test_cost_does_not_grow_with_the_number_of_proposals(self):
+        self._add_proposals(2)
+        few = self._queries_now()
+
+        self._add_proposals(6)
+        many = self._queries_now()
+
+        self.assertEqual(
+            few,
+            many,
+            f"can_submit cost {few} queries over 2 proposals and {many} over 8; "
+            "something is querying per row instead of reading the prefetch.",
+        )

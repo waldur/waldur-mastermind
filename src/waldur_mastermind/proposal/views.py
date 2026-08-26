@@ -2606,6 +2606,14 @@ class ProposalViewSet(
                 ),
                 _latest_step_status=Subquery(latest_step_status),
             )
+            # ProposalSerializer.can_submit reads every requested resource, its
+            # call entry and the offering's components. Prefetched here for the
+            # same reason as the annotations above: without it a list pays three
+            # queries per proposal. Proposal.offerings_missing_* filter these in
+            # Python so the prefetch is actually used.
+            .prefetch_related(
+                "requestedresource_set__requested_offering__offering__components",
+            )
             .order_by("created")
         )
 
