@@ -444,3 +444,64 @@ def test_no_full_run_for_image_build_job(fake_diff_inputs):
     from select_tests import ci_diff_affects_tests
 
     assert ci_diff_affects_tests("BASE", "HEAD") is False
+
+
+# ---------------------------------------------------------------------------
+# Second-level attribution: rules-only diffs (#293)
+# ---------------------------------------------------------------------------
+
+RULES_YAML = textwrap.dedent("""\
+    Generate OpenAPI schema:
+      extends: .Unit test runner
+      stage: test
+      rules:
+        - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      script:
+        - waldur spectacular
+    """)
+
+
+def test_section_map_attributes_second_level_keys():
+    from select_tests import build_line_to_section_map
+
+    m = build_line_to_section_map(RULES_YAML)
+    assert m[1] == ("Generate OpenAPI schema", None)  # the job header
+    assert m[3] == ("Generate OpenAPI schema", "stage")
+    assert m[5] == ("Generate OpenAPI schema", "rules")  # list item under rules
+    assert m[7] == ("Generate OpenAPI schema", "script")
+
+
+def test_no_full_run_when_only_rules_change(fake_diff_inputs):
+    """The !6135 case: gating a test job's rules must not run the suite."""
+    fake_diff_inputs["base"] = RULES_YAML
+    fake_diff_inputs["head"] = RULES_YAML.replace(
+        '    - if: $CI_PIPELINE_SOURCE == "merge_request_event"\n',
+        '    - if: $CI_PIPELINE_SOURCE == "merge_request_event"\n'
+        "      changes:\n        - src/**/*\n",
+    )
+    fake_diff_inputs["diff"] = textwrap.dedent("""\
+        @@ -5,0 +6,2 @@
+        +      changes:
+        +        - src/**/*
+        """)
+    from select_tests import ci_diff_affects_tests
+
+    assert ci_diff_affects_tests("BASE", "HEAD") is False
+
+
+def test_full_run_when_script_changes_alongside_rules(fake_diff_inputs):
+    """A script change in the same job still forces a full run."""
+    head = RULES_YAML.replace("- waldur spectacular", "- waldur spectacular --validate")
+    fake_diff_inputs["base"] = RULES_YAML
+    fake_diff_inputs["head"] = head
+    fake_diff_inputs["diff"] = textwrap.dedent("""\
+        @@ -5,1 +5,1 @@
+        -    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+        +    - if: $CI_PIPELINE_SOURCE == "schedule"
+        @@ -7,1 +7,1 @@
+        -    - waldur spectacular
+        +    - waldur spectacular --validate
+        """)
+    from select_tests import ci_diff_affects_tests
+
+    assert ci_diff_affects_tests("BASE", "HEAD") is True

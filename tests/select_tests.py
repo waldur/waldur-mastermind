@@ -328,6 +328,69 @@ def build_line_to_top_level_key_map(yaml_text: str) -> dict[int, str | None]:
     return result
 
 
+def build_line_to_section_map(
+    yaml_text: str,
+) -> dict[int, tuple[str | None, str | None]]:
+    """Map every 1-indexed line to (top_level_key, second_level_key).
+
+    The second-level key is the job property a line belongs to — `rules`,
+    `script`, `variables` and so on. It is needed because *which* job changed
+    is not enough to decide whether the test suite must run: a diff confined to
+    a job's `rules:` only changes when that job is scheduled, never what the
+    Python suite does. See #293.
+
+    The block's base indent is taken from its first indented line rather than
+    assumed to be two spaces, so a differently-indented job still attributes
+    correctly. Deeper lines and list items inherit the current second-level key.
+    """
+    result: dict[int, tuple[str | None, str | None]] = {}
+    top: str | None = None
+    second: str | None = None
+    base_indent: int | None = None
+    for line_no, line in enumerate(yaml_text.split("\n"), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            result[line_no] = (top, second)
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent == 0:
+            if not line.startswith("-"):
+                head = line.split("#", 1)[0].rstrip()
+                if ":" in head and head.split(":", 1)[0].strip():
+                    top = head.split(":", 1)[0].strip()
+                    second = None
+                    base_indent = None
+            result[line_no] = (top, second)
+            continue
+        if base_indent is None:
+            base_indent = indent
+        if indent == base_indent and not stripped.startswith("-"):
+            head = stripped.split("#", 1)[0].rstrip()
+            if ":" in head and head.split(":", 1)[0].strip():
+                second = head.split(":", 1)[0].strip()
+        result[line_no] = (top, second)
+    return result
+
+
+def touched_sections(
+    diff_text: str, base_yaml: str, head_yaml: str
+) -> dict[str, set[str | None]]:
+    """Return {job_name: {second_level_keys touched}} for a unified diff."""
+    base_map = build_line_to_section_map(base_yaml)
+    head_map = build_line_to_section_map(head_yaml)
+    sections: dict[str, set[str | None]] = {}
+    for old_start, old_count, new_start, new_count in parse_diff_hunks(diff_text):
+        for line_no in range(old_start, old_start + max(old_count, 1)):
+            top, second = base_map.get(line_no, (None, None))
+            if top:
+                sections.setdefault(top, set()).add(second)
+        for line_no in range(new_start, new_start + max(new_count, 1)):
+            top, second = head_map.get(line_no, (None, None))
+            if top:
+                sections.setdefault(top, set()).add(second)
+    return sections
+
+
 def parse_diff_hunks(diff_text: str) -> list[tuple[int, int, int, int]]:
     """Parse a unified diff and return the (old_start, old_count, new_start,
     new_count) tuple for each hunk.
@@ -434,9 +497,19 @@ def ci_diff_affects_tests(merge_base_sha: str, head_sha: str) -> bool:
         log(f"WARNING: head .gitlab-ci.yml unparsable ({exc}); assuming full run.")
         return True
 
+    sections = touched_sections(diff, base_yaml, head_yaml)
+
     for name in touched:
         if name in IMAGE_JOB_KEYS:
             log(f"Job '{name}' only builds/publishes an image; not a full-run trigger.")
+            continue
+        # A diff confined to a job's `rules:` only changes *when* that job is
+        # scheduled — it cannot change what the Python suite does. Reached only
+        # for ordinary jobs: the global-key and test-infrastructure checks above
+        # have already returned, so `.unit_test_rules` (which is nothing but a
+        # rules block) still forces a full run.
+        if sections.get(name) == {"rules"}:
+            log(f"Job '{name}': only its `rules:` changed; not a full-run trigger.")
             continue
         if resolve_stage(name, head_config) in TEST_RELATED_STAGES:
             log(f"Job '{name}' is in test-related stage; full run required.")
