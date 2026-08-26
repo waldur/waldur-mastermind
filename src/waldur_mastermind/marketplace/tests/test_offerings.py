@@ -431,6 +431,63 @@ class SecretOptionsTests(test.APITestCase):
         )
 
 
+class OfferingQuotasVisibilityTest(test.APITestCase):
+    """Total quotas of a top-level offering are the provider's own capacity.
+
+    The public endpoint exposes them only for a child offering, whose scope is a
+    single customer's tenant; the provider view keeps them in both cases.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True,
+            customer=self.fixture.customer,
+            scope=self._scope_with_quota("vcpu", limit=10, usage=4),
+        )
+        factories.PlanFactory(offering=self.offering)
+
+    def _scope_with_quota(self, name, limit, usage):
+        scope = structure_factories.ServiceSettingsFactory()
+        scope.set_quota_limit(name, limit)
+        scope.set_quota_usage(name, usage)
+        return scope
+
+    def _child_offering(self):
+        return factories.OfferingFactory(
+            shared=False,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+            parent=self.offering,
+            scope=self._scope_with_quota("vcpu", limit=6, usage=2),
+        )
+
+    def test_provider_view_exposes_total_quotas(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.OfferingFactory.get_url(self.offering))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["quotas"], [{"name": "vcpu", "usage": 4, "limit": 10}]
+        )
+
+    def test_public_view_conceals_quotas_of_a_top_level_offering(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            factories.OfferingFactory.get_public_url(self.offering)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["quotas"], [])
+
+    def test_public_view_exposes_quotas_of_a_child_offering(self):
+        child = self._child_offering()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.OfferingFactory.get_public_url(child))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["quotas"], [{"name": "vcpu", "usage": 2, "limit": 6}]
+        )
+
+
 class OfferingFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()

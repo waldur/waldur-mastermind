@@ -4328,6 +4328,17 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
     is_accessible = serializers.SerializerMethodField()
     open_for_proposals = serializers.SerializerMethodField()
 
+    @extend_schema_field(QuotaSerializer(many=True))
+    def get_quotas(self, offering: models.Offering):
+        """Quotas of a child offering describe the customer's own tenant.
+
+        A top-level offering is scoped to the provider's service settings, so its
+        totals are the provider's capacity and stay out of the public payload.
+        """
+        if offering.parent_id is None:
+            return []
+        return super().get_quotas(offering)
+
     @extend_schema_field(BasePublicPlanSerializer(many=True))
     def get_filtered_plans(self, offering: models.Offering):
         customer_uuid = self.context["request"].GET.get("allowed_customer_uuid")
