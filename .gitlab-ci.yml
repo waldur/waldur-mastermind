@@ -79,6 +79,36 @@ before_script:
         - tests/**/* # Include the tests directory in changes
         - .gitlab-ci.yml # A change to the CI file itself should trigger tests
 
+# For jobs that only *analyse the Python source* — pyright, makemigrations
+# --check, and the two AST checkers. Same as .unit_test_rules with two
+# differences:
+#
+#   - no `.gitlab-ci.yml`. Editing CI config cannot change what pyright or
+#     makemigrations find in src/, so those jobs were running on every
+#     CI-config-only merge request for nothing. See #293.
+#   - plus `scripts/**/*`, which closes a real gap: two of these jobs run a
+#     checker out of scripts/, but scripts/ was in no filter, so editing
+#     scripts/check_action_request_none.py never ran the job that uses it.
+#     (`Validate documentation` already filters on its own script this way.)
+#
+# `Run linters`, `Generate test pipeline` and `Run tests dynamically` stay on
+# .unit_test_rules: the linter validates the YAML itself, and the other two are
+# the test selector, which must get a say whenever CI config changes.
+.source_analysis_rules: &source_analysis_rules
+  rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    # If tagged release
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/**/*
+        - scripts/**/*
+        - pyproject.toml
+        - uv.lock
+
 Run linters:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test
@@ -97,7 +127,7 @@ Check TransactionTestCase usage:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test
   interruptible: true
-  <<: *unit_test_rules
+  <<: *source_analysis_rules
   script:
     - python scripts/analyze_transaction_test_cases.py --ci --baseline 80
 
@@ -105,7 +135,7 @@ Check Action decorators:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test
   interruptible: true
-  <<: *unit_test_rules
+  <<: *source_analysis_rules
   script:
     - pip install libcst
     - python scripts/check_action_request_none.py src/
@@ -199,6 +229,7 @@ Generate OpenAPI schema:
 Check database migrations:
   extends: .Unit test runner
   stage: test
+  <<: *source_analysis_rules
   script:
     - uv run waldur makemigrations --check --dry-run
   variables:
@@ -314,9 +345,6 @@ Run demo presets tests:
         - src/waldur_mastermind/marketplace/demo_presets/**/*
         - src/waldur_mastermind/marketplace/management/commands/import_structure.py
         - src/waldur_mastermind/marketplace/management/commands/cleanup_structure.py
-        # Also validate edits to this job's own CI config (cheap now that the
-        # migration replay is skipped — see --no-migrations below).
-        - .gitlab-ci.yml
   script:
     - |
       echo "[+] Setting up test database configuration..."
@@ -437,6 +465,7 @@ Run tests dynamically:
 
 Run type checkings:
   extends: .Unit test runner
+  <<: *source_analysis_rules
   script:
     - |
       uv run pyright \
