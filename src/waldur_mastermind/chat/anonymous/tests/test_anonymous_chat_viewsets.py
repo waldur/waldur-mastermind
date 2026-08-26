@@ -285,6 +285,10 @@ class StaffListAndActionsTest(test.APITestCase):
         self.assertEqual(rows["session-A"]["max_severity"], "none")
         self.assertTrue(rows["session-B"]["is_flagged"])
         self.assertEqual(rows["session-B"]["max_severity"], "high")
+        # Numeric companion to max_severity so tables can sort by actual
+        # severity instead of alphabetically ("low" above "medium").
+        self.assertEqual(rows["session-A"]["max_severity_rank"], 0)
+        self.assertEqual(rows["session-B"]["max_severity_rank"], 3)
 
     def test_kpi_aggregates(self):
         response = self.client.get(self.kpi_url)
