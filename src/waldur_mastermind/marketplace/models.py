@@ -1450,16 +1450,10 @@ class Plan(
         Prepaid ONE_TIME components are already accounted for in
         get_estimate() with the duration multiplier. This avoids
         double-counting them via init_price.
-
-        Charged once, at the component's price. The plan's ``amount`` does not
-        enter into it, because the invoice does not consult it either — a
-        one-time component is billed at ``quantity = 1`` whatever the plan says.
-        Multiplying by an amount that defaults to zero quoted nothing for a fee
-        the invoice went on to charge in full.
         """
         cached = self._cached_components()
         if cached is not None:
-            return self._sum_unit_prices(
+            return self._sum_prices(
                 item
                 for item in cached
                 if item.component.billing_type == BillingTypes.ONE_TIME
@@ -1469,26 +1463,16 @@ class Plan(
             component__billing_type=BillingTypes.ONE_TIME,
             component__is_prepaid=False,
         )
-        return components.aggregate(sum=models.Sum("price"))["sum"] or 0
+        return (
+            components.aggregate(
+                sum=models.Sum(models.F("price") * models.F("amount"))
+            )["sum"]
+            or 0
+        )
 
     @property
     def switch_price(self) -> float:
-        """Fee for switching to this plan, charged once at the component's price.
-
-        Same rule as the activation fee, and for the same reason: the invoice
-        bills a plan-switch component once, whatever its amount.
-        """
-        cached = self._cached_components()
-        if cached is not None:
-            return self._sum_unit_prices(
-                item
-                for item in cached
-                if item.component.billing_type == BillingTypes.ON_PLAN_SWITCH
-            )
-        components = self.components.filter(
-            component__billing_type=BillingTypes.ON_PLAN_SWITCH
-        )
-        return components.aggregate(sum=models.Sum("price"))["sum"] or 0
+        return self.sum_components(BillingTypes.ON_PLAN_SWITCH)
 
     def sum_components(self, billing_type) -> float:
         cached = self._cached_components()
@@ -1519,11 +1503,6 @@ class Plan(
         # SUM(price * amount) skips rows where either side is NULL; treating
         # them as zero here adds the same nothing to the total.
         return sum((item.price or 0) * (item.amount or 0) for item in items)
-
-    @staticmethod
-    def _sum_unit_prices(items) -> float:
-        """Prices as they stand, for components billed once rather than per unit."""
-        return sum((item.price or 0) for item in items)
 
     @property
     def has_connected_resources(self) -> bool:
