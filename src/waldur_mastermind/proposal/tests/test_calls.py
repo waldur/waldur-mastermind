@@ -249,10 +249,14 @@ class CallUpdateTest(test.APITransactionTestCase):
         url = factories.CallFactory.get_protected_url(
             self.call, action="attach_documents"
         )
+        # attach_documents reads request.data.getlist("documents"), so the
+        # files go in as a flat list. Wrapping each one in a dict cannot
+        # survive multipart encoding -- Django stringifies the dict and the
+        # repr lands in CallDocument.file instead of the upload.
         payload = {
             "documents": [
-                {"file": dummy_image()},
-                {"file": dummy_image()},
+                dummy_image(),
+                dummy_image(),
             ],
         }
         return self.client.post(url, payload, format="multipart")
@@ -267,7 +271,17 @@ class CallUpdateTest(test.APITransactionTestCase):
         response = self._upload_call_document()
         call = models.Call.objects.get(uuid=self.call.uuid)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(call.calldocument_set.all()), 2)
+        documents = call.calldocument_set.all()
+        self.assertEqual(len(documents), 2)
+        # Assert the upload actually landed in storage. A row count alone
+        # passes even when the stored value is junk.
+        for document in documents:
+            self.assertTrue(
+                document.file.name.startswith("call_documents/"),
+                f"unexpected stored path: {document.file.name}",
+            )
+            self.assertTrue(document.file.storage.exists(document.file.name))
+            self.assertGreater(document.file.size, 0)
 
     @data(
         "staff",
