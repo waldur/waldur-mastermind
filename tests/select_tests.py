@@ -116,6 +116,49 @@ TEST_INFRASTRUCTURE_KEYS = {
     "Run tests dynamically",
 }
 
+# Jobs that build or publish container images. They live in the `test` and
+# `build` stages, but they do not run the Python suite and nothing about their
+# definition can change its outcome — so a change confined to them must not
+# force a full run. Without this, editing the `rules:` of a buildah job cost a
+# 15-shard pytest run (~277 runner-minutes); see #293.
+IMAGE_JOB_KEYS = {
+    "Build docker image for tests",
+    "Build MR image for integration tests",
+    "Publish the YOLO multiarch docker image",
+    "Publish the latest multiarch docker image",
+    "Publish multiarch docker image with specific version",
+    "Test Multi-arch docker image build",
+    "Try building docker image",
+    "Lint docker image",
+    "Lint dockerfile",
+}
+
+
+def resolve_stage(
+    name: str, config: dict, _seen: frozenset[str] = frozenset()
+) -> str | None:
+    """Return a job's stage, following `extends:` when it is not set inline.
+
+    `body.get("stage")` alone silently returns None for every job that inherits
+    its stage — in this repo that is everything extending `.Unit test runner`
+    (`Run migration tests`, `Run demo presets tests`, `Run type checkings`,
+    `Check startup memory budget`). They were then reported as "limited to
+    deploy/postdeploy/release jobs", which is the opposite of the truth.
+    """
+    body = config.get(name)
+    if not isinstance(body, dict) or name in _seen:
+        return None
+    if body.get("stage") is not None:
+        return body["stage"]
+    extends = body.get("extends")
+    if isinstance(extends, str):
+        extends = [extends]
+    for parent in extends or []:
+        stage = resolve_stage(parent, config, _seen | {name})
+        if stage is not None:
+            return stage
+    return None
+
 
 def log(message: str):
     """Helper function to print messages to stderr."""
@@ -392,12 +435,14 @@ def ci_diff_affects_tests(merge_base_sha: str, head_sha: str) -> bool:
         return True
 
     for name in touched:
-        body = head_config.get(name)
-        if isinstance(body, dict) and body.get("stage") in TEST_RELATED_STAGES:
+        if name in IMAGE_JOB_KEYS:
+            log(f"Job '{name}' only builds/publishes an image; not a full-run trigger.")
+            continue
+        if resolve_stage(name, head_config) in TEST_RELATED_STAGES:
             log(f"Job '{name}' is in test-related stage; full run required.")
             return True
 
-    log("CI diff is limited to deploy/postdeploy/release jobs; skipping full run.")
+    log("CI diff does not touch any job that runs the test suite; skipping full run.")
     return False
 
 

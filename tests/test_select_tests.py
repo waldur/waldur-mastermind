@@ -14,6 +14,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -355,6 +356,91 @@ def test_no_full_run_when_diff_is_empty(fake_diff_inputs):
     fake_diff_inputs["base"] = BASE_YAML
     fake_diff_inputs["head"] = BASE_YAML
     fake_diff_inputs["diff"] = ""
+    from select_tests import ci_diff_affects_tests
+
+    assert ci_diff_affects_tests("BASE", "HEAD") is False
+
+
+# ---------------------------------------------------------------------------
+# Stage resolution through `extends:` and image-job exclusion (#293)
+# ---------------------------------------------------------------------------
+
+EXTENDS_YAML = textwrap.dedent("""\
+    .Unit test runner:
+      stage: test
+      script:
+        - pytest
+    Run migration tests:
+      extends: .Unit test runner
+      script:
+        - waldur migrate
+    Test Multi-arch docker image build:
+      stage: test
+      script:
+        - buildah build
+    Upload configuration guide:
+      stage: postdeploy
+      script:
+        - echo upload
+    """)
+
+
+def test_resolve_stage_follows_extends():
+    """A job inheriting its stage must not read as stage-less."""
+    from select_tests import GitLabSafeLoader, resolve_stage
+
+    config = yaml.load(EXTENDS_YAML, Loader=GitLabSafeLoader)
+    assert resolve_stage("Test Multi-arch docker image build", config) == "test"
+    # The regression: this returned None, so the job was reported as a
+    # deploy/postdeploy/release job and skipped the full run.
+    assert resolve_stage("Run migration tests", config) == "test"
+    assert resolve_stage("Upload configuration guide", config) == "postdeploy"
+    assert resolve_stage("No such job", config) is None
+
+
+def test_resolve_stage_survives_extends_cycle():
+    """A malformed config must not hang or recurse forever."""
+    from select_tests import GitLabSafeLoader, resolve_stage
+
+    config = yaml.load(
+        textwrap.dedent("""\
+            A:
+              extends: B
+            B:
+              extends: A
+            """),
+        Loader=GitLabSafeLoader,
+    )
+    assert resolve_stage("A", config) is None
+
+
+def test_full_run_when_job_inherits_test_stage(fake_diff_inputs):
+    """Editing a test job that gets its stage via `extends:` must run tests."""
+    fake_diff_inputs["base"] = EXTENDS_YAML
+    fake_diff_inputs["head"] = EXTENDS_YAML.replace(
+        "- waldur migrate", "- waldur migrate --noinput"
+    )
+    fake_diff_inputs["diff"] = textwrap.dedent("""\
+        @@ -7,1 +7,1 @@
+        -    - waldur migrate
+        +    - waldur migrate --noinput
+        """)
+    from select_tests import ci_diff_affects_tests
+
+    assert ci_diff_affects_tests("BASE", "HEAD") is True
+
+
+def test_no_full_run_for_image_build_job(fake_diff_inputs):
+    """A buildah job sits in `test` but cannot affect the Python suite."""
+    fake_diff_inputs["base"] = EXTENDS_YAML
+    fake_diff_inputs["head"] = EXTENDS_YAML.replace(
+        "- buildah build", "- buildah build --platform=linux/amd64"
+    )
+    fake_diff_inputs["diff"] = textwrap.dedent("""\
+        @@ -11,1 +11,1 @@
+        -    - buildah build
+        +    - buildah build --platform=linux/amd64
+        """)
     from select_tests import ci_diff_affects_tests
 
     assert ci_diff_affects_tests("BASE", "HEAD") is False
