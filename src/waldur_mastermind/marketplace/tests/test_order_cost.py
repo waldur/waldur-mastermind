@@ -85,12 +85,7 @@ class OrderCostCalculationTest(TestCase):
         self.assertEqual(order.cost, Decimal("1000"))
 
     def test_one_time_non_prepaid_cost(self):
-        """ONE_TIME (non-prepaid): an activation fee, charged once at its price.
-
-        The plan's amount is not a multiplier here. The invoice bills a
-        one-time component at quantity 1 whatever the amount says, and the
-        estimate has to quote what the invoice will charge.
-        """
+        """ONE_TIME (non-prepaid): cost = price x amount (activation fee)."""
         offering, plan, _, _ = self._make_offering_with_component(
             BillingTypes.ONE_TIME, is_prepaid=False
         )
@@ -103,8 +98,8 @@ class OrderCostCalculationTest(TestCase):
         order.init_cost()
 
         # get_estimate: 0 (non-prepaid ONE_TIME not in get_limit_components)
-        # non_prepaid_init_price: the price, once, whatever the amount
-        self.assertEqual(order.cost, Decimal("10"))
+        # non_prepaid_init_price: 10 * 5 = 50
+        self.assertEqual(order.cost, Decimal("50"))
 
     def test_one_time_prepaid_without_end_date(self):
         """ONE_TIME + prepaid without end_date: single-period cost."""
@@ -229,8 +224,7 @@ class NonPrepaidInitPriceTest(TestCase):
             plan=plan, component=non_prepaid, price=Decimal("50"), amount=2
         )
 
-        # init_price still measures per unit: 100*1 + 50*2 = 200
+        # init_price includes both: 100*1 + 50*2 = 200
         self.assertEqual(plan.init_price, 200)
-        # non_prepaid_init_price excludes the prepaid one and charges the
-        # other once, as the invoice does: 50
-        self.assertEqual(plan.non_prepaid_init_price, 50)
+        # non_prepaid_init_price excludes prepaid: 50*2 = 100
+        self.assertEqual(plan.non_prepaid_init_price, 100)

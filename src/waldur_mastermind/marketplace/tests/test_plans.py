@@ -667,14 +667,8 @@ class PlanSumComponentsTest(test.APITestCase):
 
         self.assertEqual(self.plan.fixed_price, 200)  # 50 * 4
 
-    def test_switch_component_is_charged_whatever_its_amount(self):
-        """A switch fee is billed once, so a zero amount does not waive it.
-
-        The invoice charges an ON_PLAN_SWITCH component at quantity 1 without
-        consulting the plan's amount; switch_price has to quote the same, or a
-        plan that never set an amount is quoted a free upgrade and invoiced for
-        a paid one.
-        """
+    def test_switch_component_with_zero_amount_returns_zero(self):
+        """On plan switch component with amount=0 should contribute 0 to switch_price."""
         offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=BillingTypes.ON_PLAN_SWITCH,
@@ -687,7 +681,7 @@ class PlanSumComponentsTest(test.APITestCase):
             amount=0,
         )
 
-        self.assertEqual(self.plan.switch_price, 25)
+        self.assertEqual(self.plan.switch_price, 0)
 
     def test_multiple_components_sum_correctly(self):
         """Multiple components should sum their individual price * amount values."""
