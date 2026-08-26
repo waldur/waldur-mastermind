@@ -416,6 +416,12 @@ class ActionTest(test.APITestCase):
     @override_settings(task_always_eager=True)
     @data("proposal_creator")
     def test_notifications_are_sent_after_submission(self, user):
+        # Pinned to a call-managed deployment, which is what this test has
+        # always meant by "proposal": 0258_derive_service_access_mode leaves a
+        # database with no call-management feature flags — every fresh one,
+        # test databases included — in marketplace mode, where the applicant's
+        # mail says "access request" instead.
+        self.enterContext(override_config(SERVICE_ACCESS_MODE="both"))
         user = getattr(self.fixture, user)
         call_manager = self.fixture.call_manager
         self.proposal.round.call.add_user(call_manager, CallRole.MANAGER)
