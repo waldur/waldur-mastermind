@@ -520,7 +520,6 @@ Build MR image for integration tests:
         - Dockerfile
         - pyproject.toml
         - uv.lock
-        - .gitlab-ci.yml
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   cache: []
@@ -842,10 +841,26 @@ Trigger integration tests:
     # Only run E2E when a change can affect backend behaviour or the stack image.
     # Docs-only / lint-config-only changes (CHANGELOG, *.md, docs/**) skip it.
     #
+    # `.gitlab-ci.yml` is deliberately NOT in the filter. It used to be, which
+    # meant any CI-config-only merge request paid a full image build plus the
+    # 13-job downstream suite (~67 runner-minutes) even when the change could
+    # not possibly affect E2E behaviour — MR !6128, which only edits a
+    # migration-test rule, is exactly that case. GitLab's `changes:` cannot tell
+    # which part of the file moved, so it is all-or-nothing.
+    #
+    # If you are changing the E2E wiring here and want the suite to exercise it
+    # (as !6126 did), include any change under `src/**` in the same merge
+    # request — a real backend change already does. A `RUN_E2E=true` variable
+    # was tried instead and does not work: `glab ci run` and the pipeline API
+    # create branch pipelines, not `merge_request_event` ones, so a rule keyed
+    # on both never matches and the pipeline comes back empty.
+    #
     # WALDUR_MASTERMIND_IMAGE is set per-rule, not in `variables:` above: on
     # develop the release job has just republished :latest, but on a merge
     # request :latest is still develop's image and testing it says nothing about
-    # the MR — so MRs get the image built from their own code.
+    # the MR — so MRs get the image built from their own code. Each rule sets it
+    # explicitly rather than relying on a job-level default, because getting
+    # this wrong is silent: the suite goes green against someone else's code.
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes: *integration_test_changes
       variables:
