@@ -12,11 +12,12 @@ from decimal import Decimal
 from unittest import mock
 
 from dateutil.relativedelta import relativedelta
+from django.utils import timezone
 from rest_framework import test
 
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.proposal import utils
+from waldur_mastermind.proposal import models, utils
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 CPU_PRICE = Decimal("2.50")
@@ -24,7 +25,9 @@ CPU_HOURS = 1000
 MONTHS = 6
 
 
-class PrepaidDurationTest(test.APITestCase):
+class PrepaidFixture:
+    """An offering sold by the month, and a proposal asking for it."""
+
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
@@ -74,6 +77,8 @@ class PrepaidDurationTest(test.APITestCase):
         requested_resource.save(update_fields=["created"])
         return requested_resource
 
+
+class PrepaidDurationTest(PrepaidFixture, test.APITestCase):
     def test_the_requested_period_reaches_the_resource(self):
         today = datetime.date.today()
         requested_resource = self._request(
@@ -170,7 +175,9 @@ class PrepaidDurationTest(test.APITestCase):
 
                 self.assertEqual(
                     utils._requested_end_date(
-                        requested_resource, self.fixture.proposal_project
+                        requested_resource,
+                        self.fixture.proposal_project,
+                        datetime.date.today(),
                     ),
                     datetime.date.today() + relativedelta(months=MONTHS),
                 )
@@ -188,3 +195,165 @@ class PrepaidDurationTest(test.APITestCase):
             resource.end_date, datetime.date.today() + relativedelta(months=MONTHS)
         )
         self.assertTrue(mock_logger.warning.called)
+
+
+class ProjectDurationTest(PrepaidFixture, test.APITestCase):
+    """The allocated project runs for as long as what it holds."""
+
+    def _derived(self):
+        return utils.project_end_date(self.proposal, datetime.date.today())
+
+    def test_the_longest_subscription_sets_the_project(self):
+        self._request(None, prepaid_duration_months=3)
+        self._request(None, prepaid_duration_months=12)
+        self._request(None, prepaid_duration_months=6)
+
+        self.assertEqual(
+            self._derived(), datetime.date.today() + relativedelta(months=12)
+        )
+
+    def test_a_proposal_asking_for_no_subscription_falls_back_to_the_call(self):
+        # A call may accept prepaid and non-prepaid offerings side by side, so a
+        # proposal that requested only the latter still needs a duration.
+        self.fixture.call.fixed_duration_in_days = 90
+        self.fixture.call.save()
+
+        self.assertEqual(
+            self._derived(), datetime.date.today() + datetime.timedelta(days=90)
+        )
+
+    def test_the_subscription_outranks_the_call(self):
+        self.fixture.call.fixed_duration_in_days = 90
+        self.fixture.call.save()
+        self._request(None, prepaid_duration_months=12)
+
+        # Twelve months, not ninety days. The two units are never converted into
+        # each other; each is resolved against the same date instead.
+        self.assertEqual(
+            self._derived(), datetime.date.today() + relativedelta(months=12)
+        )
+
+    def test_no_duration_anywhere_leaves_the_project_open(self):
+        self.fixture.call.fixed_duration_in_days = None
+        self.fixture.call.save()
+
+        self.assertIsNone(self._derived())
+
+    def test_a_length_on_an_offering_that_sells_none_is_not_a_subscription(self):
+        # The attribute alone means nothing: only an offering with a prepaid
+        # component is bought by the month.
+        self.cpu.is_prepaid = False
+        self.cpu.save()
+        self._request(None, prepaid_duration_months=12)
+
+        self.assertIsNone(utils.get_proposal_duration_months(self.proposal))
+
+    def test_the_project_gets_its_end_date_at_allocation(self):
+        self._request(None, prepaid_duration_months=MONTHS)
+
+        utils.allocate_proposal(self.proposal)
+        self.proposal.refresh_from_db()
+
+        self.assertEqual(
+            self.proposal.project.end_date,
+            datetime.date.today() + relativedelta(months=MONTHS),
+        )
+
+    def test_a_resource_is_never_left_outlasting_its_project(self):
+        # The project's end date caps the resource's rather than rejecting it.
+        # A rejection would leave the resource with no end date at all, and a
+        # prepaid resource with no end date is invoiced for a single month.
+        requested_resource = self._request(None, prepaid_duration_months=MONTHS)
+
+        utils.allocate_proposal(self.proposal)
+        self.proposal.refresh_from_db()
+        requested_resource.refresh_from_db()
+
+        self.assertIsNotNone(requested_resource.resource.end_date)
+        self.assertLessEqual(
+            requested_resource.resource.end_date, self.proposal.project.end_date
+        )
+
+    def _schedule_allocation(self, days_ahead):
+        """Date the round's allocation forward, as a fixed_date call does."""
+        from waldur_mastermind.proposal.enums import AllocationTimes
+
+        proposal_round = self.proposal.round
+        proposal_round.allocation_date = timezone.now() + datetime.timedelta(
+            days=days_ahead
+        )
+        proposal_round.save()
+        models.CallWorkflowStep.objects.update_or_create(
+            call=proposal_round.call,
+            step="allocation_decision",
+            defaults={"allocation_time": AllocationTimes.FIXED_DATE},
+        )
+        return proposal_round.allocation_date.date()
+
+    def test_the_period_starts_when_allocation_is_scheduled_for(self):
+        # Approved today, allocated in four months: the grant used to expire
+        # MONTHS after the decision rather than MONTHS after it could be used.
+        start = self._schedule_allocation(120)
+        requested_resource = self._request(None, prepaid_duration_months=MONTHS)
+
+        utils.allocate_proposal(self.proposal)
+        self.proposal.refresh_from_db()
+        requested_resource.refresh_from_db()
+
+        self.assertEqual(self.proposal.project.start_date, start)
+        self.assertEqual(
+            requested_resource.resource.end_date, start + relativedelta(months=MONTHS)
+        )
+
+    def test_each_subscription_keeps_its_own_length(self):
+        # Two prepaid requests of different lengths on one proposal: each
+        # resource expires on its own date, and the project covers the longest.
+        # The shorter one is not stretched to the project, nor the longer one
+        # cut down to the shorter.
+        start = self._schedule_allocation(120)
+        shorter = self._request(None, prepaid_duration_months=2)
+        longer = self._request(None, prepaid_duration_months=5)
+
+        utils.allocate_proposal(self.proposal)
+        self.proposal.refresh_from_db()
+        shorter.refresh_from_db()
+        longer.refresh_from_db()
+
+        self.assertEqual(shorter.resource.end_date, start + relativedelta(months=2))
+        self.assertEqual(longer.resource.end_date, start + relativedelta(months=5))
+        self.assertEqual(
+            self.proposal.project.end_date, start + relativedelta(months=5)
+        )
+        # The project outlives the shorter subscription rather than ending with
+        # it, so the longer one is not terminated early by the project sweep.
+        self.assertGreater(self.proposal.project.end_date, shorter.resource.end_date)
+        # And each is priced for what it asked for, not for the pair.
+        self.assertEqual(shorter.resource.cost, CPU_PRICE * CPU_HOURS * 2)
+        self.assertEqual(longer.resource.cost, CPU_PRICE * CPU_HOURS * 5)
+
+    def test_a_call_that_allocates_on_decision_is_unchanged(self):
+        requested_resource = self._request(None, prepaid_duration_months=MONTHS)
+
+        utils.allocate_proposal(self.proposal)
+        requested_resource.refresh_from_db()
+
+        self.assertIsNone(self.proposal.project.start_date)
+        self.assertEqual(
+            requested_resource.resource.end_date,
+            datetime.date.today() + relativedelta(months=MONTHS),
+        )
+
+    def test_a_termination_offset_is_measured_from_the_same_anchor(self):
+        # The offering allows six months from the start; the grant is six months
+        # from a start four months out. Measuring the offset from today instead
+        # would reject the date, and a rejection leaves the resource with none —
+        # which invoices a prepaid component for a single month.
+        self._schedule_allocation(120)
+        self.offering.plugin_options = {"max_resource_termination_offset_in_days": 190}
+        self.offering.save()
+        requested_resource = self._request(None, prepaid_duration_months=MONTHS)
+
+        utils.allocate_proposal(self.proposal)
+        requested_resource.refresh_from_db()
+
+        self.assertIsNotNone(requested_resource.resource.end_date)

@@ -76,19 +76,72 @@ def _requested_months(
     )
 
 
+def _is_prepaid(requested_resource: proposal_models.RequestedResource) -> bool:
+    """Whether this request buys a subscription at all.
+
+    The stored length means nothing on an offering with no prepaid component —
+    only such an offering is bought by the month.
+    """
+    return requested_resource.requested_offering.offering.components.filter(
+        is_prepaid=True
+    ).exists()
+
+
+def get_proposal_duration_months(proposal: proposal_models.Proposal) -> int | None:
+    """The longest subscription the proposal asks for, in whole months.
+
+    The project cannot end before its longest subscription does. Returns None
+    when the proposal asks for no subscription at all — a call may accept
+    prepaid and non-prepaid offerings side by side, and a proposal that requested
+    only the latter has no length to derive anything from.
+    """
+    lengths = [
+        months
+        for requested_resource in proposal.requestedresource_set.filter(
+            requested_offering__state=RequestedOfferingStates.ACCEPTED
+        ).select_related("requested_offering__offering")
+        if _is_prepaid(requested_resource)
+        and (months := _requested_months(requested_resource)) is not None
+    ]
+    return max(lengths) if lengths else None
+
+
+def project_end_date(
+    proposal: proposal_models.Proposal, start_date: datetime.date
+) -> datetime.date | None:
+    """When the allocated project should end, measured from its own start.
+
+    The subscription the applicant asked for wins where there is one; the call's
+    fixed duration applies to proposals that asked for none. The two are never
+    converted into each other — a length in months and a length in days are only
+    comparable once each has been resolved against a date, because a day count is
+    true only relative to the anchor it was measured from.
+    """
+    months = get_proposal_duration_months(proposal)
+    if months is not None:
+        return start_date + relativedelta(months=months)
+
+    fixed_days = proposal.round.call.fixed_duration_in_days
+    if fixed_days:
+        return start_date + datetime.timedelta(days=fixed_days)
+
+    return None
+
+
 def _requested_end_date(
     requested_resource: proposal_models.RequestedResource,
     project: structure_models.Project,
+    today: datetime.date,
 ) -> datetime.date | None:
-    """The end date for the allocated resource, anchored at allocation.
+    """The end date for the allocated resource, anchored on its project's start.
 
     A resource request names a length, not a date: the day the resource is
     granted is unknown while the proposal is being written and reviewed. Running
-    the grant for that many months from allocation keeps both the period the
-    applicant chose and the cost the reviewer priced, where an absolute date
-    would quietly deliver a shorter grant and invoice less than the approved
-    figure — and, once review outlasts the period, would have passed altogether,
-    which ``validate_end_date`` rejects outright.
+    the grant for that many months from the day allocation is scheduled for
+    keeps both the period the applicant chose and the cost the reviewer priced,
+    where an absolute date would quietly deliver a shorter grant and invoice less
+    than the approved figure — and, once review outlasts the period, would have
+    passed altogether, which ``validate_end_date`` rejects outright.
 
     Returns None when no period was requested, or when the anchored date breaks
     the offering's own termination rules — allocation must not fail over a date,
@@ -98,8 +151,30 @@ def _requested_end_date(
     if months is None:
         return None
 
-    today = datetime.date.today()
-    end_date = today + relativedelta(months=months)
+    # Measured from the day allocation is scheduled for, not from the day the
+    # decision happened to be taken. A call that dates allocation forward would
+    # otherwise spend the whole interval before the project even opens: a grant
+    # approved in August and allocated in December expired in the following
+    # August rather than the following December. What happens after that date —
+    # the provider approving the order, the backend taking its time — eats into
+    # the usable period without moving it.
+    anchor = project.start_date or today
+    end_date = anchor + relativedelta(months=months)
+
+    # Clamped, not left to be rejected. ``validate_end_date`` raises when a
+    # resource outlasts its project, and the handler below turns any rejection
+    # into "no end date at all" — which bills a prepaid resource for a single
+    # month. A resource that would outrun its project should be shortened to it,
+    # not silently un-dated.
+    if project.end_date and end_date > project.end_date:
+        logger.info(
+            "End date %s for requested resource %s is capped at the project's "
+            "own end date %s.",
+            end_date,
+            requested_resource.uuid,
+            project.end_date,
+        )
+        end_date = project.end_date
 
     offering = requested_resource.requested_offering.offering
     try:
@@ -107,6 +182,11 @@ def _requested_end_date(
             offering,
             today,
             end_date,
+            # The offering's own termination offset is measured from the same
+            # anchor the period is, or a date only N months from the project's
+            # start reads as N months plus the wait before it. The marketplace's
+            # own path says the same thing in validate_end_date_for_resource.
+            start_date=project.start_date,
             project_end_date=project.end_date,
         )
     except serializers.ValidationError as exc:
@@ -172,16 +252,36 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
         # TypeError.
         start_date = proposal_round.allocation_date.date()
 
+    # The project runs for as long as what it holds: the longest subscription
+    # requested, or the call's fixed duration for a proposal that requested no
+    # subscription. Measured from the project's own start so that a call which
+    # dates allocation forward does not spend the period before it opens.
+    # One reading of the clock for the whole allocation: the project and every
+    # resource in it must be measured from the same day, or a run that crosses
+    # midnight leaves a resource outlasting its own project.
+    today = datetime.date.today()
+    end_date = project_end_date(proposal, start_date or today)
+
     project = structure_models.Project.objects.create(
         customer=proposal_round.call.manager.customer,
         name=project_name,
         start_date=start_date,
+        end_date=end_date,
     )
     project = cast(structure_models.Project, project)
 
     if start_date:
         logger.info(
             f"Field start_date of {project} has been changed to {proposal.round.allocation_date}."
+        )
+    if end_date:
+        logger.info(
+            "Project %s ends on %s, derived from %s.",
+            project,
+            end_date,
+            "the longest requested subscription"
+            if get_proposal_duration_months(proposal) is not None
+            else "the call's fixed duration",
         )
 
     proposal.project = project
@@ -218,7 +318,7 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             # in the invoice item builder both read this field, so setting it
             # afterwards would price and bill a six-month grant as one month.
             # The marketplace order path sets it in the same order and says so.
-            resource.end_date = _requested_end_date(requested_resource, project)
+            resource.end_date = _requested_end_date(requested_resource, project, today)
             resource.init_cost()
             resource.save()
 
@@ -255,10 +355,11 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             # reference as well.
             #
             # Only the consumer step is skipped: the transition below still
-            # routes to provider review, to PENDING_PROJECT for a future-dated
-            # project and to PENDING_START_DATE where those apply. No
-            # select_for_update is taken because the row was created in this
-            # transaction and is not yet visible to anyone else.
+            # routes to provider review, and to PENDING_PROJECT for a
+            # future-dated project. PENDING_START_DATE is not reachable from
+            # here — it needs an order start date, and these orders are built
+            # without one. No select_for_update is taken because the row was
+            # created in this transaction and is not yet visible to anyone else.
             #
             # The provider's own requirement is not skipped. Its flag lives on
             # the offering and gates order approval; the call setting only

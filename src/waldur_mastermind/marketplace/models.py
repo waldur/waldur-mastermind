@@ -1390,11 +1390,17 @@ class Plan(
     class Permissions:
         customer_path = "offering__customer"
 
-    def get_estimate(self, limits=None, start_date=None, end_date=None):
+    def get_estimate(
+        self, limits=None, start_date=None, end_date=None, duration_months=None
+    ):
         """Estimate total cost for given limits.
 
-        For prepaid components, multiplies by the number of months between
-        start_date and end_date. Without dates, returns single-period cost.
+        For prepaid components, multiplies by the subscription's length in whole
+        months. ``duration_months`` is that length where it is known outright;
+        otherwise it is recovered from the span between the two dates. Prefer the
+        length: a span is only true relative to the day it was measured from, so
+        a subscription that starts later than today prices as the wait plus the
+        period rather than the period. With neither, a single period is returned.
         """
 
         cost = self.unit_price
@@ -1413,9 +1419,14 @@ class Plan(
                 factor = factors.get(key, 1)
                 per_unit = Decimal(price) * Decimal(str(limit)) / Decimal(str(factor))
 
-                if component.is_prepaid and start_date and end_date:
-                    months = core_utils.calculate_duration_months(start_date, end_date)
-                    per_unit *= months
+                if component.is_prepaid:
+                    months = duration_months
+                    if not months and start_date and end_date:
+                        months = core_utils.calculate_duration_months(
+                            start_date, end_date
+                        )
+                    if months:
+                        per_unit *= months
 
                 cost += per_unit
 
@@ -1664,11 +1675,28 @@ class CostEstimateMixin(models.Model):
         end_date = getattr(self, "end_date", None)
         return start_date, end_date
 
+    def _prepaid_duration_months(self):
+        """The subscription's length, where whoever created this recorded one.
+
+        A proposal stores it on the request and it travels here with the rest of
+        the attributes, which lets the cost be exact before the dates are.
+        """
+        # getattr, as _get_cost_dates does for start_date: not every model that
+        # estimates a cost carries attributes.
+        attributes = getattr(self, "attributes", None) or {}
+        try:
+            months = int(attributes.get("prepaid_duration_months") or 0)
+        except (TypeError, ValueError):
+            return None
+        return months if months > 0 else None
+
     def init_cost(self):
         if not self.plan:
             return
         start_date, end_date = self._get_cost_dates()
-        self.cost = self.plan.get_estimate(self.limits, start_date, end_date)
+        self.cost = self.plan.get_estimate(
+            self.limits, start_date, end_date, self._prepaid_duration_months()
+        )
 
         # Proactive policy validation for new resources. PolicyException is
         # a DRF ValidationError, so letting it propagate yields HTTP 400
