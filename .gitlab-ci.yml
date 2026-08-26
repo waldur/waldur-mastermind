@@ -603,11 +603,15 @@ Test Multi-arch docker image build:
     # Skip tests if said so
     - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
       when: never
+    # `.gitlab-ci.yml` is deliberately not in the filter — same reasoning as
+    # "Trigger integration tests" above. This job takes ~410s (measured on
+    # pipeline 128116) and is `allow_failure: true`, so on a CI-config-only
+    # merge request it spent that time without being able to block anything.
+    # What it actually exercises is the Dockerfile and its build context.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - Dockerfile
         - docker/**/*
-        - .gitlab-ci.yml
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   cache: []
