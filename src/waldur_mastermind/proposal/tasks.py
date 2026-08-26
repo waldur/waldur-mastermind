@@ -9,6 +9,7 @@ from django.db.models import Avg, Count, Q
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.service_access import names_calls
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.permissions import _get_customer
@@ -90,28 +91,36 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
     )
     project_link = None
     allocated_resources = None
-    if new_state == ProposalStates.ACCEPTED:
-        try:
-            project_link = core_utils.format_homeport_link(
-                "projects/{project_uuid}/",
-                project_uuid=proposal.project.uuid,  # type: ignore
-            )
-            resources = marketplace_models.Resource.objects.filter(
-                project=proposal.project
-            ).select_related("offering", "plan")
+    allocation_date = None
+    granted_duration = None
+    # The guard replaces a bare `except AttributeError`, which existed only to
+    # swallow `proposal.project` being None and hid every other attribute error
+    # with it.
+    if new_state == ProposalStates.ACCEPTED and proposal.project:
+        project_link = core_utils.format_homeport_link(
+            "projects/{project_uuid}/",
+            project_uuid=proposal.project.uuid,
+        )
+        # The day the grant starts running: the project's own start where the
+        # call dates allocation forward, otherwise the day it was created.
+        allocation_date = proposal.project.start_date or timezone.localdate(
+            proposal.project.created
+        )
+        granted_duration = utils.granted_duration_in_days(proposal)
+        resources = marketplace_models.Resource.objects.filter(
+            project=proposal.project
+        ).select_related("offering", "plan")
 
-            allocated_resources = [
-                {
-                    "name": resource.name,
-                    "provider_name": resource.offering.customer.name
-                    if resource.offering.customer
-                    else "N/A",
-                    "plan_name": resource.plan.name if resource.plan else "Default",
-                }
-                for resource in resources
-            ]
-        except AttributeError:
-            pass
+        allocated_resources = [
+            {
+                "name": resource.name,
+                "provider_name": resource.offering.customer.name
+                if resource.offering.customer
+                else "N/A",
+                "plan_name": resource.plan.name if resource.plan else "Default",
+            }
+            for resource in resources
+        ]
 
     context = {
         "site_name": config.SITE_NAME,
@@ -124,19 +133,39 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         "proposal_creator_name": proposal.created_by.full_name
         if proposal.created_by
         else "Unknown",
-        "call_name": proposal.round.call.name,
         "update_date": proposal.modified,
-        "duration": proposal.duration_in_days,
+        # Declared on the context model and rendered by both bodies since day
+        # one, but never actually passed — the line shipped blank until now.
+        "allocation_date": allocation_date,
         "rejection_feedback": proposal.allocation_comment,
-        "review_period": proposal.round.review_duration_in_days,
         "allocated_resources": allocated_resources
         if new_state == ProposalStates.ACCEPTED
         else None,
     }
 
+    # Two notifications rather than one message with a branch inside it: a
+    # deployment that hides calls from applicants sends a *different* message,
+    # not the same one worded differently, and each can be reworded, overridden
+    # through the template API and switched off without touching the other.
+    if names_calls():
+        event_type = "proposal_state_changed"
+        # Only the call-managed message names these, so only it is handed them.
+        context["call_name"] = proposal.round.call.name
+        context["review_period"] = proposal.round.review_duration_in_days
+        # This message states what was asked for, as it always has. Its
+        # template renders the value unguarded, and the applicant is still
+        # required to supply it wherever calls are named, so it is never null.
+        context["duration"] = proposal.duration_in_days
+    else:
+        event_type = "access_request_state_changed"
+        # Nothing asks a marketplace applicant for a duration, so the only
+        # honest figure is the one they were granted — and None where the
+        # grant does not expire, which this message's template omits.
+        context["duration"] = granted_duration
+
     core_utils.broadcast_mail(
         "proposal",
-        "proposal_state_changed",
+        event_type,
         context,
         [proposal.created_by.email]
         if proposal.created_by and proposal.created_by.email

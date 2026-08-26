@@ -7,6 +7,7 @@ from constance import config
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
@@ -126,6 +127,36 @@ def project_end_date(
         return start_date + datetime.timedelta(days=fixed_days)
 
     return None
+
+
+def granted_duration_in_days(
+    proposal: proposal_models.Proposal,
+) -> int | None:
+    """How long the granted project runs, in whole days.
+
+    The counterpart of :func:`project_end_date`: that decides when the project
+    ends, this reads the decision back so the applicant can be told.
+
+    Deliberately not ``Proposal.duration_in_days``. That field records what was
+    *asked for*: it is optional, review can change the answer, nothing in
+    allocation reads it any more, and in marketplace mode the applicant is never
+    asked for it at all — so quoting it in the acceptance mail would state a
+    number that is at best stale and at worst absent.
+
+    Returns None when there is nothing truthful to say — no project yet, or a
+    project with no end date, which is a grant that does not expire. The
+    template drops the line rather than printing a blank.
+    """
+    project = proposal.project
+    if project is None or project.end_date is None:
+        return None
+
+    # The anchor allocation itself measured from: the project's own start where
+    # it has one, otherwise the day it was created (allocate_proposal passes
+    # `start_date or today` to project_end_date and stores start_date as-is).
+    start_date = project.start_date or timezone.localdate(project.created)
+    days = (project.end_date - start_date).days
+    return days if days > 0 else None
 
 
 def _requested_end_date(

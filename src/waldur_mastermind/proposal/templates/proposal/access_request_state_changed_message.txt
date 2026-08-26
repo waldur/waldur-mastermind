@@ -1,0 +1,48 @@
+Dear {{ proposal_creator_name }},
+
+The state of your access request "{{ proposal_name }}" has been updated.
+
+State change:
+- Previous state: {{ previous_state }}
+- New state: {{ new_state }}
+- Updated on: {{ update_date }}
+
+{% if new_state == 'accepted' %}
+Project created: {{ project_name }}
+{% if allocation_date %}Allocation start date: {{ allocation_date }}
+{% endif %}{% if duration %}Duration: {{ duration }} days
+{% endif %}
+Allocated resources:
+{% for resource in allocated_resources %}
+{{ forloop.counter }}. {{ resource.name }} - {{ resource.provider_name }} - {{ resource.plan_name }} - Provisioned
+{% empty %}
+No resources allocated yet.
+{% endfor %}
+{% endif %}
+
+{% if new_state == 'rejected' %}
+Feedback: {{ rejection_feedback }}
+{% endif %}
+
+{% if new_state == 'submitted' %}
+Your access request has been submitted and is now being processed. You will receive further notifications as it moves forward.
+{% endif %}
+
+{% if new_state == 'in_review' %}
+Your access request is being evaluated. You will be notified as soon as a decision has been made.
+{% endif %}
+
+{% if new_state == 'accepted' %}
+Your access request has been approved. A project has been created with the resources you asked for, and you can open it using the link below.
+{% endif %}
+
+{% if new_state == 'rejected' %}
+Your access request has not been approved at this time. Please review any feedback provided above. You are welcome to submit a new request later.
+{% endif %}
+
+View access request: {{ proposal_url }}
+{% if new_state == 'accepted' and project_url %}
+View Project: {{ project_url }}
+{% endif %}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
