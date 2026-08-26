@@ -742,3 +742,86 @@ class BulkRoundCadence:
         BIANNUAL: 6,
         YEARLY: 12,
     }
+
+
+class ProposalFieldStates:
+    """How a call treats one Project details field on the submission form.
+
+    Ordered by how much the call demands of the applicant: ``HIDDEN`` is not
+    asked at all, ``OPTIONAL`` is asked, ``REQUIRED`` blocks submission while
+    empty. ``DEMAND`` gives that order a number so the locking rule can compare
+    two states without spelling out every pair.
+    """
+
+    HIDDEN = "hidden"
+    OPTIONAL = "optional"
+    REQUIRED = "required"
+
+    CHOICES = (
+        (HIDDEN, "Hidden"),
+        (OPTIONAL, "Optional"),
+        (REQUIRED, "Required"),
+    )
+
+    DEMAND = {
+        HIDDEN: 0,
+        OPTIONAL: 1,
+        REQUIRED: 2,
+    }
+
+
+class ProposalFieldUsages:
+    """Where a Project details field is consumed once it is collected.
+
+    Surfaced per field on the call configuration API so a call manager can see
+    what switching a field off costs before switching it off. The keys are
+    stable; the human-readable labels live in the frontend, next to the rest of
+    the translated UI copy.
+    """
+
+    APPLICANT_FORM = "applicant_form"
+    REVIEWER_COMMENT = "reviewer_comment"
+    REVIEWER_MATCHING = "reviewer_matching"
+    MANAGER_LISTS = "manager_lists"
+    AI_ASSISTANT = "ai_assistant"
+    EXPORT_IMPORT = "export_import"
+
+    CHOICES = (
+        (APPLICANT_FORM, "Applicant form"),
+        (REVIEWER_COMMENT, "Reviewer field comments"),
+        (REVIEWER_MATCHING, "Automatic reviewer matching"),
+        (MANAGER_LISTS, "Call manager lists"),
+        (AI_ASSISTANT, "AI assistant context"),
+        (EXPORT_IMPORT, "Export and import"),
+    )
+
+
+# Every configurable Project details field, with the consumers traced in
+# waldur/waldur-mastermind#291. `name` is not here: it becomes the project at
+# allocation and is always required. `duration_in_days` is not here either: a
+# call must state the length of what it awards.
+PROPOSAL_CONFIGURABLE_FIELDS = {
+    "project_summary": (
+        ProposalFieldUsages.APPLICANT_FORM,
+        ProposalFieldUsages.REVIEWER_COMMENT,
+        ProposalFieldUsages.REVIEWER_MATCHING,
+        ProposalFieldUsages.MANAGER_LISTS,
+        ProposalFieldUsages.AI_ASSISTANT,
+        ProposalFieldUsages.EXPORT_IMPORT,
+    ),
+    "description": (
+        ProposalFieldUsages.APPLICANT_FORM,
+        ProposalFieldUsages.REVIEWER_COMMENT,
+        ProposalFieldUsages.REVIEWER_MATCHING,
+        ProposalFieldUsages.EXPORT_IMPORT,
+    ),
+    "science_sub_domain": (
+        ProposalFieldUsages.APPLICANT_FORM,
+        ProposalFieldUsages.MANAGER_LISTS,
+        ProposalFieldUsages.EXPORT_IMPORT,
+    ),
+    "supporting_documentation": (
+        ProposalFieldUsages.APPLICANT_FORM,
+        ProposalFieldUsages.REVIEWER_COMMENT,
+    ),
+}

@@ -70,3 +70,24 @@ def seed_workflow_steps(sender, instance, created, **kwargs):
             step=step_def.id,
             defaults={"is_enabled": enabled},
         )
+
+
+def seed_proposal_field_config(sender, instance, created, **kwargs):
+    """Materialise a call's Project details field configuration at creation.
+
+    Deliberately a stored row rather than a lazy read of the Constance defaults:
+    a call that resolved its defaults on every read would tighten retroactively
+    the moment an operator added a field to DEFAULT_PROPOSAL_REQUIRED_FIELDS,
+    invalidating drafts written under the old form. Seeding once means the
+    installation default is a starting point, never a later imposition.
+    """
+    if not created:
+        return
+    states = models.CallProposalFieldConfig.default_states()
+    columns = {
+        models.CallProposalFieldConfig.column_for(field_name): state
+        for field_name, state in states.items()
+    }
+    models.CallProposalFieldConfig.objects.get_or_create(
+        call=instance, defaults=columns
+    )

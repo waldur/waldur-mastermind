@@ -30,3 +30,8 @@ class ProposalConfig(AppConfig):
             sender=models.Call,
             dispatch_uid="waldur_mastermind.proposal.seed_workflow_steps",
         )
+        signals.post_save.connect(
+            handlers.seed_proposal_field_config,
+            sender=models.Call,
+            dispatch_uid="waldur_mastermind.proposal.seed_proposal_field_config",
+        )

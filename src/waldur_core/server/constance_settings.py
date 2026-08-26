@@ -177,6 +177,13 @@ OFFERING_TYPE_CHOICES = [
     ("Marketplace.Slurm", "Site Agent"),
 ]
 
+PROPOSAL_CONFIGURABLE_FIELD_CHOICES = [
+    ("project_summary", "Summary"),
+    ("description", "Description"),
+    ("science_sub_domain", "Science domain"),
+    ("supporting_documentation", "Supporting documentation"),
+]
+
 USER_ATTRIBUTE_CHOICES = [
     ("username", "Username"),
     ("registration_method", "Registration method"),
@@ -305,6 +312,8 @@ CONSTANCE_CONFIG_CHOICES = {
     "ZAMMAD_ARTICLE_TYPE": ZAMMAD_ARTICLE_TYPE_CHOICES,
     "DEFAULT_OFFERING_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "DEFAULT_CALL_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "DEFAULT_PROPOSAL_REQUIRED_FIELDS": PROPOSAL_CONFIGURABLE_FIELD_CHOICES,
+    "DEFAULT_PROPOSAL_HIDDEN_FIELDS": PROPOSAL_CONFIGURABLE_FIELD_CHOICES,
     "INVITATION_ALLOWED_FIELDS": USER_ATTRIBUTE_CHOICES,
     "ENABLED_USER_PROFILE_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "MANDATORY_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
@@ -1192,6 +1201,18 @@ CONSTANCE_CONFIG = {
         "Default applicant attributes exposed to call reviewers when no explicit CallApplicantVisibilityConfig exists.",
         "multiple_choice_field",
     ),
+    "DEFAULT_PROPOSAL_REQUIRED_FIELDS": (
+        ["project_summary"],
+        "Project details fields a new call requires by default. Applied when the "
+        "call is created; changing this never alters an existing call.",
+        "multiple_choice_field",
+    ),
+    "DEFAULT_PROPOSAL_HIDDEN_FIELDS": (
+        [],
+        "Project details fields a new call does not ask for at all. Applied when "
+        "the call is created; changing this never alters an existing call.",
+        "multiple_choice_field",
+    ),
     "INVITATION_ALLOWED_FIELDS": (
         ["full_name", "organization", "job_title"],
         "Fields that can be provided in invitations for email personalization. These are NOT copied to user profile.",
@@ -1972,6 +1993,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "Proposal settings": (
         "PROPOSAL_REVIEW_DURATION",
+        "DEFAULT_PROPOSAL_REQUIRED_FIELDS",
+        "DEFAULT_PROPOSAL_HIDDEN_FIELDS",
         "REVIEWER_PROFILES_ENABLED",
         "COI_DETECTION_ENABLED",
         "COI_DISCLOSURE_REQUIRED",

@@ -341,6 +341,7 @@ DUPLICATE_CALL_SECTION_DEFAULTS: dict[str, bool] = {
     "copy_resource_templates": True,
     "copy_role_mappings": True,
     "copy_applicant_visibility_config": True,
+    "copy_proposal_field_config": True,
     "copy_coi_configuration": True,
     "copy_matching_configuration": True,
     "copy_assignment_configuration": True,
@@ -447,6 +448,21 @@ def duplicate_call(
             _prepare_clone(src_mapping)
             src_mapping.call = new_call
             src_mapping.save()
+
+    # Not part of the loop below: the new call already has a field config, seeded
+    # by the post_save handler, so cloning the source row would collide on the
+    # one-to-one constraint. Overwrite the seeded columns instead.
+    if opts["copy_proposal_field_config"]:
+        source_states = proposal_models.CallProposalFieldConfig.get_states_for_call(
+            source
+        )
+        proposal_models.CallProposalFieldConfig.objects.update_or_create(
+            call=new_call,
+            defaults={
+                proposal_models.CallProposalFieldConfig.column_for(field_name): state
+                for field_name, state in source_states.items()
+            },
+        )
 
     onetoone_targets = (
         ("copy_applicant_visibility_config", "applicant_visibility_config"),
