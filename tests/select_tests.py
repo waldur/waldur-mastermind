@@ -328,67 +328,38 @@ def build_line_to_top_level_key_map(yaml_text: str) -> dict[int, str | None]:
     return result
 
 
-def build_line_to_section_map(
-    yaml_text: str,
-) -> dict[int, tuple[str | None, str | None]]:
-    """Map every 1-indexed line to (top_level_key, second_level_key).
+def changed_job_keys(
+    name: str, base_config: dict, head_config: dict
+) -> set[str] | None:
+    """Return the set of keys whose value differs between the base and head
+    definition of `name`, or None if the key is absent from both.
 
-    The second-level key is the job property a line belongs to — `rules`,
-    `script`, `variables` and so on. It is needed because *which* job changed
-    is not enough to decide whether the test suite must run: a diff confined to
-    a job's `rules:` only changes when that job is scheduled, never what the
-    Python suite does. See #293.
+    This is a *semantic* comparison of the parsed job, not of diff lines, which
+    matters for two reasons the earlier line-based attribution got wrong:
 
-    The block's base indent is taken from its first indented line rather than
-    assumed to be two spaces, so a differently-indented job still attributes
-    correctly. Deeper lines and list items inherit the current second-level key.
+      - PyYAML resolves `<<:` merge keys, so swapping which rules anchor a job
+        merges shows up here as a plain change to `rules`, even though the diff
+        touches a line reading `<<: *some_anchor`.
+      - A comment added above a job — or anywhere inside it — changes no key at
+        all, so the job is correctly reported as unchanged. Line attribution
+        blamed such comments on whichever key preceded them.
+
+    See #293.
     """
-    result: dict[int, tuple[str | None, str | None]] = {}
-    top: str | None = None
-    second: str | None = None
-    base_indent: int | None = None
-    for line_no, line in enumerate(yaml_text.split("\n"), start=1):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            result[line_no] = (top, second)
-            continue
-        indent = len(line) - len(line.lstrip())
-        if indent == 0:
-            if not line.startswith("-"):
-                head = line.split("#", 1)[0].rstrip()
-                if ":" in head and head.split(":", 1)[0].strip():
-                    top = head.split(":", 1)[0].strip()
-                    second = None
-                    base_indent = None
-            result[line_no] = (top, second)
-            continue
-        if base_indent is None:
-            base_indent = indent
-        if indent == base_indent and not stripped.startswith("-"):
-            head = stripped.split("#", 1)[0].rstrip()
-            if ":" in head and head.split(":", 1)[0].strip():
-                second = head.split(":", 1)[0].strip()
-        result[line_no] = (top, second)
-    return result
-
-
-def touched_sections(
-    diff_text: str, base_yaml: str, head_yaml: str
-) -> dict[str, set[str | None]]:
-    """Return {job_name: {second_level_keys touched}} for a unified diff."""
-    base_map = build_line_to_section_map(base_yaml)
-    head_map = build_line_to_section_map(head_yaml)
-    sections: dict[str, set[str | None]] = {}
-    for old_start, old_count, new_start, new_count in parse_diff_hunks(diff_text):
-        for line_no in range(old_start, old_start + max(old_count, 1)):
-            top, second = base_map.get(line_no, (None, None))
-            if top:
-                sections.setdefault(top, set()).add(second)
-        for line_no in range(new_start, new_start + max(new_count, 1)):
-            top, second = head_map.get(line_no, (None, None))
-            if top:
-                sections.setdefault(top, set()).add(second)
-    return sections
+    base = base_config.get(name)
+    head = head_config.get(name)
+    if base is None and head is None:
+        return None
+    if not isinstance(base, dict) or not isinstance(head, dict):
+        # Added, removed, or changed shape — treat every key as changed. The
+        # fallback keeps the result non-empty so an addition is never mistaken
+        # for "semantically unchanged" and pruned.
+        keys: set[str] = set()
+        for side in (base, head):
+            if isinstance(side, dict):
+                keys |= set(side)
+        return keys or {"__whole_key__"}
+    return {k for k in set(base) | set(head) if base.get(k) != head.get(k)}
 
 
 def parse_diff_hunks(diff_text: str) -> list[tuple[int, int, int, int]]:
@@ -483,6 +454,30 @@ def ci_diff_affects_tests(merge_base_sha: str, head_sha: str) -> bool:
         )
         return True
 
+    # Parse both sides so the line-attributed key set can be checked against what
+    # actually changed. Line attribution is deliberately generous — it blames a
+    # comment on the key it follows — so it reports keys the diff never altered.
+    try:
+        head_config = yaml.load(head_yaml, Loader=GitLabSafeLoader) or {}
+        base_config = yaml.load(base_yaml, Loader=GitLabSafeLoader) or {}
+    except yaml.YAMLError as exc:
+        log(f"WARNING: .gitlab-ci.yml unparsable ({exc}); assuming full run.")
+        return True
+
+    # Drop keys whose parsed definition is identical on both sides. Without this,
+    # adding a documented anchor after `.unit_test_rules` blamed the new comment
+    # block on `.unit_test_rules` and forced a full run, even though that key was
+    # untouched.
+    unchanged = {
+        n for n in touched if changed_job_keys(n, base_config, head_config) == set()
+    }
+    if unchanged:
+        log(f"Keys attributed by line but semantically unchanged: {sorted(unchanged)}")
+        touched = touched - unchanged
+        if not touched:
+            log("Nothing actually changed in the CI file; skipping full run.")
+            return False
+
     if touched & TEST_INFRASTRUCTURE_KEYS:
         log(
             "CI diff touches test infrastructure "
@@ -490,25 +485,18 @@ def ci_diff_affects_tests(merge_base_sha: str, head_sha: str) -> bool:
         )
         return True
 
-    # Walk each touched job and check its stage in the head config.
-    try:
-        head_config = yaml.load(head_yaml, Loader=GitLabSafeLoader) or {}
-    except yaml.YAMLError as exc:
-        log(f"WARNING: head .gitlab-ci.yml unparsable ({exc}); assuming full run.")
-        return True
-
-    sections = touched_sections(diff, base_yaml, head_yaml)
-
     for name in touched:
         if name in IMAGE_JOB_KEYS:
             log(f"Job '{name}' only builds/publishes an image; not a full-run trigger.")
             continue
-        # A diff confined to a job's `rules:` only changes *when* that job is
-        # scheduled — it cannot change what the Python suite does. Reached only
-        # for ordinary jobs: the global-key and test-infrastructure checks above
-        # have already returned, so `.unit_test_rules` (which is nothing but a
-        # rules block) still forces a full run.
-        if sections.get(name) == {"rules"}:
+        # `rules:` only controls *when* a job is scheduled — it cannot change what
+        # the Python suite does. Compared semantically, so swapping which rules
+        # anchor a job merges (`<<: *other_anchor`) counts as a rules change even
+        # though the diff line reads `<<`. Reached only for ordinary jobs: the
+        # global-key and test-infrastructure checks above have already returned,
+        # so `.unit_test_rules` — which is nothing but a rules block — still
+        # forces a full run.
+        if changed_job_keys(name, base_config, head_config) == {"rules"}:
             log(f"Job '{name}': only its `rules:` changed; not a full-run trigger.")
             continue
         if resolve_stage(name, head_config) in TEST_RELATED_STAGES:
