@@ -8,7 +8,12 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import encryption
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models, serializers
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
@@ -407,6 +412,134 @@ class ProviderApiKeyTest(test.APITestCase):
             )
             self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
             self.assertFalse(self.resource.api_keys.exists())
+
+
+class ProviderApiKeyScopeTest(test.APITestCase):
+    """The provider actions must accept every scope the permission is granted at.
+
+    permissions.yaml gives RESOURCE.MANAGE_API_KEY to CUSTOMER.OWNER (customer
+    scope), CUSTOMER.MANAGER (service provider scope) and OFFERING.MANAGER
+    (offering scope) — and a site agent, the caller these actions exist for, runs
+    as the offering-scoped one.
+    """
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        # Test-DB system roles are created bare (migration 0002 imports no
+        # permissions); grant exactly what production permissions.yaml gives each
+        # of the three roles that hold this one.
+        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_RESOURCE_API_KEY)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.MANAGE_RESOURCE_API_KEY
+        )
+        OfferingRole.MANAGER.add_permission(PermissionEnum.MANAGE_RESOURCE_API_KEY)
+        # The service-provider-scoped role is held on the ServiceProvider object,
+        # not on the Customer — that is precisely why a check against the customer
+        # alone does not see it.
+        self.provider_manager = structure_factories.UserFactory()
+        self.fixture.service_provider.add_user(
+            self.provider_manager, ServiceProviderRole.MANAGER
+        )
+
+    def provider_users(self):
+        return (
+            ("customer-owner", self.fixture.offering_owner),
+            ("service-provider-manager", self.provider_manager),
+            ("offering-manager", self.fixture.offering_manager),
+        )
+
+    def test_every_provider_role_can_report_a_created_key(self):
+        for label, user in self.provider_users():
+            with self.subTest(label):
+                self.client.force_authenticate(user)
+                response = self.client.post(
+                    list_url("report-created"),
+                    {
+                        "resource": self.resource.uuid.hex,
+                        "client_id": f"cid-{label}",
+                        "api_key": "sk-fresh",
+                    },
+                )
+                self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_every_provider_role_can_set_a_key(self):
+        for index, (label, user) in enumerate(self.provider_users()):
+            with self.subTest(label):
+                key = models.ResourceApiKey.objects.create(
+                    resource=self.resource,
+                    client_id=f"cid-{index}",
+                    state=States.UPDATING,
+                )
+                self.client.force_authenticate(user)
+                response = self.client.post(
+                    detail_url(key, "set-key"), {"api_key": "sk-rotated"}
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                key.refresh_from_db()
+                self.assertEqual(key.state, States.OK)
+
+    def test_every_provider_role_can_report_erred(self):
+        for index, (label, user) in enumerate(self.provider_users()):
+            with self.subTest(label):
+                key = models.ResourceApiKey.objects.create(
+                    resource=self.resource,
+                    client_id=f"cid-{index}",
+                    state=States.UPDATING,
+                )
+                self.client.force_authenticate(user)
+                response = self.client.post(
+                    detail_url(key, "set-erred"), {"error_message": "boom"}
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                key.refresh_from_db()
+                self.assertEqual(key.state, States.ERRED)
+
+    def test_offering_manager_reaches_the_key(self):
+        # The detail actions above are unreachable if the queryset hides the row:
+        # an offering-scoped role is neither a connected project nor a connected
+        # customer, so it used to 404 before any permission check ran.
+        key = models.ResourceApiKey.objects.create(
+            resource=self.resource, client_id="cid-1", state=States.OK
+        )
+        self.client.force_authenticate(self.fixture.offering_manager)
+        response = self.client.get(detail_url(key))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_no_provider_role_can_reveal(self):
+        # Admitting the provider org to the write actions must not let it read a
+        # consumer's live key: reveal stays consumer-side only.
+        key = models.ResourceApiKey.objects.create(
+            resource=self.resource,
+            client_id="cid-1",
+            key_ciphertext=encryption.encrypt_value("sk-secret-one"),
+            state=States.OK,
+        )
+        for label, user in self.provider_users():
+            with self.subTest(label):
+                self.client.force_authenticate(user)
+                response = self.client.get(detail_url(key, "reveal"))
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_the_role_must_be_held_on_this_resource_offering(self):
+        outsider = MarketplaceFixture().offering_manager
+        key = models.ResourceApiKey.objects.create(
+            resource=self.resource, client_id="cid-1", state=States.UPDATING
+        )
+        self.client.force_authenticate(outsider)
+        response = self.client.post(
+            list_url("report-created"),
+            {
+                "resource": self.resource.uuid.hex,
+                "client_id": "cid-2",
+                "api_key": "sk-x",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        response = self.client.post(
+            detail_url(key, "set-key"), {"api_key": "sk-rotated"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ResourceHasApiKeysTest(test.APITestCase):

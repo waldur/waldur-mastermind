@@ -119,6 +119,7 @@ from waldur_core.permissions.utils import (
     add_user,
     get_user_ids,
     has_permission,
+    has_permission_on_any_source,
     permission_factory,
 )
 from waldur_core.permissions.views import UserRoleMixin
@@ -15004,12 +15005,29 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
     rotate_api_key_validators = [core_validators.StateValidator(ServiceAccountState.OK)]
 
 
+# Scopes that may manage a resource API key, relative to the resource. A site
+# agent runs as OFFERING.MANAGER (offering-scoped) and a provider-org manager
+# holds the role on the ServiceProvider rather than on the Customer, so all
+# three roles permissions.yaml grants RESOURCE.MANAGE_API_KEY to must be
+# accepted, not the owning customer alone.
+PROVIDER_API_KEY_SOURCES = [
+    "offering",
+    "offering.customer",
+    "offering.customer.serviceprovider",
+]
+
+
 def check_provider_api_key_permissions(request, view, obj=None):
     serializer = view.get_serializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     resource = serializer.validated_data["resource"]
-    if not has_permission(
-        request, PermissionEnum.MANAGE_RESOURCE_API_KEY, resource.offering.customer
+    # Built from the same traversal the detail actions declare below, so a read
+    # gate and the write gate it has to agree with cannot drift apart.
+    if not has_permission_on_any_source(
+        request,
+        PermissionEnum.MANAGE_RESOURCE_API_KEY,
+        resource,
+        PROVIDER_API_KEY_SOURCES,
     ):
         raise PermissionDenied()
 
@@ -15043,10 +15061,17 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
             return qs
         customers = get_connected_customers(user)
         projects = get_connected_projects(user)
+        # The provider side is admitted through the same manager the other
+        # provider viewsets use, so an offering- or service-provider-scoped role
+        # reaches the write actions instead of getting a 404 before the
+        # permission check runs.
+        provider_resources = models.Resource.objects.all().filter_for_service_provider(
+            user
+        )
         return qs.filter(
             Q(resource__project__in=projects)
             | Q(resource__project__customer__in=customers)
-            | Q(resource__offering__customer__in=customers)
+            | Q(resource__in=provider_resources)
         )
 
     # --- consumer actions ------------------------------------------------------
@@ -15264,7 +15289,8 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     set_key_permissions = [
         permission_factory(
-            PermissionEnum.MANAGE_RESOURCE_API_KEY, ["resource.offering.customer"]
+            PermissionEnum.MANAGE_RESOURCE_API_KEY,
+            [f"resource.{source}" for source in PROVIDER_API_KEY_SOURCES],
         )
     ]
     set_key_serializer_class = serializers.ResourceApiKeySetKeySerializer
