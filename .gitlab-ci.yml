@@ -873,3 +873,7 @@ Check dependency licences:
   extends: .Licence gate (python) template
   variables:
     LICENCE_EXEMPT_PACKAGES: "matrix-nio django-jsoneditor"
+    # Beyond the template's default git: python-ldap (via django-auth-ldap)
+    # publishes no wheel on any platform, so the sync builds it from its sdist
+    # and needs a compiler plus the OpenLDAP and Cyrus SASL headers.
+    LICENCE_SYSTEM_PACKAGES: "git build-essential libldap2-dev libsasl2-dev"
