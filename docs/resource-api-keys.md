@@ -182,8 +182,12 @@ backend-specific.
 still serves at the backend. Termination cleanup deletes the rows directly (see
 [States](#states)).
 
-Provider side (used by the site agent), gated on `RESOURCE.MANAGE_API_KEY` on
-the offering customer:
+Provider side (used by the site agent), gated on `RESOURCE.MANAGE_API_KEY` held
+on any of the provider-side scopes the permission is granted at — the offering
+itself (`OFFERING.MANAGER`, which is what a site agent runs as), the offering's
+customer (`CUSTOMER.OWNER`), or that customer's `ServiceProvider`
+(`CUSTOMER.MANAGER`). The list of keys is likewise visible to the provider
+organization, but reading a value is not: `reveal` stays consumer-side only.
 
 - `POST /report_created/` — the agent pushes a freshly-applied key value after
   provisioning; Waldur encrypts, stores, and the row lands `OK`. Idempotent per
