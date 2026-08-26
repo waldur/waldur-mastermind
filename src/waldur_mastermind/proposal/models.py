@@ -26,6 +26,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.models import (
     SafeAttributesMixin,
     UserAttributeConfigBase,
@@ -937,14 +938,19 @@ class Proposal(
         return completion
 
     def offerings_missing_purchase_orders(self) -> list[str]:
-        """Offerings whose call entry demands a purchase order and has none."""
+        """Offerings whose call entry demands a purchase order and has none.
+
+        Filtered in Python rather than in the query. ``can_submit`` reports this
+        on every proposal a list serializes, and a ``.filter()`` on the relation
+        ignores whatever the viewset prefetched — one query per row, which is
+        what the annotations on ProposalViewSet.get_queryset exist to avoid.
+        """
         return sorted(
             {
                 requested_resource.requested_offering.offering.name
-                for requested_resource in self.requestedresource_set.filter(
-                    requested_offering__require_purchase_order=True
-                ).select_related("requested_offering__offering")
-                if not requested_resource.has_purchase_order
+                for requested_resource in self.requestedresource_set.all()
+                if requested_resource.requested_offering.require_purchase_order
+                and not requested_resource.has_purchase_order
             }
         )
 
@@ -955,11 +961,19 @@ class Proposal(
         exempt: there is no amount to name in the first place.
         """
         missing = set()
-        for requested_resource in self.requestedresource_set.select_related(
-            "requested_offering__offering"
-        ):
+        for requested_resource in self.requestedresource_set.all():
             offering = requested_resource.requested_offering.offering
-            requestable = offering.get_limit_components()
+            # The same components get_limit_components() selects, read off the
+            # prefetched list instead of querying per offering.
+            requestable = [
+                component.type
+                for component in offering.components.all()
+                if component.billing_type == BillingTypes.LIMIT
+                or (
+                    component.billing_type == BillingTypes.ONE_TIME
+                    and component.is_prepaid
+                )
+            ]
             if not requestable:
                 continue
             limits = requested_resource.limits or {}
