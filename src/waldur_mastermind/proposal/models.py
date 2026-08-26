@@ -267,8 +267,10 @@ class CallProposalFieldConfig(TimeStampedModel, core_models.UuidMixin):
     an operator raised the installation default, which the locking rule below
     exists to prevent.
 
-    ``name`` and ``duration_in_days`` are deliberately absent: the first becomes
-    the awarded project, the second states the length of the award.
+    ``name`` and ``duration_in_days`` are deliberately absent: the first names
+    the proposal and forms the last part of the awarded project's name (see
+    ``allocate_proposal``, which prefixes the call and the round's start date),
+    the second states the length of the award.
     """
 
     FIELD_PREFIX = "field_"
