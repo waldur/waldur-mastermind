@@ -2174,6 +2174,20 @@ Shared secret expected in the X-Webhook-Secret header of inbound SMAX webhook de
 
 Review duration in days.
 
+#### DEFAULT_PROPOSAL_REQUIRED_FIELDS
+
+**Type:** multiple_choice_field
+
+**Default value:** ['project_summary']
+
+Project details fields a new call requires by default. Applied when the call is created; changing this never alters an existing call.
+
+#### DEFAULT_PROPOSAL_HIDDEN_FIELDS
+
+**Type:** multiple_choice_field
+
+Project details fields a new call does not ask for at all. Applied when the call is created; changing this never alters an existing call.
+
 #### REVIEWER_PROFILES_ENABLED
 
 **Type:** bool

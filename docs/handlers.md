@@ -700,6 +700,7 @@ td:nth-child(4) {
 | `revoke_roles_on_offering_deletion` | `Django Signal (pre_delete)` | `marketplace.Offering` | Revoke active user roles bound to an offering before it is deleted. |
 | `run_reset_actions_upon_cost_policy_deletion` | `Django Signal (pre_delete)` | `policy.ProjectEstimatedCostPolicy` | Execute reset actions when a cost policy is deleted. |
 | `schedule_component_usage_billing` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Thin post_save handler — schedules the async billing+policy task on commit. |
+| `seed_proposal_field_config` | `Django Signal (post_save)` | `proposal.Call` | Materialise a call's Project details field configuration at creation. |
 | `seed_workflow_steps` | `Django Signal (post_save)` | `proposal.Call` | Seed catalog workflow steps on call creation. |
 | `send_comment_added_notification` | `Django Signal (post_save)` | `support.Comment` | No description |
 | `send_course_account_deletion_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
@@ -881,14 +882,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 807
+Total unique handlers found: 808
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 417 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 337 handlers
+- **waldur_mastermind**: 338 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

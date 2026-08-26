@@ -1305,11 +1305,15 @@ usage: waldur rebill_historical_usage [--execute] [--offering OFFERING_UUID]
 options:
   --execute             Actually apply the correction. Without this flag the
                         command always runs as a dry run -- it computes and
-                        prints the exact same plan (inside a transaction
-                        that's deliberately rolled back at the end) but writes
-                        nothing to the database. This default is deliberate:
-                        review the printed plan first, then re-run with
-                        --execute once it looks right.
+                        prints the exact same plan (inside one transaction
+                        spanning every resource-period in the run,
+                        deliberately rolled back at the very end) but writes
+                        nothing to the database. Cost Policy previews
+                        therefore see earlier periods' corrections in the same
+                        dry run too, matching what --execute would actually
+                        produce. This default is deliberate: review the
+                        printed plan first, then re-run with --execute once it
+                        looks right.
   --offering OFFERING_UUID
                         Only process resources belonging to the offering with
                         this UUID.
