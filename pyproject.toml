@@ -201,6 +201,7 @@ target-version = "py313"
 # perform conditional imports after computing values, so ignore the related codes.
 "src/waldur_core/server/settings.py" = ["F403", "F405", "E402"]
 "src/waldur_core/server/base_settings.py" = ["F403", "F405", "E402"]
+"docker/rootfs/etc/waldur/settings.py" = ["F403", "F405", "E402"]
 # Extension registration runs imports after a guard clause, so the import is not
 # at the top of the module by design.
 "src/waldur_core/core/openapi_extensions.py" = ["E402"]
