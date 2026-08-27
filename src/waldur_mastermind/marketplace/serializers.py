@@ -2288,14 +2288,34 @@ class QuotasUpdateSerializer(serializers.Serializer):
         new_keys = set(new_quotas.keys())
         plan: models.Plan = self.instance
 
+        # Every billing type whose charge is the plan's amount times its price:
+        # a fixed component billed per period, a setup fee, a plan-switch fee.
+        # A prepaid one-time component is excluded because its quantity comes
+        # from the limit the customer requests and the length of the
+        # subscription, so an amount here would be settable and then ignored.
+        #
+        # Restricted to FIXED alone, this endpoint rejected the whole request
+        # whenever the form offered a one-time component beside a fixed one —
+        # which is every offering that charges a setup fee — so no amount could
+        # be saved at all and every one of them sat at the field's default.
         valid_types = {
             component.type
             for component in plan.offering.components.all()
-            if component.billing_type == BillingTypes.FIXED
+            if component.billing_type
+            in (
+                BillingTypes.FIXED,
+                BillingTypes.ONE_TIME,
+                BillingTypes.ON_PLAN_SWITCH,
+            )
+            and not component.is_prepaid
         }
         component_map = validate_components(new_keys, valid_types, plan)
         for key, old_component in component_map.items():
-            new_amount = new_quotas.get(key, 0)
+            if key not in new_quotas:
+                # Only what the caller named. Defaulting the rest to zero would
+                # wipe the amount of any component the form did not show.
+                continue
+            new_amount = new_quotas[key]
             if old_component.amount != new_amount:
                 old_component.amount = new_amount
                 old_component.save(update_fields=["amount"])
@@ -2541,10 +2561,14 @@ class BasePlanSerializer(
             if plan_component.price:
                 if offering_component.billing_type == BillingTypes.LIMIT:
                     price += plan_component.price
-                elif offering_component.billing_type == BillingTypes.FIXED:
+                elif offering_component.billing_type in (
+                    BillingTypes.FIXED,
+                    BillingTypes.ONE_TIME,
+                ):
+                    # Both are the plan's amount times its price. One-time used
+                    # the bare price, which read as the fee for a single unit
+                    # however many the plan sold.
                     price += plan_component.price * (plan_component.amount or 1)
-                elif offering_component.billing_type == BillingTypes.ONE_TIME:
-                    price += plan_component.price
 
         return price
 

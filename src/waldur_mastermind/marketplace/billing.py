@@ -400,8 +400,14 @@ class MarketplaceBillingService:
                         resource.uuid.hex,
                     )
             elif is_one or is_switch:
+                # The plan's amount, as every estimate reads it. Charging one
+                # regardless quoted a plan one figure and billed another in
+                # whichever direction the amount fell: a component sold in
+                # quantity (40 GPU hours at 15) was quoted 600 and billed 15,
+                # while one left at the default zero was quoted nothing and
+                # billed in full.
                 unit = invoice_models.Units.QUANTITY
-                quantity = 1
+                quantity = plan_component.amount
 
             create_discounted_resource_on_activation(resource)
 

@@ -2082,3 +2082,80 @@ class GetOrCreateInvoiceWithDateInputTest(test.APITestCase):
             ).count(),
             1,
         )
+
+
+class OneTimeQuantityTest(test.APITestCase):
+    """A one-time fee is invoiced at the quantity its plan names.
+
+    The estimate has always read ``PlanComponent.amount``; the invoice used to
+    charge one of each whatever the plan said, so the two disagreed in
+    whichever direction the amount fell.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.plan = self.resource.plan
+
+    def _one_time_component(self, amount, price, billing_type=BillingTypes.ONE_TIME):
+        component = marketplace_factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            type="setup",
+            name="Setup fee",
+            billing_type=billing_type,
+            is_prepaid=False,
+        )
+        return marketplace_factories.PlanComponentFactory(
+            plan=self.plan,
+            component=component,
+            price=Decimal(price),
+            amount=amount,
+        )
+
+    def _activate(self):
+        now = timezone.now()
+        self.resource.set_state_ok()
+        self.resource.save()
+        return invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer,
+            year=now.year,
+            month=now.month,
+        )
+
+    def test_a_quantified_fee_is_billed_for_its_quantity(self):
+        # 40 units at 15 is 600, which is what the plan quotes. Billing one of
+        # them charged 15 for something sold as 600.
+        self._one_time_component(amount=40, price="15")
+
+        invoice = self._activate()
+
+        item = invoice.items.get(
+            resource_id=self.resource.id, name__contains="Setup fee"
+        )
+        self.assertEqual(item.quantity, 40)
+        self.assertEqual(item.quantity * item.unit_price, Decimal("600"))
+
+    def test_a_fee_of_one_is_unchanged(self):
+        self._one_time_component(amount=1, price="250")
+
+        invoice = self._activate()
+
+        item = invoice.items.get(
+            resource_id=self.resource.id, name__contains="Setup fee"
+        )
+        self.assertEqual(item.quantity, 1)
+
+    def test_the_invoice_agrees_with_the_estimate(self):
+        # The two figures the customer sees: what they were quoted, and what
+        # they are billed.
+        self._one_time_component(amount=3, price="100")
+
+        invoice = self._activate()
+
+        item = invoice.items.get(
+            resource_id=self.resource.id, name__contains="Setup fee"
+        )
+        self.assertEqual(
+            item.quantity * item.unit_price,
+            Decimal(str(self.plan.non_prepaid_init_price)),
+        )
