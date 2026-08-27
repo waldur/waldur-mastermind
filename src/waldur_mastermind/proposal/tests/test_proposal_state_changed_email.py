@@ -35,16 +35,12 @@ class BaseStateChangedEmailTest(TestCase):
         self.proposal = self.fixture.proposal
         self.proposal.name = REQUEST_NAME
         self.proposal.save()
-        # Both keys, enabled. broadcast_mail returns silently when a row is
-        # missing or disabled, so a test would otherwise assert on an empty
-        # outbox rather than on the wording. In production the access-request
-        # row is created disabled by load_notifications, like any new
-        # notification, and an operator switches it on.
-        for key in (
-            "proposal.proposal_state_changed",
-            "proposal.access_request_state_changed",
-        ):
-            Notification.objects.update_or_create(key=key, defaults={"enabled": True})
+        # One switch for the event, whichever wording it goes out in.
+        # broadcast_mail returns silently when the row is missing or disabled,
+        # so a test would otherwise assert on an empty outbox.
+        Notification.objects.update_or_create(
+            key="proposal.proposal_state_changed", defaults={"enabled": True}
+        )
 
     # Which deployment this class is testing. Applied around each send rather
     # than as a class decorator: override_config writes through to the Constance
@@ -176,23 +172,39 @@ class NotificationSelectionTest(BaseStateChangedEmailTest):
         self.assertIn("Proposal state update", self.notify(mode="both").subject)
         self.assertIn("Access request update", self.notify(mode="marketplace").subject)
 
-    def test_the_access_request_message_can_be_switched_off_on_its_own(self):
-        # The point of a separate key rather than a branch inside one message.
-        Notification.objects.filter(key="proposal.access_request_state_changed").update(
+    def test_one_switch_governs_both_wordings(self):
+        # A deployment is in one mode and only ever sends one of the two, so the
+        # operator gets a single "tell the applicant" switch rather than one per
+        # wording, and neither can be left on by forgetting the other.
+        Notification.objects.filter(key="proposal.proposal_state_changed").update(
             enabled=False
         )
 
-        mail.outbox = []
-        with override_config(SERVICE_ACCESS_MODE="marketplace"):
-            tasks.notify_user_about_proposal_state_update(
-                self.proposal.uuid,
-                ProposalStates.IN_REVIEW,
-                ProposalStates.ACCEPTED,
-            )
-        self.assertEqual(mail.outbox, [])
+        for mode in ("both", "marketplace"):
+            mail.outbox = []
+            with override_config(SERVICE_ACCESS_MODE=mode):
+                tasks.notify_user_about_proposal_state_update(
+                    self.proposal.uuid,
+                    ProposalStates.IN_REVIEW,
+                    ProposalStates.ACCEPTED,
+                )
+            self.assertEqual(mail.outbox, [], f"{mode} still sent mail")
 
-        # ...and the call-managed one still goes out.
-        self.assertIn("Proposal state update", self.notify(mode="both").subject)
+    def test_both_template_sets_are_declared_by_the_notification(self):
+        # find_template_from_registry honours a variant only where the
+        # notification declares it, so this is what keeps the marketplace
+        # wording reachable at all.
+        from waldur_core.core.utils import find_template_from_registry
+
+        self.assertEqual(
+            find_template_from_registry(
+                "proposal",
+                "proposal_state_changed",
+                "message.txt",
+                "access_request_state_changed",
+            ),
+            "proposal/access_request_state_changed_message.txt",
+        )
 
 
 @ddt

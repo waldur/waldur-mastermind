@@ -927,7 +927,14 @@ class ProposalStateChangedContext(BaseModel):
     proposal_creator_name: str = Field(
         description="Full name of the proposal's creator."
     )
-    call_name: str = Field(description="Name of the call for proposals.")
+    call_name: str | None = Field(
+        default=None,
+        description=(
+            "Name of the call for proposals. Absent, along with review_period, "
+            "for the access_request_* templates: those name no call, so they "
+            "are not given one to name."
+        ),
+    )
     rejection_feedback: str | None = Field(
         default=None,
         description="Comments from the manager if the proposal was rejected.",
@@ -1135,51 +1142,6 @@ class ReviewerInvitationContext(BaseModel):
     )
 
 
-class AccessRequestStateChangedContext(BaseModel):
-    """The applicant's state-change mail where the deployment has no calls.
-
-    Deliberately not ProposalStateChangedContext minus a field: this message
-    names no call and no round, so it does not carry ``call_name`` or
-    ``review_period`` at all and a template cannot reach for them.
-    """
-
-    site_name: str = Field(description="Name of the site from settings.")
-    new_state: str = Field(
-        description="The new state of the access request (e.g., 'accepted')."
-    )
-    previous_state: str = Field(description="The previous state.")
-    update_date: Any = Field(description="The timestamp of the state change.")
-    proposal_url: str = Field(description="URL to the access request page.")
-    project_url: str | None = Field(
-        default=None,
-        description="URL to the created project if the request was approved.",
-    )
-    project_name: str | None = Field(
-        default=None, description="Name of the created project."
-    )
-    allocation_date: Any | None = Field(
-        default=None, description="The day the granted project starts running."
-    )
-    duration: int | None = Field(
-        default=None,
-        description=(
-            "How long the granted project runs, in days. None where the grant "
-            "does not expire, in which case the line is not rendered."
-        ),
-    )
-    proposal_name: str = Field(description="Name of the access request.")
-    proposal_creator_name: str = Field(
-        description="Full name of the person who made the request."
-    )
-    rejection_feedback: str | None = Field(
-        default=None,
-        description="Comments from the manager if the request was declined.",
-    )
-    allocated_resources: Any | None = Field(
-        default=None, description="Resources provisioned for the new project."
-    )
-
-
 class ProposalSection(NotificationSection):
     class Meta:
         key = "proposal"
@@ -1206,18 +1168,25 @@ class ProposalSection(NotificationSection):
     )
     proposal_state_changed = Notification(
         key="proposal_state_changed",
-        description="A notification about the proposal state changes (submitted → in review → accepted/rejected).",
-        context_model=ProposalStateChangedContext,
-    )
-    access_request_state_changed = Notification(
-        key="access_request_state_changed",
         description=(
-            "The same state changes, for a deployment that hides calls from "
-            "applicants (SERVICE_ACCESS_MODE = 'marketplace'). Its own "
-            "notification rather than a branch inside the proposal one, so "
-            "each can be worded, overridden and switched off independently."
+            "A notification about the proposal state changes (submitted → in "
+            "review → accepted/rejected). Deployments that hide calls from "
+            "applicants (SERVICE_ACCESS_MODE = 'marketplace') send the "
+            "access_request_* templates below instead, which say the same "
+            "thing without naming a call or a round. One event, one switch, "
+            "two sets of words — a deployment only ever sends one of them."
         ),
-        context_model=AccessRequestStateChangedContext,
+        context_model=ProposalStateChangedContext,
+        templates=[
+            NotificationTemplate(
+                path=f"proposal/{base}_{suffix}", name=f"proposal/{base}_{suffix}"
+            )
+            for base in (
+                "proposal_state_changed",
+                "access_request_state_changed",
+            )
+            for suffix in ("subject.txt", "message.txt", "message.html")
+        ],
     )
     proposal_submission_deadline_approaching = Notification(
         key="proposal_submission_deadline_approaching",

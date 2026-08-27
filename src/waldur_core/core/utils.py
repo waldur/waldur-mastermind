@@ -195,10 +195,33 @@ def format_text(template_name, context):
     return template.render(Context(context, autoescape=False)).strip()
 
 
-def find_template_from_registry(app, event_type, template_suffix):
+def find_template_from_registry(app, event_type, template_suffix, variant=None):
+    """The template path for an event, optionally one of its variants.
+
+    A notification may declare more than the three templates named after its
+    own key — a deployment that presents the same event in different words
+    sends a different message, not the same message with conditionals threaded
+    through it, but it is still one event and so still one switch. Passing
+    ``variant`` selects such an alternative set, and it is honoured only when
+    the notification actually declares it, so a typo resolves to nothing rather
+    than to a template belonging to something else.
+    """
     app_dict = NOTIFICATIONS.get(app)
     for section in app_dict:
         if event_type == section.get("path"):
+            if not variant:
+                return f"{app}/{event_type}_{template_suffix}"
+            path = f"{app}/{variant}_{template_suffix}"
+            declared = {tpl["path"] for tpl in section.get("templates", [])}
+            if path in declared:
+                return path
+            logger.warning(
+                "Notification '%s.%s' does not declare template '%s'; "
+                "falling back to its own.",
+                app,
+                event_type,
+                path,
+            )
             return f"{app}/{event_type}_{template_suffix}"
 
 
@@ -268,6 +291,7 @@ def broadcast_mail(
     attachment=None,
     content_type="text/plain",
     bcc=None,
+    template_variant=None,
 ):
     """
     Shorthand to format email message from template file and sent it to all recipients.
@@ -292,6 +316,10 @@ def broadcast_mail(
     :param attachment: content of attachment
     :param content_type: the content type of attachment
     :param bcc: list of emails for sending as bcc
+    :param template_variant: alternative template set declared by the same
+        notification, used where a deployment words the same event differently.
+        The notification, and therefore the operator's on/off switch, is still
+        the one named by ``event_type``.
     """
     from .models import Notification
 
@@ -303,11 +331,13 @@ def broadcast_mail(
 
     if notification.enabled:
         subject_template_name = find_template_from_registry(
-            app, event_type, "subject.txt"
+            app, event_type, "subject.txt", template_variant
         )
-        text_template_name = find_template_from_registry(app, event_type, "message.txt")
+        text_template_name = find_template_from_registry(
+            app, event_type, "message.txt", template_variant
+        )
         html_template_name = find_template_from_registry(
-            app, event_type, "message.html"
+            app, event_type, "message.html", template_variant
         )
 
         subject = format_text(subject_template_name, context)
