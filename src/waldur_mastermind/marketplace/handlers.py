@@ -1458,7 +1458,7 @@ def resource_state_has_been_changed(
 def delete_expired_project_if_every_resource_has_been_terminated(
     sender, instance: Resource, created=False, **kwargs
 ):
-    """Delete an expired project if all its resources have been terminated."""
+    """Schedule deletion of an expired project once its last resource is terminated."""
     if created:
         return
 
@@ -1468,36 +1468,27 @@ def delete_expired_project_if_every_resource_has_been_terminated(
     if instance.state != ResourceStates.TERMINATED:
         return
 
-    # Ensure customer relationship is loaded to avoid KeyError during quota cleanup
     project = instance.project
-    try:
-        # Test if customer relationship is accessible
-        _ = project.customer
-    except (AttributeError, KeyError):
-        # Reload project with customer relationship if not accessible
-        project = project.__class__.objects.select_related("customer").get(
-            pk=project.pk
-        )
+    if not project.is_expired:
+        return
 
-    if project.is_expired:
-        resources = (
-            models.Resource.objects.filter(project=project)
-            .exclude(
-                state__in=(
-                    ResourceStates.ERRED,
-                    ResourceStates.TERMINATED,
-                )
+    has_active_resources = (
+        models.Resource.objects.filter(project=project)
+        .exclude(
+            state__in=(
+                ResourceStates.ERRED,
+                ResourceStates.TERMINATED,
             )
-            .exists()
         )
-        if not resources:
-            event_logger.emit(
-                "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
-                event_type=EventType.PROJECT_DELETION_TRIGGERED,
-                event_context={"project": project},
-                scopes=[project, project.customer],
-            )
-            project.delete()
+        .exists()
+    )
+    if has_active_resources:
+        return
+
+    # Deletion cascades through quota ledgers and can take minutes; run it in a
+    # task instead of the request that terminated the last resource.
+    project_uuid = project.uuid.hex
+    transaction.on_commit(lambda: tasks.delete_expired_project.delay(project_uuid))
 
 
 def log_offering_user_created(sender, instance: OfferingUser, created=False, **kwargs):

@@ -1030,6 +1030,40 @@ def notify_about_stale_resource():
         )
 
 
+@shared_task(name="waldur_mastermind.marketplace.delete_expired_project")
+def delete_expired_project(project_uuid):
+    """Delete an expired project once all of its resources are terminated."""
+    try:
+        project = structure_models.Project.available_objects.select_related(
+            "customer"
+        ).get(uuid=project_uuid)
+    except structure_models.Project.DoesNotExist:
+        return
+    # Re-validate: state may have changed between scheduling and execution.
+    if not project.is_expired:
+        return
+    has_active_resources = (
+        models.Resource.objects.filter(project=project)
+        .exclude(
+            state__in=(
+                ResourceStates.ERRED,
+                ResourceStates.TERMINATED,
+            )
+        )
+        .exists()
+    )
+    if has_active_resources:
+        return
+    event_logger.emit(
+        "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
+        event_type=EventType.PROJECT_DELETION_TRIGGERED,
+        event_context={"project": project},
+        scopes=[project, project.customer],
+    )
+    project.delete()
+    logger.info("Expired project %s has been deleted.", project_uuid)
+
+
 @shared_task(name="waldur_mastermind.marketplace.terminate_expired_resources")
 def terminate_expired_resources():
     """Terminate marketplace resources that have reached their end date."""
