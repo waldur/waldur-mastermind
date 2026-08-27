@@ -507,8 +507,8 @@ class PermissionSerializer(serializers.ModelSerializer):
     scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="scope.name")
-    customer_uuid = serializers.UUIDField(read_only=True, source="scope.customer.uuid")
-    customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
+    customer_uuid = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
     resource_uuid = serializers.SerializerMethodField()
     project_uuid = serializers.SerializerMethodField()
     scope_is_removed = serializers.SerializerMethodField()
@@ -561,6 +561,40 @@ class PermissionSerializer(serializers.ModelSerializer):
             if model == model_name:
                 return key
         return model_name
+
+    def _resolve_customer(self, obj):
+        """The organisation a role's scope belongs to.
+
+        Most scopes carry ``customer`` themselves, directly or as a property.
+        Proposals deliberately do not: ``get_scope_ancestors`` appends
+        ``scope.customer`` when it exists, and ``pat_filtering`` mirrors that
+        walk exactly, so giving ``Proposal`` the attribute would hand it an
+        ancestor it is documented not to have — a permission-surface change,
+        made silently, for the sake of a display column. Resolve it here
+        instead, where it only ever reaches the response.
+
+        The chain is the one ``Proposal.Permissions.customer_path`` already
+        names: the organisation running the call the proposal was submitted to.
+        """
+        scope = obj.scope
+        if scope is None:
+            return None
+        if scope._meta.model_name == "proposal":
+            round_ = getattr(scope, "round", None)
+            call = getattr(round_, "call", None)
+            manager = getattr(call, "manager", None)
+            return getattr(manager, "customer", None)
+        return getattr(scope, "customer", None)
+
+    @extend_schema_field(serializers.UUIDField(allow_null=True))
+    def get_customer_uuid(self, obj) -> str | None:
+        customer = self._resolve_customer(obj)
+        return customer.uuid.hex if customer is not None else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_customer_name(self, obj) -> str | None:
+        customer = self._resolve_customer(obj)
+        return customer.name if customer is not None else None
 
     @extend_schema_field(serializers.UUIDField(allow_null=True))
     def get_resource_uuid(self, obj) -> str | None:
