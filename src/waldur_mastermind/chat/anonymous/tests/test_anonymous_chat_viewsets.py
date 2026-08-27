@@ -329,6 +329,43 @@ class StaffListAndActionsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+def _tool_block(name):
+    return {
+        "id": "b1",
+        "key": "tool",
+        "status": "complete",
+        "tool": {"call_id": "c1", "name": name, "arguments": {}, "summary": ""},
+        "result": {"id": "b2", "key": "markdown", "status": "complete", "content": ""},
+    }
+
+
+class KpiClarificationCountTest(test.APITestCase):
+    def setUp(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+        self.kpi_url = reverse("anonymous-chat-interaction-kpi")
+        _make_interaction(session_id="s1", assistant_blocks=[_tool_block("ask_user")])
+        _make_interaction(
+            session_id="s1",
+            assistant_blocks=[
+                _tool_block("search_offerings"),
+                {"id": "b3", "key": "markdown", "status": "complete", "content": "x"},
+            ],
+        )
+        _make_interaction(session_id="s2", assistant_blocks=[])
+
+    def test_counts_interactions_with_ask_user_turns(self):
+        body = self.client.get(self.kpi_url).data
+        self.assertEqual(body["clarification_requests_total"], 1)
+        self.assertAlmostEqual(body["clarification_rate"], 1 / 3)
+
+    def test_rate_is_null_without_interactions(self):
+        anonymous_models.AnonymousChatInteraction.objects.all().delete()
+        body = self.client.get(self.kpi_url).data
+        self.assertEqual(body["clarification_requests_total"], 0)
+        self.assertIsNone(body["clarification_rate"])
+
+
 class ActionDecoratorPresenceTest(SimpleTestCase):
     """Quick sanity: the three @action methods on the interaction
     ViewSet are actually registered as DRF actions (not plain methods).
