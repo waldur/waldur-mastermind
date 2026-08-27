@@ -143,33 +143,36 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         else None,
     }
 
-    # Two notifications rather than one message with a branch inside it: a
-    # deployment that hides calls from applicants sends a *different* message,
-    # not the same one worded differently, and each can be reworded, overridden
-    # through the template API and switched off without touching the other.
+    # A separate set of templates rather than conditionals threaded through
+    # one: a deployment that hides calls from applicants sends a different
+    # message, and each set can be reworded and overridden without disturbing
+    # the other. Still one event and one notification, so an operator has a
+    # single switch for "tell the applicant their request changed state" —
+    # a deployment is in one mode and only ever sends one of the two.
+    template_variant = None
     if names_calls():
-        event_type = "proposal_state_changed"
-        # Only the call-managed message names these, so only it is handed them.
+        # Only the call-managed wording names these, so only it is handed them.
         context["call_name"] = proposal.round.call.name
         context["review_period"] = proposal.round.review_duration_in_days
-        # This message states what was asked for, as it always has. Its
-        # template renders the value unguarded, and the applicant is still
-        # required to supply it wherever calls are named, so it is never null.
+        # It states what was asked for, as it always has. The template renders
+        # the value unguarded, and the applicant is still required to supply it
+        # wherever calls are named, so it is never null.
         context["duration"] = proposal.duration_in_days
     else:
-        event_type = "access_request_state_changed"
+        template_variant = "access_request_state_changed"
         # Nothing asks a marketplace applicant for a duration, so the only
-        # honest figure is the one they were granted — and None where the
-        # grant does not expire, which this message's template omits.
+        # honest figure is the one they were granted — and None where the grant
+        # does not expire, which that wording's template omits.
         context["duration"] = granted_duration
 
     core_utils.broadcast_mail(
         "proposal",
-        event_type,
+        "proposal_state_changed",
         context,
         [proposal.created_by.email]
         if proposal.created_by and proposal.created_by.email
         else [],
+        template_variant=template_variant,
     )
 
 
