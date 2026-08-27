@@ -1470,6 +1470,22 @@
         "tres_billing_enabled": true
       },
       "getting_started": "## Getting Started with SLURM HPC Allocation\n\n### Access\n```bash\nssh username@slurm.research-council.edu\n```\n\n### Check Your Allocation\n```bash\nsacctmgr show user $USER format=User,Account,QOS\nsbalance -u $USER\n```\n\n### Submit a Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=my_job\n#SBATCH --nodes=2\n#SBATCH --ntasks-per-node=48\n#SBATCH --time=24:00:00\n\nsrun ./my_application\n```\n\n### Support\nEmail: hpc-support@research-council.edu"
+    },
+    {
+      "uuid": "f4000000000000000000000000000006",
+      "name": "Managed Analytics Platform",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "Prepaid analytics seats. Procurement requires a purchase order before an order is approved.",
+      "getting_started": "## Managed Analytics Platform\n\n### Purchase orders\nThis offering is sold against a purchase order. Attach the PDF to your order before requesting approval.\n\n### Seats\nSeats are prepaid for the subscription period and cannot be topped up mid-period.",
+      "plugin_options": {
+        "enable_purchase_order_upload": true,
+        "require_purchase_order_upload": true
+      }
     }
   ],
   "offering_components": [
@@ -1631,6 +1647,30 @@
       "prepaid_duration_step": 1,
       "min_value": 0,
       "max_value": 200
+    },
+    {
+      "uuid": "c4000000000000000000000000000601",
+      "offering_uuid": "f4000000000000000000000000000006",
+      "type": "analyst_seats",
+      "name": "Analyst seats",
+      "description": "Named seats paid up front for the subscription period.",
+      "billing_type": "one",
+      "measured_unit": "seats",
+      "is_prepaid": true,
+      "min_prepaid_duration": 1,
+      "max_prepaid_duration": 12,
+      "prepaid_duration_step": 1,
+      "min_value": 0,
+      "max_value": 100
+    },
+    {
+      "uuid": "c4000000000000000000000000000602",
+      "offering_uuid": "f4000000000000000000000000000006",
+      "type": "platform_setup",
+      "name": "Platform setup",
+      "description": "One-off onboarding charge raised when the platform is provisioned.",
+      "billing_type": "one",
+      "measured_unit": "project"
     }
   ],
   "slurm_periodic_policies": [
@@ -1705,6 +1745,12 @@
       "offering_uuid": "f4000000000000000000000000000003",
       "unit": "month",
       "description": "Cheaper tier for cold data, restored on request."
+    },
+    {
+      "uuid": "14000000000000000000000000000008",
+      "name": "Analytics Prepaid Plan",
+      "offering_uuid": "f4000000000000000000000000000006",
+      "unit": "month"
     }
   ],
   "plan_components": [
@@ -1794,6 +1840,18 @@
       "plan_uuid": "14000000000000000000000000000001",
       "component_uuid": "c4000000000000000000000000000104",
       "price": "45.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000008",
+      "component_uuid": "c4000000000000000000000000000601",
+      "price": "120.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000008",
+      "component_uuid": "c4000000000000000000000000000602",
+      "price": "400.00",
       "amount": 0
     }
   ],
