@@ -212,6 +212,9 @@ def session_aggregates(qs, grouped=None):
                 "max_severity": _RANK_TO_SEVERITY.get(
                     row["severity_rank"], SeverityLevel.NONE.value
                 ),
+                # Numeric companion so tables can sort by actual severity
+                # instead of alphabetically ("low" above "medium").
+                "max_severity_rank": row["severity_rank"],
                 "has_feedback": (row["positive_feedback"] + row["negative_feedback"])
                 > 0,
                 "offerings_shown": row["offerings_shown"] or 0,

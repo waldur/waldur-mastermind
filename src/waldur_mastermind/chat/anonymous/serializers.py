@@ -288,6 +288,12 @@ class AnonymousChatConversationSerializer(serializers.Serializer):
     message_count = serializers.IntegerField()
     is_flagged = serializers.BooleanField()
     max_severity = serializers.CharField()
+    max_severity_rank = serializers.IntegerField(
+        help_text=(
+            "Numeric ordinal of max_severity (0=none … 4=critical) for "
+            "severity-ordered sorting."
+        )
+    )
     has_feedback = serializers.BooleanField()
     offerings_shown = serializers.IntegerField()
     offerings_clicked = serializers.IntegerField(
