@@ -23,11 +23,12 @@ from waldur_mastermind.marketplace.enums import (
 
 from . import models, utils
 
-# Scopes an offering's integration settings may be administered from: the
+# Scopes an offering's provider-side settings may be administered from: the
 # offering itself, its organization, or that organization's service provider.
-# Shared with the update_integration actions so the read gate for
-# secret_options cannot drift from the permission required to write them.
-OFFERING_INTEGRATION_SOURCES = ["*", "customer", "customer.serviceprovider"]
+# The traversal every update_* action on an offering applies. Shared with the
+# read gates below so those — and the flags the detail serializer renders from
+# them — cannot drift from the permission required to write.
+OFFERING_ADMIN_SOURCES = ["*", "customer", "customer.serviceprovider"]
 
 
 def can_register_service_provider(request, customer):
@@ -406,14 +407,8 @@ def user_can_update_thumbnail(request, view, obj: models.Offering | None = None)
     raise exceptions.PermissionDenied()
 
 
-def can_see_secret_options(request, instance) -> bool:
-    """Whether the user may see an offering's secret options.
-
-    Gated on the same permission, held on the same scopes, as changing them —
-    so whoever may edit the integration settings may read them back. Anything
-    narrower means a user editing a field rendered empty, overwriting a value
-    they were never shown.
-    """
+def _has_offering_admin_permission(request, permission, instance) -> bool:
+    """Whether the user holds one provider-side permission on this offering."""
     if isinstance(instance, list):
         # A many=True serializer passes the whole page; every offering in it
         # shares one serializer instance, so the first stands for all.
@@ -426,9 +421,35 @@ def can_see_secret_options(request, instance) -> bool:
 
     return has_permission_on_any_source(
         request,
-        PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+        permission,
         offering,
-        OFFERING_INTEGRATION_SOURCES,
+        OFFERING_ADMIN_SOURCES,
+    )
+
+
+def can_see_secret_options(request, instance) -> bool:
+    """Whether the user may see an offering's secret options.
+
+    Gated on the same permission, held on the same scopes, as changing them —
+    so whoever may edit the integration settings may read them back. Anything
+    narrower means a user editing a field rendered empty, overwriting a value
+    they were never shown.
+    """
+    return _has_offering_admin_permission(
+        request, PermissionEnum.UPDATE_OFFERING_INTEGRATION, instance
+    )
+
+
+def can_update_offering_options(request, instance) -> bool:
+    """Whether the user may change an offering's option settings.
+
+    The other half of what the offering-update page offers: user input,
+    resource options, backend ID rules and the compliance checklist. Rendered
+    as a flag so the client can drop the controls it may not use instead of
+    showing them and collecting a 403.
+    """
+    return _has_offering_admin_permission(
+        request, PermissionEnum.UPDATE_OFFERING_OPTIONS, instance
     )
 
 
