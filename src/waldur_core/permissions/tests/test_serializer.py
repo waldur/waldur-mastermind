@@ -6,6 +6,8 @@ from waldur_core.permissions.serializers import PermissionSerializer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 
 def _make_user_role(user, role, scope):
@@ -77,3 +79,49 @@ class PermissionSerializerProjectUuidTest(TestCase):
         user_role = _make_user_role(self.user, project_role, self.project)
         data = PermissionSerializer(user_role).data
         self.assertIsNone(data["project_uuid"])
+
+
+class PermissionSerializerProposalCustomerTest(TestCase):
+    """PermissionSerializer reads `scope.customer` for every role, so a scope
+    without that attribute is listed with no organisation at all. Proposals
+    were the case: `Proposal.Permissions.customer_path` already named the
+    chain, but nothing exposed it on the instance."""
+
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        self.proposal = proposal_factories.ProposalFactory()
+        self.role = models.Role.objects.create(
+            name="Proposal Role",
+            content_type=ContentType.objects.get_for_model(proposal_models.Proposal),
+            is_system_role=False,
+        )
+
+    def test_reports_the_call_managing_organisation(self):
+        customer = self.proposal.round.call.manager.customer
+        user_role = _make_user_role(self.user, self.role, self.proposal)
+
+        data = PermissionSerializer(user_role).data
+
+        self.assertEqual(data["customer_uuid"], customer.uuid.hex)
+        self.assertEqual(data["customer_name"], customer.name)
+
+    def test_agrees_with_the_permission_customer_path(self):
+        """The serializer and `Permissions.customer_path` must name the same
+        organisation, or role listing and role filtering disagree about which
+        organisation a proposal belongs to."""
+        path = proposal_models.Proposal.Permissions.customer_path
+        user_role = _make_user_role(self.user, self.role, self.proposal)
+
+        serialized = PermissionSerializer(user_role).data["customer_uuid"]
+        by_path = proposal_models.Proposal.objects.filter(
+            pk=self.proposal.pk, **{f"{path}__uuid": serialized}
+        )
+
+        self.assertTrue(by_path.exists())
+
+    def test_leaves_the_model_without_a_customer_attribute(self):
+        """Resolving this in the serializer is the whole point: `Proposal` must
+        not grow a `customer`, because `get_scope_ancestors` appends
+        `scope.customer` when it exists and `pat_filtering` mirrors that walk —
+        the two document Proposal as having no ancestor inheritance."""
+        self.assertFalse(hasattr(self.proposal, "customer"))
