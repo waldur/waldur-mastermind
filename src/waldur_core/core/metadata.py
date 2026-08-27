@@ -30,6 +30,25 @@ class WaldurCore(BaseModel):
     AUTHENTICATION_METHODS: list[str] = Field(
         ["LOCAL_SIGNIN"], description="List of enabled authentication methods."
     )
+    PASSKEY_RP_ID: str = Field(
+        "",
+        description="WebAuthn Relying Party ID: the bare registrable domain that "
+        "passkeys are bound to, without scheme or port, e.g. 'waldur.example.com'. "
+        "Has no default and cannot be derived from the request, because no "
+        "deployment sets SECURE_PROXY_SSL_HEADER. Changing it orphans every "
+        "credential already registered.",
+    )
+    PASSKEY_RP_NAME: str = Field(
+        "",
+        description="Human-readable Relying Party name shown by the authenticator "
+        "during registration. Defaults to SITE_NAME when left empty.",
+    )
+    PASSKEY_ALLOWED_ORIGINS: list[str] = Field(
+        [],
+        description="Full origins the SPA may run WebAuthn ceremonies from, "
+        "e.g. ['https://waldur.example.com']. Each must be subordinate to "
+        "PASSKEY_RP_ID, and HTTPS outside localhost.",
+    )
     INVITATIONS_ENABLED: bool = Field(
         True, description="Allows to disable invitations feature."
     )

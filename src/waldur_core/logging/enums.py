@@ -422,6 +422,11 @@ class EventType(StrEnum):
     PAT_ACCESS_DENIED_FROM_IP = "pat_access_denied_from_ip"
     PAT_NETWORK_ACL_UPDATED = "pat_network_acl_updated"
     PAT_AUTHENTICATION_REJECTED = "pat_authentication_rejected"
+    PASSKEY_REGISTERED = "passkey_registered"
+    PASSKEY_RENAMED = "passkey_renamed"
+    PASSKEY_REVOKED = "passkey_revoked"
+    PASSKEY_AUTHENTICATION_SUCCEEDED = "passkey_authentication_succeeded"
+    PASSKEY_AUTHENTICATION_FAILED = "passkey_authentication_failed"
 
 
 class EventGroup(StrEnum):
@@ -468,6 +473,7 @@ EVENT_GROUP_MAPPING = {
     ],
     EventGroup.AUTH: [
         EventType.AUTH_LOGGED_IN_WITH_USERNAME,
+        EventType.AUTH_LOGGED_IN_WITH_OAUTH,
         EventType.AUTH_LOGGED_OUT,
         EventType.AUTH_LOGIN_FAILED_WITH_USERNAME,
         EventType.USER_BLOCKED,
@@ -481,6 +487,11 @@ EVENT_GROUP_MAPPING = {
         EventType.PAT_ACCESS_DENIED_FROM_IP,
         EventType.PAT_NETWORK_ACL_UPDATED,
         EventType.PAT_AUTHENTICATION_REJECTED,
+        EventType.PASSKEY_REGISTERED,
+        EventType.PASSKEY_RENAMED,
+        EventType.PASSKEY_REVOKED,
+        EventType.PASSKEY_AUTHENTICATION_SUCCEEDED,
+        EventType.PASSKEY_AUTHENTICATION_FAILED,
     ],
     EventGroup.CALL: [
         EventType.CALL_DOCUMENT_ADDED,
@@ -927,6 +938,22 @@ EVENT_GROUP_MAPPING = {
         EventType.OPENSTACK_SECURITY_GROUP_RULES_CHANGED,
     ],
 }
+
+# Every AUTH event concerns exactly one account, so it also belongs in that
+# account's own audit log. The profile audit log queries
+# /api/events/?feature=users, so without this a user cannot see their own
+# logins, failed attempts, blocks, passkey activity or personal-access-token
+# history — the events are written and scoped to them, but the one page they
+# would look at filters them out.
+#
+# Composed rather than hand-copied so a newly added AUTH event is visible to
+# the user it concerns by default. Duplicating the list is what let the
+# passkey events, and OIDC logins before them, go unseen.
+EVENT_GROUP_MAPPING[EventGroup.USERS] = list(
+    dict.fromkeys(
+        EVENT_GROUP_MAPPING[EventGroup.USERS] + EVENT_GROUP_MAPPING[EventGroup.AUTH]
+    )
+)
 
 RESOURCE_CHANGE_EVENTS = (
     EventType.MARKETPLACE_RESOURCE_CREATE_SUCCEEDED,

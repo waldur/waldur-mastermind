@@ -55,6 +55,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import UserDataAccessLog
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.onboarding.models import OnboardingVerification
+from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
@@ -1490,6 +1491,15 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             to_attr="prefetched_permissions",
         )
         qs = qs.prefetch_related(permissions_prefetch)
+        # Only when passkeys are switched on: otherwise this adds a join and a
+        # grouping to every user listing for a column that always reads zero.
+        if passkey_policy.is_enabled():
+            qs = qs.annotate(
+                active_passkey_count=Count(
+                    "passkey_credentials",
+                    filter=Q(passkey_credentials__is_active=True),
+                )
+            )
         if self.request.user.is_staff or self.request.user.is_support:
             return qs
         return qs.filter(is_active=True)
