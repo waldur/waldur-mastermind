@@ -870,6 +870,16 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             # query below precisely to keep this GROUP BY from multiplying.
             input_tokens_total=Sum("input_tokens"),
             output_tokens_total=Sum("output_tokens"),
+            # An ask_user tool block persisted in the turn marks it as a
+            # clarifying question rather than a recommendation.
+            clarification_requests_total=Count(
+                "uuid",
+                filter=Q(
+                    assistant_blocks__contains=[
+                        {"key": "tool", "tool": {"name": "ask_user"}}
+                    ]
+                ),
+            ),
         )
 
         positive = agg["feedback_positive"] or 0
@@ -884,6 +894,7 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
         click_through_rate = (
             (clicks_total / interactions_total) if interactions_total else None
         )
+        clarification_requests_total = agg["clarification_requests_total"] or 0
 
         payload = {
             "interactions_total": interactions_total,
@@ -895,6 +906,12 @@ class AnonymousChatInteractionViewSet(ReadOnlyActionsViewSet):
             "satisfaction_rate": satisfaction_rate,
             "clicks_total": clicks_total,
             "click_through_rate": click_through_rate,
+            "clarification_requests_total": clarification_requests_total,
+            "clarification_rate": (
+                (clarification_requests_total / interactions_total)
+                if interactions_total
+                else None
+            ),
             # Null on an empty set, and on turns predating token capture.
             "input_tokens_total": agg["input_tokens_total"] or 0,
             "output_tokens_total": agg["output_tokens_total"] or 0,

@@ -200,6 +200,19 @@ class AnonymousChatKpiResponseSerializer(serializers.Serializer):
     click_through_rate = serializers.FloatField(
         help_text="clicks / interactions; null when no interactions."
     )
+    clarification_requests_total = serializers.IntegerField(
+        help_text=(
+            "Interactions where the assistant asked a clarifying question "
+            "(ask_user) instead of recommending."
+        )
+    )
+    clarification_rate = serializers.FloatField(
+        allow_null=True,
+        help_text=(
+            "clarification_requests_total / interactions_total; null when "
+            "no interactions."
+        ),
+    )
     input_tokens_total = serializers.IntegerField(
         help_text=(
             "Prompt tokens summed over the filtered turns. Turns recorded "
