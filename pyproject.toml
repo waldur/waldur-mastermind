@@ -89,6 +89,7 @@ dependencies = [
   "openstacksdk>=4.7.1",
   "scim2-models>=0.4.0",
   "tomli-w>=1.2.0",
+  "webauthn>=3.0.0",
 ]
 
 [project.urls]

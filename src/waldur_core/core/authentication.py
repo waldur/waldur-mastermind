@@ -90,6 +90,7 @@ class AuthenticationMethod(StrEnum):
     SAML2 = "saml2"
     LOCAL = "default"
     VALIMO = "valimo"
+    PASSKEY = "passkey"
 
 
 OIDC_AUTHENTICATION_METHODS = (

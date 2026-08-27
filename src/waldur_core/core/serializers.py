@@ -255,6 +255,39 @@ class CoreAuthTokenSerializer(serializers.Serializer):
     )
 
 
+class AuthTokenChallengeSerializer(serializers.Serializer):
+    """Body of a 401 from the password login endpoint.
+
+    A 401 here covers several cases — wrong credentials, a locked-out
+    username, a disabled account, and a correct password that still owes a
+    second factor. ``detail`` is always present; the passkey fields appear
+    only in the last case, which is why they are optional.
+
+    The second factor deliberately returns 401 rather than a 200 carrying a
+    handle. A 200 would have to make ``token`` optional in the shared response
+    schema, which changes the generated clients for every consumer including
+    the ones that never enable passkeys. A non-browser client cannot satisfy a
+    passkey anyway, so a loud error status is the honest answer for it, and
+    the browser can read the body to tell the two cases apart.
+    """
+
+    detail = serializers.CharField(
+        help_text="Human-readable reason the token was not issued."
+    )
+    passkey_required = serializers.BooleanField(
+        required=False,
+        help_text="True when the password was accepted but a passkey "
+        "assertion is still outstanding. Discriminates this case from a "
+        "rejected password, which is also a 401.",
+    )
+    pending_passkey_ceremony = serializers.UUIDField(
+        required=False,
+        help_text="Handle for the passkey challenge that must be satisfied "
+        "before a token is issued. Not a credential: it grants nothing on its "
+        "own and cannot be used for authentication.",
+    )
+
+
 class TokenExchangeSerializer(serializers.Serializer):
     code = serializers.UUIDField()
 

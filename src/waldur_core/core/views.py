@@ -66,6 +66,7 @@ from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.models import DailyTableSizeHistory, TokenExchangeCode
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import (
+    AuthTokenChallengeSerializer,
     AvailableBindingTargetSerializer,
     AvailableScopeSerializer,
     CeleryStatsResponseSerializer,
@@ -92,6 +93,7 @@ from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.event_logger import get_event_groups
+from waldur_core.passkeys import services as passkey_services
 from waldur_core.permissions.enums import (
     CREATE_PERMISSIONS,
     PERMISSION_DESCRIPTION,
@@ -173,7 +175,9 @@ class ObtainAuthToken(APIView):
         request=ObtainAuthTokenSerializer,
         responses={
             200: CoreAuthTokenSerializer,
-            401: None,
+            # A 401 is either a rejected credential or a correct password that
+            # still owes a passkey; the body discriminates.
+            401: AuthTokenChallengeSerializer,
         },
         examples=[
             OpenApiExample(
@@ -267,6 +271,36 @@ class ObtainAuthToken(APIView):
             logger.debug("Not returning auth token: user %s is disabled", username)
             return Response(
                 data={"detail": _("User account is disabled.")},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        # A correct password is not, on its own, a completed login when a
+        # second factor is required. Nothing below this point may run until
+        # the passkey has verified: refresh_token() bumps token.created, so
+        # calling it here would let a password alone extend the life of an
+        # existing — possibly attacker-held — token, and last_login and the
+        # AUTH_LOGGED_IN event would both record a session that has not begun.
+        if passkey_services.user_requires_mfa(user):
+            ceremony = passkey_services.create_mfa_ceremony(user)
+            logger.debug(
+                "Password accepted for %s; awaiting passkey second factor", user
+            )
+            # 401 rather than a 200 carrying the handle. A 200 would make
+            # `token` optional in the shared response schema, which churns the
+            # generated clients for every consumer — including the ones that
+            # never enable passkeys — and turns a missing field into a silent
+            # KeyError for non-browser callers. A status they already handle
+            # is the honest answer: authentication is genuinely incomplete.
+            #
+            # The handle rides in the body, and is not redeemable for
+            # anything; `passkey_required` discriminates this from a rejected
+            # password, which is also a 401.
+            return Response(
+                data={
+                    "detail": _("Passkey verification required."),
+                    "passkey_required": True,
+                    "pending_passkey_ceremony": ceremony.uuid,
+                },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 

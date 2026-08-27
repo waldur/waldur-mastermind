@@ -32,6 +32,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.core.models import DESCRIPTION_LENGTH
+from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
@@ -2242,6 +2243,8 @@ class UserSerializer(
     identity_provider_fields = serializers.SerializerMethodField()
     has_active_session = serializers.SerializerMethodField()
     has_usable_password = serializers.SerializerMethodField()
+    has_passkey = serializers.SerializerMethodField()
+    passkey_count = serializers.SerializerMethodField()
     ip_address = serializers.CharField(read_only=True, required=False, allow_null=True)
     birth_date = serializers.DateField(required=False, allow_null=True)
     should_protect_user_details = serializers.BooleanField(read_only=True)
@@ -2349,6 +2352,22 @@ class UserSerializer(
     def get_has_usable_password(self, user: core_models.User) -> bool:
         return user.has_usable_password()
 
+    def get_has_passkey(self, user: core_models.User) -> bool:
+        return self.get_passkey_count(user) > 0
+
+    def get_passkey_count(self, user: core_models.User) -> int:
+        # Reported as 0 rather than hidden when passkeys are disabled, so the
+        # frontend has one shape to render regardless of deployment config.
+        if not passkey_policy.is_enabled():
+            return 0
+        # UserViewSet annotates this for the list, where counting per row would
+        # be an N+1. Single-instance use (e.g. /api/users/me) falls through to
+        # one query, which is what it would have cost anyway.
+        annotated = getattr(user, "active_passkey_count", None)
+        if annotated is not None:
+            return annotated
+        return user.passkey_credentials.filter(is_active=True).count()
+
     def get_token_expires_at(self, user: core_models.User) -> None | datetime:
         if hasattr(user, "auth_token") and user.auth_token and user.token_lifetime:
             return user.auth_token.created + timezone.timedelta(
@@ -2398,6 +2417,8 @@ class UserSerializer(
             "should_protect_user_details",
             "has_active_session",
             "has_usable_password",
+            "has_passkey",
+            "passkey_count",
             "ip_address",
             # User profile attributes
             "gender",
@@ -2436,6 +2457,8 @@ class UserSerializer(
             "should_protect_user_details",
             "has_active_session",
             "has_usable_password",
+            "has_passkey",
+            "passkey_count",
             "attribute_sources",
             "active_isds",
             "is_admin_deactivated",

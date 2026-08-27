@@ -12,6 +12,7 @@ from waldur_core.core.nested_routers import NestedSimpleRouter
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.logging import urls as logging_urls
 from waldur_core.onboarding import urls as onboarding_urls
+from waldur_core.passkeys import urls as passkeys_urls
 from waldur_core.permissions import urls as permissions_urls
 from waldur_core.structure import urls as structure_urls
 from waldur_core.structure.views import (
@@ -47,6 +48,7 @@ router = DefaultRouter()
 logging_urls.register_in(router)
 onboarding_urls.register_in(router)
 permissions_urls.register_in(router)
+passkeys_urls.register_in(router)
 structure_urls.register_in(router)
 users_urls.register_in(router)
 user_actions_urls.register_in(router)
@@ -196,6 +198,7 @@ urlpatterns += [
     re_path(r"^api/", include("waldur_core.structure.urls")),
     re_path(r"^api/", include("waldur_core.checklist.urls")),
     re_path(r"^api/", include("waldur_core.user_actions.urls")),
+    *passkeys_urls.urlpatterns,
     re_path(r"^api/", include(onboarding_urls)),
 ]
 

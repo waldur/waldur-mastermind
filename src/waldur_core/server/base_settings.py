@@ -62,6 +62,7 @@ INSTALLED_APPS = (
     "waldur_core.logging",
     "waldur_core.checklist",
     "waldur_core.user_actions",
+    "waldur_core.passkeys",
     "rest_framework",
     "rest_framework.authtoken",
     "django_filters",
@@ -129,6 +130,12 @@ REST_FRAMEWORK = {
         "token_exchange": "60/min",
         "matrix_credentials": "1000/hour",
         "matrix_webhook": "10000/hour",
+        # Passkey ceremonies. Sign-in is anonymous and unauthenticated, so it
+        # is the tighter of the two. Deliberately not wired into django-axes:
+        # a counter shared with password login would let an attacker lock a
+        # user out of password auth simply by grinding assertions.
+        "passkey_signin": "30/min",
+        "passkey_registration": "20/min",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
     "DEFAULT_SCHEMA_CLASS": "waldur_core.core.openapi_inspector.WaldurOpenApiInspector",

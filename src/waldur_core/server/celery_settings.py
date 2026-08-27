@@ -360,6 +360,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(minutes=1),
         "args": (),
     },
+    "cleanup-expired-passkey-ceremonies": {
+        "task": "waldur_core.passkeys.cleanup_expired_ceremonies",
+        "schedule": timedelta(minutes=5),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():
