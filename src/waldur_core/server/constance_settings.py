@@ -13,6 +13,7 @@ LANGUAGE_CHOICES = [
     "nb",
     "ar",
     "cs",
+    "hr",
     "km",
 ]
 
