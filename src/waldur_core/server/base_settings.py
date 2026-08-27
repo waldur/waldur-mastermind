@@ -398,6 +398,7 @@ LANGUAGES = (
     ("nb", "Norsk"),
     ("ar", "العربية"),
     ("cs", "Čeština"),
+    ("hr", "Hrvatski"),
     ("sl", "Slovenščina"),
     ("el", "Ελληνικά"),
     ("bg", "Български"),

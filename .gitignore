@@ -7,6 +7,7 @@
 *.mo
 .DS_Store
 src/waldur_core/server/settings.py
+src/waldur_core/server/settings_local.py
 
 # Editor artifacts
 /.idea
