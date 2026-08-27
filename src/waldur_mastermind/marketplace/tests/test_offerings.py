@@ -14,7 +14,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
-from ddt import data, ddt, idata
+from ddt import data, ddt, idata, unpack
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection as db_connection
@@ -429,6 +429,104 @@ class SecretOptionsTests(test.APITestCase):
             read.data["secret_options"]["order_notification_emails"],
             ["ops@example.com"],
         )
+
+
+@ddt
+class OfferingAdminFlagsTests(test.APITestCase):
+    """The detail payload says what the caller may change on this offering.
+
+    The client assembles the offering-update page from these flags. They answer
+    the question the write actions ask — the same permission over the same three
+    scopes — so a control is offered only where a save would be accepted.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer, project=self.fixture.project
+        )
+        self.url = factories.OfferingFactory.get_url(self.offering)
+        # Mirrors the shipped default role permissions.
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_OPTIONS)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_OPTIONS)
+
+    def _offering_manager(self):
+        user = structure_factories.UserFactory()
+        self.offering.add_user(user, OfferingRole.MANAGER)
+        return user
+
+    def _get(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    @data("staff", "owner")
+    def test_both_flags_are_true_for_an_authorized_user(self, user):
+        data = self._get(getattr(self.fixture, user))
+        self.assertTrue(data["can_update_integration"])
+        self.assertTrue(data["can_update_options"])
+
+    def test_both_flags_are_true_for_an_offering_scoped_role(self):
+        """The permission held on the offering itself, not on its organization."""
+        data = self._get(self._offering_manager())
+        self.assertTrue(data["can_update_integration"])
+        self.assertTrue(data["can_update_options"])
+
+    @data("customer_support", "admin", "manager")
+    def test_both_flags_are_false_for_a_user_who_may_only_read(self, user):
+        data = self._get(getattr(self.fixture, user))
+        self.assertFalse(data["can_update_integration"])
+        self.assertFalse(data["can_update_options"])
+        # The same verdict that drops the provider-only fields, so a client
+        # cannot mistake "not permitted" for "nothing configured".
+        self.assertNotIn("secret_options", data)
+        self.assertNotIn("service_attributes", data)
+
+    def test_the_two_flags_answer_independently(self):
+        """Backend ID rules are gated on options, the rest of the tab on integration."""
+        CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_OFFERING_OPTIONS)
+        data = self._get(self.fixture.owner)
+        self.assertTrue(data["can_update_integration"])
+        self.assertFalse(data["can_update_options"])
+
+    def test_a_page_is_flagged_row_by_row(self):
+        """One entitled row must not vouch for the rest of the page."""
+        other = fixtures.ProjectFixture()
+        their_offering = factories.OfferingFactory(
+            shared=True, customer=other.customer, project=other.project
+        )
+        # Enough for filter_for_user to put their offering on the same page,
+        # without granting any provider rights over it.
+        other.customer.add_user(self.fixture.owner, CustomerRole.SUPPORT)
+
+        self.client.force_authenticate(self.fixture.owner)
+        listing = self.client.get(factories.OfferingFactory.get_list_url())
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        rows = {row["uuid"]: row for row in listing.data}
+
+        self.assertTrue(rows[self.offering.uuid.hex]["can_update_integration"])
+        self.assertFalse(rows[their_offering.uuid.hex]["can_update_integration"])
+        self.assertFalse(rows[their_offering.uuid.hex]["can_update_options"])
+
+    @data(
+        ("owner", status.HTTP_200_OK),
+        ("customer_support", status.HTTP_403_FORBIDDEN),
+    )
+    @unpack
+    def test_the_flag_predicts_whether_the_write_is_accepted(self, user, expected):
+        """The invariant behind the flag, asserted against the action itself."""
+        user = getattr(self.fixture, user)
+        data = self._get(user)
+
+        write = self.client.post(
+            factories.OfferingFactory.get_url(self.offering, "update_integration"),
+            {"secret_options": {"order_notification_emails": ["ops@example.com"]}},
+        )
+        self.assertEqual(write.status_code, expected)
+        self.assertEqual(data["can_update_integration"], expected == status.HTTP_200_OK)
 
 
 class OfferingQuotasVisibilityTest(test.APITestCase):

@@ -3874,6 +3874,11 @@ class ProviderOfferingDetailsSerializer(
     plugin_options = MergedPluginOptionsField(read_only=True)
     secret_options = MergedSecretOptionsField(read_only=True)
     service_attributes = serializers.SerializerMethodField()
+    # What the caller may change on the offering-update page. The provider-only
+    # fields above are dropped for anyone who fails the first of these, so a
+    # client cannot tell "no permission" from "nothing configured" without them.
+    can_update_integration = serializers.SerializerMethodField()
+    can_update_options = serializers.SerializerMethodField()
     components = OfferingComponentSerializer(required=False, many=True)
     order_count = serializers.SerializerMethodField()
     plans = BaseProviderPlanSerializer(many=True, required=False)
@@ -3972,6 +3977,8 @@ class ProviderOfferingDetailsSerializer(
             "plugin_options",
             "secret_options",
             "service_attributes",
+            "can_update_integration",
+            "can_update_options",
             "state",
             "vendor_details",
             "getting_started",
@@ -4099,8 +4106,8 @@ class ProviderOfferingDetailsSerializer(
     #: Rendered only for a caller entitled to this particular offering.
     PROVIDER_ONLY_FIELDS = ("secret_options", "service_attributes")
 
-    def can_see_secret_options(self, offering=None) -> bool:
-        """Whether the caller may see the provider-only fields of one offering.
+    def _check_offering_access(self, gate, offering=None) -> bool:
+        """Whether the caller passes one provider-side gate for one offering.
 
         Decided per offering rather than per serializer: a page is rendered by a
         single child serializer, so a decision taken once would apply whichever
@@ -4112,16 +4119,29 @@ class ProviderOfferingDetailsSerializer(
         offering = offering if offering is not None else self.instance
         if not offering:
             return False
-        # The gate costs a query per source path, and a serializer may render
+        # Each gate costs a query per source path, and a serializer may render
         # the same offering more than once, so remember the verdict. The context
-        # is shared by every child of a list serializer.
+        # is shared by every child of a list serializer, and keyed by gate as
+        # well as offering since the two gates answer independently.
         memo = self.context.setdefault("_provider_field_access", {})
-        key = getattr(offering, "pk", None)
-        if key is None:
-            return bool(permissions.can_see_secret_options(request, offering))
+        key = (gate.__name__, getattr(offering, "pk", None))
+        if key[1] is None:
+            return bool(gate(request, offering))
         if key not in memo:
-            memo[key] = bool(permissions.can_see_secret_options(request, offering))
+            memo[key] = bool(gate(request, offering))
         return memo[key]
+
+    def can_see_secret_options(self, offering=None) -> bool:
+        """Whether the caller may see the provider-only fields of one offering."""
+        return self._check_offering_access(permissions.can_see_secret_options, offering)
+
+    def get_can_update_integration(self, offering: models.Offering) -> bool:
+        return self.can_see_secret_options(offering)
+
+    def get_can_update_options(self, offering: models.Offering) -> bool:
+        return self._check_offering_access(
+            permissions.can_update_offering_options, offering
+        )
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

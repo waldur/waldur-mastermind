@@ -3277,7 +3277,7 @@ class ProviderOfferingViewSet(
     update_integration_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_INTEGRATION,
-            marketplace_permissions.OFFERING_INTEGRATION_SOURCES,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
         )
     ]
     update_integration_validators = update_validators
@@ -4459,7 +4459,7 @@ class ProviderOfferingViewSet(
     refresh_offering_usernames_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_INTEGRATION,
-            marketplace_permissions.OFFERING_INTEGRATION_SOURCES,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
         )
     ]
     refresh_offering_usernames_validators = [
@@ -4498,7 +4498,7 @@ class ProviderOfferingViewSet(
     sync_resources_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_INTEGRATION,
-            marketplace_permissions.OFFERING_INTEGRATION_SOURCES,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
         )
     ]
     sync_resources_validators = [
