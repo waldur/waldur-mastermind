@@ -793,3 +793,94 @@ class PublicOfferingPlanQueryCountTest(test.APITestCase):
         self.assertEqual(len(payload["quotas"]), 4)
         self.assertEqual(payload["resources_count"], 0)
         self.assertEqual(payload["plan_type"], "fixed")
+
+
+class QuotaUpdateComponentTypesTest(BaseOfferingUpdateTest):
+    """Which components accept an amount.
+
+    Restricted to FIXED, this endpoint rejected the whole request whenever the
+    form offered a one-time component beside a fixed one, so nothing could be
+    saved and every setup fee sat at the field's default of zero.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.plan = factories.PlanFactory(offering=self.offering)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_PLAN)
+        self.url = factories.PlanFactory.get_url(self.plan, "update_quotas")
+        self.client.force_authenticate(self.fixture.owner)
+
+    def _component(self, comp_type, billing_type, is_prepaid=False):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type=comp_type,
+            billing_type=billing_type,
+            is_prepaid=is_prepaid,
+        )
+        factories.PlanComponentFactory(
+            plan=self.plan, component=component, price=10, amount=0
+        )
+        return component
+
+    def _amount(self, comp_type):
+        return models.PlanComponent.objects.get(
+            plan=self.plan, component__type=comp_type
+        ).amount
+
+    def test_a_setup_fee_accepts_an_amount(self):
+        self._component("setup", BillingTypes.ONE_TIME)
+
+        response = self.client.post(self.url, {"quotas": {"setup": 3}})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self._amount("setup"), 3)
+
+    def test_a_switch_fee_accepts_an_amount(self):
+        self._component("migration", BillingTypes.ON_PLAN_SWITCH)
+
+        response = self.client.post(self.url, {"quotas": {"migration": 2}})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self._amount("migration"), 2)
+
+    def test_a_fixed_component_still_accepts_one(self):
+        self._component("licence", BillingTypes.FIXED)
+
+        response = self.client.post(self.url, {"quotas": {"licence": 4}})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self._amount("licence"), 4)
+
+    def test_a_setup_fee_beside_a_fixed_one_no_longer_fails_the_request(self):
+        # The form shows both, so it sends both. Rejecting the pair left the
+        # fixed component unsettable too.
+        self._component("setup", BillingTypes.ONE_TIME)
+        self._component("licence", BillingTypes.FIXED)
+
+        response = self.client.post(self.url, {"quotas": {"setup": 3, "licence": 4}})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self._amount("setup"), 3)
+        self.assertEqual(self._amount("licence"), 4)
+
+    def test_a_prepaid_component_is_refused(self):
+        # Its quantity comes from the requested limit and the subscription's
+        # length; an amount here would be settable and then ignored.
+        self._component("support", BillingTypes.ONE_TIME, is_prepaid=True)
+
+        response = self.client.post(self.url, {"quotas": {"support": 3}})
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertEqual(self._amount("support"), 0)
+
+    def test_a_component_the_form_did_not_show_keeps_its_amount(self):
+        self._component("setup", BillingTypes.ONE_TIME)
+        self._component("licence", BillingTypes.FIXED)
+        self.client.post(self.url, {"quotas": {"setup": 3, "licence": 4}})
+
+        self.client.post(self.url, {"quotas": {"setup": 5}})
+
+        self.assertEqual(self._amount("setup"), 5)
+        self.assertEqual(self._amount("licence"), 4)
