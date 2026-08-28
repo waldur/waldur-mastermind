@@ -700,6 +700,56 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         )
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_new_user_creation_is_blocked_if_email_only_partially_matches_group_invitation_pattern(
+        self,
+    ):
+        """The pattern must match the whole email, not just its beginning.
+
+        Matching by prefix would let an invitation for a domain admit any
+        lookalike domain that merely starts with it.
+        """
+        user_info = {
+            "sub": "lookalike_group_user",
+            "given_name": "Look",
+            "family_name": "Alike",
+            "email": "attacker@example.com.attacker.net",
+        }
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[r".*@example\.com"],
+            is_active=True,
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        assert_login_failed_redirect(
+            self, response, "Account creation is blocked for uninvited users."
+        )
+        self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_group_invitation_pattern_match_is_case_insensitive(self):
+        """Emails are compared case-insensitively elsewhere (``email__iexact``)."""
+        user_info = {
+            "sub": "mixed_case_group_user",
+            "given_name": "Mixed",
+            "family_name": "Case",
+            "email": "Someone@EXAMPLE.CoM",
+        }
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[r".*@example\.com"],
+            is_active=True,
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username=user_info["sub"]).exists())
+
     @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
     def test_user_assigned_roles_from_claims(self):
         user_info = {
@@ -2459,6 +2509,41 @@ class OIDCAllowedEmailPatternsTest(test.APITransactionTestCase):
         response = self._login(self._user_info_for(user))
 
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_group_invitation_exempts_from_the_login_gate(self):
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[r".*@otherdomain\.com"],
+            is_active=True,
+        )
+        user = structure_factories.UserFactory(email="someone@otherdomain.com")
+
+        response = self._login(self._user_info_for(user))
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
+        OIDC_ALLOWED_USER_EMAIL_PATTERNS=[r".*@example\.com"],
+    )
+    def test_group_invitation_does_not_exempt_a_lookalike_domain(self):
+        """The invitation exemption is anchored the same way the allowlist is."""
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[r".*@otherdomain\.com"],
+            is_active=True,
+        )
+        user = structure_factories.UserFactory(
+            email="attacker@otherdomain.com.attacker.net"
+        )
+
+        response = self._login(self._user_info_for(user))
+
+        assert_login_failed_redirect(
+            self, response, "Access to this deployment is restricted."
+        )
 
     @override_config(
         OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,

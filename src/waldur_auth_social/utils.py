@@ -59,7 +59,18 @@ RULE_MATCH_USER_FIELDS = (
 
 
 def has_pending_invitation(email: str) -> bool:
-    """Whether the email was invited, either directly or via a group invitation."""
+    """Whether the email was invited, either directly or via a group invitation.
+
+    Group invitation patterns are matched with the strict matcher rather than
+    :meth:`UserDetailsMatchMixin._is_pattern_match`. The mixin matches by prefix,
+    which is fine for a convenience filter but not for an authorization decision:
+    an invitation for ``.*@example\\.com`` would otherwise also admit
+    ``attacker@example.com.evil.net`` past the uninvited-user block. This mirrors
+    what :func:`matches_allowed_email_patterns` and
+    :func:`matches_autoprovisioning_rule` already do.
+
+    A direct invitation needs no such care - it is matched by whole address.
+    """
     if not email:
         return False
 
@@ -69,11 +80,10 @@ def has_pending_invitation(email: str) -> bool:
         return True
 
     return any(
-        GroupInvitation._is_pattern_match(pattern, email)
+        matches_access_email_pattern(gi.user_email_patterns or [], email)
         for gi in GroupInvitation.objects.filter(is_active=True).only(
             "user_email_patterns"
         )
-        for pattern in (gi.user_email_patterns or [])
     )
 
 
