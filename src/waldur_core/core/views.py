@@ -93,6 +93,8 @@ from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.event_logger import get_event_groups
+from waldur_core.passkeys import models as passkey_models
+from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.passkeys import services as passkey_services
 from waldur_core.permissions.enums import (
     CREATE_PERMISSIONS,
@@ -2253,6 +2255,23 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
             if auth and hasattr(auth, "token_hash"):
                 raise exceptions.PermissionDenied(
                     "PAT management requires session or token authentication."
+                )
+        # Minting a personal access token turns a session into a long-lived,
+        # passkey-free credential — so under enforcement it is only available
+        # to a session that satisfied a passkey. Reading and revoking stay
+        # open: neither creates access, and locking revocation behind the
+        # factor would strand a user who has lost their authenticator.
+        if self.action in ("create", "rotate"):
+            if passkey_policy.is_enforced_for(
+                request.user
+            ) and not passkey_models.is_session_verified(
+                getattr(request, "auth", None)
+            ):
+                raise exceptions.PermissionDenied(
+                    _(
+                        "Creating a personal access token requires a "
+                        "passkey-verified session."
+                    )
                 )
 
     @extend_schema(
