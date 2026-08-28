@@ -48,6 +48,24 @@ class PasskeyRevokeSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True, default="")
 
 
+class PasskeyStaffRevokeSerializer(serializers.Serializer):
+    """Staff revoking somebody else's credential.
+
+    The reason is mandatory here, unlike self-revocation: taking away another
+    person's authenticator is an action they will need explained, and the
+    audit event is the only place that explanation can live.
+    """
+
+    reason = serializers.CharField(allow_blank=False, trim_whitespace=True)
+
+    def validate_reason(self, value):
+        if len(value.strip()) < 3:
+            raise serializers.ValidationError(
+                "Please give a reason for revoking this passkey."
+            )
+        return value.strip()
+
+
 class PasskeyRegistrationFinishSerializer(serializers.Serializer):
     ceremony = serializers.UUIDField()
     name = serializers.CharField(max_length=150)

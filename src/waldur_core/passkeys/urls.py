@@ -9,6 +9,11 @@ def register_in(router):
         views.PasskeyCredentialViewSet,
         basename="passkey",
     )
+    router.register(
+        r"staff-passkeys",
+        views.StaffPasskeyViewSet,
+        basename="staff-passkey",
+    )
 
 
 urlpatterns = [
