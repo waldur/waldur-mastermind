@@ -4,6 +4,7 @@ from datetime import datetime
 
 from constance import config
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.utils import timezone
@@ -1349,7 +1350,17 @@ class CallApplicantVisibilityConfigSerializer(UserAttributeConfigBaseSerializer)
 
 class ProtectedCallSerializer(PublicCallSerializer):
     reference_code = serializers.CharField(source="backend_id", required=False)
-    fixed_duration_in_days = serializers.IntegerField(required=False, allow_null=True)
+    fixed_duration_in_days = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+    confirm_duration_propagation = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+        help_text="Acknowledge that changing fixed_duration_in_days rewrites the "
+        "duration of proposals that have not been allocated yet. Without it the "
+        "change is rejected when there is at least one such proposal.",
+    )
     reviewer_identity_visible_to_submitters = serializers.BooleanField(
         help_text="Whether proposal applicants can see reviewer identities",
         required=False,
@@ -1454,6 +1465,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "proposal_field_config",
             "proposal_field_metadata",
             "has_proposals",
+            "confirm_duration_propagation",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -1583,6 +1595,8 @@ class ProtectedCallSerializer(PublicCallSerializer):
         return data
 
     def create(self, validated_data):
+        # A new call has no proposals to propagate to yet.
+        validated_data.pop("confirm_duration_propagation", None)
         request = self.context["request"]
         customer = validated_data.get("manager", None).customer
         if not permissions_utils.has_permission(
@@ -1608,16 +1622,58 @@ class ProtectedCallSerializer(PublicCallSerializer):
             )
         return call
 
-    def update(self, instance, validated_data):
-        if "fixed_duration_in_days" in validated_data:
-            fixed_duration_in_days = validated_data["fixed_duration_in_days"]
-            proposals = models.Proposal.objects.filter(
-                round__call=instance,
-                state__in=[ProposalStates.DRAFT, ProposalStates.IN_REVIEW],
+    def _propagate_fixed_duration(self, call, fixed_duration_in_days, confirmed):
+        """Rewrite the duration of proposals that have not been allocated yet.
+
+        The scope is defined by exclusion so that a newly added pending state
+        cannot silently fall outside it. Clearing the fixed duration propagates
+        ``None``, so the duration becomes applicant-chosen again instead of
+        keeping the last fixed value.
+        """
+        proposals = (
+            models.Proposal.objects.filter(round__call=call)
+            .exclude(state__in=ProposalStates.ALLOCATED_STATES)
+            .exclude(duration_in_days=fixed_duration_in_days)
+        )
+        affected = list(proposals.values_list("uuid", flat=True))
+        if not affected:
+            return
+
+        if not confirmed:
+            raise serializers.ValidationError(
+                {
+                    "confirm_duration_propagation": _(
+                        "This changes the duration of %(count)s proposal(s) that have "
+                        "not been allocated yet. Repeat the request with "
+                        "confirm_duration_propagation set to true to apply it."
+                    )
+                    % {"count": len(affected)}
+                }
             )
-            for proposal in proposals:
-                proposal.duration_in_days = fixed_duration_in_days
-                proposal.save()
+
+        proposals.update(duration_in_days=fixed_duration_in_days)
+        logger.info(
+            "Fixed duration of call %s has been changed from %s to %s by user %s. "
+            "Duration has been rewritten for proposals: %s.",
+            call.uuid.hex,
+            call.fixed_duration_in_days,
+            fixed_duration_in_days,
+            self.context["request"].user.username,
+            ", ".join(proposal_uuid.hex for proposal_uuid in affected),
+        )
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        confirmed = validated_data.pop("confirm_duration_propagation", False)
+        propagate_duration = (
+            "fixed_duration_in_days" in validated_data
+            and validated_data["fixed_duration_in_days"]
+            != instance.fixed_duration_in_days
+        )
+        if propagate_duration:
+            self._propagate_fixed_duration(
+                instance, validated_data["fixed_duration_in_days"], confirmed
+            )
 
         has_visibility = "applicant_visibility_config" in validated_data
         visibility_data = validated_data.pop("applicant_visibility_config", None)

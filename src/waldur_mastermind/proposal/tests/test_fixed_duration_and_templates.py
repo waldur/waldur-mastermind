@@ -204,6 +204,130 @@ class FixedDurationTestCase(APITestCase):
         self.assertEqual(proposal.duration_in_days, 60)
 
 
+class FixedDurationPropagationTestCase(APITestCase):
+    """Test propagation of a call's fixed duration to its proposals."""
+
+    def setUp(self):
+        self.staff_user = structure_factories.UserFactory(is_staff=True)
+        self.call = proposal_factories.CallFactory(
+            state=CallStates.ACTIVE, fixed_duration_in_days=30
+        )
+        self.round = proposal_factories.RoundFactory(
+            call=self.call, start_time=timezone.now() - datetime.timedelta(days=1)
+        )
+        self.url = proposal_factories.CallFactory.get_protected_url(self.call)
+        self.client.force_authenticate(self.staff_user)
+
+    def create_proposal(self, state):
+        return proposal_factories.ProposalFactory(
+            round=self.round, state=state, duration_in_days=30
+        )
+
+    def test_pending_proposals_are_updated(self):
+        pending = [
+            self.create_proposal(state)
+            for state in (
+                ProposalStates.DRAFT,
+                ProposalStates.SUBMITTED,
+                ProposalStates.IN_REVIEW,
+            )
+        ]
+
+        response = self.client.patch(
+            self.url,
+            {"fixed_duration_in_days": 45, "confirm_duration_propagation": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for proposal in pending:
+            proposal.refresh_from_db()
+            self.assertEqual(proposal.duration_in_days, 45)
+
+    def test_allocated_proposals_are_not_updated(self):
+        allocated = [
+            self.create_proposal(state)
+            for state in (
+                ProposalStates.ACCEPTED,
+                ProposalStates.REJECTED,
+                ProposalStates.CANCELED,
+            )
+        ]
+
+        response = self.client.patch(
+            self.url,
+            {"fixed_duration_in_days": 45, "confirm_duration_propagation": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for proposal in allocated:
+            proposal.refresh_from_db()
+            self.assertEqual(proposal.duration_in_days, 30)
+
+    def test_clearing_fixed_duration_propagates_null(self):
+        pending = self.create_proposal(ProposalStates.SUBMITTED)
+        accepted = self.create_proposal(ProposalStates.ACCEPTED)
+
+        response = self.client.patch(
+            self.url,
+            {"fixed_duration_in_days": None, "confirm_duration_propagation": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.fixed_duration_in_days)
+        pending.refresh_from_db()
+        self.assertIsNone(pending.duration_in_days)
+        accepted.refresh_from_db()
+        self.assertEqual(accepted.duration_in_days, 30)
+
+    def test_change_is_rejected_without_confirmation(self):
+        proposal = self.create_proposal(ProposalStates.DRAFT)
+
+        response = self.client.patch(
+            self.url, {"fixed_duration_in_days": 45}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("confirm_duration_propagation", response.data)
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.fixed_duration_in_days, 30)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.duration_in_days, 30)
+
+    def test_confirmation_is_not_required_without_affected_proposals(self):
+        allocated = self.create_proposal(ProposalStates.ACCEPTED)
+
+        response = self.client.patch(
+            self.url, {"fixed_duration_in_days": 45}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.fixed_duration_in_days, 45)
+        allocated.refresh_from_db()
+        self.assertEqual(allocated.duration_in_days, 30)
+
+    def test_confirmation_is_not_required_when_value_is_unchanged(self):
+        self.create_proposal(ProposalStates.DRAFT)
+
+        response = self.client.patch(
+            self.url, {"fixed_duration_in_days": 30}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_non_positive_duration_is_rejected(self):
+        response = self.client.patch(
+            self.url, {"fixed_duration_in_days": 0}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("fixed_duration_in_days", response.data)
+
+
 class ResourceTemplateValidationTestCase(APITestCase):
     """Test validation logic for resource templates and requests."""
 
