@@ -44,9 +44,12 @@ class CeremonyUnusable(PasskeyError):
     """The ceremony expired, was already consumed, or ran out of attempts."""
 
 
-def _options_to_dict(options):
+def _options_to_dict(options, extensions=None):
     """Render library options as the JSON dict the browser API expects."""
-    return json.loads(options_to_json(options))
+    rendered = json.loads(options_to_json(options))
+    if extensions:
+        rendered["extensions"] = extensions
+    return rendered
 
 
 def _descriptors(credentials):
@@ -116,7 +119,13 @@ def start_registration(user):
     # The library generated its own challenge; keep the row authoritative so
     # that verification compares against exactly one value.
     options.challenge = base64url_to_bytes(ceremony.challenge)
-    return ceremony, _options_to_dict(options)
+    # credProps has to be *asked for*: a browser reports whether it created a
+    # discoverable credential only when the extension is requested. Without
+    # this every credential came back with no credProps at all and was
+    # recorded as non-discoverable, so the UI told users their passkey was
+    # "second factor only" when it was in fact usable for passwordless
+    # sign-in.
+    return ceremony, _options_to_dict(options, extensions={"credProps": True})
 
 
 def finish_registration(ceremony, credential, name, ip_address=None):
@@ -147,16 +156,20 @@ def finish_registration(ceremony, credential, name, ip_address=None):
     transports = extras.get("transports") or []
     attachment = extras.get("authenticatorAttachment") or ""
 
-    # Whether the credential is actually discoverable is reported by the
-    # browser through the credProps extension, not by the attestation. Resident
-    # keys are requested as PREFERRED, so an authenticator is free to hand back
-    # a non-discoverable credential — recording every credential as
-    # discoverable would make passwordless sign-in offer keys that cannot
-    # satisfy it, and fail at the authenticator with no useful error.
-    # Absent credProps, assume not discoverable: under-claiming costs a
-    # passwordless option, over-claiming produces a broken one.
+    # Whether the credential is discoverable is reported by the browser through
+    # the credProps extension, which start_registration() asks for.
+    #
+    # When the browser does not answer, fall back to what the request itself
+    # guarantees: resident keys are REQUIRED, so an authenticator either
+    # created a discoverable credential or refused the registration outright.
+    # Reaching this line at all means it did not refuse.
+    #
+    # Defaulting to False here was wrong in exactly the visible way: not a
+    # single credential was ever marked discoverable, and every one displayed
+    # as "second factor only" while working perfectly well for passwordless
+    # sign-in.
     cred_props = (extras.get("clientExtensionResults") or {}).get("credProps") or {}
-    is_discoverable = bool(cred_props.get("rk", False))
+    is_discoverable = bool(cred_props.get("rk", True))
 
     # credential_id is unique, and a check-then-create would not be atomic:
     # two ceremonies finishing concurrently with the same authenticator both
