@@ -8,12 +8,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 import httpx
-import nh3
 import openai
 from constance import config
 from django.contrib.auth.models import AnonymousUser
 
-from waldur_mastermind.chat.tools.marketplace.helpers import offerings_queryset_for
+from waldur_mastermind.chat.tools.marketplace.helpers import (
+    offerings_queryset_for,
+    strip_html_to_text,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 
 logger = logging.getLogger(__name__)
@@ -59,7 +61,6 @@ _INTENT_HINT_CHAR_CAP = 160
 # tiebreak) so KPI distributions remain meaningful.
 _MAX_INTENT_ROWS = 12
 
-_HTML_TAG_RE = re.compile(r"<[^>]+>")
 _NON_SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
@@ -74,15 +75,6 @@ def _slugify_category(title: str) -> str:
     if not base:
         return ""
     return base[:24]
-
-
-def _strip_html(text: str) -> str:
-    """nh3-based plaintext extraction; same approach as
-    chat/tools/marketplace/search_offerings._strip_html."""
-    if not text:
-        return ""
-    plain = nh3.clean(text, tags=set(), attributes={})
-    return re.sub(r"\s+", " ", plain).strip()
 
 
 def build_intent_rubric() -> list[tuple[str, str]]:
@@ -117,7 +109,7 @@ def build_intent_rubric() -> list[tuple[str, str]]:
         if not slug or slug in seen:
             continue
         seen.add(slug)
-        hint_source = _strip_html(description) or title
+        hint_source = strip_html_to_text(description) or title
         hint = (
             f"user wants {hint_source[:_INTENT_HINT_CHAR_CAP]}"
             if len(hint_source) <= _INTENT_HINT_CHAR_CAP

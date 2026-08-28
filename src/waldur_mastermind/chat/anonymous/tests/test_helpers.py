@@ -1,8 +1,12 @@
 """Tests for the anonymous-chat helpers (slug + feedback token)."""
 
+from unittest import mock
+
 import pytest
 from constance.test import override_config
+from django.db import DatabaseError, connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.anonymous import helpers
@@ -162,8 +166,70 @@ def test_offering_format_hint_includes_country_when_multi_country():
 
 
 @pytest.mark.django_db
+@override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+def test_offering_format_hint_counts_offering_level_countries():
+    # Providers share one registration country, but the offerings themselves
+    # are hosted in different countries — the hint must still include Country.
+    cat = mp_factories.CategoryFactory(title="Compute")
+    cust = structure_factories.CustomerFactory(country="EE")
+    for cc in ("DE", "FI"):
+        mp_factories.OfferingFactory(
+            category=cat,
+            customer=cust,
+            country=cc,
+            shared=True,
+            state=OfferingStates.ACTIVE,
+        )
+
+    hint = helpers.build_offering_format_hint()
+    assert "(Provider, Country)" in hint
+
+
+@pytest.mark.django_db
 def test_offering_format_hint_defaults_to_no_country_when_catalog_empty():
     # Anonymous can't see anything → without-country (smaller prompt).
     hint = helpers.build_offering_format_hint()
     assert "(Provider)" in hint
     assert "Country" not in hint
+
+
+@pytest.mark.django_db
+@override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+def test_offering_format_hint_country_query_selects_countries_only():
+    # Offering.Meta.ordering injects name/id into SELECT DISTINCT; id is
+    # unique, so that DISTINCT collapses nothing and the query yields one
+    # row per visible offering instead of one per country pair.
+    cat = mp_factories.CategoryFactory(title="Compute")
+    cust = structure_factories.CustomerFactory(country="EE")
+    for _ in range(3):
+        mp_factories.OfferingFactory(
+            category=cat, customer=cust, shared=True, state=OfferingStates.ACTIVE
+        )
+
+    with CaptureQueriesContext(connection) as ctx:
+        hint = helpers.build_offering_format_hint()
+
+    assert "(Provider)" in hint
+    distinct_sql = next(
+        q["sql"] for q in ctx.captured_queries if "DISTINCT" in q["sql"]
+    )
+    select_clause = distinct_sql.split(" FROM ")[0]
+    assert '"marketplace_offering"."id"' not in select_clause
+    assert '"marketplace_offering"."name"' not in select_clause
+
+
+def test_offering_format_hint_degrades_on_db_error():
+    with mock.patch.object(
+        helpers, "offerings_queryset_for", side_effect=DatabaseError
+    ):
+        hint = helpers.build_offering_format_hint()
+    assert "(Provider)" in hint
+    assert "Country" not in hint
+
+
+def test_offering_format_hint_propagates_non_db_errors():
+    # Only DB unavailability (schema generation, migrations) may degrade the
+    # prompt silently — a programming error must surface.
+    with mock.patch.object(helpers, "offerings_queryset_for", side_effect=ValueError):
+        with pytest.raises(ValueError):
+            helpers.build_offering_format_hint()

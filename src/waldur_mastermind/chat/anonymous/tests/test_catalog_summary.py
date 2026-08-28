@@ -89,6 +89,41 @@ class CatalogSummaryCapTest(TestCase):
         self.assertNotIn("more offering(s) not shown", result)
 
 
+class CatalogSummaryCountryPrecedenceTest(TestCase):
+    """Country label must match the tool serializers: offering.country wins."""
+
+    @override_config(
+        ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True,
+        ANONYMOUS_CHAT_CATALOG_MAX_ENTRIES=50,
+    )
+    def test_offering_country_wins_over_provider_country(self):
+        offering = mp_factories.OfferingFactory(
+            shared=True, state=OfferingStates.ACTIVE, name="Hosted-Elsewhere"
+        )
+        offering.country = "DE"
+        offering.save()
+        offering.customer.country = "EE"
+        offering.customer.save()
+        result = build_catalog_summary()
+        self.assertIn("(DE)", result)
+        self.assertNotIn("(EE)", result)
+
+    @override_config(
+        ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True,
+        ANONYMOUS_CHAT_CATALOG_MAX_ENTRIES=50,
+    )
+    def test_description_preview_is_html_stripped(self):
+        mp_factories.OfferingFactory(
+            shared=True,
+            state=OfferingStates.ACTIVE,
+            name="Rich-Text",
+            description='<p style="text-align: justify;">GPU <strong>cluster</strong></p>',
+        )
+        result = build_catalog_summary()
+        self.assertIn("GPU cluster", result)
+        self.assertNotIn("<p", result)
+
+
 class CatalogSummaryFormatTest(TestCase):
     """Per-line formatting invariants — guards against renderer regressions."""
 
