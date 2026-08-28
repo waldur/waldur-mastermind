@@ -371,6 +371,38 @@ class CustomerViewSet(
         )
 
     @extend_schema(
+        summary="List service providers serving this customer",
+        description="Returns service providers with at least one active resource provisioned for this customer.",
+        responses=marketplace_serializers.ServiceProviderSerializer(many=True),
+    )
+    @action(detail=True)
+    def providers(self, request, *args, **kwargs):
+        customer: models.Customer = self.get_object()
+
+        resources = marketplace_models.Resource.objects.filter(
+            project__customer=customer
+        ).exclude(state=ResourceStates.TERMINATED)
+        resources = filter_queryset_for_user(resources, request.user)
+
+        provider_customer_ids = resources.values_list(
+            "offering__customer_id", flat=True
+        ).distinct()
+
+        providers = marketplace_models.ServiceProvider.objects.filter(
+            customer_id__in=provider_customer_ids
+        ).order_by("customer__name")
+
+        page = self.paginate_queryset(providers)
+        serializer = marketplace_serializers.ServiceProviderSerializer(
+            page if page is not None else providers,
+            many=True,
+            context=self.get_serializer_context(),
+        )
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @extend_schema(
         summary="Update organization groups for a customer",
         description="Assigns a customer to one or more organization groups. This action is restricted to staff users.",
         request=marketplace_serializers.OrganizationGroupsSerializer,
