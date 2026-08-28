@@ -1178,9 +1178,7 @@ class ProposalSection(NotificationSection):
         ),
         context_model=ProposalStateChangedContext,
         templates=[
-            NotificationTemplate(
-                path=f"proposal/{base}_{suffix}", name=f"proposal/{base}_{suffix}"
-            )
+            NotificationTemplate(path=f"{base}_{suffix}", name=f"{base}_{suffix}")
             for base in (
                 "proposal_state_changed",
                 "access_request_state_changed",

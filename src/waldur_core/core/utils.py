@@ -211,16 +211,18 @@ def find_template_from_registry(app, event_type, template_suffix, variant=None):
         if event_type == section.get("path"):
             if not variant:
                 return f"{app}/{event_type}_{template_suffix}"
-            path = f"{app}/{variant}_{template_suffix}"
+            # Declared paths are relative to their section, as everywhere else
+            # in the registry; the app prefix is added where a path is used.
+            path = f"{variant}_{template_suffix}"
             declared = {tpl["path"] for tpl in section.get("templates", [])}
             if path in declared:
-                return path
+                return f"{app}/{path}"
             logger.warning(
                 "Notification '%s.%s' does not declare template '%s'; "
                 "falling back to its own.",
                 app,
                 event_type,
-                path,
+                f"{app}/{path}",
             )
             return f"{app}/{event_type}_{template_suffix}"
 
