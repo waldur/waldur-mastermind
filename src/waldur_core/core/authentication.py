@@ -115,19 +115,10 @@ def get_authentication_method(request: HttpRequest) -> AuthenticationMethod:
 
 
 def can_access_admin_site(user):
-    if not (user.is_active and (user.is_staff or user.is_support)):
-        return False
-    # The Django admin authenticates with a session from its own login form,
-    # which no passkey ceremony guards. Leaving it open would make enforcement
-    # decorative: a stolen staff password still reaches every model in the
-    # deployment through /admin/, whatever the API does.
-    #
-    # Refused outright rather than challenged, because the admin has no
-    # WebAuthn flow to send the user through. Passkey login for /admin/ is a
-    # follow-up; until then, an enforced deployment uses the portal.
-    if passkey_policy.is_enforced_for(user):
-        return False
-    return True
+    # Account-level eligibility only. Whether the *session* has satisfied a
+    # passkey is a separate question, asked by CustomAdminSite.has_permission,
+    # which unlike this function can see the request.
+    return user.is_active and (user.is_staff or user.is_support)
 
 
 class AdminAuthenticationBackend:

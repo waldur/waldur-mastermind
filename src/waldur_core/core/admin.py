@@ -1,17 +1,20 @@
 import copy
 import json
 from collections import defaultdict
+from urllib.parse import quote
 
 import reversion
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import forms as admin_forms
+from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.auth import admin as auth_admin
 from django.contrib.auth import forms as auth_forms
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.urls import re_path, reverse
@@ -33,6 +36,7 @@ from waldur_core.core import constance_admin as waldur_constance_admin  # noqa: 
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
 from waldur_core.core.utils import chunked_queryset
+from waldur_core.passkeys import admin_auth
 from waldur_core.passkeys import policy as passkey_policy
 
 
@@ -437,18 +441,19 @@ class CustomAdminAuthenticationForm(admin_forms.AdminAuthenticationForm):
         ),
         "passkey_required": _(
             "This deployment requires a passkey for staff and support "
-            "accounts, and the admin site cannot perform one. Sign in through "
-            "the portal instead."
+            "accounts, and this account has none registered. Sign in to the "
+            "portal with your password and add a passkey from your profile."
         ),
     }
 
     def confirm_login_allowed(self, user):
-        # Say why, rather than letting the form succeed and CustomAdminSite
-        # bounce them back to it. Without this the page just reloads with no
-        # message, which reads as "my password stopped working" — and the one
-        # thing the user needs to know is that the admin is not the way in on
-        # this deployment.
-        if passkey_policy.is_enforced_for(user):
+        # A correct password is not enough here, but it is only worth refusing
+        # outright when the user *cannot* comply — with no credential there is
+        # nothing to assert, and the admin has no enrolment flow. Everyone
+        # else proceeds to the passkey step.
+        if passkey_policy.is_enforced_for(
+            user
+        ) and not admin_auth.user_can_satisfy_passkey(user):
             raise forms.ValidationError(
                 self.error_messages["passkey_required"], code="passkey_required"
             )
@@ -464,9 +469,57 @@ class CustomAdminSite(admin.AdminSite):
 
     def has_permission(self, request):
         is_safe = request.method in rf_permissions.SAFE_METHODS
-        return can_access_admin_site(request.user) and (
+        if not can_access_admin_site(request.user) or not (
             is_safe or request.user.is_staff
-        )
+        ):
+            return False
+        # Under enforcement the password half of the login is not the whole
+        # login. Returning False here makes admin_view redirect to the admin
+        # login URL, and login() forwards an authenticated-but-unverified user
+        # to the passkey step rather than showing the form again.
+        if passkey_policy.is_enforced_for(request.user):
+            return admin_auth.is_admin_session_verified(request)
+        return True
+
+    def login(self, request, extra_context=None):
+        if (
+            request.user.is_authenticated
+            and passkey_policy.is_enforced_for(request.user)
+            and not admin_auth.is_admin_session_verified(request)
+        ):
+            target = reverse("admin:passkey_challenge")
+            next_url = request.GET.get(REDIRECT_FIELD_NAME)
+            if next_url:
+                target = f"{target}?{REDIRECT_FIELD_NAME}={quote(next_url)}"
+            return HttpResponseRedirect(target)
+        return super().login(request, extra_context)
+
+    def get_urls(self):
+        from django.urls import path
+
+        urls = [
+            # Deliberately NOT wrapped in self.admin_view: that checks
+            # has_permission, which is false precisely because the session is
+            # unverified, so it would redirect to the login, which forwards
+            # back here — an infinite loop that makes the step unreachable.
+            # The view does its own authentication check instead.
+            path(
+                "passkey/",
+                admin_auth.challenge_view,
+                name="passkey_challenge",
+            ),
+            path(
+                "passkey/options/",
+                admin_auth.options_view,
+                name="passkey_options",
+            ),
+            path(
+                "passkey/verify/",
+                admin_auth.verify_view,
+                name="passkey_verify",
+            ),
+        ]
+        return urls + super().get_urls()
 
     @classmethod
     def clone_default(cls):
