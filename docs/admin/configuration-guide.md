@@ -360,6 +360,10 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'NOTIFICATION_SUBJECT': 'Notifications from Waldur',
  'OECD_FOS_2007_CODE_MANDATORY': False,
  'ONLY_STAFF_CAN_INVITE_USERS': False,
+ 'PASSKEY_ALLOWED_ORIGINS': [],
+ 'PASSKEY_ENFORCED_FOR_STAFF': False,
+ 'PASSKEY_RP_ID': '',
+ 'PASSKEY_RP_NAME': '',
  'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS': [],
  'REQUEST_HEADER_IMPERSONATED_USER_UUID': 'HTTP_X_IMPERSONATED_USER_UUID',
  'RESPONSE_HEADER_IMPERSONATOR_UUID': 'X-impersonator-uuid',
@@ -634,6 +638,30 @@ Field oecd_fos_2007_code must be required for project.
 **Type:** bool
 
 Allow to limit invitation management to staff only.
+
+#### PASSKEY_ALLOWED_ORIGINS
+
+**Type:** List[str]
+
+Full origins the SPA may run WebAuthn ceremonies from, e.g. ['https://waldur.example.com']. Each must be subordinate to PASSKEY_RP_ID, and HTTPS outside localhost.
+
+#### PASSKEY_ENFORCED_FOR_STAFF
+
+**Type:** bool
+
+Require staff and support accounts to hold a passkey and to have satisfied it for the current session. Closes the paths that otherwise yield a privileged session without one: reading another user's raw API token, impersonation, the Django admin login form, and minting a personal access token. Enabling it logs every staff member out, because pre-existing tokens were issued without a passkey; run 'waldur revoke_unverified_staff_tokens' as part of the rollout.
+
+#### PASSKEY_RP_ID
+
+**Type:** str
+
+WebAuthn Relying Party ID: the bare registrable domain that passkeys are bound to, without scheme or port, e.g. 'waldur.example.com'. Has no default and cannot be derived from the request, because no deployment sets SECURE_PROXY_SSL_HEADER. Changing it orphans every credential already registered.
+
+#### PASSKEY_RP_NAME
+
+**Type:** str
+
+Human-readable Relying Party name shown by the authenticator during registration. Defaults to SITE_NAME when left empty.
 
 #### PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS
 
@@ -2312,7 +2340,7 @@ Comma-separated list of columns for users table.
 
 **Type:** str
 
-**Default value:** en,et,lt,lv,ru,it,de,da,sv,es,fr,nb,ar,cs,km
+**Default value:** en,et,lt,lv,ru,it,de,da,sv,es,fr,nb,ar,cs,hr,km
 
 List of enabled languages
 

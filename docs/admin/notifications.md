@@ -3216,180 +3216,6 @@ A template used for generating the issue summary field during issue creation.
 
 ## WALDUR_MASTERMIND.PROPOSAL
 
-### proposal.access_request_state_changed
-
-The same state changes, for a deployment that hides calls from applicants (SERVICE_ACCESS_MODE = 'marketplace'). Its own notification rather than a branch inside the proposal one, so each can be worded, overridden and switched off independently.
-
-#### Templates
-
-=== "proposal/access_request_state_changed_subject.txt"
-
-```txt
-
-    Access request update: {{ proposal_name }} - {{ new_state }}
-
-```
-
-=== "proposal/access_request_state_changed_message.txt"
-
-```txt
-
-    Dear {{ proposal_creator_name }},
-
-    The state of your access request "{{ proposal_name }}" has been updated.
-
-    State change:
-    - Previous state: {{ previous_state }}
-    - New state: {{ new_state }}
-    - Updated on: {{ update_date }}
-
-    {% if new_state == 'accepted' %}
-    Project created: {{ project_name }}
-    {% if allocation_date %}Allocation start date: {{ allocation_date }}
-    {% endif %}{% if duration %}Duration: {{ duration }} days
-    {% endif %}
-    Allocated resources:
-    {% for resource in allocated_resources %}
-    {{ forloop.counter }}. {{ resource.name }} - {{ resource.provider_name }} - {{ resource.plan_name }} - Provisioned
-    {% empty %}
-    No resources allocated yet.
-    {% endfor %}
-    {% endif %}
-
-    {% if new_state == 'rejected' %}
-    Feedback: {{ rejection_feedback }}
-    {% endif %}
-
-    {% if new_state == 'submitted' %}
-    Your access request has been submitted and is now being processed. You will receive further notifications as it moves forward.
-    {% endif %}
-
-    {% if new_state == 'in_review' %}
-    Your access request is being evaluated. You will be notified as soon as a decision has been made.
-    {% endif %}
-
-    {% if new_state == 'accepted' %}
-    Your access request has been approved. A project has been created with the resources you asked for, and you can open it using the link below.
-    {% endif %}
-
-    {% if new_state == 'rejected' %}
-    Your access request has not been approved at this time. Please review any feedback provided above. You are welcome to submit a new request later.
-    {% endif %}
-
-    View access request: {{ proposal_url }}
-    {% if new_state == 'accepted' and project_url %}
-    View Project: {{ project_url }}
-    {% endif %}
-
-    This is an automated message from the {{ site_name }}. Please do not reply to this email.
-
-```
-
-=== "proposal/access_request_state_changed_message.html"
-
-```txt
-
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Access Request Update</title>
-        <style>
-            body {
-                color: #333;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-            }
-            .header {
-                margin-bottom: 20px;
-            }
-            .state-change {
-                background-color: #f9f9f9;
-                padding: 15px;
-                border-radius: 5px;
-                margin-bottom: 20px;
-            }
-            .message-box {
-                padding: 15px;
-                margin: 15px 0;
-            }
-            .footer {
-                margin-top: 30px;
-                color: #777;
-                border-top: 1px solid #eee;
-                padding-top: 10px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <p>Dear {{ proposal_creator_name }},</p>
-            <p>The state of your access request "<strong>{{ proposal_name }}</strong>" has been updated.</p>
-        </div>
-
-        <div class="state-change">
-            <h3>State change:</h3>
-            <ul>
-                <li><strong>Previous state:</strong> {{ previous_state }}</li>
-                <li><strong>New state:</strong> {{ new_state }}</li>
-                <li><strong>Updated on:</strong> {{ update_date }}</li>
-            </ul>
-
-            {% if new_state == 'accepted' %}
-            <ul>
-                <li><strong>Project created:</strong> {{ project_name }}</li>
-                {% if allocation_date %}<li><strong>Allocation start date:</strong> {{ allocation_date }}</li>{% endif %}
-                {% if duration %}<li><strong>Duration:</strong> {{ duration }} days</li>{% endif %}
-            </ul>
-            <div>
-                <h4>Allocated resources:</h4>
-                {% for resource in allocated_resources %}
-                <div>
-                    <strong>{{ forloop.counter }}.</strong> {{ resource.name }} - {{ resource.provider_name }} - {{ resource.plan_name }} - Provisioned
-                </div>
-                {% empty %}
-                <p><em>No resources allocated yet.</em></p>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            {% if new_state == 'rejected' %}
-            <p><strong>Feedback:</strong> {{ rejection_feedback }}</p>
-            {% endif %}
-        </div>
-
-        <div class="message-box">
-            {% if new_state == 'submitted' %}
-            <p>Your access request has been submitted and is now being processed. You will receive further notifications as it moves forward.</p>
-            {% endif %}
-
-            {% if new_state == 'in_review' %}
-            <p>Your access request is being evaluated. You will be notified as soon as a decision has been made.</p>
-            {% endif %}
-
-            {% if new_state == 'accepted' %}
-            <p>Your access request has been approved. A project has been created with the resources you asked for, and you can open it using the link below.</p>
-            {% endif %}
-
-            {% if new_state == 'rejected' %}
-            <p>Your access request has not been approved at this time. Please review any feedback provided above. You are welcome to submit a new request later.</p>
-            {% endif %}
-        </div>
-
-        <a href="{{ proposal_url }}">View access request</a>
-        <br>
-        {% if new_state == 'accepted' and project_url %}
-        <a href="{{ project_url }}">View Project</a>
-        {% endif %}
-
-        <div class="footer">
-            <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
-        </div>
-    </body>
-    </html>
-
-```
-
 ### proposal.new_proposal_submitted
 
 Notifies call managers about a new proposal submission.
@@ -3689,7 +3515,7 @@ A notification to the reviewer about the proposal decision (approved/rejected) w
 
 ### proposal.proposal_state_changed
 
-A notification about the proposal state changes (submitted → in review → accepted/rejected).
+A notification about the proposal state changes (submitted → in review → accepted/rejected). Deployments that hide calls from applicants (SERVICE_ACCESS_MODE = 'marketplace') send the access_request_* templates below instead, which say the same thing without naming a call or a round. One event, one switch, two sets of words — a deployment only ever sends one of them.
 
 #### Templates
 
@@ -3848,6 +3674,174 @@ A notification about the proposal state changes (submitted → in review → acc
         </div>
 
         <a href="{{ proposal_url }}">View Proposal</a>
+        <br>
+        {% if new_state == 'accepted' and project_url %}
+        <a href="{{ project_url }}">View Project</a>
+        {% endif %}
+
+        <div class="footer">
+            <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+        </div>
+    </body>
+    </html>
+
+```
+
+=== "proposal/access_request_state_changed_subject.txt"
+
+```txt
+
+    Access request update: {{ proposal_name }} - {{ new_state }}
+
+```
+
+=== "proposal/access_request_state_changed_message.txt"
+
+```txt
+
+    Dear {{ proposal_creator_name }},
+
+    The state of your access request "{{ proposal_name }}" has been updated.
+
+    State change:
+    - Previous state: {{ previous_state }}
+    - New state: {{ new_state }}
+    - Updated on: {{ update_date }}
+
+    {% if new_state == 'accepted' %}
+    Project created: {{ project_name }}
+    {% if allocation_date %}Allocation start date: {{ allocation_date }}
+    {% endif %}{% if duration %}Duration: {{ duration }} days
+    {% endif %}
+    Allocated resources:
+    {% for resource in allocated_resources %}
+    {{ forloop.counter }}. {{ resource.name }} - {{ resource.provider_name }} - {{ resource.plan_name }} - Provisioned
+    {% empty %}
+    No resources allocated yet.
+    {% endfor %}
+    {% endif %}
+
+    {% if new_state == 'rejected' %}
+    Feedback: {{ rejection_feedback }}
+    {% endif %}
+
+    {% if new_state == 'submitted' %}
+    Your access request has been submitted and is now being processed. You will receive further notifications as it moves forward.
+    {% endif %}
+
+    {% if new_state == 'in_review' %}
+    Your access request is being evaluated. You will be notified as soon as a decision has been made.
+    {% endif %}
+
+    {% if new_state == 'accepted' %}
+    Your access request has been approved. A project has been created with the resources you asked for, and you can open it using the link below.
+    {% endif %}
+
+    {% if new_state == 'rejected' %}
+    Your access request has not been approved at this time. Please review any feedback provided above. You are welcome to submit a new request later.
+    {% endif %}
+
+    View access request: {{ proposal_url }}
+    {% if new_state == 'accepted' and project_url %}
+    View Project: {{ project_url }}
+    {% endif %}
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/access_request_state_changed_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Access Request Update</title>
+        <style>
+            body {
+                color: #333;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            .header {
+                margin-bottom: 20px;
+            }
+            .state-change {
+                background-color: #f9f9f9;
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+            }
+            .message-box {
+                padding: 15px;
+                margin: 15px 0;
+            }
+            .footer {
+                margin-top: 30px;
+                color: #777;
+                border-top: 1px solid #eee;
+                padding-top: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <p>Dear {{ proposal_creator_name }},</p>
+            <p>The state of your access request "<strong>{{ proposal_name }}</strong>" has been updated.</p>
+        </div>
+
+        <div class="state-change">
+            <h3>State change:</h3>
+            <ul>
+                <li><strong>Previous state:</strong> {{ previous_state }}</li>
+                <li><strong>New state:</strong> {{ new_state }}</li>
+                <li><strong>Updated on:</strong> {{ update_date }}</li>
+            </ul>
+
+            {% if new_state == 'accepted' %}
+            <ul>
+                <li><strong>Project created:</strong> {{ project_name }}</li>
+                {% if allocation_date %}<li><strong>Allocation start date:</strong> {{ allocation_date }}</li>{% endif %}
+                {% if duration %}<li><strong>Duration:</strong> {{ duration }} days</li>{% endif %}
+            </ul>
+            <div>
+                <h4>Allocated resources:</h4>
+                {% for resource in allocated_resources %}
+                <div>
+                    <strong>{{ forloop.counter }}.</strong> {{ resource.name }} - {{ resource.provider_name }} - {{ resource.plan_name }} - Provisioned
+                </div>
+                {% empty %}
+                <p><em>No resources allocated yet.</em></p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if new_state == 'rejected' %}
+            <p><strong>Feedback:</strong> {{ rejection_feedback }}</p>
+            {% endif %}
+        </div>
+
+        <div class="message-box">
+            {% if new_state == 'submitted' %}
+            <p>Your access request has been submitted and is now being processed. You will receive further notifications as it moves forward.</p>
+            {% endif %}
+
+            {% if new_state == 'in_review' %}
+            <p>Your access request is being evaluated. You will be notified as soon as a decision has been made.</p>
+            {% endif %}
+
+            {% if new_state == 'accepted' %}
+            <p>Your access request has been approved. A project has been created with the resources you asked for, and you can open it using the link below.</p>
+            {% endif %}
+
+            {% if new_state == 'rejected' %}
+            <p>Your access request has not been approved at this time. Please review any feedback provided above. You are welcome to submit a new request later.</p>
+            {% endif %}
+        </div>
+
+        <a href="{{ proposal_url }}">View access request</a>
         <br>
         {% if new_state == 'accepted' and project_url %}
         <a href="{{ project_url }}">View Project</a>

@@ -11,9 +11,16 @@
 
 ## Auth
 
+- auth_logged_in_with_oauth
 - auth_logged_in_with_username
 - auth_logged_out
 - auth_login_failed_with_username
+- passkey_authentication_failed
+- passkey_authentication_succeeded
+- passkey_registered
+- passkey_renamed
+- passkey_revoked
+- passkey_revoked_by_staff
 - pat_access_denied_from_ip
 - pat_authentication_rejected
 - pat_created
@@ -465,8 +472,12 @@
 
 ## Users
 
+- auth_logged_in_with_oauth
 - auth_logged_in_with_saml2
+- auth_logged_in_with_username
+- auth_logged_out
 - auth_logged_out_with_saml2
+- auth_login_failed_with_username
 - freeipa_profile_created
 - freeipa_profile_deleted
 - freeipa_profile_disabled
@@ -474,9 +485,26 @@
 - marketplace_offering_user_created
 - marketplace_offering_user_deleted
 - marketplace_offering_user_restriction_updated
+- passkey_authentication_failed
+- passkey_authentication_succeeded
+- passkey_registered
+- passkey_renamed
+- passkey_revoked
+- passkey_revoked_by_staff
+- pat_access_denied_from_ip
+- pat_authentication_rejected
+- pat_created
+- pat_expired
+- pat_network_acl_updated
+- pat_revoked
+- pat_rotated
+- pat_used_from_new_ip
 - ssh_key_creation_succeeded
 - ssh_key_deletion_succeeded
+- token_created
+- token_lifetime_updated
 - user_activated
+- user_blocked
 - user_creation_succeeded
 - user_data_accessed
 - user_deactivated

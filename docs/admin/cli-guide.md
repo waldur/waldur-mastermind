@@ -1394,6 +1394,27 @@ options:
 
 ```
 
+## revoke_unverified_staff_tokens
+
+Delete API tokens held by staff and support accounts that were not issued behind a passkey, and report the personal access tokens that predate enforcement. Part of turning on PASSKEY_ENFORCED_FOR_STAFF.
+
+```bash
+
+usage: waldur revoke_unverified_staff_tokens [--dry-run]
+                                             [--revoke-personal-access-tokens]
+
+options:
+  --dry-run             Report what would be deleted without deleting
+                        anything.
+  --revoke-personal-access-tokens
+                        Also revoke personal access tokens held by staff and
+                        support accounts. Off by default: these typically
+                        drive CI and automation, so revoking them without
+                        warning breaks pipelines rather than merely logging
+                        somebody out.
+
+```
+
 ## scim_pull_user
 
 Pull user attributes from a remote SCIM 2.0 directory.
