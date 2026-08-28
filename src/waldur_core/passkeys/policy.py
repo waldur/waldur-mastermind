@@ -43,7 +43,24 @@ def get_rp_id() -> str:
 
 
 def get_rp_name() -> str:
-    return settings.WALDUR_CORE.get("PASSKEY_RP_NAME") or ""
+    """Human-readable name the authenticator shows during enrolment.
+
+    Falls back to the deployment's site name, as the setting documents. The
+    library rejects an empty value outright, so without this an operator who
+    leaves it unset — which the helm chart allows, since it only renders the
+    key when a value is given — gets ``ValueError: rp_name cannot be an empty
+    string`` on the first enrolment attempt, and passkeys cannot be used at
+    all.
+    """
+    configured = settings.WALDUR_CORE.get("PASSKEY_RP_NAME")
+    if configured:
+        return configured
+    # Imported here rather than at module scope: this module is imported from
+    # waldur_core.core.authentication, which loads long before Constance is
+    # usable, and touching config at import time would break startup.
+    from constance import config
+
+    return config.SITE_NAME or "Waldur"
 
 
 def get_allowed_origins() -> list[str]:
