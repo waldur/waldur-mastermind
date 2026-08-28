@@ -31,7 +31,11 @@ from waldur_core.structure.tests.utils import (
     client_delete_user,
     client_update_user,
 )
-from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -1462,6 +1466,59 @@ class CustomerResourceQuotasTest(test.APITestCase):
         self.assertEqual(disk_component["usage"], 0)
         self.assertEqual(disk_component["limit_usage"], 10)
         self.assertEqual(disk_component["measured_unit"], "GB")
+
+
+class CustomerProvidersTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+        self.customer = self.fixture.customer
+        self.empty_customer = factories.CustomerFactory()
+
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.service_provider = marketplace_factories.ServiceProviderFactory()
+        self.offering = marketplace_factories.OfferingFactory(
+            customer=self.service_provider.customer
+        )
+        self.resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            state=ResourceStates.OK,
+        )
+
+        self.terminated_service_provider = (
+            marketplace_factories.ServiceProviderFactory()
+        )
+        self.terminated_offering = marketplace_factories.OfferingFactory(
+            customer=self.terminated_service_provider.customer
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=self.terminated_offering,
+            state=ResourceStates.TERMINATED,
+        )
+
+        self.url = factories.CustomerFactory.get_url(self.customer, "providers")
+
+    def test_customer_with_no_resources(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = reverse("customer-providers", kwargs={"uuid": self.empty_customer.uuid})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_customer_with_active_resource_returns_its_provider(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        provider_uuids = {item["uuid"] for item in response.data}
+        self.assertEqual(provider_uuids, {self.service_provider.uuid.hex})
+
+    def test_provider_of_terminated_resource_is_excluded(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        provider_uuids = {item["uuid"] for item in response.data}
+        self.assertNotIn(self.terminated_service_provider.uuid.hex, provider_uuids)
 
 
 class CustomerListHeadOptimizationTest(test.APITestCase):
