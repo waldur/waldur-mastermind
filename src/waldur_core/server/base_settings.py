@@ -410,6 +410,8 @@ LANGUAGES = (
     ("el", "Ελληνικά"),
     ("bg", "Български"),
     ("km", "ខ្មែរ"),
+    ("mk", "Македонски"),
+    ("sq", "Shqip"),
 )
 
 # Disable SAML2 CSP warnings
