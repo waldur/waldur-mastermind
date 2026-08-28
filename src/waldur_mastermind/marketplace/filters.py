@@ -72,7 +72,10 @@ from waldur_pid import models as pid_models
 from . import models, utils
 
 
-class ServiceProviderFilter(django_filters.FilterSet):
+class ServiceProviderFilter(
+    core_filters.CreatedModifiedFilter,
+    django_filters.FilterSet,
+):
     customer = core_filters.URLFilter(
         view_name="customer-detail",
         field_name="customer__uuid",
