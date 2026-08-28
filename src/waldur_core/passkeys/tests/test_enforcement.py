@@ -5,6 +5,8 @@ passkey. Together they are the difference between enforcement being a property
 of the credential and being a property of the login page.
 """
 
+import json
+
 from django.contrib.auth import get_user_model
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
@@ -16,6 +18,7 @@ from waldur_core.passkeys.models import (
     is_session_verified,
     mark_session_verified,
 )
+from waldur_core.passkeys.tests.authenticator import SoftwareAuthenticator
 from waldur_core.passkeys.tests.factories import PasskeyCredentialFactory
 from waldur_core.passkeys.tests.helpers import ORIGIN, RP_ID
 from waldur_core.structure.tests import factories as structure_factories
@@ -23,10 +26,26 @@ from waldur_core.structure.tests import factories as structure_factories
 User = get_user_model()
 
 
+def _enrol_admin(user):
+    """Give a user a real, assertable credential."""
+    from waldur_core.passkeys import services
+    from waldur_core.passkeys.tests.authenticator import SoftwareAuthenticator
+
+    authenticator = SoftwareAuthenticator()
+    ceremony, options = services.start_registration(user)
+    credential = services.finish_registration(
+        ceremony,
+        authenticator.register(options["challenge"], RP_ID, ORIGIN),
+        "Admin key",
+    )
+    return authenticator, credential
+
+
 def enforce(**kwargs):
     settings = dict(
         AUTHENTICATION_METHODS=["LOCAL_SIGNIN", "PASSKEY_SIGNIN", "PASSKEY_MFA"],
         PASSKEY_RP_ID=RP_ID,
+        PASSKEY_RP_NAME="Waldur",
         PASSKEY_ALLOWED_ORIGINS=[ORIGIN],
         PASSKEY_ENFORCED_FOR_STAFF=True,
     )
@@ -153,48 +172,278 @@ class ImpersonationRequiresVerifiedSessionTest(test.APITestCase):
 
 
 class AdminSiteAccessTest(test.APITestCase):
-    """The Django admin login form is not guarded by any passkey ceremony."""
+    """The admin gets a passkey step of its own rather than being closed.
 
-    def test_staff_reach_the_admin_when_enforcement_is_off(self):
+    ``can_access_admin_site`` answers account eligibility only; whether the
+    *session* satisfied a passkey is asked by ``CustomAdminSite``, which can
+    see the request.
+    """
+
+    def test_account_eligibility_is_unchanged_by_enforcement(self):
         staff = structure_factories.UserFactory(is_staff=True)
         self.assertTrue(can_access_admin_site(staff))
 
     @enforce()
-    def test_staff_are_refused_when_enforcement_is_on(self):
+    def test_account_eligibility_still_ignores_the_session(self):
         staff = structure_factories.UserFactory(is_staff=True)
-        self.assertFalse(can_access_admin_site(staff))
-
-    @enforce()
-    def test_support_are_refused_too(self):
-        """can_access_admin_site grants support the same reach as staff."""
-        support = structure_factories.UserFactory(is_support=True)
-        self.assertFalse(can_access_admin_site(support))
+        self.assertTrue(can_access_admin_site(staff))
 
     @enforce()
     def test_ordinary_users_are_unaffected(self):
         self.assertFalse(can_access_admin_site(structure_factories.UserFactory()))
 
     @enforce()
-    def test_the_login_form_says_why_it_refused(self):
-        """Otherwise the page reloads with no message and reads as a broken
-        password, when the point is that the admin is not the way in here."""
+    def test_an_account_with_no_passkey_is_told_to_enrol_in_the_portal(self):
+        """The admin has no enrolment flow, so there is nothing to prompt for."""
         from django.forms import ValidationError
 
         from waldur_core.core.admin import CustomAdminAuthenticationForm
 
         staff = structure_factories.UserFactory(is_staff=True)
-        form = CustomAdminAuthenticationForm()
 
         with self.assertRaises(ValidationError) as caught:
-            form.confirm_login_allowed(staff)
+            CustomAdminAuthenticationForm().confirm_login_allowed(staff)
 
         self.assertEqual(caught.exception.code, "passkey_required")
+
+    @enforce()
+    def test_an_account_with_a_passkey_proceeds_to_the_challenge(self):
+        from waldur_core.core.admin import CustomAdminAuthenticationForm
+
+        staff = structure_factories.UserFactory(is_staff=True)
+        PasskeyCredentialFactory(user=staff)
+
+        # No exception: the password half succeeded, the passkey step follows.
+        CustomAdminAuthenticationForm().confirm_login_allowed(staff)
 
     def test_the_login_form_is_silent_when_enforcement_is_off(self):
         from waldur_core.core.admin import CustomAdminAuthenticationForm
 
         staff = structure_factories.UserFactory(is_staff=True)
         CustomAdminAuthenticationForm().confirm_login_allowed(staff)
+
+
+@enforce()
+class AdminPasskeyFlowTest(test.APITestCase):
+    """Password alone must not reach the admin; a passkey completes it."""
+
+    def setUp(self):
+        self.password = "very-secret-password"
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.staff.set_password(self.password)
+        self.staff.save()
+        self.authenticator, self.credential = _enrol_admin(self.staff)
+
+    def test_password_login_lands_on_the_passkey_step_not_the_index(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/admin/")
+
+        # admin_view refuses, redirects to the admin login, which forwards to
+        # the challenge rather than showing the form again.
+        self.assertEqual(response.status_code, 302)
+        follow = self.client.get("/admin/login/")
+        self.assertEqual(follow.status_code, 302)
+        self.assertIn("/admin/passkey/", follow["Location"])
+
+    def test_the_challenge_page_renders_for_a_user_with_a_credential(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/admin/passkey/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["has_credential"])
+
+    def test_the_challenge_page_says_so_when_there_is_no_credential(self):
+        bare = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(bare)
+
+        response = self.client.get("/admin/passkey/")
+
+        self.assertFalse(response.context["has_credential"])
+
+    def test_a_verified_assertion_opens_the_admin(self):
+        self.client.force_login(self.staff)
+
+        options = self.client.post("/admin/passkey/options/").json()["options"]
+        assertion = self.authenticator.authenticate(options["challenge"], RP_ID, ORIGIN)
+        verified = self.client.post(
+            "/admin/passkey/verify/",
+            data=json.dumps({"credential": assertion}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(verified.status_code, 200)
+        self.assertEqual(self.client.get("/admin/").status_code, 200)
+
+    def test_a_bad_assertion_does_not_open_the_admin(self):
+        self.client.force_login(self.staff)
+
+        options = self.client.post("/admin/passkey/options/").json()["options"]
+        assertion = self.authenticator.authenticate(
+            options["challenge"], RP_ID, ORIGIN, corrupt_signature=True
+        )
+        verified = self.client.post(
+            "/admin/passkey/verify/",
+            data=json.dumps({"credential": assertion}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(verified.status_code, 400)
+        self.assertEqual(self.client.get("/admin/").status_code, 302)
+
+    def test_verify_without_a_ceremony_is_refused(self):
+        """The handle lives in the session, so it cannot be supplied by hand."""
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/admin/passkey/verify/",
+            data=json.dumps({"credential": {}}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_another_users_passkey_does_not_satisfy_the_challenge(self):
+        other = structure_factories.UserFactory(is_staff=True)
+        other_authenticator, _ = _enrol_admin(other)
+        self.client.force_login(self.staff)
+
+        options = self.client.post("/admin/passkey/options/").json()["options"]
+        assertion = other_authenticator.authenticate(
+            options["challenge"], RP_ID, ORIGIN
+        )
+        verified = self.client.post(
+            "/admin/passkey/verify/",
+            data=json.dumps({"credential": assertion}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(verified.status_code, 400)
+
+    def test_an_anonymous_visitor_is_sent_to_the_login(self):
+        response = self.client.get("/admin/passkey/")
+        self.assertEqual(response.status_code, 302)
+
+
+@enforce()
+class PromotedStaffCanStillEnrolTest(test.APITestCase):
+    """An existing user marked as staff after enforcement is switched on.
+
+    They hold no passkey, and enforcement demands one — so the question is
+    whether they can still reach the one thing that would let them comply.
+    Nothing in the closure list may block enrolment itself, or promoting a
+    user becomes a way to lock them out permanently.
+    """
+
+    def setUp(self):
+        self.password = "very-secret-password"
+        self.user = structure_factories.UserFactory()
+        self.user.set_password(self.password)
+        self.user.save()
+        # Promoted after the fact, which is the realistic case.
+        self.user.is_staff = True
+        self.user.save()
+
+    def test_password_login_still_issues_a_token(self):
+        """A user with no credential is not held at a second factor.
+
+        Otherwise there would be no way to obtain the session that enrolment
+        requires.
+        """
+        response = self.client.post(
+            "/api-auth/password/",
+            {"username": self.user.username, "password": self.password},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+
+    def test_they_can_enrol_with_that_token(self):
+        token = self.client.post(
+            "/api-auth/password/",
+            {"username": self.user.username, "password": self.password},
+        ).data["token"]
+
+        begin = self.client.post(
+            "/api/passkeys/registration/begin/",
+            HTTP_AUTHORIZATION=f"Token {token}",
+        )
+        self.assertEqual(begin.status_code, status.HTTP_200_OK)
+
+        authenticator = SoftwareAuthenticator()
+        finished = self.client.post(
+            "/api/passkeys/registration/finish/",
+            {
+                "ceremony": begin.data["ceremony"],
+                "name": "First key",
+                "credential": authenticator.register(
+                    begin.data["options"]["challenge"], RP_ID, ORIGIN
+                ),
+            },
+            HTTP_AUTHORIZATION=f"Token {token}",
+            format="json",
+        )
+
+        self.assertEqual(finished.status_code, status.HTTP_201_CREATED)
+
+    def test_enrolment_then_unlocks_the_privileged_paths(self):
+        """The loop closes: enrol, sign in with the passkey, impersonate."""
+        token = self.client.post(
+            "/api-auth/password/",
+            {"username": self.user.username, "password": self.password},
+        ).data["token"]
+        authenticator, _ = _enrol_admin(self.user)
+
+        victim = structure_factories.UserFactory()
+        Token.objects.get_or_create(user=victim)
+
+        # Password-only session still cannot impersonate.
+        blocked = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Token {token}",
+            HTTP_X_IMPERSONATED_USER_UUID=victim.uuid.hex,
+        )
+        self.assertEqual(blocked.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Signing in with the passkey yields a verified session that can.
+        begin = self.client.post("/api/passkeys/signin/begin/", {})
+        assertion = authenticator.authenticate(
+            begin.data["options"]["challenge"], RP_ID, ORIGIN
+        )
+        verified_token = self.client.post(
+            "/api/passkeys/signin/finish/",
+            {"ceremony": begin.data["ceremony"], "credential": assertion},
+            format="json",
+        ).data["token"]
+
+        allowed = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Token {verified_token}",
+            HTTP_X_IMPERSONATED_USER_UUID=victim.uuid.hex,
+        )
+        self.assertEqual(allowed.status_code, status.HTTP_200_OK)
+        self.assertEqual(allowed.data["username"], victim.username)
+
+    def test_the_admin_tells_them_where_to_enrol(self):
+        """The admin has no enrolment flow, so it must not just refuse."""
+        from django.forms import ValidationError
+
+        from waldur_core.core.admin import CustomAdminAuthenticationForm
+
+        with self.assertRaises(ValidationError) as caught:
+            CustomAdminAuthenticationForm().confirm_login_allowed(self.user)
+
+        self.assertEqual(caught.exception.code, "passkey_required")
+        self.assertIn("portal", str(caught.exception.messages[0]))
+
+
+class AdminUnaffectedWithoutEnforcementTest(test.APITestCase):
+    def test_staff_reach_the_admin_directly(self):
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(staff)
+
+        self.assertEqual(self.client.get("/admin/").status_code, 200)
 
 
 @enforce()

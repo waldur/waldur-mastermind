@@ -1,0 +1,110 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div id="content-main">
+  {% if has_credential %}
+    <p>{% trans "This deployment requires a passkey for staff accounts. Confirm with your passkey to continue." %}</p>
+    <p>
+      <button type="button" class="button" id="passkey-verify">{% trans "Confirm with passkey" %}</button>
+    </p>
+    <p id="passkey-error" class="errornote" style="display:none"></p>
+    {{ next|json_script:"passkey-next" }}
+  {% else %}
+    <p class="errornote">
+      {% trans "This deployment requires a passkey for staff accounts, and this account has none registered. Sign in to the portal with your password and add a passkey from your profile, then return here." %}
+    </p>
+  {% endif %}
+</div>
+
+{% if has_credential %}
+<script>
+(function () {
+  // Vanilla WebAuthn: the admin cannot import the SPA's bundled helper, and
+  // pulling one in for two conversions is not worth a build step.
+  const b64urlToBytes = (value) => {
+    const padded = value.replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(padded + '='.repeat((4 - padded.length % 4) % 4));
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  };
+  const bytesToB64url = (buffer) =>
+    btoa(String.fromCharCode(...new Uint8Array(buffer)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const csrf = document.cookie.split('; ')
+    .find((row) => row.startsWith('csrftoken='))?.split('=')[1];
+
+  const post = (url, body) => fetch(url, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf || ''},
+    body: body ? JSON.stringify(body) : '{}',
+  });
+
+  const showError = (message) => {
+    const box = document.getElementById('passkey-error');
+    box.textContent = message;
+    box.style.display = '';
+  };
+
+  document.getElementById('passkey-verify').addEventListener('click', async () => {
+    try {
+      const begun = await post('{% url "admin:passkey_options" %}');
+      if (!begun.ok) {
+        showError((await begun.json()).detail || 'Unable to start the passkey challenge.');
+        return;
+      }
+      const { options } = await begun.json();
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: b64urlToBytes(options.challenge),
+          rpId: options.rpId,
+          timeout: options.timeout,
+          userVerification: options.userVerification,
+          allowCredentials: (options.allowCredentials || []).map((c) => ({
+            type: 'public-key',
+            id: b64urlToBytes(c.id),
+            transports: c.transports,
+          })),
+        },
+      });
+
+      const verified = await post('{% url "admin:passkey_verify" %}', {
+        credential: {
+          id: assertion.id,
+          rawId: bytesToB64url(assertion.rawId),
+          type: assertion.type,
+          response: {
+            clientDataJSON: bytesToB64url(assertion.response.clientDataJSON),
+            authenticatorData: bytesToB64url(assertion.response.authenticatorData),
+            signature: bytesToB64url(assertion.response.signature),
+            userHandle: assertion.response.userHandle
+              ? bytesToB64url(assertion.response.userHandle) : null,
+          },
+          clientExtensionResults: {},
+        },
+      });
+
+      if (verified.ok) {
+        // json_script so the destination cannot break out of the literal.
+        window.location = JSON.parse(
+          document.getElementById('passkey-next').textContent
+        );
+      } else {
+        showError((await verified.json()).detail || 'Passkey could not be verified.');
+      }
+    } catch (error) {
+      // NotAllowedError covers both a dismissed prompt and a refused call, so
+      // say both rather than guessing which.
+      showError(
+        error && error.name === 'NotAllowedError'
+          ? 'The passkey prompt was dismissed or refused by the browser.'
+          : (error && error.message) || 'Passkey verification failed.'
+      );
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}
