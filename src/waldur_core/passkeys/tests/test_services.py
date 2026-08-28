@@ -117,16 +117,37 @@ class RegistrationTest(TestCase):
         credential, _ = self._register("Security key")
         self.assertFalse(credential.is_discoverable)
 
-    def test_missing_credprops_means_not_discoverable(self):
-        """A browser without the credProps extension must not be assumed
-        generous — over-claiming produces a passwordless option that fails at
-        the authenticator."""
+    def test_the_credprops_extension_is_requested(self):
+        """A browser reports discoverability only when asked.
+
+        Without this the extension is never returned, so no credential is ever
+        recorded as discoverable and every one displays as "second factor
+        only" while working fine for passwordless sign-in.
+        """
+        _ceremony, options = services.start_registration(self.user)
+
+        self.assertEqual(options["extensions"]["credProps"], True)
+
+    def test_missing_credprops_falls_back_to_what_the_request_guaranteed(self):
+        """Resident keys are REQUIRED, so reaching a stored credential at all
+        means the authenticator created a discoverable one — it would have
+        refused otherwise."""
         ceremony, options = services.start_registration(self.user)
         response = self.authenticator.register(
             options["challenge"], RP_ID, ORIGIN, report_rk=False
         )
 
         credential = services.finish_registration(ceremony, response, "Unknown")
+
+        self.assertTrue(credential.is_discoverable)
+
+    def test_a_browser_reporting_rk_false_is_believed(self):
+        """If the browser does answer, its answer wins over the fallback."""
+        self.authenticator = SoftwareAuthenticator(discoverable=False)
+        ceremony, options = services.start_registration(self.user)
+        response = self.authenticator.register(options["challenge"], RP_ID, ORIGIN)
+
+        credential = services.finish_registration(ceremony, response, "Key")
 
         self.assertFalse(credential.is_discoverable)
 
