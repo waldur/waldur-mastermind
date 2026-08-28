@@ -28,7 +28,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.passkeys import policy, services
 from waldur_core.passkeys.enums import CeremonyKind
-from waldur_core.passkeys.models import PasskeyCeremony
+from waldur_core.passkeys.models import PasskeyCeremony, mark_session_verified
 from waldur_core.passkeys.serializers import (
     PasskeyAssertionFinishSerializer,
     PasskeyCeremonyOptionsSerializer,
@@ -196,7 +196,7 @@ class PasskeySigninFinishView(BasePasskeyView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        return Response({"token": issue_token(user, request).key})
+        return Response({"token": issue_token(user, request, credential).key})
 
 
 class PasskeyMfaBeginView(BasePasskeyView):
@@ -241,7 +241,7 @@ class PasskeyMfaFinishView(BasePasskeyView):
         ceremony = self.get_ceremony(data["ceremony"], CeremonyKind.MFA)
         user = ceremony.user
         try:
-            services.finish_assertion(
+            verified_credential = services.finish_assertion(
                 ceremony, data["credential"], ip_address=_client_ip(request)
             )
         except services.PasskeyError as e:
@@ -254,10 +254,10 @@ class PasskeyMfaFinishView(BasePasskeyView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        return Response({"token": issue_token(user, request).key})
+        return Response({"token": issue_token(user, request, verified_credential).key})
 
 
-def issue_token(user, request):
+def issue_token(user, request, credential=None):
     """Complete a login that a passkey has just satisfied.
 
     Everything that marks a session as begun happens **here**, after
@@ -269,6 +269,10 @@ def issue_token(user, request):
     rather than a property of the UI.
     """
     token = refresh_token(user)
+    # The session, not the account, is what carries the proof — a staff member
+    # who owns a passkey but signed in with a password alone has not satisfied
+    # it, and enforcement has to be able to tell those apart.
+    mark_session_verified(token, credential=credential)
     user.last_login = timezone.now()
     user.save(update_fields=["last_login"])
 

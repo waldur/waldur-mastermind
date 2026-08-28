@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from rest_framework.authtoken.models import Token
 
 from waldur_core.core.models import NameMixin, User, UuidMixin
 from waldur_core.passkeys.enums import AuthenticatorAttachment, CeremonyKind
@@ -224,3 +225,64 @@ def generate_challenge():
     from waldur_core.passkeys.utils import bytes_to_base64url
 
     return bytes_to_base64url(secrets.token_bytes(CHALLENGE_BYTES))
+
+
+class PasskeyVerifiedSession(models.Model):
+    """Records that the session behind a token was proved with a passkey.
+
+    Keyed on the DRF ``Token`` rather than on the user, so the property
+    belongs to the *session* and not to the account. That distinction is the
+    whole point of enforcement: a staff member who owns a passkey but signed
+    in with a password alone has not satisfied it, and a check against the
+    user would say they had.
+
+    ``on_delete=CASCADE`` gives rotation the right semantics for free —
+    ``refresh_token()`` deletes and recreates the token when it expires, and
+    the verification must not survive that.
+    """
+
+    token = models.OneToOneField(
+        "authtoken.Token",
+        on_delete=models.CASCADE,
+        related_name="passkey_verification",
+    )
+    credential = models.ForeignKey(
+        PasskeyCredential,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verified_sessions",
+    )
+    # Not auto_now_add: update_or_create must be able to refresh it when a
+    # session is re-verified, and auto_now_add ignores an explicit value.
+    verified_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = _("passkey verified session")
+        verbose_name_plural = _("passkey verified sessions")
+
+    def __str__(self):
+        return f"passkey session for {self.token.user.username}"
+
+
+def mark_session_verified(token, credential=None):
+    """Record that this token was issued behind a satisfied passkey."""
+    session, _created = PasskeyVerifiedSession.objects.update_or_create(
+        token=token,
+        defaults={"credential": credential, "verified_at": timezone.now()},
+    )
+    return session
+
+
+def is_session_verified(token) -> bool:
+    """Whether the token in hand was issued behind a satisfied passkey.
+
+    A missing token is not verified. Callers pass whatever DRF put on
+    ``request.auth``, which is a ``Token`` for token auth and something else
+    entirely — or nothing — for the other authentication classes.
+    """
+    if token is None:
+        return False
+    if not isinstance(token, Token):
+        return False
+    return PasskeyVerifiedSession.objects.filter(token=token).exists()

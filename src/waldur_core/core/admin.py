@@ -33,6 +33,7 @@ from waldur_core.core import constance_admin as waldur_constance_admin  # noqa: 
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
 from waldur_core.core.utils import chunked_queryset
+from waldur_core.passkeys import policy as passkey_policy
 
 
 def get_admin_url(obj):
@@ -434,9 +435,23 @@ class CustomAdminAuthenticationForm(admin_forms.AdminAuthenticationForm):
             "for a staff or a support account. Note that both fields may be "
             "case-sensitive."
         ),
+        "passkey_required": _(
+            "This deployment requires a passkey for staff and support "
+            "accounts, and the admin site cannot perform one. Sign in through "
+            "the portal instead."
+        ),
     }
 
     def confirm_login_allowed(self, user):
+        # Say why, rather than letting the form succeed and CustomAdminSite
+        # bounce them back to it. Without this the page just reloads with no
+        # message, which reads as "my password stopped working" — and the one
+        # thing the user needs to know is that the admin is not the way in on
+        # this deployment.
+        if passkey_policy.is_enforced_for(user):
+            raise forms.ValidationError(
+                self.error_messages["passkey_required"], code="passkey_required"
+            )
         if not can_access_admin_site(user):
             return super().confirm_login_allowed(user)
 

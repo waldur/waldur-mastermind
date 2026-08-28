@@ -49,6 +49,17 @@ class WaldurCore(BaseModel):
         "e.g. ['https://waldur.example.com']. Each must be subordinate to "
         "PASSKEY_RP_ID, and HTTPS outside localhost.",
     )
+    PASSKEY_ENFORCED_FOR_STAFF: bool = Field(
+        False,
+        description="Require staff and support accounts to hold a passkey and "
+        "to have satisfied it for the current session. Closes the paths that "
+        "otherwise yield a privileged session without one: reading another "
+        "user's raw API token, impersonation, the Django admin login form, "
+        "and minting a personal access token. Enabling it logs every staff "
+        "member out, because pre-existing tokens were issued without a "
+        "passkey; run 'waldur revoke_unverified_staff_tokens' as part of the "
+        "rollout.",
+    )
     INVITATIONS_ENABLED: bool = Field(
         True, description="Allows to disable invitations feature."
     )

@@ -48,3 +48,22 @@ def get_rp_name() -> str:
 
 def get_allowed_origins() -> list[str]:
     return list(settings.WALDUR_CORE.get("PASSKEY_ALLOWED_ORIGINS") or [])
+
+
+def is_enforced_for(user) -> bool:
+    """Whether this account must have satisfied a passkey for its session.
+
+    Enforcement covers ``is_support`` as well as ``is_staff``: both reach the
+    Django admin through ``can_access_admin_site``, so exempting support would
+    leave the admin site as an unguarded way in for an account that is
+    privileged in practice.
+
+    Independent of ``is_mfa_enabled()``. A deployment can require passkeys of
+    its privileged accounts without imposing a second factor on everybody, and
+    the two settings are read separately so that neither implies the other.
+    """
+    if not settings.WALDUR_CORE.get("PASSKEY_ENFORCED_FOR_STAFF"):
+        return False
+    if not is_enabled():
+        return False
+    return bool(getattr(user, "is_staff", False) or getattr(user, "is_support", False))

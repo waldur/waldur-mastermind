@@ -2580,9 +2580,23 @@ class UserSerializer(
         # User can see the token either via details view or /api/users/me
 
         if isinstance(self.instance, list) and len(self.instance) == 1:
-            return self.instance[0] == user
+            is_self = self.instance[0] == user
         else:
-            return self.instance == user
+            is_self = self.instance == user
+
+        if not is_self:
+            return False
+
+        # `user` here is request.user, which impersonation has already
+        # replaced with the impersonated account — so "her own token" reads as
+        # true for an impersonator viewing /api/users/me, and hands them a
+        # durable credential for somebody else. Impersonation is meant to let
+        # staff see what a user sees, not to walk away with their token.
+        request = self.context.get("request")
+        if request is not None and getattr(request.user, "impersonator", None):
+            return False
+
+        return True
 
     def _is_staff_editing_other_user(self):
         try:
@@ -3533,7 +3547,16 @@ class AuthTokenSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class UserAuthTokenSerializer(AuthTokenSerializer):
-    token = serializers.ReadOnlyField(source="key")
+    """Metadata about another user's token, deliberately without the key.
+
+    This backs staff-only endpoints, and it used to return the raw key. That
+    made a single compromised staff password enough to obtain a durable,
+    passkey-free session as any user in the deployment — no second factor
+    could mean anything while it stood, because the credential could simply be
+    read out. The remaining fields answer the operational questions the
+    endpoints exist for (does the user have a session, how old is it) without
+    handing over the credential itself.
+    """
 
     class Meta:
         model = authtoken_models.Token
@@ -3544,7 +3567,6 @@ class UserAuthTokenSerializer(AuthTokenSerializer):
             "user_username",
             "user_is_active",
             "user_token_lifetime",
-            "token",
         )
 
 

@@ -35,6 +35,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.passkeys import policy as passkey_policy
+from waldur_core.passkeys.models import is_session_verified
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +115,19 @@ def get_authentication_method(request: HttpRequest) -> AuthenticationMethod:
 
 
 def can_access_admin_site(user):
-    return user.is_active and (user.is_staff or user.is_support)
+    if not (user.is_active and (user.is_staff or user.is_support)):
+        return False
+    # The Django admin authenticates with a session from its own login form,
+    # which no passkey ceremony guards. Leaving it open would make enforcement
+    # decorative: a stolen staff password still reaches every model in the
+    # deployment through /admin/, whatever the API does.
+    #
+    # Refused outright rather than challenged, because the admin has no
+    # WebAuthn flow to send the user through. Passkey login for /admin/ is a
+    # follow-up; until then, an enforced deployment uses the portal.
+    if passkey_policy.is_enforced_for(user):
+        return False
+    return True
 
 
 class AdminAuthenticationBackend:
@@ -188,6 +202,18 @@ class ImpersonationAuthentication(DRFTokenAuthentication):
                 raise exceptions.AuthenticationFailed(_("Token has expired."))
 
         if impersonated_user_uuid and token.user.is_staff:
+            # Impersonation hands the caller somebody else's identity, so it is
+            # exactly the capability enforcement exists to protect. Checking
+            # the session rather than the account matters: a staff member who
+            # owns a passkey but signed in with a password alone has not
+            # satisfied it.
+            if passkey_policy.is_enforced_for(token.user) and not is_session_verified(
+                token
+            ):
+                raise exceptions.AuthenticationFailed(
+                    _("Impersonation requires a passkey-verified session.")
+                )
+
             impersonated_user = models.ImpersonatedUser.all_objects.filter(
                 uuid=impersonated_user_uuid
             ).first()
