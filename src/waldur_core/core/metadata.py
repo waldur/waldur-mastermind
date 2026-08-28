@@ -293,6 +293,9 @@ class WaldurCore(BaseModel):
         public_settings: list[str] = [
             "MASTERMIND_URL",
             "AUTHENTICATION_METHODS",
+            # The portal has to know whether a staff account without a
+            # credential should be held at the enrollment interstitial.
+            "PASSKEY_ENFORCED_FOR_STAFF",
             "INVITATIONS_ENABLED",
             "VALIDATE_INVITATION_EMAIL",
             "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS",

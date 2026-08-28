@@ -425,6 +425,7 @@ class EventType(StrEnum):
     PASSKEY_REGISTERED = "passkey_registered"
     PASSKEY_RENAMED = "passkey_renamed"
     PASSKEY_REVOKED = "passkey_revoked"
+    PASSKEY_REVOKED_BY_STAFF = "passkey_revoked_by_staff"
     PASSKEY_AUTHENTICATION_SUCCEEDED = "passkey_authentication_succeeded"
     PASSKEY_AUTHENTICATION_FAILED = "passkey_authentication_failed"
 
@@ -490,6 +491,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PASSKEY_REGISTERED,
         EventType.PASSKEY_RENAMED,
         EventType.PASSKEY_REVOKED,
+        EventType.PASSKEY_REVOKED_BY_STAFF,
         EventType.PASSKEY_AUTHENTICATION_SUCCEEDED,
         EventType.PASSKEY_AUTHENTICATION_FAILED,
     ],
