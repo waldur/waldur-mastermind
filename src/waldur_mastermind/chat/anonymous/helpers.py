@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from constance import config
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from django.contrib.auth.models import AnonymousUser
+from django.db import DatabaseError
 from django.db.models import Q
 
 from waldur_mastermind.chat.anonymous import models as anonymous_models
@@ -116,21 +117,27 @@ def build_offering_format_hint() -> str:
     """Recommendation format the persona instructs the LLM to use.
 
     Includes "Country" only when the visible catalog actually spans
-    ≥2 distinct customer countries — otherwise it's noise (every line
-    repeats the same country). HPC-Euro deployments with offerings
-    from 20+ NCCs get the country line; a single-country government
-    cloud deployment doesn't.
+    ≥2 distinct countries — otherwise it's noise (every line repeats
+    the same country). Counts on the same precedence the serializers
+    and catalog use (offering.country, else customer.country), so an
+    HPC-Euro deployment whose providers share one registration country
+    but host offerings across countries still gets the country line.
     """
     try:
-        visible = offerings_queryset_for(AnonymousUser())
-        country_count = (
-            marketplace_models.Offering.objects.filter(pk__in=visible)
-            .exclude(customer__country="")
-            .values("customer__country")
+        rows = (
+            marketplace_models.Offering.objects.filter(
+                pk__in=offerings_queryset_for(AnonymousUser())
+            )
+            # Clear Offering.Meta.ordering — its name/id columns would be
+            # injected into SELECT DISTINCT, collapsing nothing (id is
+            # unique) and yielding one row per offering instead of one
+            # per country pair.
+            .order_by()
+            .values_list("country", "customer__country")
             .distinct()
-            .count()
         )
-    except Exception:
+        country_count = len({(oc or cc or "").strip() for oc, cc in rows} - {""})
+    except DatabaseError:
         # Schema-generation / no-DB: default to without-country (smaller prompt).
         country_count = 0
     return (

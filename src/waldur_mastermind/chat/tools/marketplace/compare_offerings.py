@@ -165,6 +165,12 @@ class CompareOfferingsTool(BaseTool):
                 "`View [A](homeport_url) · [B](homeport_url) · …` using "
                 "each offering's `homeport_url` field verbatim."
             )
+        if any(o.get("has_access_url") for o in data):
+            summary += (
+                " Offerings with `has_access_url: true` also publish a "
+                "direct access link — mention it; get_offering reveals "
+                "the URL."
+            )
         if missing:
             summary += f" {len(missing)} unavailable and skipped."
 

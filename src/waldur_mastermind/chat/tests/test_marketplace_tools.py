@@ -1,3 +1,5 @@
+import time
+
 from constance.test import override_config
 from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase
@@ -9,11 +11,13 @@ from waldur_mastermind.chat.tools.marketplace.compare_offerings import (
 )
 from waldur_mastermind.chat.tools.marketplace.get_offering import GetOfferingTool
 from waldur_mastermind.chat.tools.marketplace.helpers import (
+    cap_text,
     is_public_marketplace_enabled,
     offering_homeport_url,
     offerings_queryset_for,
     serialize_offering_detailed,
     serialize_offering_minimal,
+    strip_html_to_text,
 )
 from waldur_mastermind.chat.tools.marketplace.list_categories import ListCategoriesTool
 from waldur_mastermind.chat.tools.marketplace.search_offerings import (
@@ -222,8 +226,10 @@ class SerializeOfferingMinimalTest(TestCase):
                 "uuid",
                 "category_title",
                 "customer_name",
+                "country",
                 "description",
                 "starting_price",
+                "has_access_url",
                 "homeport_url",
             },
         )
@@ -232,14 +238,46 @@ class SerializeOfferingMinimalTest(TestCase):
         self.assertNotIn("url", result)
         self.assertTrue(result["homeport_url"].startswith("https://hub.example.org/"))
 
-    def test_description_truncated_to_500_chars(self):
+    def test_description_truncated_to_500_chars_with_marker(self):
         offering = mp_factories.OfferingFactory(description="x" * 1000)
         result = serialize_offering_minimal(offering)
         self.assertEqual(len(result["description"]), 500)
+        self.assertTrue(result["description"].endswith("…"))
 
     def test_starting_price_is_none_when_no_plans(self):
         offering = mp_factories.OfferingFactory()
         self.assertIsNone(serialize_offering_minimal(offering)["starting_price"])
+
+    def test_country_prefers_offering_over_provider(self):
+        offering = mp_factories.OfferingFactory(country="DE")
+        offering.customer.country = "EE"
+        offering.customer.save()
+        self.assertEqual(serialize_offering_minimal(offering)["country"], "DE")
+
+    def test_country_falls_back_to_provider_country(self):
+        offering = mp_factories.OfferingFactory(country="")
+        offering.customer.country = "EE"
+        offering.customer.save()
+        self.assertEqual(serialize_offering_minimal(offering)["country"], "EE")
+
+    def test_country_is_none_when_unset_everywhere(self):
+        offering = mp_factories.OfferingFactory(country="")
+        offering.customer.country = ""
+        offering.customer.save()
+        self.assertIsNone(serialize_offering_minimal(offering)["country"])
+
+    def test_description_html_stripped(self):
+        offering = mp_factories.OfferingFactory(
+            description="<p>GPU <strong>power</strong> for AI.</p>"
+        )
+        result = serialize_offering_minimal(offering)
+        self.assertEqual(result["description"], "GPU power for AI.")
+
+    def test_has_access_url_flag(self):
+        with_url = mp_factories.OfferingFactory(access_url="https://x.example.org/")
+        without_url = mp_factories.OfferingFactory(access_url="")
+        self.assertTrue(serialize_offering_minimal(with_url)["has_access_url"])
+        self.assertFalse(serialize_offering_minimal(without_url)["has_access_url"])
 
 
 class SearchOfferingsRegistrationTest(TestCase):
@@ -436,6 +474,123 @@ class SerializeOfferingDetailedTest(TestCase):
         self.assertEqual(result["attributes"], {"gpu_type": "A100"})
         self.assertIsInstance(result["tags"], list)
 
+    def test_includes_access_route_fields(self):
+        offering = mp_factories.OfferingFactory(
+            access_url="https://provider.example.org/portal/",
+            getting_started="Request an account via the provider portal first.",
+        )
+        result = serialize_offering_detailed(offering)
+        self.assertEqual(result["access_url"], "https://provider.example.org/portal/")
+        self.assertEqual(
+            result["getting_started"],
+            "Request an account via the provider portal first.",
+        )
+
+    def test_access_route_fields_none_when_blank(self):
+        offering = mp_factories.OfferingFactory(access_url="", getting_started="")
+        result = serialize_offering_detailed(offering)
+        self.assertIsNone(result["access_url"])
+        self.assertIsNone(result["getting_started"])
+
+    def test_getting_started_html_stripped(self):
+        offering = mp_factories.OfferingFactory(
+            getting_started="<p>Step <strong>one</strong>:  register.</p>"
+        )
+        result = serialize_offering_detailed(offering)
+        self.assertEqual(result["getting_started"], "Step one: register.")
+
+    def test_getting_started_capped_with_truncation_marker(self):
+        offering = mp_factories.OfferingFactory(getting_started="x" * 2000)
+        result = serialize_offering_detailed(offering)
+        self.assertLessEqual(len(result["getting_started"]), 1000)
+        self.assertTrue(result["getting_started"].endswith("…"))
+
+    def test_getting_started_cap_cuts_on_word_boundary(self):
+        offering = mp_factories.OfferingFactory(getting_started="word " * 400)
+        result = serialize_offering_detailed(offering)
+        self.assertLessEqual(len(result["getting_started"]), 1000)
+        self.assertTrue(result["getting_started"].endswith("word…"))
+
+    def test_full_description_html_stripped_and_capped(self):
+        offering = mp_factories.OfferingFactory(
+            full_description="<p>" + "y" * 3000 + "</p>"
+        )
+        result = serialize_offering_detailed(offering)
+        self.assertNotIn("<p>", result["full_description"])
+        self.assertLessEqual(len(result["full_description"]), 2000)
+        self.assertTrue(result["full_description"].endswith("…"))
+
+
+class StripHtmlToTextTest(TestCase):
+    def test_block_elements_get_separators(self):
+        self.assertEqual(
+            strip_html_to_text(
+                "<ul><li>Register an account</li><li>Upload your SSH key</li></ul>"
+            ),
+            "Register an account Upload your SSH key",
+        )
+
+    def test_adjacent_paragraphs_get_separators(self):
+        self.assertEqual(strip_html_to_text("<p>A</p><p>B</p>"), "A B")
+
+    def test_html_entities_decoded(self):
+        self.assertEqual(
+            strip_html_to_text("<p>R&amp;D, 5 &lt; 10 nodes</p>"),
+            "R&D, 5 < 10 nodes",
+        )
+
+    def test_raw_ampersand_survives_round_trip(self):
+        self.assertEqual(strip_html_to_text("plain & text"), "plain & text")
+
+    def test_anchor_href_preserved_as_plain_text(self):
+        self.assertEqual(
+            strip_html_to_text(
+                '<p>Register at <a href="https://prov.example/signup">the portal</a>.</p>'
+            ),
+            "Register at the portal (https://prov.example/signup).",
+        )
+
+    def test_mailto_href_preserved(self):
+        self.assertEqual(
+            strip_html_to_text('<a href="mailto:hpc@example.org">contact us</a>'),
+            "contact us (mailto:hpc@example.org)",
+        )
+
+    def test_unsafe_scheme_href_dropped(self):
+        # getting_started is not sanitised on write — a javascript: href must
+        # not be lifted into the plain text.
+        self.assertEqual(
+            strip_html_to_text('<a href="javascript:alert(1)">click</a>'),
+            "click",
+        )
+
+    def test_pathological_anchor_input_completes_quickly(self):
+        # "<a " runs with no closing ">" make the anchor pre-pass backtrack
+        # quadratically, and description/full_description are unbounded
+        # provider-editable fields — the stripper must bound the input it
+        # scans. Unbounded, this shape takes ~11s at 150 KB.
+        start = time.monotonic()
+        strip_html_to_text("<a " * 50_000)
+        self.assertLess(time.monotonic() - start, 2.0)
+
+
+class CapTextTest(TestCase):
+    def test_short_text_unchanged(self):
+        self.assertEqual(cap_text("short", 10), "short")
+
+    def test_word_boundary_cut_with_marker(self):
+        result = cap_text("word " * 400, 1000)
+        self.assertLessEqual(len(result), 1000)
+        self.assertTrue(result.endswith("word…"))
+
+    def test_floor_prevents_eating_the_budget(self):
+        # A long unbroken token after a leading word must not collapse the
+        # output to that word — fall back to a hard slice instead.
+        result = cap_text("a " + "b" * 50, 10)
+        self.assertGreater(len(result), 5)
+        self.assertLessEqual(len(result), 10)
+        self.assertTrue(result.endswith("…"))
+
 
 class GetOfferingRegistrationTest(TestCase):
     def test_registered(self):
@@ -512,6 +667,37 @@ class GetOfferingExecuteTest(TestCase):
         result = self.tool.execute(self.user, {"uuid": str(offering.uuid)})
         self.assertEqual(result["type"], "error")
         self.assertIn("disabled", result["summary"].lower())
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_summary_directs_to_provider_platform_when_access_url_set(self):
+        offering = mp_factories.OfferingFactory(
+            name="External HPC",
+            shared=True,
+            state=OfferingStates.ACTIVE,
+            access_url="https://provider.example.org/portal/",
+        )
+        result = self.tool.execute(self.user, {"uuid": str(offering.uuid)})
+        self.assertEqual(result["type"], "success")
+        self.assertIn("access_url", result["summary"])
+        # The Hub offering-page link must survive alongside the access
+        # link — click attribution harvests offering UUIDs from it.
+        self.assertIn("homeport_url", result["summary"])
+        # access_url is just a link ("Access" in Homeport); it does not mean
+        # the Hub order flow is unavailable, and it must not reuse the Hub
+        # order button's "Request access" label.
+        self.assertIn("[Access](access_url)", result["summary"])
+        self.assertNotIn("Request access", result["summary"])
+        self.assertNotIn("grants access", result["summary"])
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_summary_keeps_homeport_directive_without_access_url(self):
+        offering = mp_factories.OfferingFactory(
+            name="Hub HPC", shared=True, state=OfferingStates.ACTIVE, access_url=""
+        )
+        result = self.tool.execute(self.user, {"uuid": str(offering.uuid)})
+        self.assertEqual(result["type"], "success")
+        self.assertIn("homeport_url", result["summary"])
+        self.assertNotIn("access_url", result["summary"])
 
 
 class ListCategoriesRegistrationTest(TestCase):

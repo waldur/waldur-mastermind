@@ -4,7 +4,12 @@ anonymous chat system prompt."""
 from constance import config
 from django.contrib.auth.models import AnonymousUser
 
-from waldur_mastermind.chat.tools.marketplace.helpers import offerings_queryset_for
+from waldur_mastermind.chat.tools.marketplace.helpers import (
+    cap_text,
+    offering_country,
+    offerings_queryset_for,
+    strip_html_to_text,
+)
 
 # Per-offering preview budgets. The catalog summary is a hint surface — the
 # LLM resolves details via tool calls (get_offering / search_offerings), so
@@ -27,11 +32,7 @@ def _format_offering_line(offering) -> str:
         if offering.customer_id and offering.customer
         else "—"
     )
-    country = (
-        (offering.customer.country or "").strip()
-        if offering.customer_id and offering.customer
-        else ""
-    )
+    country = offering_country(offering).strip()
     provider_label = f"{provider} ({country})" if country else provider
 
     components = [c.type for c in offering.components.all() if c.type][
@@ -39,9 +40,9 @@ def _format_offering_line(offering) -> str:
     ]
     components_label = ", ".join(components) if components else "—"
 
-    desc = (offering.description or "").strip().replace("\n", " ")
-    if len(desc) > _DESCRIPTION_PREVIEW_CHARS:
-        desc = desc[: _DESCRIPTION_PREVIEW_CHARS - 3] + "…"
+    desc = cap_text(
+        strip_html_to_text(offering.description), _DESCRIPTION_PREVIEW_CHARS
+    )
     desc_label = f" — {desc}" if desc else ""
 
     return f"- {name} [{category}] | {provider_label} | components: {components_label}{desc_label}"

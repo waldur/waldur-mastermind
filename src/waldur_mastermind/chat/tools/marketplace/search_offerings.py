@@ -1,9 +1,7 @@
 """AI Assistant tool: keyword search over publicly viewable marketplace offerings."""
 
 import logging
-import re
 
-import nh3
 from django.db.models import Q
 
 from waldur_mastermind.chat.tools.base import (
@@ -13,6 +11,7 @@ from waldur_mastermind.chat.tools.base import (
 )
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
+    cap_text,
     is_anonymous_caller_blocked,
     offering_homeport_url,
     offerings_queryset_for,
@@ -21,23 +20,6 @@ from waldur_mastermind.chat.tools.marketplace.helpers import (
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
-
-
-# hpcservicehub.eu and similar Waldur instances ship offering
-# descriptions as HTML fragments (<p>, <strong>, …). Strip everything
-# to plain text via nh3 (Rust-based sanitiser already used by
-# waldur_core.core.clean_html) so script/style bodies and HTML
-# entities are handled correctly — the regex-only stripper missed
-# both. Resulting plain text is then collapsed to single-spaces
-# before the 200-char excerpt cut.
-_WHITESPACE_RE = re.compile(r"\s+")
-
-
-def _strip_html(text: str) -> str:
-    if not text:
-        return ""
-    plain = nh3.clean(text, tags=set(), attributes={})
-    return _WHITESPACE_RE.sub(" ", plain).strip()
 
 
 def _keyword_query(keyword: str) -> Q:
@@ -72,8 +54,10 @@ class SearchOfferingsTool(BaseTool):
             description=(
                 "Search publicly viewable marketplace offerings by keyword, "
                 "optionally filtered by category or offering type. Returns a "
-                "list of matching offerings with name, provider, category, "
-                "type, starting price and detail page URL."
+                "list of matching offerings with name, provider, country, "
+                "category, starting price, detail page URL, and a "
+                "`has_access_url` flag marking offerings that also publish "
+                "a direct access link (get_offering reveals the URL)."
             ),
             inputSchema={
                 "type": "object",
@@ -225,9 +209,10 @@ class SearchOfferingsTool(BaseTool):
                         # (max 30 links * 200 = +6 KB per chunk, fits
                         # within TOOL_RESULTS_CHAR_CAP=12000 in
                         # chat/anonymous/judge.py).
-                        "description_excerpt": _strip_html(o.get("description") or "")[
-                            :200
-                        ],
+                        # Serialized descriptions are already plain text.
+                        "description_excerpt": cap_text(
+                            o.get("description") or "", 200
+                        ),
                     }
                     for o in offerings
                 ],

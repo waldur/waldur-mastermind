@@ -13,10 +13,98 @@ Visibility model: callers see exactly what
   - Staff / support                  → all offerings
 """
 
+import html
+import re
+
+import nh3
 from constance import config
 from django.contrib.auth.models import AnonymousUser
 
 from waldur_mastermind.marketplace import models as marketplace_models
+
+_WHITESPACE_RE = re.compile(r"\s+")
+
+# WYSIWYG editors emit tight markup (`<p>A</p><p>B</p>`, `<li>` runs)
+# with no inter-tag whitespace; without this pre-pass adjacent blocks
+# collapse into run-on words after tag stripping.
+_BLOCK_TAG_RE = re.compile(
+    r"(?i)</?(?:p|div|li|ul|ol|tr|td|th|table|h[1-6]|br|blockquote|section|article)\b[^>]*/?>"
+)
+
+# nh3 with tags=set() keeps anchor text but discards the href — yet
+# "register here → URL" is exactly what getting_started carries. Lift the
+# target out as plain text before stripping. Scheme allowlist matters:
+# getting_started is NOT sanitised on write (no HTMLCleanField), and this
+# pre-pass runs before nh3, so it must not rescue javascript:-style hrefs
+# that nh3 would have dropped.
+_ANCHOR_RE = re.compile(
+    r"(?is)<a\b[^>]*href=[\"'](?P<href>(?:https?://|mailto:)[^\"']+)[\"'][^>]*>"
+    r"(?P<text>.*?)</a>"
+)
+
+# Caps so one offering can't dominate the tool-result token budget.
+_GETTING_STARTED_CHARS = 1000
+_FULL_DESCRIPTION_CHARS = 2000
+
+# Hard bound on the raw HTML the stripper scans. Descriptions are
+# unbounded provider-editable TextFields, and _ANCHOR_RE backtracks
+# quadratically on "<a" runs that never close (O(occurrences × length) —
+# ~11s on 150 KB of "<a "). Every consumer caps the output at
+# _FULL_DESCRIPTION_CHARS or less, so 4× that of raw input is plenty
+# even for markup-heavy fragments.
+_STRIP_INPUT_CHARS = 4 * _FULL_DESCRIPTION_CHARS
+
+
+def strip_html_to_text(text: str) -> str:
+    """Collapse an HTML fragment to single-spaced plain text.
+
+    Waldur instances ship offering descriptions and getting-started
+    guides as HTML fragments (<p>, <strong>, …). Block-level tags are
+    replaced with spaces so adjacent paragraphs/list items stay
+    separated, nh3 (the Rust-based sanitiser already used by
+    waldur_core.core.clean_html) strips the rest including script/style
+    bodies, and the entities nh3 leaves escaped (&amp;, &lt;, …) are
+    decoded back to plain characters.
+
+    The output is PLAIN TEXT for LLM prompts and logs — the entity
+    decoding means entity-encoded markup comes back looking live
+    (``&lt;script&gt;`` becomes ``<script>``), so it must never be
+    injected into an HTML context.
+
+    Only the first ``_STRIP_INPUT_CHARS`` of input are scanned — callers
+    cap the output far below that anyway.
+    """
+    if not text:
+        return ""
+    linked = _ANCHOR_RE.sub(r"\g<text> (\g<href>)", text[:_STRIP_INPUT_CHARS])
+    spaced = _BLOCK_TAG_RE.sub(" ", linked)
+    plain = html.unescape(nh3.clean(spaced, tags=set(), attributes={}))
+    return _WHITESPACE_RE.sub(" ", plain).strip()
+
+
+def cap_text(text: str, limit: int) -> str:
+    """Cap plain text at ``limit`` chars, cutting on a word boundary and
+    appending an ellipsis so the model knows the content is truncated.
+
+    Falls back to a hard slice when the word-boundary cut would keep less
+    than 80% of the budget (a long unbroken token — URL, ID — near the
+    start must not collapse the output to its leading word)."""
+    if len(text) <= limit:
+        return text
+    hard = text[: limit - 1].rstrip()
+    cut = hard.rsplit(" ", 1)[0].rstrip()
+    if len(cut) < limit * 0.8:
+        cut = hard
+    return cut + "…"
+
+
+def offering_country(offering) -> str:
+    """Offering-level country wins over the provider's registration
+    country — an NCC may publish offerings hosted elsewhere. Single
+    source of the precedence rule for serializers and the prompt
+    catalog."""
+    provider_country = offering.customer.country if offering.customer_id else ""
+    return offering.country or provider_country or ""
 
 
 def is_public_marketplace_enabled() -> bool:
@@ -104,8 +192,14 @@ def serialize_offering_minimal(offering) -> dict:
         "uuid": str(offering.uuid),
         "category_title": offering.category.title if offering.category_id else "",
         "customer_name": offering.customer.name if offering.customer_id else "",
-        "description": (offering.description or "")[:500],
+        "country": offering_country(offering) or None,
+        "description": cap_text(strip_html_to_text(offering.description), 500),
         "starting_price": _starting_price(offering),
+        # Whether the offering publishes a direct access link (Homeport's
+        # "Access" button). It complements the Hub page — it does NOT mean
+        # the offering can't be ordered through the Hub. Lets the LLM
+        # mention the link in shortlists without a get_offering round-trip.
+        "has_access_url": bool(offering.access_url),
         "homeport_url": offering_homeport_url(offering.uuid),
     }
 
@@ -115,7 +209,21 @@ def serialize_offering_detailed(offering) -> dict:
     base = serialize_offering_minimal(offering)
     base.update(
         {
-            "full_description": offering.full_description or "",
+            "full_description": cap_text(
+                strip_html_to_text(offering.full_description),
+                _FULL_DESCRIPTION_CHARS,
+            ),
+            # Access-route metadata: `access_url` is the provider-published
+            # link Homeport shows as the "Access" button, alongside (not
+            # instead of) the Hub page. None (not "") when unset, so the
+            # LLM can say "not available" instead of narrating an empty
+            # string.
+            "access_url": offering.access_url or None,
+            "getting_started": cap_text(
+                strip_html_to_text(offering.getting_started),
+                _GETTING_STARTED_CHARS,
+            )
+            or None,
             "attributes": offering.attributes or {},
             "tags": [t.name for t in offering.tags.all()],
             "plans": [

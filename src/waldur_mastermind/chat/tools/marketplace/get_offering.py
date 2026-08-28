@@ -28,9 +28,10 @@ class GetOfferingTool(BaseTool):
                 "attributes and tags.\n"
                 "\n"
                 "After narrating the offering's plans / components / "
-                "specs, ALWAYS close with a single inline markdown link: "
+                "specs, ALWAYS close with an inline markdown link "
                 "`[View offering](homeport_url)` using the offering's "
-                "`homeport_url` field verbatim."
+                "`homeport_url` field verbatim — plus "
+                "`[Access](access_url)` when `access_url` is set."
             ),
             inputSchema={
                 "type": "object",
@@ -75,11 +76,22 @@ class GetOfferingTool(BaseTool):
                 "offering name from your context — do NOT narrate the "
                 "failure to the user. The retry usually succeeds.\n"
                 "\n"
-                "RENDERING — inline link, not buttons:\n"
+                "RENDERING — inline links, not buttons:\n"
                 "After narrating the offering's plans / components / specs, "
-                "close with a single inline markdown link "
+                "close with an inline markdown link "
                 "`[View offering](homeport_url)`. The `homeport_url` "
-                "field is on the returned offering — use it verbatim."
+                "field is on the returned offering — use it verbatim.\n"
+                "\n"
+                "ACCESS ROUTING:\n"
+                "When `access_url` is set, the offering publishes a direct "
+                "access link (shown as 'Access' on its page) — ADD a "
+                "second link `[Access](access_url)` after the offering "
+                "link. It complements the offering page: do NOT claim the "
+                "Hub request flow is unavailable, and do NOT label the "
+                "link 'Request access' (that is the Hub's own order "
+                "button). When `getting_started` is set, relay its "
+                "prerequisites before pointing the user onward. Never "
+                "imply that access has been granted."
             ),
         )
 
@@ -128,17 +140,30 @@ class GetOfferingTool(BaseTool):
             return {"type": "error", "summary": summary}
 
         data = serialize_offering_detailed(offering)
-        return {
-            "type": "success",
-            "data": {"offering": data},
-            # Render directive in the summary — the LLM weights tool
-            # results higher than usage_instructions for "what to do next".
-            "summary": (
+        # Render directive in the summary — the LLM weights tool
+        # results higher than usage_instructions for "what to do next".
+        if data["access_url"]:
+            summary = (
+                f"Details for {data['name']} by {data['customer_name']}. "
+                "This offering also publishes a direct access link: close "
+                "your reply with two inline markdown links — "
+                "`[View offering](homeport_url)` followed by "
+                "`[Access](access_url)` — using both fields verbatim, and "
+                "relay any prerequisites from `getting_started`. The access "
+                "link complements the offering page; do not claim the Hub "
+                "request flow is unavailable."
+            )
+        else:
+            summary = (
                 f"Details for {data['name']} by {data['customer_name']}. "
                 "Close your reply with one inline markdown link: "
                 "`[View offering](homeport_url)` using the offering's "
                 "`homeport_url` field verbatim."
-            ),
+            )
+        return {
+            "type": "success",
+            "data": {"offering": data},
+            "summary": summary,
         }
 
 
