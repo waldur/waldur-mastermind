@@ -566,9 +566,12 @@ class PermissionSerializer(serializers.ModelSerializer):
         """The organisation a role's scope belongs to.
 
         Most scopes carry ``customer`` themselves, directly or as a property.
-        Proposals deliberately do not: ``get_scope_ancestors`` appends
-        ``scope.customer`` when it exists, and ``pat_filtering`` mirrors that
-        walk exactly, so giving ``Proposal`` the attribute would hand it an
+        When the scope *is* a customer (e.g. CUSTOMER.OWNER), that organisation
+        is the scope itself — there is no nested ``.customer``.
+
+        Proposals deliberately do not expose ``customer``: ``get_scope_ancestors``
+        appends ``scope.customer`` when it exists, and ``pat_filtering`` mirrors
+        that walk exactly, so giving ``Proposal`` the attribute would hand it an
         ancestor it is documented not to have — a permission-surface change,
         made silently, for the sake of a display column. Resolve it here
         instead, where it only ever reaches the response.
@@ -579,7 +582,10 @@ class PermissionSerializer(serializers.ModelSerializer):
         scope = obj.scope
         if scope is None:
             return None
-        if scope._meta.model_name == "proposal":
+        model_name = scope._meta.model_name
+        if model_name == "customer":
+            return scope
+        if model_name == "proposal":
             round_ = getattr(scope, "round", None)
             call = getattr(round_, "call", None)
             manager = getattr(call, "manager", None)
