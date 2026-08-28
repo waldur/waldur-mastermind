@@ -217,6 +217,14 @@ from .handlers import get_plan_scopes
 
 logger = logging.getLogger(__name__)
 
+# Permission scopes accepting an offering-level role.
+#
+# has_permission_on_any_source walks only the paths listed here, so omitting
+# "offering" means a role granted on the offering itself (OFFERING.MANAGER) is
+# never consulted and the caller has to hold a customer-wide role instead. Both
+# scopes are listed wherever an offering-level grant should be sufficient.
+OFFERING_SCOPED_SOURCES = ["offering", "offering.customer"]
+
 
 def get_allowed_offering_users_for_user(
     request_user, include_consent_filtering=False, action=None
@@ -9740,7 +9748,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_backend_id_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_ID,
-            ["offering", "offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
@@ -9780,7 +9788,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_effective_id_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_ID,
-            ["offering", "offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
     set_effective_id_serializer_class = serializers.ResourceEffectiveIDSerializer
@@ -9806,7 +9814,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     update_options_direct_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_RESOURCE_OPTIONS,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
     update_options_direct_serializer_class = serializers.ResourceOptionsSerializer
@@ -9830,7 +9838,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     submit_report_permissions = [
         permission_factory(
             PermissionEnum.SUBMIT_RESOURCE_REPORT,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
@@ -9855,9 +9863,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_state_ok_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
-            # A site agent runs as OFFERING.MANAGER (offering-scoped role),
-            # so accept the offering scope alongside the owning customer.
-            ["offering", "offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
     set_state_ok_validators = [
@@ -9892,7 +9898,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_backend_metadata_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 
@@ -9992,14 +9998,12 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         )
         return Response(result.data, status=status.HTTP_200_OK)
 
-    # Reuses the backend-metadata permission at both offering and
-    # customer scope: sync statuses are agent-reported backend state,
-    # and the offering path lets an OFFERING.MANAGER-scoped agent
-    # identity report without customer-wide rights.
+    # Reuses the backend-metadata permission: sync statuses are
+    # agent-reported backend state.
     set_membership_sync_statuses_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
-            ["offering", "offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 
@@ -10038,7 +10042,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_endpoints_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 
@@ -10074,9 +10078,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_as_erred_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
-            # A site agent runs as OFFERING.MANAGER (offering-scoped role),
-            # so accept the offering scope alongside the owning customer.
-            ["offering", "offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 
@@ -10109,7 +10111,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_as_ok_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 
@@ -10129,7 +10131,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     refresh_last_sync_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 
@@ -10240,7 +10242,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     set_limits_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_STATE,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 

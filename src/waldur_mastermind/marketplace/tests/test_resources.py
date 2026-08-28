@@ -3164,3 +3164,69 @@ class ResourceSlugTemplateValidatorTest(test.APITestCase):
         serializer = self._validate_max_length(0)
         self.assertFalse(serializer.is_valid())
         self.assertIn("resource_slug_max_length", serializer.errors)
+
+
+@ddt
+class ProviderResourceOfferingScopeTest(test.APITestCase):
+    """Provider write-back actions must accept an offering-level role.
+
+    A user holding only OFFERING.MANAGER can act on resources of that
+    offering, without needing a customer-wide role. This is what a site
+    agent authenticates as. See waldur/waldur-mastermind#317.
+    """
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.offering.resource_options = {
+            "options": {"ram": {"type": "integer", "label": "RAM"}}
+        }
+        self.resource.offering.save()
+        for permission in (
+            PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
+            PermissionEnum.SET_RESOURCE_STATE,
+            PermissionEnum.SUBMIT_RESOURCE_REPORT,
+            PermissionEnum.UPDATE_RESOURCE_OPTIONS,
+        ):
+            OfferingRole.MANAGER.add_permission(permission)
+
+    def make_request(self, resource, action, payload):
+        url = factories.ResourceFactory.get_provider_resource_url(
+            resource, action=action
+        )
+        self.client.force_authenticate(self.fixture.offering_manager)
+        return self.client.post(url, payload, format="json")
+
+    @data(
+        ("set_backend_metadata", {"backend_metadata": {"key": "value"}}),
+        (
+            "set_endpoints",
+            {"endpoints": [{"name": "API", "url": "http://example.com/v1"}]},
+        ),
+        ("set_as_ok", None),
+        ("refresh_last_sync", None),
+        (
+            "submit_report",
+            {"report": [{"header": "Section header", "body": "Section body"}]},
+        ),
+        ("update_options_direct", {"options": {"ram": 4}}),
+        ("set_limits", {"limits": {"cpu": 2}}),
+    )
+    @unpack
+    def test_offering_manager_can_write_back(self, action, payload):
+        response = self.make_request(self.resource, action, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, action)
+
+    @data(
+        "set_backend_metadata",
+        "set_endpoints",
+        "set_as_ok",
+        "refresh_last_sync",
+        "submit_report",
+        "update_options_direct",
+        "set_limits",
+    )
+    def test_offering_manager_can_not_reach_another_offering(self, action):
+        other = factories.ResourceFactory()
+        response = self.make_request(other, action, None)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, action)
