@@ -228,6 +228,11 @@ class ProposalStates:
         (CANCELED, "Canceled"),
     )
 
+    # Terminal states: the allocation decision has been made, so the granted
+    # duration is final. Everything else is still pending and keeps following
+    # the call configuration.
+    ALLOCATED_STATES = frozenset({ACCEPTED, REJECTED, CANCELED})
+
 
 class ReviewStates:
     IN_REVIEW = "in_review"
