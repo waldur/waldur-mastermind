@@ -97,6 +97,24 @@ class ServiceProviderFilterTest(test.APITestCase):
         self.assertEqual(1, len(response.data))
         self.assertEqual(response.data[0]["uuid"], provider_1.uuid.hex)
 
+    def test_filter_created(self):
+        list_url = factories.ServiceProviderFactory.get_list_url()
+        with freeze_time("2020-01-01"):
+            old_provider = factories.ServiceProviderFactory()
+        with freeze_time("2021-01-01"):
+            recent_provider = factories.ServiceProviderFactory()
+        self.client.force_authenticate(self.fixture1.staff)
+
+        response = self.client.get(list_url, {"created": "2020-06-01"})
+        uuids = [provider["uuid"] for provider in response.data]
+        self.assertIn(recent_provider.uuid.hex, uuids)
+        self.assertNotIn(old_provider.uuid.hex, uuids)
+
+        response = self.client.get(list_url, {"created_before": "2020-06-01"})
+        uuids = [provider["uuid"] for provider in response.data]
+        self.assertIn(old_provider.uuid.hex, uuids)
+        self.assertNotIn(recent_provider.uuid.hex, uuids)
+
 
 class ResourceFilterTest(test.APITestCase):
     def setUp(self):
