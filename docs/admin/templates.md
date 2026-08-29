@@ -3805,7 +3805,7 @@ State change:
 {% if new_state == 'accepted' %}
 Project created: {{ project_name }}
 Allocation start date: {{ allocation_date }}
-Duration: {{ duration }} days
+{% if duration %}Duration: {{ duration }}{% endif %}
 
 Allocated resources:
 {% for resource in allocated_resources %}
@@ -4211,7 +4211,7 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
         <ul>
             <li><strong>Project created:</strong> {{ project_name }}</li>
             <li><strong>Allocation start date:</strong> {{ allocation_date }}</li>
-            <li><strong>Duration:</strong> {{ duration }} days</li>
+            {% if duration %}<li><strong>Duration:</strong> {{ duration }}</li>{% endif %}
         </ul>
         <div>
             <h4>Allocated resources:</h4>

@@ -992,6 +992,21 @@ options:
 
 ```
 
+## migrate_fresh
+
+Create the schema of an empty database from the models and record all migrations as applied.
+
+```bash
+
+usage: waldur migrate_fresh [--check] [--database DATABASE]
+
+options:
+  --check              Only report whether the database is empty (exit 0) or
+                       not (exit 1).
+  --database DATABASE  Database alias to initialize (default: default).
+
+```
+
 ## migrate_rabbitmq_queues
 
 Migrate RabbitMQ queues from classic to quorum type
