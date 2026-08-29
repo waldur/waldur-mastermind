@@ -268,10 +268,12 @@ class CallProposalFieldConfig(TimeStampedModel, core_models.UuidMixin):
     an operator raised the installation default, which the locking rule below
     exists to prevent.
 
-    ``name`` and ``duration_in_days`` are deliberately absent: the first names
-    the proposal and forms the last part of the awarded project's name (see
-    ``allocate_proposal``, which prefixes the call and the round's start date),
-    the second states the length of the award.
+    ``name`` is deliberately absent: it names the proposal and forms the last
+    part of the awarded project's name (see ``allocate_proposal``, which
+    prefixes the call and the round's start date). The length of the award is
+    not a form field either: it is derived at allocation from the requested
+    resources' ``attributes.prepaid_duration_months``, else from
+    ``call.fixed_duration_in_days`` (see ``utils.project_end_date``).
     """
 
     FIELD_PREFIX = "field_"
@@ -834,11 +836,6 @@ class Proposal(
     )
     project = models.ForeignKey(
         structure_models.Project, on_delete=models.PROTECT, editable=False, null=True
-    )
-    duration_in_days = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text="Duration in days after provisioning of resources.",
     )
     approved_by = models.ForeignKey(
         core_models.User,

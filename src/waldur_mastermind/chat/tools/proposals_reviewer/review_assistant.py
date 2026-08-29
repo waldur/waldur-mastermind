@@ -15,6 +15,7 @@ from waldur_mastermind.proposal.models import (
     RequestedResource,
     Review,
 )
+from waldur_mastermind.proposal.utils import get_proposal_duration_months
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,8 @@ class ReviewAssistantTool(BaseTool):
                 "project_summary": proposal.project_summary[:1000]
                 if proposal.project_summary
                 else "",
-                "duration_days": proposal.duration_in_days,
+                "requested_duration_months": get_proposal_duration_months(proposal),
+                "fixed_duration_days": call.fixed_duration_in_days if call else None,
             },
             "call_name": call.name if call else "",
             "call_description": call.description[:500]

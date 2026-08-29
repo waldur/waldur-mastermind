@@ -48,7 +48,7 @@
         <ul>
             <li><strong>Project created:</strong> {{ project_name }}</li>
             <li><strong>Allocation start date:</strong> {{ allocation_date }}</li>
-            <li><strong>Duration:</strong> {{ duration }} days</li>
+            {% if duration %}<li><strong>Duration:</strong> {{ duration }}</li>{% endif %}
         </ul>
         <div>
             <h4>Allocated resources:</h4>

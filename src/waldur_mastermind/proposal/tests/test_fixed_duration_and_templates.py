@@ -160,29 +160,8 @@ class FixedDurationTestCase(APITestCase):
         self.call.refresh_from_db()
         self.assertEqual(self.call.fixed_duration_in_days, 30)
 
-    def test_proposal_inherits_fixed_duration(self):
-        """Test that proposals automatically inherit call's fixed duration."""
-        self.call.fixed_duration_in_days = 45
-        self.call.save()
-
-        self.client.force_authenticate(self.customer_owner)
-        url = proposal_factories.ProposalFactory.get_list_url()
-
-        payload = {
-            "name": "Test Proposal",
-            "round_uuid": self.round.uuid.hex,
-            "description": "Test description",
-        }
-
-        response = self.client.post(url, payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        proposal = models.Proposal.objects.get(uuid=response.data["uuid"])
-        self.assertEqual(proposal.duration_in_days, 45)
-
-    def test_fixed_duration_overrides_provided_value(self):
-        """Test that fixed duration overrides any provided duration value."""
-        # Set fixed duration on call
+    def test_duration_in_days_is_ignored_on_create(self):
+        """The applicant's number decides nothing; old clients still get 201."""
         self.call.fixed_duration_in_days = 60
         self.call.save()
 
@@ -193,136 +172,47 @@ class FixedDurationTestCase(APITestCase):
             "name": "Test Proposal",
             "round_uuid": self.round.uuid.hex,
             "description": "Test description",
-            "duration_in_days": 30,  # This should be ignored
+            "duration_in_days": 30,
         }
 
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        proposal = models.Proposal.objects.get(uuid=response.data["uuid"])
-        # Should use call's fixed duration, not the provided value
-        self.assertEqual(proposal.duration_in_days, 60)
-
-
-class FixedDurationPropagationTestCase(APITestCase):
-    """Test propagation of a call's fixed duration to its proposals."""
-
-    def setUp(self):
-        self.staff_user = structure_factories.UserFactory(is_staff=True)
-        self.call = proposal_factories.CallFactory(
-            state=CallStates.ACTIVE, fixed_duration_in_days=30
-        )
-        self.round = proposal_factories.RoundFactory(
-            call=self.call, start_time=timezone.now() - datetime.timedelta(days=1)
-        )
-        self.url = proposal_factories.CallFactory.get_protected_url(self.call)
-        self.client.force_authenticate(self.staff_user)
-
-    def create_proposal(self, state):
-        return proposal_factories.ProposalFactory(
-            round=self.round, state=state, duration_in_days=30
+        self.assertNotIn("duration_in_days", response.data)
+        self.assertTrue(
+            models.Proposal.objects.filter(uuid=response.data["uuid"]).exists()
         )
 
-    def test_pending_proposals_are_updated(self):
+    def test_fixed_duration_change_needs_no_confirmation(self):
+        """Pending proposals are untouched; the call's value applies at allocation."""
+        self.call.fixed_duration_in_days = 30
+        self.call.save()
         pending = [
-            self.create_proposal(state)
+            proposal_factories.ProposalFactory(round=self.round, state=state)
             for state in (
                 ProposalStates.DRAFT,
                 ProposalStates.SUBMITTED,
                 ProposalStates.IN_REVIEW,
             )
         ]
+        self.client.force_authenticate(self.staff_user)
+        url = proposal_factories.CallFactory.get_protected_url(self.call)
 
-        response = self.client.patch(
-            self.url,
-            {"fixed_duration_in_days": 45, "confirm_duration_propagation": True},
-            format="json",
-        )
+        response = self.client.patch(url, {"fixed_duration_in_days": 45}, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        for proposal in pending:
-            proposal.refresh_from_db()
-            self.assertEqual(proposal.duration_in_days, 45)
-
-    def test_allocated_proposals_are_not_updated(self):
-        allocated = [
-            self.create_proposal(state)
-            for state in (
-                ProposalStates.ACCEPTED,
-                ProposalStates.REJECTED,
-                ProposalStates.CANCELED,
-            )
-        ]
-
-        response = self.client.patch(
-            self.url,
-            {"fixed_duration_in_days": 45, "confirm_duration_propagation": True},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        for proposal in allocated:
-            proposal.refresh_from_db()
-            self.assertEqual(proposal.duration_in_days, 30)
-
-    def test_clearing_fixed_duration_propagates_null(self):
-        pending = self.create_proposal(ProposalStates.SUBMITTED)
-        accepted = self.create_proposal(ProposalStates.ACCEPTED)
-
-        response = self.client.patch(
-            self.url,
-            {"fixed_duration_in_days": None, "confirm_duration_propagation": True},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.call.refresh_from_db()
-        self.assertIsNone(self.call.fixed_duration_in_days)
-        pending.refresh_from_db()
-        self.assertIsNone(pending.duration_in_days)
-        accepted.refresh_from_db()
-        self.assertEqual(accepted.duration_in_days, 30)
-
-    def test_change_is_rejected_without_confirmation(self):
-        proposal = self.create_proposal(ProposalStates.DRAFT)
-
-        response = self.client.patch(
-            self.url, {"fixed_duration_in_days": 45}, format="json"
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("confirm_duration_propagation", response.data)
-        self.call.refresh_from_db()
-        self.assertEqual(self.call.fixed_duration_in_days, 30)
-        proposal.refresh_from_db()
-        self.assertEqual(proposal.duration_in_days, 30)
-
-    def test_confirmation_is_not_required_without_affected_proposals(self):
-        allocated = self.create_proposal(ProposalStates.ACCEPTED)
-
-        response = self.client.patch(
-            self.url, {"fixed_duration_in_days": 45}, format="json"
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.call.refresh_from_db()
         self.assertEqual(self.call.fixed_duration_in_days, 45)
-        allocated.refresh_from_db()
-        self.assertEqual(allocated.duration_in_days, 30)
-
-    def test_confirmation_is_not_required_when_value_is_unchanged(self):
-        self.create_proposal(ProposalStates.DRAFT)
-
-        response = self.client.patch(
-            self.url, {"fixed_duration_in_days": 30}, format="json"
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for proposal in pending:
+            modified = proposal.modified
+            proposal.refresh_from_db()
+            self.assertEqual(proposal.modified, modified)
 
     def test_non_positive_duration_is_rejected(self):
-        response = self.client.patch(
-            self.url, {"fixed_duration_in_days": 0}, format="json"
-        )
+        self.client.force_authenticate(self.staff_user)
+        url = proposal_factories.CallFactory.get_protected_url(self.call)
+
+        response = self.client.patch(url, {"fixed_duration_in_days": 0}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("fixed_duration_in_days", response.data)
@@ -488,8 +378,6 @@ class IntegrationTestCase(APITestCase):
         )
 
         proposal = models.Proposal.objects.get(uuid=proposal_response.data["uuid"])
-        # Verify fixed duration was applied
-        self.assertEqual(proposal.duration_in_days, 30)
 
         # Add resource from template
         resource_url = proposal_factories.RequestedResourceFactory.get_list_url(

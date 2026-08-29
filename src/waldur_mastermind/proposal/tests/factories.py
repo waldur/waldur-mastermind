@@ -248,7 +248,6 @@ class ProposalFactory(
         model = models.Proposal
 
     round = factory.SubFactory(RoundFactory)
-    duration_in_days = 10
     created_by = factory.SubFactory(structure_factories.UserFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     # A summary is required by default (CallProposalFieldConfig), and submission

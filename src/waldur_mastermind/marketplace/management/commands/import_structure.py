@@ -8203,7 +8203,8 @@ class Command(BaseCommand):
                     "project": project,
                     "created_by": created_by,
                     "approved_by": approved_by,
-                    "duration_in_days": proposal_data.get("duration_in_days"),
+                    # Dumps written before #324 carry "duration_in_days"; the
+                    # column is gone, so the key is ignored.
                     "project_summary": proposal_data.get("project_summary", ""),
                     "project_duration": proposal_data.get("project_duration"),
                     "allocation_comment": proposal_data.get("allocation_comment", ""),

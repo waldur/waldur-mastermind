@@ -157,7 +157,6 @@ class ProposalCreateTest(test.APITestCase):
         payload = {
             "name": "new",
             "round_uuid": self.fixture.round.uuid.hex,
-            "duration_in_days": 10,
         }
         payload.update(kwargs)
 
@@ -178,7 +177,6 @@ class ProposalDescriptionLengthTest(test.APITestCase):
             {
                 "name": "new",
                 "round_uuid": self.fixture.round.uuid.hex,
-                "duration_in_days": 10,
                 "description": description,
             },
         )
@@ -293,11 +291,23 @@ class UpdateProposalProjectDetailsTest(test.APITestCase):
 
         payload = {
             "name": "new",
-            "duration_in_days": 10,
         }
         response = self.client.post(self.url, payload)
         self.proposal.refresh_from_db()
         return response
+
+    def test_update_project_details_ignores_duration_in_days(self):
+        # Older clients still send the retired field; it is neither rejected
+        # nor echoed back.
+        self.client.force_authenticate(self.fixture.proposal_creator)
+
+        response = self.client.post(
+            self.url, {"name": self.proposal.name, "duration_in_days": 99}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        proposal = self.client.get(factories.ProposalFactory.get_url(self.proposal))
+        self.assertNotIn("duration_in_days", proposal.data)
 
     def test_science_sub_domain_can_be_set(self):
         sub_domain = structure_factories.ScienceSubDomainFactory()
@@ -307,7 +317,6 @@ class UpdateProposalProjectDetailsTest(test.APITestCase):
             self.url,
             {
                 "name": self.proposal.name,
-                "duration_in_days": 10,
                 "science_sub_domain": sub_domain.uuid.hex,
             },
         )
@@ -325,7 +334,6 @@ class UpdateProposalProjectDetailsTest(test.APITestCase):
             self.url,
             {
                 "name": self.proposal.name,
-                "duration_in_days": 10,
                 "science_sub_domain": None,
             },
             format="json",

@@ -426,6 +426,62 @@ class OrderCreatePrepaidTest(BaseOrderCreateTest):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    @freeze_time("2024-01-01")
+    def test_stated_months_outrank_the_date_derived_count(self):
+        # The browser computed end_date from a local "today" one day ahead of
+        # the server's: 12 months + 1 day would round up to 13 and fail a max
+        # of 12, but the client stated 12 months and that is what is checked.
+        self.prepaid_component.max_prepaid_duration = 12
+        self.prepaid_component.save()
+        payload = {
+            "attributes": {"end_date": "2025-01-02", "prepaid_duration_months": 12}
+        }
+
+        response = self.create_order(self.user, self.offering, add_payload=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @freeze_time("2024-01-01")
+    def test_without_stated_months_the_date_still_decides(self):
+        self.prepaid_component.max_prepaid_duration = 12
+        self.prepaid_component.save()
+        payload = {"attributes": {"end_date": "2025-01-02"}}
+
+        response = self.create_order(self.user, self.offering, add_payload=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attributes.end_date", response.data)
+
+    @freeze_time("2024-01-01")
+    def test_stated_months_are_validated_against_the_component(self):
+        payload = {
+            "attributes": {"end_date": "2027-01-01", "prepaid_duration_months": 36}
+        }
+
+        response = self.create_order(self.user, self.offering, add_payload=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attributes.prepaid_duration_months", response.data)
+
+    @freeze_time("2024-01-01")
+    def test_stated_months_must_be_a_positive_integer(self):
+        payload = {
+            "attributes": {"end_date": "2025-01-01", "prepaid_duration_months": "abc"}
+        }
+
+        response = self.create_order(self.user, self.offering, add_payload=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attributes.prepaid_duration_months", response.data)
+
+    def test_end_date_is_still_required_when_months_are_stated(self):
+        payload = {"attributes": {"prepaid_duration_months": 12}}
+
+        response = self.create_order(self.user, self.offering, add_payload=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attributes.end_date", response.data)
+
 
 class RenewalSerializerConstraintsTest(TestCase):
     """Tests for ResourceRenewSerializer renewal-specific duration constraints."""

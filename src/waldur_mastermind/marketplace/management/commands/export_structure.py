@@ -1852,7 +1852,6 @@ class Command(BaseCommand):
                     "approved_by_uuid": proposal.approved_by.uuid.hex
                     if proposal.approved_by
                     else None,
-                    "duration_in_days": proposal.duration_in_days,
                     "project_summary": proposal.project_summary,
                     "project_duration": proposal.project_duration,
                     "allocation_comment": proposal.allocation_comment,

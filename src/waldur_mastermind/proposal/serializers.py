@@ -34,6 +34,7 @@ from waldur_mastermind.marketplace.serializers import (
     OfferingComponentSerializer,
     OfferingOptionsField,
     UserAttributeConfigBaseSerializer,
+    validate_prepaid_duration_against_component,
 )
 from waldur_mastermind.proposal.enums import (
     MANDATORY_STEPS,
@@ -1151,6 +1152,38 @@ class RequestedOfferingSerializer(
         return super().create(validated_data)
 
 
+PREPAID_DURATION_FIELD = "attributes.prepaid_duration_months"
+
+
+def _validate_prepaid_duration(attributes, offering):
+    """Hold the requested subscription length to the offering's prepaid terms.
+
+    This is the value allocation derives the project length from
+    (``utils.project_end_date``), so it gets the same min/max/step check the
+    marketplace order path applies. It is deliberately not capped against the
+    call's ``fixed_duration_in_days``: the subscription outranks the call.
+    """
+    attributes = attributes or {}
+    if "prepaid_duration_months" not in attributes:
+        return
+
+    months = attributes["prepaid_duration_months"]
+    if isinstance(months, bool) or not isinstance(months, int) or months < 1:
+        raise serializers.ValidationError(
+            {PREPAID_DURATION_FIELD: _("A whole number of months, at least 1.")}
+        )
+
+    prepaid_components = list(offering.components.filter(is_prepaid=True))
+    if not prepaid_components:
+        raise serializers.ValidationError(
+            {PREPAID_DURATION_FIELD: _("This offering is not sold by the month.")}
+        )
+    for component in prepaid_components:
+        validate_prepaid_duration_against_component(
+            months, component, PREPAID_DURATION_FIELD
+        )
+
+
 class RequestedResourceSerializer(
     core_serializers.AugmentedSerializerMixin, NestedRequestedResourceSerializer
 ):
@@ -1170,6 +1203,10 @@ class RequestedResourceSerializer(
 
     def validate(self, attrs):
         if self.instance:
+            if "attributes" in attrs:
+                _validate_prepaid_duration(
+                    attrs["attributes"], self.instance.requested_offering.offering
+                )
             return attrs
 
         proposal = attrs["proposal"]
@@ -1238,6 +1275,9 @@ class RequestedResourceSerializer(
                 )
             )
 
+        _validate_prepaid_duration(
+            attrs.get("attributes"), attrs["requested_offering"].offering
+        )
         return attrs
 
     def validate_attributes(self, attributes):
@@ -1353,14 +1393,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
     fixed_duration_in_days = serializers.IntegerField(
         required=False, allow_null=True, min_value=1
     )
-    confirm_duration_propagation = serializers.BooleanField(
-        write_only=True,
-        required=False,
-        default=False,
-        help_text="Acknowledge that changing fixed_duration_in_days rewrites the "
-        "duration of proposals that have not been allocated yet. Without it the "
-        "change is rejected when there is at least one such proposal.",
-    )
     reviewer_identity_visible_to_submitters = serializers.BooleanField(
         help_text="Whether proposal applicants can see reviewer identities",
         required=False,
@@ -1465,7 +1497,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "proposal_field_config",
             "proposal_field_metadata",
             "has_proposals",
-            "confirm_duration_propagation",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -1595,8 +1626,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
         return data
 
     def create(self, validated_data):
-        # A new call has no proposals to propagate to yet.
-        validated_data.pop("confirm_duration_propagation", None)
         request = self.context["request"]
         customer = validated_data.get("manager", None).customer
         if not permissions_utils.has_permission(
@@ -1622,59 +1651,12 @@ class ProtectedCallSerializer(PublicCallSerializer):
             )
         return call
 
-    def _propagate_fixed_duration(self, call, fixed_duration_in_days, confirmed):
-        """Rewrite the duration of proposals that have not been allocated yet.
-
-        The scope is defined by exclusion so that a newly added pending state
-        cannot silently fall outside it. Clearing the fixed duration propagates
-        ``None``, so the duration becomes applicant-chosen again instead of
-        keeping the last fixed value.
-        """
-        proposals = (
-            models.Proposal.objects.filter(round__call=call)
-            .exclude(state__in=ProposalStates.ALLOCATED_STATES)
-            .exclude(duration_in_days=fixed_duration_in_days)
-        )
-        affected = list(proposals.values_list("uuid", flat=True))
-        if not affected:
-            return
-
-        if not confirmed:
-            raise serializers.ValidationError(
-                {
-                    "confirm_duration_propagation": _(
-                        "This changes the duration of %(count)s proposal(s) that have "
-                        "not been allocated yet. Repeat the request with "
-                        "confirm_duration_propagation set to true to apply it."
-                    )
-                    % {"count": len(affected)}
-                }
-            )
-
-        proposals.update(duration_in_days=fixed_duration_in_days)
-        logger.info(
-            "Fixed duration of call %s has been changed from %s to %s by user %s. "
-            "Duration has been rewritten for proposals: %s.",
-            call.uuid.hex,
-            call.fixed_duration_in_days,
-            fixed_duration_in_days,
-            self.context["request"].user.username,
-            ", ".join(proposal_uuid.hex for proposal_uuid in affected),
-        )
-
     @transaction.atomic
     def update(self, instance, validated_data):
-        confirmed = validated_data.pop("confirm_duration_propagation", False)
-        propagate_duration = (
-            "fixed_duration_in_days" in validated_data
-            and validated_data["fixed_duration_in_days"]
-            != instance.fixed_duration_in_days
-        )
-        if propagate_duration:
-            self._propagate_fixed_duration(
-                instance, validated_data["fixed_duration_in_days"], confirmed
-            )
-
+        # A changed fixed_duration_in_days needs no propagation: allocation
+        # reads it from the call (utils.project_end_date), so it takes effect
+        # for every proposal that has not been allocated yet without rewriting
+        # a single proposal row.
         has_visibility = "applicant_visibility_config" in validated_data
         visibility_data = validated_data.pop("applicant_visibility_config", None)
         field_config_data = validated_data.pop("proposal_field_config", None)
@@ -1810,7 +1792,6 @@ class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "project_summary",
-            "duration_in_days",
             "science_sub_domain",
         ]
 
@@ -1983,7 +1964,6 @@ class ProposalSerializer(
             "applicant_civil_number",
             "applicant_birth_date",
             "applicant_active_isds",
-            "duration_in_days",
             "project",
             "round",
             "round_uuid",
@@ -2061,14 +2041,7 @@ class ProposalSerializer(
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
-        proposal = super().create(validated_data)
-
-        # Set fixed duration if specified by call
-        if proposal.round.call.fixed_duration_in_days:
-            proposal.duration_in_days = proposal.round.call.fixed_duration_in_days
-            proposal.save()
-
-        return proposal
+        return super().create(validated_data)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -2098,34 +2071,6 @@ class ProposalSerializer(
         if request and not (request.user and request.user.is_staff):
             if "slug" in fields:
                 fields["slug"].read_only = True
-
-        # Make duration_in_days read-only if call has fixed duration
-        def is_fixed_duration(instance):
-            try:
-                return instance.round.call.fixed_duration_in_days
-            except AttributeError:
-                return False
-
-        # Handle both single instance and list
-        instances = (
-            self.instance
-            if isinstance(self.instance, (list | tuple))
-            else [self.instance]
-            if self.instance
-            else []
-        )
-
-        if any(is_fixed_duration(obj) for obj in instances):
-            fields["duration_in_days"].read_only = True
-        elif hasattr(self, "initial_data") and "round_uuid" in self.initial_data:
-            # For creation, check if the call has fixed duration
-            try:
-                round_uuid = self.initial_data["round_uuid"]
-                call_round = models.Round.objects.get(uuid=round_uuid)
-                if call_round.call.fixed_duration_in_days:
-                    fields["duration_in_days"].read_only = True
-            except (models.Round.DoesNotExist, KeyError):
-                pass
 
         return fields
 
