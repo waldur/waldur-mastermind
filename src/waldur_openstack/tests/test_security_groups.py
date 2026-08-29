@@ -808,3 +808,80 @@ class TenantPushSecurityGroupsTest(BaseSecurityGroupTest):
 
         self.assertEqual(sg_a.rules.count(), 1)
         self.assertEqual(sg_a.rules.first().remote_group, sg_b)
+
+
+class SecurityGroupInstanceCountTest(BaseSecurityGroupTest):
+    def setUp(self):
+        super().setUp()
+        self.security_group = self.fixture.security_group
+        self.client.force_authenticate(self.fixture.admin)
+
+    def test_instance_count_is_zero_for_unused_security_group(self):
+        response = self.client.get(
+            factories.SecurityGroupFactory.get_url(self.security_group)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["instance_count"], 0)
+
+    def test_instance_count_reflects_attached_instances(self):
+        for _ in range(2):
+            instance = factories.InstanceFactory(
+                project=self.fixture.project, tenant=self.fixture.tenant
+            )
+            instance.security_groups.add(self.security_group)
+
+        response = self.client.get(
+            factories.SecurityGroupFactory.get_url(self.security_group)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["instance_count"], 2)
+
+    def test_instance_count_includes_instances_attached_through_a_port(self):
+        instance = factories.InstanceFactory(
+            project=self.fixture.project, tenant=self.fixture.tenant
+        )
+        port = factories.PortFactory(
+            instance=instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.network,
+        )
+        port.security_groups.add(self.security_group)
+
+        response = self.client.get(
+            factories.SecurityGroupFactory.get_url(self.security_group)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["instance_count"], 1)
+
+    def test_instance_attached_by_both_relations_is_counted_once(self):
+        instance = factories.InstanceFactory(
+            project=self.fixture.project, tenant=self.fixture.tenant
+        )
+        instance.security_groups.add(self.security_group)
+        port = factories.PortFactory(
+            instance=instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.network,
+        )
+        port.security_groups.add(self.security_group)
+
+        response = self.client.get(
+            factories.SecurityGroupFactory.get_url(self.security_group)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["instance_count"], 1)
+
+    def test_instance_count_is_null_for_nested_security_group(self):
+        instance = self.fixture.instance
+        self.fixture.port.security_groups.add(self.security_group)
+
+        response = self.client.get(factories.InstanceFactory.get_url(instance))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(
+            response.data["ports"][0]["security_groups"][0]["instance_count"]
+        )
