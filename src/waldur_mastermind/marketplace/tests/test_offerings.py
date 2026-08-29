@@ -158,6 +158,8 @@ class OfferingExtraFieldsTest(test.APITestCase):
         )
 
         self._check_field_after_set_of_it("total_customers", 1)
+        self._check_field_requested_via_field_param("total_customers", 1)
+        self._check_field_is_not_annotated_by_default("total_customers")
 
     def test_total_cost_estimated(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -174,6 +176,8 @@ class OfferingExtraFieldsTest(test.APITestCase):
         invoice_item.save()
 
         self._check_field_after_set_of_it("total_cost_estimated", 20)
+        self._check_field_requested_via_field_param("total_cost_estimated", 20)
+        self._check_field_is_not_annotated_by_default("total_cost_estimated")
 
     def test_total_cost(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -195,6 +199,22 @@ class OfferingExtraFieldsTest(test.APITestCase):
         invoice_item.invoice.save()
 
         self._check_field_after_set_of_it("total_cost", 30)
+        self._check_field_requested_via_field_param("total_cost", 30)
+        self._check_field_is_not_annotated_by_default("total_cost")
+
+    def test_extra_field_is_annotated_when_ordering_by_several_fields(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        factories.ResourceFactory(
+            offering=self.offering_2,
+            state=ResourceStates.OK,
+        )
+
+        response = self.client.get(self.url, {"o": "-total_customers,name"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 2)
+        self.assertEqual(response.json()[0]["total_customers"], 1)
+        self.assertEqual(response.json()[1]["total_customers"], 0)
 
     def _check_field_before_set_of_it(self, field_name):
         response = self.client.get(self.url)
@@ -205,6 +225,22 @@ class OfferingExtraFieldsTest(test.APITestCase):
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(field_name in response.json().keys())
+
+    def _check_field_requested_via_field_param(self, field_name, value):
+        response = self.client.get(self.url, {"field": ["uuid", field_name]})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 2)
+        values = [offering[field_name] for offering in response.json()]
+        self.assertEqual(sorted(values), [0, value])
+
+    def _check_field_is_not_annotated_by_default(self, field_name):
+        """Without ordering by the field and without asking for it explicitly
+        the expensive annotation is skipped, so the value is None."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 2)
+        for offering in response.json():
+            self.assertIsNone(offering[field_name])
 
     def _check_field_after_set_of_it(self, field_name, value):
         response = self.client.get(self.url, {"o": "-%s" % field_name})

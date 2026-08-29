@@ -2364,9 +2364,16 @@ class ProviderOfferingViewSet(
     )
 
     def _check_extra_field_needed(self, field_name):
+        # The annotations below are expensive subqueries, so they are added only
+        # when the client actually consumes the field: either it sorts by it or
+        # it asks for it explicitly via the `field` param handled by
+        # RestrictedSerializerMixin. A plain list request gets neither.
+        # `o` is a CSV filter, so it may name several fields at once.
+        ordering = self.request.query_params.get("o", "").split(",")
         return (
-            field_name == self.request.query_params.get("o", "")
-            or "-" + field_name == self.request.query_params.get("o", "")
+            field_name in ordering
+            or "-" + field_name in ordering
+            or field_name in self.request.query_params.getlist("field")
             or self.detail
         )
 
