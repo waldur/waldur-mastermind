@@ -5,7 +5,9 @@ import factory
 from celery import Signature
 from cinderclient import exceptions as cinder_exceptions
 from ddt import data, ddt
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from novaclient import exceptions as nova_exceptions
 from rest_framework import status, test
 
@@ -2031,3 +2033,135 @@ class InstanceUpdateBlockedIfOfferingIsUnavailableTest(test.APITestCase):
         self.instance.save()
         response = self.client.put(url, {"name": "VM"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class InstanceListQueryCountTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.client.force_authenticate(self.fixture.admin)
+        self.url = factories.InstanceFactory.get_list_url()
+
+    def create_instance(self):
+        instance = factories.InstanceFactory(
+            project=self.fixture.project, tenant=self.fixture.tenant
+        )
+        instance.security_groups.add(
+            factories.SecurityGroupFactory(tenant=self.fixture.tenant)
+        )
+        port = factories.PortFactory(
+            instance=instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.network,
+            subnet=self.fixture.subnet,
+            fixed_ips=[{"ip_address": "192.168.42.10", "subnet_id": "subnet-id"}],
+        )
+        factories.FloatingIPFactory(tenant=self.fixture.tenant, port=port)
+        factories.VolumeFactory(
+            project=self.fixture.project, tenant=self.fixture.tenant, instance=instance
+        )
+        return instance
+
+    # Tables which the instance serializer renders for every row: without
+    # prefetching them the list view issues a query per instance.
+    prefetched_tables = (
+        "openstack_port",
+        "openstack_subnet",
+        "openstack_floatingip",
+        "openstack_securitygroup",
+        "openstack_securitygrouprule",
+        "openstack_volume",
+        "openstack_tenant",
+        "structure_project",
+        "structure_servicesettings",
+    )
+
+    def count_queries_per_table(self, expected_count):
+        with CaptureQueriesContext(connection) as context:
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), expected_count)
+        return {
+            table: len(
+                [
+                    query
+                    for query in context.captured_queries
+                    if f'"{table}"' in query["sql"]
+                ]
+            )
+            for table in self.prefetched_tables
+        }
+
+    def test_related_objects_are_not_queried_for_every_instance(self):
+        self.create_instance()
+        queries_for_single_instance = self.count_queries_per_table(1)
+
+        self.create_instance()
+        self.create_instance()
+        queries_for_three_instances = self.count_queries_per_table(3)
+
+        self.assertEqual(queries_for_single_instance, queries_for_three_instances)
+
+
+class InstanceIPPropertiesQueryCountTest(test.APITestCase):
+    """The IP properties are also read outside the prefetched list view, e.g.
+    by marketplace metadata handlers, so they must not cost a query per port."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+
+    def add_port_with_floating_ip(self):
+        port = factories.PortFactory(
+            instance=self.instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.network,
+            subnet=self.fixture.subnet,
+            fixed_ips=[{"ip_address": "192.168.42.10", "subnet_id": "subnet-id"}],
+        )
+        factories.FloatingIPFactory(tenant=self.fixture.tenant, port=port)
+
+    def count_queries(self):
+        instance = models.Instance.objects.get(pk=self.instance.pk)
+        with CaptureQueriesContext(connection) as context:
+            instance.external_ips
+            instance.external_address
+            instance.internal_ips
+            instance.attached_floating_ips
+        return len(context.captured_queries)
+
+    def test_ip_properties_do_not_query_per_port_without_prefetch(self):
+        self.add_port_with_floating_ip()
+        queries_for_single_port = self.count_queries()
+
+        self.add_port_with_floating_ip()
+        self.add_port_with_floating_ip()
+
+        self.assertEqual(self.count_queries(), queries_for_single_port)
+
+
+class InstanceFloatingIPsOrderingTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.client.force_authenticate(self.fixture.admin)
+        self.instance = self.fixture.instance
+
+    def create_floating_ip(self):
+        port = factories.PortFactory(
+            instance=self.instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.network,
+            subnet=self.fixture.subnet,
+        )
+        return factories.FloatingIPFactory(tenant=self.fixture.tenant, port=port)
+
+    def test_floating_ips_keep_the_model_ordering_across_ports(self):
+        oldest = self.create_floating_ip()
+        newest = self.create_floating_ip()
+
+        response = self.client.get(factories.InstanceFactory.get_url(self.instance))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [floating_ip["address"] for floating_ip in response.data["floating_ips"]],
+            [newest.address, oldest.address],
+        )

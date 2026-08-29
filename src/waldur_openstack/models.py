@@ -1936,7 +1936,9 @@ class Instance(
 
     @property
     def external_ips(self) -> list[str]:
-        floating_ips = set(self.floating_ips.values_list("address", flat=True))
+        floating_ips = {
+            floating_ip.address for floating_ip in self.attached_floating_ips
+        }
         if self.directly_connected_ips:
             floating_ips = floating_ips.union(
                 set(self.directly_connected_ips.split(","))
@@ -1949,16 +1951,20 @@ class Instance(
 
     @property
     def external_address(self) -> set[str]:
-        return set(
-            self.floating_ips.exclude(external_address__isnull=True).values_list(
-                "external_address", flat=True
-            )
-        )
+        return {
+            floating_ip.external_address
+            for floating_ip in self.attached_floating_ips
+            if floating_ip.external_address is not None
+        }
 
     @property
     def internal_ips(self):
         internal_ips = set()
-        for ip_list in self.ports.values_list("fixed_ips", flat=True):
+        if self._ports_are_prefetched:
+            fixed_ips_per_port = [port.fixed_ips for port in self.ports.all()]
+        else:
+            fixed_ips_per_port = self.ports.values_list("fixed_ips", flat=True)
+        for ip_list in fixed_ips_per_port:
             if ip_list:
                 internal_ips.update({val["ip_address"] for val in ip_list})
         return list(internal_ips)
@@ -1992,6 +1998,32 @@ class Instance(
     @property
     def floating_ips(self) -> models.QuerySet[FloatingIP]:
         return FloatingIP.objects.filter(port__instance=self)
+
+    @property
+    def _ports_are_prefetched(self) -> bool:
+        return "ports" in getattr(self, "_prefetched_objects_cache", {})
+
+    @property
+    def attached_floating_ips(self) -> list[FloatingIP]:
+        """
+        The same floating IPs as the floating_ips property returns. When the
+        instance was loaded with prefetch_related("ports__floating_ips"), as
+        the instance viewset does, the prefetched objects are reused instead
+        of issuing a query; otherwise a single query is made, since the
+        property is also read per instance by metadata handlers.
+        """
+        if not self._ports_are_prefetched:
+            return list(self.floating_ips)
+        floating_ips = [
+            floating_ip
+            for port in self.ports.all()
+            for floating_ip in port.floating_ips.all()
+        ]
+        # Ports group the floating IPs, so the model ordering ("-created", "id")
+        # is restored here; the two passes rely on sort stability.
+        floating_ips.sort(key=lambda floating_ip: floating_ip.id)
+        floating_ips.sort(key=lambda floating_ip: floating_ip.created, reverse=True)
+        return floating_ips
 
     @classmethod
     def get_backend_fields(cls):

@@ -117,3 +117,115 @@ class InstanceSecurityGroupsTest(test.APITestCase):
     # Helper methods
     def _get_valid_security_group_payload(self, security_group=None):
         return factories.SecurityGroupFactory.get_url(security_group)
+
+
+class InstanceSecurityGroupFilterTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.client.force_authenticate(self.fixture.admin)
+
+        self.security_group = factories.SecurityGroupFactory(tenant=self.fixture.tenant)
+        self.instance = self.fixture.instance
+        self.instance.security_groups.add(self.security_group)
+
+        self.other_instance = factories.InstanceFactory(
+            project=self.fixture.project, tenant=self.fixture.tenant
+        )
+        self.other_security_group = factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant
+        )
+        self.other_instance.security_groups.add(self.other_security_group)
+
+        self.url = factories.InstanceFactory.get_list_url()
+
+    def test_instances_are_filtered_by_security_group_uuid(self):
+        response = self.client.get(
+            self.url, {"security_group_uuid": self.security_group.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [instance["uuid"] for instance in response.data],
+            [self.instance.uuid.hex],
+        )
+
+    def test_instances_are_filtered_by_security_group_url(self):
+        response = self.client.get(
+            self.url,
+            {
+                "security_group": factories.SecurityGroupFactory.get_url(
+                    self.security_group
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [instance["uuid"] for instance in response.data],
+            [self.instance.uuid.hex],
+        )
+
+    def test_instances_are_filtered_by_security_group_attached_to_a_port(self):
+        port_security_group = factories.SecurityGroupFactory(tenant=self.fixture.tenant)
+        port = factories.PortFactory(
+            instance=self.other_instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.network,
+        )
+        port.security_groups.add(port_security_group)
+
+        response = self.client.get(
+            self.url, {"security_group_uuid": port_security_group.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [instance["uuid"] for instance in response.data],
+            [self.other_instance.uuid.hex],
+        )
+
+    def test_instance_attached_by_both_relations_is_listed_once(self):
+        port = factories.PortFactory(
+            instance=self.instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.network,
+        )
+        port.security_groups.add(self.security_group)
+
+        response = self.client.get(
+            self.url, {"security_group_uuid": self.security_group.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [instance["uuid"] for instance in response.data],
+            [self.instance.uuid.hex],
+        )
+
+    def test_security_group_without_instances_gives_empty_list(self):
+        empty_security_group = factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant
+        )
+
+        response = self.client.get(
+            self.url, {"security_group_uuid": empty_security_group.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_instances_are_not_filtered_without_security_group(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_security_group_url_with_malformed_uuid_gives_empty_list(self):
+        url = factories.SecurityGroupFactory.get_url(self.security_group).replace(
+            self.security_group.uuid.hex, "not-a-uuid"
+        )
+
+        response = self.client.get(self.url, {"security_group": url})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])

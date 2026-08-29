@@ -976,6 +976,13 @@ class OpenStackSecurityGroupSerializer(
     structure_serializers.BaseResourceActionSerializer
 ):
     rules = OpenStackSecurityGroupRuleCreateSerializer(many=True)
+    instance_count = serializers.SerializerMethodField(
+        help_text=_(
+            "Number of instances the security group is attached to. "
+            "It is annotated by the security group endpoints only, so it is "
+            "null when the group is rendered as a nested object."
+        )
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.SecurityGroup
@@ -984,6 +991,7 @@ class OpenStackSecurityGroupSerializer(
             "tenant_name",
             "tenant_uuid",
             "rules",
+            "instance_count",
         )
         related_paths = ("tenant",)
         read_only_fields = (
@@ -998,6 +1006,10 @@ class OpenStackSecurityGroupSerializer(
                 "read_only": True,
             },
         }
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_instance_count(self, security_group: models.SecurityGroup) -> int | None:
+        return getattr(security_group, "instance_count", None)
 
     def validate_rules(self, value):
         for rule in value:
@@ -4585,7 +4597,9 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
     security_groups = OpenStackNestedSecurityGroupSerializer(many=True, required=False)
     server_group = OpenStackNestedServerGroupSerializer()
     ports = OpenStackNestedPortSerializer(many=True, required=True)
-    floating_ips = OpenStackNestedFloatingIPSerializer(many=True)
+    floating_ips = OpenStackNestedFloatingIPSerializer(
+        many=True, read_only=True, source="attached_floating_ips"
+    )
 
     user_data = serializers.CharField(
         required=False,

@@ -3,6 +3,7 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Count,
+    OuterRef,
     Q,
     Sum,
 )
@@ -25,6 +26,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import DetailSerializer, StatusSerializer
+from waldur_core.core.utils import SubqueryCount
 from waldur_core.logging import event_logger
 from waldur_core.logging.diff import compute_collection_diff
 from waldur_core.logging.enums import EventType
@@ -465,6 +467,24 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
     filterset_class = filters.SecurityGroupFilter
     disabled_actions = ["create"]
     pull_executor = executors.SecurityGroupPullExecutor
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action not in ("list", "retrieve"):
+            return queryset
+        # A security group is attached to an instance directly, as reported by
+        # Nova, and to its ports, as applied by Neutron. Both relations are
+        # counted, and an instance holding both is counted once.
+        instances = (
+            Instance.objects.filter(
+                Q(security_groups=OuterRef("pk"))
+                | Q(ports__security_groups=OuterRef("pk"))
+            )
+            .order_by()
+            .values("pk")
+            .distinct()
+        )
+        return queryset.annotate(instance_count=SubqueryCount(instances))
 
     def default_security_group_validator(security_group):
         if security_group.name == "default":
@@ -2967,7 +2987,23 @@ class InstanceViewSet(
       managers in.
     """
 
-    queryset = models.Instance.objects.all()
+    queryset = (
+        models.Instance.objects.all()
+        .select_related(
+            "service_settings",
+            "project",
+            "tenant",
+            "server_group",
+            "availability_zone",
+        )
+        .prefetch_related(
+            "ports__subnet",
+            "ports__floating_ips__port__subnet",
+            "ports__security_groups__rules",
+            "security_groups__rules",
+            "volumes",
+        )
+    )
     serializer_class = serializers.OpenStackInstanceSerializer
     filterset_class = filters.InstanceFilter
     filter_backends = structure_views.ResourceViewSet.filter_backends + (

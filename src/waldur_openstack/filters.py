@@ -1,8 +1,11 @@
+from typing import cast
+
 import django_filters
 from django.db.models import Q
 from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -635,9 +638,40 @@ class InstanceFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         method="filter_attach_volume",
         label="Filter for attachment to volume UUID",
     )
+    security_group = core_filters.URLFilter(
+        view_name="openstack-sgp-detail",
+        method="filter_security_group_url",
+        label="Security group URL",
+    )
+    security_group_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-sgp-detail",
+        method="filter_security_group",
+        label="Security group UUID",
+    )
     query = django_filters.CharFilter(
         method="filter_query", label="Search by name, internal IP, or external IP"
     )
+
+    def filter_security_group(self, queryset, name, value):
+        """
+        A security group is attached to an instance directly, as reported by
+        Nova, and to its ports, as applied by Neutron. Both relations are
+        traversed, since the direct one is refreshed by instance pull only.
+        """
+        return queryset.filter(
+            Q(security_groups__uuid=value) | Q(ports__security_groups__uuid=value)
+        ).distinct()
+
+    def filter_security_group_url(self, queryset, name, value):
+        # A filter method replaces Filter.filter, so the URL is resolved to the
+        # UUID here instead of by URLFilter itself.
+        security_group_filter = cast(
+            core_filters.URLFilter, self.filters["security_group"]
+        )
+        uuid = security_group_filter.get_uuid(value)
+        if not uuid or not core_utils.is_uuid_like(uuid):
+            return queryset.none()
+        return self.filter_security_group(queryset, name, uuid)
 
     def filter_attach_volume(self, queryset, name, value):
         """
