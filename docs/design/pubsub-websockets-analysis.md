@@ -273,6 +273,101 @@ RabbitMQ until the end, and only then swap the task broker — the two
 paths are already fully decoupled in the code
 (`publish_messages.delay()` is the only seam between them).
 
+## Removing Celery as well
+
+Dropping Celery is a different order of magnitude from dropping RabbitMQ,
+because Waldur does not use Celery as a generic task queue — it uses it
+as the **resource-provisioning workflow engine**. An inventory of actual
+usage:
+
+- **336 `@shared_task` functions** plus ~80 class-based tasks built on a
+  vendored copy of Celery 4.3's removed task metaclass
+  (`waldur_core/core/tasks.py:34-88`).
+- **The executor machinery is structurally coupled to Celery canvas.**
+  203 executor subclasses across 19 `executors.py` files emit `chain`s of
+  `.si()` signatures (89 chains, 474 immutable signatures; OpenStack
+  provisioning chains run 20–40 steps). Resource FSM state is *defined*
+  by which Celery callback fires: success = `link` ran, ERRED =
+  `link_error` ran, and `ErrorStateTransitionTask` reads the failed
+  sibling's result and traceback out of the result backend
+  (`core/tasks.py:316-341`). A chain killed mid-way strands the resource
+  — which is why three beat sweeps exist solely to un-stick resources.
+- **Retry as control flow.** `PollRuntimeStateTask` (`max_retries=1200`
+  at 5s) and the provisioning throttle use `self.retry()` for backend
+  polling and admission control — 55 + 58 sites.
+- **164 beat entries**, 130 of them contributed through the public
+  `WaldurExtension.celery_tasks()` plugin hook (26 implementations),
+  each mirrored into a Sentry Cron monitor by `server/sentry_crons.py`.
+- **Load-bearing result backend** (Postgres `celery_taskmeta`): error
+  propagation and the `reset_updating_resources` sweep both read
+  `AsyncResult`; `instance.task_id` is a model column.
+- **Worker introspection surfaces**: `control.inspect()` /
+  `control.ping()` back two REST endpoints, the health check, and the
+  support status command.
+- **Locking schemes that assume Celery semantics**: `BackgroundTask`
+  smuggles a lock key through Celery message headers and releases it in
+  `after_return`; `openportal.run_once_task` is documented as correct
+  only because `CELERY_TASK_TIME_LIMIT=1800` hard-kills tasks.
+
+### What could replace it
+
+- **Procrastinate** (Postgres-native, Django integration) covers tasks,
+  retries with backoff, cron-style periodic tasks, priorities, locks,
+  future scheduling, and cancellation — i.e. everything *except* canvas.
+  There is no chain/link_error equivalent; the executor layer cannot be
+  ported, only rewritten.
+- **Django 6's Tasks framework** standardizes the enqueue interface but
+  ships no production worker and no periodic scheduling; the reference
+  `django-tasks` DB backend is suitable for light workloads, not for a
+  164-job schedule with polling loops. Worth adopting as the *interface*
+  eventually, not as the engine.
+- **Dramatiq / Huey / RQ** all require Redis (or RabbitMQ) and offer no
+  canvas either — they trade one broker for another without removing the
+  workflow-engine gap, so they add nothing over Procrastinate here.
+
+### The honest assessment
+
+The tasks, beat schedule, locks, and throttles all port to Procrastinate
+with mechanical effort (large but shallow: the
+`WaldurExtension.celery_tasks()` hook can keep its shape and feed
+Procrastinate's periodic registry; the DB-cache lock becomes a real
+Postgres lock; polling loops become scheduled re-enqueues with attempt
+counters).
+
+The genuinely hard part is one subsystem: **`core/executors.py` +
+`core/tasks.py`**. Removing Celery means replacing implicit
+chain/link_error orchestration with an explicit, DB-backed workflow: an
+operation table holding the step list, current step, attempt counts, and
+error text, driven by ordinary queued tasks that advance it. That is a
+real engineering program — but it is also the architecturally honest
+version of what exists today: the stuck-resource sweeps exist precisely
+because in-flight chain state lives only inside the broker. Moving
+workflow state into Postgres makes provisioning crash-recoverable,
+inspectable with SQL (which also replaces the `inspect()` REST surfaces
+with something better), and testable without a worker.
+
+### Recommended program
+
+1. **Phase 1 — retire RabbitMQ, keep Celery.** Move the event bus per
+   the options above; switch Celery's broker to Valkey (a configuration
+   change; the attribute-based `PriorityRouter` is broker-agnostic).
+   Accepted losses: quorum-queue durability, publisher confirms, and the
+   RabbitMQ-specific ops commands (`migrate_rabbitmq_queues`,
+   `audit_broker_config`), which retire with it.
+2. **Phase 2 — introduce the Postgres workflow engine.** Build the
+   operation/step model and port executors plugin-by-plugin (the 203
+   subclasses mostly *declare* step lists, so a compatibility shim over
+   `get_task_signature()` can carry most of them), while new-style and
+   old-style executors coexist.
+3. **Phase 3 — port the long tail and delete Celery.** Move the 336
+   plain tasks and 164 beat entries to Procrastinate, re-point Sentry
+   monitoring (explicit cron check-ins instead of the Celery
+   integration), rebuild the health check on queue tables, and drop
+   Valkey if nothing else uses it — ending at Django + Postgres only.
+
+Phase 1 is weeks; phases 2–3 are a multi-month program best run
+plugin-by-plugin behind the existing executor interface.
+
 ## Pointers
 
 - Architecture: [pubsub-architecture.md](pubsub-architecture.md)
