@@ -173,6 +173,106 @@ incremental: pool STOMP connections, unify the envelope, add an end-to-end
 web-STOMP health check, issue broker-scoped credentials, and finish the
 legacy-path retirement.
 
+## Replacing RabbitMQ: options survey
+
+RabbitMQ currently does three jobs, and any replacement plan has to cover
+all three or consciously split them:
+
+1. **Celery broker** — AMQP, durable quorum queues
+   (`server/celery_settings.py`).
+2. **Event bus for external consumers** — site agents and IdM/IGA syncs
+   over STOMP, one durable queue per consumer, per-user vhost isolation,
+   credentials provisioned via the management API.
+3. **Browser push** — STOMP over WebSocket via `rabbitmq_web_stomp`
+   behind `/rmqws-stomp`.
+
+The STOMP consumer contract is public (waldur-site-agent and external
+IdM integrations implement it), so jobs 2 and 3 carry a cross-repo
+migration cost regardless of the technology chosen.
+
+### Candidate technologies
+
+**NATS + JetStream.** Single Go binary; subjects with wildcard routing;
+JetStream durable consumers replace per-consumer queues; native WebSocket
+listener for browsers (no proxy plugin); accounts give vhost-like
+multi-tenant isolation; the *auth callout* extension delegates
+authentication and per-subject authorization to an external service —
+i.e. Django could keep exactly the dynamic-authorization model it has
+today, evaluated at connect time. Caveats: Celery/kombu has **no NATS
+transport** (an open feature request), so adopting NATS for events still
+requires a second answer for Celery; the Python client is asyncio-first;
+agents must be rewritten from STOMP to NATS.
+
+**Redis / Valkey.** The only candidate that covers the Celery-broker job
+out of the box (Redis is Celery's second first-class broker). Streams +
+consumer groups can model per-consumer durable delivery, and ACLs can
+scope users to key/channel patterns, but there is no vhost concept, no
+management API for tenant provisioning, and delivery guarantees are
+weaker than quorum queues (visibility-timeout redelivery, data loss on
+abrupt termination unless carefully tuned). No native browser transport —
+a WebSocket tier must be added on top. Licensing note: Redis moved to
+RSAL/SSPL in 2024 and added AGPLv3 in 2025; the BSD-licensed **Valkey**
+fork is now the default in major distros and the low-drama choice for a
+self-hosted open-source platform.
+
+**PostgreSQL as the queue.** Waldur already runs Postgres, and the
+publish path is already capped at 500 msg/s by the app-side rate limiter
+— well inside the 1k–10k dequeues/s a modest Postgres sustains with
+`SELECT ... FOR UPDATE SKIP LOCKED` or the **pgmq** extension.
+Per-consumer queues become rows scoped by the existing permission
+system, so vhosts, broker users, and the management-API provisioning
+code disappear entirely. LISTEN/NOTIFY is only a wake-up signal (it is
+lossy, serializes commits, and breaks behind transaction-mode
+PgBouncer); durable state lives in tables. The consequence: external
+agents switch from STOMP push to authenticated HTTPS polling/long-poll
+against a REST events endpoint — a bigger contract change, but one that
+removes broker credentials from agents altogether. For the task queue,
+**Procrastinate** is the production-ready Postgres-native Celery
+replacement with Django integration (periodic tasks, retries, locks),
+turning the whole stack into Django + Postgres + nothing else.
+
+**Centrifugo.** Not a broker — a self-hosted WebSocket/SSE fan-out
+server that pairs with either of the above for job 3. Django publishes
+via HTTP POST; per-channel authorization via JWT or a connect-proxy
+callback into Django (again preserving dynamic authz). Battle-tested,
+language-agnostic, and much cheaper operationally than adopting Django
+Channels + ASGI + Redis channel layers in-process.
+
+**MQTT (EMQX / Mosquitto).** Per-topic ACLs and built-in WebSocket
+support, but offline durability is session-based rather than queue-based,
+tenant provisioning is weaker than vhosts, and it brings no answer for
+Celery. No advantage over NATS for this workload.
+
+**Kafka / Redpanda.** Ruled out: static partition-oriented ACLs clash
+with dynamic per-user authorization, browsers need a proxy anyway,
+operational weight is far above Waldur's throughput needs, and Celery
+cannot use it as a broker.
+
+### Two coherent end-states
+
+- **Option 1 — NATS JetStream + Valkey.** NATS takes jobs 2 and 3
+  (durable consumers, WebSocket, auth callout for dynamic authz); Valkey
+  takes job 1 as the Celery broker. Closest functional match to today's
+  architecture: push-based agents, per-consumer durable state, browser
+  connects straight to the messaging tier. Cost: two new components
+  replace one, Celery loses quorum-queue durability semantics, and both
+  waldur-site-agent and the auth-callout service must be built.
+
+- **Option 2 — Postgres-centric.** Events become pgmq/outbox tables
+  drained over REST (agents poll/long-poll with their existing API
+  tokens); browser push becomes SSE from Django or a small Centrifugo
+  sidecar; Celery is either kept on Valkey or replaced by Procrastinate.
+  Fewest moving parts of any option — potentially zero brokers — and
+  authorization stays purely in Django. Cost: the largest consumer-side
+  contract change, and the database absorbs queue write load (mitigated
+  by the existing rate cap, TTLs, and cleanup tasks).
+
+A pragmatic sequencing: since the messages are already treated as lossy
+(1h TTL, breaker drops), start by moving the event bus, keep Celery on
+RabbitMQ until the end, and only then swap the task broker — the two
+paths are already fully decoupled in the code
+(`publish_messages.delay()` is the only seam between them).
+
 ## Pointers
 
 - Architecture: [pubsub-architecture.md](pubsub-architecture.md)
