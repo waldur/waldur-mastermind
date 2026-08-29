@@ -108,10 +108,20 @@ ALTER DATABASE waldur OWNER TO waldur;
 
 #### Final Setup Steps
 
-Run migrations:
+Create the database schema (`migrate_fresh` builds it from the models in seconds when
+the database is empty; use `migrate` for an existing database):
 
 ```bash
-uv run waldur migrate --noinput
+uv run waldur migrate_fresh
+```
+
+Load the system roles, notifications and feature flags (migrations do not seed them;
+the Docker image's `initdb` runs the same commands):
+
+```bash
+uv run waldur import_roles docker/rootfs/etc/waldur/permissions.yaml
+uv run waldur load_notifications docker/rootfs/etc/waldur/notifications.json
+uv run waldur load_features docker/rootfs/etc/waldur/features.json
 ```
 
 Collect static files:

@@ -16,49 +16,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("waldur_openportal", "0001_setup_openportal"),
-        ("waldur_openportal", "0002_association_user_job_command_job_report_and_more"),
-        ("waldur_openportal", "0003_alter_association_username"),
-        (
-            "waldur_openportal",
-            "0004_allocation_groupname_association_useridentifier_and_more",
-        ),
-        ("waldur_openportal", "0005_association_groupname"),
-        ("waldur_openportal", "0006_userinfo_projectinfo"),
-        ("waldur_openportal", "0007_alter_allocation_node_usage_and_more"),
-        ("waldur_openportal", "0008_historicalallocation"),
-        ("waldur_openportal", "0009_allocation_is_added"),
-        ("waldur_openportal", "0010_projectnotification"),
-        ("waldur_openportal", "0011_job_alter_allocation_state_and_more"),
-        (
-            "waldur_openportal",
-            "0012_projectshortnamegenerator_job_created_managedproject_and_more",
-        ),
-        ("waldur_openportal", "0013_managedproject_local_identifier_and_more"),
-        (
-            "waldur_openportal",
-            "0014_remove_projectclass_resources_projectclass_offerings",
-        ),
-        ("waldur_openportal", "0015_oncetask"),
-        ("waldur_openportal", "0016_remoteallocation_remoteassociation_and_more"),
-        ("waldur_openportal", "0017_projectclass_approval_limit_and_more"),
-        ("waldur_openportal", "0018_managedproject_needs_approval"),
-        ("waldur_openportal", "0019_remove_managedproject_needs_approval_and_more"),
-        ("waldur_openportal", "0020_remoteallocation_local_version_and_more"),
-        ("waldur_openportal", "0021_auto_20250709_1116"),
-        (
-            "waldur_openportal",
-            "0022_projectclass_provider_alter_managedproject_details",
-        ),
-        ("waldur_openportal", "0023_rename_projectclass_projecttemplate_and_more"),
-        ("waldur_openportal", "0024_alter_managedproject_project_and_more"),
-        ("waldur_openportal", "0025_projecttemplate_allocation_units_mapping"),
-        ("waldur_openportal", "0026_alter_projecttemplate_allocation_units_mapping"),
-        ("waldur_openportal", "0027_managedproject_destination"),
-        ("waldur_openportal", "0028_delete_remoteallocationuserusage"),
-    ]
-
     initial = True
 
     dependencies = [

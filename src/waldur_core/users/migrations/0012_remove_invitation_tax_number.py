@@ -5,10 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        (
-            "users",
-            "0002_invitation_extra_invitation_text_squashed_0011_alter_permissionrequest_created_by",
-        ),
+        ("users", "0011_alter_permissionrequest_created_by"),
     ]
 
     operations = [

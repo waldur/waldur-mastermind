@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("users", "0012_squashed_0012_0024"),
+        ("users", "0024_alter_invitation_extra_invitation_text_max_length"),
     ]
 
     operations = [

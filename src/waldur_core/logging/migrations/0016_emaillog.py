@@ -8,7 +8,7 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("logging", "0002_immutable_default_json_squashed_0015_event_index"),
+        ("logging", "0015_event_index"),
     ]
 
     operations = [

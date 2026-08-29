@@ -11,7 +11,7 @@ def remove_team_verification_state(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("proposal", "0001_initial_squashed_0033_call_organizer"),
+        ("proposal", "0033_call_organizer"),
     ]
 
     operations = [

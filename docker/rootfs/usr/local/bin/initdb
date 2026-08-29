@@ -5,7 +5,14 @@ echo "INFO: Creating db-cache table"
 waldur createcachetable
 
 echo "INFO: Initializing database..."
-waldur migrate --noinput
+if check_output=$(waldur migrate_fresh --check 2>&1); then
+    # Empty database: build the schema from the models in seconds instead of
+    # replaying every migration; CI verifies both paths give the same schema.
+    waldur migrate_fresh
+else
+    echo "INFO: $(echo "$check_output" | tail -n 1)"
+    waldur migrate --noinput
+fi
 
 echo "INFO: Waiting for RabbitMQ readiness..."
 # Get RabbitMQ host and port from environment variables (matching Helm chart pattern)
