@@ -7,7 +7,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("proposal", "0034_squashed_0034_0049"),
+        ("proposal", "0049_call_user_affiliations_call_user_assurance_levels_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

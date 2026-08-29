@@ -12,7 +12,7 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("structure", "0044_squashed_0044_0073"),
+        ("structure", "0073_alter_projectdigestconfiguration_uuid"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

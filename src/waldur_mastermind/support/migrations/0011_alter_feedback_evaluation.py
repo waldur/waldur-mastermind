@@ -6,10 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        (
-            "support",
-            "0002_add_backend_name_field_squashed_0010_remove_template_native_description_and_more",
-        ),
+        ("support", "0010_remove_template_native_description_and_more"),
     ]
 
     operations = [

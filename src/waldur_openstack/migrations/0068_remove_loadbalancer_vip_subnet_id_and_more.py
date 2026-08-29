@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("openstack", "0040_squashed_0040_0067"),
+        ("openstack", "0067_loadbalancer"),
     ]
 
     operations = [

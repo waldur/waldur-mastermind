@@ -8,19 +8,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        (
-            "waldur_openportal",
-            "0037_remoteproject_remoteprojectallocationentry_and_more",
-        ),
-        ("waldur_openportal", "0038_alter_remoteproject_unique_together_and_more"),
-        ("waldur_openportal", "0039_alter_remoteprojectauditentry_event_type_and_more"),
-        ("waldur_openportal", "0040_remoteproject_error_message"),
-        ("waldur_openportal", "0041_alter_remoteprojectauditentry_event_type"),
-        ("waldur_openportal", "0042_alter_remoteproject_notes"),
-        ("waldur_openportal", "0043_alter_remoteproject_allowed_domains"),
-    ]
-
     dependencies = [
         ("structure", "0078_alter_servicesettings_certificate"),
         ("waldur_openportal", "0035_add_cached_reports_and_available_mixin"),

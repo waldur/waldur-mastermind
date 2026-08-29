@@ -6,7 +6,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("waldur_azure", "0001_initial_squashed_0021_image_locations"),
+        ("waldur_azure", "0021_image_locations"),
     ]
 
     operations = [

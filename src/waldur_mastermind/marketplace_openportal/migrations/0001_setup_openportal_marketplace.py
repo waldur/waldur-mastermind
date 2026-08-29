@@ -39,7 +39,7 @@ def sync_usages(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0001_squashed_0076"),
-        ("waldur_openportal", "0001_setup_openportal"),
+        ("waldur_openportal", "0001_squashed_0028_delete_remoteallocationuserusage"),
     ]
 
     operations = [

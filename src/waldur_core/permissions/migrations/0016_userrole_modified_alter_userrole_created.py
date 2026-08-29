@@ -7,7 +7,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("permissions", "0009_drop_duplicates_squashed_0015_customer_manager"),
+        ("permissions", "0015_customer_manager"),
     ]
 
     operations = [

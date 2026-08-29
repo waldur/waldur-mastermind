@@ -5,10 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        (
-            "waldur_auth_social",
-            "0001_initial_squashed_0007_identityprovider_enable_pkce",
-        ),
+        ("waldur_auth_social", "0007_identityprovider_enable_pkce"),
     ]
 
     operations = [

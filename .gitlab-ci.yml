@@ -280,6 +280,10 @@ Run migration tests:
     - if: '$CI_COMMIT_BRANCH == "develop"'
       changes: &migration_test_changes
         - src/**/migrations/*.py
+        # The fresh-install path and its equivalence check live here.
+        - src/waldur_core/core/management/commands/migrate_fresh.py
+        - scripts/squash_migrations.py
+        - docker/rootfs/usr/local/bin/initdb
         # A Django or other dependency bump can break replay without touching a
         # migration file. Until now only the unconditional develop run caught
         # that (5 of the last 80 pushes), so it has to be part of the filter —
@@ -292,6 +296,7 @@ Run migration tests:
     - |
       echo "[+] Setting up test database configuration..."
       cat > src/waldur_mastermind/test_settings.py <<-EOF
+      import os
       from waldur_core.server.test_settings import *
       from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
@@ -302,7 +307,7 @@ Run migration tests:
       DATABASES = {
           'default': {
               'ENGINE': 'django.db.backends.postgresql',
-              'NAME': 'test_waldur',
+              'NAME': os.environ.get('WALDUR_DB_NAME', 'test_waldur'),
               'USER': 'runner',
               'HOST': 'postgres',
               'PORT': 5432,
@@ -311,6 +316,16 @@ Run migration tests:
       }
       EOF
       uv run waldur migrate --noinput
+      # Fresh-install path (`migrate_fresh` builds the schema from the models in
+      # seconds and fakes the migrations) must produce exactly the schema the full
+      # replay produces. Snapshot both databases and diff them; auto-generated
+      # constraint names are ignored, everything structural is compared.
+      echo "[+] Verifying migrate_fresh produces the same schema as migrate..."
+      uv run python scripts/squash_migrations.py snapshot-db > schema_migrated.txt
+      uv run python -c "import psycopg; psycopg.connect('host=postgres user=runner password=waldur dbname=postgres', autocommit=True).execute('CREATE DATABASE test_fresh')"
+      time WALDUR_DB_NAME=test_fresh uv run waldur migrate_fresh
+      WALDUR_DB_NAME=test_fresh uv run python scripts/squash_migrations.py snapshot-db > schema_fresh.txt
+      uv run python scripts/squash_migrations.py compare-schema schema_migrated.txt schema_fresh.txt
   services:
     - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
       alias: postgres

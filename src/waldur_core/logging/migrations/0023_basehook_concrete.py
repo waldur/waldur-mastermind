@@ -45,7 +45,7 @@ def migrate_data(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("logging", "0016_squashed_0016_0022"),
+        ("logging", "0022_systemlog"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
