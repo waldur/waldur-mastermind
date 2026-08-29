@@ -18,6 +18,7 @@ from waldur_core.core.models import Notification
 from waldur_mastermind.proposal import tasks
 from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
+from waldur_mastermind.proposal.tests.test_prepaid_duration import PrepaidFixture
 
 # The fixture's proposal is called "New Proposal", which would trip every
 # assertion that the word never appears.
@@ -76,8 +77,6 @@ class DurationTest(BaseStateChangedEmailTest):
         # no longer asked for a duration, the old context passed None straight
         # into the template, which rendered it as the string "None".
         self.grant(timezone.localdate(), None)
-        self.proposal.duration_in_days = None
-        self.proposal.save()
 
         message = self.notify()
 
@@ -102,12 +101,12 @@ class DurationTest(BaseStateChangedEmailTest):
         self.assertIn("Duration: 90 days", message.body)
 
     def test_reports_what_was_granted_rather_than_what_was_asked_for(self):
-        # duration_in_days records the request, is not collected at all in this
-        # mode, and nothing in allocation reads it any more.
+        # The request's own length is a subscription in months, resolved at
+        # allocation; the mail quotes the granted period.
         start = timezone.localdate()
         self.grant(start, start + datetime.timedelta(days=180))
-        self.proposal.duration_in_days = 10
-        self.proposal.save()
+        self.fixture.call.fixed_duration_in_days = 10
+        self.fixture.call.save()
 
         message = self.notify()
 
@@ -133,6 +132,80 @@ class DurationTest(BaseStateChangedEmailTest):
 
         self.assertNotIn("Duration", message.body)
         self.assertNotIn("Allocation start date", message.body)
+
+
+class CallDurationTest(PrepaidFixture, BaseStateChangedEmailTest):
+    """The call-managed message: the applicant is no longer asked for a
+    duration, so the line states whatever is known, unit included, or is
+    dropped."""
+
+    mode = "calls"
+
+    def setUp(self):
+        # PrepaidFixture builds the fixture itself and detaches the project,
+        # so the base setUp is not run on top of it.
+        PrepaidFixture.setUp(self)
+        # Unallocated as far as the length goes: a project with no end date is
+        # a grant that does not expire, which contributes nothing.
+        self.proposal.project = self.fixture.proposal_project
+        self.proposal.name = REQUEST_NAME
+        self.proposal.save()
+        self.cpu.min_prepaid_duration = 1
+        self.cpu.max_prepaid_duration = 12
+        self.cpu.save()
+        Notification.objects.update_or_create(
+            key="proposal.proposal_state_changed", defaults={"enabled": True}
+        )
+
+    def bodies(self, message):
+        # The html wraps the label in <strong>, so compare its prose only.
+        html = re.sub(r"<[^>]+>", "", message.alternatives[0][0])
+        return message.body, html
+
+    def test_no_duration_line_when_nothing_is_known(self):
+        message = self.notify()
+
+        for body in self.bodies(message):
+            self.assertNotIn("Duration", body)
+            self.assertNotIn("None", body)
+
+    def test_reports_the_requested_subscription_in_months(self):
+        self._request(None, prepaid_duration_months=6)
+
+        message = self.notify()
+
+        for body in self.bodies(message):
+            self.assertIn("Duration: 6 months", body)
+
+    def test_a_single_month_is_singular(self):
+        self._request(None, prepaid_duration_months=1)
+
+        message = self.notify()
+
+        self.assertIn("Duration: 1 month\n", message.body)
+
+    def test_reports_the_fixed_call_length_in_days(self):
+        self.fixture.call.fixed_duration_in_days = 90
+        self.fixture.call.save()
+
+        message = self.notify()
+
+        for body in self.bodies(message):
+            self.assertIn("Duration: 90 days", body)
+
+    def test_reports_the_granted_period_once_allocated(self):
+        self._request(None, prepaid_duration_months=6)
+        self.fixture.call.fixed_duration_in_days = 90
+        self.fixture.call.save()
+        start = timezone.localdate()
+        self.grant(start, start + datetime.timedelta(days=180))
+
+        message = self.notify()
+
+        for body in self.bodies(message):
+            self.assertIn("Duration: 180 days", body)
+            self.assertNotIn("6 months", body)
+            self.assertNotIn("90 days", body)
 
 
 @ddt

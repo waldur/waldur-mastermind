@@ -129,6 +129,30 @@ def project_end_date(
     return None
 
 
+def requested_duration_label(proposal: proposal_models.Proposal) -> str | None:
+    """The project length as the applicant can be told it, unit included.
+
+    In order of truthfulness: what was granted (once allocated), the
+    subscription the proposal asks for, and the call's fixed length. Months
+    and days are never converted into each other (see :func:`project_end_date`),
+    so the unit travels with the number. None when nothing is known — the
+    template drops the line rather than printing "None".
+    """
+    granted_days = granted_duration_in_days(proposal)
+    if granted_days:
+        return f"{granted_days} days"
+
+    months = get_proposal_duration_months(proposal)
+    if months:
+        return "1 month" if months == 1 else f"{months} months"
+
+    fixed_days = proposal.round.call.fixed_duration_in_days
+    if fixed_days:
+        return f"{fixed_days} days"
+
+    return None
+
+
 def granted_duration_in_days(
     proposal: proposal_models.Proposal,
 ) -> int | None:
@@ -137,11 +161,10 @@ def granted_duration_in_days(
     The counterpart of :func:`project_end_date`: that decides when the project
     ends, this reads the decision back so the applicant can be told.
 
-    Deliberately not ``Proposal.duration_in_days``. That field records what was
-    *asked for*: it is optional, review can change the answer, nothing in
-    allocation reads it any more, and in marketplace mode the applicant is never
-    asked for it at all — so quoting it in the acceptance mail would state a
-    number that is at best stale and at worst absent.
+    Deliberately what was *granted*, not what was asked for: the applicant is
+    not asked for a length at all any more (the retired
+    ``Proposal.duration_in_days`` recorded one), and the request's own length —
+    a subscription in months — is resolved against a date at allocation.
 
     Returns None when there is nothing truthful to say — no project yet, or a
     project with no end date, which is a grant that does not expire. The

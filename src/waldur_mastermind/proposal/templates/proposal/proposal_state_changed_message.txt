@@ -10,7 +10,7 @@ State change:
 {% if new_state == 'accepted' %}
 Project created: {{ project_name }}
 Allocation start date: {{ allocation_date }}
-Duration: {{ duration }} days
+{% if duration %}Duration: {{ duration }}{% endif %}
 
 Allocated resources:
 {% for resource in allocated_resources %}

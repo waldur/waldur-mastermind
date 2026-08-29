@@ -154,10 +154,9 @@ def notify_user_about_proposal_state_update(proposal_uuid, previous_state, new_s
         # Only the call-managed wording names these, so only it is handed them.
         context["call_name"] = proposal.round.call.name
         context["review_period"] = proposal.round.review_duration_in_days
-        # It states what was asked for, as it always has. The template renders
-        # the value unguarded, and the applicant is still required to supply it
-        # wherever calls are named, so it is never null.
-        context["duration"] = proposal.duration_in_days
+        # Unit included, and None when nothing is known: the applicant is no
+        # longer asked for a duration, so the template guards the line.
+        context["duration"] = utils.requested_duration_label(proposal)
     else:
         template_variant = "access_request_state_changed"
         # Nothing asks a marketplace applicant for a duration, so the only

@@ -5339,7 +5339,7 @@ class BaseItemSerializer(
         return fields
 
 
-def _validate_prepaid_duration_against_component(
+def validate_prepaid_duration_against_component(
     duration_in_months: int, component, field_name: str
 ):
     """
@@ -6319,18 +6319,41 @@ class OrderCreateSerializer(
                 {"attributes.end_date": _("End date must be in the future.")}
             )
 
-        # Rule 2: Validate duration against component constraints.
-        start_date = order_start_date or timezone.now().date()
-        # Calculate duration in full months. A partial month at the end counts as a full month.
-        delta = relativedelta(end_date, start_date)
-        duration_in_months = delta.years * 12 + delta.months
-        if delta.days > 0:
-            duration_in_months += 1
+        # Rule 2: Validate duration against component constraints. The length
+        # the client chose is the contract where it is stated: the browser
+        # computes end_date from its *local* today, so east of UTC an evening
+        # order arrives as N months + 1 day, which the date-derived count would
+        # round up to N + 1 and reject against a max of N. Pricing already
+        # prefers the stated length (CostEstimateMixin._prepaid_duration_months).
+        if "prepaid_duration_months" in attributes:
+            duration_in_months = attributes["prepaid_duration_months"]
+            if (
+                isinstance(duration_in_months, bool)
+                or not isinstance(duration_in_months, int)
+                or duration_in_months < 1
+            ):
+                raise ValidationError(
+                    {
+                        "attributes.prepaid_duration_months": _(
+                            "A whole number of months, at least 1."
+                        )
+                    }
+                )
+            duration_field = "attributes.prepaid_duration_months"
+        else:
+            # Older clients send the date only: count full months from the
+            # order's start, a partial month at the end counting as a full one.
+            start_date = order_start_date or timezone.now().date()
+            delta = relativedelta(end_date, start_date)
+            duration_in_months = delta.years * 12 + delta.months
+            if delta.days > 0:
+                duration_in_months += 1
+            duration_field = "attributes.end_date"
 
         # Check against every prepaid component's duration limits
         for component in prepaid_components:
-            _validate_prepaid_duration_against_component(
-                duration_in_months, component, "attributes.end_date"
+            validate_prepaid_duration_against_component(
+                duration_in_months, component, duration_field
             )
 
     def _validate_plan_for_create(self, attrs, offering):
