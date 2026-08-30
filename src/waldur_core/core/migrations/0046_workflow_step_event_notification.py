@@ -12,6 +12,11 @@ def create_notification(apps, schema_editor):
     swallow every configured rule.
     """
     Notification = apps.get_model("core", "Notification")
+    if not Notification.objects.exists():
+        # Fresh install: ``load_notifications`` creates the row with the
+        # operator-chosen enabled state, and ``migrate_fresh`` skips this
+        # migration entirely - seeding here would make the two paths diverge.
+        return
     Notification.objects.get_or_create(key=KEY, defaults={"enabled": True})
 
 
