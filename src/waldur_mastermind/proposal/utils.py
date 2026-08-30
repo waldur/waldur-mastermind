@@ -107,24 +107,73 @@ def get_proposal_duration_months(proposal: proposal_models.Proposal) -> int | No
     return max(lengths) if lengths else None
 
 
+def allocation_start_date(
+    proposal_round: proposal_models.Round,
+) -> datetime.date | None:
+    """The day allocation is scheduled for, where the call dates it forward.
+
+    None for a call that allocates on decision: the project then starts the
+    day it is created. ``Project.start_date`` is a DateField and the round's
+    ``allocation_date`` a DateTimeField, hence the coercion.
+    """
+    # Allocation timing is a call-level policy on the allocation_decision step;
+    # the concrete date stays per-round.
+    allocation_step = proposal_models.CallWorkflowStep.objects.filter(
+        call=proposal_round.call, step="allocation_decision"
+    ).first()
+    allocation_time = (
+        allocation_step.allocation_time
+        if allocation_step
+        else AllocationTimes.ON_DECISION
+    )
+    if allocation_time == AllocationTimes.FIXED_DATE and proposal_round.allocation_date:
+        return proposal_round.allocation_date.date()
+    return None
+
+
+def max_prepaid_duration_months(
+    call: proposal_models.Call, anchor: datetime.date
+) -> int | None:
+    """The longest subscription, in whole months, the call's fixed duration admits.
+
+    A call's fixed duration is the length of every project it awards, so a
+    subscription requested under it may not outlast it. Months and days are
+    only comparable once resolved against a date, so the answer depends on the
+    anchor: the largest N with ``anchor + N months <= anchor + fixed days``.
+    None when the call fixes nothing.
+    """
+    fixed_days = call.fixed_duration_in_days
+    if not fixed_days:
+        return None
+
+    project_end = anchor + datetime.timedelta(days=fixed_days)
+    months = 0
+    while anchor + relativedelta(months=months + 1) <= project_end:
+        months += 1
+    return months
+
+
 def project_end_date(
     proposal: proposal_models.Proposal, start_date: datetime.date
 ) -> datetime.date | None:
     """When the allocated project should end, measured from its own start.
 
-    The subscription the applicant asked for wins where there is one; the call's
-    fixed duration applies to proposals that asked for none. The two are never
-    converted into each other — a length in months and a length in days are only
-    comparable once each has been resolved against a date, because a day count is
-    true only relative to the anchor it was measured from.
+    The call's fixed duration is the length of every project it awards, so it
+    decides whenever it is set — the subscriptions requested under it are
+    bounded by it (see :func:`max_prepaid_duration_months`) and clamped to the
+    project by :func:`_requested_end_date`. The longest subscription sets the
+    length only for a call that fixes none. The two units are never converted
+    into each other — a length in months and a length in days are only
+    comparable once each has been resolved against a date, because a day count
+    is true only relative to the anchor it was measured from.
     """
-    months = get_proposal_duration_months(proposal)
-    if months is not None:
-        return start_date + relativedelta(months=months)
-
     fixed_days = proposal.round.call.fixed_duration_in_days
     if fixed_days:
         return start_date + datetime.timedelta(days=fixed_days)
+
+    months = get_proposal_duration_months(proposal)
+    if months is not None:
+        return start_date + relativedelta(months=months)
 
     return None
 
@@ -132,8 +181,8 @@ def project_end_date(
 def requested_duration_label(proposal: proposal_models.Proposal) -> str | None:
     """The project length as the applicant can be told it, unit included.
 
-    In order of truthfulness: what was granted (once allocated), the
-    subscription the proposal asks for, and the call's fixed length. Months
+    In order of truthfulness: what was granted (once allocated), the call's
+    fixed length, and the subscription the proposal asks for. Months
     and days are never converted into each other (see :func:`project_end_date`),
     so the unit travels with the number. None when nothing is known — the
     template drops the line rather than printing "None".
@@ -142,13 +191,13 @@ def requested_duration_label(proposal: proposal_models.Proposal) -> str | None:
     if granted_days:
         return f"{granted_days} days"
 
-    months = get_proposal_duration_months(proposal)
-    if months:
-        return "1 month" if months == 1 else f"{months} months"
-
     fixed_days = proposal.round.call.fixed_duration_in_days
     if fixed_days:
         return f"{fixed_days} days"
+
+    months = get_proposal_duration_months(proposal)
+    if months:
+        return "1 month" if months == 1 else f"{months} months"
 
     return None
 
@@ -289,26 +338,11 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
         [call_prefix, proposal_round.start_time.strftime("%Y-%m-%d"), name]
     )[: structure_models.PROJECT_NAME_LENGTH]
 
-    # Allocation timing is a call-level policy on the allocation_decision step;
-    # the concrete date stays per-round.
-    allocation_step = proposal_models.CallWorkflowStep.objects.filter(
-        call=proposal_round.call, step="allocation_decision"
-    ).first()
-    allocation_time = (
-        allocation_step.allocation_time
-        if allocation_step
-        else AllocationTimes.ON_DECISION
-    )
-    if allocation_time == AllocationTimes.FIXED_DATE and proposal_round.allocation_date:
-        # Project.start_date is a DateField; the round's allocation_date is a
-        # DateTimeField. Coerce to a date so downstream date comparisons (e.g.
-        # the order-created notification handler) don't hit a datetime-vs-date
-        # TypeError.
-        start_date = proposal_round.allocation_date.date()
+    start_date = allocation_start_date(proposal_round)
 
-    # The project runs for as long as what it holds: the longest subscription
-    # requested, or the call's fixed duration for a proposal that requested no
-    # subscription. Measured from the project's own start so that a call which
+    # The project runs for the call's fixed duration, or, for a call that fixes
+    # none, for as long as the longest subscription it holds. Measured from the
+    # project's own start so that a call which
     # dates allocation forward does not spend the period before it opens.
     # One reading of the clock for the whole allocation: the project and every
     # resource in it must be measured from the same day, or a run that crosses

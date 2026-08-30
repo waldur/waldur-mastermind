@@ -57,7 +57,7 @@ from waldur_mastermind.proposal.enums import (
     WorkflowStepOutcomes,
 )
 
-from . import models, notification_rules, workflow_service
+from . import models, notification_rules, utils, workflow_service
 from .managers import get_connected_calls
 
 logger = logging.getLogger(__name__)
@@ -958,10 +958,22 @@ class PublicCallSerializer(
     documents = CallDocumentSerializer(many=True, read_only=True)
     resource_templates = serializers.SerializerMethodField()
     fixed_duration_in_days = serializers.ReadOnlyField()
+    max_prepaid_duration_months = serializers.SerializerMethodField(
+        help_text="The longest prepaid subscription, in whole months, that fits "
+        "inside fixed_duration_in_days measured from today; null when the call "
+        "fixes no duration."
+    )
     description = core_serializers.HTMLCleanField(
         required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
     )
     has_eligibility_restrictions = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_max_prepaid_duration_months(self, call) -> int | None:
+        # Anchored on today: a call has many rounds, and the applicant reads
+        # this before choosing one. The request itself is validated against
+        # the round's own allocation date.
+        return utils.max_prepaid_duration_months(call, datetime.today().date())
 
     class Meta:
         model = models.Call
@@ -984,6 +996,7 @@ class PublicCallSerializer(
             "documents",
             "resource_templates",
             "fixed_duration_in_days",
+            "max_prepaid_duration_months",
             "backend_id",
             "external_url",
             "reviewer_identity_visible_to_submitters",
@@ -1158,13 +1171,14 @@ class RequestedOfferingSerializer(
 PREPAID_DURATION_FIELD = "attributes.prepaid_duration_months"
 
 
-def _validate_prepaid_duration(attributes, offering):
-    """Hold the requested subscription length to the offering's prepaid terms.
+def _validate_prepaid_duration(attributes, offering, proposal_round):
+    """Hold the requested subscription length to the terms it is sold under.
 
-    This is the value allocation derives the project length from
-    (``utils.project_end_date``), so it gets the same min/max/step check the
-    marketplace order path applies. It is deliberately not capped against the
-    call's ``fixed_duration_in_days``: the subscription outranks the call.
+    The offering's prepaid min/max/step, as the marketplace order path applies
+    them, and the call's fixed duration: that is the length of every project
+    the call awards, so no subscription requested under it may outlast it
+    (``utils.max_prepaid_duration_months``), measured from the day allocation
+    is scheduled for, or today where the call allocates on decision.
     """
     attributes = attributes or {}
     if "prepaid_duration_months" not in attributes:
@@ -1184,6 +1198,23 @@ def _validate_prepaid_duration(attributes, offering):
     for component in prepaid_components:
         validate_prepaid_duration_against_component(
             months, component, PREPAID_DURATION_FIELD
+        )
+
+    anchor = utils.allocation_start_date(proposal_round) or datetime.today().date()
+    cap = utils.max_prepaid_duration_months(proposal_round.call, anchor)
+    if cap is not None and months > cap:
+        raise serializers.ValidationError(
+            {
+                PREPAID_DURATION_FIELD: _(
+                    "This call awards projects of %(days)s days, so a subscription "
+                    "may run for at most %(cap)s month(s) from %(anchor)s."
+                )
+                % {
+                    "days": proposal_round.call.fixed_duration_in_days,
+                    "cap": cap,
+                    "anchor": anchor.isoformat(),
+                }
+            }
         )
 
 
@@ -1208,7 +1239,9 @@ class RequestedResourceSerializer(
         if self.instance:
             if "attributes" in attrs:
                 _validate_prepaid_duration(
-                    attrs["attributes"], self.instance.requested_offering.offering
+                    attrs["attributes"],
+                    self.instance.requested_offering.offering,
+                    self.instance.proposal.round,
                 )
             return attrs
 
@@ -1279,7 +1312,9 @@ class RequestedResourceSerializer(
             )
 
         _validate_prepaid_duration(
-            attrs.get("attributes"), attrs["requested_offering"].offering
+            attrs.get("attributes"),
+            attrs["requested_offering"].offering,
+            proposal.round,
         )
         return attrs
 

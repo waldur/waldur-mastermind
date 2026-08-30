@@ -203,7 +203,11 @@ class ProjectDurationTest(PrepaidFixture, test.APITestCase):
     def _derived(self):
         return utils.project_end_date(self.proposal, datetime.date.today())
 
-    def test_the_longest_subscription_sets_the_project(self):
+    def test_the_longest_subscription_sets_the_project_when_the_call_fixes_none(
+        self,
+    ):
+        self.fixture.call.fixed_duration_in_days = None
+        self.fixture.call.save()
         self._request(None, prepaid_duration_months=3)
         self._request(None, prepaid_duration_months=12)
         self._request(None, prepaid_duration_months=6)
@@ -222,15 +226,56 @@ class ProjectDurationTest(PrepaidFixture, test.APITestCase):
             self._derived(), datetime.date.today() + datetime.timedelta(days=90)
         )
 
-    def test_the_subscription_outranks_the_call(self):
+    def test_the_call_caps_the_subscription(self):
+        # The fixed duration is the length of every project the call awards,
+        # so a subscription under it cannot stretch the project. The two units
+        # are never converted into each other; each is resolved against the
+        # same date instead.
         self.fixture.call.fixed_duration_in_days = 90
         self.fixture.call.save()
-        self._request(None, prepaid_duration_months=12)
+        self._request(None, prepaid_duration_months=2)
 
-        # Twelve months, not ninety days. The two units are never converted into
-        # each other; each is resolved against the same date instead.
         self.assertEqual(
-            self._derived(), datetime.date.today() + relativedelta(months=12)
+            self._derived(), datetime.date.today() + datetime.timedelta(days=90)
+        )
+
+    def test_a_subscription_under_a_fixed_call_ends_within_the_project(self):
+        self.fixture.call.fixed_duration_in_days = 90
+        self.fixture.call.save()
+        requested_resource = self._request(None, prepaid_duration_months=2)
+
+        utils.allocate_proposal(self.proposal)
+        self.proposal.refresh_from_db()
+        requested_resource.refresh_from_db()
+
+        today = datetime.date.today()
+        self.assertEqual(
+            self.proposal.project.end_date, today + datetime.timedelta(days=90)
+        )
+        self.assertEqual(
+            requested_resource.resource.end_date, today + relativedelta(months=2)
+        )
+        self.assertLessEqual(
+            requested_resource.resource.end_date, self.proposal.project.end_date
+        )
+
+    def test_a_subscription_outlasting_a_fixed_call_is_clamped_to_the_project(self):
+        # The serializer rejects such a request; a row that slipped past it is
+        # still shortened to the project rather than left outlasting it.
+        self.fixture.call.fixed_duration_in_days = 90
+        self.fixture.call.save()
+        requested_resource = self._request(None, prepaid_duration_months=12)
+
+        utils.allocate_proposal(self.proposal)
+        self.proposal.refresh_from_db()
+        requested_resource.refresh_from_db()
+
+        self.assertEqual(
+            self.proposal.project.end_date,
+            datetime.date.today() + datetime.timedelta(days=90),
+        )
+        self.assertEqual(
+            requested_resource.resource.end_date, self.proposal.project.end_date
         )
 
     def test_no_duration_anywhere_leaves_the_project_open(self):
