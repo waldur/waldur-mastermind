@@ -555,6 +555,7 @@ td:nth-child(4) {
 | `change_order_state` | `Django Signal (post_save)` | `waldur_vmware.VirtualMachine` | Change the state of an order based on resource state changes. |
 | `cleanup_admin_announcement_on_maintenance_deletion` | `Django Signal (pre_delete)` | `marketplace.MaintenanceAnnouncement` | Ensure AdminAnnouncement is cleaned up when MaintenanceAnnouncement is deleted. |
 | `cleanup_agent_identity_queue` | `Django Signal (pre_delete)` | `marketplace_site_agent.AgentIdentity` | Delete the linked EventConsumer when an AgentIdentity is deleted. |
+| `clear_panel_chair_on_role_revoked` | `Custom Signal (role_revoked)` | `—` | Drop ``Call.panel_chair`` when the chair loses the panel member role. |
 | `close_course_accounts_after_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `close_customer_service_accounts_on_customer_deletion` | `Django Signal (pre_delete)` | `structure.Customer` | Close service accounts associated with a customer when the customer is deleted. |
 | `close_resource_plan_period_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Handle case when resource has been terminated by service provider. |
@@ -882,14 +883,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 808
+Total unique handlers found: 809
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 417 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 338 handlers
+- **waldur_mastermind**: 339 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

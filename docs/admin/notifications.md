@@ -4517,6 +4517,85 @@ A notification to reviewers about a new call round opening.
 
 ```
 
+### proposal.workflow_step_event
+
+Sent when a call's workflow notification rule fires: a workflow step started, completed, was rejected, expired, or its deadline is approaching. Audience is configured per call and step.
+
+#### Templates
+
+=== "proposal/workflow_step_event_subject.txt"
+
+```txt
+
+    {% if trigger == "deadline_approaching" %}Reminder: {{ step_name }} for "{{ proposal_name }}" is due in {{ days_before }} day{{ days_before|pluralize }}{% elif trigger == "step_started" %}{{ step_name }} has started for "{{ proposal_name }}"{% elif trigger == "step_completed" %}{{ step_name }} completed for "{{ proposal_name }}"{% elif trigger == "step_rejected" %}"{{ proposal_name }}" was rejected at {{ step_name }}{% elif trigger == "step_expired" %}{{ step_name }} for "{{ proposal_name }}" has expired{% else %}Update on "{{ proposal_name }}"{% endif %}
+
+```
+
+=== "proposal/workflow_step_event_message.txt"
+
+```txt
+
+    Dear {% if is_applicant %}applicant{% else %}colleague{% endif %},
+
+    {% if trigger == "deadline_approaching" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.{% if is_applicant %} Please respond before the deadline.{% else %} Please complete the step or follow up before it expires.{% endif %}
+    {% elif trigger == "step_started" %}The "{{ step_name }}" step has started for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if deadline %} It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
+    {% elif trigger == "step_completed" %}The "{{ step_name }}" step has been completed for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").{% if outcome %} Outcome: {{ outcome }}.{% endif %}{% if outcome_reason %}
+    Reason: {{ outcome_reason }}{% endif %}
+    {% elif trigger == "step_rejected" %}Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") was rejected at the "{{ step_name }}" step.{% if outcome_reason %}
+    Reason: {{ outcome_reason }}{% endif %}
+    {% elif trigger == "step_expired" %}The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") has expired without being completed.{% if not is_applicant %} Please follow up so the workflow can continue.{% endif %}
+    {% endif %}
+    You can view the proposal here:
+    {{ proposal_url }}
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/workflow_step_event_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+        <p>Dear {% if is_applicant %}applicant{% else %}colleague{% endif %},</p>
+
+        <p>
+        {% if trigger == "deadline_approaching" %}
+            The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") is due on {{ deadline|date:"Y-m-d" }} — in {{ days_before }} day{{ days_before|pluralize }}.
+            {% if is_applicant %}Please respond before the deadline.{% else %}Please complete the step or follow up before it expires.{% endif %}
+        {% elif trigger == "step_started" %}
+            The "{{ step_name }}" step has started for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").
+            {% if deadline %}It is due on {{ deadline|date:"Y-m-d" }}.{% endif %}
+        {% elif trigger == "step_completed" %}
+            The "{{ step_name }}" step has been completed for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}").
+            {% if outcome %}Outcome: {{ outcome }}.{% endif %}
+            {% if outcome_reason %}<br>Reason: {{ outcome_reason }}{% endif %}
+        {% elif trigger == "step_rejected" %}
+            Proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") was rejected at the "{{ step_name }}" step.
+            {% if outcome_reason %}<br>Reason: {{ outcome_reason }}{% endif %}
+        {% elif trigger == "step_expired" %}
+            The "{{ step_name }}" step for proposal "{{ proposal_name }}" (call "{{ call_name }}", round "{{ round_name }}") has expired without being completed.
+            {% if not is_applicant %}Please follow up so the workflow can continue.{% endif %}
+        {% endif %}
+        </p>
+
+        <p>
+            You can view the proposal here:<br>
+            <a href="{{ proposal_url }}">{{ proposal_url }}</a>
+        </p>
+
+        <p>
+            This is an automated message from the {{ site_name }}. Please do not reply to this email.
+        </p>
+    </body>
+    </html>
+
+```
+
 ## WALDUR_CORE.ONBOARDING
 
 ### onboarding.justification_review_notification
