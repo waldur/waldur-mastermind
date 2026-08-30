@@ -67,6 +67,11 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "send-workflow-step-deadline-reminders": {
+                "task": "waldur_mastermind.proposal.send_workflow_step_deadline_reminders",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
             "send-assignment-expiry-reminders": {
                 "task": "waldur_mastermind.proposal.send_assignment_expiry_reminders",
                 "schedule": timedelta(hours=24),

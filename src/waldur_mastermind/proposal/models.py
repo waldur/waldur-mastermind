@@ -203,6 +203,19 @@ class Call(
         ),
     )
 
+    panel_chair = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "Panel member who chairs this call's review panel. Must hold the "
+            "panel member role on the call; cleared automatically when that "
+            "role is revoked. Addressable by notification rules as panel_chair."
+        ),
+    )
+
     objects = managers.CallManager()
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -228,6 +241,17 @@ class Call(
 
     def clean(self):
         """Prevent changing checklist or slug template if proposals exist."""
+        if (
+            self.panel_chair_id
+            and not get_users(self, RoleEnum.CALL_PANEL_MEMBER)
+            .filter(pk=self.panel_chair_id)
+            .exists()
+        ):
+            raise ValidationError(
+                {
+                    "panel_chair": "Panel chair must hold the panel member role on this call."
+                }
+            )
         if self.pk and self.proposal_set.exists():
             if self.tracker.has_changed("compliance_checklist"):
                 raise ValidationError(
@@ -523,6 +547,71 @@ class CallWorkflowStep(
                     raise DjangoValidationError(
                         f"Step '{step_def.name}' requires '{dep_name}' to be enabled."
                     )
+
+
+class CallWorkflowStepNotificationRule(
+    TimeStampedModel,
+    core_models.UuidMixin,
+):
+    """Call-level rule: on a workflow event for a step, e-mail an audience.
+
+    Rules are configuration owned by the call manager, seeded per call from
+    the built-in defaults (see ``handlers.seed_notification_rules``) and
+    resolved against a concrete proposal only when the event fires
+    (``notification_rules.dispatch_step_event``). ``days_before`` is the lead
+    time for ``deadline_approaching`` and is meaningless for the other
+    triggers, which fire the moment the step changes status.
+    """
+
+    class Permissions:
+        customer_path = "workflow_step__call__manager__customer"
+
+    workflow_step = models.ForeignKey(
+        CallWorkflowStep,
+        on_delete=models.CASCADE,
+        related_name="notification_rules",
+    )
+    trigger = models.CharField(
+        max_length=32,
+        choices=enums.NotificationRuleTriggers.CHOICES,
+    )
+    recipient = models.CharField(
+        max_length=32,
+        choices=enums.NotificationRuleRecipients.CHOICES,
+    )
+    days_before = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Only for deadline_approaching: how many days before the step's "
+            "deadline the reminder is sent."
+        ),
+    )
+    is_enabled = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ("workflow_step", "trigger", "recipient")
+        ordering = ["created", "id"]
+        verbose_name = _("Workflow step notification rule")
+        verbose_name_plural = _("Workflow step notification rules")
+
+    def __str__(self):
+        return f"{self.workflow_step} — {self.trigger} → {self.recipient}"
+
+    @property
+    def call(self):
+        return self.workflow_step.call
+
+    def clean(self):
+        if self.trigger == enums.NotificationRuleTriggers.DEADLINE_APPROACHING:
+            if self.days_before is None:
+                raise DjangoValidationError(
+                    {"days_before": "Required for the deadline_approaching trigger."}
+                )
+        elif self.days_before is not None:
+            raise DjangoValidationError(
+                {"days_before": "Only applies to the deadline_approaching trigger."}
+            )
 
 
 class WorkflowCriterion(
@@ -1199,6 +1288,15 @@ class ProposalWorkflowStepInstance(
         null=True,
         blank=True,
         help_text="Computed from started_at + step duration_in_days.",
+    )
+    sent_notifications = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Ledger of notification-rule events already dispatched for this "
+            'instance ("<trigger>" or "deadline_approaching:<days>"), so '
+            "a reminder is never sent twice."
+        ),
     )
     internal_notes = models.TextField(
         blank=True,

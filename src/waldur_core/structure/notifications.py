@@ -1142,10 +1142,51 @@ class ReviewerInvitationContext(BaseModel):
     )
 
 
+class WorkflowStepEventContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    trigger: str = Field(
+        description=(
+            "Workflow event: step_started, step_completed, step_rejected, "
+            "step_expired or deadline_approaching."
+        )
+    )
+    step_name: str = Field(description="Human-readable workflow step name.")
+    proposal_name: str = Field(description="Name of the proposal.")
+    proposal_url: str = Field(
+        description="Link to the proposal, applicant- or manager-side depending on audience."
+    )
+    call_name: str = Field(description="Name of the call.")
+    round_name: str = Field(description="Name of the round.")
+    deadline: Any = Field(
+        default=None, description="Step deadline, if the step has one."
+    )
+    days_before: int | None = Field(
+        default=None, description="Lead time in days for deadline_approaching."
+    )
+    outcome: str | None = Field(
+        default=None, description="Step outcome; omitted for the applicant audience."
+    )
+    outcome_reason: str = Field(
+        default="", description="Outcome reason; omitted for the applicant audience."
+    )
+    is_applicant: bool = Field(
+        description="True when the mail goes to the applicant side (status-only wording)."
+    )
+
+
 class ProposalSection(NotificationSection):
     class Meta:
         key = "proposal"
 
+    workflow_step_event = Notification(
+        key="workflow_step_event",
+        description=(
+            "Sent when a call's workflow notification rule fires: a workflow "
+            "step started, completed, was rejected, expired, or its deadline is "
+            "approaching. Audience is configured per call and step."
+        ),
+        context_model=WorkflowStepEventContext,
+    )
     new_proposal_submitted = Notification(
         key="new_proposal_submitted",
         description="Notifies call managers about a new proposal submission.",

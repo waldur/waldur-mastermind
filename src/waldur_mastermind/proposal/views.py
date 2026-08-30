@@ -69,6 +69,7 @@ from waldur_mastermind.proposal import (
     affinity_scoring,
     filters,
     models,
+    notification_rules,
     orcid_service,
     serializers,
     tasks,
@@ -2890,6 +2891,9 @@ class ProposalViewSet(
                         days=call_step.duration_in_days
                     )
                 first_step.save(update_fields=["status", "started_at", "deadline"])
+                notification_rules.dispatch_step_event(
+                    first_step, proposal_enums.NotificationRuleTriggers.STEP_STARTED
+                )
                 proposal.state = ProposalStates.IN_REVIEW
                 proposal.workflow_step = first_step_id
             else:
@@ -4225,6 +4229,42 @@ class ProposalProjectRoleMappingViewSet(ActionsViewSet):
     update_validators = partial_update_validators = destroy_validators = [
         validate_call_not_archived
     ]
+
+
+class CallWorkflowStepNotificationRuleViewSet(ActionsViewSet):
+    """Call-level notification rules attached to workflow steps.
+
+    Readable by anyone connected to the call (managers, reviewers, panel), so
+    the review UI can show who is notified; writable by call managers only
+    (``CanUpdateCallPermission`` on update/delete, the serializer on create).
+    Archived calls are read-only.
+    """
+
+    lookup_field = "uuid"
+    serializer_class = serializers.CallWorkflowStepNotificationRuleSerializer
+    queryset = models.CallWorkflowStepNotificationRule.objects.all().select_related(
+        "workflow_step", "workflow_step__call"
+    )
+    filterset_class = filters.CallWorkflowStepNotificationRuleFilter
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = [proposal_permissions.CanUpdateCallPermission]
+    update_validators = partial_update_validators = destroy_validators = [
+        validate_call_not_archived
+    ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return queryset
+        return queryset.filter(workflow_step__call__in=get_connected_calls(user))
+
+    def get_permissions(self):
+        # Object-level UPDATE_CALL is only meaningful for writes; reads are
+        # scoped by get_queryset.
+        if self.action in ("list", "retrieve"):
+            return [rf_permissions.IsAuthenticated()]
+        return super().get_permissions()
 
 
 # =============================================================================

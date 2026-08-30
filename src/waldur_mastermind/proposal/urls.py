@@ -54,6 +54,11 @@ def register_in(router):
         views.ProposalProjectRoleMappingViewSet,
         basename="call-proposal-project-role-mapping",
     )
+    router.register(
+        r"call-workflow-step-notification-rules",
+        views.CallWorkflowStepNotificationRuleViewSet,
+        basename="call-workflow-step-notification-rule",
+    )
     # Reviewer Profile endpoints
     router.register(
         r"reviewer-profiles",

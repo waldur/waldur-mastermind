@@ -18,6 +18,7 @@ from rest_framework.reverse import reverse
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
+from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.validators import get_project_name_regex_error
@@ -45,6 +46,8 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     COISeverityLevels,
     COITypes,
+    NotificationRuleRecipients,
+    NotificationRuleTriggers,
     ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
@@ -54,7 +57,7 @@ from waldur_mastermind.proposal.enums import (
     WorkflowStepOutcomes,
 )
 
-from . import models, workflow_service
+from . import models, notification_rules, workflow_service
 from .managers import get_connected_calls
 
 logger = logging.getLogger(__name__)
@@ -1410,6 +1413,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
         allow_null=True,
         help_text="Compliance checklist that proposals must complete before submission",
     )
+    panel_chair = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=core_models.User.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    panel_chair_uuid = serializers.UUIDField(
+        source="panel_chair.uuid", read_only=True, format="hex"
+    )
+    panel_chair_name = serializers.ReadOnlyField(source="panel_chair.full_name")
     compliance_checklist_name = serializers.CharField(
         source="compliance_checklist.name", read_only=True
     )
@@ -1486,6 +1499,9 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "reference_code",
             "compliance_checklist",
             "compliance_checklist_name",
+            "panel_chair",
+            "panel_chair_uuid",
+            "panel_chair_name",
             "proposal_slug_template",
             "user_email_patterns",
             "user_affiliations",
@@ -1500,6 +1516,35 @@ class ProtectedCallSerializer(PublicCallSerializer):
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
+
+    def validate_panel_chair(self, user):
+        if self.instance is None:
+            if user is None:
+                return None
+            raise serializers.ValidationError(
+                _("Assign panel members first; the chair is set on an existing call.")
+            )
+        # The call PATCH itself is only queryset-scoped, so gate this field
+        # explicitly: choosing the chair is a call-management decision.
+        if not permissions_utils.has_permission(
+            self.context["request"],
+            permissions_enums.PermissionEnum.UPDATE_CALL,
+            self.instance,
+        ):
+            raise PermissionDenied()
+        if user is None:
+            return None
+        if (
+            not permissions_utils.get_users(
+                self.instance, permissions_enums.RoleEnum.CALL_PANEL_MEMBER
+            )
+            .filter(pk=user.pk)
+            .exists()
+        ):
+            raise serializers.ValidationError(
+                _("Panel chair must hold the panel member role on this call.")
+            )
+        return user
 
     def validate_manager(self, manager: models.CallManagingOrganisation):
         user = self.context["request"].user
@@ -4818,6 +4863,107 @@ AWARD_RESPONSE_ALLOWED_STEPS = {"allocation_decision"}
 ALLOCATION_TIMING_ALLOWED_STEPS = {"allocation_decision"}
 
 
+class CallWorkflowStepNotificationRuleSerializer(
+    serializers.HyperlinkedModelSerializer
+):
+    workflow_step = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.CallWorkflowStep.objects.all(),
+    )
+    workflow_step_uuid = serializers.UUIDField(
+        source="workflow_step.uuid", read_only=True, format="hex"
+    )
+    step = serializers.ReadOnlyField(source="workflow_step.step")
+    call_uuid = serializers.UUIDField(
+        source="workflow_step.call.uuid", read_only=True, format="hex"
+    )
+
+    class Meta:
+        model = models.CallWorkflowStepNotificationRule
+        fields = [
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "workflow_step",
+            "workflow_step_uuid",
+            "step",
+            "call_uuid",
+            "trigger",
+            "recipient",
+            "days_before",
+            "is_enabled",
+        ]
+        read_only_fields = ("uuid", "created", "modified")
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "call-workflow-step-notification-rule-detail",
+            },
+        }
+
+    def validate_workflow_step(self, workflow_step):
+        if self.instance and self.instance.workflow_step_id != workflow_step.id:
+            raise serializers.ValidationError(
+                _("A rule cannot be moved to another workflow step.")
+            )
+        if not permissions_utils.has_permission(
+            self.context["request"],
+            permissions_enums.PermissionEnum.UPDATE_CALL,
+            workflow_step.call,
+        ):
+            raise PermissionDenied()
+        if workflow_step.call.state == CallStates.ARCHIVED:
+            raise serializers.ValidationError(_("Cannot modify an archived call."))
+        return workflow_step
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        get = lambda name: attrs.get(  # noqa: E731
+            name, getattr(self.instance, name, None) if self.instance else None
+        )
+        trigger = get("trigger")
+        days_before = get("days_before")
+        workflow_step = get("workflow_step")
+        recipient = get("recipient")
+
+        if trigger == NotificationRuleTriggers.DEADLINE_APPROACHING:
+            if days_before is None:
+                raise serializers.ValidationError(
+                    {"days_before": _("Required for the deadline_approaching trigger.")}
+                )
+        elif days_before is not None:
+            raise serializers.ValidationError(
+                {"days_before": _("Only applies to the deadline_approaching trigger.")}
+            )
+
+        # Applicants are never told about internal evaluation steps.
+        if (
+            workflow_step is not None
+            and recipient == NotificationRuleRecipients.APPLICANT
+            and workflow_step.step in notification_rules.INTERNAL_STEPS
+        ):
+            raise serializers.ValidationError(
+                {
+                    "recipient": _(
+                        "The applicant cannot be notified about internal "
+                        "evaluation steps."
+                    )
+                }
+            )
+
+        # Uniqueness of (workflow_step, trigger, recipient) is enforced by the
+        # model's unique_together via DRF's UniqueTogetherValidator.
+        return attrs
+
+
+class CallWorkflowStepNotificationRuleNestedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.CallWorkflowStepNotificationRule
+        fields = ["uuid", "trigger", "recipient", "days_before", "is_enabled"]
+        read_only_fields = fields
+
+
 class CallWorkflowStepSerializer(
     CallNotArchivedCreateMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -4835,6 +4981,9 @@ class CallWorkflowStepSerializer(
     checklist_name = serializers.SerializerMethodField()
     is_mandatory = serializers.SerializerMethodField()
     criteria = WorkflowCriterionSerializer(many=True, required=False)
+    notification_rules = CallWorkflowStepNotificationRuleNestedSerializer(
+        many=True, read_only=True
+    )
 
     class Meta:
         model = models.CallWorkflowStep
@@ -4862,6 +5011,7 @@ class CallWorkflowStepSerializer(
             "allocation_time",
             "display_order",
             "criteria",
+            "notification_rules",
         ]
         read_only_fields = ("uuid", "created", "modified")
         protected_fields = ("call", "step")
@@ -4972,11 +5122,15 @@ class CallWorkflowStepSerializer(
         if instance.step != "allocation_decision":
             return
         if instance.include_award_response:
-            models.CallWorkflowStep.objects.update_or_create(
+            award_step, created = models.CallWorkflowStep.objects.update_or_create(
                 call=instance.call,
                 step="award_response",
                 defaults={"is_enabled": True},
             )
+            if created:
+                from waldur_mastermind.proposal.handlers import seed_notification_rules
+
+                seed_notification_rules(award_step)
         else:
             models.CallWorkflowStep.objects.filter(
                 call=instance.call, step="award_response"

@@ -83,6 +83,44 @@ class ResponsibleRoles:
     )
 
 
+class NotificationRuleTriggers:
+    """Workflow events a call's notification rule can react to."""
+
+    STEP_STARTED = "step_started"
+    STEP_COMPLETED = "step_completed"
+    STEP_REJECTED = "step_rejected"
+    STEP_EXPIRED = "step_expired"
+    DEADLINE_APPROACHING = "deadline_approaching"
+
+    CHOICES = (
+        (STEP_STARTED, "Step started"),
+        (STEP_COMPLETED, "Step completed"),
+        (STEP_REJECTED, "Step rejected"),
+        (STEP_EXPIRED, "Step expired"),
+        (DEADLINE_APPROACHING, "Deadline approaching"),
+    )
+
+
+class NotificationRuleRecipients:
+    """Who a call's notification rule addresses. Resolved per proposal at send time."""
+
+    APPLICANT = "applicant"
+    RESPONSIBLE_ROLE = "responsible_role"
+    ASSIGNED_REVIEWERS = "assigned_reviewers"
+    CALL_MANAGERS = "call_managers"
+    ALL_POOL_REVIEWERS = "all_pool_reviewers"
+    PANEL_CHAIR = "panel_chair"
+
+    CHOICES = (
+        (APPLICANT, "Applicant"),
+        (RESPONSIBLE_ROLE, "Responsible role"),
+        (ASSIGNED_REVIEWERS, "Assigned reviewers"),
+        (CALL_MANAGERS, "Call managers"),
+        (ALL_POOL_REVIEWERS, "All pool reviewers"),
+        (PANEL_CHAIR, "Panel chair"),
+    )
+
+
 class TransitionModes:
     AUTOMATIC_ON_COMPLETION = "automatic_on_completion"
     MANUAL = "manual"

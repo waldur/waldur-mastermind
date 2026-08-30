@@ -12,10 +12,11 @@ from django.db.models import Avg
 from django.utils import timezone
 
 from waldur_core.core.utils import get_system_robot
-from waldur_mastermind.proposal import models, utils
+from waldur_mastermind.proposal import models, notification_rules, utils
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS,
     WORKFLOW_STEPS_MAP,
+    NotificationRuleTriggers,
     ProposalStates,
     TransitionModes,
     WorkflowStepInstanceStatuses,
@@ -87,6 +88,9 @@ def _activate_next_step(proposal, next_step_def):
     if call_step and call_step.checklist_id:
         proposal.ensure_checklist_completion_for(call_step.checklist)
     instance.save(update_fields=["status", "started_at", "deadline"])
+    notification_rules.dispatch_step_event(
+        instance, NotificationRuleTriggers.STEP_STARTED
+    )
     return instance
 
 
@@ -136,6 +140,14 @@ def complete_step(
             "completed_at",
             "completed_by",
         ]
+    )
+    # A negative outcome ends the workflow, so it is a rejection for
+    # notification purposes even though it arrives through complete_step.
+    notification_rules.dispatch_step_event(
+        current_instance,
+        NotificationRuleTriggers.STEP_REJECTED
+        if outcome in WorkflowStepOutcomes.NEGATIVE_OUTCOMES
+        else NotificationRuleTriggers.STEP_COMPLETED,
     )
 
     # A negative outcome (declined / ineligible / infeasible) terminates the
@@ -308,6 +320,9 @@ def reject_at_step(proposal, current_instance, reason, completed_by, internal_no
             "completed_by",
         ]
     )
+    notification_rules.dispatch_step_event(
+        current_instance, NotificationRuleTriggers.STEP_REJECTED
+    )
     proposal.state = ProposalStates.REJECTED
     proposal.workflow_step = None
     proposal.save(update_fields=["state", "workflow_step"])
@@ -326,6 +341,9 @@ def expire_step(current_instance):
     current_instance.outcome = WorkflowStepOutcomes.EXPIRED
     current_instance.completed_at = timezone.now()
     current_instance.save(update_fields=["status", "outcome", "completed_at"])
+    notification_rules.dispatch_step_event(
+        current_instance, NotificationRuleTriggers.STEP_EXPIRED
+    )
 
     next_step_def = _next_enabled_step(proposal, current_instance.step)
     if next_step_def is None:
