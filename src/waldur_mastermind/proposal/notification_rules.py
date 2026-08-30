@@ -56,12 +56,19 @@ def _offering_manager_users(call):
     return User.objects.filter(id__in=user_ids)
 
 
-def _responsible_role_users(call_step, proposal):
+def _responsible_role_users(call_step, proposal=None):
+    """Users holding the step's responsible role on the call.
+
+    ``proposal`` is only needed for the applicant role, which is per proposal;
+    without one that role resolves to nobody.
+    """
     role = call_step.responsible_role
     call = call_step.call
     if not role:
         return User.objects.none()
     if role == ResponsibleRoles.APPLICANT:
+        if proposal is None:
+            return User.objects.none()
         return _applicant_users(proposal)
     if role == ResponsibleRoles.OFFERING_MANAGER:
         return _offering_manager_users(call)
@@ -84,6 +91,20 @@ def _assigned_reviewer_users(proposal):
         "reviewer_id", flat=True
     )
     return User.objects.filter(id__in=reviewer_ids)
+
+
+def responsible_users_for_step(call_step):
+    """Who will act on this step, for the call manager's configuration view.
+
+    Includes offering managers of offerings the provider has accepted into
+    the call (technical assessment): that acceptance is the working
+    relationship that justifies showing provider staff to the call manager.
+    """
+    return (
+        _responsible_role_users(call_step)
+        .filter(is_active=True)
+        .order_by("first_name", "last_name", "username")
+    )
 
 
 def resolve_recipients(rule, proposal):

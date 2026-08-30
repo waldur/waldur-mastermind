@@ -2447,3 +2447,84 @@ class CompleteWorkflowStepChecklistGateTest(test.APITestCase):
         self.question.save()
         response = self._complete()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class WorkflowStepResponsibleUsersTest(test.APITestCase):
+    """``responsible_users`` tells the call manager who evaluates each step."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.client.force_authenticate(self.fixture.call_manager)
+
+    def _steps(self):
+        response = self.client.get(
+            factories.CallWorkflowStepFactory.get_list_url(self.call)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {s["step"]: s for s in response.data}
+
+    def _emails(self, step):
+        return sorted(u["email"] for u in step["responsible_users"])
+
+    def test_call_manager_step_lists_call_managers(self):
+        steps = self._steps()
+        manager = self.fixture.call_manager
+        self.assertEqual(self._emails(steps["administrative_check"]), [manager.email])
+        (entry,) = steps["administrative_check"]["responsible_users"]
+        self.assertEqual(
+            entry,
+            {
+                "uuid": manager.uuid.hex,
+                "username": manager.username,
+                "full_name": manager.full_name,
+                "email": manager.email,
+                "is_panel_chair": False,
+            },
+        )
+
+    def test_reviewer_step_lists_pool_reviewers(self):
+        expected = sorted(
+            [self.fixture.reviewer_1.email, self.fixture.reviewer_2.email]
+        )
+        self.assertEqual(self._emails(self._steps()["expert_review"]), expected)
+
+    def test_panel_step_marks_chair(self):
+        chair = self.fixture.panel_member
+        other = structure_factories.UserFactory()
+        self.call.add_user(other, CallRole.PANEL_MEMBER)
+        self.call.panel_chair = chair
+        self.call.save()
+        users = {
+            u["email"]: u["is_panel_chair"]
+            for u in self._steps()["panel_review"]["responsible_users"]
+        }
+        self.assertEqual(users, {chair.email: True, other.email: False})
+
+    def test_technical_assessment_lists_managers_of_accepted_offerings_only(self):
+        from waldur_core.permissions.fixtures import OfferingRole
+
+        accepted_manager = structure_factories.UserFactory()
+        self.fixture.requested_offering_accepted.offering.add_user(
+            accepted_manager, OfferingRole.MANAGER
+        )
+        pending_manager = structure_factories.UserFactory()
+        pending_offering = self.fixture.offering_fixture.__class__().offering
+        factories.RequestedOfferingFactory(
+            call=self.call,
+            offering=pending_offering,
+            state=RequestedOfferingStates.REQUESTED,
+            created_by=self.fixture.owner,
+        )
+        pending_offering.add_user(pending_manager, OfferingRole.MANAGER)
+
+        self.assertEqual(
+            self._emails(self._steps()["technical_assessment"]),
+            [accepted_manager.email],
+        )
+
+    def test_applicant_step_lists_nobody(self):
+        CallWorkflowStep.objects.update_or_create(
+            call=self.call, step="award_response", defaults={"is_enabled": True}
+        )
+        self.assertEqual(self._steps()["award_response"]["responsible_users"], [])
