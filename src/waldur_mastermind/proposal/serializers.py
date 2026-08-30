@@ -4999,6 +4999,14 @@ class CallWorkflowStepNotificationRuleNestedSerializer(serializers.ModelSerializ
         read_only_fields = fields
 
 
+class WorkflowStepResponsibleUserSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(format="hex")
+    username = serializers.CharField()
+    full_name = serializers.CharField()
+    email = serializers.EmailField()
+    is_panel_chair = serializers.BooleanField()
+
+
 class CallWorkflowStepSerializer(
     CallNotArchivedCreateMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -5019,6 +5027,7 @@ class CallWorkflowStepSerializer(
     notification_rules = CallWorkflowStepNotificationRuleNestedSerializer(
         many=True, read_only=True
     )
+    responsible_users = serializers.SerializerMethodField()
 
     class Meta:
         model = models.CallWorkflowStep
@@ -5047,6 +5056,7 @@ class CallWorkflowStepSerializer(
             "display_order",
             "criteria",
             "notification_rules",
+            "responsible_users",
         ]
         read_only_fields = ("uuid", "created", "modified")
         protected_fields = ("call", "step")
@@ -5054,6 +5064,23 @@ class CallWorkflowStepSerializer(
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_checklist_name(self, obj):
         return obj.checklist.name if obj.checklist else None
+
+    @extend_schema_field(WorkflowStepResponsibleUserSerializer(many=True))
+    def get_responsible_users(self, obj):
+        """Everyone currently holding the step's responsible role — the call
+        manager's answer to "who evaluates this step". Provider-side offering
+        managers appear once their offering is accepted into the call."""
+        chair_id = obj.call.panel_chair_id
+        return [
+            {
+                "uuid": user.uuid.hex,
+                "username": user.username,
+                "full_name": user.full_name,
+                "email": user.email,
+                "is_panel_chair": user.id == chair_id,
+            }
+            for user in notification_rules.responsible_users_for_step(obj)
+        ]
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_mandatory(self, obj):
