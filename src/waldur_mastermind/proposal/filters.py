@@ -298,6 +298,24 @@ class RequestedResourceFilter(django_filters.FilterSet):
         fields = ["created"]
 
 
+class CallWorkflowStepNotificationRuleFilter(django_filters.FilterSet):
+    call_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-public-call-detail",
+        field_name="workflow_step__call__uuid",
+    )
+    workflow_step_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-call-workflow_step-detail",
+        field_name="workflow_step__uuid",
+    )
+    step = django_filters.CharFilter(field_name="workflow_step__step")
+    trigger = django_filters.CharFilter()
+    is_enabled = django_filters.BooleanFilter()
+
+    class Meta:
+        model = models.CallWorkflowStepNotificationRule
+        fields = []
+
+
 class ProposalProjectRoleMappingFilter(django_filters.FilterSet):
     call_uuid = core_filters.RelatedUUIDFilter(
         view_name="proposal-public-call-detail", field_name="call__uuid"

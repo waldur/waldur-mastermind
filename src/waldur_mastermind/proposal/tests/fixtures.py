@@ -193,6 +193,12 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         return user
 
     @cached_property
+    def panel_member(self):
+        user = structure_factories.UserFactory()
+        self.call.add_user(user, CallRole.PANEL_MEMBER)
+        return user
+
+    @cached_property
     def call_manager(self):
         user = structure_factories.UserFactory()
         role = CallRole.MANAGER

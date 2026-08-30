@@ -1,6 +1,8 @@
 import uuid
+from datetime import timedelta
 
 from ddt import data, ddt
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.checklist.enums import ChecklistTypes
@@ -8,7 +10,9 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
@@ -1162,3 +1166,92 @@ class CallProposalSlugTemplateSerializerTest(test.APITestCase):
         self.assertEqual(
             response.data["proposal_slug_template"], "{org_slug}-{counter_padded}"
         )
+
+
+class CallPanelChairTest(test.APITestCase):
+    """``Call.panel_chair`` is one flagged panel member, cleared on revocation."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.manager = self.fixture.call_manager
+        self.chair = self.fixture.panel_member
+        self.url = factories.CallFactory.get_protected_url(self.call)
+
+    def _set_chair(self, user, value):
+        self.client.force_authenticate(user)
+        return self.client.patch(self.url, {"panel_chair": value})
+
+    def test_manager_sets_panel_member_as_chair(self):
+        response = self._set_chair(self.manager, self.chair.uuid.hex)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["panel_chair_uuid"], self.chair.uuid.hex)
+        self.assertEqual(response.data["panel_chair_name"], self.chair.full_name)
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.panel_chair, self.chair)
+
+    def test_chair_must_be_panel_member(self):
+        response = self._set_chair(self.manager, self.fixture.reviewer_1.uuid.hex)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("panel_chair", response.data)
+
+    def test_chair_can_be_unset(self):
+        self.call.panel_chair = self.chair
+        self.call.save()
+        response = self._set_chair(self.manager, None)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.panel_chair)
+
+    def test_panel_member_cannot_set_chair(self):
+        response = self._set_chair(self.chair, self.chair.uuid.hex)
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_revoking_panel_role_clears_chair(self):
+        self.call.panel_chair = self.chair
+        self.call.save()
+        # The Team tab's remove action, admin revocation and the expiry sweep
+        # all funnel through UserRole.revoke(), which delete_user wraps.
+        permissions_utils.delete_user(
+            self.call, self.chair, CallRole.PANEL_MEMBER, self.manager
+        )
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.panel_chair)
+
+    def test_expired_panel_role_clears_chair(self):
+        from waldur_core.permissions import tasks as permission_tasks
+
+        self.call.panel_chair = self.chair
+        self.call.save()
+        UserRole.objects.filter(
+            user=self.chair, role__name=CallRole.PANEL_MEMBER.name
+        ).update(expiration_time=timezone.now() - timedelta(days=1))
+        permission_tasks.check_expired_permissions()
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.panel_chair)
+
+    def test_chair_cannot_be_set_on_create(self):
+        self.client.force_authenticate(self.fixture.call_organizer_user)
+        response = self.client.post(
+            factories.CallFactory.get_protected_list_url(),
+            {
+                "name": "Chaired call",
+                "manager": factories.CallManagingOrganisationFactory.get_url(
+                    self.fixture.manager
+                ),
+                "panel_chair": self.chair.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("panel_chair", response.data)
+
+    def test_public_call_does_not_expose_chair(self):
+        self.call.panel_chair = self.chair
+        self.call.save()
+        self.client.force_authenticate(self.fixture.reviewer_1)
+        response = self.client.get(factories.CallFactory.get_public_url(self.call))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("panel_chair", response.data)

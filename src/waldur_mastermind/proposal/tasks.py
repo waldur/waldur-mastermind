@@ -15,9 +15,11 @@ from waldur_core.logging.enums import EventType
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_mastermind.proposal import utils, workflow_service
+from waldur_mastermind.proposal import notification_rules, utils, workflow_service
 from waldur_mastermind.proposal.enums import (
+    WORKFLOW_STEPS_MAP,
     CallStates,
+    NotificationRuleTriggers,
     ProposalStates,
     WorkflowStepInstanceStatuses,
 )
@@ -1056,3 +1058,127 @@ def send_reviewer_invitation_email(pool_member_uuid):
         context,
         [pool_member.invited_email],
     )
+
+
+def _step_event_context(instance, trigger, audience_is_applicant, days_before=None):
+    proposal = instance.proposal
+    call = proposal.round.call
+    step_def = WORKFLOW_STEPS_MAP.get(instance.step)
+    if audience_is_applicant:
+        proposal_url = core_utils.format_homeport_link(
+            "proposals/{proposal_uuid}/", proposal_uuid=proposal.uuid
+        )
+    else:
+        proposal_url = core_utils.format_homeport_link(
+            "call-management/{customer_uuid}/proposals/{proposal_uuid}/",
+            customer_uuid=call.manager.customer.uuid,
+            proposal_uuid=proposal.uuid,
+        )
+    return {
+        "site_name": config.SITE_NAME,
+        "trigger": trigger,
+        "step_name": step_def.name if step_def else instance.step,
+        "proposal_name": proposal.name,
+        "proposal_url": proposal_url,
+        "call_name": call.name,
+        "round_name": proposal.round.name,
+        "deadline": instance.deadline,
+        "days_before": days_before,
+        # Outcome and reason are evaluation detail: never shown to the applicant
+        # side, whose mail is status-only.
+        "outcome": None if audience_is_applicant else instance.outcome,
+        "outcome_reason": "" if audience_is_applicant else instance.outcome_reason,
+        "is_applicant": audience_is_applicant,
+    }
+
+
+def _send_step_event(instance, trigger, rules, days_before=None):
+    """One mail per rule audience. Recipients addressed by several rules get one copy."""
+    already_addressed = set()
+    for rule in rules:
+        users = notification_rules.resolve_recipients(rule, instance.proposal)
+        emails = sorted(set(users.values_list("email", flat=True)) - already_addressed)
+        if not emails:
+            continue
+        already_addressed.update(emails)
+        context = _step_event_context(
+            instance,
+            trigger,
+            notification_rules.is_applicant_audience(rule, instance.proposal),
+            days_before=days_before,
+        )
+        core_utils.broadcast_mail("proposal", "workflow_step_event", context, emails)
+
+
+@shared_task(name="waldur_mastermind.proposal.notify_workflow_step_event")
+def notify_workflow_step_event(instance_uuid, trigger):
+    """Deliver a status-change event (started / completed / rejected / expired).
+
+    Enqueued by ``notification_rules.dispatch_step_event`` after commit; the
+    rules are re-read here so a rule disabled in the meantime is honoured.
+    """
+    instance = proposal_models.ProposalWorkflowStepInstance.objects.select_related(
+        "proposal__round__call__manager__customer"
+    ).get(uuid=instance_uuid)
+    rules = list(notification_rules.enabled_rules(instance, trigger))
+    if not rules:
+        return
+    _send_step_event(instance, trigger, rules)
+
+
+@shared_task(name="waldur_mastermind.proposal.send_workflow_step_deadline_reminders")
+def send_workflow_step_deadline_reminders():
+    """Fire ``deadline_approaching`` rules for active steps whose lead time is today.
+
+    A reminder is sent when ``(deadline - now).days == days_before`` and is
+    recorded in the instance ledger so the daily beat cannot repeat it. Steps
+    already past their deadline are left to ``mark_expired_workflow_steps``.
+    """
+    now = timezone.now()
+    sent = 0
+    instances = proposal_models.ProposalWorkflowStepInstance.objects.filter(
+        status=WorkflowStepInstanceStatuses.ACTIVE, deadline__gt=now
+    ).select_related("proposal__round__call__manager__customer")
+    for instance in instances:
+        if instance.deadline is None:
+            continue
+        days_left = (instance.deadline.date() - now.date()).days
+        rules = [
+            rule
+            for rule in notification_rules.enabled_rules(
+                instance, NotificationRuleTriggers.DEADLINE_APPROACHING
+            )
+            if rule.days_before == days_left
+        ]
+        if not rules:
+            continue
+        key = notification_rules.ledger_key(
+            NotificationRuleTriggers.DEADLINE_APPROACHING, days_left
+        )
+        with transaction.atomic():
+            locked = (
+                proposal_models.ProposalWorkflowStepInstance.objects.select_for_update()
+                .filter(pk=instance.pk, status=WorkflowStepInstanceStatuses.ACTIVE)
+                .first()
+            )
+            if locked is None or key in locked.sent_notifications:
+                continue
+            locked.sent_notifications = [*locked.sent_notifications, key]
+            locked.save(update_fields=["sent_notifications"])
+        try:
+            _send_step_event(
+                instance,
+                NotificationRuleTriggers.DEADLINE_APPROACHING,
+                rules,
+                days_before=days_left,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send deadline reminder for workflow step instance %s",
+                instance.uuid,
+            )
+            continue
+        sent += 1
+    if sent:
+        logger.info("Sent %d workflow step deadline reminder(s)", sent)
+    return sent
