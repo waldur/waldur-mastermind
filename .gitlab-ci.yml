@@ -413,6 +413,12 @@ Run demo presets tests:
 # This is the "preparation" job. It's not parallelized.
 # Its only responsibilities are to check for merge conflicts and generate the dynamic
 # child pipeline configuration based on the code changes.
+#
+# Selection (tests/select_tests.py) works from a diff: merge-base..HEAD on a merge
+# request, first-parent..HEAD for a merge commit landing on develop (so a merge is
+# re-tested on the real post-merge tree, but only its own fan-out), and the whole
+# suite otherwise. Set FULL_TEST_RUN=true (e.g. on a nightly schedule without
+# SKIP_TESTS) to force the whole suite as a backstop.
 Generate test pipeline:
   stage: test
   extends: .Unit test runner
