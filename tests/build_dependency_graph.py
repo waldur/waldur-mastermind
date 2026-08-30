@@ -8,10 +8,15 @@ Django applications depend on others. This is crucial for optimizing CI/CD pipel
 by allowing us to run tests only for the applications that could have been affected
 by a given code change.
 
+Usage:
+`select_tests.py` imports `build_dependency_map()` and computes the graph at
+selection time, so there is no checked-in copy to go stale (a stale copy silently
+mapped files in newly added apps to *no* tests). Running this file directly
+dumps the graph as YAML for inspection.
+
 Output Format:
-The script generates a 'dependency_graph.yaml' file in the project root.
-The format is a mapping where each key is an application and its value is a
-list of applications it directly depends on. For example:
+The mapping has each application as a key and the list of applications it
+directly depends on as the value. For example:
 
     waldur_mastermind.marketplace:
     - waldur_core.core
@@ -47,9 +52,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # The source directory containing all Django applications.
 SRC_ROOT = PROJECT_ROOT / "src"
-
-# The name of the file where the generated YAML graph will be saved.
-GRAPH_OUTPUT_YAML_FILE = PROJECT_ROOT / "tests" / "dependency_graph.yaml"
 
 # Directories to exclude from the analysis within each app.
 EXCLUDED_DIRS = ("tests", "migrations", "management")
@@ -138,46 +140,42 @@ def should_ignore_import(node: ast.AST, source_lines: list[str], marker: str) ->
     return False
 
 
-def build_dependency_graph():
-    """Main function to build and save the dependency graph."""
-    project_apps_map = find_django_apps(SRC_ROOT)
+def build_dependency_map(src_root: Path = SRC_ROOT) -> dict[str, set[str]]:
+    """Return ``{app: {apps it imports from}}`` for every app under ``src_root``.
+
+    Apps without dependencies are present with an empty set, so the keys are
+    the complete list of known apps.
+    """
+    project_apps_map = find_django_apps(src_root)
     project_app_names = set(project_apps_map.keys())
 
-    # Initialize a dictionary to hold the dependency data.
-    # The keys will be app names, and the values will be sets of their dependencies.
-    # Using a set automatically handles duplicates.
     dependency_map: dict[str, set[str]] = {
         app_name: set() for app_name in project_app_names
     }
 
     if not project_app_names:
         logging.info("Skipping code analysis as no apps were found.")
-    else:
-        logging.info("Starting analysis of application source code...")
+        return dependency_map
+    logging.info("Starting analysis of application source code...")
 
-    # The analysis loop populates our dependency_map dictionary.
     for source_app_name, app_dir in project_apps_map.items():
         for py_file in app_dir.rglob("*.py"):
             if any(excluded in py_file.parts for excluded in EXCLUDED_DIRS):
                 continue
             try:
-                # Read the entire file content once to get lines and parse the AST.
                 with open(py_file, encoding="utf-8") as f:
                     source_code = f.read()
                     source_lines = source_code.splitlines()
                     tree = ast.parse(source_code, filename=py_file.name)
                 for node in ast.walk(tree):
-                    # We only care about import nodes.
                     if not isinstance(node, ast.ImportFrom | ast.Import):
                         continue
 
-                    # --- NEW: Check if the import should be ignored ---
                     if should_ignore_import(node, source_lines, IGNORE_COMMENT_MARKER):
-                        # Log the ignored import for visibility and debugging.
                         logging.info(
                             f"Ignoring import on line {node.lineno} in {py_file.name} due to '{IGNORE_COMMENT_MARKER}' comment."
                         )
-                        continue  # Skip to the next node in the AST
+                        continue
 
                     dependency_app_name = None
                     if isinstance(node, ast.ImportFrom):
@@ -194,48 +192,35 @@ def build_dependency_graph():
                                 imported_module_name
                                 and source_app_name != imported_module_name
                             ):
-                                # Add the dependency directly to the set.
                                 dependency_map[source_app_name].add(
                                     imported_module_name
                                 )
 
                     if dependency_app_name and source_app_name != dependency_app_name:
-                        # Add the dependency directly to the set.
                         dependency_map[source_app_name].add(dependency_app_name)
 
             except Exception as e:
                 logging.warning(f"Could not parse {py_file}: {e}")
 
-    # --- Prepare the final dictionary for YAML output ---
-    logging.info("Preparing final map for YAML output.")
-    final_yaml_map = {}
-    total_dependencies = 0
-    # Iterate through apps in sorted order for a deterministic YAML file.
-    for app_name in sorted(dependency_map.keys()):
-        dependencies = sorted(list(dependency_map[app_name]))
-        if dependencies:
-            final_yaml_map[app_name] = dependencies
-            total_dependencies += len(dependencies)
+    return dependency_map
 
-    # --- Write the dictionary to a YAML file ---
-    try:
-        with open(GRAPH_OUTPUT_YAML_FILE, "w", encoding="utf-8") as f:
-            yaml.dump(final_yaml_map, f, sort_keys=False, default_flow_style=False)
-        logging.info(f"Successfully wrote dependency graph to {GRAPH_OUTPUT_YAML_FILE}")
-    except Exception as e:
-        logging.error(f"Failed to write YAML file: {e}")
-        sys.exit(1)
 
-    # --- Final Summary ---
+def main():
+    """Print the dependency graph as YAML."""
+    dependency_map = build_dependency_map()
+    final_yaml_map = {
+        app: sorted(deps) for app, deps in sorted(dependency_map.items()) if deps
+    }
+    print(yaml.dump(final_yaml_map, sort_keys=False, default_flow_style=False))
     logging.info("-" * 50)
     logging.info("Graph Generation Summary")
-    logging.info(f"  - Total Apps Found: {len(project_app_names)}")
+    logging.info(f"  - Total Apps Found: {len(dependency_map)}")
     logging.info(f"  - Apps with Dependencies: {len(final_yaml_map)}")
-    logging.info(f"  - Total Dependency Links: {total_dependencies}")
+    logging.info(
+        f"  - Total Dependency Links: {sum(len(v) for v in final_yaml_map.values())}"
+    )
     logging.info("-" * 50)
-
-    print("\nScript finished successfully.")
 
 
 if __name__ == "__main__":
-    build_dependency_graph()
+    main()
