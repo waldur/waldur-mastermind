@@ -1132,7 +1132,7 @@ positional arguments:
 
 ## override_templates
 
-Override dbtemplates content from a YAML file. Use --clean to remove DB templates not present in the file.
+Override notification template content from a YAML file. Use --clean to reset templates not present in the file to their filesystem default.
 
 ```bash
 
@@ -1142,8 +1142,8 @@ positional arguments:
   templates_file  Path to a YAML file mapping template names to their content.
 
 options:
-  -c, --clean     Remove DB templates whose names are not present in the file
-                  (full sync mode).
+  -c, --clean     Reset templates not present in the file to their filesystem
+                  default (full sync mode).
 
 ```
 

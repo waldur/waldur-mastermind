@@ -36,6 +36,7 @@ td:nth-child(4) {
 | `_bind_user_uuid` | `Custom Signal (bind_extra_request_metadata)` | `—` | Bind user_uuid and override user_id for consistency with request_id, task_id (UUIDs). |
 | `_bind_user_uuid` | `Custom Signal (bind_extra_request_finished_metadata)` | `—` | Bind user_uuid and override user_id for consistency with request_id, task_id (UUIDs). |
 | `_bind_user_uuid` | `Custom Signal (bind_extra_request_failed_metadata)` | `—` | Bind user_uuid and override user_id for consistency with request_id, task_id (UUIDs). |
+| `add_template_to_cache` | `Django Signal (post_save)` | `core.NotificationTemplate` | Refresh the cache entry for *instance* after its content was created or changed. |
 | `cancel_invitations_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | Cancel open invitations scoped to a project when it is deleted (incl. soft delete). |
 | `change_email_has_been_requested` | `Django Signal (post_save)` | `core.ChangeEmailRequest` | Send a notification when a user requests to change their email. |
 | `change_users_quota` | `Custom Signal (role_granted)` | `—` | Update the user count quota for a customer when a user's role is changed. |
@@ -47,6 +48,7 @@ td:nth-child(4) {
 | `create_existing_projects_completions` | `Django Signal (post_save)` | `structure.Customer` | Create ChecklistCompletion for existing projects when customer checklist is updated. |
 | `create_initial_revision` | `Django Signal (post_save)` | `core.User` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `core.SshPublicKey` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `core.NotificationTemplate` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `structure.Customer` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `invoices.Invoice` | Create an initial reversion snapshot when an object is first created. |
 | `create_initial_revision` | `Django Signal (post_save)` | `marketplace.Resource` | Create an initial reversion snapshot when an object is first created. |
@@ -433,6 +435,7 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_vmware.Disk` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_firecrest.Job` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
+| `remove_cached_template` | `Django Signal (pre_delete)` | `core.NotificationTemplate` | Also wired as a pre_delete receiver on NotificationTemplate (see core/apps.py). |
 | `rename_clones_on_customer_slug_change` | `Django Signal (post_save)` | `structure.Customer` | Keep an organization's cloned role names in sync with its slug. |
 | `revoke_roles_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | When project is deleted, capture user role snapshots before revoking them. |
 | `revoke_user_pats_on_deactivation` | `Django Signal (pre_save)` | `core.User` | Revoke all active PATs when a user is deactivated. |
@@ -883,11 +886,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 809
+Total unique handlers found: 812
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 417 handlers
+- **waldur_core**: 420 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 339 handlers
