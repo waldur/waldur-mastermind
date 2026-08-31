@@ -55,7 +55,6 @@ dependencies = [
   "google-api-python-client>=2.176.0,<3.0.0",
   "google-auth-oauthlib>=1.2.2,<2.0.0",
   "django-health-check>=3.20.0,<4.0.0",
-  "django-dbtemplates @ git+https://github.com/jazzband/django-dbtemplates@master",
   "pydantic>=2.10.6,<3.0.0",
   "cryptography==50.0.0",
   "kubernetes>=31.0.0",

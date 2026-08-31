@@ -2,9 +2,9 @@
 Management command: load_notifications
 
 Populates the database with Notification and NotificationTemplate records
-from Waldur's registered NOTIFICATIONS registry, and seeds dbtemplates.Template
-with the built-in filesystem content so the dbtemplates loader serves the correct
-template on first use.
+from Waldur's registered NOTIFICATIONS registry. Templates are created with
+blank content, so DatabaseTemplateLoader falls through to the filesystem
+template until an operator overrides it.
 
 Template content overrides are handled separately by the override_templates command.
 
@@ -50,8 +50,6 @@ import logging
 import os
 
 import yaml
-from dbtemplates.models import Template as DBTemplate
-from dbtemplates.utils.template import get_template_source
 from django.core.management.base import BaseCommand
 from django.db import IntegrityError
 
@@ -197,11 +195,17 @@ class Command(BaseCommand):
 
     def _sync_template(self, notification, template_path, template_name):
         """
-        Ensure NotificationTemplate and DBTemplate rows exist for *template_path*.
+        Ensure a NotificationTemplate row exists for *template_path*, with blank
+        content on first creation — existing entries (including user overrides via
+        override_templates) are never touched.
 
-        DBTemplate is seeded from the built-in filesystem template on first creation
-        only — existing entries (including user overrides via override_templates) are
-        never touched.
+        Blank content means "no override, use the filesystem template" everywhere
+        else in the code. Seeding it with the filesystem source instead would
+        freeze that content at whatever it was when the row was first created:
+        get_or_create's defaults only apply once, so a later release that changes
+        the shipped template would never reach users (the loader keeps serving the
+        frozen DB copy), and the template would incorrectly start reporting as
+        overridden despite nobody having touched it.
         """
         try:
             notification_template, _ = NotificationTemplate.objects.get_or_create(
@@ -209,24 +213,6 @@ class Command(BaseCommand):
                 defaults={"name": template_name},
             )
             notification.templates.add(notification_template)
-        except NotificationTemplate.MultipleObjectsReturned:
-            logger.error(
-                "Multiple NotificationTemplate rows for path '%s' "
-                "(notification '%s') — using the first one",
-                template_path,
-                notification.key,
-            )
-            self.stdout.write(
-                self.style.ERROR(
-                    f"Multiple NotificationTemplate rows for path '{template_path}' "
-                    f"(notification '{notification.key}') — using the first one"
-                )
-            )
-            notification_template = NotificationTemplate.objects.filter(
-                path=template_path
-            ).first()
-            if notification_template:
-                notification.templates.add(notification_template)
         except (IntegrityError, Exception) as exc:
             logger.exception(
                 "Error processing template '%s' for notification '%s'",
@@ -237,29 +223,6 @@ class Command(BaseCommand):
                 self.style.ERROR(
                     f"Error processing template '{template_path}': {exc}, skipping"
                 )
-            )
-            return
-
-        self._seed_db_template(template_path)
-
-    def _seed_db_template(self, template_path):
-        """
-        Create a DBTemplate row seeded from the filesystem template if none exists yet.
-
-        Uses get_or_create so that any content already stored in the database
-        (e.g. a previous override applied by override_templates) is preserved.
-        """
-        source = get_template_source(template_path)
-        if source:
-            logger.debug("Seeding DB template from filesystem: '%s'", template_path)
-            DBTemplate.objects.get_or_create(
-                name=template_path,
-                defaults={"content": source},
-            )
-        else:
-            logger.warning(
-                "No filesystem template found for '%s', skipping DB seed",
-                template_path,
             )
 
     # ------------------------------------------------------------------

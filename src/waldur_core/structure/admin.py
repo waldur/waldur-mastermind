@@ -689,7 +689,7 @@ class NotificationAdmin(admin.ModelAdmin):
     exclude = ("templates",)
 
 
-class NotificationTemplateAdmin(admin.ModelAdmin):
+class NotificationTemplateAdmin(VersionAdmin):
     list_display = ("path", "name")
     search_fields = ("path", "name")
     inlines = [

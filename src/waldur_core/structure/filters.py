@@ -1,5 +1,4 @@
 import django_filters
-from dbtemplates.models import Template
 from django import forms
 from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
@@ -16,6 +15,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
+from waldur_core.core import template_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.filters import (
     ExternalFilterBackend,
@@ -1383,7 +1383,12 @@ class NotificationTemplateFilter(NameFilterSet):
         ]
 
     def filter_is_overridden(self, queryset, name, value):
-        return queryset.filter(path__in=Template.objects.values_list("name"))
+        overridden_uuids = [
+            obj.uuid for obj in queryset if template_utils.is_template_overridden(obj)
+        ]
+        if value:
+            return queryset.filter(uuid__in=overridden_uuids)
+        return queryset.exclude(uuid__in=overridden_uuids)
 
 
 class NotificationFilter(NameFilterSet):
@@ -1405,11 +1410,14 @@ class NotificationFilter(NameFilterSet):
         return query
 
     def filter_is_overridden(self, queryset, name, value):
-        template_names = Template.objects.values_list("name", flat=True)
         overridden_notifications = [
             notification.uuid
             for notification in queryset
-            if notification.templates.filter(path__in=template_names).exists() == value
+            if any(
+                template_utils.is_template_overridden(t)
+                for t in notification.templates.all()
+            )
+            == value
         ]
         return queryset.filter(uuid__in=overridden_notifications)
 

@@ -1,9 +1,8 @@
 import logging
 from datetime import datetime
 
+import reversion
 from constance import config as constance_config
-from dbtemplates.models import Template
-from dbtemplates.utils.cache import add_template_to_cache
 from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -44,6 +43,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.db_template_cache import add_template_to_cache
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import DetailSerializer, ReviewCommentSerializer
@@ -2917,7 +2917,11 @@ class UserAgreementsViewSet(ActionsViewSet):
 
 
 class NotificationViewSet(ActionsViewSet):
-    queryset = core_models.Notification.objects.all().order_by("id")
+    queryset = (
+        core_models.Notification.objects.all()
+        .prefetch_related("templates")
+        .order_by("id")
+    )
     serializer_class = serializers.NotificationSerializer
     permission_classes = (PATScopeAwareIsAdminUser,)
     filterset_class = filters.NotificationFilter
@@ -2977,25 +2981,18 @@ class NotificationTemplateViewSet(ActionsViewSet):
         template: core_models.NotificationTemplate = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        new_content = serializer.validated_data["content"]
-        name = template.path
-        message = f"The template {name} has been overridden"
-        try:
-            template_dbtemplates = Template.objects.get(name=name)
-            template_dbtemplates.content = new_content
-            template_dbtemplates.save()
-        except Template.DoesNotExist:
-            template_dbtemplates = Template.objects.create(
-                name=name, content=new_content
-            )
+        template.content = serializer.validated_data["content"]
+        with reversion.create_revision():
+            template.save(update_fields=["content"])
+            reversion.set_user(request.user)
+            reversion.set_comment(f"Overridden via API by {request.user.username}")
 
-        # Explicitly refresh the dbtemplates cache entry.  remove_cached_template()
-        # would be a no-op here because a freshly-created Template has no sites yet,
-        # and it never clears the "notfound" sentinel the loader plants on a DB miss.
-        # add_template_to_cache() does all three steps: removes the old positive entry,
-        # removes the notfound sentinel, and writes the new content into cache — so the
-        # override takes effect on the very next email send without a process restart.
-        add_template_to_cache(template_dbtemplates)
+        # Refresh the cache so the override takes effect on the very next render
+        # without a process restart - this also clears the "notfound" sentinel the
+        # loader plants on a miss, so a template that had never been rendered yet
+        # is not silently bypassed the first time it is.
+        add_template_to_cache(template)
+        message = f"The template {template.path} has been overridden"
         logger.info(message)
         return Response({"detail": _(message)}, status=status.HTTP_200_OK)
 

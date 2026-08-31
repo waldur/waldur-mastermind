@@ -1,13 +1,13 @@
 """
 Management command: override_templates
 
-Applies custom template content from a YAML file to the dbtemplates.Template table,
+Applies custom template content from a YAML file to NotificationTemplate rows,
 making those overrides active immediately for all subsequent email renders.
 
 Input file format (YAML):
 
-    Each key is a dbtemplates template name (the filesystem path used by Django's
-    template loader, e.g. "users/invitation_created_message.html").
+    Each key is a template path (the filesystem path used by Django's template
+    loader, e.g. "users/invitation_created_message.html").
     The value is the full replacement content for that template.
 
     Example:
@@ -30,18 +30,21 @@ Usage:
 
 import logging
 
+import reversion
 import yaml
-from dbtemplates.models import Template
-from dbtemplates.utils.cache import add_template_to_cache
 from django.core.management.base import BaseCommand
+
+from waldur_core.core.db_template_cache import add_template_to_cache
+from waldur_core.core.models import NotificationTemplate
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
     help = (
-        "Override dbtemplates content from a YAML file. "
-        "Use --clean to remove DB templates not present in the file."
+        "Override notification template content from a YAML file. "
+        "Use --clean to reset templates not present in the file to their "
+        "filesystem default."
     )
 
     def add_arguments(self, parser):
@@ -56,8 +59,8 @@ class Command(BaseCommand):
             dest="clean",
             action="store_true",
             default=False,
-            help="Remove DB templates whose names are not present in the file "
-            "(full sync mode).",
+            help="Reset templates not present in the file to their filesystem "
+            "default (full sync mode).",
         )
 
     # ------------------------------------------------------------------
@@ -92,60 +95,77 @@ class Command(BaseCommand):
 
     def _clean_removed_templates(self, templates):
         """
-        Delete every DBTemplate whose name is not present in *templates*.
+        Clear the content override of every NotificationTemplate not present in
+        *templates*.
 
         This brings the DB into full sync with the file — any template that was
         previously overridden but is no longer in the file reverts to the
-        filesystem default on the next render.
+        filesystem default on the next render. The NotificationTemplate row itself
+        is kept (it may still be part of the notification registry), only its
+        content override is cleared.
         """
-        to_delete = Template.objects.exclude(name__in=templates.keys())
-        count = to_delete.count()
-        if count:
-            names = list(to_delete.values_list("name", flat=True))
-            logger.info("Clean mode: deleting %d DB template(s): %s", count, names)
-            self.stdout.write(
-                self.style.WARNING(
-                    f"Clean mode: removing {count} DB template(s) not in file."
-                )
+        to_reset = NotificationTemplate.objects.exclude(
+            path__in=templates.keys()
+        ).exclude(content="")
+        count = to_reset.count()
+        if not count:
+            logger.debug("Clean mode: no templates to reset.")
+            return
+
+        paths = list(to_reset.values_list("path", flat=True))
+        logger.info("Clean mode: resetting %d template(s): %s", count, paths)
+        self.stdout.write(
+            self.style.WARNING(
+                f"Clean mode: resetting {count} template(s) not in file."
             )
-            to_delete.delete()
-        else:
-            logger.debug("Clean mode: no templates to remove.")
+        )
+        for template in to_reset:
+            template.content = ""
+            with reversion.create_revision():
+                template.save(update_fields=["content"])
+                reversion.set_comment(
+                    "Reset via override_templates --clean management command"
+                )
+            add_template_to_cache(template)
 
     # ------------------------------------------------------------------
     # Override application
     # ------------------------------------------------------------------
 
     def _apply_overrides(self, templates):
-        """Write *templates* content into the DB and refresh the dbtemplates cache."""
+        """Write *templates* content into the DB and refresh the template cache."""
         for path, content in templates.items():
             self._override_template(path, content)
 
     def _override_template(self, path, content):
         """
-        Create or update the DBTemplate for *path* and warm the dbtemplates cache.
+        Create or update the NotificationTemplate for *path* and warm the cache.
 
         The cache is refreshed via add_template_to_cache so the new content is
         served on the very next render without a process restart.  This also clears
         any "notfound" sentinel that may have been planted by the loader on a
         previous miss, ensuring the DB entry is not silently bypassed.
         """
-        db_template, created = Template.objects.get_or_create(
-            name=path,
-            defaults={"content": content},
+        template, created = NotificationTemplate.objects.get_or_create(
+            path=path,
+            defaults={"name": path, "content": content},
         )
-        if not created and db_template.content != content:
-            db_template.content = content
-            db_template.save()
-            logger.info("Updated DB template: '%s'", path)
+        if not created and template.content != content:
+            template.content = content
+            with reversion.create_revision():
+                template.save(update_fields=["content"])
+                reversion.set_comment(
+                    "Overridden via override_templates management command"
+                )
+            logger.info("Updated template: '%s'", path)
             self.stdout.write(f"  Updated: {path}")
         elif created:
-            logger.info("Created DB template: '%s'", path)
+            logger.info("Created template: '%s'", path)
             self.stdout.write(f"  Created: {path}")
         else:
-            logger.debug("DB template unchanged: '%s'", path)
+            logger.debug("Template unchanged: '%s'", path)
             self.stdout.write(f"  Unchanged: {path}")
 
         # Always refresh the cache so the current content is immediately active,
-        # regardless of whether the DB row was just created, updated, or unchanged.
-        add_template_to_cache(db_template)
+        # regardless of whether the row was just created, updated, or unchanged.
+        add_template_to_cache(template)

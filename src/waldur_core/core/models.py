@@ -1037,17 +1037,23 @@ class Feature(models.Model):
     value = models.BooleanField(default=False)
 
 
+@reversion.register()
 class NotificationTemplate(UuidMixin, NameMixin, TimeStampedModel):
     """
     Model for storing notification templates.
 
-    Stores template paths for different notification types.
-    Used by the notification system to render email and other notifications.
+    Stores template paths for different notification types, along with the
+    DB-stored content override served by DatabaseTemplateLoader. Blank content
+    means no override is stored and the filesystem template is used as-is.
     """
 
     path = models.CharField(
-        _("path"), max_length=150, help_text=_("Example: 'flatpages/default.html'")
+        _("path"),
+        max_length=150,
+        unique=True,
+        help_text=_("Example: 'flatpages/default.html'"),
     )
+    content = models.TextField(_("content"), blank=True, default="")
 
     class Meta:
         ordering = ["name", "path", "id"]

@@ -1,7 +1,6 @@
 import json
 import tempfile
 
-from dbtemplates.models import Template
 from ddt import data, ddt
 from django.core.management import call_command
 from django.test import TestCase
@@ -18,12 +17,6 @@ class NotificationList(test.APITestCase):
         self.notification_1 = factories.NotificationFactory(key="app_name.event_name")
         self.notification_2 = factories.NotificationFactory(key="app_name.event_name2")
         self.url = factories.NotificationFactory.get_list_url()
-        Template.objects.create(name="app_name/event_name_message.html")
-        Template.objects.create(name="app_name/event_name_message.txt")
-        Template.objects.create(name="app_name/event_name_subject.txt")
-        Template.objects.create(name="app_name/event_name2_message.html")
-        Template.objects.create(name="app_name/event_name2_message.txt")
-        Template.objects.create(name="app_name/event_name2_subject.txt")
 
     @data("staff")
     def test_admin_user_can_list_notifications(self, user):
@@ -58,9 +51,6 @@ class NotificationChangeTest(test.APITestCase):
         self.enable_url = factories.NotificationFactory.get_url(
             self.notification_1, action="enable"
         )
-        Template.objects.create(name="app_name/event_name_message.html")
-        Template.objects.create(name="app_name/event_name_message.txt")
-        Template.objects.create(name="app_name/event_name_subject.txt")
 
     @data("staff")
     def test_staff_can_change_notifications(self, user):
@@ -136,15 +126,14 @@ class NotificationTemplateListTest(test.APITestCase):
     def test_staff_can_override_notification_templates(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
-        template = Template.objects.create(name=self.template.path)
         new_content = {"content": "new_content"}
 
         response = self.client.post(self.override_url, new_content)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
         response = self.client.get(self.url)
-        template.refresh_from_db()
-        self.assertEqual(response.data[0]["content"], template.content)
+        self.template.refresh_from_db()
+        self.assertEqual(response.data[0]["content"], self.template.content)
 
     @data("staff")
     def test_staff_cannot_override_template_with_invalid_content(self, user):
@@ -154,11 +143,10 @@ class NotificationTemplateListTest(test.APITestCase):
         """
         self.client.force_authenticate(getattr(self.fixture, user))
 
-        # Create an initial template in the DB to override
+        # Set an initial content override to verify it survives the failed request
         original_content = "This is the original content."
-        db_template = Template.objects.create(
-            name=self.template.path, content=original_content
-        )
+        self.template.content = original_content
+        self.template.save(update_fields=["content"])
 
         # Prepare payload with invalid template syntax (e.g., unmatched tag)
         invalid_content_payload = {
@@ -174,8 +162,8 @@ class NotificationTemplateListTest(test.APITestCase):
         self.assertIn("Invalid template syntax", response.data["content"][0])
 
         # Verify that the template content was not changed
-        db_template.refresh_from_db()
-        self.assertEqual(db_template.content, original_content)
+        self.template.refresh_from_db()
+        self.assertEqual(self.template.content, original_content)
 
     @data("staff")
     def test_list_view_handles_invalid_db_content(self, user):
@@ -185,13 +173,14 @@ class NotificationTemplateListTest(test.APITestCase):
         """
         self.client.force_authenticate(getattr(self.fixture, user))
 
-        # 1. Store syntactically INVALID content directly into the DB template model
+        # 1. Store syntactically INVALID content directly on the template model
         # Note: This simulates a template being saved with errors, perhaps via raw SQL
         # or an old process without validation.
         INVALID_CONTENT = (
             "This content has a syntax error: {% if invitation['type'] == 'project' %}"
         )
-        Template.objects.create(name=self.template.path, content=INVALID_CONTENT)
+        self.template.content = INVALID_CONTENT
+        self.template.save(update_fields=["content"])
 
         # 2. Get the list view
         response = self.client.get(self.url)
