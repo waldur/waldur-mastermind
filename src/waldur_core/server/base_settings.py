@@ -131,6 +131,10 @@ REST_FRAMEWORK = {
         # user out of password auth simply by grinding assertions.
         "passkey_signin": "30/min",
         "passkey_registration": "20/min",
+        # Guards the staff-only mail diagnostics: the probe opens a socket to a
+        # third-party relay and the test send delivers a real message, so both
+        # are cheap to abuse and rare in legitimate use.
+        "email_diagnostics": "20/hour",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
     "DEFAULT_SCHEMA_CLASS": "waldur_core.core.openapi_inspector.WaldurOpenApiInspector",

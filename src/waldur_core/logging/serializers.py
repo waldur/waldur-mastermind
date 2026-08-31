@@ -1388,3 +1388,96 @@ class EventConsumerSerializer(serializers.ModelSerializer):
             "modified",
         )
         read_only_fields = fields
+
+
+class EmailConfigSerializer(serializers.Serializer):
+    """Effective outgoing mail settings. The password is never exposed."""
+
+    backend = serializers.CharField(
+        read_only=True, help_text="EMAIL_BACKEND class path"
+    )
+    host = serializers.CharField(read_only=True, help_text="EMAIL_HOST")
+    port = serializers.IntegerField(
+        read_only=True, allow_null=True, help_text="EMAIL_PORT"
+    )
+    host_user = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="EMAIL_HOST_USER"
+    )
+    has_password = serializers.BooleanField(
+        read_only=True, help_text="Whether EMAIL_HOST_PASSWORD is set"
+    )
+    use_tls = serializers.BooleanField(read_only=True, help_text="EMAIL_USE_TLS")
+    use_ssl = serializers.BooleanField(read_only=True, help_text="EMAIL_USE_SSL")
+    timeout = serializers.IntegerField(
+        read_only=True, allow_null=True, help_text="EMAIL_TIMEOUT in seconds"
+    )
+    default_from_email = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="DEFAULT_FROM_EMAIL"
+    )
+    default_reply_to_email = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="DEFAULT_REPLY_TO_EMAIL"
+    )
+    subject_prefix = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="EMAIL_SUBJECT_PREFIX"
+    )
+
+
+class EmailFindingSerializer(serializers.Serializer):
+    """A single outcome of the mail configuration audit."""
+
+    level = serializers.CharField(read_only=True, help_text="OK, WARNING or ERROR")
+    code = serializers.CharField(read_only=True, help_text="Stable machine-readable id")
+    title = serializers.CharField(read_only=True, help_text="Short summary")
+    detail = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="What was observed"
+    )
+    remediation = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="How to fix it"
+    )
+
+
+class EmailDiagnosticsSerializer(serializers.Serializer):
+    """Outcome of the outgoing mail sanity check."""
+
+    status = serializers.CharField(
+        read_only=True, help_text="Worst finding level: OK, WARNING or ERROR"
+    )
+    config = EmailConfigSerializer(read_only=True)
+    findings = EmailFindingSerializer(many=True, read_only=True)
+    enabled_notification_count = serializers.IntegerField(read_only=True)
+    total_notification_count = serializers.IntegerField(read_only=True)
+    emails_sent_last_week = serializers.IntegerField(read_only=True)
+    last_email_sent_at = serializers.DateTimeField(read_only=True, allow_null=True)
+
+
+class EmailProbeSerializer(serializers.Serializer):
+    """Outcome of an SMTP connection attempt."""
+
+    success = serializers.BooleanField(read_only=True)
+    latency_ms = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Time to open the connection, in milliseconds",
+    )
+    error = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="Failure reason, empty on success"
+    )
+
+
+class EmailTestSendRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(
+        required=False,
+        help_text="Recipient of the test message. Defaults to the current user's own address.",
+    )
+
+
+class EmailTestSendResultSerializer(serializers.Serializer):
+    """Outcome of sending a test message."""
+
+    success = serializers.BooleanField(read_only=True)
+    email = serializers.EmailField(
+        read_only=True, help_text="Address the test was sent to"
+    )
+    error = serializers.CharField(
+        read_only=True, allow_blank=True, help_text="Failure reason, empty on success"
+    )
