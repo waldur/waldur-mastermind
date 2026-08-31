@@ -31,7 +31,6 @@ class Migration(migrations.Migration):
         ("authtoken", "0004_alter_tokenproxy_options"),
         ("contenttypes", "0002_remove_content_type_name"),
         ("core", "0032_personal_access_token_allowed_scopes"),
-        ("dbtemplates", "0002_alter_template_creation_date_and_more"),
         ("reversion", "0001_squashed_0004_auto_20160611_1202"),
     ]
 

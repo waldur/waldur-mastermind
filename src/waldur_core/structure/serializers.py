@@ -5,7 +5,6 @@ from datetime import datetime
 
 from constance import config
 from cryptography.hazmat.primitives.serialization import load_ssh_public_key
-from dbtemplates import models as dbtemplate_models
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
@@ -28,6 +27,7 @@ from waldur_core.checklist.utils import serialize_completion_answers
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import template_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
@@ -3437,26 +3437,13 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
         }
 
     def get_content(self, obj: core_models.NotificationTemplate) -> str | None:
-        try:
-            return dbtemplate_models.Template.objects.get(name=obj.path).content
-        except dbtemplate_models.Template.DoesNotExist:
-            return None
+        return obj.content or None
 
     def get_original_content(self, obj) -> str | None:
-        from django.template.engine import Engine
-        from django.template.loaders.app_directories import Loader
-
-        loader = Loader(Engine())
-        for origin in loader.get_template_sources(obj.path):
-            try:
-                source = loader.get_contents(origin)
-            except Exception:
-                continue
-            if source:
-                return source
+        return template_utils.get_original_content(obj.path)
 
     def get_is_content_overridden(self, obj) -> bool:
-        return self.get_content(obj) != self.get_original_content(obj)
+        return template_utils.is_template_overridden(obj)
 
 
 class NotificationSerializer(serializers.HyperlinkedModelSerializer):

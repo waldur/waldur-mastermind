@@ -1,15 +1,24 @@
 from unittest import mock
 
-from dbtemplates.models import Template
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.models import NotificationTemplate
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.smax_utils import Comment, Issue
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
+
+
+def _set_notification_template(path, content):
+    # update_or_create rather than a bare .create(): path is now unique, and
+    # this notification path is real (part of the registered NOTIFICATIONS),
+    # so another test setting it up first must not fail this one.
+    NotificationTemplate.objects.update_or_create(
+        path=path, defaults={"name": path, "content": content}
+    )
 
 
 class CommentCreateTest(smax_base.BaseTest):
@@ -158,17 +167,14 @@ class CommentNotificationTest(smax_base.BaseTest):
         structure_factories.NotificationFactory(
             key="support.notification_comment_added", enabled=True
         )
-        Template.objects.create(
-            name="support/notification_comment_added_message.html",
-            content="{{ description|safe }}",
+        _set_notification_template(
+            "support/notification_comment_added_message.html", "{{ description|safe }}"
         )
-        Template.objects.create(
-            name="support/notification_comment_added_message.txt",
-            content="{{ description }}",
+        _set_notification_template(
+            "support/notification_comment_added_message.txt", "{{ description }}"
         )
-        Template.objects.create(
-            name="support/notification_comment_added_subject.txt",
-            content="New comment.",
+        _set_notification_template(
+            "support/notification_comment_added_subject.txt", "New comment."
         )
         serialized_comment = core_utils.serialize_instance(self.comment)
         tasks.send_comment_added_notification(serialized_comment)
@@ -183,17 +189,16 @@ class CommentNotificationTest(smax_base.BaseTest):
         structure_factories.NotificationFactory(
             key="support.notification_comment_updated", enabled=True
         )
-        Template.objects.create(
-            name="support/notification_comment_updated_message.html",
-            content="New: {{ description|safe }}, old: {{ old_description|safe }}",
+        _set_notification_template(
+            "support/notification_comment_updated_message.html",
+            "New: {{ description|safe }}, old: {{ old_description|safe }}",
         )
-        Template.objects.create(
-            name="support/notification_comment_updated_message.txt",
-            content="New: {{ description }}, old: {{ old_description|safe }}",
+        _set_notification_template(
+            "support/notification_comment_updated_message.txt",
+            "New: {{ description }}, old: {{ old_description|safe }}",
         )
-        Template.objects.create(
-            name="support/notification_comment_updated_subject.txt",
-            content="Update comment.",
+        _set_notification_template(
+            "support/notification_comment_updated_subject.txt", "Update comment."
         )
         serialized_comment = core_utils.serialize_instance(self.comment)
         old_description = "<p>old message</p>"

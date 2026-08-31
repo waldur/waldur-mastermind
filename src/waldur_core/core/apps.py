@@ -15,12 +15,14 @@ class CoreConfig(AppConfig):
         import waldur_core.core.openapi_extensions  # noqa
         from waldur_core.core import (
             checks,  # noqa
+            db_template_cache,
             handlers,
         )
         from waldur_core.core.health_checks import CeleryWorkersHealthCheck
         from waldur_core.core.models import StateMixin, User
 
         SshPublicKey = self.get_model("SshPublicKey")
+        NotificationTemplate = self.get_model("NotificationTemplate")
 
         signals.pre_save.connect(
             handlers.preserve_fields_before_update,
@@ -58,12 +60,24 @@ class CoreConfig(AppConfig):
             dispatch_uid="waldur_core.core.handlers.log_ssh_key_save",
         )
 
-        for model in (User, SshPublicKey):
+        for model in (User, SshPublicKey, NotificationTemplate):
             signals.post_save.connect(
                 handlers.create_initial_revision,
                 sender=model,
                 dispatch_uid=f"waldur_core.core.create_initial_revision_{model.__name__}",
             )
+
+        signals.post_save.connect(
+            db_template_cache.add_template_to_cache,
+            sender=NotificationTemplate,
+            dispatch_uid="waldur_core.core.db_template_cache.add_template_to_cache",
+        )
+
+        signals.pre_delete.connect(
+            db_template_cache.remove_cached_template,
+            sender=NotificationTemplate,
+            dispatch_uid="waldur_core.core.db_template_cache.remove_cached_template",
+        )
 
         signals.post_save.connect(
             handlers.create_revision_on_update,

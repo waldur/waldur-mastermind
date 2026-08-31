@@ -22,7 +22,6 @@ TEMPLATE_PATHS = [
 def remove_quota_notifications(apps, schema_editor):
     Notification = apps.get_model("core", "Notification")
     NotificationTemplate = apps.get_model("core", "NotificationTemplate")
-    DBTemplate = apps.get_model("dbtemplates", "Template")
 
     notifications = Notification.objects.filter(key__in=NOTIFICATION_KEYS)
     logger.info("Deleting %s quota notification(s)", notifications.count())
@@ -32,15 +31,10 @@ def remove_quota_notifications(apps, schema_editor):
     logger.info("Deleting %s quota notification template(s)", templates.count())
     templates.delete()
 
-    db_templates = DBTemplate.objects.filter(name__in=TEMPLATE_PATHS)
-    logger.info("Deleting %s quota DB template(s)", db_templates.count())
-    db_templates.delete()
-
 
 class Migration(migrations.Migration):
     dependencies = [
         ("core", "0037_user_organization_address"),
-        ("dbtemplates", "0002_alter_template_creation_date_and_more"),
     ]
 
     operations = [

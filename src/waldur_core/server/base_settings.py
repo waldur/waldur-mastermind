@@ -37,9 +37,6 @@ MEDIA_ROOT = "/media_root/"
 MEDIA_URL = "/media/"
 
 ALLOWED_HOSTS = []
-SITE_ID = 1
-DBTEMPLATES_USE_REVERSION = True
-DBTEMPLATES_USE_CODEMIRROR = True
 
 # Application definition
 INSTALLED_APPS = (
@@ -49,7 +46,6 @@ INSTALLED_APPS = (
     "django.contrib.messages",
     "django.contrib.humanize",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
     "django.contrib.postgres",
     "waldur_core.landing",
     "waldur_core.core",
@@ -79,7 +75,6 @@ INSTALLED_APPS = (
     "health_check.contrib.migrations",
     # Note: We use waldur_core.core.health_checks.CeleryWorkersHealthCheck instead of
     # health_check.contrib.celery_ping for better performance (connection pooling + targeted pings)
-    "dbtemplates",
     "netfields",
     "constance",
     "constance.backends.database",
@@ -189,7 +184,7 @@ TEMPLATES = [
         "OPTIONS": {
             "context_processors": CONTEXT_PROCESSORS,
             "loaders": (
-                "dbtemplates.loader.Loader",
+                "waldur_core.core.template_loaders.DatabaseTemplateLoader",
                 "django.template.loaders.filesystem.Loader",
                 "django.template.loaders.app_directories.Loader",
             ),
