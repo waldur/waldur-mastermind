@@ -20,7 +20,9 @@ from rest_framework import (
     status,
     viewsets,
 )
+from rest_framework.throttling import ScopedRateThrottle
 
+from waldur_core.core import email_diagnostics
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -1343,3 +1345,128 @@ class EventConsumerViewSet(
         out = serializers.EventConsumerRegistrationResponseSerializer(data=result)
         out.is_valid(raise_exception=True)
         return response.Response(out.data, status=status.HTTP_201_CREATED)
+
+
+class EmailDebugViewSet(viewsets.ViewSet):
+    """
+    Staff-only sanity check for the outgoing email configuration.
+
+    Waldur ships no relay of its own and every notification type ships
+    disabled, so a fresh installation sends nothing and logs nothing to
+    explain why. This endpoint reports both halves, probes the relay on
+    demand, and sends a test message.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
+    serializer_class = (
+        serializers.EmailDiagnosticsSerializer
+    )  # Default for OpenAPI schema
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "email_diagnostics"
+
+    def get_throttles(self):
+        # Reading the audit opens no socket and sends nothing, so it is exempt
+        # from the throttle that guards the two actions which do.
+        if self.action == "config":
+            return []
+        return super().get_throttles()
+
+    @extend_schema(
+        summary="Audit the outgoing email configuration",
+        description="""Reports the effective mail settings and the problems found in them.
+
+Reads settings only — no connection is opened and no message is sent.
+Covers the two independent halves of email delivery: a usable SMTP relay,
+and at least one enabled notification type. Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.EmailDiagnosticsSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def config(self, request):
+        diagnostics = email_diagnostics.collect_diagnostics()
+        return response.Response(diagnostics.to_dict(), status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Test the SMTP connection",
+        description="""Opens and closes a connection to the configured relay without sending a message.
+
+The connection is made from the API process, which may reach the network
+differently than the Celery workers that send real notifications.
+Requires staff permissions.""",
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.EmailProbeSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def probe(self, request):
+        result = email_diagnostics.probe_smtp()
+        logger.info(
+            "User %s probed the SMTP connection: %s",
+            request.user.uuid,
+            "reachable" if result["success"] else result["error"],
+        )
+        return response.Response(result, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Send a test email",
+        description="""Sends a test message through the same code path as real notifications.
+
+Defaults to the address of the requesting user. Requires staff permissions.""",
+        request=serializers.EmailTestSendRequestSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.EmailTestSendResultSerializer,
+            status.HTTP_400_BAD_REQUEST: None,
+        },
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def send_test(self, request):
+        input_serializer = serializers.EmailTestSendRequestSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        recipient = input_serializer.validated_data.get("email") or request.user.email
+        if not recipient:
+            raise rest_framework.serializers.ValidationError(
+                {
+                    "email": "Your account has no email address, so a recipient must be given."
+                }
+            )
+
+        # An authenticated staff user can name any recipient here, so leave a
+        # trail that ties the message to the person who asked for it.
+        logger.info(
+            "User %s is sending a test email to %s",
+            request.user.uuid,
+            recipient,
+        )
+        try:
+            core_utils.send_mail(
+                subject="Waldur test message",
+                body=(
+                    "This is a test message sent from the Waldur administration interface "
+                    f"by {request.user.full_name or request.user.username}.\n\n"
+                    "Receiving it confirms that the SMTP relay accepts and delivers mail "
+                    "from this installation."
+                ),
+                to=[recipient],
+                fail_silently=False,
+                # An explicit timeout, for the same reason the probe carries one:
+                # the deployments that reach for this button are the ones whose
+                # relay may accept a connection and then never answer, and this
+                # runs inline in the request.
+                connection=email_diagnostics.open_connection(),
+            )
+        except Exception as e:
+            logger.warning("Test email to %s failed: %s", recipient, e)
+            return response.Response(
+                {
+                    "success": False,
+                    "email": recipient,
+                    "error": f"{type(e).__name__}: {e}",
+                },
+                status=status.HTTP_200_OK,
+            )
+        return response.Response(
+            {"success": True, "email": recipient, "error": ""},
+            status=status.HTTP_200_OK,
+        )

@@ -419,6 +419,11 @@ class EmailLog(UuidMixin):
 
     class Meta:
         ordering = ["-sent_at", "id"]
+        # The table is append-only and grows with every notification ever sent,
+        # so both the log listing and the email diagnostics — which read the
+        # most recent row and count the last week — would otherwise sort or
+        # scan the whole of it.
+        indexes = [models.Index(fields=["-sent_at"])]
 
 
 class SystemLog(TimeStampedModel):

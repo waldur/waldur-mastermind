@@ -37,6 +37,7 @@ def register_in(router):
 # Debug router for staff-only debugging endpoints under /api/debug/
 debug_router = DefaultRouter()
 debug_router.register(r"pubsub", views.PubsubDebugViewSet, basename="pubsub-debug")
+debug_router.register(r"email", views.EmailDebugViewSet, basename="email-debug")
 
 
 urlpatterns = [
