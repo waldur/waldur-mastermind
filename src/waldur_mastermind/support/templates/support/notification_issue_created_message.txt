@@ -1,0 +1,12 @@
+A new support request has been created.
+
+Request: {{ issue.key }}
+Summary: {{ issue.summary.strip }}
+Type: {{ issue.type }}
+{% if issue.priority %}Priority: {{ issue.priority }}
+{% endif %}Reported by: {{ issue.caller.full_name|default:issue.caller.username|default:"unknown" }}
+{% if issue.customer %}Organization: {{ issue.customer.name }}
+{% endif %}{% if issue.project %}Project: {{ issue.project.name }}
+{% endif %}
+Description:
+{{ issue.description.strip }}

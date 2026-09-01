@@ -487,6 +487,48 @@ def reroute_issue_to_provider(issue, new_helpdesk):
     return new_child, old_helpdesks
 
 
+@shared_task(name="waldur_mastermind.support.notify_staff_new_issue")
+def notify_staff_new_issue(issue_id):
+    """Tell helpdesk personnel that a support request has been created.
+
+    Only the built-in service desk uses this: Atlassian, Zammad and SMAX notify
+    their own agents, and a ticket routed to a provider helpdesk is announced by
+    `notify_provider_new_ticket` instead.
+    """
+    try:
+        issue = models.Issue.objects.select_related(
+            "caller", "customer", "project"
+        ).get(id=issue_id)
+    except models.Issue.DoesNotExist:
+        return
+
+    recipients = list(
+        core_models.User.objects.filter(is_active=True, notifications_enabled=True)
+        .filter(Q(is_staff=True) | Q(is_support=True))
+        .exclude(email="")
+        .values_list("email", flat=True)
+        .distinct()
+    )
+    if not recipients:
+        logger.info(
+            "No staff or support user is available to notify about issue %s.",
+            issue.key,
+        )
+        return
+
+    try:
+        broadcast_mail(
+            "support",
+            "notification_issue_created",
+            {"issue": issue},
+            recipients,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to send new issue notification for issue %s", issue.key
+        )
+
+
 @shared_task(name="waldur_mastermind.support.notify_provider_new_ticket")
 def notify_provider_new_ticket(issue_id):
     """Notify provider about a new ticket routed to their helpdesk."""
