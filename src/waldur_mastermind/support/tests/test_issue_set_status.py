@@ -2,6 +2,7 @@ import pytest
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.support import models
 from waldur_mastermind.support.tests import factories
@@ -258,3 +259,81 @@ class SupportStatisticsTest(TestCase):
         stats = self.get_stats()
         self.assertEqual(stats["open_issues_count"], 0)
         self.assertEqual(stats["closed_this_month_count"], 1)
+
+
+@pytest.mark.override_config(
+    WALDUR_SUPPORT_ENABLED=True,
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
+    WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED=True,
+)
+class SupportStatisticsAccessTest(test.APITestCase):
+    """Who may read the deployment-wide ticket counts.
+
+    Until this gate the endpoint had no permission class at all, so any
+    authenticated user could read them.
+    """
+
+    url = "/api/support-statistics/"
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ServiceFixture()
+        models.IssueStatus.objects.create(
+            name="Resolved", type=models.IssueStatus.Types.RESOLVED
+        )
+        self.helpdesk = factories.ProviderHelpdeskFactory()
+        # One ticket for this provider, one for nobody in particular.
+        self.provider_issue = factories.IssueFactory(
+            status="Open", backend_name="basic", provider_helpdesk=self.helpdesk
+        )
+        self.other_issue = factories.IssueFactory(status="Open", backend_name="basic")
+
+    def get(self, user):
+        self.client.force_authenticate(user)
+        return self.client.get(self.url)
+
+    def test_staff_sees_the_whole_deployment(self):
+        response = self.get(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["open_issues_count"], 2)
+
+    def test_support_sees_the_whole_deployment(self):
+        response = self.get(self.fixture.global_support)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["open_issues_count"], 2)
+
+    def test_regular_user_is_refused(self):
+        self.assertEqual(
+            self.get(self.fixture.user).status_code, status.HTTP_403_FORBIDDEN
+        )
+
+    def test_customer_owner_without_a_helpdesk_is_refused(self):
+        self.assertEqual(
+            self.get(self.fixture.owner).status_code, status.HTTP_403_FORBIDDEN
+        )
+
+    def test_provider_agent_sees_only_their_own_tickets(self):
+        agent = structure_factories.UserFactory()
+        models.ProviderSupportUser.objects.create(
+            user=agent, provider_helpdesk=self.helpdesk, is_active=True
+        )
+        response = self.get(agent)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body["open_issues_count"], 1)
+        # Broadcasts are the operator talking to their users.
+        self.assertEqual(body["recent_broadcasts_count"], 0)
+
+    def test_inactive_provider_agent_is_refused(self):
+        agent = structure_factories.UserFactory()
+        models.ProviderSupportUser.objects.create(
+            user=agent, provider_helpdesk=self.helpdesk, is_active=False
+        )
+        self.assertEqual(self.get(agent).status_code, status.HTTP_403_FORBIDDEN)
+
+    @pytest.mark.override_config(WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED=False)
+    def test_provider_agent_is_refused_when_routing_is_off(self):
+        agent = structure_factories.UserFactory()
+        models.ProviderSupportUser.objects.create(
+            user=agent, provider_helpdesk=self.helpdesk, is_active=True
+        )
+        self.assertEqual(self.get(agent).status_code, status.HTTP_403_FORBIDDEN)
