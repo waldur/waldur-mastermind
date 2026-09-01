@@ -22,9 +22,9 @@ class RuleViewSet(ActionsViewSet):
         structure_filters.GenericRoleFilter,
     ]
     lookup_field = "uuid"
-    destroy_permissions = update_permissions = partial_update_permissions = [
-        structure_permissions.is_staff
-    ]
+    create_permissions = destroy_permissions = update_permissions = (
+        partial_update_permissions
+    ) = [structure_permissions.is_staff]
 
     @extend_schema(
         summary="Dry-run rule evaluation against a target user.",
