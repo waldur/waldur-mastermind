@@ -8,7 +8,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.support.models import Issue
 
-from . import models, tasks
+from . import backend, models, tasks
 
 
 def get_issue_scopes(issue: Issue) -> set:
@@ -164,6 +164,38 @@ def send_comment_added_notification(
                     serialized_comment, old_description
                 )
             )
+
+
+def send_issue_created_notification(
+    sender, instance: models.Issue, created=False, **kwargs
+):
+    """Tell helpdesk personnel that a new support request has arrived.
+
+    Only for the built-in service desk. Atlassian, Zammad and SMAX notify their
+    own agents, so announcing the ticket again from Waldur would double up.
+    """
+    if created:
+        # The basic backend creates an issue in two saves — first without a
+        # backend id, then with one — so the ticket does not properly exist yet.
+        # Wait for the key, the same way log_issue_save decides an issue was
+        # really created.
+        return
+
+    if not instance.key or not instance.tracker.has_changed("key"):
+        return
+
+    if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE != backend.SupportBackendType.BASIC:
+        return
+
+    if instance.provider_helpdesk_id:
+        # A ticket routed to a provider is a child issue that also passes
+        # through BasicBackend.create_issue when that helpdesk is of type
+        # basic. It belongs to the provider, who gets notify_provider_new_ticket
+        # instead — the operator's staff should not be told twice.
+        return
+
+    issue_id = instance.id
+    transaction.on_commit(lambda: tasks.notify_staff_new_issue.delay(issue_id))
 
 
 def send_issue_updated_notification(

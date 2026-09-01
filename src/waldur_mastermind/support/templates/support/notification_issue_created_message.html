@@ -1,0 +1,10 @@
+<p>A new support request has been created.</p>
+<p><strong>Request:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary.strip }}<br>
+<strong>Type:</strong> {{ issue.type }}<br>
+{% if issue.priority %}<strong>Priority:</strong> {{ issue.priority }}<br>{% endif %}
+<strong>Reported by:</strong> {{ issue.caller.full_name|default:issue.caller.username|default:"unknown" }}
+{% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}
+{% if issue.project %}<br><strong>Project:</strong> {{ issue.project.name }}{% endif %}</p>
+<p><strong>Description:</strong></p>
+<p>{{ issue.description.strip }}</p>

@@ -2840,6 +2840,56 @@ Notification about an update in the issue comment. The recipient is issue caller
 
 ```
 
+### support.notification_issue_created
+
+Notification to staff and support users about a newly created support request. Sent only by the built-in service desk — the Atlassian, Zammad and SMAX backends notify their own agents.
+
+#### Templates
+
+=== "support/notification_issue_created_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] New support request: {{ issue.summary.strip }}
+
+```
+
+=== "support/notification_issue_created_message.txt"
+
+```txt
+
+    A new support request has been created.
+
+    Request: {{ issue.key }}
+    Summary: {{ issue.summary.strip }}
+    Type: {{ issue.type }}
+    {% if issue.priority %}Priority: {{ issue.priority }}
+    {% endif %}Reported by: {{ issue.caller.full_name|default:issue.caller.username|default:"unknown" }}
+    {% if issue.customer %}Organization: {{ issue.customer.name }}
+    {% endif %}{% if issue.project %}Project: {{ issue.project.name }}
+    {% endif %}
+    Description:
+    {{ issue.description.strip }}
+
+```
+
+=== "support/notification_issue_created_message.html"
+
+```txt
+
+    <p>A new support request has been created.</p>
+    <p><strong>Request:</strong> {{ issue.key }}<br>
+    <strong>Summary:</strong> {{ issue.summary.strip }}<br>
+    <strong>Type:</strong> {{ issue.type }}<br>
+    {% if issue.priority %}<strong>Priority:</strong> {{ issue.priority }}<br>{% endif %}
+    <strong>Reported by:</strong> {{ issue.caller.full_name|default:issue.caller.username|default:"unknown" }}
+    {% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}
+    {% if issue.project %}<br><strong>Project:</strong> {{ issue.project.name }}{% endif %}</p>
+    <p><strong>Description:</strong></p>
+    <p>{{ issue.description.strip }}</p>
+
+```
+
 ### support.notification_issue_feedback
 
 Notification about a feedback related to the issue. The recipient is issue caller.

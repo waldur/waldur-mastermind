@@ -808,6 +808,10 @@ class IssueUpdatedContext(BaseIssueContext):
     )
 
 
+class IssueCreatedContext(BaseModel):
+    issue: Any = Field(description="The newly created Issue model instance.")
+
+
 class ProviderTicketContext(BaseModel):
     issue: Any = Field(
         description="The Issue model instance routed to (or withdrawn from) the provider helpdesk."
@@ -844,6 +848,13 @@ class SupportSection(NotificationSection):
         description="A template used for generating the issue description field during issue creation.",
         templates=[NotificationTemplate(path="description.txt", name="description")],
         context_model=IssueGenerationContext,
+    )
+    notification_issue_created = Notification(
+        key="notification_issue_created",
+        description="Notification to staff and support users about a newly "
+        "created support request. Sent only by the built-in service desk — the "
+        "Atlassian, Zammad and SMAX backends notify their own agents.",
+        context_model=IssueCreatedContext,
     )
     notification_comment_added = Notification(
         key="notification_comment_added",
