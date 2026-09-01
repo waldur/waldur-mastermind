@@ -50,6 +50,13 @@ class ProviderHelpdeskBaseTest(test.APITestCase):
         )
         self.mock_get_active_backend().get_users.return_value = [1]
         self.mock_get_active_backend().get_issue_details.return_value = {}
+        self.mock_get_active_backend().get_available_statuses.return_value = []
+        # Every backend that permits updates persists them from update_issue
+        # (BasicBackend and EmailSupportBackend both end in issue.save()), and
+        # the views rely on that rather than saving behind the backend's back.
+        self.mock_get_active_backend().update_issue.side_effect = (
+            lambda issue: issue.save()
+        )
         self.mock_get_active_backend().summary_max_length = 255
         self.mock_get_active_backend().pull_support_users = mock.MagicMock()
         self.mock_get_active_backend().create_comment = mock.MagicMock()
@@ -1269,6 +1276,13 @@ class IssueEscalateTest(ProviderHelpdeskBaseTest):
 class IssueBulkUpdateTest(ProviderHelpdeskBaseTest):
     def setUp(self):
         super().setUp()
+        # A bulk status change is validated against what the backend offers, the
+        # same way the single-issue set_status action is, so the stand-in
+        # backend has to say which statuses it permits.
+        self.mock_get_active_backend().get_available_statuses.return_value = [
+            "in_progress",
+            "closed",
+        ]
         self.issue1 = factories.IssueFactory(
             backend_id="WLD-BU01", status="open", priority="low"
         )

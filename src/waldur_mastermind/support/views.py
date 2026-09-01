@@ -56,6 +56,19 @@ class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
     extension_name = "WALDUR_SUPPORT"
 
 
+def validate_status_change_allowed(issue):
+    """Only Waldur's own, unrouted issues may have their status written here."""
+    if not backend.get_active_backend().update_is_available(issue):
+        raise ValidationError("Updating is not available.")
+    # A routed issue belongs to the provider's helpdesk: its status arrives over
+    # that provider's webhook, and writing it here would be silently overwritten
+    # by the next inbound sync.
+    if issue.provider_helpdesk_id:
+        raise ValidationError(
+            "Issue is routed to a provider helpdesk, which owns its status."
+        )
+
+
 class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Issue.objects.prefetch_related(
         Prefetch(
@@ -117,6 +130,51 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         structure_permissions.is_staff_or_support
     ]
     update_validators = partial_update_validators = [_update_is_available_validator]
+
+    def _set_status(self, issue, new_status):
+        """Apply a status change through the backend that owns the issue.
+
+        Raises ValidationError rather than letting SupportBackendError escape:
+        it does not derive from ServiceBackendError, so an illegal transition
+        would otherwise surface as a 500.
+        """
+        issue.status = new_status
+        try:
+            backend.get_active_backend().update_issue(issue)
+        except backend.SupportBackendError as e:
+            raise ValidationError(str(e))
+
+    @extend_schema(
+        summary="Move an issue to another status",
+        request=serializers.SetIssueStatusSerializer,
+        responses={200: serializers.IssueSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def set_status(self, request, uuid=None):
+        """Change the status of an issue Waldur itself owns.
+
+        `_update_is_available_validator` keeps this off the externally-backed
+        issues: Jira, Zammad and SMAX inherit `update_is_available` as False, so
+        their status stays whatever the remote service desk last told us.
+        """
+        issue = self.get_object()
+        serializer = self.get_serializer(
+            data=request.data, context={**self.get_serializer_context(), "issue": issue}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        self._set_status(issue, serializer.validated_data["status"])
+
+        return response.Response(
+            serializers.IssueSerializer(
+                issue, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    set_status_permissions = [structure_permissions.is_staff_or_support]
+    set_status_validators = [validate_status_change_allowed]
+    set_status_serializer_class = serializers.SetIssueStatusSerializer
 
     @transaction.atomic()
     def perform_destroy(self, issue):
@@ -257,7 +315,29 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             raise ValidationError("No issues found with the given UUIDs.")
 
         if "status" in data:
-            issues.update(status=data["status"])
+            # A raw queryset.update() here used to let a status be written for
+            # any backend, including the externally-backed ones whose status
+            # belongs to the remote service desk. It also skipped the field
+            # tracker, so no transition check, no resolution date, and none of
+            # the handlers that complete a support-offering order ever ran.
+            #
+            # Every issue is checked before any is written. Rejecting halfway
+            # through would leave the batch half-applied: DRF turns the
+            # ValidationError into a 400 response inside the atomic block, and
+            # its set_rollback() is a no-op unless the database is configured
+            # with ATOMIC_REQUESTS, which Waldur does not use. The operator
+            # would see a failure with some tickets already moved.
+            targets = list(issues)
+            active_backend = backend.get_active_backend()
+            for issue in targets:
+                validate_status_change_allowed(issue)
+                if data["status"] not in active_backend.get_available_statuses(issue):
+                    raise ValidationError(
+                        f"Issue {issue.key or issue.uuid.hex} cannot be moved from "
+                        f"'{issue.status}' to '{data['status']}'."
+                    )
+            for issue in targets:
+                self._set_status(issue, data["status"])
         if "priority" in data:
             issues.update(priority=data["priority"])
         if "assignee" in data:
@@ -812,7 +892,10 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         from django.db.models import Avg, ExpressionWrapper, F, fields
 
         qs = self.get_queryset()
-        open_qs = qs.filter(resolution_date__isnull=True)
+        # Same open/closed definition as the support statistics and the is_open
+        # filter. resolved_qs below still keys off resolution_date, because it
+        # needs the timestamp to measure a duration.
+        open_qs = qs.open()
 
         resolved_qs = qs.filter(resolution_date__isnull=False).annotate(
             resolve_time=ExpressionWrapper(
@@ -1202,8 +1285,15 @@ class ProviderWebhookView(views.APIView):
         except models.Issue.DoesNotExist:
             return
 
+        # The provider owns this ticket's status, so the incoming value is
+        # written as-is — but the resolution date still has to follow it, or the
+        # SLA badge and the statistics never notice the ticket closing, and a
+        # ticket the provider reopens stays closed here for good.
         child_issue.status = new_status
-        child_issue.save(update_fields=["status"])
+        updated_fields = ["status"]
+        if child_issue.sync_resolution_date():
+            updated_fields.append("resolution_date")
+        child_issue.save(update_fields=updated_fields)
 
 
 class HelpdeskStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
@@ -1255,21 +1345,15 @@ class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
     def get(self, request, format=None):
         today = date.today()
         current_month = today.month
-        open_issues_count = (
-            models.Issue.objects.exclude(
-                status__in=[
-                    models.IssueStatus.Types.RESOLVED,
-                    models.IssueStatus.Types.CANCELED,
-                    "Closed",
-                ]
+        open_issues_count = models.Issue.objects.open().count()
+        closed_this_month_count = (
+            models.Issue.objects.closed()
+            .filter(
+                resolution_date__year=today.year,
+                resolution_date__month=current_month,
             )
-            .filter(resolution_date__isnull=True)
             .count()
         )
-        closed_this_month_count = models.Issue.objects.filter(
-            status__in=[models.IssueStatus.Types.RESOLVED, "Closed"],
-            resolution_date__month=current_month,
-        ).count()
 
         recent_broadcasts = BroadcastMessage.objects.filter(
             state=BroadcastMessage.States.SENT, created__month=current_month

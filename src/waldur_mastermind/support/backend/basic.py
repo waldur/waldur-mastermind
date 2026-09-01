@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from functools import cached_property
 
 from constance import config
 from django.core.cache import cache
@@ -15,6 +16,12 @@ logger = logging.getLogger(__name__)
 class BasicBackend(SupportBackend):
     backend_name = "basic"
 
+    #: Status a new ticket opens in. `IssueStatus` cannot supply this: it is a
+    #: registry of *terminal* statuses only — its `type` has just RESOLVED and
+    #: CANCELED — so the non-terminal status a ticket starts in is never a row
+    #: in that table.
+    default_status = "Open"
+
     @classmethod
     def from_settings(cls, settings_dict=None):
         """Create a BasicBackend instance, optionally configured from a settings dict."""
@@ -25,13 +32,7 @@ class BasicBackend(SupportBackend):
         issue.key = issue.backend_id
 
         if not issue.status:
-            default_status = models.IssueStatus.objects.exclude(
-                type__in=[
-                    models.IssueStatus.Types.RESOLVED,
-                    models.IssueStatus.Types.CANCELED,
-                ]
-            ).first()
-            issue.status = default_status.name if default_status else "Open"
+            issue.status = self.default_status
 
         if config.WALDUR_SUPPORT_SLA_ENABLED:
             self._set_sla_deadlines(issue)
@@ -52,9 +53,11 @@ class BasicBackend(SupportBackend):
                     f"Status transition from '{old_status}' to '{new_status}' is not allowed."
                 )
 
-            # Check if issue is now resolved
-            if models.IssueStatus.check_success_status(new_status) is not None:
-                issue.resolution_date = timezone.now()
+            # Set the resolution date when the issue closes, and clear it again
+            # when it is reopened. Assigning `now()` unconditionally would also
+            # rewrite the closure timestamp when a ticket moves between two
+            # terminal statuses, skewing the "closed this month" count.
+            issue.sync_resolution_date()
 
         issue.save()
 
@@ -101,6 +104,43 @@ class BasicBackend(SupportBackend):
 
     def destroy_is_available(self, issue=None):
         return True
+
+    @cached_property
+    def _status_workflow(self) -> dict[str, set[str]] | None:
+        """The configured workflow as from-status -> to-statuses, or None.
+
+        Read once per backend instance: serializing a list of issues asks for
+        every issue's transitions, and querying the table per issue is an N+1.
+        """
+        transitions: dict[str, set[str]] = {}
+        for from_status, to_status in models.IssueStatusTransition.objects.values_list(
+            "from_status", "to_status"
+        ):
+            transitions.setdefault(from_status, set()).add(to_status)
+        return transitions or None
+
+    @cached_property
+    def _registered_statuses(self) -> set[str]:
+        # The default status is included deliberately: `IssueStatus` only ever
+        # holds terminal statuses, so without it a ticket resolved by mistake
+        # could never be reopened on a deployment that configured no workflow.
+        return {self.default_status} | set(
+            models.IssueStatus.objects.values_list("name", flat=True)
+        )
+
+    def get_available_statuses(self, issue) -> list[str]:
+        """Statuses this issue may move to, per the configured workflow.
+
+        `IssueStatusTransition` is the workflow definition. When an operator has
+        not defined one, `is_transition_allowed` permits everything, so offer
+        the registered statuses instead — that is at least Resolved and Canceled
+        on a deployment that configured the terminal statuses at all.
+        """
+        if self._status_workflow is not None:
+            candidates = self._status_workflow.get(issue.status, set())
+        else:
+            candidates = self._registered_statuses
+        return sorted(candidates - {issue.status})
 
     def attachment_destroy_is_available(self, attachment=None):
         return True

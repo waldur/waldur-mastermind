@@ -94,6 +94,17 @@ class SupportBackend:
     def destroy_is_available(self, issue=None):
         return False
 
+    def get_available_statuses(self, issue) -> list[str]:
+        """Statuses Waldur may move this issue to.
+
+        Empty whenever the remote service desk owns the ticket lifecycle: for
+        Jira, Zammad and SMAX the status only ever travels inbound, through
+        `sync_single_issue` and the webhook receivers. Only a backend that
+        answers `update_is_available` with True has any business offering
+        transitions here.
+        """
+        return []
+
     def comment_create_is_available(self, issue=None):
         return True
 

@@ -8,6 +8,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core import validators
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
@@ -223,6 +224,8 @@ class Issue(
         help_text=_("Whether SLA has been breached for this issue."),
     )
 
+    objects = managers.IssueManager()
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @property
@@ -296,6 +299,7 @@ class Issue(
             IssueStatus.objects.filter(type=IssueStatus.Types.RESOLVED).first().name
         )
         self.state = CoreStates.OK
+        self.sync_resolution_date()
         self.save()
 
     def set_canceled(self):
@@ -303,7 +307,32 @@ class Issue(
             IssueStatus.objects.filter(type=IssueStatus.Types.CANCELED).first().name
         )
         self.state = CoreStates.OK
+        self.sync_resolution_date()
         self.save()
+
+    def sync_resolution_date(self):
+        """Keep `resolution_date` in step with the current status.
+
+        Everything that reports on a closed ticket keys off this field rather
+        than off the status name: the SLA badge only reads "met" once it is set,
+        and the support statistics count an issue as open until it is. Leaving
+        it null is what kept resolved tickets showing "On track" forever.
+
+        It has to be cleared again when a ticket leaves a terminal status, or a
+        reopened ticket would stay out of `Issue.objects.open()` for good and go
+        on reporting a met SLA while its resolution deadline passes.
+
+        Returns True when the field changed, so callers doing a partial save can
+        decide whether to include it.
+        """
+        is_terminal = IssueStatus.check_success_status(self.status) is not None
+        if is_terminal and self.resolution_date is None:
+            self.resolution_date = timezone.now()
+            return True
+        if not is_terminal and self.resolution_date is not None:
+            self.resolution_date = None
+            return True
+        return False
 
     def append_processing_log(self, event: str, details: dict | None = None):
         """
@@ -313,8 +342,6 @@ class Issue(
             event: Event type (e.g., "status_changed", "callback_invoked", "condition_failed")
             details: Optional dictionary with event-specific details
         """
-        from django.utils import timezone
-
         entry = {
             "timestamp": timezone.now().isoformat(),
             "event": event,
