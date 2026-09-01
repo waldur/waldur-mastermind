@@ -104,9 +104,18 @@ class IssueFilter(django_filters.FilterSet):
         view_name="provider-helpdesk-detail", field_name="provider_helpdesk__uuid"
     )
 
+    is_open = django_filters.BooleanFilter(
+        method="filter_by_is_open", label="Has not reached a terminal status"
+    )
+
     resolution_year_month = django_filters.CharFilter(
         field_name="resolution_date", method="filter_by_resolution_year_month"
     )
+
+    def filter_by_is_open(self, queryset, name, value):
+        # Same definition the support statistics count with, so the dashboard
+        # card and the list it links to cannot disagree.
+        return queryset.open() if value else queryset.closed()
 
     def filter_by_resolution_year_month(self, queryset, name, value):
         year, month = value.split("-")
@@ -170,6 +179,7 @@ class IssueFilter(django_filters.FilterSet):
             "key",
             "type",
             "status",
+            "is_open",
             "resolution_year_month",
         ]
 

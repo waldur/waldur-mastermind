@@ -139,6 +139,7 @@ class IssueSerializer(
     feedback = NestedFeedbackSerializer(required=False, read_only=True, allow_null=True)
     update_is_available = serializers.SerializerMethodField()
     destroy_is_available = serializers.SerializerMethodField()
+    available_statuses = serializers.SerializerMethodField()
     add_comment_is_available = serializers.SerializerMethodField()
     add_attachment_is_available = serializers.SerializerMethodField()
     order_uuid = serializers.SerializerMethodField()
@@ -192,6 +193,7 @@ class IssueSerializer(
             "resolved",
             "update_is_available",
             "destroy_is_available",
+            "available_statuses",
             "add_comment_is_available",
             "add_attachment_is_available",
             "processing_log",
@@ -338,6 +340,20 @@ class IssueSerializer(
 
     def get_destroy_is_available(self, obj: models.Issue) -> bool:
         return backend.get_active_backend().destroy_is_available(obj)
+
+    @cached_property
+    def _active_backend(self):
+        """One backend instance for the whole (possibly list) serialization.
+
+        DRF reuses a single child serializer across every object in a list, so
+        caching here lets the backend memoize the status workflow once instead
+        of querying it per issue.
+        """
+        return backend.get_active_backend()
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_available_statuses(self, obj: models.Issue) -> list[str]:
+        return self._active_backend.get_available_statuses(obj)
 
     def get_add_comment_is_available(self, obj: models.Issue) -> bool:
         return backend.get_active_backend().comment_create_is_available(obj)
@@ -1507,6 +1523,26 @@ class CannedResponseRenderSerializer(serializers.Serializer):
 
 class CannedResponseRenderResponseSerializer(serializers.Serializer):
     rendered_text = serializers.CharField()
+
+
+class SetIssueStatusSerializer(serializers.Serializer):
+    status = serializers.CharField(help_text="Name of the status to move to.")
+
+    def validate_status(self, value):
+        issue = self.context["issue"]
+        available = backend.get_active_backend().get_available_statuses(issue)
+        if value not in available:
+            raise serializers.ValidationError(
+                _(
+                    "Issue cannot be moved from '%(current)s' to '%(target)s'. Available: %(available)s."
+                )
+                % {
+                    "current": issue.status,
+                    "target": value,
+                    "available": ", ".join(available) or _("none"),
+                }
+            )
+        return value
 
 
 class BulkUpdateIssueSerializer(serializers.Serializer):

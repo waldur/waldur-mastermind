@@ -31,7 +31,12 @@ def get_helpdesk_stats():
     from waldur_mastermind.support import models
 
     today = date.today()
-    open_issues = models.Issue.objects.filter(resolution_date__isnull=True)
+    # Same definition /api/support-statistics/ and the is_open filter use.
+    # Keying off resolution_date alone counted every terminal-status issue that
+    # predates that field being stamped — and every Jira-synced issue, since the
+    # Atlassian backend never sets it — as open here while the support
+    # statistics called it closed.
+    open_issues = models.Issue.objects.open()
 
     stats = {
         "total_open": open_issues.count(),

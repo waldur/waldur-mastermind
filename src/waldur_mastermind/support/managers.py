@@ -3,7 +3,7 @@ from django.db.models import Q
 
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
-from waldur_mastermind.support import backend
+from waldur_mastermind.support import backend, models
 
 
 class SupportUserQuerySet(django_models.QuerySet):
@@ -29,3 +29,35 @@ class AttachmentQuerySet(django_models.QuerySet):
 
 
 AttachmentManager = django_models.Manager.from_queryset(AttachmentQuerySet)
+
+
+class IssueQuerySet(django_models.QuerySet):
+    """One definition of open/closed, shared by the statistics and the filters.
+
+    Terminal statuses are looked up by *name* from the `IssueStatus` registry.
+    The old inline version compared `status` — a CharField holding the status
+    name — against `IssueStatus.Types.RESOLVED` and `CANCELED`, which are the
+    integers 0 and 1, so it never excluded anything.
+    """
+
+    def _terminal_status_names(self):
+        return models.IssueStatus.objects.filter(
+            type__in=[
+                models.IssueStatus.Types.RESOLVED,
+                models.IssueStatus.Types.CANCELED,
+            ]
+        ).values_list("name", flat=True)
+
+    def open(self):
+        return self.exclude(status__in=self._terminal_status_names()).filter(
+            resolution_date__isnull=True
+        )
+
+    def closed(self):
+        return self.filter(
+            Q(status__in=self._terminal_status_names())
+            | Q(resolution_date__isnull=False)
+        )
+
+
+IssueManager = django_models.Manager.from_queryset(IssueQuerySet)
