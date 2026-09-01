@@ -137,6 +137,17 @@ class SetStatusTest(BaseSetStatusTest):
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.status, "Open")
 
+    def test_routed_issue_offers_no_statuses(self):
+        # The capability field has to agree with the validator, or a client
+        # renders a control that the API then refuses.
+        helpdesk = factories.ProviderHelpdeskFactory()
+        self.issue.provider_helpdesk = helpdesk
+        self.issue.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.IssueFactory.get_url(self.issue))
+        self.assertEqual(response.data["available_statuses"], [])
+
 
 @BASIC
 class BulkSetStatusTest(BaseSetStatusTest):

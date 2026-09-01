@@ -353,6 +353,12 @@ class IssueSerializer(
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_available_statuses(self, obj: models.Issue) -> list[str]:
+        # An issue routed to a provider helpdesk belongs to that provider: its
+        # status arrives over their webhook, and `set_status` refuses it. Report
+        # no transitions rather than advertising ones the API would reject —
+        # this is the field clients decide whether to offer a control from.
+        if obj.provider_helpdesk_id:
+            return []
         return self._active_backend.get_available_statuses(obj)
 
     def get_add_comment_is_available(self, obj: models.Issue) -> bool:
