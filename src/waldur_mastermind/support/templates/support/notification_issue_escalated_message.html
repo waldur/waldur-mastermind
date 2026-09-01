@@ -1,0 +1,6 @@
+<p>A support request has been escalated.</p>
+<p><strong>Request:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary.strip }}
+{% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}</p>
+<p><strong>Reason for escalation:</strong></p>
+<p>{{ reason }}</p>

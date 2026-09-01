@@ -77,7 +77,19 @@ class Priority:
 class ZammadBackend:
     def __init__(self, settings_override=None):
         self._settings_override = settings_override or {}
-        api_url = self._get_config("ZAMMAD_API_URL")
+
+    @functools.cached_property
+    def manager(self):
+        """The Zammad API client, built on first use.
+
+        Deliberately not built in __init__: constructing the client validates
+        the credentials and raises when they are absent, and the support
+        serializer resolves the active backend for every issue it renders. An
+        eager client therefore made every issue read fail with a 500 on a
+        deployment that had selected Zammad but not yet configured it, rather
+        than only the operations that actually talk to Zammad.
+        """
+        api_url = self._get_config("ZAMMAD_API_URL") or ""
         token = self._get_config("ZAMMAD_TOKEN")
 
         if not api_url.endswith("/"):
@@ -85,7 +97,10 @@ class ZammadBackend:
         else:
             url = f"{api_url}api/v1/"
 
-        self.manager = ZammadAPI(url, http_token=token)
+        try:
+            return ZammadAPI(url, http_token=token)
+        except Exception as e:
+            raise ZammadBackendError(f"Zammad is not configured correctly. {e}")
 
     def _get_config(self, key, default=None):
         """Get config value from provider settings override or Constance."""
