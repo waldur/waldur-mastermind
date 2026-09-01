@@ -831,6 +831,11 @@ class ProviderCommentContext(BaseModel):
     )
 
 
+class IssueEscalatedContext(BaseModel):
+    issue: Any = Field(description="The Issue model instance that was escalated.")
+    reason: str = Field(description="The escalation reason.")
+
+
 class ProviderEscalationContext(BaseModel):
     issue: Any = Field(description="The parent (operator) Issue that was escalated.")
     child_issue: Any = Field(
@@ -855,6 +860,12 @@ class SupportSection(NotificationSection):
         "created support request. Sent only by the built-in service desk — the "
         "Atlassian, Zammad and SMAX backends notify their own agents.",
         context_model=IssueCreatedContext,
+    )
+    notification_issue_escalated = Notification(
+        key="notification_issue_escalated",
+        description="Notification to staff and support users that a support "
+        "request has been escalated. Sent only by the built-in service desk.",
+        context_model=IssueEscalatedContext,
     )
     notification_comment_added = Notification(
         key="notification_comment_added",
@@ -896,6 +907,18 @@ class SupportSection(NotificationSection):
         key="provider_escalation",
         description="Notify a provider helpdesk that a routed ticket has been escalated.",
         context_model=ProviderEscalationContext,
+    )
+    provider_customer_comment = Notification(
+        key="provider_customer_comment",
+        description="Notify a provider helpdesk that the customer commented on "
+        "a ticket routed to them.",
+        context_model=ProviderCommentContext,
+    )
+    provider_sla_warning = Notification(
+        key="provider_sla_warning",
+        description="Notify a provider helpdesk that a routed ticket is "
+        "approaching its SLA deadline.",
+        context_model=ProviderTicketContext,
     )
     provider_email_new_ticket = Notification(
         key="provider_email_new_ticket",

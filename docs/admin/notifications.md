@@ -2890,6 +2890,48 @@ Notification to staff and support users about a newly created support request. S
 
 ```
 
+### support.notification_issue_escalated
+
+Notification to staff and support users that a support request has been escalated. Sent only by the built-in service desk.
+
+#### Templates
+
+=== "support/notification_issue_escalated_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] Escalated: {{ issue.summary.strip }}
+
+```
+
+=== "support/notification_issue_escalated_message.txt"
+
+```txt
+
+    A support request has been escalated.
+
+    Request: {{ issue.key }}
+    Summary: {{ issue.summary.strip }}
+    {% if issue.customer %}Organization: {{ issue.customer.name }}
+    {% endif %}
+    Reason for escalation:
+    {{ reason }}
+
+```
+
+=== "support/notification_issue_escalated_message.html"
+
+```txt
+
+    <p>A support request has been escalated.</p>
+    <p><strong>Request:</strong> {{ issue.key }}<br>
+    <strong>Summary:</strong> {{ issue.summary.strip }}
+    {% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}</p>
+    <p><strong>Reason for escalation:</strong></p>
+    <p>{{ reason }}</p>
+
+```
+
 ### support.notification_issue_feedback
 
 Notification about a feedback related to the issue. The recipient is issue caller.
@@ -3051,6 +3093,41 @@ Notification about an update in the issue. The recipient is issue caller.
 
 ```
 
+### support.provider_customer_comment
+
+Notify a provider helpdesk that the customer commented on a ticket routed to them.
+
+#### Templates
+
+=== "support/provider_customer_comment_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] Customer comment: {{ issue.summary }}
+
+```
+
+=== "support/provider_customer_comment_message.txt"
+
+```txt
+
+    A customer has added a comment to ticket {{ issue.key }}.
+
+    Comment:
+    {{ comment.description }}
+
+```
+
+=== "support/provider_customer_comment_message.html"
+
+```txt
+
+    <p>A customer has added a comment to ticket <strong>{{ issue.key }}</strong>.</p>
+    <p><strong>Comment:</strong></p>
+    <p>{{ comment.description }}</p>
+
+```
+
 ### support.provider_email_comment
 
 Email a provider a customer comment via the email support backend.
@@ -3209,6 +3286,44 @@ Notify a provider helpdesk about a new ticket routed to them.
     <strong>Priority:</strong> {{ issue.priority }}</p>
     <p><strong>Description:</strong></p>
     <p>{{ issue.description }}</p>
+
+```
+
+### support.provider_sla_warning
+
+Notify a provider helpdesk that a routed ticket is approaching its SLA deadline.
+
+#### Templates
+
+=== "support/provider_sla_warning_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] SLA Warning: {{ issue.summary }}
+
+```
+
+=== "support/provider_sla_warning_message.txt"
+
+```txt
+
+    Ticket {{ issue.key }} is approaching its SLA deadline.
+
+    Summary: {{ issue.summary }}
+    Priority: {{ issue.priority }}
+
+    Please take action to avoid an SLA breach.
+
+```
+
+=== "support/provider_sla_warning_message.html"
+
+```txt
+
+    <p>Ticket <strong>{{ issue.key }}</strong> is approaching its SLA deadline.</p>
+    <p><strong>Summary:</strong> {{ issue.summary }}<br>
+    <strong>Priority:</strong> {{ issue.priority }}</p>
+    <p>Please take action to avoid an SLA breach.</p>
 
 ```
 

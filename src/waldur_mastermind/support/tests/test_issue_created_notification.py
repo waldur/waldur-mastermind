@@ -164,3 +164,104 @@ class StaffNewIssueNotificationHandlerTest(TestCase):
         self.create_issue(provider_helpdesk=helpdesk)
 
         self.assertEqual(len(mail.outbox), 0)
+
+
+@BASIC
+class StaffEscalationNotificationTest(TestCase):
+    """notify_ticket_escalated used to only write a log line."""
+
+    def setUp(self):
+        self.issue = factories.IssueFactory(backend_id="WLD-901", key="WLD-901")
+        structure_factories.UserFactory(is_staff=True, email="staff@example.com")
+        structure_factories.UserFactory(is_support=True, email="support@example.com")
+
+    def recipients(self):
+        return {address for message in mail.outbox for address in message.to}
+
+    def test_staff_are_told_and_the_reason_travels_with_it(self):
+        structure_factories.NotificationFactory(
+            key="support.notification_issue_escalated", enabled=True
+        )
+
+        tasks.notify_ticket_escalated(self.issue.id, "Breached the agreed deadline")
+
+        self.assertEqual(
+            self.recipients(), {"staff@example.com", "support@example.com"}
+        )
+        self.assertIn("Breached the agreed deadline", mail.outbox[0].body)
+        self.assertIn(self.issue.key, mail.outbox[0].subject)
+
+    def test_silent_when_not_registered(self):
+        tasks.notify_ticket_escalated(self.issue.id, "reason")
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_config(WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="atlassian")
+    def test_an_external_backend_reaches_its_agents_elsewhere(self):
+        structure_factories.NotificationFactory(
+            key="support.notification_issue_escalated", enabled=True
+        )
+
+        tasks.notify_ticket_escalated(self.issue.id, "reason")
+
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class DeadProviderNotificationsTest(TestCase):
+    """Two provider notifications were registered nowhere and called nowhere.
+
+    broadcast_mail returns early for an unregistered key, so even once they were
+    invoked they could not send. These assert both halves are now wired.
+    """
+
+    def setUp(self):
+        self.helpdesk = factories.ProviderHelpdeskFactory(
+            notification_email="provider@example.com",
+            notify_on_comment=True,
+            notify_on_sla_warning=True,
+        )
+        self.parent = factories.IssueFactory(backend_id="WLD-910", key="WLD-910")
+        self.child = factories.IssueFactory(
+            backend_id="WLD-911",
+            key="WLD-911",
+            parent_issue=self.parent,
+            provider_helpdesk=self.helpdesk,
+        )
+
+    def test_customer_comment_reaches_the_provider(self):
+        structure_factories.NotificationFactory(
+            key="support.provider_customer_comment", enabled=True
+        )
+        comment = factories.CommentFactory(issue=self.child)
+
+        tasks.notify_provider_customer_comment(comment.id)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("provider@example.com", mail.outbox[0].to)
+
+    def test_sla_warning_reaches_the_provider(self):
+        structure_factories.NotificationFactory(
+            key="support.provider_sla_warning", enabled=True
+        )
+
+        tasks.notify_provider_sla_warning(self.child.id)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("provider@example.com", mail.outbox[0].to)
+
+    def test_both_respect_the_per_helpdesk_switches(self):
+        structure_factories.NotificationFactory(
+            key="support.provider_customer_comment", enabled=True
+        )
+        structure_factories.NotificationFactory(
+            key="support.provider_sla_warning", enabled=True
+        )
+        self.helpdesk.notify_on_comment = False
+        self.helpdesk.notify_on_sla_warning = False
+        self.helpdesk.save()
+        comment = factories.CommentFactory(issue=self.child)
+
+        tasks.notify_provider_customer_comment(comment.id)
+        tasks.notify_provider_sla_warning(self.child.id)
+
+        self.assertEqual(len(mail.outbox), 0)

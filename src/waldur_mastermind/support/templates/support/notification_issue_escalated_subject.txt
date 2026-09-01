@@ -1,0 +1,1 @@
+[{{ issue.key }}] Escalated: {{ issue.summary.strip }}

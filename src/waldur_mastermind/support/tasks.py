@@ -487,6 +487,23 @@ def reroute_issue_to_provider(issue, new_helpdesk):
     return new_child, old_helpdesks
 
 
+def get_helpdesk_personnel_emails() -> list[str]:
+    """Addresses of the people who work the operator's helpdesk.
+
+    `is_staff or is_support` is the predicate the support app uses everywhere
+    for helpdesk personnel; `SupportUser` is not a usable roster on the built-in
+    backend, where rows only appear incidentally when somebody comments or
+    resolves. Honours each user's own notification opt-out.
+    """
+    return list(
+        core_models.User.objects.filter(is_active=True, notifications_enabled=True)
+        .filter(Q(is_staff=True) | Q(is_support=True))
+        .exclude(email="")
+        .values_list("email", flat=True)
+        .distinct()
+    )
+
+
 @shared_task(name="waldur_mastermind.support.notify_staff_new_issue")
 def notify_staff_new_issue(issue_id):
     """Tell helpdesk personnel that a support request has been created.
@@ -502,13 +519,7 @@ def notify_staff_new_issue(issue_id):
     except models.Issue.DoesNotExist:
         return
 
-    recipients = list(
-        core_models.User.objects.filter(is_active=True, notifications_enabled=True)
-        .filter(Q(is_staff=True) | Q(is_support=True))
-        .exclude(email="")
-        .values_list("email", flat=True)
-        .distinct()
-    )
+    recipients = get_helpdesk_personnel_emails()
     if not recipients:
         logger.info(
             "No staff or support user is available to notify about issue %s.",
@@ -651,13 +662,41 @@ def notify_provider_sla_warning(issue_id):
 
 @shared_task(name="waldur_mastermind.support.notify_ticket_escalated")
 def notify_ticket_escalated(issue_id, reason):
-    """Notify operator staff that a ticket has been escalated."""
+    """Notify operator staff that a ticket has been escalated.
+
+    Only for the built-in service desk, for the same reason as
+    `notify_staff_new_issue`: Atlassian, Zammad and SMAX reach their agents in
+    their own system. `notify_provider_escalation` tells the provider side.
+    """
     try:
         issue = models.Issue.objects.get(id=issue_id)
     except models.Issue.DoesNotExist:
         return
 
     logger.info("Issue %s has been escalated. Reason: %s", issue.key, reason)
+
+    if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE != backend.SupportBackendType.BASIC:
+        return
+
+    recipients = get_helpdesk_personnel_emails()
+    if not recipients:
+        logger.info(
+            "No staff or support user is available to notify about the escalation of issue %s.",
+            issue.key,
+        )
+        return
+
+    try:
+        broadcast_mail(
+            "support",
+            "notification_issue_escalated",
+            {"issue": issue, "reason": reason},
+            recipients,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to send escalation notification for issue %s", issue.key
+        )
 
 
 @shared_task(name="waldur_mastermind.support.notify_provider_escalation")
@@ -706,7 +745,7 @@ def forward_comment_to_child(comment_id):
     child_issues = parent_issue.child_issues.all()
 
     for child_issue in child_issues:
-        models.Comment.objects.create(
+        child_comment = models.Comment.objects.create(
             issue=child_issue,
             author=comment.author,
             description=comment.description,
@@ -718,6 +757,9 @@ def forward_comment_to_child(comment_id):
             parent_issue.key,
             child_issue.key,
         )
+        # The provider reads the forwarded copy in their own ticket, but only
+        # learns it is there if they are told.
+        notify_provider_customer_comment.delay(child_comment.id)
 
 
 @shared_task(name="waldur_mastermind.support.propagate_comment_to_parent")
@@ -797,3 +839,5 @@ def check_sla_warnings():
 
     for issue in approaching:
         logger.warning("Issue %s is approaching SLA deadline.", issue.key or issue.uuid)
+        if issue.provider_helpdesk_id:
+            notify_provider_sla_warning.delay(issue.id)
