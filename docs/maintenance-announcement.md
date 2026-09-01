@@ -61,7 +61,99 @@ These appear under the `providers` event group and can be queried via
 
 ## REST API Operations
 
-### Standard CRUD Operations
+Waldur exposes two API surfaces for maintenance announcements:
+
+| Surface | Base path | Authentication | Purpose |
+|---------|-----------|----------------|---------|
+| Public read-only | `/api/public-maintenance-announcements/` | None | External status checks, status pages, integrations |
+| Management | `/api/maintenance-announcements/` | Required | Service provider CRUD and state transitions |
+
+Request/response schemas are documented in the OpenAPI schema (`waldur spectacular`).
+
+### Public Read-Only API
+
+Use these endpoints when an external service, status page, or unauthenticated
+client needs to check whether maintenance is scheduled or in progress. No token
+is required.
+
+#### List Public Maintenance Announcements
+
+```http
+GET /api/public-maintenance-announcements/
+```
+
+Returns announcements in **Scheduled**, **In progress**, or **Completed**
+state only. Draft and cancelled announcements are excluded.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `state` | String | State label, e.g. `Scheduled`, `In progress`, `Completed` |
+| `service_provider_uuid` | UUID | Limit to a specific service provider |
+| `maintenance_type` | Integer | Numeric maintenance type (see [Maintenance Types](#maintenance-types)) |
+| `scheduled_start_after` / `scheduled_start_before` | DateTime | Filter by planned start window |
+| `scheduled_end_after` / `scheduled_end_before` | DateTime | Filter by planned end window |
+| `o` | String | Ordering, e.g. `scheduled_start`, `-scheduled_start` |
+
+**Example Requests:**
+
+```http
+# Is any maintenance currently in progress?
+GET /api/public-maintenance-announcements/?state=In progress
+
+# Upcoming maintenance for a provider
+GET /api/public-maintenance-announcements/?state=Scheduled&service_provider_uuid={uuid}
+```
+
+#### Retrieve Public Maintenance Announcement
+
+```http
+GET /api/public-maintenance-announcements/{uuid}/
+```
+
+Returns `404` for draft or cancelled announcements, even if the UUID exists.
+
+**Response:**
+
+```json
+{
+  "url": "http://localhost:8000/api/public-maintenance-announcements/{uuid}/",
+  "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "Database Server Upgrade",
+  "message": "We will be upgrading our database servers to improve performance...",
+  "maintenance_type": 4,
+  "maintenance_type_display": "Upgrade",
+  "external_reference_url": "https://maintenance.example.com/ticket/12345",
+  "state": "Scheduled",
+  "scheduled_start": "2024-01-15T02:00:00Z",
+  "scheduled_end": "2024-01-15T04:00:00Z",
+  "actual_start": null,
+  "actual_end": null,
+  "service_provider_name": "Example Cloud Services",
+  "affected_offerings": [
+    {
+      "impact_level": 3,
+      "impact_level_display": "Partial outage",
+      "impact_description": "API endpoints will be unavailable during database migration",
+      "offering_name": "My Service API"
+    }
+  ]
+}
+```
+
+**Not exposed on the public API:** `created_by`, `service_provider` URL,
+`internal_notes`, audit timestamps, and other management-only fields. Write
+methods (`POST`, `PATCH`, `DELETE`) return `405 Method Not Allowed`.
+
+There is no separate public aggregate maintenance status endpoint. Poll the
+list endpoint (optionally filtered by `state`) or retrieve individual records.
+
+The management endpoints below require authentication. List and retrieve are
+available to users connected to the service provider's customer; create,
+update, delete, and state transitions require
+`SERVICE_PROVIDER.MANAGE_MAINTENANCE_ANNOUNCEMENT` (see
+[Permission System](#permission-system)).
 
 #### List Maintenance Announcements
 
@@ -571,8 +663,8 @@ Maintenance announcements use Waldur's permission system:
 
 **Unrelated Users:**
 
-- No access to private maintenance announcement endpoints (empty list / 404)
-- Public scheduled announcements remain available via the public endpoint
+- No access to management endpoints at `/api/maintenance-announcements/` (empty list / 404)
+- Published announcements remain readable at `/api/public-maintenance-announcements/` without authentication
 
 **Personal Access Tokens:**
 
