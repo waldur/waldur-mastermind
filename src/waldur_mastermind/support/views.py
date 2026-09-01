@@ -36,6 +36,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import (
     permissions as structure_permissions,
 )
+from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.notifications.models import BroadcastMessage
 
 # The Atlassian discovery service imports atlassian-python-api, which eagerly pulls
@@ -54,6 +55,21 @@ logger = logging.getLogger(__name__)
 
 class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
     extension_name = "WALDUR_SUPPORT"
+
+
+def get_provider_helpdesk_ids(user) -> set:
+    """Helpdesks the user speaks for: as service-provider owner, or as agent.
+
+    Empty for a user with no provider relationship, which is what callers use
+    to decide whether a non-staff user may see provider-scoped data at all.
+    """
+    owned = models.ProviderHelpdesk.objects.filter(
+        service_provider__customer__in=get_connected_customers(user, CustomerRole.OWNER)
+    ).values_list("id", flat=True)
+    agent_of = models.ProviderSupportUser.objects.filter(
+        user=user, is_active=True
+    ).values_list("provider_helpdesk_id", flat=True)
+    return set(owned) | set(agent_of)
 
 
 def validate_status_change_allowed(issue):
@@ -716,17 +732,9 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if user.is_staff or user.is_support:
             return self.queryset
 
-        from waldur_core.structure.managers import get_connected_customers
-
-        provider_customers = get_connected_customers(user, CustomerRole.OWNER)
-        support_helpdesks = models.ProviderSupportUser.objects.filter(
-            user=user, is_active=True
-        ).values_list("provider_helpdesk_id", flat=True)
-
         return self.queryset.filter(
-            Q(provider_helpdesk__service_provider__customer__in=provider_customers)
-            | Q(provider_helpdesk__id__in=support_helpdesks)
-        ).distinct()
+            provider_helpdesk_id__in=get_provider_helpdesk_ids(user)
+        )
 
     @extend_schema(responses={status.HTTP_201_CREATED: None})
     @decorators.action(detail=True, methods=["post"])
@@ -935,8 +943,6 @@ class ProviderHelpdeskViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         user = self.request.user
         if user.is_staff or user.is_support:
             return self.queryset
-        from waldur_core.structure.managers import get_connected_customers
-
         provider_customers = get_connected_customers(user, CustomerRole.OWNER)
         return self.queryset.filter(service_provider__customer__in=provider_customers)
 
@@ -1001,8 +1007,6 @@ class ProviderSupportUserViewSet(CheckExtensionMixin, core_views.ActionsViewSet)
         user = self.request.user
         if user.is_staff or user.is_support:
             return self.queryset
-        from waldur_core.structure.managers import get_connected_customers
-
         provider_customers = get_connected_customers(user, CustomerRole.OWNER)
         return self.queryset.filter(
             provider_helpdesk__service_provider__customer__in=provider_customers
@@ -1059,8 +1063,6 @@ class ProviderCannedResponseViewSet(CheckExtensionMixin, core_views.ActionsViewS
         user = self.request.user
         if user.is_staff or user.is_support:
             return self.queryset
-        from waldur_core.structure.managers import get_connected_customers
-
         provider_customers = get_connected_customers(user, CustomerRole.OWNER)
         return self.queryset.filter(
             provider_helpdesk__service_provider__customer__in=provider_customers
@@ -1339,26 +1341,56 @@ class HelpdeskHealthViewSet(CheckExtensionMixin, generics.GenericAPIView):
 
 
 class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
+    """Ticket counts for the support dashboard.
+
+    Staff and support see the whole deployment. A provider sees only the
+    tickets routed to their own helpdesks, so these numbers never disclose one
+    provider's volume to another. Everyone else is refused: these are
+    operator-level figures, and until now any authenticated user could read
+    them.
+    """
+
     serializer_class = serializers.SupportStatsSerializer
     pagination_class = None
 
     def get(self, request, format=None):
         today = date.today()
-        current_month = today.month
-        open_issues_count = models.Issue.objects.open().count()
+        user = request.user
+        issues = models.Issue.objects.all()
+        broadcasts_visible = True
+
+        if not (user.is_staff or user.is_support):
+            helpdesk_ids = (
+                get_provider_helpdesk_ids(user)
+                if config.WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED
+                else set()
+            )
+            if not helpdesk_ids:
+                raise rf_exceptions.PermissionDenied()
+            issues = issues.filter(provider_helpdesk_id__in=helpdesk_ids)
+            # Broadcasts are the operator talking to their users; a provider
+            # has no part in them.
+            broadcasts_visible = False
+
+        open_issues_count = issues.open().count()
         closed_this_month_count = (
-            models.Issue.objects.closed()
+            issues.closed()
             .filter(
                 resolution_date__year=today.year,
-                resolution_date__month=current_month,
+                resolution_date__month=today.month,
             )
             .count()
         )
 
-        recent_broadcasts = BroadcastMessage.objects.filter(
-            state=BroadcastMessage.States.SENT, created__month=current_month
+        recent_broadcasts_count = (
+            BroadcastMessage.objects.filter(
+                state=BroadcastMessage.States.SENT,
+                created__year=today.year,
+                created__month=today.month,
+            ).count()
+            if broadcasts_visible
+            else 0
         )
-        recent_broadcasts_count = recent_broadcasts.count()
 
         data = {
             "open_issues_count": open_issues_count,
