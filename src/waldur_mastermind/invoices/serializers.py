@@ -1117,6 +1117,9 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
                 )
         return attrs
 
+    # Declared here rather than left to the model, because the field is
+    # redeclared on this serializer and model-level help_text does not reach the
+    # schema through an explicit field.
     offerings = serializers.HyperlinkedRelatedField(
         view_name="marketplace-provider-offering-detail",
         lookup_field="uuid",
@@ -1124,6 +1127,9 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
         required=False,
         allow_null=True,
         many=True,
+        help_text=(
+            "Offerings the credit may be drawn against. Leave empty to allow all offerings: an empty list means unrestricted, not none. Cost on any other offering is invoiced normally and is never compensated from this credit."
+        ),
     )
 
     def update(self, instance, validated_data):
