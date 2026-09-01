@@ -267,6 +267,20 @@ class ResourceGetTest(test.APITestCase):
         response = self.get_resource()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_service_provider_sees_project_start_date(self):
+        self.project.start_date = datetime.date(2024, 1, 15)
+        self.project.save()
+        owner = UserFactory()
+        self.offering.customer.add_user(owner, CustomerRole.OWNER)
+
+        self.client.force_authenticate(owner)
+        url = factories.ResourceFactory.get_provider_resource_url(self.resource)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["project_start_date"], datetime.date(2024, 1, 15)
+        )
+
     def test_other_user_can_not_get_resource_data(self):
         response = self.get_resource(UserFactory())
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

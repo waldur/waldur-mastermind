@@ -6650,6 +6650,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "project_uuid",
             "project_name",
             "project_description",
+            "project_start_date",
             "project_end_date",
             "project_effective_end_date",
             "resource_effective_end_date",
@@ -6744,6 +6745,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     )
     project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.ReadOnlyField(source="project.name")
+    project_start_date = serializers.ReadOnlyField(source="project.start_date")
     project_end_date = serializers.ReadOnlyField(source="project.end_date")
     project_effective_end_date = serializers.DateField(
         read_only=True,
