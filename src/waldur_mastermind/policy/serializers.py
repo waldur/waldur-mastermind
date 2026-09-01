@@ -222,7 +222,15 @@ class EstimatedCostPolicySerializer(
             "eta_date",
         )
 
-    @extend_schema_field(serializers.DecimalField(max_digits=16, decimal_places=2))
+    @extend_schema_field(
+        serializers.DecimalField(
+            max_digits=16,
+            decimal_places=2,
+            help_text=(
+                "The cost this policy compares against limit_cost right now: the period's invoice total, less the credit already applied and the credit still to be drawn. Do not re-derive it — only the server can simulate the pending draw, and a figure computed from the invoice alone will not match what the policy evaluates."
+            ),
+        )
+    )
     def get_current_cost(self, instance) -> decimal.Decimal:
         """The cost the policy compares against `limit_cost` right now.
 
@@ -240,7 +248,14 @@ class EstimatedCostPolicySerializer(
         )
         return instance.get_current_cost(compensation)
 
-    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    @extend_schema_field(
+        serializers.IntegerField(
+            allow_null=True,
+            help_text=(
+                "Days until the policy fires, or null when no projection exists. 0 means the threshold is already crossed and the policy is triggered — measured, not projected. Null must be rendered as no date, never as 'now': it is the common case, and it is also what an unprojectable or more-than-a-year-away policy reports. Nothing is projected beyond 365 days, because the rate comes from the current month's spend. Note that a cost policy does not fire on cost alone — it also waits for the credit balance to fall to limit_cost — so a policy far over its cap can still report a future date or null."
+            ),
+        )
+    )
     def get_eta_days(self, instance) -> int | None:
         """Days until the policy crosses `limit_cost`; null when unprojectable.
 
@@ -264,7 +279,14 @@ class EstimatedCostPolicySerializer(
             cache[key] = instance.get_eta_days(compensation)
         return cache[key]
 
-    @extend_schema_field(serializers.DateField(allow_null=True))
+    @extend_schema_field(
+        serializers.DateField(
+            allow_null=True,
+            help_text=(
+                "eta_days as a calendar date, so clients do not each re-derive it. Null whenever eta_days is null; today when eta_days is 0."
+            ),
+        )
+    )
     def get_eta_date(self, instance) -> datetime.date | None:
         """`eta_days` as a date, so clients do not each re-derive the calendar."""
         eta_days = self.get_eta_days(instance)
