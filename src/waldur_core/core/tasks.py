@@ -432,6 +432,7 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
         # 2. Check Lock (Atomic ADD)
         # We store the task_id inside the lock for debugging purposes
         task_id = options.get("task_id") or str(uuid4())
+        options["task_id"] = task_id
 
         # cache.add returns True if key was set, False if key already existed.
         # celery-beat is long-lived and has no HTTP request boundary, so Django

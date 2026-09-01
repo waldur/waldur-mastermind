@@ -1,4 +1,5 @@
 from unittest import mock
+from uuid import uuid4
 
 from celery.exceptions import SoftTimeLimitExceeded
 from django.core.cache import cache
@@ -20,6 +21,14 @@ class DefaultTestTask(BackgroundTask):
         pass
 
 
+def _fake_celery_apply_async(*args, **kwargs):
+    """Mimic Celery: use the provided task_id or mint a new one."""
+    task_id = kwargs.get("task_id")
+    if task_id is None:
+        task_id = str(uuid4())
+    return mock.Mock(id=task_id)
+
+
 @override_settings(
     CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 )
@@ -37,21 +46,18 @@ class BackgroundTaskDefaultTest(TestCase):
         arg = "instance:123"
         expected_key = self.task.get_unique_key((arg,), {})
 
-        with mock.patch("celery.app.task.Task.apply_async") as mock_super_apply:
-            mock_super_apply.return_value = mock.Mock(id="task-id-1")
+        with mock.patch(
+            "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+        ) as mock_super_apply:
+            result = self.task.apply_async(args=(arg,))
 
-            # Action
-            self.task.apply_async(args=(arg,))
-
-            # Assert Lock Exists
             self.assertIsNotNone(cache.get(expected_key), "Lock should be set in cache")
-
-            # Assert Task Scheduled
             mock_super_apply.assert_called_once()
 
-            # Assert Header Injection (Critical for cleanup)
             call_kwargs = mock_super_apply.call_args[1]
             self.assertEqual(call_kwargs["headers"]["__waldur_lock_key"], expected_key)
+            self.assertEqual(call_kwargs["task_id"], result.id)
+            self.assertEqual(cache.get(expected_key), result.id)
 
     def test_different_args_create_different_locks(self):
         """
@@ -63,14 +69,12 @@ class BackgroundTaskDefaultTest(TestCase):
         key_a = self.task.get_unique_key((arg_a,), {})
         key_b = self.task.get_unique_key((arg_b,), {})
 
-        with mock.patch("celery.app.task.Task.apply_async") as mock_super_apply:
-            # Run A
+        with mock.patch(
+            "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+        ):
             self.task.apply_async(args=(arg_a,))
-            # Run B
             self.task.apply_async(args=(arg_b,))
 
-            # Assert
-            self.assertEqual(mock_super_apply.call_count, 2)
             self.assertIsNotNone(cache.get(key_a))
             self.assertIsNotNone(cache.get(key_b))
             self.assertNotEqual(key_a, key_b)
@@ -90,9 +94,7 @@ class BackgroundTaskDefaultTest(TestCase):
             # Action
             result = self.task.apply_async(args=(arg,))
 
-            # Assert
             mock_super_apply.assert_not_called()
-            # We should still get an AsyncResult-like object back
             self.assertTrue(hasattr(result, "id"))
 
     def test_kwargs_are_ignored_by_default(self):
@@ -108,32 +110,34 @@ class BackgroundTaskDefaultTest(TestCase):
         arg = "instance:123"
         expected_key = self.task.get_unique_key((arg,), {})
 
-        # 1. Lock exists (Standard pull running)
         cache.set(expected_key, "running-task", timeout=60)
 
         with mock.patch("celery.app.task.Task.apply_async") as mock_super_apply:
-            # 2. Schedule specific pull
             self.task.apply_async(args=(arg,), kwargs={"from_creation_date": True})
 
-            # Assert: It should be skipped because args match and we ignore kwargs
             mock_super_apply.assert_not_called()
 
-    def test_cleanup_on_success(self):
+    def test_cleanup_releases_lock_after_realistic_schedule(self):
         """
-        Scenario: Worker finishes successfully.
-        Expected: Lock deleted.
+        Scenario: Beat schedules a task without an explicit task_id, the worker
+        runs it, and after_return must clear the lock.
+
+        This is the production path that broke when the cache stored one UUID
+        while Celery executed the task under another.
         """
         arg = "instance:123"
         lock_key = self.task.get_unique_key((arg,), {})
-        cache.set(lock_key, "task-id", timeout=60)
 
-        # Mock the request header context present during execution
+        with mock.patch(
+            "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+        ):
+            result = self.task.apply_async(args=(arg,))
+
+        self.assertEqual(cache.get(lock_key), result.id)
+
         self.task.request.headers = {"__waldur_lock_key": lock_key}
+        self.task.after_return("SUCCESS", None, result.id, (arg,), {}, None)
 
-        # Action
-        self.task.after_return("SUCCESS", None, "task-id", (arg,), {}, None)
-
-        # Assert
         self.assertIsNone(cache.get(lock_key), "Lock should be released")
 
     def test_cleanup_on_soft_time_limit_exceeded(self):
@@ -143,15 +147,16 @@ class BackgroundTaskDefaultTest(TestCase):
         """
         arg = "instance:123"
         lock_key = self.task.get_unique_key((arg,), {})
-        cache.set(lock_key, "task-id", timeout=60)
+
+        with mock.patch(
+            "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+        ):
+            result = self.task.apply_async(args=(arg,))
+
         self.task.request.headers = {"__waldur_lock_key": lock_key}
-
         exc = SoftTimeLimitExceeded()
+        self.task.after_return("FAILURE", exc, result.id, (arg,), {}, None)
 
-        # Action
-        self.task.after_return("FAILURE", exc, "task-id", (arg,), {}, None)
-
-        # Assert
         self.assertIsNone(cache.get(lock_key))
 
     def test_cleanup_on_broker_failure(self):
@@ -168,7 +173,6 @@ class BackgroundTaskDefaultTest(TestCase):
             with self.assertRaises(Exception):
                 self.task.apply_async(args=(arg,))
 
-            # Assert
             self.assertIsNone(
                 cache.get(lock_key), "Lock should not persist if scheduling failed"
             )
@@ -178,12 +182,15 @@ class BackgroundTaskDefaultTest(TestCase):
         Scenario: Task called with no arguments.
         Expected: Works fine, lock based on empty tuple.
         """
-        expected_key = self.task.get_unique_key((), {})  # empty tuple arg, {}s
+        expected_key = self.task.get_unique_key((), {})
 
-        with mock.patch("celery.app.task.Task.apply_async") as mock_super_apply:
-            self.task.apply_async()
+        with mock.patch(
+            "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+        ) as mock_super_apply:
+            result = self.task.apply_async()
 
             self.assertIsNotNone(cache.get(expected_key))
+            self.assertEqual(cache.get(expected_key), result.id)
             mock_super_apply.assert_called_once()
 
     def test_lock_expiration_allows_new_acquisition(self):
@@ -194,18 +201,15 @@ class BackgroundTaskDefaultTest(TestCase):
         arg = "instance:123"
         expected_key = self.task.get_unique_key((arg,), {})
 
-        # Set lock with 0-second timeout so it expires immediately
         cache.set(expected_key, "old-task-id", timeout=0)
 
-        with mock.patch("celery.app.task.Task.apply_async") as mock_super_apply:
-            mock_super_apply.return_value = mock.Mock(id="new-task-id")
+        with mock.patch(
+            "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+        ) as mock_super_apply:
+            result = self.task.apply_async(args=(arg,))
 
-            self.task.apply_async(args=(arg,))
-
-            # New task should have been scheduled
             mock_super_apply.assert_called_once()
-            # Lock should now hold the new task's ID
-            self.assertIsNotNone(cache.get(expected_key))
+            self.assertEqual(cache.get(expected_key), result.id)
 
     def test_after_return_does_not_release_lock_owned_by_another_task(self):
         """
@@ -216,14 +220,11 @@ class BackgroundTaskDefaultTest(TestCase):
         arg = "instance:123"
         lock_key = self.task.get_unique_key((arg,), {})
 
-        # Lock is now owned by a different task
         cache.set(lock_key, "new-task-id", timeout=60)
         self.task.request.headers = {"__waldur_lock_key": lock_key}
 
-        # Original task (old-task-id) finishes
         self.task.after_return("SUCCESS", None, "old-task-id", (arg,), {}, None)
 
-        # Lock should still exist and belong to the new task
         self.assertEqual(cache.get(lock_key), "new-task-id")
 
     def test_apply_async_recovers_from_stale_db_connection(self):
@@ -245,16 +246,28 @@ class BackgroundTaskDefaultTest(TestCase):
         )
         with (
             mock.patch("waldur_core.core.tasks.cache.add", cache_add),
-            mock.patch("celery.app.task.Task.apply_async") as mock_super_apply,
+            mock.patch(
+                "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+            ) as mock_super_apply,
         ):
-            mock_super_apply.return_value = mock.Mock(id="task-id-stale")
+            result = self.task.apply_async(args=(arg,))
 
-            # Action — must not raise.
-            self.task.apply_async(args=(arg,))
-
-            # cache.add was retried after the OperationalError.
             self.assertEqual(cache_add.call_count, 2)
-            # Task was scheduled (no OperationalError propagated to caller).
             mock_super_apply.assert_called_once()
             call_kwargs = mock_super_apply.call_args[1]
             self.assertEqual(call_kwargs["headers"]["__waldur_lock_key"], expected_key)
+            self.assertEqual(call_kwargs["task_id"], result.id)
+
+    def test_apply_async_preserves_caller_provided_task_id(self):
+        arg = "instance:explicit"
+        expected_key = self.task.get_unique_key((arg,), {})
+        explicit_id = str(uuid4())
+
+        with mock.patch(
+            "celery.app.task.Task.apply_async", side_effect=_fake_celery_apply_async
+        ) as mock_super_apply:
+            result = self.task.apply_async(args=(arg,), task_id=explicit_id)
+
+            self.assertEqual(result.id, explicit_id)
+            self.assertEqual(mock_super_apply.call_args[1]["task_id"], explicit_id)
+            self.assertEqual(cache.get(expected_key), explicit_id)
