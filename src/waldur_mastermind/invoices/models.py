@@ -774,7 +774,16 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
 
 class CustomerCredit(BaseCredit):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
-    offerings = models.ManyToManyField(marketplace_models.Offering)
+    #: Empty means unrestricted. `creditable_items` applies the restriction only
+    #: when a list is stated, so clearing this widens the credit to every
+    #: offering rather than narrowing it to none.
+    offerings = models.ManyToManyField(
+        marketplace_models.Offering,
+        blank=True,
+        help_text=(
+            "Offerings the credit may be drawn against. Leave empty to allow all offerings: an empty list means unrestricted, not none. Cost on any other offering is invoiced normally and is never compensated from this credit."
+        ),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
