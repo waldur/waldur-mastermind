@@ -1,3 +1,4 @@
+import datetime
 import decimal
 import json
 import logging
@@ -208,6 +209,8 @@ class EstimatedCostPolicySerializer(
 ):
     period_name = serializers.CharField(read_only=True, source="get_period_display")
     current_cost = serializers.SerializerMethodField()
+    eta_days = serializers.SerializerMethodField()
+    eta_date = serializers.SerializerMethodField()
 
     class Meta(PolicySerializer.Meta):
         fields = PolicySerializer.Meta.fields + (
@@ -215,6 +218,8 @@ class EstimatedCostPolicySerializer(
             "period",
             "period_name",
             "current_cost",
+            "eta_days",
+            "eta_date",
         )
 
     @extend_schema_field(serializers.DecimalField(max_digits=16, decimal_places=2))
@@ -235,8 +240,40 @@ class EstimatedCostPolicySerializer(
         )
         return instance.get_current_cost(compensation)
 
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_eta_days(self, instance) -> int | None:
+        """Days until the policy crosses `limit_cost`; null when unprojectable.
+
+        0 means the limit is already exceeded. Null is the common case and must
+        be rendered as "no date", never as "now": the projection needs both the
+        gross cost and the credit still to be drawn, and a client holding only
+        their difference cannot derive it — waldur/waldur-homeport#244 is what
+        happens when one tries. Costs the same simulation as `current_cost`, so
+        it is excluded by the same `?field=` as that one.
+        """
+        # Memoised per response: `eta_date` is the same projection formatted,
+        # and the simulation behind it is the expensive part.
+        cache = self.context.setdefault("_policy_eta_cache", {})
+        key = (type(instance).__name__, instance.pk)
+        if key not in cache:
+            compensation = (
+                self._compensation_for(instance)
+                if instance.uses_credit_compensation
+                else None
+            )
+            cache[key] = instance.get_eta_days(compensation)
+        return cache[key]
+
+    @extend_schema_field(serializers.DateField(allow_null=True))
+    def get_eta_date(self, instance) -> datetime.date | None:
+        """`eta_days` as a date, so clients do not each re-derive the calendar."""
+        eta_days = self.get_eta_days(instance)
+        if eta_days is None:
+            return None
+        return datetime.date.today() + datetime.timedelta(days=eta_days)
+
     def _compensation_for(self, instance):
-        """One MonthlyCompensation per customer, shared across the response.
+        """One MonthlyCompensation per customer, shared across the response."
 
         Serializing a list of policies for one customer would otherwise re-run
         the same simulation for every row.
