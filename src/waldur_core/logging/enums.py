@@ -357,6 +357,9 @@ class EventType(StrEnum):
     RESOURCE_UPDATE_FLOATING_IPS_FAILED = "resource_update_floating_ips_failed"
     RESOURCE_UPDATE_FLOATING_IPS_SCHEDULED = "resource_update_floating_ips_scheduled"
     RESOURCE_UPDATE_FLOATING_IPS_SUCCEEDED = "resource_update_floating_ips_succeeded"
+    RESOURCE_UPDATE_METADATA_FAILED = "resource_update_metadata_failed"
+    RESOURCE_UPDATE_METADATA_SCHEDULED = "resource_update_metadata_scheduled"
+    RESOURCE_UPDATE_METADATA_SUCCEEDED = "resource_update_metadata_succeeded"
     RESOURCE_UPDATE_PORTS_FAILED = "resource_update_ports_failed"
     RESOURCE_UPDATE_PORTS_SCHEDULED = "resource_update_ports_scheduled"
     RESOURCE_UPDATE_PORTS_SUCCEEDED = "resource_update_ports_succeeded"
@@ -814,6 +817,9 @@ EVENT_GROUP_MAPPING = {
         EventType.RESOURCE_UPDATE_FLOATING_IPS_FAILED,
         EventType.RESOURCE_UPDATE_FLOATING_IPS_SCHEDULED,
         EventType.RESOURCE_UPDATE_FLOATING_IPS_SUCCEEDED,
+        EventType.RESOURCE_UPDATE_METADATA_FAILED,
+        EventType.RESOURCE_UPDATE_METADATA_SCHEDULED,
+        EventType.RESOURCE_UPDATE_METADATA_SUCCEEDED,
         EventType.RESOURCE_UPDATE_PORTS_FAILED,
         EventType.RESOURCE_UPDATE_PORTS_SCHEDULED,
         EventType.RESOURCE_UPDATE_PORTS_SUCCEEDED,

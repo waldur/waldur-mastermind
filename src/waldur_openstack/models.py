@@ -1928,6 +1928,13 @@ class Instance(
             "If null, the tenant-wide default from service settings is used."
         ),
     )
+    metadata = JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Arbitrary key/value pairs forwarded to Nova as instance metadata."
+        ),
+    )
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta(structure_models.BaseResource.Meta):
@@ -2038,6 +2045,7 @@ class Instance(
             "hypervisor_hostname",
             "directly_connected_ips",
             "image_name",
+            "metadata",
         )
 
     @classmethod

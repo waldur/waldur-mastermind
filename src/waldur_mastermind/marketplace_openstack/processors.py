@@ -144,6 +144,7 @@ class InstanceCreateProcessor(TenantMixin, processors.BaseCreateResourceProcesso
         "connect_directly_to_external_network",
         "config_drive",
         "data_volumes",
+        "metadata",
     )
 
     def validate_order(self, request):

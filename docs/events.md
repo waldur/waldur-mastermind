@@ -437,6 +437,9 @@
 - resource_update_floating_ips_failed
 - resource_update_floating_ips_scheduled
 - resource_update_floating_ips_succeeded
+- resource_update_metadata_failed
+- resource_update_metadata_scheduled
+- resource_update_metadata_succeeded
 - resource_update_ports_failed
 - resource_update_ports_scheduled
 - resource_update_ports_succeeded
