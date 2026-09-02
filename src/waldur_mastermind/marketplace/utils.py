@@ -2245,18 +2245,22 @@ def setup_linux_related_data(
         instance.backend_metadata["homeDir"] = f"{homedir_prefix}{instance.username}"
 
 
-def is_offering_chargeable(offering: models.Offering) -> bool:
-    """Whether this offering is ever invoiced, and so whether pricing applies to it.
+def offering_owns_pricing(offering: models.Offering) -> bool:
+    """Whether plans and prices belong to this offering rather than to its parent.
 
     A child offering is an implementation detail of its parent — the OpenStack
     per-tenant Instance and Volume offerings are the case in point: they carry no
-    components of their own, and ordering resolves the parent's plans anyway. A
-    non-billable offering is not invoiced by definition.
+    components of their own, and both ordering and the API resolve the parent's
+    plans anyway. Plans, prices, quotas and discounts have nothing to act on
+    there, so the surfaces that manage them are refused rather than silently
+    ignored.
 
-    Either way plans, prices, quotas and discounts have nothing to act on, so the
-    surfaces that manage them are refused rather than silently ignored.
+    Being non-billable is a separate matter and deliberately not covered here: a
+    top-level offering that is not invoiced still needs a plan of its own, since
+    activation requires one (see offering_has_plans) and there is no parent to
+    inherit it from.
     """
-    return offering.parent_id is None and offering.billable
+    return offering.parent_id is None
 
 
 def get_plans_available_for_user(
