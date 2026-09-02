@@ -1426,6 +1426,22 @@ class CreateInstanceTest(VolumesBaseTest):
         self.assertIn("port creation likely failed earlier", str(ctx.exception))
         self.mocked_nova.servers.create.assert_not_called()
 
+    def test_metadata_is_passed_to_nova_client(self):
+        instance = self.fixture.instance
+        instance.metadata = {"env": "prod", "role": "db"}
+        instance.save()
+
+        self.backend.create_instance(instance, self.flavor_id)
+
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertEqual(kwargs["meta"], {"env": "prod", "role": "db"})
+
+    def test_metadata_is_omitted_when_empty(self):
+        self.backend.create_instance(self.fixture.instance, self.flavor_id)
+
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertNotIn("meta", kwargs)
+
     def test_config_drive_per_instance_true_overrides_tenant_false(self):
         # Per-instance True must win over tenant-wide False.
         self.openstack_settings.options["config_drive"] = False
@@ -1463,6 +1479,91 @@ class CreateInstanceTest(VolumesBaseTest):
 
         kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
         self.assertIs(kwargs["config_drive"], True)
+
+
+class InstanceMetadataTest(BaseBackendTest):
+    """Nova instance metadata plumbing [#190]."""
+
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+
+    def test_metadata_is_pushed_and_stale_keys_are_deleted(self):
+        # Nova's set_meta merges, so keys dropped from the field have to be
+        # deleted explicitly for the push to be a replace.
+        self.mocked_nova.servers.get.return_value.metadata = {
+            "env": "staging",
+            "owner": "team-a",
+        }
+        self.instance.metadata = {"env": "prod"}
+        self.instance.save()
+
+        self.backend.push_instance_metadata(self.instance)
+
+        self.mocked_nova.servers.set_meta.assert_called_once_with(
+            self.instance.backend_id, {"env": "prod"}
+        )
+        self.mocked_nova.servers.delete_meta.assert_called_once_with(
+            self.instance.backend_id, ["owner"]
+        )
+
+    def test_stale_keys_are_deleted_before_the_new_ones_are_pushed(self):
+        # Nova checks metadata_items quota against the merged result of the
+        # POST, so a push that precedes the prune can trip the quota even when
+        # the requested end state fits within it.
+        self.mocked_nova.servers.get.return_value.metadata = {"owner": "team-a"}
+        self.instance.metadata = {"env": "prod"}
+        self.instance.save()
+
+        self.backend.push_instance_metadata(self.instance)
+
+        called = [
+            call[0]
+            for call in self.mocked_nova.servers.mock_calls
+            if call[0] in ("delete_meta", "set_meta")
+        ]
+        self.assertEqual(called, ["delete_meta", "set_meta"])
+
+    def test_server_without_metadata_attribute_is_tolerated(self):
+        # A partial (down-cell) server response may not carry metadata at all;
+        # that must not escape as an AttributeError.
+        del self.mocked_nova.servers.get.return_value.metadata
+        self.instance.metadata = {"env": "prod"}
+        self.instance.save()
+
+        self.backend.push_instance_metadata(self.instance)
+
+        self.mocked_nova.servers.set_meta.assert_called_once_with(
+            self.instance.backend_id, {"env": "prod"}
+        )
+        self.mocked_nova.servers.delete_meta.assert_not_called()
+
+    def test_push_of_empty_metadata_only_deletes(self):
+        self.mocked_nova.servers.get.return_value.metadata = {"env": "staging"}
+        self.instance.metadata = {}
+        self.instance.save()
+
+        self.backend.push_instance_metadata(self.instance)
+
+        self.mocked_nova.servers.set_meta.assert_not_called()
+        self.mocked_nova.servers.delete_meta.assert_called_once_with(
+            self.instance.backend_id, ["env"]
+        )
+
+    def test_push_skips_delete_when_nothing_became_stale(self):
+        self.mocked_nova.servers.get.return_value.metadata = {"env": "staging"}
+        self.instance.metadata = {"env": "prod", "role": "db"}
+        self.instance.save()
+
+        self.backend.push_instance_metadata(self.instance)
+
+        self.mocked_nova.servers.delete_meta.assert_not_called()
+
+    def test_client_error_is_wrapped(self):
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.ClientException(500)
+
+        with self.assertRaises(OpenStackBackendError):
+            self.backend.push_instance_metadata(self.instance)
 
 
 class CreateServerGroupTest(BaseBackendTest):

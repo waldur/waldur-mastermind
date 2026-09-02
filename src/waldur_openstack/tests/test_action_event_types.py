@@ -80,6 +80,7 @@ class ActionEventTypeLookupTest(SimpleTestCase):
         for executor_cls in (
             executors.InstanceRescueExecutor,
             executors.InstanceUnrescueExecutor,
+            executors.InstanceUpdateMetadataExecutor,
         ):
             for state in ("scheduled", "succeeded", "failed"):
                 with self.subTest(executor=executor_cls.__name__, state=state):
@@ -106,6 +107,12 @@ class ResourceEventGroupMappingTest(SimpleTestCase):
         self.assertIn(EventType.RESOURCE_UNRESCUE_SCHEDULED, types)
         self.assertIn(EventType.RESOURCE_UNRESCUE_SUCCEEDED, types)
         self.assertIn(EventType.RESOURCE_UNRESCUE_FAILED, types)
+
+    def test_update_metadata_event_types_listed(self):
+        types = EVENT_GROUP_MAPPING[EventGroup.RESOURCES]
+        self.assertIn(EventType.RESOURCE_UPDATE_METADATA_SCHEDULED, types)
+        self.assertIn(EventType.RESOURCE_UPDATE_METADATA_SUCCEEDED, types)
+        self.assertIn(EventType.RESOURCE_UPDATE_METADATA_FAILED, types)
 
 
 class RescueEndpointDoesNotCrashOnEventLogTest(test.APITestCase):

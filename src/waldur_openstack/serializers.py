@@ -4579,6 +4579,70 @@ class OpenStackDataVolumeSerializer(serializers.Serializer):
     )
 
 
+# Nova rejects metadata beyond these limits with a 400 of its own; validate
+# upfront so the order fails fast with a field-level message instead of erring
+# in the middle of provisioning.
+NOVA_METADATA_MAX_ENTRIES = 128
+NOVA_METADATA_MAX_LENGTH = 255
+
+
+class NovaMetadataValueField(serializers.CharField):
+    """CharField that refuses non-string values and preserves them verbatim.
+
+    DRF's CharField happily coerces numbers and would turn ``{"port": 8080}``
+    into ``{"port": "8080"}``. Nova metadata is string-to-string, so reject the
+    input instead of silently changing its type. Whitespace trimming is off for
+    the same reason: Nova stores the value as given, so a trimmed value would
+    read back differently from what the client sent.
+    """
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("trim_whitespace", False)
+        super().__init__(**kwargs)
+
+    def to_internal_value(self, data):
+        if not isinstance(data, str):
+            self.fail("invalid")
+        return super().to_internal_value(data)
+
+
+def validate_nova_metadata(value):
+    if len(value) > NOVA_METADATA_MAX_ENTRIES:
+        raise serializers.ValidationError(
+            _("At most %(limit)s metadata entries are allowed, got %(count)s.")
+            % {"limit": NOVA_METADATA_MAX_ENTRIES, "count": len(value)}
+        )
+    for key in value:
+        if not key:
+            raise serializers.ValidationError(_("Metadata key must not be empty."))
+        if len(key) > NOVA_METADATA_MAX_LENGTH:
+            raise serializers.ValidationError(
+                _("Metadata key %(key)s exceeds %(limit)s characters.")
+                % {"key": key[:50] + "...", "limit": NOVA_METADATA_MAX_LENGTH}
+            )
+
+
+def build_nova_metadata_field(**kwargs):
+    kwargs.setdefault(
+        "help_text",
+        _(
+            "Nova instance metadata as string-to-string pairs. "
+            "At most %(entries)s entries; keys and values up to %(length)s characters."
+        )
+        % {
+            "entries": NOVA_METADATA_MAX_ENTRIES,
+            "length": NOVA_METADATA_MAX_LENGTH,
+        },
+    )
+    return serializers.DictField(
+        child=NovaMetadataValueField(
+            max_length=NOVA_METADATA_MAX_LENGTH, allow_blank=True
+        ),
+        validators=[validate_nova_metadata],
+        **kwargs,
+    )
+
+
 class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer):
     service_settings = serializers.HyperlinkedRelatedField(
         read_only=True,
@@ -4636,6 +4700,8 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
         help_text=_("UUID of the OpenStack tenant"),
     )
 
+    metadata = build_nova_metadata_field(required=False)
+
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
@@ -4657,6 +4723,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
             "hypervisor_hostname",
             "tenant",
             "external_address",
+            "metadata",
         )
         protected_fields = (
             structure_serializers.VirtualMachineSerializer.Meta.protected_fields
@@ -4669,6 +4736,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
                 "connect_directly_to_external_network",
                 "config_drive",
                 "tenant",
+                "metadata",
             )
         )
         read_only_fields = (
@@ -5101,6 +5169,16 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
 
         instance.volumes.add(*volumes)
         return instance
+
+
+class InstanceSetMetadataSerializer(serializers.Serializer):
+    """Input serializer for the set_metadata action.
+
+    The payload replaces the instance metadata wholesale: keys missing from it
+    are removed from Nova as well.
+    """
+
+    metadata = build_nova_metadata_field()
 
 
 class InstanceRescueSerializer(serializers.Serializer):

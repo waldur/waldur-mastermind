@@ -3261,6 +3261,32 @@ class InstanceViewSet(
     unrescue_permissions = [openstack_permissions.can_manage_openstack_instance_power]
 
     @extend_schema(
+        summary="Set instance metadata",
+        description=(
+            "Replace the instance metadata with the given string key/value "
+            "pairs. Keys absent from the payload are removed from Nova as well."
+        ),
+        request=serializers.InstanceSetMetadataSerializer,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def set_metadata(self, request, uuid=None):
+        instance: models.Instance = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance.metadata = serializer.validated_data["metadata"]
+        instance.save(update_fields=["metadata"])
+        executors.InstanceUpdateMetadataExecutor().execute(instance)
+        return response.Response(
+            {"status": _("set_metadata was scheduled")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    set_metadata_serializer_class = serializers.InstanceSetMetadataSerializer
+    set_metadata_validators = [core_validators.StateValidator(CoreStates.OK)]
+    set_metadata_permissions = [openstack_permissions.can_manage_openstack_instance]
+
+    @extend_schema(
         summary="Update instance security groups",
         description="Update security groups of the instance",
         request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,

@@ -459,6 +459,15 @@ class InstanceCreateTest(test.APITestCase):
         order = self.trigger_instance_creation(availability_zone=az_url)
         self.assertEqual(order.resource.scope.availability_zone, availability_zone)
 
+    def test_metadata_is_passed_to_plugin(self):
+        order = self.trigger_instance_creation(metadata={"env": "prod"})
+        self.assertEqual(order.state, OrderStates.EXECUTING, order.error_message)
+        self.assertEqual(order.resource.scope.metadata, {"env": "prod"})
+
+    def test_invalid_metadata_erreds_the_order(self):
+        order = self.trigger_instance_creation(metadata={"env": 1})
+        self.assertEqual(order.state, OrderStates.ERRED)
+
     def test_request_payload_is_validated(self):
         order = self.trigger_instance_creation(system_volume_size=100)
         self.assertEqual(order.state, OrderStates.ERRED)

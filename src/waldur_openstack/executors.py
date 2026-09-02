@@ -1428,6 +1428,18 @@ class InstanceUpdateSecurityGroupsExecutor(core_executors.ActionExecutor):
         )
 
 
+class InstanceUpdateMetadataExecutor(core_executors.ActionExecutor):
+    action = "Update metadata"
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            backend_method="push_instance_metadata",
+            state_transition="begin_updating",
+        )
+
+
 class PortUpdateSecurityGroupsExecutor(core_executors.ActionExecutor):
     action = "Update security groups"
 

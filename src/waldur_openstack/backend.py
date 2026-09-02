@@ -4864,6 +4864,9 @@ class OpenStackBackend(ServiceBackend):
             if server_group:
                 server_create_parameters["scheduler_hints"] = {"group": server_group}
 
+            if instance.metadata:
+                server_create_parameters["meta"] = instance.metadata
+
             # user_data may contain sensitive cloud-init payloads, so redact it
             # from the log to avoid leaking secrets into log aggregation.
             loggable_parameters = dict(server_create_parameters)
@@ -5390,6 +5393,7 @@ class OpenStackBackend(ServiceBackend):
             availability_zone=availability_zone,
             hypervisor_hostname=hypervisor_hostname,
             directly_connected_ips=",".join(external_backend_ips),
+            metadata=getattr(backend_instance, "metadata", None) or {},
         )
 
         # With Nova microversion 2.47+, flavor details are embedded in the
@@ -6433,6 +6437,29 @@ class OpenStackBackend(ServiceBackend):
                     {"instance": instance, "security_group": security_group},
                     scopes=[instance],
                 )
+
+    @log_backend_action()
+    def push_instance_metadata(self, instance: models.Instance):
+        """Make Nova metadata match the instance metadata field exactly.
+
+        Nova's ``set_meta`` is a POST, which merges rather than replaces, so
+        keys dropped from the field have to be deleted explicitly. Deletion
+        goes first: Nova checks its metadata_items quota against the merged
+        result of the POST, so pushing before pruning can trip the quota even
+        when the requested end state fits within it.
+        """
+        session = get_tenant_session(instance.tenant)
+        nova = get_nova_client(session)
+        metadata = instance.metadata or {}
+        try:
+            server = nova.servers.get(instance.backend_id)
+            stale_keys = set(getattr(server, "metadata", None) or {}) - set(metadata)
+            if stale_keys:
+                nova.servers.delete_meta(instance.backend_id, sorted(stale_keys))
+            if metadata:
+                nova.servers.set_meta(instance.backend_id, metadata)
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def push_instance_security_groups(self, instance: models.Instance):

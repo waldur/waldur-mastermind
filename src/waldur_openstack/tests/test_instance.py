@@ -1904,6 +1904,129 @@ class InstanceRescueActionTest(test.APITestCase):
         self.rescue_exec.assert_not_called()
 
 
+class InstanceSetMetadataTest(test.APITestCase):
+    """set_metadata action on InstanceViewSet [#190]."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+        self.instance.state = CoreStates.OK
+        self.instance.metadata = {"env": "staging", "owner": "team-a"}
+        self.instance.save()
+        self.url = factories.InstanceFactory.get_url(
+            self.instance, action="set_metadata"
+        )
+        self.executor = mock.patch(
+            "waldur_openstack.executors.InstanceUpdateMetadataExecutor.execute"
+        ).start()
+        self.client.force_authenticate(user=self.fixture.admin)
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
+
+    def test_metadata_is_replaced_wholesale(self):
+        response = self.client.post(self.url, {"metadata": {"env": "prod"}})
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.metadata, {"env": "prod"})
+        self.executor.assert_called_once()
+
+    def test_metadata_can_be_cleared(self):
+        response = self.client.post(self.url, {"metadata": {}}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.metadata, {})
+
+    def test_metadata_is_required(self):
+        response = self.client.post(self.url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.executor.assert_not_called()
+
+    def test_too_many_entries_are_rejected(self):
+        metadata = {f"key-{i}": "value" for i in range(129)}
+
+        response = self.client.post(self.url, {"metadata": metadata}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.executor.assert_not_called()
+
+    def test_long_key_is_rejected(self):
+        response = self.client.post(
+            self.url, {"metadata": {"k" * 256: "value"}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_empty_key_is_rejected(self):
+        response = self.client.post(
+            self.url, {"metadata": {"": "value"}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_long_value_is_rejected(self):
+        response = self.client.post(
+            self.url, {"metadata": {"env": "v" * 256}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_whitespace_in_values_is_preserved(self):
+        # Nova stores the value verbatim, so trimming it here would make the
+        # value read back differently from what the client sent.
+        response = self.client.post(
+            self.url, {"metadata": {"note": "  padded  "}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.metadata, {"note": "  padded  "})
+
+    def test_non_string_value_is_rejected(self):
+        # Nova metadata is string-to-string; a number must not be coerced.
+        response = self.client.post(
+            self.url, {"metadata": {"port": 8080}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.metadata, {"env": "staging", "owner": "team-a"})
+
+    def test_action_is_rejected_in_erred_state(self):
+        self.instance.state = CoreStates.ERRED
+        self.instance.save()
+
+        response = self.client.post(
+            self.url, {"metadata": {"env": "prod"}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.executor.assert_not_called()
+
+    def test_unrelated_user_cannot_set_metadata(self):
+        self.client.force_authenticate(user=self.fixture.user)
+
+        response = self.client.post(
+            self.url, {"metadata": {"env": "prod"}}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.executor.assert_not_called()
+
+    def test_metadata_is_not_editable_via_patch(self):
+        url = factories.InstanceFactory.get_url(self.instance)
+
+        response = self.client.patch(url, {"metadata": {"env": "prod"}}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.metadata, {"env": "staging", "owner": "team-a"})
+
+
 class ImageRescueFilterTest(test.APITestCase):
     """is_rescue_image filter on the openstack-images list."""
 
