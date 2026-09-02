@@ -18,6 +18,9 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/stages.yml"
   - project: "waldur/waldur-pipelines"
+    ref: chore/prek-linters-template
+    file: "/templates/test/python-linters.yml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/test/check-merge-compatibility.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/publish-multiarch.yml"
@@ -110,13 +113,8 @@ before_script:
         - uv.lock
 
 Run linters:
-  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
-  stage: test
-  interruptible: true
+  extends: .Run linters template
   <<: *unit_test_rules
-  script:
-    - pip install prek
-    - prek run --all-files
 
 Scan Python dependencies:
   extends: .Vulnerability scan template
