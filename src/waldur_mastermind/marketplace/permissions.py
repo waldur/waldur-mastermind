@@ -355,12 +355,17 @@ user_can_manage_offering_user_group = permission_factory(
 def user_can_set_end_date_by_provider(
     request, view, obj: models.Resource | None = None
 ):
+    # Deprecated endpoint, kept in step with user_can_set_end_date_as_provider:
+    # the same permission on either provider-side scope. Checking only
+    # offering.customer would reject an offering-scoped identity that the
+    # non-deprecated action accepts.
     if not obj:
         return
     if request.user.is_support:
         return
-    if has_permission(
-        request, PermissionEnum.SET_RESOURCE_END_DATE, obj.offering.customer
+    if any(
+        has_permission(request, PermissionEnum.SET_RESOURCE_END_DATE, scope)
+        for scope in (obj.offering.customer, obj.offering)
     ):
         return
     raise exceptions.PermissionDenied()

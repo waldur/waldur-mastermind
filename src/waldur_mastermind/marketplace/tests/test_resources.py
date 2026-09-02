@@ -3244,3 +3244,63 @@ class ProviderResourceOfferingScopeTest(test.APITestCase):
         other = factories.ResourceFactory()
         response = self.make_request(other, action, None)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, action)
+
+
+@ddt
+class ProviderSetEndDateOfferingScopeTest(test.APITestCase):
+    """OFFERING.MANAGER carries RESOURCE.SET_END_DATE, so a site agent can
+    write an end date back without a customer-wide role.
+
+    #317 made the provider check reach the offering scope; the role still did
+    not hold the permission, so the call kept returning 403. permissions.yaml
+    now grants it alongside the other provider write-back permissions. See
+    waldur/waldur-mastermind#318.
+    """
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        OfferingRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        # The deprecated action refuses a resource invoiced in the last 90 days.
+        # That rule is not what is under test here, and the fixture always
+        # bills the resource on creation.
+        invoices_models.InvoiceItem.objects.filter(resource=self.resource).delete()
+        self.end_date = timezone.datetime.today().date() + datetime.timedelta(days=90)
+
+    def set_end_date(self, resource, action="set_end_date"):
+        url = factories.ResourceFactory.get_provider_resource_url(
+            resource, action=action
+        )
+        self.client.force_authenticate(self.fixture.offering_manager)
+        return self.client.post(
+            url, {"end_date": self.end_date.isoformat()}, format="json"
+        )
+
+    @data("set_end_date", "set_end_date_by_provider")
+    def test_offering_manager_sets_the_end_date(self, action):
+        """Both the current action and the deprecated one, which checked
+        offering.customer only and so contradicted its own replacement."""
+        response = self.set_end_date(self.resource, action)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, self.end_date)
+
+    @data("set_end_date", "set_end_date_by_provider")
+    def test_offering_manager_can_not_reach_another_offering(self, action):
+        other = factories.ResourceFactory(state=ResourceStates.OK)
+
+        response = self.set_end_date(other, action)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, action)
+
+    @data("set_end_date", "set_end_date_by_provider")
+    def test_role_without_the_permission_is_still_refused(self, action):
+        """The grant is what unlocks this — not membership of the offering."""
+        OfferingRole.MANAGER.delete_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+
+        response = self.set_end_date(self.resource, action)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, action)
