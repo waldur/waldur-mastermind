@@ -6822,6 +6822,13 @@ def can_manage_plan(plan):
         )
 
 
+def validate_plan_is_chargeable(plan):
+    if not utils.is_offering_chargeable(plan.offering):
+        raise rf_exceptions.ValidationError(
+            _("This offering is not charged, so its plans cannot be priced.")
+        )
+
+
 def validate_plan_update(plan):
     if models.Resource.objects.filter(plan=plan).exists():
         raise rf_exceptions.ValidationError(
@@ -6915,7 +6922,7 @@ class ProviderPlanViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_prices_permissions = update_permissions
-    update_prices_validators = [can_manage_plan]
+    update_prices_validators = [can_manage_plan, validate_plan_is_chargeable]
 
     @extend_schema(
         summary="Update plan component quotas",
@@ -6934,7 +6941,7 @@ class ProviderPlanViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_quotas_permissions = update_permissions
-    update_quotas_validators = [can_manage_plan]
+    update_quotas_validators = [can_manage_plan, validate_plan_is_chargeable]
 
     @extend_schema(
         summary="Update plan component discounts",
@@ -6971,7 +6978,7 @@ class ProviderPlanViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_discounts_permissions = update_permissions
-    update_discounts_validators = [can_manage_plan]
+    update_discounts_validators = [can_manage_plan, validate_plan_is_chargeable]
 
     archive_permissions = [
         permission_factory(
