@@ -55,8 +55,8 @@ class HookCreationViewTest(BaseHookApiTest):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["event_groups"], set(event_groups))
-        self.assertEqual(response.data["event_types"], set(event_types))
+        self.assertEqual(set(response.data["event_groups"]), set(event_groups))
+        self.assertEqual(set(response.data["event_types"]), set(event_types))
 
 
 @ddt
@@ -78,7 +78,7 @@ class HookUpdateTest(BaseHookApiTest):
     def test_author_can_update_hook_event_types(self, hook):
         new_event_types = set(self.valid_event_types[:1])
         response = self.update_hook(hook, {"event_types": new_event_types})
-        self.assertEqual(new_event_types, response.data["event_types"])
+        self.assertEqual(new_event_types, set(response.data["event_types"]))
 
     @data(
         "web",
@@ -89,8 +89,8 @@ class HookUpdateTest(BaseHookApiTest):
 
         self.client.force_authenticate(user=self.author)
         response = self.update_hook(hook, {"event_groups": event_groups})
-        self.assertEqual(response.data["event_groups"], set(event_groups))
-        self.assertEqual(response.data["event_types"], set(event_types))
+        self.assertEqual(set(response.data["event_groups"]), set(event_groups))
+        self.assertEqual(set(response.data["event_types"]), set(event_types))
 
     @data(
         "web",
