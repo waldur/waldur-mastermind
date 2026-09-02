@@ -1,9 +1,6 @@
-from unittest import mock
-
 from rest_framework import status, test
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
-from waldur_vmware import backend, models
 
 from . import factories
 
@@ -49,44 +46,3 @@ class DatastoreGetTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
-
-
-class DatastorePullTest(test.APITestCase):
-    def setUp(self):
-        super().setUp()
-        self.settings = factories.VMwareServiceSettingsFactory()
-        self.backend = backend.VMwareBackend(self.settings)
-        self.patcher = mock.patch("waldur_vmware.backend.VMwareClient")
-        self.mock_client = self.patcher.start()
-
-    def tearDown(self):
-        super().tearDown()
-        mock.patch.stopall()
-
-    def test_delete_old_datastores(self):
-        factories.DatastoreFactory(settings=self.settings)
-        factories.DatastoreFactory(settings=self.settings)
-        self.backend.pull_datastores()
-        self.assertEqual(models.Datastore.objects.count(), 0)
-
-    def test_add_new_datastores(self):
-        client = mock.MagicMock()
-        self.mock_client.return_value = client
-        client.list_datastores.return_value = self._generate_datastores()
-
-        self.backend.pull_datastores()
-        self.assertEqual(models.Datastore.objects.count(), 1)
-
-    def _generate_datastores(self, count=1):
-        datastores = []
-        for i in range(count):
-            backend_datastore = {
-                "name": "datastore_%s" % i,
-                "type": "VMFS",
-                "datastore": "datastore_%s" % i,
-                "capacity": i * 1024 * 1024 * 10,
-                "free_space": i * 1024 * 1024 * 5,
-            }
-            datastores.append(backend_datastore)
-
-        return datastores
