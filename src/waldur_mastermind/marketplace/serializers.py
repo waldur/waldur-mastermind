@@ -2609,12 +2609,23 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
 
     def validate(self, attrs):
         if not self.instance:
+            offering = attrs["offering"]
             if not has_permission(
                 self.context["request"],
                 PermissionEnum.CREATE_OFFERING_PLAN,
-                attrs["offering"].customer,
+                offering.customer,
             ):
                 raise PermissionDenied()
+            # Creation is guarded here rather than by an action validator:
+            # ActionsViewSet runs those for detail actions and update alone.
+            if not utils.is_offering_chargeable(offering):
+                raise ValidationError(
+                    {
+                        "offering": _(
+                            "This offering is not charged, so it cannot have plans."
+                        )
+                    }
+                )
         return attrs
 
     def create(self, validated_data):

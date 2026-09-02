@@ -69,6 +69,23 @@ class PlanDiscountUpdateTest(test.APITestCase):
             self.ram_plan_component.discount_formula, "20 if usage >= 100 else 0"
         )
 
+    def test_discounts_are_not_allowed_for_child_offering(self):
+        self.offering.parent = factories.OfferingFactory(
+            customer=self.offering.customer
+        )
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.service_owner)
+
+        payload = {
+            "discounts": {"cpu": {"discount_formula": "15 if usage >= 10 else 0"}}
+        }
+
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.cpu_plan_component.refresh_from_db()
+        self.assertFalse(self.cpu_plan_component.discount_formula)
+
     def test_service_provider_can_set_discount_scope(self):
         self.client.force_authenticate(self.fixture.service_owner)
 
