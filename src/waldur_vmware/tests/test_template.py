@@ -108,3 +108,60 @@ class TemplatePullTest(test.APITestCase):
 
         self.backend.pull_templates()
         self.assertEqual(models.Template.objects.count(), 0)
+
+    @override_plugin_settings(BASIC_MODE=True)
+    def test_template_with_no_nics_key_is_skipped(self):
+        """A template with no network adapters omits the key entirely.
+
+        Indexing it directly makes the whole service-properties pull fail with
+        KeyError, not just skip the one template.
+        """
+        client = mock.MagicMock()
+        self.mock_client.return_value = client
+        del self.ALL_TEMPLATES[0]["template"]["nics"]
+        client.list_all_templates.return_value = self.ALL_TEMPLATES
+
+        self.backend.pull_templates()
+        self.assertEqual(models.Template.objects.count(), 0)
+
+    def test_template_with_an_empty_hardware_spec_is_skipped(self):
+        """vCenter answers for a library item it cannot describe with a skeleton.
+
+        Every field it leaves out is non-null on the model, so indexing the
+        skeleton fails the whole service-properties pull rather than skipping
+        the one item. Basic mode is off here on purpose: with it on, the NIC
+        filter happens to drop such an item before it is ever converted.
+        """
+        client = mock.MagicMock()
+        self.mock_client.return_value = client
+        self.ALL_TEMPLATES[0]["template"] = {
+            "cpu": {},
+            "memory": {},
+            "vm_home_storage": {},
+        }
+        client.list_all_templates.return_value = self.ALL_TEMPLATES
+
+        self.backend.pull_templates()
+
+        self.assertEqual(models.Template.objects.count(), 0)
+
+    def test_template_without_a_guest_os_is_skipped(self):
+        client = mock.MagicMock()
+        self.mock_client.return_value = client
+        del self.ALL_TEMPLATES[0]["template"]["guest_OS"]
+        client.list_all_templates.return_value = self.ALL_TEMPLATES
+
+        self.backend.pull_templates()
+
+        self.assertEqual(models.Template.objects.count(), 0)
+
+    def test_template_without_disks_is_pulled_with_no_disk_size(self):
+        """A diskless template is describable, unlike an empty skeleton."""
+        client = mock.MagicMock()
+        self.mock_client.return_value = client
+        del self.ALL_TEMPLATES[0]["template"]["disks"]
+        client.list_all_templates.return_value = self.ALL_TEMPLATES
+
+        self.backend.pull_templates()
+
+        self.assertEqual(models.Template.objects.get().disk, 0)

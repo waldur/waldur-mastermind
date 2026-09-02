@@ -17,6 +17,11 @@ def pytest_configure(config):
         "matrix_integration: requires a running Matrix homeserver (Tuwunel). "
         "Opt-in via -m matrix_integration; CI skips by default.",
     )
+    config.addinivalue_line(
+        "markers",
+        "vcsim: requires a running vCenter simulator (vcsim). "
+        "Opt-in via -m vcsim; the sharded unit suite skips by default.",
+    )
 
 
 @pytest.fixture(autouse=True)

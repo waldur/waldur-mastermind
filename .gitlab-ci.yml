@@ -410,6 +410,108 @@ Run demo presets tests:
     POSTGRES_PASSWORD: waldur
     DJANGO_SETTINGS_MODULE: waldur_mastermind.test_settings
 
+# The VMware plugin is validated against vcsim, VMware's vCenter simulator
+# (shipped inside govmomi, VMware's official Go SDK). These tests are excluded
+# from the sharded suite by a collection-time skip in
+# src/waldur_vmware/tests/conftest.py — that suite runs with `-m 'not slow'`,
+# which does not opt into the marker — so they need a job of their own.
+#
+# vcsim proves call shapes and payloads, not vCenter behaviour: it is a
+# developer tool, not a complete implementation. Acceptance against a live
+# vCenter is still required before release.
+Run VMware integration tests:
+  extends: .Unit test runner
+  rules:
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - src/waldur_vmware/**/*
+  script:
+    - |
+      echo "[+] Setting up test database configuration..."
+      cat > src/waldur_mastermind/test_settings.py <<-EOF
+      from waldur_core.server.test_settings import *
+      from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+
+      # Using UNLOGGED tables in PostgreSQL is a significant performance boost for
+      # tests, as it reduces disk I/O by not writing to the WAL.
+      BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
+
+      DATABASES = {
+          'default': {
+              'ENGINE': 'django.db.backends.postgresql',
+              'NAME': 'test_waldur',
+              'USER': 'runner',
+              'HOST': 'postgres',
+              'PORT': 5432,
+              'PASSWORD': 'waldur',
+          }
+      }
+      EOF
+    - uv run pytest --no-migrations -m vcsim src/waldur_vmware/ -v
+  services:
+    - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
+      alias: postgres
+      command:
+        [
+          "postgres",
+          "-cfsync=off",
+          "-cfull_page_writes=off",
+          "-cmax_connections=1000",
+          "-cshared_buffers=1GB",
+          "-ceffective_cache_size=4GB",
+          "-cwork_mem=32MB",
+          "-cmaintenance_work_mem=32MB",
+          "-ctemp_buffers=16MB",
+          "-cwal_buffers=48MB",
+        ]
+    # -api-version: vcsim defaults to 6.5, which is older than anything we
+    # target. The inventory is plural where the code makes a choice, so that the
+    # get_default_* helpers are tested for which object they pick.
+    #
+    # The tag is pinned rather than :latest, so that a govmomi release cannot
+    # redden this job on its own. Keep it in step with docker/vcsim-dev/.
+    - name: "registry.hpc.ut.ee/mirror/vmware/vcsim:v0.56.0"
+      alias: vcsim
+      command:
+        [
+          "-l",
+          "0.0.0.0:8989",
+          "-api-version",
+          "8.0.1.0",
+          "-username",
+          "waldur",
+          "-password",
+          "waldur",
+          "-dc",
+          "1",
+          "-cluster",
+          "1",
+          "-host",
+          "2",
+          "-vm",
+          "2",
+          "-ds",
+          "2",
+          "-pg",
+          "2",
+          "-pool",
+          "1",
+          "-folder",
+          "1",
+        ]
+  variables:
+    POSTGRES_DB: test_waldur
+    POSTGRES_USER: runner
+    POSTGRES_PASSWORD: waldur
+    DJANGO_SETTINGS_MODULE: waldur_mastermind.test_settings
+    VCSIM_URL: "https://vcsim:8989"
+    VCSIM_USERNAME: waldur
+    VCSIM_PASSWORD: waldur
+
 # This is the "preparation" job. It's not parallelized.
 # Its only responsibilities are to check for merge conflicts and generate the dynamic
 # child pipeline configuration based on the code changes.

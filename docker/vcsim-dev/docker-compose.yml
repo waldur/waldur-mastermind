@@ -1,0 +1,54 @@
+# vcsim — VMware's vCenter simulator, shipped inside govmomi (VMware's official
+# Go SDK). It backs the `-m vcsim` integration tests for the VMware plugin.
+#
+#   docker compose up -d
+#   DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings_local \
+#     uv run pytest --reuse-db -m vcsim src/waldur_vmware/ -v
+#
+# vcsim is a developer tool, not a supported product, and it is not a complete
+# vCenter: it proves call shapes and payloads, not real vCenter behaviour.
+# Acceptance against a live vCenter stays required.
+services:
+  vcsim:
+    # Pinned, not :latest — vcsim ships with govmomi and a release can change
+    # simulator behaviour, which would redden the CI job with no change here.
+    # Keep this in step with the tag in .gitlab-ci.yml.
+    image: vmware/vcsim:v0.56.0
+    restart: unless-stopped
+    # vcsim listens on 127.0.0.1 by default, which is unreachable from outside
+    # the container.
+    #
+    # -api-version: vcsim defaults to 6.5. Pin it to the vCenter generation the
+    # plugin claims to support, otherwise the tests validate against an API
+    # older than anything we target.
+    #
+    # The inventory is deliberately plural where the code makes a choice: two
+    # hosts, two datastores and two port groups let the `get_default_*` helpers
+    # be tested for *which* object they pick, not merely that they pick one.
+    command:
+      - "-l"
+      - "0.0.0.0:8989"
+      - "-api-version"
+      - "8.0.1.0"
+      - "-username"
+      - "waldur"
+      - "-password"
+      - "waldur"
+      - "-dc"
+      - "1"
+      - "-cluster"
+      - "1"
+      - "-host"
+      - "2"
+      - "-vm"
+      - "2"
+      - "-ds"
+      - "2"
+      - "-pg"
+      - "2"
+      - "-pool"
+      - "1"
+      - "-folder"
+      - "1"
+    ports:
+      - "8989:8989"

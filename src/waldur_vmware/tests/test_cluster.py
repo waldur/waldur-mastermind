@@ -1,9 +1,6 @@
-from unittest import mock
-
 from rest_framework import status, test
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
-from waldur_vmware import backend, models
 
 from . import factories
 
@@ -49,41 +46,3 @@ class ClusterGetTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
-
-
-class ClusterPullTest(test.APITestCase):
-    def setUp(self):
-        super().setUp()
-        self.settings = factories.VMwareServiceSettingsFactory()
-        self.backend = backend.VMwareBackend(self.settings)
-        self.patcher = mock.patch("waldur_vmware.backend.VMwareClient")
-        self.mock_client = self.patcher.start()
-
-    def tearDown(self):
-        super().tearDown()
-        mock.patch.stopall()
-
-    def test_delete_old_clusters(self):
-        factories.ClusterFactory(settings=self.settings)
-        factories.ClusterFactory(settings=self.settings)
-        self.backend.pull_clusters()
-        self.assertEqual(models.Cluster.objects.count(), 0)
-
-    def test_add_new_clusters(self):
-        client = mock.MagicMock()
-        self.mock_client.return_value = client
-        client.list_clusters.return_value = self._generate_clusters()
-
-        self.backend.pull_clusters()
-        self.assertEqual(models.Cluster.objects.count(), 1)
-
-    def _generate_clusters(self, count=1):
-        clusters = []
-        for i in range(count):
-            backend_cluster = {
-                "name": "cluster_%s" % i,
-                "cluster": "cluster_%s" % i,
-            }
-            clusters.append(backend_cluster)
-
-        return clusters

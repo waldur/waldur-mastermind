@@ -65,6 +65,18 @@ class VmwareServiceSerializer(structure_serializers.ServiceOptionsSerializer):
         help_text=_("Maximum total size of the disk space per VM, MiB"),
     )
 
+    verify_ssl = serializers.BooleanField(
+        source="options.verify_ssl",
+        required=False,
+        default=False,
+        help_text=_(
+            "Verify the TLS certificate of the vCenter server. "
+            "Disabled by default, because vCenter is commonly deployed with a "
+            "self-signed certificate; enable it once vCenter presents a "
+            "certificate your deployment trusts."
+        ),
+    )
+
 
 def get_int_or_none(options, key):
     value = options.get(key)
