@@ -710,6 +710,7 @@ td:nth-child(4) {
 | `send_course_account_deletion_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
 | `send_course_account_info` | `Django Signal (post_save)` | `marketplace.CourseAccount` | No description |
 | `send_end_date_change_request_to_message_queue` | `Django Signal (post_save)` | `marketplace.ResourceEndDateChangeRequest` | Emit an end date change request event on creation and every state change. |
+| `send_issue_created_notification` | `Django Signal (post_save)` | `support.Issue` | Tell helpdesk personnel that a new support request has arrived. |
 | `send_issue_updated_notification` | `Django Signal (post_save)` | `support.Issue` | No description |
 | `send_offering_user_created_message` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Send OfferingUser creation message to message queue for external systems. |
 | `send_offering_user_deleted_message` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Send OfferingUser deletion message to message queue for external systems. |
@@ -886,14 +887,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 812
+Total unique handlers found: 813
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 420 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 339 handlers
+- **waldur_mastermind**: 340 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

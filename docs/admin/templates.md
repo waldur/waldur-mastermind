@@ -4562,6 +4562,25 @@ This is an automated message from {{ site_name }}. Please do not reply to this e
 
 ```
 
+### notification_issue_created_message.txt (waldur_mastermind.support)
+
+```txt
+
+A new support request has been created.
+
+Request: {{ issue.key }}
+Summary: {{ issue.summary.strip }}
+Type: {{ issue.type }}
+{% if issue.priority %}Priority: {{ issue.priority }}
+{% endif %}Reported by: {{ issue.caller.full_name|default:issue.caller.username|default:"unknown" }}
+{% if issue.customer %}Organization: {{ issue.customer.name }}
+{% endif %}{% if issue.project %}Project: {{ issue.project.name }}
+{% endif %}
+Description:
+{{ issue.description.strip }}
+
+```
+
 ### notification_issue_updated_message.html (waldur_mastermind.support)
 
 ```html
@@ -4676,6 +4695,14 @@ This is an automated message from {{ site_name }}. Please do not reply to this e
 
 ```
 
+### notification_issue_created_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] New support request: {{ issue.summary.strip }}
+
+```
+
 ### provider_sla_warning_message.html (waldur_mastermind.support)
 
 ```html
@@ -4740,6 +4767,23 @@ Comment:
 
 ```
 
+### notification_issue_created_message.html (waldur_mastermind.support)
+
+```html
+
+<p>A new support request has been created.</p>
+<p><strong>Request:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary.strip }}<br>
+<strong>Type:</strong> {{ issue.type }}<br>
+{% if issue.priority %}<strong>Priority:</strong> {{ issue.priority }}<br>{% endif %}
+<strong>Reported by:</strong> {{ issue.caller.full_name|default:issue.caller.username|default:"unknown" }}
+{% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}
+{% if issue.project %}<br><strong>Project:</strong> {{ issue.project.name }}{% endif %}</p>
+<p><strong>Description:</strong></p>
+<p>{{ issue.description.strip }}</p>
+
+```
+
 ### provider_ticket_withdrawn_message.html (waldur_mastermind.support)
 
 ```html
@@ -4748,6 +4792,19 @@ Comment:
 <p><strong>Ticket:</strong> {{ issue.key }}<br>
 <strong>Summary:</strong> {{ issue.summary }}</p>
 <p>No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.</p>
+
+```
+
+### notification_issue_escalated_message.html (waldur_mastermind.support)
+
+```html
+
+<p>A support request has been escalated.</p>
+<p><strong>Request:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary.strip }}
+{% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}</p>
+<p><strong>Reason for escalation:</strong></p>
+<p>{{ reason }}</p>
 
 ```
 
@@ -4841,6 +4898,21 @@ No further action is required on your side. If you have already opened a corresp
 ```txt
 
 {% if issue.customer.abbreviation %}{{issue.customer.abbreviation}}: {% endif %}{{issue.summary}}
+
+```
+
+### notification_issue_escalated_message.txt (waldur_mastermind.support)
+
+```txt
+
+A support request has been escalated.
+
+Request: {{ issue.key }}
+Summary: {{ issue.summary.strip }}
+{% if issue.customer %}Organization: {{ issue.customer.name }}
+{% endif %}
+Reason for escalation:
+{{ reason }}
 
 ```
 
@@ -4943,6 +5015,14 @@ Updated issue: {{issue.key}} {{issue.summary}}
 <strong>Priority:</strong> {{ issue.priority }}</p>
 <p><strong>Description:</strong></p>
 <p>{{ issue.description }}</p>
+
+```
+
+### notification_issue_escalated_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] Escalated: {{ issue.summary.strip }}
 
 ```
 
