@@ -2618,11 +2618,12 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
                 raise PermissionDenied()
             # Creation is guarded here rather than by an action validator:
             # ActionsViewSet runs those for detail actions and update alone.
-            if not utils.is_offering_chargeable(offering):
+            if not utils.offering_owns_pricing(offering):
                 raise ValidationError(
                     {
                         "offering": _(
-                            "This offering is not charged, so it cannot have plans."
+                            "This offering is a child offering, so its plans "
+                            "belong to the parent."
                         )
                     }
                 )

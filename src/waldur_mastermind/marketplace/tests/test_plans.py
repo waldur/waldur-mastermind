@@ -89,13 +89,15 @@ class PlanCreateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(models.Plan.objects.filter(offering=self.offering).exists())
 
-    def test_can_not_create_plan_for_non_billable_offering(self):
+    def test_can_create_plan_for_non_billable_offering(self):
+        # A top-level offering that is not invoiced still needs a plan of its
+        # own: activation requires one and there is no parent to inherit it from.
         self.offering = factories.OfferingFactory(
             customer=self.customer, billable=False
         )
         response = self.create_plan("owner")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(models.Plan.objects.filter(offering=self.offering).exists())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(models.Plan.objects.filter(offering=self.offering).exists())
 
     def create_plan(self, user):
         user = getattr(self.fixture, user)
@@ -494,11 +496,11 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_prices_are_not_allowed_for_non_billable_offering(self):
+    def test_prices_are_not_allowed_for_child_offering(self):
         # Arrange
         plan = factories.PlanFactory(offering=self.offering)
         factories.OfferingComponentFactory(offering=self.offering, type="ram")
-        self.offering.billable = False
+        self.offering.parent = factories.OfferingFactory(customer=self.customer)
         self.offering.save()
 
         # Act
@@ -506,6 +508,25 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_prices_are_allowed_for_non_billable_offering(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering, type="ram"
+        )
+        self.offering.billable = False
+        self.offering.save()
+
+        # Act
+        response = self.update_prices(plan, "owner", {"prices": {"ram": 2}})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        plan_component = models.PlanComponent.objects.get(
+            plan=plan, component=offering_component
+        )
+        self.assertEqual(plan_component.price, 2)
 
     def test_if_there_are_no_resources_using_plan_price_is_updated(self):
         # Arrange

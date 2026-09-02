@@ -6822,10 +6822,12 @@ def can_manage_plan(plan):
         )
 
 
-def validate_plan_is_chargeable(plan):
-    if not utils.is_offering_chargeable(plan.offering):
+def validate_plan_pricing_is_owned(plan):
+    if not utils.offering_owns_pricing(plan.offering):
         raise rf_exceptions.ValidationError(
-            _("This offering is not charged, so its plans cannot be priced.")
+            _(
+                "This offering is a child offering, so its pricing belongs to the parent."
+            )
         )
 
 
@@ -6922,7 +6924,7 @@ class ProviderPlanViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_prices_permissions = update_permissions
-    update_prices_validators = [can_manage_plan, validate_plan_is_chargeable]
+    update_prices_validators = [can_manage_plan, validate_plan_pricing_is_owned]
 
     @extend_schema(
         summary="Update plan component quotas",
@@ -6941,7 +6943,7 @@ class ProviderPlanViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_quotas_permissions = update_permissions
-    update_quotas_validators = [can_manage_plan, validate_plan_is_chargeable]
+    update_quotas_validators = [can_manage_plan, validate_plan_pricing_is_owned]
 
     @extend_schema(
         summary="Update plan component discounts",
@@ -6978,7 +6980,7 @@ class ProviderPlanViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_discounts_permissions = update_permissions
-    update_discounts_validators = [can_manage_plan, validate_plan_is_chargeable]
+    update_discounts_validators = [can_manage_plan, validate_plan_pricing_is_owned]
 
     archive_permissions = [
         permission_factory(
