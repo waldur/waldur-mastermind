@@ -1,9 +1,6 @@
 #!/bin/bash
 set -eo pipefail
 
-# uwsgi
-: ${UWSGI_SOCKET:=":8000"}
-
 echo "INFO: Welcome to Waldur Mastermind!"
 
 # Only handle docker.sock in non-K8s environments
