@@ -1646,7 +1646,9 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
         """List offering users with their compliance status."""
         service_provider = self.get_service_provider()
 
-        # Get all offering users for this service provider
+        # Get all offering users for this service provider. When ToS
+        # enforcement is on, hide users without active consent for offerings
+        # that require ToS (same predicate as marketplace-offering-users).
         queryset = (
             models.OfferingUser.objects.filter(
                 offering__customer=service_provider.customer
@@ -1654,6 +1656,7 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
             .select_related("user", "offering", "offering__compliance_checklist")
             .order_by("offering__name", "user__last_name", "user__first_name")
         )
+        queryset = utils.filter_offering_users_queryset_by_consent(queryset)
 
         # Apply filters
         offering_uuid = request.query_params.get("offering_uuid")

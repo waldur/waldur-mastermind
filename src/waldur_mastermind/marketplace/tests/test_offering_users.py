@@ -2174,6 +2174,69 @@ class ServiceProviderComplianceTest(test.APITestCase):
                 self.assertEqual(item["compliance_status"], "no_checklist")
                 self.assertIsNone(item["completion_percentage"])
 
+    @override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+    def test_offering_users_hides_users_without_consent_when_tos_required(self):
+        """Compliance offering-users list must not reveal PII without ToS consent."""
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering_with_checklist,
+            terms_of_service="Compliance ToS",
+            version="1.0",
+            is_active=True,
+        )
+        models.UserOfferingConsent.objects.create(
+            user=self.user1,
+            offering=self.offering_with_checklist,
+            version="1.0",
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "offering-users"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        returned_uuids = {item["uuid"] for item in response.data}
+
+        # Consented user on ToS offering is visible
+        self.assertIn(str(self.offering_user1.uuid), returned_uuids)
+        # Non-consenting user on ToS offering is hidden
+        self.assertNotIn(str(self.offering_user2.uuid), returned_uuids)
+        # Offering without ToS is unaffected
+        self.assertIn(str(self.offering_user3.uuid), returned_uuids)
+
+    @override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+    def test_offering_users_hides_user_after_consent_revoked(self):
+        """Revoking consent removes the user from the compliance offering-users list."""
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering_with_checklist,
+            terms_of_service="Compliance ToS",
+            version="1.0",
+            is_active=True,
+        )
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user1,
+            offering=self.offering_with_checklist,
+            version="1.0",
+        )
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        url = ServiceProviderFactory.get_compliance_url(
+            self.service_provider, "offering-users"
+        )
+
+        response = self.client.get(url)
+        self.assertIn(
+            str(self.offering_user1.uuid), {item["uuid"] for item in response.data}
+        )
+
+        consent.revoke()
+
+        response = self.client.get(url)
+        self.assertNotIn(
+            str(self.offering_user1.uuid), {item["uuid"] for item in response.data}
+        )
+
     def test_offering_users_filter_by_offering_uuid(self):
         """Test filtering offering users by offering UUID."""
         self.client.force_authenticate(user=self.fixture.owner)
