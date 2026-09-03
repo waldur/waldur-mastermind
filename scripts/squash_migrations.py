@@ -35,14 +35,21 @@ Commands:
 Validate afterwards with ``scripts/test_fresh_migrations.py`` (fresh replay + timing)
 and ``waldur makemigrations --check`` (the commands above already run the latter).
 
-Things the regeneration cannot know, and which you must re-add by hand:
+A ``replaces``-squash is NOT a fresh-database-only artefact. Django applies it
+whenever all *or none* of its replaced migrations are applied
+(``MigrationLoader.build_graph``), so a deployment upgrading from before the range
+runs the squash instead of the originals. Every data operation of the range must
+therefore survive in the squash, at the point of the history where it was written:
+the regeneration walks the replaced operations in plan order and emits a state diff
+for each run of schema operations, keeping ``RunPython``, ``RunSQL``,
+``SeparateDatabaseAndState`` (and any other operation the models cannot express)
+verbatim in between. Data code is referenced from the original module through the
+``_original()`` helper written into the squash; the originals stay in place anyway,
+Django needs them for partially-applied databases. ``elidable`` is deliberately
+ignored: the flag encodes the same false premise.
 
-- DDL-only ``RunSQL`` (expression indexes, triggers, functions). Data-only
-  RunSQL/RunPython are correctly dropped: a fresh database has no data.
-- Anything else that is not expressible on the model.
-
-Existing databases are unaffected: they keep applying the original migrations, which
-stay in place. Only ``replaces``-squashes are hidden/replaced by this script.
+Hand-added ``RunSQL`` in an existing squash that no original carries (DDL an original
+issued from Python, which ``migrate_fresh`` cannot see) is kept at the end.
 
 Environment: DJANGO_SETTINGS_MODULE (defaults to waldur_core.server.test_settings).
 """
@@ -50,6 +57,7 @@ Environment: DJANGO_SETTINGS_MODULE (defaults to waldur_core.server.test_setting
 from __future__ import annotations
 
 import argparse
+import inspect
 import os
 import re
 import shutil
@@ -66,14 +74,30 @@ django.setup()
 from django.apps import apps as global_apps  # noqa: E402
 from django.db.migrations import (
     Migration,  # noqa: E402
+    RunPython,  # noqa: E402
     RunSQL,  # noqa: E402
 )
 from django.db.migrations.autodetector import MigrationAutodetector  # noqa: E402
 from django.db.migrations.loader import MigrationLoader  # noqa: E402
-from django.db.migrations.operations import RenameModel  # noqa: E402
+from django.db.migrations.operations import (  # noqa: E402
+    AlterField,
+    AlterUniqueTogether,
+    DeleteModel,
+    RemoveConstraint,
+    RemoveField,
+    RemoveIndex,
+    RenameModel,
+    SeparateDatabaseAndState,
+)
+from django.db.migrations.operations import fields as field_ops  # noqa: E402
+from django.db.migrations.operations import models as model_ops  # noqa: E402
 from django.db.migrations.questioner import MigrationQuestioner  # noqa: E402
+from django.db.migrations.serializer import BaseSerializer  # noqa: E402
 from django.db.migrations.state import ProjectState  # noqa: E402
 from django.db.migrations.writer import MigrationWriter  # noqa: E402
+
+from waldur_core.core.management.commands.migrate_fresh import iter_sql  # noqa: E402
+from waldur_core.core.migration_operations import FlushDeferredSql  # noqa: E402
 
 OP_RE = re.compile(r"^        migrations\.[A-Z]", re.M)
 REPLACES_RE = re.compile(r"^    replaces\s*=\s*\[(.*?)\]", re.S | re.M)
@@ -152,23 +176,251 @@ def _normalize(state: ProjectState) -> None:
                 model_state.options[key] = {tuple(x) for x in model_state.options[key]}
 
 
-def regenerate(
-    app: str, squash_name: str, start: str, end: str, to_models: bool
-) -> int:
-    """Rewrite ``squash_name``'s operations as the state diff over [start..end].
+class _OriginalRef:
+    """A callable of a replaced migration, written as ``_original("<module>").<name>``.
+
+    Django's writer would emit ``import app.migrations.0255_x``, which is not valid
+    Python; the squash instead imports the module by name at load time.
+    """
+
+    def __init__(self, expression: str, imports: set[str], func):
+        self.expression, self.imports, self.func = expression, imports, func
+
+    def __call__(self, *args, **kwargs):  # RunPython insists on a callable
+        return self.func(*args, **kwargs)
+
+
+class _OriginalRefSerializer(BaseSerializer):
+    def serialize(self):
+        return self.value.expression, set(self.value.imports)
+
+
+MigrationWriter.register_serializer(_OriginalRef, _OriginalRefSerializer)
+
+ORIGINAL_HELPER = '''
+
+def _original(name):
+    """A replaced migration's module: its data code runs from there, unchanged."""
+    return import_module(__name__.rpartition(".")[0] + "." + name)
+'''
+
+
+def _ref(func, package: str):
+    """Rewrite a RunPython callable so the squash can be written to disk."""
+    if func is None:
+        return None
+    if func is RunPython.noop:
+        return _OriginalRef(
+            "migrations.RunPython.noop", {"from django.db import migrations"}, func
+        )
+    module = getattr(func, "__module__", "") or ""
+    if not module.startswith(package + "."):
+        return func  # importable from elsewhere; Django serializes it itself
+    name, qualname = module[len(package) + 1 :], func.__qualname__
+    if "<" in qualname or "." in name:
+        raise RuntimeError(
+            f"{module}.{qualname} cannot be referenced from a squash; "
+            "make it a module-level function"
+        )
+    return _OriginalRef(
+        f'_original("{name}").{qualname}',
+        {"from importlib import import_module"},
+        func,
+    )
+
+
+def _rewrite(op, package: str):
+    if isinstance(op, RunPython):
+        return RunPython(
+            _ref(op.code, package),
+            _ref(op.reverse_code, package),
+            atomic=op.atomic,
+            hints=op.hints,
+            elidable=op.elidable,
+        )
+    if isinstance(op, SeparateDatabaseAndState):
+        return SeparateDatabaseAndState(
+            database_operations=[_rewrite(o, package) for o in op.database_operations],
+            state_operations=list(op.state_operations),
+        )
+    return op
+
+
+def _is_schema_op(op) -> bool:
+    """Operations the autodetector can regenerate from a state diff."""
+    return type(op).__module__ in (model_ops.__name__, field_ops.__name__)
+
+
+def _sql_statements(op: RunSQL) -> list[str]:
+    return [re.sub(r"\s+", " ", statement).strip() for statement in iter_sql(op.sql)]
+
+
+def _fix_together_order(app: str, ops: list, from_state: ProjectState) -> list:
+    """Put an AlterUniqueTogether back in front of the RemoveField it must precede.
+
+    For models deleted together the autodetector emits AlterUniqueTogether(None)
+    before the RemoveField of each relation, but the RemoveField's dependency only
+    names RemoveIndex/RemoveConstraint, so the topological sort may swap them and
+    the database step then fails on the vanished field.
+    """
+    for op in list(ops):
+        if not isinstance(op, AlterUniqueTogether):
+            continue
+        model = from_state.models.get((app, op.name_lower))
+        if model is None:
+            continue
+        covered = {
+            field
+            for fields in model.options.get("unique_together") or ()
+            for field in fields
+        }
+        for j in range(ops.index(op)):
+            earlier = ops[j]
+            if (
+                isinstance(earlier, RemoveField)
+                and earlier.model_name_lower == op.name_lower
+                and earlier.name_lower in covered
+            ):
+                ops.insert(j, ops.pop(ops.index(op)))
+                break
+    return ops
+
+
+def _diff(app: str, from_state: ProjectState, to_state: ProjectState) -> list:
+    _normalize(from_state)
+    _normalize(to_state)
+    # The autodetector renders both states; give it clones so the walked state
+    # stays unrendered (rendered states pay a model reload on every operation).
+    changes = MigrationAutodetector(
+        from_state.clone(), to_state.clone(), questioner=_KeepRenames()
+    )._detect_changes()
+    ops = [op for m in changes.get(app, []) for op in m.operations]
+    return _fix_together_order(app, _drop_teardown_of_deleted_models(ops), from_state)
+
+
+def _drop_teardown_of_deleted_models(ops: list) -> list:
+    """Delete a model with DeleteModel alone, as the originals do.
+
+    Before a DeleteModel the autodetector drops the model's unique_together,
+    indexes, constraints and relation fields one by one. Each of those steps
+    introspects the database for the object it removes and fails when the history
+    never created it - a CreateModel whose table check skipped the DDL, a
+    constraint added to the state only. DROP TABLE ... CASCADE removes them all,
+    which is what a hand-written DeleteModel relied on.
+    """
+    deleted = {op.name_lower for op in ops if isinstance(op, DeleteModel)}
+    teardown = (AlterUniqueTogether, RemoveIndex, RemoveConstraint, RemoveField)
+    return [
+        op
+        for op in ops
+        if not (
+            isinstance(op, teardown)
+            and getattr(op, "model_name_lower", getattr(op, "name_lower", None))
+            in deleted
+        )
+    ]
+
+
+GET_MODEL_RE = re.compile(r"""get_model\(\s*["'](\w+)[."']""")
+
+
+def _data_dependencies(app: str, ops: list, graph, present: set) -> list:
+    """Dependencies that put every app a kept RunPython reads into its state.
+
+    A RunPython sees the models of every migration applied *before it in the plan*,
+    not only of its declared dependencies, so an original could read another app's
+    model without depending on it and get away with it by plan order. A squash
+    sits elsewhere in the plan. The walk assumed the other apps at their latest
+    non-descendant migration (``present``); depend on exactly those leaves for each
+    app named in a ``get_model()`` call of the kept code's modules.
+    """
+    referenced: set[str] = set()
+    for op in ops:
+        for func in (getattr(op, "code", None), getattr(op, "reverse_code", None)):
+            func = getattr(func, "func", func)  # unwrap _OriginalRef
+            module = sys.modules.get(getattr(func, "__module__", None) or "")
+            if module is None or func is RunPython.noop:
+                continue
+            referenced.update(GET_MODEL_RE.findall(inspect.getsource(module)))
+    dependencies = []
+    for label in sorted(referenced - {app}):
+        nodes = {n for n in present if n[0] == label}
+        parents = set().union(
+            *({p.key for p in graph.node_map[n].parents} for n in nodes)
+        )
+        dependencies += sorted(nodes - parents)
+    return dependencies
+
+
+def _changes_column_type(app: str, ops: list, from_state: ProjectState) -> bool:
+    """Whether a diff alters a field to a different field class."""
+    for op in ops:
+        if not isinstance(op, AlterField):
+            continue
+        model = from_state.models.get((app, op.model_name_lower))
+        old = model.fields.get(op.name) if model else None
+        if old is not None and old.deconstruct()[1] != op.field.deconstruct()[1]:
+            return True
+    return False
+
+
+def _segment(app: str, from_state, to_state, originals: list) -> list:
+    """The schema operations of one segment.
+
+    Normally the autodetector diff. When that diff would change a column's type,
+    the originals' own operations are used instead: a rename + add + copy + remove
+    sequence around a data step collapses into an AlterField whose cast the
+    database may refuse (jsonb to inet), and only the originals know the safe way.
+    """
+    ops = _diff(app, from_state, to_state)
+    if _changes_column_type(app, ops, from_state):
+        ops = list(originals)
+    return ops
+
+
+def _flushed(ops: list) -> list:
+    """``ops`` followed by a deferred-DDL flush, unless one is already last.
+
+    Tables created earlier in the squash still have their indexes and unique/FK
+    constraints queued as deferred SQL. Every kept operation runs after a flush,
+    which is what the original chain's migration boundary gave it: data code sees
+    the constraints, and a later segment can alter or drop them.
+    """
+    if ops and not isinstance(ops[-1], FlushDeferredSql):
+        ops.append(FlushDeferredSql())
+    return ops
+
+
+def regenerate(app: str, squash_name: str, end: str, to_models: bool) -> int:
+    """Rewrite ``squash_name``'s operations from the originals it replaces.
 
     States are built from original migrations:
       from = all nodes - range - descendants(range)
       to   = all nodes - descendants(range)   (or the real models when ``to_models``)
-    Dependencies and ``replaces`` of the existing squash file are kept.
+
+    The range's operations are walked in plan order. Schema operations only advance
+    the state; every other operation (RunPython, RunSQL, SeparateDatabaseAndState,
+    a RenameModel of a pre-existing model, ...) is emitted verbatim, preceded by the
+    autodetector diff of the schema operations since the previous one. The result is
+    a squash that runs the same data code against the same historical state as the
+    originals - which is what an upgrading database needs - with far fewer schema
+    operations. Dependencies and ``replaces`` of the existing squash file are kept.
     """
-    existing = MigrationLoader(None).get_migration(app, squash_name)
+    full = MigrationLoader(None)
+    existing = full.get_migration(app, squash_name)
     loader, graph = originals_graph()
-    nodes = app_nodes(graph, app)
-    first = 0 if start == "none" else nodes.index((app, start))
-    rng = set(nodes[first : nodes.index((app, end)) + 1])
+    package = MigrationLoader.migrations_module(app)[0]
+    # The range is what the squash replaces, not a name interval: a five-digit
+    # name such as 00012_x sorts before 0001_initial.
+    rng = {key for key in existing.replaces if key in graph.nodes}
     descendants = set().union(*(set(graph.backwards_plan(n)) for n in rng)) - rng
     everything = set(graph.nodes)
+    order = [key for key in graph.forwards_plan((app, end)) if key in rng]
+    if set(order) != rng:
+        raise RuntimeError(
+            f"{end} does not depend on every migration of the range: "
+            f"{sorted(n[1] for n in rng - set(order))}"
+        )
 
     def state(keys):
         if not keys:
@@ -183,48 +435,119 @@ def regenerate(
         if to_models
         else state(everything - descendants)
     )
-    _normalize(from_state)
-    _normalize(to_state)
 
-    # A RenameModel also rewrites FKs in *other* apps' state; a Delete+Create diff
-    # cannot reproduce that, so replay the range's renames first and diff from there.
-    renames = [
-        op
-        for key in graph.forwards_plan(max(rng))
-        if key in rng
-        for op in graph.nodes[key].operations
-        if isinstance(op, RenameModel)
-    ]
-    renames = [r for r in renames if (app, r.old_name_lower) in from_state.models]
-    for rename in renames:
-        rename.state_forwards(app, from_state)
+    # The squash is one transaction. A kept RunPython from an ``atomic = False``
+    # original (a batch-committing backfill) still works, it only loses its
+    # resumability; DDL that cannot run inside a transaction cannot be squashed.
+    for key in order:
+        migration = graph.nodes[key]
+        if not migration.atomic:
+            for op in migration.operations:
+                if isinstance(op, RunSQL) and any(
+                    "CONCURRENTLY" in statement.upper()
+                    for statement in iter_sql(op.sql)
+                ):
+                    raise RuntimeError(
+                        f"{key[1]} runs non-transactional DDL and cannot be squashed"
+                    )
 
-    changes = MigrationAutodetector(
-        from_state, to_state, questioner=_KeepRenames()
-    )._detect_changes()
-    ops = renames + [op for m in changes.get(app, []) for op in m.operations]
-    # DDL-only RunSQL (expression indexes, triggers) is hand-added to squashes and
-    # must survive regeneration; the autodetector knows nothing about it.
-    ops += [op for op in existing.operations if isinstance(op, RunSQL)]
+    walked = from_state.clone()
+    segment_start = from_state
+    ops: list = []
+    segment_ops: list = []  # the originals' schema operations since the last kept op
+    kept_sql: set[str] = set()
+    for key in order:
+        for op in graph.nodes[key].operations:
+            keep = not _is_schema_op(op)
+            if isinstance(op, RunPython) and op.code is RunPython.noop:
+                keep = False  # a pure no-op only costs a state render
+            if isinstance(op, RenameModel):
+                # A RenameModel also rewrites FKs in *other* apps' state, which a
+                # Delete+Create diff cannot reproduce. Models created inside the
+                # segment are simply created under their final name instead.
+                keep = (app, op.old_name_lower) in segment_start.models
+            if keep:
+                ops += _segment(app, segment_start, walked, segment_ops)
+                _flushed(ops)
+                ops.append(_rewrite(op, package))
+                if isinstance(op, RunSQL):
+                    kept_sql.update(_sql_statements(op))
+                op.state_forwards(app, walked)
+                segment_start = walked.clone()
+                segment_ops = []
+            else:
+                op.state_forwards(app, walked)
+                segment_ops.append(op)
+    ops += _segment(app, segment_start, to_state, segment_ops)
+
+    # Hand-added DDL in the existing squash that no original carries as RunSQL
+    # (an original may have issued it from Python; migrate_fresh only sees RunSQL).
+    for op in existing.operations:
+        if isinstance(op, RunSQL):
+            extra = [s for s in _sql_statements(op) if s not in kept_sql]
+            if extra:
+                ops.append(RunSQL(extra))
+                kept_sql.update(extra)
+
+    # A dependency must not point into anything that depends on this squash. At
+    # runtime other squashes are single nodes, so take the descendants there and
+    # expand each squash among them to the originals it replaces.
+    runtime_descendants = set()
+    for node in set(full.graph.backwards_plan((app, squash_name))) - {
+        (app, squash_name)
+    }:
+        runtime_descendants.add(node)
+        runtime_descendants.update(full.graph.nodes[node].replaces)
+    dependencies = list(existing.dependencies)
+    for dep in _data_dependencies(
+        app, ops, graph, everything - rng - descendants - runtime_descendants
+    ):
+        if dep not in dependencies:
+            dependencies.append(dep)
+
     new = type(
         "Migration",
         (Migration,),
         {
             "operations": ops,
-            "dependencies": existing.dependencies,
+            "dependencies": dependencies,
             "replaces": existing.replaces,
             "initial": existing.initial,
         },
     )(squash_name, app)
-    Path(MigrationWriter(existing).path).write_text(MigrationWriter(new).as_string())
+    text = MigrationWriter(new).as_string()
+    # Django writes anything else that lives in a migration module (a custom
+    # Operation class, a callable used as a field argument) as
+    # ``app.migrations.0002_x.Name`` plus an ``import`` line that cannot parse, and
+    # asks for manual porting. Route those through _original() like RunPython code.
+    text = re.sub(
+        r"\b" + re.escape(package) + r"\.(\d\w*)\.", r'_original("\1").', text
+    )
+    text = re.sub(
+        r"\n\n# Functions from the following migrations need manual copying\.\n(#.*\n)+",
+        "\n",
+        text,
+    )
+    if "_original(" in text:
+        if "from importlib import import_module" not in text:
+            text = text.replace(
+                "from django.db import migrations",
+                "from importlib import import_module\nfrom django.db import migrations",
+                1,
+            )
+        marker = "\n\nclass Migration(migrations.Migration):"
+        text = text.replace(marker, ORIGINAL_HELPER + marker, 1)
+    Path(MigrationWriter(existing).path).write_text(text)
     return len(ops)
 
 
 def strip_run_ops(path: Path) -> int:
-    """Remove RunPython/RunSQL operations from a freshly generated squash.
+    """Make a freshly generated Django squash importable.
 
+    ``squashmigrations`` writes RunPython callables as ``app.migrations.0002_x.func``,
+    which does not parse. regenerate() rewrites every operation from the originals
+    anyway and only needs the file for its dependencies/replaces, so drop them here.
     Done on the AST so string literals containing parentheses cannot confuse it.
-    Formatting/comments are lost, which is fine: regenerate() rewrites the file.
     """
     import ast
 
@@ -366,7 +689,7 @@ def squash_range(app: str, start: str | None, end: str | None) -> str:
             strip_run_ops(created)
         target = mdir / f"{name}.py"
         backup = target.read_text() if in_place else None
-        ops = regenerate(app, name, start, end, to_models=is_leaf)
+        ops = regenerate(app, name, end, to_models=is_leaf)
         run("uvx", "ruff", "check", "--fix", "-q", str(target), check=False)
         run("uvx", "ruff", "format", "-q", str(target))
         _validate()
@@ -384,13 +707,26 @@ def squash_range(app: str, start: str | None, end: str | None) -> str:
 # ------------------------------------------------------------------ schema compare
 
 
+# Tables whose rows are not a product of the schema. constance rows appear lazily
+# on any config read; the others are seeded by data migrations on `migrate` and by
+# import_roles / load_notifications on every deployment path afterwards.
+SEEDED_TABLES = (
+    "django_migrations",
+    "constance_constance",
+    "core_notification",
+    "permissions_role",
+    "permissions_rolepermission",
+)
+
+
 def snapshot_db(alias: str = "default") -> list[str]:
     """Normalized description of the connected database's schema, one line per fact.
 
     Auto-generated constraint/index names are dropped (they depend on migration
     history), everything structural is kept: columns, types, nullability, defaults,
     index definitions, constraint definitions, triggers, functions, and the row count
-    of every table (rows created by post_migrate receivers must match too).
+    of every table (rows created by post_migrate receivers must match too) except
+    those that data migrations or the seed commands fill (SEEDED_TABLES).
     """
     from django.db import connections
 
@@ -424,8 +760,20 @@ def snapshot_db(alias: str = "default") -> list[str]:
             "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
         )
         for (table,) in cursor.fetchall():
-            # constance rows appear lazily on any config read, not through migrations
-            if table in ("django_migrations", "constance_constance"):
+            if table in SEEDED_TABLES:
+                continue
+            if table == "django_content_type":
+                # Data migrations leave content types of since-removed models
+                # behind (get_or_create while remapping scopes); only the live
+                # ones are a post_migrate product both paths must agree on.
+                cursor.execute("SELECT app_label, model FROM django_content_type")
+                live = sum(
+                    1
+                    for app_label, model in cursor.fetchall()
+                    if app_label in global_apps.app_configs
+                    and model in global_apps.app_configs[app_label].models
+                )
+                lines.append(f"rows {table} {live} (live models)")
                 continue
             cursor.execute(f'SELECT count(*) FROM "{table}"')
             lines.append(f"rows {table} {cursor.fetchone()[0]}")

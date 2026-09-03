@@ -1,6 +1,12 @@
 from django.db import migrations
 
 KEY = "proposal.workflow_step_event"
+# Frozen copy of 0042's NEW_KEYS: the rows a fresh ``migrate`` has before any
+# operator-loaded notification exists.
+MIGRATION_SEEDED_KEYS = (
+    "users.call_invitation_created",
+    "users.proposal_invitation_created",
+)
 
 
 def create_notification(apps, schema_editor):
@@ -12,10 +18,12 @@ def create_notification(apps, schema_editor):
     swallow every configured rule.
     """
     Notification = apps.get_model("core", "Notification")
-    if not Notification.objects.exists():
+    if not Notification.objects.exclude(key__in=MIGRATION_SEEDED_KEYS).exists():
         # Fresh install: ``load_notifications`` creates the row with the
         # operator-chosen enabled state, and ``migrate_fresh`` skips this
         # migration entirely - seeding here would make the two paths diverge.
+        # Rows that earlier migrations create on a fresh ``migrate`` (0042's
+        # split invitation keys) do not make it an installed deployment.
         return
     Notification.objects.get_or_create(key=KEY, defaults={"enabled": True})
 

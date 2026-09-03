@@ -71,11 +71,59 @@ def _ddl_of(migration):
     }
 
 
-class SquashesKeepDdlTest(TestCase):
-    """Regenerated squashes drop RunSQL; DDL-only RunSQL must be re-added by hand.
+def _data_operations(migration):
+    """Every operation of a migration that a state diff cannot regenerate.
 
-    A fresh database only ever applies the squash, so DDL present in a replaced
-    original but missing from its squash would silently disappear on new installs.
+    RunPython is compared by code object: a squash must run the *same* function as
+    the original (it references it through ``_original()``), not a copy that could
+    drift. RunSQL is compared statement by statement.
+    """
+    found = []
+    for op in migration.operations:
+        if isinstance(op, migrations.RunPython):
+            if op.code is not migrations.RunPython.noop:
+                found.append(("python", op.code, op.reverse_code))
+        elif isinstance(op, migrations.RunSQL):
+            for statement in iter_sql(op.sql):
+                found.append(("sql", re.sub(r"\s+", " ", statement).strip()))
+    return found
+
+
+class SquashesKeepDataOperationsTest(TestCase):
+    """A replaces-squash is applied whenever *none* of its replaced migrations is
+    applied - on a database upgrading from before the range just as on an empty one
+    (``MigrationLoader.build_graph``). Every backfill and cleanup of the replaced
+    originals must therefore be in the squash, or upgrades skip it silently while
+    ``django_migrations`` records the original as applied.
+    """
+
+    def test_every_run_python_and_run_sql_of_replaced_originals_is_in_the_squash(
+        self,
+    ):
+        loader = MigrationLoader(None, replace_migrations=False)
+        missing = []
+        for key, squash in loader.replacements.items():
+            present = _data_operations(squash)
+            for replaced in squash.replaces:
+                if replaced not in loader.disk_migrations:
+                    continue
+                for item in _data_operations(loader.disk_migrations[replaced]):
+                    if item not in present:
+                        what = (
+                            item[1].__qualname__
+                            if item[0] == "python"
+                            else item[1][:80]
+                        )
+                        missing.append(f"{key[0]}.{key[1]} lacks {replaced[1]}: {what}")
+        self.assertEqual(missing, [])
+
+
+class SquashesKeepDdlTest(TestCase):
+    """DDL-only RunSQL is the one thing ``migrate_fresh`` replays from the squash.
+
+    A fresh database built by ``migrate_fresh`` never runs RunPython, so DDL that an
+    original issued from Python must exist as RunSQL in its squash (hand-added and
+    kept by the regeneration), or it silently disappears on new installs.
     """
 
     def test_every_ddl_run_sql_of_replaced_originals_is_in_the_squash(self):
