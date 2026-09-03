@@ -11,6 +11,7 @@ class MarketplaceConfig(AppConfig):
     def ready(self):
         from waldur_core.core import models as core_models
         from waldur_core.core import signals as core_signals
+        from waldur_core.logging import availability as event_availability
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas import signals as quota_signals
         from waldur_core.structure import models as structure_models
@@ -33,6 +34,16 @@ class MarketplaceConfig(AppConfig):
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace.process_billing_on_resource_save",
         )
+
+        # The advertised event-group catalogue is derived from the offering
+        # types a deployment holds, so the first offering of a plugin has to
+        # make that plugin's groups appear without waiting for a restart.
+        for signal in (signals.post_save, signals.post_delete):
+            signal.connect(
+                event_availability.invalidate_cache_on_commit,
+                sender=models.Offering,
+                dispatch_uid="waldur_core.logging.availability.invalidate_cache_on_commit",
+            )
 
         # Pub/sub state-change events: one emitter per model, every transition,
         # any offering type. Consumers (site agents, UI clients) demultiplex on

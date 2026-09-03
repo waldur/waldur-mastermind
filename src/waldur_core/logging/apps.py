@@ -14,7 +14,7 @@ class EventsConfig(AppConfig):
         from rest_framework.authtoken.models import Token
         from rest_framework.views import APIView
 
-        from waldur_core.logging import handlers, models
+        from waldur_core.logging import checks, handlers, models  # noqa: F401
         from waldur_core.logging.event_logger import event_emitted
 
         def _bind_user_uuid(request, logger, **kwargs):

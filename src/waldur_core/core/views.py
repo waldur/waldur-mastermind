@@ -2117,7 +2117,13 @@ class PermissionMetadataView(APIView):
 
 
 class EventMetadataView(APIView):
-    """Provides event metadata grouped by event categories."""
+    """Provides event metadata grouped by event categories.
+
+    Deliberately NOT narrowed by waldur_core.logging.availability, unlike
+    /api/events/event_groups/. This endpoint is the static enum export, and it
+    is unauthenticated: narrowing it would publish which plugins a deployment
+    runs to anonymous callers. Discovery UIs should read the events endpoint.
+    """
 
     permission_classes = []
     authentication_classes = []

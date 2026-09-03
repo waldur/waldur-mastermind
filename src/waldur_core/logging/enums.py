@@ -451,6 +451,8 @@ class EventGroup(StrEnum):
     OPENSTACK_NETWORK = "openstack_network"
     OPENSTACK_PORT = "openstack_port"
     OPENSTACK_RBAC = "openstack_rbac"
+    # Every OpenStack-specific resource event, composed out of RESOURCES below.
+    OPENSTACK_RESOURCES = "openstack_resources"
     OPENSTACK_ROUTER = "openstack_router"
     OPENSTACK_SECURITY_GROUP = "openstack_security_group"
     OPENSTACK_SUBNET = "openstack_subnet"
@@ -962,6 +964,25 @@ EVENT_GROUP_MAPPING[EventGroup.USERS] = list(
         EVENT_GROUP_MAPPING[EventGroup.USERS] + EVENT_GROUP_MAPPING[EventGroup.AUTH]
     )
 )
+
+# RESOURCES is the generic marketplace resource lifecycle group, offered to every
+# deployment. Two thirds of its entries used to be OpenStack-specific (load
+# balancers, listeners, pools, ports, floating IPs), so a deployment running no
+# OpenStack still advertised them - see waldur/waldur-mastermind#340.
+#
+# Composed rather than hand-split for the same reason USERS is composed above: an
+# OPENSTACK_* event appended to the RESOURCES literal lands in the OpenStack group
+# by itself, instead of quietly re-entering the generic one.
+EVENT_GROUP_MAPPING[EventGroup.OPENSTACK_RESOURCES] = [
+    event
+    for event in EVENT_GROUP_MAPPING[EventGroup.RESOURCES]
+    if event.name.startswith("OPENSTACK_")
+]
+EVENT_GROUP_MAPPING[EventGroup.RESOURCES] = [
+    event
+    for event in EVENT_GROUP_MAPPING[EventGroup.RESOURCES]
+    if not event.name.startswith("OPENSTACK_")
+]
 
 RESOURCE_CHANGE_EVENTS = (
     EventType.MARKETPLACE_RESOURCE_CREATE_SUCCEEDED,

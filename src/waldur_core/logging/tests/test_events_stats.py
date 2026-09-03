@@ -1,7 +1,7 @@
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_core.logging import event_logger
+from waldur_core.logging import availability, event_logger
 from waldur_core.logging.enums import EventGroup
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.utils import get_current_month, get_current_year
@@ -288,14 +288,17 @@ class EventGroupsAPITest(test.APITestCase):
         self.assertIn("auth_logged_in_with_username", auth_events)
         self.assertIn("auth_logged_out", auth_events)
 
-    def test_event_groups_endpoint_matches_get_event_groups_function(self):
+    def test_event_groups_endpoint_matches_the_available_groups(self):
         """
-        Test that the API endpoint returns the same data as get_event_groups() function.
+        The endpoint advertises the groups this deployment can emit, which is
+        get_event_groups() narrowed by waldur_core.logging.availability. The
+        full mapping stays behind dispatch, validation and ?feature= filtering.
         """
         response = self.client.get(self.url)
-        expected_data = event_logger.get_event_groups()
+        expected_data = availability.get_available_event_groups()
 
         self.assertEqual(response.data, expected_data)
+        self.assertLessEqual(set(response.data), set(event_logger.get_event_groups()))
 
 
 class ExpandEventGroupsTest(test.APITestCase):

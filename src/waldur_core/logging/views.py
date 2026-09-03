@@ -29,7 +29,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core.serializers import StatusSerializer
 from waldur_core.logging import backend, enums, filters, models, serializers, utils
-from waldur_core.logging.event_logger import get_event_groups
+from waldur_core.logging.availability import get_available_event_groups
 from waldur_core.structure.serializers_data_access import (
     GlobalUserDataAccessLogSerializer,
 )
@@ -84,8 +84,11 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Returns a list of groups with event types.
         Group is used in exclude_features query param.
+
+        Narrowed to the groups this deployment can emit. Groups left out stay
+        deliverable and writable -- see waldur_core.logging.availability.
         """
-        return response.Response(get_event_groups())
+        return response.Response(get_available_event_groups())
 
 
 class BaseHookViewSet(viewsets.ModelViewSet):

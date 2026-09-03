@@ -62,7 +62,15 @@ class OpenstackEventGroupMappingTest(test.APISimpleTestCase):
         self.assertIn(EventType.OPENSTACK_RBAC_POLICY_CREATED.value, expanded)
         self.assertIn(EventType.OPENSTACK_RBAC_POLICY_DELETED.value, expanded)
 
-    def test_groups_advertised_via_event_groups_endpoint(self):
+    def test_groups_present_in_the_full_catalogue(self):
+        """The chips must stay in the static mapping, which is what dispatch and
+        ?feature= filtering resolve against.
+
+        Whether the /api/events/event_groups/ endpoint *advertises* them is a
+        separate, deployment-dependent question -- it does so only where an
+        OpenStack offering exists. See waldur_core.logging.availability and
+        waldur_core/logging/tests/test_availability.py.
+        """
         groups = get_event_groups()
         for chip in self.EXPECTED_CHIPS:
             self.assertIn(chip.value, groups)
