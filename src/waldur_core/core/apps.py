@@ -20,6 +20,7 @@ class CoreConfig(AppConfig):
         )
         from waldur_core.core.health_checks import CeleryWorkersHealthCheck
         from waldur_core.core.models import StateMixin, User
+        from waldur_core.logging import availability as event_availability
 
         SshPublicKey = self.get_model("SshPublicKey")
         NotificationTemplate = self.get_model("NotificationTemplate")
@@ -102,6 +103,16 @@ class CoreConfig(AppConfig):
             sender=User,
             dispatch_uid="waldur_core.core.handlers.revoke_user_pats_on_deactivation",
         )
+
+        # Some event groups are advertised only while a feature toggle is on,
+        # so flipping one from the admin API has to show up in the notification
+        # dialog straight away rather than after the cache times out.
+        for signal in (signals.post_save, signals.post_delete):
+            signal.connect(
+                event_availability.invalidate_cache_on_commit,
+                sender=self.get_model("Feature"),
+                dispatch_uid="waldur_core.logging.availability.invalidate_cache_on_commit",
+            )
 
         from axes.signals import user_locked_out
 
