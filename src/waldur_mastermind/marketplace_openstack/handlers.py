@@ -286,6 +286,14 @@ def create_resource_of_volume_if_instance_created(
 ):
     resource = instance
 
+    scope_just_set = (
+        created
+        or resource.tracker.has_changed("content_type_id")
+        or resource.tracker.has_changed("object_id")
+    )
+    if not scope_just_set:
+        return
+
     if not resource.scope or not getattr(resource.offering, "scope", None):
         return
 

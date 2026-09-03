@@ -27,6 +27,7 @@ from waldur_mastermind.marketplace.utils import (
     create_offering_components,
     validate_order,
 )
+from waldur_mastermind.marketplace_openstack import handlers
 from waldur_mastermind.marketplace_openstack.processors import InstanceDeleteProcessor
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_openstack import models as openstack_models
@@ -530,6 +531,32 @@ class InstanceCreateTest(test.APITestCase):
         volume = instance.volumes.first()
         self.assertTrue(
             marketplace_models.Resource.objects.filter(scope=volume).exists()
+        )
+
+    def test_create_resource_of_volume_skipped_on_unrelated_save(self):
+        order = self.trigger_instance_creation()
+        resource = order.resource
+        resource.refresh_from_db()
+        volume_resource_count = marketplace_models.Resource.objects.filter(
+            offering__type=OPENSTACK_VOLUME_OFFERING
+        ).count()
+
+        resource.set_state_erred()
+        with mock.patch(
+            "waldur_mastermind.marketplace_openstack.handlers.utils.get_offering"
+        ) as get_offering_mock:
+            handlers.create_resource_of_volume_if_instance_created(
+                sender=marketplace_models.Resource,
+                instance=resource,
+                created=False,
+            )
+            get_offering_mock.assert_not_called()
+
+        self.assertEqual(
+            marketplace_models.Resource.objects.filter(
+                offering__type=OPENSTACK_VOLUME_OFFERING
+            ).count(),
+            volume_resource_count,
         )
 
     def test_parent_resource_is_linked(self):
