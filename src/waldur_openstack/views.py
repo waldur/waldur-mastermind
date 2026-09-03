@@ -39,7 +39,6 @@ from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_core.structure.signals import resource_imported
-from waldur_mastermind.marketplace_openstack.utils import delete_instance
 from waldur_openstack import routes, topology
 from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
@@ -3516,29 +3515,6 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     filter_backends = structure_views.ResourceViewSet.filter_backends + (
         structure_filters.StartTimeFilter,
     )
-
-    @extend_schema(
-        summary="Force destroy instance",
-        description="Forcefully destroy the instance, bypassing some state checks. This action is intended for recovery from failed states and should be used with caution.",
-    )
-    @decorators.action(detail=True, methods=["delete"])
-    def force_destroy(self, request, uuid=None):
-        """This action completely repeats 'destroy', with the exclusion of validators.
-        Destroy's validators require stopped VM. This requirement has expired.
-        But for compatibility with old documentation, it must be left.
-        """
-        instance = self.get_object()
-        delete_instance(instance, request.query_params)
-        return response.Response(status=status.HTTP_202_ACCEPTED)
-
-    force_destroy_validators = [
-        InstanceViewSet._has_backups,
-        InstanceViewSet._has_snapshots,
-        core_validators.StateValidator(
-            CoreStates.OK,
-            CoreStates.ERRED,
-        ),
-    ]
 
     def perform_create(self, serializer):
         instance: models.Instance = serializer.save()

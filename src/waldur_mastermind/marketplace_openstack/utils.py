@@ -8,7 +8,7 @@ from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from rest_framework import exceptions, serializers
+from rest_framework import exceptions
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
@@ -1330,15 +1330,12 @@ def delete_instance(instance, attributes=None, is_async=True):
     delete_volumes = attributes.get("delete_volumes", True)
     release_floating_ips = attributes.get("release_floating_ips", True)
 
-    if (
-        delete_volumes
-        and openstack_models.Snapshot.objects.filter(
-            source_volume__instance=instance
-        ).exists()
-    ):
-        raise serializers.ValidationError(
-            _("Cannot delete instance. One of its volumes has attached snapshot.")
-        )
+    logger.info(
+        "Scheduling deletion of instance %s (delete_volumes=%s, release_floating_ips=%s)",
+        instance.uuid,
+        delete_volumes,
+        release_floating_ips,
+    )
 
     force = instance.state == CoreStates.ERRED
     transaction.on_commit(

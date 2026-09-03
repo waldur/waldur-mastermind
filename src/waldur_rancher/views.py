@@ -176,9 +176,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update"]
     create_permissions = [structure_permissions.is_staff]
-    destroy_validators = [
-        validators.related_vm_can_be_deleted,
-    ]
+    destroy_validators = []
     pull_executor = executors.NodePullExecutor
 
     def perform_create(self, serializer):

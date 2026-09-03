@@ -714,7 +714,31 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.assertEqual(self.resource.state, ResourceStates.TERMINATED)
         self.assertRaises(ObjectDoesNotExist, self.instance.refresh_from_db)
 
-    def test_cannot_delete_instance_that_has_backups(self):
+    @mock.patch("waldur_openstack.executors.InstanceDeleteExecutor.execute")
+    def test_deletion_is_scheduled_when_instance_has_backups(self, execute):
+        openstack_factories.BackupFactory(instance=self.instance)
+        self.trigger_deletion()
+        execute.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.InstanceDeleteExecutor.execute")
+    def test_deletion_is_scheduled_when_instance_has_snapshots(self, execute):
+        openstack_factories.SnapshotFactory(
+            tenant=self.instance.tenant,
+            project=self.instance.project,
+            source_volume=self.instance.volumes.first(),
+        )
+        self.trigger_deletion()
+        execute.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.InstanceDeleteExecutor.execute")
+    def test_deletion_is_scheduled_for_active_instance(self, execute):
+        self.instance.state = CoreStates.OK
+        self.instance.runtime_state = openstack_models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+        self.trigger_deletion()
+        execute.assert_called_once()
+
+    def test_terminate_api_accepts_instance_with_backups(self):
         self.resource.state = ResourceStates.OK
         self.resource.save()
         self.order.state = OrderStates.DONE
@@ -722,22 +746,10 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         openstack_factories.BackupFactory(instance=self.instance)
         url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(
-            url,
-            {
-                "attributes": {
-                    "action": "force_destroy",
-                    "delete_volumes": True,
-                    "release_floating_ips": True,
-                }
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertTrue(
-            b"Cannot delete instance that has backups" in response.rendered_content
-        )
+        response = self.client.post(url, {"attributes": {}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-    def test_cannot_delete_instance_that_has_snapshots(self):
+    def test_terminate_api_accepts_instance_with_snapshots(self):
         self.resource.state = ResourceStates.OK
         self.resource.save()
         self.order.state = OrderStates.DONE
@@ -749,20 +761,30 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         )
         url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
         self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url, {"attributes": {}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_terminate_api_accepts_active_instance(self):
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.instance.state = CoreStates.OK
+        self.instance.runtime_state = openstack_models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+        self.order.state = OrderStates.DONE
+        self.order.save()
+
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             url,
             {
                 "attributes": {
-                    "action": "force_destroy",
                     "delete_volumes": True,
                     "release_floating_ips": True,
                 }
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertTrue(
-            b"Cannot delete instance that has snapshots" in response.rendered_content
-        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_termination_should_not_be_triggered_if_termination_is_already_in_progress(
         self,
@@ -777,7 +799,6 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             url,
             {
                 "attributes": {
-                    "action": "force_destroy",
                     "delete_volumes": True,
                     "release_floating_ips": True,
                 }
@@ -788,7 +809,6 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             url,
             {
                 "attributes": {
-                    "action": "force_destroy",
                     "delete_volumes": True,
                     "release_floating_ips": True,
                 }
@@ -806,28 +826,19 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.instance.refresh_from_db()
 
-    def test_force_destroy_is_possible_for_active_instance(self):
-        self.resource.state = ResourceStates.OK
-        self.resource.save()
+    def test_validate_order_allows_active_instance_with_snapshots(self):
         self.instance.state = CoreStates.OK
         self.instance.runtime_state = openstack_models.Instance.RuntimeStates.ACTIVE
         self.instance.save()
-        self.order.state = OrderStates.DONE
-        self.order.save()
-
-        url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(
-            url,
-            {
-                "attributes": {
-                    "action": "force_destroy",
-                    "delete_volumes": True,
-                    "release_floating_ips": True,
-                }
-            },
+        openstack_factories.SnapshotFactory(
+            tenant=self.instance.tenant,
+            project=self.instance.project,
+            source_volume=self.instance.volumes.first(),
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        url = marketplace_factories.OrderFactory.get_url(self.order, "terminate")
+        request = test.APIRequestFactory().post(url)
+        request.user = self.fixture.user
+        validate_order(self.order, request)
 
 
 class VolumeCreateTest(test.APITestCase):

@@ -4,10 +4,7 @@ from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
-from waldur_openstack.views import (
-    InstanceViewSet,
-    MarketplaceInstanceViewSet,
-)
+from waldur_openstack.views import InstanceViewSet
 
 from . import utils
 
@@ -18,14 +15,6 @@ ClusterNameValidator = RegexValidator(
         "and must start and end with an alphanumeric character"
     ),
 )
-
-
-def related_vm_can_be_deleted(node):
-    validators = MarketplaceInstanceViewSet.force_destroy_validators
-
-    for validator in validators:
-        if node.instance:
-            validator(node.instance)
 
 
 def console_validator(node):

@@ -10,6 +10,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 from waldur_mastermind.marketplace_openstack.utils import (
     create_offerings_for_volume_and_instance,
 )
@@ -19,6 +21,88 @@ from waldur_openstack.exceptions import OpenStackTenantNotFound
 from . import models, signals
 
 logger = logging.getLogger(__name__)
+
+TERMINATION_STEP_STOP = "stop"
+TERMINATION_STEP_DELETE_BACKUP = "delete_backup"
+TERMINATION_STEP_DELETE_SNAPSHOT = "delete_snapshot"
+TERMINATION_STEP_DETACH_VOLUMES = "detach_volumes"
+TERMINATION_STEP_DELETE_INSTANCE = "delete_instance"
+
+
+def get_instance_termination_log_context(instance):
+    context = {
+        "instance_uuid": instance.uuid.hex,
+        "resource_uuid": None,
+        "order_uuid": None,
+    }
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+        context["resource_uuid"] = resource.uuid.hex
+        order = (
+            marketplace_models.Order.objects.filter(
+                resource=resource,
+                type=OrderTypes.TERMINATE,
+                state=OrderStates.EXECUTING,
+            )
+            .order_by("-created")
+            .first()
+        )
+        if order:
+            context["order_uuid"] = order.uuid.hex
+    except marketplace_models.Resource.DoesNotExist:
+        pass
+    return context
+
+
+def log_instance_termination_event(instance, event, step, context=None):
+    context = context or get_instance_termination_log_context(instance)
+    logger.log(
+        logging.ERROR if event == "failed" else logging.INFO,
+        "instance_termination event=%s step=%s instance_uuid=%s resource_uuid=%s "
+        "order_uuid=%s",
+        event,
+        step,
+        context["instance_uuid"],
+        context["resource_uuid"],
+        context["order_uuid"],
+    )
+
+
+class InstanceTerminationStepMarkerTask(core_tasks.Task):
+    @classmethod
+    def get_description(cls, instance, step, **kwargs):
+        return f'Mark instance termination step "{step}" for instance "{instance}".'
+
+    def execute(self, instance, step, **kwargs):
+        action_details = dict(instance.action_details or {})
+        action_details["termination_step"] = step
+        instance.action_details = action_details
+        instance.save(update_fields=["action_details"])
+        log_instance_termination_event(instance, "started", step)
+
+
+class InstanceDeleteSuccessTask(core_tasks.DeletionTask):
+    def execute(self, instance):
+        step = (instance.action_details or {}).get(
+            "termination_step", TERMINATION_STEP_DELETE_INSTANCE
+        )
+        log_instance_termination_event(instance, "completed", step)
+        super().execute(instance)
+
+
+class InstanceDeleteFailureTask(core_tasks.ErrorStateTransitionTask):
+    def execute(self, instance):
+        step = (instance.action_details or {}).get("termination_step", "unknown")
+        log_context = get_instance_termination_log_context(instance)
+        super().execute(instance)
+        if instance.error_message and not instance.error_message.startswith(
+            "Termination failed at step"
+        ):
+            instance.error_message = (
+                f"Termination failed at step '{step}': {instance.error_message}"
+            )
+            instance.save(update_fields=["error_message"])
+        log_instance_termination_event(instance, "failed", step, context=log_context)
 
 
 class TenantCreateErrorTask(core_tasks.ErrorStateTransitionTask):
