@@ -8,8 +8,6 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import CoreStates
-from waldur_core.core.exceptions import IncorrectStateException
 from waldur_mastermind.marketplace import models, processors, signals
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.processors import (
@@ -216,43 +214,9 @@ class InstanceCreateProcessor(TenantMixin, processors.BaseCreateResourceProcesso
 
 class InstanceDeleteProcessor(processors.AbstractDeleteResourceProcessor):
     def validate_order(self, request):
-        instance = cast(openstack_models.Instance, self.order.resource.scope)
-        if not instance:
-            return
-        delete_attributes = self.order.attributes
-        action = delete_attributes.get("action", "destroy")
-        validators = {
-            "destroy": [
-                self._can_destroy_instance,
-                openstack_views.InstanceViewSet._has_backups,
-                openstack_views.InstanceViewSet._has_snapshots,
-            ],
-            "force_destroy": openstack_views.MarketplaceInstanceViewSet.force_destroy_validators,
-        }
-        if action not in validators:
-            action = "destroy"
-        for validator in validators[action]:
-            validator(instance)
-
-    def _can_destroy_instance(self, instance: openstack_models.Instance):
-        if instance.state == CoreStates.ERRED:
-            return
-        if (
-            instance.state == CoreStates.OK
-            and instance.runtime_state
-            == openstack_models.Instance.RuntimeStates.SHUTOFF
-        ):
-            return
-        if (
-            instance.state == CoreStates.OK
-            and instance.runtime_state == openstack_models.Instance.RuntimeStates.ACTIVE
-        ):
-            raise IncorrectStateException(
-                _("Please stop the instance before its removal.")
-            )
-        raise IncorrectStateException(
-            _("Instance should be shutoff and OK or erred. Please contact support.")
-        )
+        # Instance deletion preparation (stop, backups, snapshots) is handled
+        # asynchronously by InstanceDeleteExecutor.
+        pass
 
     def send_request(self, user, resource: models.Resource):
         if not resource.scope:

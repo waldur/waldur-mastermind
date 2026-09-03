@@ -41,7 +41,6 @@ from waldur_rancher import models as rancher_models
 from waldur_rancher.enums import AGENT_ROLE, SERVER_ROLE, NodeRoleType
 from waldur_rancher.executors import ClusterCreateExecutor, ClusterDeleteExecutor
 from waldur_rancher.serializers import RancherClusterCreateSerializer
-from waldur_rancher.validators import related_vm_can_be_deleted
 
 from . import const, serializers
 
@@ -850,8 +849,6 @@ class RancherDeleteProcessor(processors.AbstractDeleteResourceProcessor):
         cluster = cast(rancher_models.Cluster, self.get_resource().scope)
         for validator in ResourceViewSet.destroy_validators:
             validator(cluster)
-        for node in cluster.node_set.all():
-            related_vm_can_be_deleted(node)
 
     def send_request(self, user, resource: Resource):
         cluster = cast(rancher_models.Cluster, resource.scope)

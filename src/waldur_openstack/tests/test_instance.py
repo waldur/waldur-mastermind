@@ -11,6 +11,7 @@ from django.test.utils import CaptureQueriesContext
 from novaclient import exceptions as nova_exceptions
 from rest_framework import status, test
 
+from waldur_core.core import tasks as core_tasks
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
@@ -19,6 +20,7 @@ from waldur_mastermind.marketplace_openstack.utils import (
     delete_instance,
 )
 from waldur_openstack import executors, models, views
+from waldur_openstack import tasks as openstack_tasks
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Port
 from waldur_openstack.tasks import LimitedPerTypeThrottleMixin
@@ -898,6 +900,265 @@ class InstanceDeleteTest(test.APITransactionTestCase):
 
         # Assert
         self.assertIsInstance(signature, Signature)
+
+    def _flatten_chain_task_args(self, task):
+        args = list(task.args) if task.args else []
+        if task.kwargs:
+            args.extend(task.kwargs.values())
+        if hasattr(task, "tasks"):
+            for subtask in task.tasks:
+                args.extend(self._flatten_chain_task_args(subtask))
+        return args
+
+    def _get_chain_task_args(self, signature):
+        args = []
+        for task in signature.tasks:
+            args.extend(self._flatten_chain_task_args(task))
+        return args
+
+    def _get_delete_signature_after_pre_apply(self):
+        """Build the delete chain the same way execute() does: pre_apply first."""
+        executors.InstanceDeleteExecutor.pre_apply(self.instance)
+        self.instance.refresh_from_db()
+        return executors.InstanceDeleteExecutor.get_task_signature(
+            self.instance, serialize_instance(self.instance)
+        )
+
+    def test_delete_signature_includes_stop_after_pre_apply(self):
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+
+        signature = self._get_delete_signature_after_pre_apply()
+
+        self.assertEqual(self.instance.state, CoreStates.DELETION_SCHEDULED)
+        task_args = self._get_chain_task_args(signature)
+        self.assertIn("stop_instance", task_args)
+        # Stop must not use begin_updating (illegal from DELETION_SCHEDULED).
+        self.assertNotIn("begin_updating", task_args)
+
+    def test_delete_signature_skips_stop_for_shutoff_instance(self):
+        self.instance.runtime_state = models.Instance.RuntimeStates.SHUTOFF
+        self.instance.save()
+
+        signature = self._get_delete_signature_after_pre_apply()
+
+        self.assertNotIn("stop_instance", self._get_chain_task_args(signature))
+
+    def test_active_instance_is_stopped_before_delete(self):
+        self.mock_volumes(True)
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+
+        shutoff_server = mock.Mock(spec=["status"])
+        shutoff_server.status = "SHUTOFF"
+        self.mocked_nova.servers.get.side_effect = [
+            shutoff_server,
+            nova_exceptions.NotFound(code=404),
+        ]
+
+        self.delete_instance()
+
+        self.mocked_nova.servers.stop.assert_called_once_with(self.instance.backend_id)
+        self.mocked_nova.servers.delete.assert_called_once_with(
+            self.instance.backend_id
+        )
+        self.assertFalse(models.Instance.objects.filter(id=self.instance.id).exists())
+
+    def test_delete_signature_includes_backup_deletion(self):
+        factories.BackupFactory(instance=self.instance)
+
+        signature = self._get_delete_signature_after_pre_apply()
+
+        task_args = self._get_chain_task_args(signature)
+        self.assertTrue(any("openstack.backup" in str(arg) for arg in task_args))
+
+    def test_delete_signature_includes_snapshot_deletion(self):
+        volume = self.instance.volumes.first()
+        factories.SnapshotFactory(
+            tenant=self.tenant,
+            project=self.instance.project,
+            source_volume=volume,
+        )
+
+        signature = self._get_delete_signature_after_pre_apply()
+
+        task_args = self._get_chain_task_args(signature)
+        self.assertTrue(any("openstack.snapshot" in str(arg) for arg in task_args))
+
+    def test_delete_signature_skips_snapshot_deletion_for_backup_snapshots(self):
+        volume = self.instance.volumes.first()
+        backup = factories.BackupFactory(instance=self.instance)
+        snapshot = factories.SnapshotFactory(
+            tenant=self.tenant,
+            project=self.instance.project,
+            source_volume=volume,
+        )
+        backup.snapshots.add(snapshot)
+
+        self.assertEqual(
+            executors.InstanceDeleteExecutor.get_delete_snapshots_tasks(self.instance),
+            [],
+        )
+
+    def test_delete_signature_skips_backup_deletion_when_none_exist(self):
+        signature = self._get_delete_signature_after_pre_apply()
+
+        task_args = self._get_chain_task_args(signature)
+        self.assertNotIn(openstack_tasks.TERMINATION_STEP_DELETE_BACKUP, task_args)
+
+    def test_delete_signature_includes_termination_step_markers(self):
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+        factories.BackupFactory(instance=self.instance)
+        volume = self.instance.volumes.first()
+        factories.SnapshotFactory(
+            tenant=self.tenant,
+            project=self.instance.project,
+            source_volume=volume,
+        )
+
+        signature = self._get_delete_signature_after_pre_apply()
+
+        task_args = self._get_chain_task_args(signature)
+        for step in (
+            openstack_tasks.TERMINATION_STEP_STOP,
+            openstack_tasks.TERMINATION_STEP_DELETE_BACKUP,
+            openstack_tasks.TERMINATION_STEP_DELETE_SNAPSHOT,
+            openstack_tasks.TERMINATION_STEP_DELETE_INSTANCE,
+        ):
+            self.assertIn(step, task_args)
+
+    def test_termination_step_marker_sets_action_details(self):
+        openstack_tasks.InstanceTerminationStepMarkerTask().execute(
+            self.instance, openstack_tasks.TERMINATION_STEP_STOP
+        )
+        self.instance.refresh_from_db()
+        self.assertEqual(
+            self.instance.action_details["termination_step"],
+            openstack_tasks.TERMINATION_STEP_STOP,
+        )
+
+    def test_delete_failure_task_prefixes_error_message(self):
+        task = openstack_tasks.InstanceDeleteFailureTask()
+
+        def set_error(instance):
+            instance.error_message = "Nova API error"
+            instance.error_traceback = "traceback"
+            instance.save(update_fields=["error_message", "error_traceback"])
+
+        self.instance.action_details = {
+            "termination_step": openstack_tasks.TERMINATION_STEP_DELETE_INSTANCE
+        }
+        self.instance.save()
+
+        with mock.patch.object(task, "save_error_message", side_effect=set_error):
+            task.execute(self.instance)
+
+        self.instance.refresh_from_db()
+        self.assertEqual(
+            self.instance.error_message,
+            "Termination failed at step 'delete_instance': Nova API error",
+        )
+        self.assertEqual(self.instance.state, CoreStates.ERRED)
+
+    def test_delete_failure_task_preserves_order_uuid_in_log(self):
+        from waldur_mastermind.marketplace import enums as marketplace_enums
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        resource = marketplace_factories.ResourceFactory(scope=self.instance)
+        order = marketplace_factories.OrderFactory(
+            resource=resource,
+            type=marketplace_enums.OrderTypes.TERMINATE,
+            state=marketplace_enums.OrderStates.EXECUTING,
+        )
+        self.instance.state = CoreStates.DELETION_SCHEDULED
+        self.instance.action_details = {
+            "termination_step": openstack_tasks.TERMINATION_STEP_STOP
+        }
+        self.instance.save()
+
+        task = openstack_tasks.InstanceDeleteFailureTask()
+
+        def set_error(instance):
+            instance.error_message = "backend error"
+            instance.save(update_fields=["error_message"])
+
+        with mock.patch.object(task, "save_error_message", side_effect=set_error):
+            with mock.patch.object(
+                openstack_tasks, "log_instance_termination_event"
+            ) as log_event_mock:
+                task.execute(self.instance)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, marketplace_enums.OrderStates.ERRED)
+        log_event_mock.assert_called_once()
+        self.assertEqual(
+            log_event_mock.call_args.kwargs["context"]["order_uuid"],
+            order.uuid.hex,
+        )
+
+    def test_failure_signature_uses_deletion_task_when_force(self):
+        serialized = serialize_instance(self.instance)
+        signature = executors.InstanceDeleteExecutor.get_failure_signature(
+            self.instance, serialized, force=True
+        )
+        self.assertEqual(signature.task, core_tasks.DeletionTask().si(serialized).task)
+
+    def test_failure_signature_uses_instance_delete_failure_task_when_not_force(self):
+        serialized = serialize_instance(self.instance)
+        signature = executors.InstanceDeleteExecutor.get_failure_signature(
+            self.instance, serialized, force=False
+        )
+        self.assertEqual(
+            signature.task,
+            openstack_tasks.InstanceDeleteFailureTask().s(serialized).task,
+        )
+
+    def test_force_delete_removes_instance_when_backend_delete_fails(self):
+        self.mock_volumes(True)
+        self.instance.state = CoreStates.ERRED
+        self.instance.save()
+        self.mocked_nova.servers.delete.side_effect = nova_exceptions.ClientException(
+            500
+        )
+
+        delete_instance(self.instance, is_async=False)
+
+        self.assertFalse(models.Instance.objects.filter(id=self.instance.id).exists())
+
+    def test_non_force_failure_signature_marks_instance_erred(self):
+        """Exercise the async link_error path (ErrorStateTransitionTask needs result_id).
+
+        Sync execute()'s exception branch cannot inject result_id, so we invoke the
+        failure signature the same way Celery link_error does in production.
+        """
+        self.instance.state = CoreStates.DELETION_SCHEDULED
+        self.instance.action_details = {
+            "termination_step": openstack_tasks.TERMINATION_STEP_DELETE_INSTANCE
+        }
+        self.instance.save()
+
+        serialized = serialize_instance(self.instance)
+        failure = executors.InstanceDeleteExecutor.get_failure_signature(
+            self.instance, serialized, force=False
+        )
+        fake_result_id = "00000000-0000-0000-0000-000000000001"
+        with mock.patch.object(
+            openstack_tasks.InstanceDeleteFailureTask,
+            "AsyncResult",
+            return_value=mock.Mock(result="Nova API error", traceback="tb"),
+        ):
+            failure.args = (fake_result_id,) + failure.args
+            failure.apply()
+
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.state, CoreStates.ERRED)
+        self.assertEqual(
+            self.instance.error_message,
+            "Termination failed at step 'delete_instance': Nova API error",
+        )
 
 
 class InstanceDisabledActionsTest(test.APITestCase):

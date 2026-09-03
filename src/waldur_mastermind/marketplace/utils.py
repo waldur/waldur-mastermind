@@ -163,15 +163,7 @@ def process_order(order: models.Order, user):
         order.error_message = str(e)
         order.error_traceback = traceback.format_exc()
         order.set_state_erred()
-
-        if (
-            order.attributes.get("action") == "force_destroy"
-            and order.type == OrderTypes.TERMINATE
-            and user.is_staff
-        ):
-            order.resource.set_state_terminated()
-        else:
-            order.resource.set_state_erred()
+        order.resource.set_state_erred()
 
         # exc_info=True emits the full traceback to the log stream (Loki); the
         # DB only keeps order.error_traceback, which operators cannot see while

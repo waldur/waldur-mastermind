@@ -3,7 +3,6 @@ from unittest import mock
 
 from ddt import data, ddt
 from rest_framework import status, test
-from rest_framework.response import Response
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
@@ -777,26 +776,17 @@ class ClusterDeleteTest(test.APITestCase):
 
         self.assertEqual(mock_tasks.DeleteNodeTask.return_value.si.call_count, 0)
 
+    @mock.patch("waldur_rancher.tasks.delete_instance")
     @mock.patch("waldur_rancher.backend.RancherBackend.client")
-    @mock.patch("waldur_rancher.tasks.common_utils.delete_request")
     def test_when_cluster_is_deleted_instance_deletion_is_requested(
-        self, mock_delete_request, mock_client
+        self, mock_client, mock_delete_instance
     ):
-        mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
         mock_client.get_node.return_value = {
             "conditions": [{"type": "Drained", "status": "True"}]
         }
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
         vm = self.fixture.node.instance
-        self.assertEqual(mock_delete_request.call_count, 1)
-        self.assertEqual(mock_delete_request.call_args[0][1], self.fixture.owner)
-        self.assertEqual(
-            mock_delete_request.call_args[1],
-            {
-                "uuid": vm.uuid.hex,
-                "query_params": {"delete_volumes": True},
-            },
-        )
+        mock_delete_instance.assert_called_once_with(vm, {"delete_volumes": True})
         mock_client.drain_node.assert_called_once_with(self.fixture.node.backend_id)
 
     @mock.patch("waldur_rancher.backend.RancherBackend.client")

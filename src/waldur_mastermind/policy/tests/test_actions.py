@@ -350,7 +350,7 @@ class ActionsTest(test.APITestCase):
             resource=resource,
             type=OrderTypes.TERMINATE,
         ).get()
-        self.assertEqual(order.attributes, {"action": "force_destroy"})
+        self.assertEqual(order.attributes, {})
 
     @data("customer_policy", "project_policy")
     def test_request_downscaling(self, policy_name):

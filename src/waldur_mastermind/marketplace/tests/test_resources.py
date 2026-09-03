@@ -2709,10 +2709,10 @@ class ResourceForceTerminateTest(test.APITestCase):
         mock.patch.stopall()
 
     @data("staff")
-    def test_user_can_force_terminate_resource(self, user):
+    def test_staff_also_gets_erred_resource_on_processor_failure(self, user):
         order_state, resource_state = self._terminate_order(user)
         self.assertEqual(order_state, OrderStates.ERRED)
-        self.assertEqual(resource_state, ResourceStates.TERMINATED)
+        self.assertEqual(resource_state, ResourceStates.ERRED)
 
     @data(
         "owner",
@@ -2732,9 +2732,7 @@ class ResourceForceTerminateTest(test.APITestCase):
     def _terminate_order(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.post(
-            self.url, {"attributes": {"action": "force_destroy"}}
-        )
+        response = self.client.post(self.url, {"attributes": {}})
         if response.status_code == 404:
             return None, self.resource.state
         order_uuid = response.data["order_uuid"]
