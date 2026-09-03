@@ -167,6 +167,10 @@ td:nth-child(4) {
 | `emit_user_ssh_key_save` | `Django Signal (post_save)` | `core.SshPublicKey` | No description |
 | `handle_aggregated_quotas` | `Django Signal (post_save)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
 | `handle_aggregated_quotas` | `Django Signal (pre_delete)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
+| `invalidate_cache_on_commit` | `Django Signal (post_save)` | `core.Feature` | Signal receiver that defers the drop until the transaction commits. |
+| `invalidate_cache_on_commit` | `Django Signal (post_save)` | `marketplace.Offering` | Signal receiver that defers the drop until the transaction commits. |
+| `invalidate_cache_on_commit` | `Django Signal (post_delete)` | `core.Feature` | Signal receiver that defers the drop until the transaction commits. |
+| `invalidate_cache_on_commit` | `Django Signal (post_delete)` | `marketplace.Offering` | Signal receiver that defers the drop until the transaction commits. |
 | `log_access_subnet_deletion_succeeded` | `Django Signal (post_delete)` | `structure.AccessSubnet` | Log successful access subnet deletion. |
 | `log_access_subnet_save` | `Django Signal (post_save)` | `structure.AccessSubnet` | Log access subnet creation and updates. |
 | `log_customer_delete` | `Django Signal (post_delete)` | `structure.Customer` | Log customer deletion. |
@@ -887,11 +891,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 813
+Total unique handlers found: 817
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 420 handlers
+- **waldur_core**: 424 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 340 handlers
