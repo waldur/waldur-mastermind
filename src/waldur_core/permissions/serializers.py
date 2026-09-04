@@ -294,6 +294,12 @@ def clone_role_for_customer(
         raise ValidationError(
             "Only customer and project roles can be cloned into an organization."
         )
+    # Access checks resolve clones one level deep (role or role.template), so a
+    # chain would silently escape them — and double up the slug in the name.
+    if template.template_id is not None:
+        raise ValidationError(
+            "A clone cannot be cloned. Clone the original role instead."
+        )
     customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
     already_cloned = models.Role.objects.filter(
         template=template,

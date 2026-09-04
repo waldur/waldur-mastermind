@@ -67,16 +67,6 @@ class ProjectRole:
             content_type=ContentType.objects.get_by_natural_key("structure", "project"),
         )
 
-    @classproperty
-    def INACTIVE(self):
-        role = Role.objects.get_system_role(
-            RoleEnum.PROJECT_MEMBER,
-            content_type=ContentType.objects.get_by_natural_key("structure", "project"),
-        )
-        role.is_active = False
-        role.save()
-        return role
-
 
 class OfferingRole:
     @classproperty

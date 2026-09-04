@@ -422,6 +422,19 @@ class RoleCloneEndpointTest(test.APITestCase):
         response = self.client.post(url, {"customer": self.customer.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_cannot_clone_a_clone(self):
+        # Access checks resolve clones one level deep, so chains must not exist.
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(self.url, {"customer": self.customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        clone_url = reverse(
+            "role-clone-to-customer", kwargs={"uuid": response.data["uuid"]}
+        )
+        other_customer = structure_factories.CustomerFactory()
+        response = self.client.post(clone_url, {"customer": other_customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("A clone cannot be cloned", str(response.data))
+
 
 class UserPermissionCustomerFilterTest(test.APITestCase):
     """The customer_uuid filter scopes grants to a customer and its projects."""

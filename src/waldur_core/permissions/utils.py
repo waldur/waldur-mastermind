@@ -472,9 +472,12 @@ def count_active_project_managers(project):
     return (
         models.UserRole.objects.filter(
             scope=project,
-            role__name=enums.RoleEnum.PROJECT_MANAGER,
             is_active=True,
             user__is_active=True,
+        )
+        .filter(
+            Q(role__name=enums.RoleEnum.PROJECT_MANAGER)
+            | Q(role__template__name=enums.RoleEnum.PROJECT_MANAGER)
         )
         .filter(Q(expiration_time=None) | Q(expiration_time__gte=now))
         .count()
@@ -488,7 +491,11 @@ def validate_only_one_project_manager(scope, role):
     if scope._meta.model_name != "project":
         return
 
-    if role.name != enums.RoleEnum.PROJECT_MANAGER:
+    is_manager_role = role.name == enums.RoleEnum.PROJECT_MANAGER or (
+        role.template_id is not None
+        and role.template.name == enums.RoleEnum.PROJECT_MANAGER
+    )
+    if not is_manager_role:
         return
 
     if count_active_project_managers(scope) >= 1:
