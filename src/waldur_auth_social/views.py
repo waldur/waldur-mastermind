@@ -153,6 +153,47 @@ class OAuthViewInit(BaseOAuthView):
         return redirect(authorization_url)
 
 
+class OAuthViewDefaultInit(OAuthViewInit):
+    """
+    Start the OIDC flow with the identity provider configured as DEFAULT_IDP.
+
+    Lets the frontend, or any plain link, begin sign-in without first fetching
+    the public configuration to learn the provider name. When no active default
+    provider is configured, the browser is sent to the Homeport login page with
+    auto-login disabled. The caller's return_url is deliberately not used for
+    that hop: init stores it unvalidated and only the complete step checks it
+    against the provider's allowed_redirects.
+    """
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "return_url",
+                description="Origin to send the browser back to after login.",
+            ),
+            OpenApiParameter(
+                "ui_locales",
+                description="Language hint forwarded to the identity provider.",
+            ),
+        ],
+        responses={302: None},
+    )
+    def get(self, request, format=None):
+        """
+        Redirect user to the authorization endpoint of the default identity provider
+        """
+        provider = config.DEFAULT_IDP
+        if (
+            provider
+            and models.IdentityProvider.objects.filter(
+                provider=provider, is_active=True
+            ).exists()
+        ):
+            return super().get(request, provider, format)
+        homeport_url = config.HOMEPORT_URL.rstrip("/")
+        return redirect(f"{homeport_url}/login/?disableAutoLogin")
+
+
 class OAuthViewComplete(BaseOAuthView):
     @extend_schema(
         parameters=[

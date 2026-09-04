@@ -30,6 +30,14 @@ urlpatterns = [
     ),
 ]
 
+urlpatterns.append(
+    path(
+        "api-auth/default/init/",
+        views.OAuthViewDefaultInit.as_view(),
+        name="auth_default_init",
+    )
+)
+
 for provider in const.ProviderChoices.CHOICES:
     urlpatterns.append(
         path(
