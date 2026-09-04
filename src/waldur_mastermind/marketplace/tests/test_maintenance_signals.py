@@ -599,11 +599,50 @@ class MaintenanceAnnouncementSignalsTest(TransactionTestCase):
             admin_announcement.active_to,
             early_end + timezone.timedelta(minutes=60),
         )
-        # Content uses the maintenance_type prefix; ensure it was regenerated.
-        self.assertIn(
-            MaintenanceAnnouncementTemplate.TYPE_PREFIXES[MaintenanceType.SCHEDULED],
+        # Content is regenerated: the original text stays, with a completion
+        # indicator appended so the banner does not imply it is still running.
+        self.assertTrue(
+            admin_announcement.description.startswith(
+                MaintenanceAnnouncementTemplate.TYPE_PREFIXES[MaintenanceType.SCHEDULED]
+            ),
             admin_announcement.description,
         )
+        self.assertIn(") – ✅ Completed at ", admin_announcement.description)
+        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.INFORMATION)
+
+    @override_config(
+        MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES=60,
+        MAINTENANCE_ANNOUNCEMENT_TRAILING_BUFFER_MINUTES=60,
+    )
+    def test_completed_emergency_announcement_is_downgraded_to_information(self):
+        """A finished emergency banner must not keep the danger styling."""
+        maintenance = factories.MaintenanceAnnouncementFactory(
+            service_provider=self.service_provider,
+            maintenance_type=MaintenanceType.EMERGENCY,
+            state=MaintenanceState.DRAFT,
+        )
+        maintenance.schedule()
+        maintenance.save()
+        maintenance.refresh_from_db()
+        self.assertEqual(
+            maintenance.admin_announcement.type, AdminAnnouncement.Type.DANGER
+        )
+
+        maintenance.start_maintenance()
+        maintenance.save()
+        maintenance.refresh_from_db()
+
+        maintenance.complete_maintenance()
+        maintenance.save()
+
+        admin_announcement = maintenance.admin_announcement
+        admin_announcement.refresh_from_db()
+        self.assertEqual(admin_announcement.type, AdminAnnouncement.Type.INFORMATION)
+        self.assertTrue(
+            admin_announcement.description.startswith("🚨 Emergency Maintenance: "),
+            admin_announcement.description,
+        )
+        self.assertIn(" – ✅ Completed at ", admin_announcement.description)
 
     @override_config(
         MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES=60,
