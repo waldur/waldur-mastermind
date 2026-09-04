@@ -3,10 +3,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        (
-            "marketplace",
-            "0280_category_description_mk_category_description_sq_and_more",
-        ),
+        ("marketplace", "0281_rerun_data_migrations_skipped_by_squashes"),
     ]
 
     operations = [
