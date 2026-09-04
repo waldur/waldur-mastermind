@@ -122,6 +122,12 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "oauth": "10/s",
+        # api-auth/default/init/. The probe runs on every anonymous landing on
+        # the portal root and writes nothing, so it is budgeted for a lecture
+        # hall arriving behind one NAT at once; the navigation is a sign-in
+        # attempt and does write session state. Both are per client address.
+        "oauth_probe": "120/s",
+        "oauth_default": "60/s",
         "token_exchange": "60/min",
         "matrix_credentials": "1000/hour",
         "matrix_webhook": "10000/hour",
