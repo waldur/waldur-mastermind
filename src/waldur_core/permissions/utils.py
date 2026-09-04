@@ -303,7 +303,9 @@ def permission_factory(permission, sources=None):
 def get_users(scope, role_name=None):
     users = models.UserRole.objects.filter(is_active=True, scope=scope)
     if role_name:
-        users = users.filter(role__name=role_name)
+        users = users.filter(
+            Q(role__name=role_name) | Q(role__template__name=role_name)
+        )
     user_ids = users.values_list("user_id", flat=True)
     return User.objects.filter(id__in=user_ids)
 
@@ -337,7 +339,9 @@ def get_scope_ids(user, content_type, role=None, permission=None) -> QuerySet[in
             else:
                 # This is a string (like RoleEnum) - use directly
                 role_names.append(r)
-        qs = qs.filter(role__name__in=role_names)
+        qs = qs.filter(
+            Q(role__name__in=role_names) | Q(role__template__name__in=role_names)
+        )
     if permission:
         qs = qs.filter(role__permissions__permission=permission)
     return qs.order_by().values_list("object_id", flat=True).distinct()
@@ -351,11 +355,11 @@ def get_user_ids(content_type, scope_ids, role=None):
     )
     if role:
         if isinstance(role, models.Role):
-            qs = qs.filter(role=role)
+            qs = qs.filter(Q(role=role) | Q(role__template=role))
         else:
             if not isinstance(role, list | tuple):
                 role = [role]
-            qs = qs.filter(role__name__in=role)
+            qs = qs.filter(Q(role__name__in=role) | Q(role__template__name__in=role))
     return qs.values_list("user_id", flat=True)
 
 
