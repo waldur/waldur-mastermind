@@ -1,5 +1,7 @@
 # Notifications
 
+When a notification is removed from a release, its database row is not deleted automatically. Run `waldur load_notifications <file> --prune` to report and remove notifications whose key is no longer listed below, along with any of their templates that no other notification declares and that have no operator-customised content. Customised template content is never deleted automatically.
+
 ## WALDUR_CORE.STRUCTURE
 
 ### structure.change_email_request
@@ -1510,6 +1512,7 @@ A notification of a successful resource plan update. The recipients are all the 
 
     {% if resource_old_plan %}
     The plan has been changed from {{ resource_old_plan }} to {{ resource_plan }}.
+    {% if billing_consequence %}{{ billing_consequence }}{% endif %}
     {% endif %}
 
     {% if support_email or support_phone %}
@@ -1544,6 +1547,11 @@ A notification of a successful resource plan update. The recipients are all the 
     <p>
         The plan has been changed from {{ resource_old_plan }} to {{ resource_plan }}.
     </p>
+    {% if billing_consequence %}
+    <p>
+        {{ billing_consequence }}
+    </p>
+    {% endif %}
     {% endif %}
     {% if support_email or support_phone %}
     <p>

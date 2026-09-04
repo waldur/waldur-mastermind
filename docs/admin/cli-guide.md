@@ -943,11 +943,20 @@ Sync notifications and their templates from a JSON/YAML config file to the DB.
 
 ```bash
 
-usage: waldur load_notifications notifications_file
+usage: waldur load_notifications [--prune] notifications_file
 
 positional arguments:
   notifications_file  Path to a JSON or YAML file mapping notification keys to
                       their enabled status (bool).
+
+options:
+  --prune             Delete Notification rows whose key is no longer in the
+                      NOTIFICATIONS registry, along with any of their
+                      templates that are not shared with a registered
+                      notification and have no operator-customised content.
+                      Without this flag, orphaned rows are only reported.
+                      Never enabled by default (e.g. by initdb) — an
+                      unattended boot should not delete data.
 
 ```
 

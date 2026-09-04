@@ -1981,6 +1981,7 @@ Following request from {{ order_user }}, resource {{ resource_name }} has been u
 
 {% if resource_old_plan %}
 The plan has been changed from {{ resource_old_plan }} to {{ resource_plan }}.
+{% if billing_consequence %}{{ billing_consequence }}{% endif %}
 {% endif %}
 
 {% if support_email or support_phone %}
@@ -2034,6 +2035,11 @@ Response from {{ order.created_by.get_full_name }} regarding order for {{ order.
 <p>
     The plan has been changed from {{ resource_old_plan }} to {{ resource_plan }}.
 </p>
+{% if billing_consequence %}
+<p>
+    {{ billing_consequence }}
+</p>
+{% endif %}
 {% endif %}
 {% if support_email or support_phone %}
 <p>

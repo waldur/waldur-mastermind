@@ -85,6 +85,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`FieldFilteringMixin`](#fieldfilteringmixin) | `waldur_core.structure.serializers` | Mixin allowing to filter fields by user |
 | [`PermissionFieldFilteringMixin`](#permissionfieldfilteringmixin) | `waldur_core.structure.serializers` | Mixin allowing to filter related fields |
 | [`SshPublicKeySerializerMixin`](#sshpublickeyserializermixin) | `waldur_core.structure.serializers` | A type of `ModelSerializer` that uses hyperlinked relationships instead of pr... |
+| [`DashboardFeedHelpersMixin`](#dashboardfeedhelpersmixin) | `waldur_core.structure.tests.test_dashboard` | Helpers for driving the dashboard feed from throwaway providers |
 | [`ProjectMetadataTestMixin`](#projectmetadatatestmixin) | `waldur_core.structure.tests.test_project_metadata` | Shared test setup and utilities for project metadata tests |
 | [`AvailabilityCheckViewMixin`](#availabilitycheckviewmixin) | `waldur_core.structure.views` | A viewset that provides default `create()`, `retrieve()`, `update()`, `partia... |
 | [`ScopeInvitationMixin`](#scopeinvitationmixin) | `waldur_core.users.models` | Mixin for invitations scoped to a Customer with a system Role |
@@ -1237,6 +1238,17 @@ of primary key relationships. Specifically:
 - Relationships to other instances are hyperlinks, instead of primary keys.
 
 **Base classes:** `HyperlinkedModelSerializer`
+
+### DashboardFeedHelpersMixin
+
+**Module:** `waldur_core.structure.tests.test_dashboard`
+
+**Description:**
+
+Helpers for driving the dashboard feed from throwaway providers.
+
+Shared rather than copied: _item encodes the eight-key feed contract, so
+two copies drift the moment that contract changes.
 
 ### ProjectMetadataTestMixin
 
