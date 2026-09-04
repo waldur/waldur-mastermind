@@ -368,17 +368,24 @@ def count_users(scope):
     )
 
 
-def has_user(scope, user, role=None, expiration_time=False):
+def has_user(scope, user, role=None, expiration_time=False, *, match_clones=True):
     """
     Checks whether user has role in entity.
     `expiration_time` can have the following values:
         - False (default) - check whether user has role in entity regardless of expiration.
         - None - check whether user has permanent role in entity.
         - Datetime object - check whether user will have role in entity at specific timestamp.
+    By default a role cloned from `role` (an organization-scoped clone, linked via
+    `Role.template`) also satisfies the check; the reverse never does. Pass
+    `match_clones=False` where role identity itself is checked, e.g. duplicate-grant
+    guards — otherwise a template holder could never be granted the clone.
     """
     qs = models.UserRole.objects.filter(is_active=True, user=user, scope=scope)
     if role:
-        qs = qs.filter(role=role)
+        if match_clones:
+            qs = qs.filter(Q(role=role) | Q(role__template=role))
+        else:
+            qs = qs.filter(role=role)
     if expiration_time is None:
         qs = qs.filter(expiration_time=None)
     elif expiration_time is not False:
@@ -570,7 +577,7 @@ def validate_role_grant(scope, user, role, expiration_time=None):
     same invariants. Permission/auth checks stay with the caller — this helper
     only validates the (scope, user, role) triple.
     """
-    if has_user(scope, user, role, expiration_time=expiration_time):
+    if has_user(scope, user, role, expiration_time=expiration_time, match_clones=False):
         raise ValidationError("User has already the same role in this scope.")
 
     if not isinstance(scope, role.content_type.model_class()):

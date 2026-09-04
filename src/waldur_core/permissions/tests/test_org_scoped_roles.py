@@ -741,3 +741,63 @@ class ConcealmentEndpointTest(test.APITestCase):
             {"role": role_a.uuid.hex, "customer": self.customer.uuid.hex},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+
+class TemplateAwareAccessTest(test.APITestCase):
+    """A clone holder must pass identity-style checks written against the
+    clone's template (issue #316)."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.project = self.fixture.project
+        self.user = structure_factories.UserFactory()
+
+    def test_clone_holder_passes_template_identity_check(self):
+        clone = clone_role_for_customer(
+            ProjectRole.MEMBER, self.customer, conceal_template=False
+        )
+        self.project.add_user(self.user, clone)
+        self.assertTrue(self.project.has_user(self.user, ProjectRole.MEMBER))
+
+
+class CloneGrantStrictPathTest(test.APITestCase):
+    """Duplicate-grant guards stay identity-strict: holding the template must
+    not block being granted its clone — that grant is exactly the migration
+    flow clone+conceal exists for — and vice versa."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.project = self.fixture.project
+        self.user = structure_factories.UserFactory()
+        self.clone = clone_role_for_customer(
+            ProjectRole.MEMBER, self.customer, conceal_template=False
+        )
+
+    def test_template_holder_can_be_granted_the_clone(self):
+        self.project.add_user(self.user, ProjectRole.MEMBER)
+        utils.validate_role_grant(self.project, self.user, self.clone)
+        self.project.add_user(self.user, self.clone)
+        self.assertTrue(
+            UserRole.objects.filter(
+                user=self.user, role=self.clone, is_active=True
+            ).exists()
+        )
+
+    def test_clone_holder_can_be_granted_the_template(self):
+        self.project.add_user(self.user, self.clone)
+        utils.validate_role_grant(self.project, self.user, ProjectRole.MEMBER)
+        self.project.add_user(self.user, ProjectRole.MEMBER)
+        self.assertTrue(
+            UserRole.objects.filter(
+                user=self.user, role=ProjectRole.MEMBER, is_active=True
+            ).exists()
+        )
+
+    def test_duplicate_grant_of_same_clone_is_still_rejected(self):
+        self.project.add_user(self.user, self.clone)
+        with self.assertRaisesMessage(
+            ValidationError, "User has already the same role in this scope."
+        ):
+            utils.validate_role_grant(self.project, self.user, self.clone)

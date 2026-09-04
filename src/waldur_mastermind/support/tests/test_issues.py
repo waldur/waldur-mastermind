@@ -13,6 +13,8 @@ from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
 from waldur_core.core.tests.helpers import load_json_resource
+from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.serializers import clone_role_for_customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 from waldur_mastermind.support import models, utils
@@ -318,6 +320,25 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertTrue(
             models.Issue.objects.filter(customer=self.fixture.customer).exists()
         )
+
+    def test_user_with_org_scoped_clone_role_can_create_project_issue(self):
+        # Regression for issue #316: a user whose only project role is an
+        # organization-scoped clone of PROJECT.MEMBER must be able to report
+        # a project issue just like a stock member.
+        clone_holder = structure_factories.UserFactory()
+        clone = clone_role_for_customer(
+            ProjectRole.MEMBER, self.fixture.customer, conceal_template=False
+        )
+        self.fixture.project.add_user(clone_holder, clone)
+        self.client.force_authenticate(clone_holder)
+        payload = self._get_valid_payload(
+            project=structure_factories.ProjectFactory.get_url(self.fixture.project),
+            is_reported_manually=True,
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     @data("user")
     def test_user_without_access_to_project_cannot_create_project_issue(self, user):
