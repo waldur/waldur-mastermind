@@ -13,6 +13,30 @@ class QuotaModelMixinTest(TestCase):
         instance = GrandparentModel.objects.create()
         self.assertEqual(instance.get_quota_limit("quota_with_default_limit"), 100)
 
+    def test_quota_limits_report_stored_zero_as_zero(self):
+        instance = GrandparentModel.objects.create()
+        instance.set_quota_limit("regular_quota", 0)
+        self.assertEqual(instance.quota_limits["regular_quota"], 0)
+
+    def test_quota_limits_omit_quotas_without_a_row(self):
+        instance = GrandparentModel.objects.create()
+        self.assertNotIn("regular_quota", instance.quota_limits)
+
+    def test_quotas_report_stored_zero_as_zero(self):
+        instance = GrandparentModel.objects.create()
+        instance.set_quota_limit("regular_quota", 0)
+        quota = self.get_quota(instance, "regular_quota")
+        self.assertEqual(quota["limit"], 0)
+
+    def test_quotas_report_missing_limit_as_unlimited(self):
+        instance = GrandparentModel.objects.create()
+        instance.add_quota_usage("regular_quota", 10)
+        quota = self.get_quota(instance, "regular_quota")
+        self.assertEqual(quota["limit"], -1)
+
+    def get_quota(self, instance, name):
+        return next(quota for quota in instance.quotas if quota["name"] == name)
+
     def test_add_usage_validates_with_unlimited_quota(self):
         instance = GrandparentModel.objects.create()
         try:

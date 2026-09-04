@@ -1,9 +1,19 @@
 from django.test import TestCase
 
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import CORES_TYPE, RAM_TYPE, STORAGE_TYPE
-from waldur_mastermind.marketplace_openstack.utils import map_limits_to_quotas
+from waldur_mastermind.marketplace_openstack import (
+    CORES_TYPE,
+    RAM_TYPE,
+    STORAGE_MODE_DYNAMIC,
+    STORAGE_MODE_FIXED,
+    STORAGE_TYPE,
+)
+from waldur_mastermind.marketplace_openstack.utils import (
+    import_limits,
+    map_limits_to_quotas,
+)
 from waldur_openstack.models import Tenant
+from waldur_openstack.tests import fixtures as openstack_fixtures
 
 
 class TestMapLimitsToQuotas(TestCase):
@@ -120,3 +130,46 @@ class TestMapLimitsToQuotas(TestCase):
         self.assertNotIn(Tenant.Quotas.instances.name, quotas)
         self.assertEqual(quotas[Tenant.Quotas.volumes.name], 20)
         self.assertNotIn(Tenant.Quotas.security_group_count.name, quotas)
+
+
+class TestImportLimits(TestCase):
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+        self.offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant.service_settings
+        )
+        self.resource = marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            scope=self.tenant,
+        )
+
+    def test_zero_backend_quota_is_imported_as_zero(self):
+        # A backend quota of 0 used to be imported as -1 (unlimited).
+        self.offering.plugin_options = {"storage_mode": STORAGE_MODE_FIXED}
+        self.offering.save()
+
+        self.tenant.set_quota_limit(Tenant.Quotas.vcpu.name, 0)
+        self.tenant.set_quota_limit(Tenant.Quotas.ram.name, 0)
+        self.tenant.set_quota_limit(Tenant.Quotas.storage.name, 0)
+
+        import_limits(self.resource)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            self.resource.limits,
+            {CORES_TYPE: 0, RAM_TYPE: 0, STORAGE_TYPE: 0},
+        )
+
+    def test_zero_volume_type_quota_is_imported_as_zero(self):
+        self.offering.plugin_options = {"storage_mode": STORAGE_MODE_DYNAMIC}
+        self.offering.save()
+
+        self.tenant.set_quota_limit("gigabytes_ssd", 0)
+        self.tenant.set_quota_limit("gigabytes_rbd", 10)
+
+        import_limits(self.resource)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits["gigabytes_ssd"], 0)
+        self.assertEqual(self.resource.limits["gigabytes_rbd"], 10)
