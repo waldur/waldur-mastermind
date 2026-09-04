@@ -1492,6 +1492,36 @@ class ProjectOtherUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         return core_models.User.objects.filter(id__in=get_project_users(projects))
 
 
+# What a feed item carries beyond the eight keys every provider has always
+# returned. Declared once here rather than per provider: only queue-backed
+# items set them, and the serializer needs the keys present either way.
+DASHBOARD_ITEM_DEFAULTS = {
+    "uuid": None,
+    "urgency": None,
+    "route_name": None,
+    "route_params": {},
+    "can_silence": False,
+    "actions": [],
+}
+
+
+def _dashboard_feed_sort_key(item):
+    """Order the feed by severity, then by how soon it is due.
+
+    The queue sorted on due_date and the feed had no tiebreak at all, so
+    merging them without one would interleave dated and undated rows of equal
+    severity in provider-registration order. Undated rows sort last within
+    their severity; the second element keeps datetimes and None out of the same
+    comparison.
+    """
+    deadline = item.get("deadline")
+    return (
+        DASHBOARD_VARIANT_ORDER.get(item.get("variant"), 99),
+        0 if deadline else 1,
+        deadline,
+    )
+
+
 class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     queryset = core_models.User.all_objects.select_related(
         "auth_token", "changeemailrequest"
@@ -1736,7 +1766,11 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
         description=(
             "Returns a typed feed of actions the current user should take, "
             "aggregating pending orders, failed resources, overdue invoices, "
-            "missing Terms of Service consents, and incomplete profile state."
+            "missing Terms of Service consents, and incomplete profile state. "
+            "Where USER_ACTIONS_ENABLED is set, the persistent UserAction "
+            "queue is folded in as well; those items carry a uuid addressing "
+            "the user-actions endpoints, along with any corrective actions "
+            "and the route recorded for them."
         ),
         responses={200: serializers.DashboardPendingActionSerializer(many=True)},
     )
@@ -1764,12 +1798,19 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             # one that emits a row per object (ToS consent, one per offering)
             # would otherwise build and sort an unbounded list to render ten.
             feed.extend(items[:DASHBOARD_LIST_LIMIT])
+        # Providers that predate the UserAction bridge return only the original
+        # eight keys. Filling the rest here keeps them untouched: without it
+        # every live provider would have to learn about corrective actions it
+        # never offers. Merged into new dicts rather than set on the originals,
+        # which belong to the provider and may well be reused across calls.
+        feed = [{**DASHBOARD_ITEM_DEFAULTS, **item} for item in feed]
         # Severity decides what survives the cap, rather than provider
         # registration order — that order is an accident of
         # apps.get_app_configs(), so without this an "error" row silently falls
-        # off the end as soon as an extension is reordered. sorted() is stable,
-        # so items of equal severity keep their provider's order.
-        feed.sort(key=lambda item: DASHBOARD_VARIANT_ORDER.get(item["variant"], 99))
+        # off the end as soon as an extension is reordered. Within one severity
+        # the sort falls through to the deadline, so provider order only decides
+        # between items that match on both.
+        feed.sort(key=_dashboard_feed_sort_key)
         serializer = serializers.DashboardPendingActionSerializer(
             feed[:DASHBOARD_LIST_LIMIT], many=True
         )

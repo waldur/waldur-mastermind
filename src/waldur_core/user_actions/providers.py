@@ -153,6 +153,16 @@ class BaseDashboardProvider(ABC):
         ``{type, title, description, variant, deadline, count, target_uuid,
         customer_uuid}``. The dashboard endpoint dispatches across every
         registered provider and concatenates the results.
+
+        UUIDs are rendered with ``str()``, so pass ``StringUUID`` values (what
+        ``UuidMixin`` gives you) rather than plain ``uuid.UUID`` — the latter
+        renders hyphenated, which Waldur's routes and lookups do not match.
+
+        Items may also carry ``{uuid, urgency, route_name, route_params,
+        can_silence, actions}``. Those describe a row backed by a
+        ``UserAction``, which the queue bridge fills in; a provider computing
+        its items live can omit them and the dispatcher supplies the defaults
+        in ``structure.views.DASHBOARD_ITEM_DEFAULTS``.
         """
 
 
