@@ -1231,6 +1231,33 @@
       "description": "Job scratch space allocation",
       "billing_type": "limit",
       "measured_unit": "TB"
+    },
+    {
+      "uuid": "c30000000000000000000000000000aa",
+      "offering_uuid": "f30000000000000000000000000000aa",
+      "type": "cores",
+      "name": "CPU Cores",
+      "description": "Number of virtual CPU cores",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c30000000000000000000000000000ab",
+      "offering_uuid": "f30000000000000000000000000000aa",
+      "type": "ram",
+      "name": "RAM",
+      "description": "Amount of RAM in GB",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c30000000000000000000000000000ac",
+      "offering_uuid": "f30000000000000000000000000000aa",
+      "type": "storage",
+      "name": "Storage",
+      "description": "Storage capacity in GB",
+      "billing_type": "limit",
+      "measured_unit": "GB"
     }
   ],
   "plans": [
@@ -1363,6 +1390,22 @@
       "offering_uuid": "f3000000000000000000000000000042",
       "unit": "month",
       "description": "Large-scale SLURM allocation with priority access"
+    },
+    {
+      "uuid": "130000000000000000000000000000aa",
+      "name": "Reserved capacity",
+      "offering_uuid": "f30000000000000000000000000000aa",
+      "unit": "month",
+      "billing_mode": "inherit",
+      "description": "Reserved cores, RAM and storage billed monthly on the requested limits"
+    },
+    {
+      "uuid": "130000000000000000000000000000ab",
+      "name": "Pay as you go",
+      "offering_uuid": "f30000000000000000000000000000aa",
+      "unit": "month",
+      "billing_mode": "usage",
+      "description": "Billed on actual consumption per core-hour and GB-hour; no limits requested when ordering"
     }
   ],
   "plan_components": [
@@ -1692,6 +1735,42 @@
       "plan_uuid": "13000000000000000000000000000061",
       "component_uuid": "c3000000000000000000000000000423",
       "price": "25.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "130000000000000000000000000000aa",
+      "component_uuid": "c30000000000000000000000000000aa",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "130000000000000000000000000000aa",
+      "component_uuid": "c30000000000000000000000000000ab",
+      "price": "0.01",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "130000000000000000000000000000aa",
+      "component_uuid": "c30000000000000000000000000000ac",
+      "price": "0.0001",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "130000000000000000000000000000ab",
+      "component_uuid": "c30000000000000000000000000000aa",
+      "price": "0.0080",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "130000000000000000000000000000ab",
+      "component_uuid": "c30000000000000000000000000000ab",
+      "price": "0.0000150",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "130000000000000000000000000000ab",
+      "component_uuid": "c30000000000000000000000000000ac",
+      "price": "0.0000002",
       "amount": 0
     }
   ],

@@ -88,6 +88,7 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
     SWAPPABLE_OFFERING_TYPES,
+    BillingModes,
     BillingTypes,
     CourseAccountState,
     DiscountAggregations,
@@ -107,6 +108,7 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
     ServiceAccountState,
     ServiceAccountStatesType,
+    SwitchBillingModes,
     UsageLimitAction,
 )
 from waldur_mastermind.marketplace.fields import PublicPlanField
@@ -129,7 +131,7 @@ from waldur_mastermind.marketplace_rancher.const import (
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
-from . import log, models, permissions, plugins, posix_ids, utils
+from . import billing_mode, log, models, permissions, plugins, posix_ids, utils
 
 logger = logging.getLogger(__name__)
 
@@ -2427,9 +2429,19 @@ class DiscountsUpdateSerializer(serializers.Serializer):
 
 
 class NestedPlanComponentSerializer(serializers.ModelSerializer):
+    """Plan component with the billing fields resolved for its plan.
+
+    ``billing_type``, ``measured_unit``, ``is_prepaid`` and ``limit_period``
+    come from the plan's billing mode for builtin components and from the
+    offering component otherwise.
+    """
+
     type = serializers.ReadOnlyField(source="component.type")
     name = serializers.ReadOnlyField(source="component.name")
-    measured_unit = serializers.ReadOnlyField(source="component.measured_unit")
+    measured_unit = serializers.SerializerMethodField()
+    billing_type = serializers.SerializerMethodField()
+    is_prepaid = serializers.SerializerMethodField()
+    limit_period = serializers.SerializerMethodField()
     discount_description = serializers.SerializerMethodField()
 
     class Meta:
@@ -2438,6 +2450,9 @@ class NestedPlanComponentSerializer(serializers.ModelSerializer):
             "type",
             "name",
             "measured_unit",
+            "billing_type",
+            "is_prepaid",
+            "limit_period",
             "amount",
             "price",
             "future_price",
@@ -2445,6 +2460,34 @@ class NestedPlanComponentSerializer(serializers.ModelSerializer):
             "discount_aggregation",
             "discount_description",
         )
+
+    @staticmethod
+    def _effective(plan_component):
+        if plan_component.component is None:
+            return None
+        return billing_mode.resolve_component(
+            plan_component.component, plan_component.plan
+        )
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_measured_unit(self, plan_component):
+        effective = self._effective(plan_component)
+        return effective.measured_unit if effective else None
+
+    @extend_schema_field(serializers.ChoiceField(choices=BillingTypes.CHOICES))
+    def get_billing_type(self, plan_component):
+        effective = self._effective(plan_component)
+        return effective.billing_type if effective else None
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_prepaid(self, plan_component):
+        effective = self._effective(plan_component)
+        return effective.is_prepaid if effective else False
+
+    @extend_schema_field(serializers.ChoiceField(choices=LimitPeriods.CHOICES))
+    def get_limit_period(self, plan_component):
+        effective = self._effective(plan_component)
+        return effective.limit_period if effective else None
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_discount_description(self, component):
@@ -2465,6 +2508,15 @@ class BasePlanSerializer(
         required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
     )
     components = NestedPlanComponentSerializer(many=True, read_only=True)
+    billing_mode = serializers.ChoiceField(
+        choices=BillingModes.CHOICES,
+        required=False,
+        default=BillingModes.INHERIT,
+        help_text=_(
+            "How the offering's builtin components are billed under this plan. "
+            "Custom components keep their own accounting type."
+        ),
+    )
 
     class Meta:
         model = models.Plan
@@ -2476,6 +2528,7 @@ class BasePlanSerializer(
             "article_code",
             "max_amount",
             "archived",
+            "billing_mode",
             "is_active",
             "unit_price",
             "unit",
@@ -2530,9 +2583,15 @@ class BasePlanSerializer(
 
         for plan_component in plan.components.all():
             offering_component = plan_component.component
+            if offering_component is None:
+                continue
 
             if plan_component.price:
-                components_types.add(offering_component.billing_type)
+                components_types.add(
+                    billing_mode.resolve_component(
+                        offering_component, plan
+                    ).billing_type
+                )
 
         if len(components_types) == 1:
             if BillingTypes.USAGE in components_types:
@@ -2557,11 +2616,14 @@ class BasePlanSerializer(
 
         for plan_component in components:
             offering_component = plan_component.component
+            if offering_component is None:
+                continue
 
             if plan_component.price:
-                if offering_component.billing_type == BillingTypes.LIMIT:
+                effective = billing_mode.resolve_component(offering_component, plan)
+                if effective.billing_type == BillingTypes.LIMIT:
                     price += plan_component.price
-                elif offering_component.billing_type in (
+                elif effective.billing_type in (
                     BillingTypes.FIXED,
                     BillingTypes.ONE_TIME,
                 ):
@@ -3494,6 +3556,7 @@ class ExportImportPlanSerializer(serializers.ModelSerializer):
             "article_code",
             "max_amount",
             "archived",
+            "billing_mode",
             "is_active",
             "unit_price",
             "unit",
@@ -3644,8 +3707,24 @@ class PlanComponentSerializer(serializers.ModelSerializer):
     plan_name = serializers.ReadOnlyField(source="plan.name")
     plan_unit = serializers.ReadOnlyField(source="plan.unit")
     component_name = serializers.ReadOnlyField(source="component.name")
-    measured_unit = serializers.ReadOnlyField(source="component.measured_unit")
-    billing_type = serializers.ReadOnlyField(source="component.billing_type")
+    measured_unit = serializers.SerializerMethodField()
+    billing_type = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_measured_unit(self, plan_component):
+        if plan_component.component is None:
+            return None
+        return billing_mode.resolve_component(
+            plan_component.component, plan_component.plan
+        ).measured_unit
+
+    @extend_schema_field(serializers.ChoiceField(choices=BillingTypes.CHOICES))
+    def get_billing_type(self, plan_component):
+        if plan_component.component is None:
+            return None
+        return billing_mode.resolve_component(
+            plan_component.component, plan_component.plan
+        ).billing_type
 
     class Meta:
         model = models.PlanComponent
@@ -4333,6 +4412,13 @@ class ProviderOfferingDetailsSerializer(
             return "mixed"
 
         billing_types = set(component.billing_type for component in components)
+        # Plans may override the builtin components; count those modes too.
+        if billing_mode.offering_has_builtin_components(offering):
+            plan_modes = set(offering.plans.values_list("billing_mode", flat=True))
+            if BillingModes.USAGE in plan_modes:
+                billing_types.add(BillingTypes.USAGE)
+            if BillingModes.LIMIT in plan_modes:
+                billing_types.add(BillingTypes.LIMIT)
 
         if billing_types == {BillingTypes.LIMIT}:
             return "limit_only"
@@ -4479,7 +4565,16 @@ class OfferingComponentLimitSerializer(serializers.Serializer):
     )
 
 
+def validate_plan_billing_mode(offering, mode, plan=None):
+    """A plan mode other than inherit needs builtin components to act on,
+    and it is frozen while resources use the plan."""
+    error = billing_mode.check_plan_billing_mode(offering, mode, plan)
+    if error:
+        raise serializers.ValidationError({"billing_mode": _(error)})
+
+
 def create_plan(offering, plan_data):
+    validate_plan_billing_mode(offering, plan_data.get("billing_mode"))
     components = {component.type: component for component in offering.components.all()}
 
     plan = models.Plan.objects.create(offering=offering, **plan_data)
@@ -4693,7 +4788,11 @@ def update_plan_details(plan, data):
         "unit",
         "max_amount",
         "article_code",
+        "billing_mode",
     }.difference(set(plan_fields_that_cannot_be_edited))
+
+    if "billing_mode" in data:
+        validate_plan_billing_mode(plan.offering, data["billing_mode"], plan=plan)
 
     for key in PLAN_FIELDS:
         if key in data:
@@ -5336,7 +5435,9 @@ class BaseItemSerializer(
                 }
                 attrs["limits"] = limits
             if limits:
-                utils.validate_limits(limits, offering, is_creation=True)
+                utils.validate_limits(
+                    limits, offering, is_creation=True, plan=attrs.get("plan")
+                )
         return attrs
 
     def get_fields(self):
@@ -5501,7 +5602,12 @@ class OrderUpdateSerializer(BaseOrderSerializer):
     def validate(self, attrs):
         limits = attrs.get("limits")
         if limits:
-            validate_limits(limits, self.instance.offering, self.instance.resource)
+            validate_limits(
+                limits,
+                self.instance.offering,
+                self.instance.resource,
+                plan=self.instance.plan,
+            )
         return attrs
 
 
@@ -5595,6 +5701,8 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "new_plan_name",
             "old_plan_uuid",
             "new_plan_uuid",
+            "old_plan_billing_mode",
+            "new_plan_billing_mode",
             "old_cost_estimate",
             "new_cost_estimate",
             "can_terminate",
@@ -5723,6 +5831,18 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         source="plan.uuid",
         allow_null=True,
     )
+    old_plan_billing_mode = serializers.SerializerMethodField()
+    new_plan_billing_mode = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_old_plan_billing_mode(self, order):
+        """How the previous plan bills (limit, usage, mixed, fixed)."""
+        return billing_mode.describe_plan_billing(order.old_plan)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_new_plan_billing_mode(self, order):
+        """How the requested plan bills (limit, usage, mixed, fixed)."""
+        return billing_mode.describe_plan_billing(order.plan)
 
     new_cost_estimate = serializers.ReadOnlyField(
         source="cost",
@@ -6804,12 +6924,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     parent_offering_slug = serializers.ReadOnlyField(source="parent.slug")
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(
-        source="offering.is_usage_based",
-        help_text="Returns True if the resource has usage-based components that track variable consumption.",
+        help_text="Returns True if the resource bills any component by usage under its plan.",
     )
     is_limit_based = serializers.ReadOnlyField(
-        source="offering.is_limit_based",
-        help_text="Returns True if the resource has limit-based components with user-adjustable quotas.",
+        help_text="Returns True if the resource bills any component on user-adjustable limits under its plan.",
     )
     can_terminate = serializers.SerializerMethodField()
     report = ResourceReportField(read_only=True)
@@ -6880,7 +6998,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         instantaneous `current_usages` value (which may be lower after usage
         drops mid-period).
         """
-        if not resource.offering.is_limit_based or not resource.plan:
+        if not resource.is_limit_based or not resource.plan:
             return {}
 
         return utils.get_current_period_usage(resource)
@@ -7072,13 +7190,15 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         if not resource.offering_id:
             return None
 
-        # Use values_list to get only the data we need in a single query
-        # This avoids N+1 queries by fetching type and limit_period in bulk
-        limit_components_data = models.OfferingComponent.objects.filter(
-            offering_id=resource.offering_id,
-            billing_type=BillingTypes.LIMIT,
-            limit_period__isnull=False,
-        ).values_list("type", "limit_period")
+        # Resolve through the resource's plan: a usage plan has no renewal dates
+        # for the builtin components even though they are stored as LIMIT.
+        limit_components_data = [
+            (effective.type, effective.limit_period)
+            for effective in billing_mode.resolve_for_resource(
+                resource
+            ).components.values()
+            if effective.billing_type == BillingTypes.LIMIT and effective.limit_period
+        ]
 
         if not limit_components_data:
             return None
@@ -7177,7 +7297,38 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
                 {"plan": _("Billing period of new plan must match the old one.")}
             )
 
+        self._validate_limits_for_target_plan(resource, plan)
+
         return attrs
+
+    @staticmethod
+    def _validate_limits_for_target_plan(resource, plan):
+        """A limit plan bills the resource's current limits from the switch.
+
+        A resource created under a usage plan may carry no limits at all,
+        so the switch is refused until the provider has set quotas.
+        """
+        target = billing_mode.resolve_plan(plan)
+        current = billing_mode.resolve_for_resource(resource)
+        newly_limited = target.limit_types - current.limit_types
+        if not newly_limited:
+            return
+        limits_validator = plugins.manager.get_limits_validator(plan.offering.type)
+        if limits_validator is None:
+            return
+        try:
+            limits_validator(resource.limits or {})
+        except rf_exceptions.ValidationError as e:
+            raise rf_exceptions.ValidationError(
+                {
+                    "plan": _(
+                        "The selected plan bills the resource limits, but the "
+                        "current limits are incomplete (%s). Ask the service "
+                        "provider to set quotas before switching."
+                    )
+                    % "; ".join(str(m) for m in e.detail)
+                }
+            )
 
 
 class ResourceUpdateSerializer(serializers.ModelSerializer):
@@ -8380,10 +8531,13 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
             # If date is in a past billing period (historical backfilling),
             # only allow for display-only components (limit-based and prepaid)
             if date_billing_period < current_billing_period:
-                if (
-                    component_usage.component.billing_type
-                    not in DISPLAY_ONLY_BILLING_TYPES
-                ):
+                effective_billing_type = billing_mode.resolve_component(
+                    component_usage.component,
+                    component_usage.plan_period.plan
+                    if component_usage.plan_period
+                    else resource.plan,
+                ).billing_type
+                if effective_billing_type not in DISPLAY_ONLY_BILLING_TYPES:
                     raise serializers.ValidationError(
                         _(
                             "Service providers can only specify date for limit-based or prepaid billing components when backfilling past billing periods."
@@ -8688,10 +8842,15 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         components_map = self.get_components_map(resource.plan.offering)
         for usage in attrs.get("usages", []):
             component = components_map.get(usage.get("type"))
-            if not component or component.billing_type in DISPLAY_ONLY_BILLING_TYPES:
+            if not component:
+                continue
+            effective_billing_type = billing_mode.resolve_component(
+                component, resource.plan
+            ).billing_type
+            if effective_billing_type in DISPLAY_ONLY_BILLING_TYPES:
                 continue
             if (
-                component.billing_type == BillingTypes.USAGE
+                effective_billing_type == BillingTypes.USAGE
                 and usage_backfill_has_mutable_invoice
             ):
                 continue
@@ -8832,32 +8991,40 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             description = usage.get("description", "")
             component = components_map[usage["type"]]
             missing_usage_policy = usage["missing_usage_policy"]
-            if component.billing_type == BillingTypes.USAGE:
-                component.validate_amount(resource, amount, now)
-            models.ComponentUsage.objects.filter(
-                resource=resource,
-                component=component,
-                billing_period=billing_period,
-            ).update(missing_usage_policy=MissingUsagePolicies.NONE)
-
             if not plan_period:
                 plan_period = utils.get_plan_period_for_billing(resource, now)
-
-            # Look up by (resource, component, billing_period) only —
-            # plan_period is a mutable attribute, not part of the identity.
-            # This prevents duplicates when plan_period changes from None
-            # to a real value (e.g. after historical backfill).
-            existing_qs = models.ComponentUsage.objects.filter(
+            effective = billing_mode.resolve_component(
+                component, plan_period.plan if plan_period else resource.plan
+            )
+            if effective.billing_type == BillingTypes.USAGE:
+                component.validate_amount(resource, amount, now)
+            month_rows = models.ComponentUsage.objects.filter(
                 resource=resource,
                 component=component,
                 billing_period=billing_period,
             )
-            existing = existing_qs.first()
+            month_rows.update(missing_usage_policy=MissingUsagePolicies.NONE)
+
+            # One row per plan; a legacy row without a period is adopted,
+            # rows of other plans are never touched.
+            existing = utils._get_current_usage_row(
+                resource, component, billing_period, plan_period
+            )
+            row_amount = amount
+            if effective.billing_type == BillingTypes.USAGE:
+                # The report is the month's total. Rows of other plans stay
+                # frozen at their value (they are invoiced at that plan's
+                # prices), so this plan's row holds the remainder.
+                others = month_rows.exclude(plan_period__isnull=True)
+                if existing is not None:
+                    others = others.exclude(pk=existing.pk)
+                if plan_period is not None:
+                    others = others.exclude(plan_period__plan=plan_period.plan)
+                total = others.aggregate(total=Sum("usage"))["total"] or 0
+                row_amount = max(Decimal(0), Decimal(amount) - total)
             if existing:
-                # Clean up legacy duplicates (same billing period, different plan_periods)
-                existing_qs.exclude(pk=existing.pk).delete()
                 existing.plan_period = plan_period
-                existing.usage = amount
+                existing.usage = row_amount
                 existing.date = now
                 existing.description = description
                 existing.missing_usage_policy = missing_usage_policy
@@ -8871,7 +9038,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     component=component,
                     plan_period=plan_period,
                     billing_period=billing_period,
-                    usage=amount,
+                    usage=row_amount,
                     date=now,
                     description=description,
                     missing_usage_policy=missing_usage_policy,
@@ -10147,17 +10314,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             # sub-allocatable to a project is also required when this
             # flag is on. That's LIMIT-billed plus prepaid ONE_TIME
             # (e.g. helpdesk-style up-front allocations).
-            required_types = list(
-                offering.components.filter(
-                    Q(billing_type=BillingTypes.LIMIT)
-                    | Q(
-                        billing_type=BillingTypes.ONE_TIME,
-                        is_prepaid=True,
-                    )
-                )
-                .values_list("type", flat=True)
-                .order_by("type")
-            )
+            required_types = sorted(offering.get_limit_components(resource.plan))
             provided = attrs.get("limits") or {}
             missing = [t for t in required_types if not provided.get(t)]
             if missing:
@@ -10178,7 +10335,9 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
 
         # Per-component bounds (offering component min/max) apply regardless
         # of the policy: an operator's component caps are always honoured.
-        for component, value in utils.get_components_map(limits, offering):
+        for component, value in utils.get_components_map(
+            limits, offering, resource.plan
+        ):
             utils.validate_min_max_limit(value, component)
 
         policy = plugin_options.get("resource_projects_limit_policy", "none")
@@ -12407,11 +12566,7 @@ class RemoveOfferingComponentSerializer(serializers.Serializer):
 
 class SwitchBillingModeSerializer(serializers.Serializer):
     billing_mode = serializers.ChoiceField(
-        choices=[
-            ("monthly", "Monthly (Limit-based)"),
-            ("prepaid", "Prepaid (One-time)"),
-            ("usage", "Usage-based"),
-        ],
+        choices=SwitchBillingModes.CHOICES,
         help_text="Switch all builtin components to monthly (LIMIT), prepaid (ONE_TIME + is_prepaid), or usage-based billing.",
     )
 
@@ -14159,6 +14314,9 @@ class ExportPlanDataSerializer(serializers.Serializer):
     max_amount = serializers.IntegerField(allow_null=True)
     article_code = serializers.CharField(allow_blank=True)
     backend_id = serializers.CharField(allow_blank=True)
+    billing_mode = serializers.ChoiceField(
+        choices=BillingModes.CHOICES, default=BillingModes.INHERIT
+    )
     components = ExportPlanComponentDataSerializer(many=True)
 
 

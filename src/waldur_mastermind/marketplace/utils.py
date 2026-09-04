@@ -83,7 +83,7 @@ from waldur_mastermind.common.utils import create_request, mb_to_gb
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.structures import InvoiceResourceLimitPeriodDict
 from waldur_mastermind.invoices.utils import get_full_days
-from waldur_mastermind.marketplace import attribute_types
+from waldur_mastermind.marketplace import attribute_types, billing_mode
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
@@ -432,24 +432,24 @@ def validate_min_max_limit(value, component):
         )
 
 
-def get_components_map(limits, offering: models.Offering):
-    valid_component_types = set(
-        offering.components.filter(
-            Q(billing_type=BillingTypes.LIMIT)
-            | Q(billing_type=BillingTypes.ONE_TIME, is_prepaid=True)
-        ).values_list("type", flat=True)
+def get_components_map(limits, offering: models.Offering, plan=None):
+    """Pair each limit key with the component it belongs to.
+
+    Only components whose quantity is a user-requested limit under ``plan``
+    (or under the stored component types when no plan is given) are valid
+    keys; anything else is rejected.
+    """
+    components_map = (
+        billing_mode.resolve_plan(plan).limit_components
+        if plan is not None
+        else billing_mode.resolve_offering(offering).limit_components
     )
 
-    invalid_types = set(limits.keys()) - valid_component_types
+    invalid_types = set(limits.keys()) - set(components_map)
     if invalid_types:
         raise serializers.ValidationError(
-            {"limits": _("Invalid types: %s") % ", ".join(invalid_types)}
+            {"limits": _("Invalid types: %s") % ", ".join(sorted(invalid_types))}
         )
-
-    components_map = {
-        component.type: component
-        for component in offering.components.filter(type__in=valid_component_types)
-    }
 
     result = []
     for key, value in limits.items():
@@ -459,23 +459,27 @@ def get_components_map(limits, offering: models.Offering):
     return result
 
 
-def validate_limits(limits, offering, resource=None, is_creation=False):
+def validate_limits(limits, offering, resource=None, is_creation=False, plan=None):
     """
     @param limits Maximum/Minimum limit-based components values and maximum available limit
     @param offering The offering being created
     @param resource Passing the resource if the limits of the resource are being updated.
     @param is_creation If True, skip the can_update_limits check (it only applies to updates).
+    @param plan The plan the limits are requested under; decides which components take limits.
     """
     if not is_creation and not plugins.manager.can_update_limits(offering.type):
         raise serializers.ValidationError(
             {"limits": _("Limits update is not supported for this resource.")}
         )
 
+    if plan is None and resource is not None:
+        plan = resource.plan
+
     limits_validator = plugins.manager.get_limits_validator(offering.type)
     if limits_validator:
         limits_validator(limits)
 
-    for component, value in get_components_map(limits, offering):
+    for component, value in get_components_map(limits, offering, plan):
         validate_min_max_limit(value, component)
 
         validate_limit_amount(value, component)
@@ -645,14 +649,14 @@ def get_marketplace_resource_state(serializer, scope) -> str | None:
 
 def get_is_usage_based(serializer, scope) -> bool | None:
     try:
-        return models.Resource.objects.get(scope=scope).offering.is_usage_based
+        return models.Resource.objects.get(scope=scope).is_usage_based
     except ObjectDoesNotExist:
         return
 
 
 def get_is_limit_based(serializer, scope) -> bool | None:
     try:
-        return models.Resource.objects.get(scope=scope).offering.is_limit_based
+        return models.Resource.objects.get(scope=scope).is_limit_based
     except ObjectDoesNotExist:
         return
 
@@ -1221,12 +1225,11 @@ def import_current_usages(resource, usages=None, hourly_accumulation=False):
     if usages is None:
         usages = resource.current_usages
 
+    resolved = billing_mode.resolve_for_resource(resource)
+
     for component_type, component_usage in usages.items():
-        try:
-            offering_component = models.OfferingComponent.objects.get(
-                offering=resource.offering, type=component_type
-            )
-        except models.OfferingComponent.DoesNotExist:
+        effective = resolved.get(component_type)
+        if effective is None:
             logger.warning(
                 "Skipping current usage synchronization because related "
                 "OfferingComponent does not exist."
@@ -1234,13 +1237,16 @@ def import_current_usages(resource, usages=None, hourly_accumulation=False):
                 resource.id,
             )
             continue
+        offering_component = effective.component
 
-        plan_period = get_plan_period_for_billing(resource, date)
+        # Resolve with the datetime: plan periods open and close at the
+        # switch instant, so on the day of a plan switch a date-based
+        # lookup would still land on the previous period.
+        plan_period = get_plan_period_for_billing(resource, now)
         billing_period = core_utils.month_start(date)
 
         use_accumulation = (
-            hourly_accumulation
-            and offering_component.billing_type == BillingTypes.USAGE
+            hourly_accumulation and effective.billing_type == BillingTypes.USAGE
         )
 
         if use_accumulation:
@@ -1264,20 +1270,49 @@ def import_current_usages(resource, usages=None, hourly_accumulation=False):
             )
 
 
-def _update_high_watermark_usage(
-    resource, offering_component, component_usage, plan_period, billing_period, date
-):
-    """Original high-watermark logic: usage = max(new, existing)."""
-    # Look up by (resource, component, billing_period) only —
-    # plan_period is mutable and should not be part of the identity.
-    existing_qs = models.ComponentUsage.objects.filter(
+def _get_current_usage_row(resource, offering_component, billing_period, plan_period):
+    """The ComponentUsage row that the current report must update.
+
+    Rows are identified by plan period as well as month: after a plan switch
+    the pre-switch row stays attached to the old period (and is invoiced at
+    that plan's prices) while a fresh row accumulates under the new one.
+    Consecutive periods of the same plan within a month share one row, which
+    the caller re-points to the current period. A legacy row without a plan
+    period is adopted rather than duplicated, and deleted when it duplicates
+    the current period's row. Rows of another plan are never touched.
+
+    A report that resolves to no plan period (a date before any period of
+    the resource) cannot be attributed to a plan, so the month keeps a
+    single row: legacy duplicates are folded into it.
+    """
+    rows = models.ComponentUsage.objects.filter(
         resource=resource,
         component=offering_component,
         billing_period=billing_period,
     )
-    existing = existing_qs.first()
+    if plan_period is None:
+        existing = rows.filter(plan_period__isnull=True).first() or rows.first()
+        if existing is not None:
+            rows.exclude(pk=existing.pk).delete()
+        return existing
+    existing = rows.filter(plan_period=plan_period).first()
+    if existing is not None:
+        rows.filter(plan_period__isnull=True).delete()
+        return existing
+    existing = rows.filter(plan_period__plan=plan_period.plan).first()
+    if existing is not None:
+        return existing
+    return rows.filter(plan_period__isnull=True).first()
+
+
+def _update_high_watermark_usage(
+    resource, offering_component, component_usage, plan_period, billing_period, date
+):
+    """Original high-watermark logic: usage = max(new, existing)."""
+    existing = _get_current_usage_row(
+        resource, offering_component, billing_period, plan_period
+    )
     if existing:
-        existing_qs.exclude(pk=existing.pk).delete()
         existing.plan_period = plan_period
         existing.usage = max(component_usage, existing.usage)
         existing.save()
@@ -1319,14 +1354,10 @@ def _accumulate_hourly_usage(
         str(elapsed_hours)
     )
 
-    existing_qs = models.ComponentUsage.objects.filter(
-        resource=resource,
-        component=offering_component,
-        billing_period=billing_period,
+    existing = _get_current_usage_row(
+        resource, offering_component, billing_period, plan_period
     )
-    existing = existing_qs.first()
     if existing:
-        existing_qs.exclude(pk=existing.pk).delete()
         existing.plan_period = plan_period
         new_total = existing.usage + increment
         existing.usage = new_total
@@ -1378,8 +1409,9 @@ def get_current_period_usage(resource, limit_period=None):
     """
     result = {}
 
-    for component in resource.offering.components.all():
-        effective_period = limit_period or component.limit_period
+    for effective in billing_mode.resolve_for_resource(resource).components.values():
+        component = effective.component
+        effective_period = limit_period or effective.limit_period
 
         usages = models.ComponentUsage.objects.filter(
             resource=resource, component=component
@@ -1399,9 +1431,31 @@ def get_current_period_usage(resource, limit_period=None):
         elif effective_period == LimitPeriods.TOTAL:
             pass  # Sum all usages
 
-        result[component.type] = float(
-            usages.aggregate(total=Sum("usage"))["total"] or 0
-        )
+        # After a switch between a usage plan and a limit plan the month holds
+        # rows of both semantics (accumulated core-hours next to a peak core
+        # count). Only rows billed the same way as the current plan count.
+        rows = [
+            row
+            for row in usages.select_related("plan_period__plan")
+            if billing_mode.resolve_component(
+                component, row.plan_period.plan if row.plan_period else resource.plan
+            ).billing_type
+            == effective.billing_type
+        ]
+        if effective.billing_type == BillingTypes.USAGE:
+            # Accumulated usage: every row adds up, including the rows of
+            # two plan periods that share one month after a plan switch.
+            total = sum(row.usage for row in rows)
+        else:
+            # High-water mark: one peak per month, then summed over months.
+            peaks = {}
+            for row in rows:
+                peaks[row.billing_period] = max(
+                    peaks.get(row.billing_period, 0), row.usage
+                )
+            total = sum(peaks.values())
+
+        result[component.type] = float(total)
 
     return result
 
@@ -1431,9 +1485,12 @@ def is_usage_over_component_limit(resource):
     annual / total).
     """
     period_usage = get_current_period_usage(resource)
-    for component in resource.offering.components.all():
-        if component.billing_type != BillingTypes.LIMIT:
+    for effective in billing_mode.resolve_for_resource(resource).components.values():
+        # Only components the resource's plan bills as limits are enforced:
+        # under a usage plan the accumulated core-hours are not a quota.
+        if effective.billing_type != BillingTypes.LIMIT:
             continue
+        component = effective.component
         limit = get_effective_component_limit(resource, component)
         if limit and period_usage.get(component.type, 0) >= limit:
             return True
@@ -2049,7 +2106,7 @@ def format_order_attributes(order) -> list[tuple[str, str]]:
 
 def format_order_limits(order) -> list[tuple[str, str]]:
     """Label/value pairs of the order limits, with the measured unit appended."""
-    components_map = order.offering.get_limit_components()
+    components_map = order.offering.get_limit_components(order.plan)
     result = []
     for key, value in (order.limits or {}).items():
         component = components_map.get(key)

@@ -9,7 +9,7 @@ from waldur_core.core import utils as core_utils
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.utils import get_full_days
-from waldur_mastermind.marketplace import billing_discount, utils
+from waldur_mastermind.marketplace import billing_discount, billing_mode, utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_utils import (
     convert_quantity,
@@ -51,7 +51,9 @@ class LimitPeriodProcessor:
         handling different limit periods.
         """
         offering_component = plan_component.component
-        limit_period = offering_component.limit_period
+        limit_period = billing_mode.resolve_component(
+            offering_component, plan_component.plan
+        ).limit_period
 
         if limit_period == LimitPeriods.TOTAL:
             # For TOTAL, only bill on resource creation.
@@ -93,7 +95,7 @@ class LimitPeriodProcessor:
         dispatching to the correct handler based on the limit period.
         """
         offering_component = resource.offering.components.get(type=component_type)
-        if offering_component.limit_period == LimitPeriods.TOTAL:
+        if cls._limit_period_for(offering_component, resource) == LimitPeriods.TOTAL:
             cls._create_invoice_item_for_total_limit(
                 resource,
                 invoice,
@@ -107,6 +109,13 @@ class LimitPeriodProcessor:
             )
 
     # -- Private methods --
+
+    @staticmethod
+    def _limit_period_for(offering_component, resource) -> str:
+        """The limit period the resource's plan bills the component with."""
+        return billing_mode.resolve_component(
+            offering_component, resource.plan
+        ).limit_period
 
     @classmethod
     def _get_billing_period(
@@ -246,7 +255,7 @@ class LimitPeriodProcessor:
 
         start = timezone.now()
         _, end = cls._get_billing_period(
-            offering_component.limit_period, start, resource
+            cls._limit_period_for(offering_component, resource), start, resource
         )
 
         # Create main invoice item for the difference
@@ -265,7 +274,9 @@ class LimitPeriodProcessor:
             start=start,
             end=end,
             details=details,
-            measured_unit=offering_component.measured_unit,
+            measured_unit=billing_mode.resolve_component(
+                offering_component, plan_component.plan
+            ).measured_unit,
         )
 
     @classmethod
@@ -313,7 +324,7 @@ class LimitPeriodProcessor:
                 offering_component = plan_component.component
 
                 start, end = cls._get_billing_period(
-                    offering_component.limit_period, now, resource
+                    cls._limit_period_for(offering_component, resource), now, resource
                 )
 
             except ObjectDoesNotExist:
@@ -327,7 +338,7 @@ class LimitPeriodProcessor:
                 # For quarterly/annual components, the invoice item may live on
                 # the billing period's first month's invoice (e.g., January for Q1),
                 # not the current month's invoice. Check for it there.
-                if offering_component.limit_period in (
+                if cls._limit_period_for(offering_component, resource) in (
                     LimitPeriods.QUARTERLY,
                     LimitPeriods.ANNUAL,
                 ):
@@ -406,7 +417,9 @@ class LimitPeriodProcessor:
         # Get the offering component to determine appropriate period end
         offering_component = resource.offering.components.get(type=component_type)
         _, period_end = cls._get_billing_period(
-            offering_component.limit_period, timezone.now(), resource
+            cls._limit_period_for(offering_component, resource),
+            timezone.now(),
+            resource,
         )
 
         new_period = utils.serialize_resource_limit_period(
@@ -507,12 +520,17 @@ class LimitPeriodProcessor:
             )
             return
 
+        effective = billing_mode.resolve_component(
+            offering_component, plan_component.plan
+        )
+        is_total_limit = (
+            effective.billing_type == BillingTypes.LIMIT
+            and effective.limit_period == LimitPeriods.TOTAL
+        )
+
         # Additional safeguard: TOTAL period components should only be billed once
         # This prevents the bug where TOTAL components get billed multiple times
-        if (
-            offering_component.billing_type == BillingTypes.LIMIT
-            and offering_component.limit_period == LimitPeriods.TOTAL
-        ):
+        if is_total_limit:
             # Check if this component has already been billed for this resource
             existing_items = invoice_models.InvoiceItem.objects.filter(
                 resource=source,
@@ -538,10 +556,7 @@ class LimitPeriodProcessor:
         ]
 
         unit = plan_component.plan.unit
-        if (
-            offering_component.billing_type == BillingTypes.LIMIT
-            and offering_component.limit_period == LimitPeriods.TOTAL
-        ):
+        if is_total_limit:
             # TOTAL is a one-time charge: use the raw limit, no day multiplication
             total_quantity = quantity
             unit = invoice_models.Units.QUANTITY
@@ -550,6 +565,14 @@ class LimitPeriodProcessor:
             total_quantity = cls._get_total_quantity(
                 plan_component.plan.unit, quantity, start, end
             )
+
+        # A plan switch closes this plan's item; switching back within the same
+        # month must continue that item rather than open a second one, or the
+        # customer is charged the monthly fee twice.
+        if not is_total_limit and cls._reopen_closed_item(
+            source, plan_component, invoice, start, end, quantity
+        ):
+            return
 
         # Record the volume that feeds the org-aggregated volume discount: the
         # raw component quantity (the limit), while the discount later applies
@@ -570,8 +593,54 @@ class LimitPeriodProcessor:
             start=start,
             end=end,
             details=details,
-            measured_unit=offering_component.measured_unit,
+            measured_unit=billing_mode.resolve_component(
+                offering_component, plan_component.plan
+            ).measured_unit,
         )
+
+    @classmethod
+    def _reopen_closed_item(
+        cls,
+        source: marketplace_models.Resource,
+        plan_component: marketplace_models.PlanComponent,
+        invoice: invoice_models.Invoice,
+        start,
+        end,
+        quantity,
+    ) -> bool:
+        """Continue an item of the same plan and component closed earlier this month.
+
+        Appends a new limit period from ``start`` and recomputes the quantity
+        with the item's own unit rule. Returns False when there is nothing to
+        continue, so the caller creates a fresh item.
+        """
+        item = (
+            invoice_models.InvoiceItem.objects.filter(
+                resource=source,
+                invoice=invoice,
+                details__plan_uuid=plan_component.plan.uuid.hex,
+                details__offering_component_type=plan_component.component.type,
+                details__has_key="resource_limit_periods",
+                unit_price__gte=0,
+                end__lt=start,
+            )
+            .order_by("-end")
+            .first()
+        )
+        if item is None:
+            return False
+        periods = item.details["resource_limit_periods"]
+        periods.append(utils.serialize_resource_limit_period(start, end, quantity))
+        item.details["resource_limit_periods"] = periods
+        item.end = end
+        item.quantity = item.quantity_from_limit_periods()
+        item.save(update_fields=["details", "end", "quantity"])
+        logger.info(
+            "Reopened invoice item %s for resource %s after a plan switch back.",
+            item.pk,
+            source.uuid,
+        )
+        return True
 
     @classmethod
     def _get_total_quantity(cls, unit, value, start, end):

@@ -46,7 +46,7 @@ from waldur_core.structure.managers import (
     get_project_users,
 )
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace import billing_mode, plugins
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CourseAccountState,
@@ -1700,25 +1700,17 @@ class ResourceFilter(
         if value is None:
             return queryset
         if value:
-            return queryset.filter(
-                offering__components__billing_type=BillingTypes.USAGE
-            ).distinct()
+            return queryset.filter(billing_mode.usage_resource_q()).distinct()
         else:
-            return queryset.exclude(
-                offering__components__billing_type=BillingTypes.USAGE
-            ).distinct()
+            return queryset.exclude(billing_mode.usage_resource_q()).distinct()
 
     def filter_limit_based(self, queryset: ResourceQuerySet, name, value):
         if value is None:
             return queryset
         if value:
-            return queryset.filter(
-                offering__components__billing_type=BillingTypes.LIMIT
-            ).distinct()
+            return queryset.filter(billing_mode.limit_resource_q()).distinct()
         else:
-            return queryset.exclude(
-                offering__components__billing_type=BillingTypes.LIMIT
-            ).distinct()
+            return queryset.exclude(billing_mode.limit_resource_q()).distinct()
 
     def filter_only_limit_based(self, queryset: ResourceQuerySet, name, value):
         if value is None:

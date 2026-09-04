@@ -47,6 +47,7 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
+    BillingModes,
     BillingTypes,
     CategoryColumnWidget,
     CourseAccountState,
@@ -73,7 +74,7 @@ from waldur_pid import mixins as pid_mixins
 
 from ..common import formula as common_formula
 from ..common import mixins as common_mixins
-from . import managers, plugins, signals
+from . import billing_mode, managers, plugins, signals
 from .attribute_types import ATTRIBUTE_TYPES
 from .secret_options import SecretOptionsField
 
@@ -858,35 +859,53 @@ class Offering(
         plugin_components = plugins.manager.get_components(self.type)
         return {c.type: c.factor for c in plugin_components}
 
+    def _has_plan_mode(self, mode: str) -> bool:
+        """Whether any plan overrides the builtin components to ``mode``."""
+        if not billing_mode.offering_has_builtin_components(self):
+            return False
+        return self.plans.filter(billing_mode=mode).exists()
+
     @cached_property
     def is_usage_based(self) -> bool:
         """
-        Returns True if the offering has at least one component with USAGE billing type.
+        Returns True if the offering bills anything by usage under at least one plan:
+        a component with USAGE billing type, or a plan whose billing mode is usage.
         Usage-based components are reported periodically and charged based on consumption.
         """
         return self.components.filter(
-            billing_type=BillingTypes.USAGE,
-        ).exists()
+            billing_type=BillingTypes.USAGE
+        ).exists() or self._has_plan_mode(BillingModes.USAGE)
 
-    def get_limit_components(self) -> dict[str, "OfferingComponent"]:
-        components = self.components.filter(
-            models.Q(billing_type=BillingTypes.LIMIT)
-            | models.Q(billing_type=BillingTypes.ONE_TIME, is_prepaid=True)
-        )
-        return {component.type: component for component in components}
+    def get_limit_components(
+        self, plan: "Plan | None" = None
+    ) -> dict[str, "OfferingComponent"]:
+        """Components whose quantity is a user-requested limit.
+
+        With ``plan`` the answer is resolved for that plan. Without it the
+        union over the stored components and every plan's mode is returned,
+        for callers that have no plan in hand.
+        """
+        if plan is not None:
+            return billing_mode.resolve_plan(plan).limit_components
+        result = billing_mode.resolve_offering(self).limit_components
+        if self._has_plan_mode(BillingModes.LIMIT):
+            for component in self.components.all():
+                if billing_mode.is_builtin_component_type(self.type, component.type):
+                    result.setdefault(component.type, component)
+        return result
 
     @cached_property
     def is_limit_based(self) -> bool:
         """
-        Returns True if the offering has at least one component with LIMIT billing type
+        Returns True if the offering bills anything on limits under at least one plan
         and the plugin supports updating limits. Limit-based components define a maximum
         quota that can be dynamically adjusted by the user.
         """
         if not plugins.manager.can_update_limits(self.type):
             return False
-        if not self.components.filter(billing_type=BillingTypes.LIMIT).exists():
-            return False
-        return True
+        return self.components.filter(
+            billing_type=BillingTypes.LIMIT
+        ).exists() or self._has_plan_mode(BillingModes.LIMIT)
 
     @property
     def is_private(self) -> bool:
@@ -1364,6 +1383,15 @@ class Plan(
     archived = models.BooleanField(
         default=False, help_text=_("Forbids creation of new resources.")
     )
+    billing_mode = models.CharField(
+        max_length=10,
+        choices=BillingModes.CHOICES,
+        default=BillingModes.INHERIT,
+        help_text=_(
+            "Overrides how the offering's builtin components are billed under "
+            "this plan. Custom components keep their own accounting type."
+        ),
+    )
     objects = managers.MixinManager("scope")
     max_amount = models.PositiveSmallIntegerField(
         blank=True,
@@ -1406,7 +1434,7 @@ class Plan(
         cost = self.unit_price
 
         if limits:
-            components_map = self.offering.get_limit_components()
+            components_map = self.offering.get_limit_components(self)
             component_prices = {
                 c.component.type: c.price for c in self.components.all()
             }
@@ -1874,6 +1902,16 @@ class Resource(
             Index(fields=["project", "state"], name="mp_resource_project_state_idx"),
         ]
 
+    @property
+    def is_usage_based(self) -> bool:
+        """Whether this resource bills anything by usage under its plan."""
+        return billing_mode.resolve_for_resource(self).is_usage_based
+
+    @property
+    def is_limit_based(self) -> bool:
+        """Whether this resource bills anything on limits under its plan."""
+        return billing_mode.resolve_for_resource(self).is_limit_based
+
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     parent = models.ForeignKey["Resource"](
@@ -2317,7 +2355,7 @@ class Resource(
         end_date = start_date + relativedelta(months=extension_months)
 
         total = Decimal("0.0")
-        components_map = self.offering.get_limit_components()
+        components_map = self.offering.get_limit_components(self.plan)
         component_prices = {
             c.component.type: c.price for c in self.plan.components.all()
         }

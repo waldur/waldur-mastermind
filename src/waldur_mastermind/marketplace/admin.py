@@ -32,7 +32,7 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_pid import tasks as pid_tasks
 from waldur_pid import utils as pid_utils
 
-from . import executors, models, utils
+from . import billing_mode, executors, models, utils
 
 
 class GoogleCredentialsAdminForm(ModelForm):
@@ -282,9 +282,32 @@ class PlanOrganizationGroupsInline(admin.StackedInline):
     extra = 1
 
 
+class PlanAdminForm(ModelForm):
+    """Same rules as the API: a mode needs builtin components and is frozen
+    while resources use the plan."""
+
+    def clean_billing_mode(self):
+        mode = self.cleaned_data.get("billing_mode")
+        offering = self.instance.offering if self.instance.pk else None
+        if offering is None:
+            return mode
+        error = billing_mode.check_plan_billing_mode(offering, mode, self.instance)
+        if error:
+            raise ValidationError(error)
+        return mode
+
+
 class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
-    list_display = ("name", "offering", "archived", "unit", "unit_price")
-    list_filter = ("offering", "archived")
+    form = PlanAdminForm
+    list_display = (
+        "name",
+        "offering",
+        "archived",
+        "billing_mode",
+        "unit",
+        "unit_price",
+    )
+    list_filter = ("offering", "archived", "billing_mode")
     search_fields = ("name", "offering__name")
     inlines = [PlanComponentInline, PlanOrganizationGroupsInline]
     protected_fields = ("unit", "unit_price", "article_code")
@@ -297,6 +320,7 @@ class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
         "article_code",
         "max_amount",
         "archived",
+        "billing_mode",
     ) + readonly_fields
 
     def scope_link(self, obj):

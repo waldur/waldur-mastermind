@@ -4344,6 +4344,7 @@ class Command(BaseCommand):
                     "max_amount": plan_data.get("max_amount"),
                     "article_code": plan_data.get("article_code", ""),
                     "backend_id": plan_data.get("backend_id", ""),
+                    "billing_mode": plan_data.get("billing_mode", "inherit"),
                 }
 
                 if not self.dry_run:

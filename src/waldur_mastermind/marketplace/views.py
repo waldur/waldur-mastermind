@@ -153,7 +153,7 @@ from waldur_core.users.utils import get_invitation_duplicates
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
-from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace import billing_mode, callbacks
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.catalog_loaders import (
     detect_eessi_version,
@@ -7318,11 +7318,18 @@ class OrderViewSet(
         "offering__customer",
         "offering__category",
         "plan",
+        "plan__offering",
         "old_plan",
+        "old_plan__offering",
         "created_by",
         "consumer_reviewed_by",
         "provider_reviewed_by",
-    ).all()
+    ).prefetch_related(
+        # old_plan_billing_mode / new_plan_billing_mode resolve each plan
+        # against its offering's components.
+        "plan__offering__components",
+        "old_plan__offering__components",
+    )
     filter_backends = (DjangoFilterBackend,)
     serializer_class = serializers.OrderDetailsSerializer
     create_serializer_class = serializers.OrderCreateSerializer
@@ -10192,7 +10199,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             )
 
         limit_based_components = resource.offering.components.filter(
-            billing_type=BillingTypes.LIMIT
+            type__in=billing_mode.resolve_for_resource(resource).limit_types
         )
 
         # When a SLURM periodic usage policy is active on the offering, the
@@ -13575,10 +13582,13 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
         provider_uuid = request.query_params.get("provider_uuid")
 
         # Get resources with usage-based billing components in OK or Updating state
-        queryset = models.Resource.objects.filter(
-            offering__components__billing_type=BillingTypes.USAGE,
-            state__in=[ResourceStates.OK, ResourceStates.UPDATING],
-        ).distinct()
+        queryset = (
+            models.Resource.objects.filter(
+                state__in=[ResourceStates.OK, ResourceStates.UPDATING],
+            )
+            .filter(billing_mode.usage_resource_q())
+            .distinct()
+        )
 
         if provider_uuid:
             queryset = queryset.filter(offering__customer__uuid=provider_uuid)

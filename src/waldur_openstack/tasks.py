@@ -436,16 +436,15 @@ def tenant_usage_billing_poll():
     """
     from django.core.cache import cache
 
+    from waldur_mastermind.marketplace import billing_mode
     from waldur_mastermind.marketplace import models as marketplace_models
-    from waldur_mastermind.marketplace.enums import (
-        OPENSTACK_TENANT_OFFERING,
-        BillingTypes,
-    )
+    from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
 
-    offerings = marketplace_models.Offering.objects.filter(
-        type=OPENSTACK_TENANT_OFFERING,
-        components__billing_type=BillingTypes.USAGE,
-    ).distinct()
+    offerings = (
+        marketplace_models.Offering.objects.filter(type=OPENSTACK_TENANT_OFFERING)
+        .filter(billing_mode.usage_offering_q())
+        .distinct()
+    )
 
     for offering in offerings:
         interval_minutes = offering.plugin_options.get(
@@ -467,5 +466,9 @@ def tenant_usage_billing_poll():
             if not tenant or not isinstance(tenant, models.Tenant):
                 continue
             if tenant.state != CoreStates.OK:
+                continue
+            # A limit plan on the same offering is billed on quotas, not on
+            # polled usage; skip its tenants.
+            if not billing_mode.resolve_for_resource(resource).is_usage_based:
                 continue
             pull_tenant_usage_quotas.delay(tenant.pk)

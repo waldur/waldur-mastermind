@@ -25,6 +25,42 @@ class BillingTypes:
     )
 
 
+class BillingModes:
+    """How a plan bills the offering's builtin components.
+
+    Custom components always keep their own ``OfferingComponent.billing_type``;
+    the plan mode overrides only the components the plugin registers
+    (for OpenStack: cores, ram, storage and the per-volume-type quotas).
+    """
+
+    INHERIT = "inherit"
+    LIMIT = "limit"
+    USAGE = "usage"
+
+    CHOICES = (
+        # builtin components keep the billing type stored on the offering component
+        (INHERIT, "Inherit from components"),
+        # builtin components are billed monthly on the requested limits
+        (LIMIT, "Limit-based"),
+        # builtin components are billed on accumulated usage (component-hours)
+        (USAGE, "Usage-based"),
+    )
+
+
+class SwitchBillingModes:
+    """Offering-level switch of the builtin components' billing type."""
+
+    MONTHLY = "monthly"
+    PREPAID = "prepaid"
+    USAGE = "usage"
+
+    CHOICES = (
+        (MONTHLY, "Monthly (Limit-based)"),
+        (PREPAID, "Prepaid (One-time)"),
+        (USAGE, "Usage-based"),
+    )
+
+
 class LimitPeriods:
     MONTH = "month"
     QUARTERLY = "quarterly"

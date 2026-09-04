@@ -9,8 +9,8 @@ from rest_framework import serializers
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
-from waldur_mastermind.marketplace import models, tasks, utils
-from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates, OrderTypes
+from waldur_mastermind.marketplace import billing_mode, models, tasks, utils
+from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def estimated_monthly_cost(order: models.Order) -> Decimal:
 
 
 def _has_usage_component(order: models.Order) -> bool:
-    return order.offering.components.filter(billing_type=BillingTypes.USAGE).exists()
+    return billing_mode.resolve_for_order(order).is_usage_based
 
 
 def _rule_creator_can_still_approve(rule: "models.ProjectOrderAutoApproval") -> bool:
