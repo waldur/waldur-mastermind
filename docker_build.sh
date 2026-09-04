@@ -8,13 +8,17 @@ python3 -m pip install uv
 # Install Python dependencies for Waldur MasterMind using lock file
 # Use UV_PROJECT_ENVIRONMENT to target system Python (no venv)
 export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-uv sync
+# --frozen installs exactly what uv.lock records and never re-resolves, so the
+# image matches the lockfile the rest of CI tests against. --no-dev keeps the
+# dev group (pytest, pyright, memray, faker, ...) out of a runtime image whose
+# test directories are deleted a step earlier.
+# `uv sync` installs the project itself, so no separate `uv pip install -e .`
+# is needed - and adding one would re-resolve against pyproject.toml, outside
+# the lock.
+uv sync --frozen --no-dev
 
 # Install gunicorn separately after uv sync to ensure it's available
 python3 -m pip install gunicorn==22.0.0
-
-# Install the package in editable mode to ensure it's available
-uv pip install --python $(which python) -e .
 
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 
