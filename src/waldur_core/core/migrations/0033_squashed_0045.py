@@ -40,7 +40,6 @@ class Migration(migrations.Migration):
         ("contenttypes", "0002_remove_content_type_name"),
         ("core", "0032_personal_access_token_allowed_scopes"),
         ("reversion", "0001_squashed_0004_auto_20160611_1202"),
-        ("reversion", "0002_add_index_on_version_for_content_type_and_db"),
     ]
 
     operations = [
@@ -144,6 +143,7 @@ class Migration(migrations.Migration):
             ).remove_quota_notifications,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="personalaccesstoken",
             name="allowed_networks",
@@ -187,6 +187,7 @@ class Migration(migrations.Migration):
                 "0042_call_and_proposal_invitation_notifications"
             ).delete_invitation_notifications,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="dailytablesizehistory",
             options={
@@ -218,4 +219,5 @@ class Migration(migrations.Migration):
             ).remove_access_request_notification,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
     ]

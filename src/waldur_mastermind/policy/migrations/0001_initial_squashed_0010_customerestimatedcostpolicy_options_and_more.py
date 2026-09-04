@@ -107,6 +107,7 @@ class Migration(migrations.Migration):
                 "0003_projectestimatedcostpolicy_fired_datetime"
             ).populate_with_current_time,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RenameField(
             model_name="projectestimatedcostpolicy",
             old_name="project",

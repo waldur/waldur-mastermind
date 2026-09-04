@@ -89,7 +89,6 @@ class Migration(migrations.Migration):
         ("checklist", "0003_add_min_max_values_to_question"),
         ("core", "__first__"),
         ("logging", "0006_event_feed"),
-        ("logging", "0028_split_openstack_resource_event_groups"),
         ("marketplace", "0108_squashed_0131"),
         ("notifications", "0008_adminannouncement"),
         ("structure", "0052_accesssubnet_description"),
@@ -112,6 +111,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0132_offering_slug_resource_slug").fill_slug,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="offeringuser",
             name="is_restricted",
@@ -140,6 +140,7 @@ class Migration(migrations.Migration):
             code=_original("0134_set_uuid_to_offeringuser").gen_uuid,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="offeringuser",
             name="uuid",
@@ -169,6 +170,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0138_clean_resource_options").clean_resource_options,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="categorycolumn",
             name="uuid",
@@ -242,6 +244,7 @@ class Migration(migrations.Migration):
             code=_original("0140_categorycolumn_uuid").gen_uuid,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="categorycolumn",
             name="uuid",
@@ -261,6 +264,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0143_clean_logs").clean_logs,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RenameField(
             model_name="resource",
             old_name="requested_downscaling",
@@ -275,6 +279,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0145_clean_price_logs").clean_price_logs,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="offering",
             name="access_url",
@@ -368,6 +373,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0150_resource_last_sync").update_event_type,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="offering",
             name="native_description",
@@ -393,6 +399,7 @@ class Migration(migrations.Migration):
                 "0154_move_service_provider_can_create_offering_user_to_options"
             ).move_to_options,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="categorycolumn",
             name="widget",
@@ -414,6 +421,7 @@ class Migration(migrations.Migration):
                 "0156_move_service_provider_can_create_offering_user_to_plugin_options"
             ).move_to_plugin_options,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="offeringuser",
             name="propagation_date",
@@ -469,6 +477,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0159_robot_account_state").set_initial_states,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="offering",
             name="remote_image_uuid",
@@ -608,6 +617,7 @@ class Migration(migrations.Migration):
                 "0163_remove_order_activated"
             ).save_activated_to_completed_field,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="order",
             name="activated",
@@ -628,6 +638,7 @@ class Migration(migrations.Migration):
                 "0166_cleanup_noisy_resource_update_logs"
             ).cleanup_noisy_resource_update_logs,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="offering",
             name="compliance_checklist",
@@ -1377,6 +1388,7 @@ class Migration(migrations.Migration):
                 "0176_remove_offering_terms_of_service_and_more"
             ).migrate_offering_terms,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="offering",
             name="terms_of_service",

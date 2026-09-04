@@ -80,15 +80,12 @@ class Migration(migrations.Migration):
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
         ("core", "0040_personalaccesstoken_allowed_networks"),
-        ("core", "0050_notificationtemplate_path_unique"),
         ("core", "__first__"),
         ("marketplace", "0225_add_expose_address_to_offering_user_attribute_config"),
         ("permissions", "0021_alter_role_name_roleavailability"),
-        ("permissions", "0027_role_description_mk_role_description_sq"),
         ("policy", "0016_sync_slurm_policy_period_with_component"),
         ("structure", "0077_affiliation_redesign"),
         ("structure", "0079_accesssubnet_scopes"),
-        ("structure", "0085_remove_project_display_credit_reports"),
         ("waldur_keycloak", "0004_alter_offeringkeycloakgroup_role"),
     ]
 
@@ -99,6 +96,7 @@ class Migration(migrations.Migration):
             ).backfill_limit_period,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="maintenanceannouncementofferingtemplate",
             name="maintenance_template",
@@ -384,6 +382,7 @@ class Migration(migrations.Migration):
             code=_original("0233_repair_limit_period_after_0226").repair_limit_period,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="OfferingGroup",
             fields=[
@@ -760,6 +759,7 @@ class Migration(migrations.Migration):
             ).deactivate_orphaned_offering_roles,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="offeringuserattributeconfig",
             name="expose_organization_address",
@@ -860,6 +860,7 @@ class Migration(migrations.Migration):
             ).convert_discounts_to_formula,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="plancomponent",
             name="discount_rate",
@@ -888,6 +889,7 @@ class Migration(migrations.Migration):
             ).preserve_per_resource_semantics,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="PosixIdPool",
             fields=[
@@ -1129,6 +1131,7 @@ class Migration(migrations.Migration):
             ).backfill_enable_posix_account,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="OfferingAccessSubnet",
             fields=[
@@ -1519,6 +1522,7 @@ class Migration(migrations.Migration):
             sql="\nCREATE OR REPLACE FUNCTION marketplace_slurm_partition_qos_offering_check()\nRETURNS TRIGGER AS $$\nBEGIN\n    IF (\n        SELECT offering_id FROM marketplace_offeringpartition\n        WHERE id = NEW.partition_id\n    ) IS DISTINCT FROM (\n        SELECT offering_id FROM marketplace_slurmofferingqos\n        WHERE id = NEW.qos_id\n    ) THEN\n        RAISE EXCEPTION\n            'SlurmPartitionQoS: partition and qos must belong to the same offering';\n    END IF;\n    RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\nDROP TRIGGER IF EXISTS marketplace_slurm_partition_qos_offering_check\n    ON marketplace_slurmpartitionqos;\n\nCREATE TRIGGER marketplace_slurm_partition_qos_offering_check\n    BEFORE INSERT OR UPDATE ON marketplace_slurmpartitionqos\n    FOR EACH ROW\n    EXECUTE FUNCTION marketplace_slurm_partition_qos_offering_check();\n",
             reverse_sql="\nDROP TRIGGER IF EXISTS marketplace_slurm_partition_qos_offering_check\n    ON marketplace_slurmpartitionqos;\nDROP FUNCTION IF EXISTS marketplace_slurm_partition_qos_offering_check();\n",
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="resourceproject",
             name="created_by",
@@ -1698,6 +1702,7 @@ class Migration(migrations.Migration):
             ).strand_terminating_keys,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="resourceapikey",
             name="fingerprint",
@@ -1721,6 +1726,7 @@ class Migration(migrations.Migration):
             code=_original("0258_derive_service_access_mode").derive_mode,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="AccessSubnetOfferingScope",
             fields=[
@@ -1766,6 +1772,7 @@ class Migration(migrations.Migration):
                 "0259_access_subnet_offering_scopes"
             ).restore_resource_subnets,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="category",
             name="default_tenant_category",

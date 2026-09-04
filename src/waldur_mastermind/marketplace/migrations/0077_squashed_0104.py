@@ -87,6 +87,7 @@ class Migration(migrations.Migration):
                 "0080_fix_offering_state_without_plans"
             ).fix_offering_state_without_plans,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="RobotAccount",
             fields=[
@@ -334,6 +335,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0093_offering_endpoints").fill_offering_endpoint,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="offering",
             name="access_url",
@@ -357,6 +359,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0095_offeringcomponent_uuid").gen_uuid,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="offeringcomponent",
             name="uuid",
@@ -387,6 +390,7 @@ class Migration(migrations.Migration):
                 "ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_sv;",
             ],
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="CategoryGroup",
             fields=[
@@ -608,6 +612,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0101_categorycomponent_uuid").gen_uuid,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="categorycomponent",
             name="uuid",

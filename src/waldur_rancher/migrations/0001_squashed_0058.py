@@ -1432,6 +1432,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0039_cluster_tenant").fill_tenant,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="cluster",
             name="tenant_settings",
@@ -1758,6 +1759,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0045_add_new_role").fill_new_role,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="clustertemplatenode",
             name="controlplane_role",
@@ -1818,6 +1820,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0046_cluster_vm_project").fill_vm_project,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterUniqueTogether(
             name="node",
             unique_together={("cluster", "name")},
@@ -1846,6 +1849,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0047_add_vm_field").copy_object_id_to_new_instance,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RenameField(
             model_name="node",
             old_name="new_instance",
@@ -1975,6 +1979,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0049_clustersecuritygrouprule_uuid").gen_uuid,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="clustersecuritygrouprule",
             name="uuid",

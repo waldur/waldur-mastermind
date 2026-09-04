@@ -20,14 +20,8 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
-        (
-            "marketplace",
-            "0280_category_description_mk_category_description_sq_and_more",
-        ),
         ("openstack", "0039_remove_old_instance"),
-        ("openstack", "0082_instance_metadata"),
         ("openstack_tenant", "0039_merge_volume_type"),
-        ("structure", "0085_remove_project_display_credit_reports"),
     ]
 
     operations = [
@@ -65,4 +59,5 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0041_drop_old_service_settings").copy_resources,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
     ]

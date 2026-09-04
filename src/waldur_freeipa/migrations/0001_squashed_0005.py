@@ -95,6 +95,7 @@ class Migration(migrations.Migration):
                 "0004_update_username_to_lowercase"
             ).update_username_to_lowercase,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="profile",
             options={"ordering": ["username", "id"]},

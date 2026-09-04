@@ -54,11 +54,9 @@ class Migration(migrations.Migration):
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
         ("core", "__first__"),
-        ("logging", "0028_split_openstack_resource_event_groups"),
+        ("logging", "0011_json_field"),
         ("marketplace", "0001_squashed_0076"),
-        ("marketplace", "0107_merge_order_item_with_order_step3"),
         ("structure", "0001_squashed_0036"),
-        ("structure", "0040_useragreement_uuid"),
     ]
 
     operations = [
@@ -187,6 +185,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0002_import_data").fill_system_roles,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="role",
             name="is_system_role",
@@ -196,6 +195,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0003_role_is_system_role").fill_system_roles,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="role",
             name="content_type",
@@ -300,6 +300,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0006_role_content_type").fill_system_roles,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="role",
             name="is_active",
@@ -324,6 +325,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0009_drop_duplicates").drop_duplicates,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="role",
             name="description_ar",
@@ -350,6 +352,7 @@ class Migration(migrations.Migration):
                 "0013_alter_rolepermission_unique_together"
             ).drop_role_permission_duplicates,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterUniqueTogether(
             name="rolepermission",
             unique_together={("role", "permission")},
@@ -362,6 +365,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0015_customer_manager").upgrade_role,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="role",
             name="description_bg",
@@ -518,6 +522,7 @@ class Migration(migrations.Migration):
             ).add_set_consumer_info_permission,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="role",
             options={"ordering": ["name", "id"]},

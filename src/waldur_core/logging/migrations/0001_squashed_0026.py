@@ -333,6 +333,7 @@ class Migration(migrations.Migration):
         migrations.RunSQL(
             sql="CREATE INDEX log_event_user ON logging_event((context->>'user_uuid'));",
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="BaseHook",
             fields=[
@@ -675,6 +676,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0023_basehook_concrete").migrate_data,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="basehook",
             options={"ordering": ["-created", "id"]},

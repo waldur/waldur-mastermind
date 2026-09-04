@@ -41,10 +41,6 @@ class Migration(migrations.Migration):
         ),
         ("marketplace", "0108_squashed_0131"),
         ("marketplace", "0196_add_internal_notes_to_maintenance_announcement"),
-        (
-            "marketplace",
-            "0280_category_description_mk_category_description_sq_and_more",
-        ),
         ("structure", "0077_affiliation_redesign"),
     ]
 
@@ -75,6 +71,7 @@ class Migration(migrations.Migration):
                 "0022_fix_non_billable_offering_invoice_items"
             ).reverse_fix,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="invoice",
             name="state",
@@ -96,6 +93,7 @@ class Migration(migrations.Migration):
                 "0024_fix_project_credit_end_dates"
             ).fix_project_credit_end_dates,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="CreditTransaction",
             fields=[
@@ -278,6 +276,7 @@ class Migration(migrations.Migration):
             ).backfill_project_uuid,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="affiliatefeeaccrual",
             options={"ordering": ["-created", "id"]},

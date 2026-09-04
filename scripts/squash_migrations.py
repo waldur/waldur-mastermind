@@ -324,16 +324,28 @@ def _drop_teardown_of_deleted_models(ops: list) -> list:
 GET_MODEL_RE = re.compile(r"""get_model\(\s*["'](\w+)[."']""")
 
 
-def _data_dependencies(app: str, ops: list, graph, present: set) -> list:
-    """Dependencies that put every app a kept RunPython reads into its state.
+def _applied_with_range(dep, ancestors: set, loader, graph) -> bool:
+    """Whether ``dep`` is applied on every database that has the replaced range applied.
 
-    A RunPython sees the models of every migration applied *before it in the plan*,
-    not only of its declared dependencies, so an original could read another app's
-    model without depending on it and get away with it by plan order. A squash
-    sits elsewhere in the plan. The walk assumed the other apps at their latest
-    non-descendant migration (``present``); depend on exactly those leaves for each
-    app named in a ``get_model()`` call of the kept code's modules.
+    Django counts a replaces-squash as applied wherever all of its originals are,
+    and ``check_consistent_history`` then refuses to migrate unless every dependency
+    of the squash is applied too. Only what the range itself (transitively) depends
+    on is guaranteed to be. A dependency added later - ``logging.0028``, regenerated
+    into squashes whose ranges predate it - stopped ``migrate`` on every upgrading
+    database (#354). ``SquashDependenciesTest`` in
+    ``waldur_core/core/tests/test_migrate_fresh.py`` pins the same rule.
     """
+    app, name = dep
+    if name == "__first__":
+        return any(a == app for a, _ in ancestors)
+    if dep in loader.replacements:  # names a squash: all of its originals must be
+        replaced = {r for r in loader.replacements[dep].replaces if r in graph.nodes}
+        return bool(replaced) and replaced <= ancestors
+    return dep in ancestors
+
+
+def _apps_read_by_kept_code(app: str, ops: list) -> set[str]:
+    """Labels named in ``get_model()`` calls of the modules the kept RunPython runs."""
     referenced: set[str] = set()
     for op in ops:
         for func in (getattr(op, "code", None), getattr(op, "reverse_code", None)):
@@ -342,14 +354,7 @@ def _data_dependencies(app: str, ops: list, graph, present: set) -> list:
             if module is None or func is RunPython.noop:
                 continue
             referenced.update(GET_MODEL_RE.findall(inspect.getsource(module)))
-    dependencies = []
-    for label in sorted(referenced - {app}):
-        nodes = {n for n in present if n[0] == label}
-        parents = set().union(
-            *({p.key for p in graph.node_map[n].parents} for n in nodes)
-        )
-        dependencies += sorted(nodes - parents)
-    return dependencies
+    return referenced - {app}
 
 
 def _changes_column_type(app: str, ops: list, from_state: ProjectState) -> bool:
@@ -379,12 +384,15 @@ def _segment(app: str, from_state, to_state, originals: list) -> list:
 
 
 def _flushed(ops: list) -> list:
-    """``ops`` followed by a deferred-DDL flush, unless one is already last.
+    """``ops`` followed by a ``FlushDeferredSql``, unless one is already last.
 
-    Tables created earlier in the squash still have their indexes and unique/FK
-    constraints queued as deferred SQL. Every kept operation runs after a flush,
-    which is what the original chain's migration boundary gave it: data code sees
-    the constraints, and a later segment can alter or drop them.
+    Every kept data operation runs between two, which is what the original chain's
+    migration boundaries gave it: the deferred DDL of tables created earlier has
+    run, so the data code sees their constraints and a later segment can alter or
+    drop them; and the deferred constraint checks the data code queued are done
+    before the next ``ALTER TABLE``, which PostgreSQL otherwise refuses with
+    "pending trigger events" (#354, ``marketplace.0264_squashed_0279`` on any
+    database that still had SLURM content types).
     """
     if ops and not isinstance(ops[-1], FlushDeferredSql):
         ops.append(FlushDeferredSql())
@@ -404,7 +412,8 @@ def regenerate(app: str, squash_name: str, end: str, to_models: bool) -> int:
     autodetector diff of the schema operations since the previous one. The result is
     a squash that runs the same data code against the same historical state as the
     originals - which is what an upgrading database needs - with far fewer schema
-    operations. Dependencies and ``replaces`` of the existing squash file are kept.
+    operations. ``replaces`` and the dependencies of the existing squash file are
+    kept, except dependencies the replaced range does not depend on.
     """
     full = MigrationLoader(None)
     existing = full.get_migration(app, squash_name)
@@ -470,6 +479,8 @@ def regenerate(app: str, squash_name: str, end: str, to_models: bool) -> int:
                 ops += _segment(app, segment_start, walked, segment_ops)
                 _flushed(ops)
                 ops.append(_rewrite(op, package))
+                if isinstance(op, (RunPython, RunSQL, SeparateDatabaseAndState)):
+                    _flushed(ops)  # settle what the data code touched (#354)
                 if isinstance(op, RunSQL):
                     kept_sql.update(_sql_statements(op))
                 op.state_forwards(app, walked)
@@ -487,23 +498,30 @@ def regenerate(app: str, squash_name: str, end: str, to_models: bool) -> int:
             extra = [s for s in _sql_statements(op) if s not in kept_sql]
             if extra:
                 ops.append(RunSQL(extra))
+                _flushed(ops)
                 kept_sql.update(extra)
 
-    # A dependency must not point into anything that depends on this squash. At
-    # runtime other squashes are single nodes, so take the descendants there and
-    # expand each squash among them to the originals it replaces.
-    runtime_descendants = set()
-    for node in set(full.graph.backwards_plan((app, squash_name))) - {
-        (app, squash_name)
-    }:
-        runtime_descendants.add(node)
-        runtime_descendants.update(full.graph.nodes[node].replaces)
-    dependencies = list(existing.dependencies)
-    for dep in _data_dependencies(
-        app, ops, graph, everything - rng - descendants - runtime_descendants
-    ):
-        if dep not in dependencies:
+    # Only what the range depends on may be a dependency (_applied_with_range).
+    ancestors = set(graph.forwards_plan((app, end))) - rng
+    dependencies = []
+    for dep in existing.dependencies:
+        if _applied_with_range(dep, ancestors, loader, graph):
             dependencies.append(dep)
+        else:
+            print(
+                f"  dropping dependency {dep[0]}.{dep[1]}: the range never depended on it"
+            )
+    # A RunPython sees the models of every migration applied before it in the
+    # plan, not only of its dependencies, so an original could read another app's
+    # model without depending on it. The squash sits elsewhere in the plan and
+    # cannot add that dependency (see above); like the original, it relies on plan
+    # order. Say so - the fresh replay in CI is the judge.
+    for label in sorted(_apps_read_by_kept_code(app, ops)):
+        if not any(a == label for a, _ in ancestors):
+            print(
+                f"  note: kept code reads {label} models, which the range never "
+                "depended on; plan order decides their visibility, as for the originals"
+            )
 
     new = type(
         "Migration",

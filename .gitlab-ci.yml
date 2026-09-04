@@ -260,6 +260,31 @@ Check startup memory budget:
       - scripts/memory_profiles/startup_components.csv
     expire_in: 1 week
 
+.migration_test_settings:
+  script:
+    - |
+      echo "[+] Setting up test database configuration..."
+      cat > src/waldur_mastermind/test_settings.py <<-EOF
+      import os
+      from waldur_core.server.test_settings import *
+      from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+
+      # Using UNLOGGED tables in PostgreSQL is a significant performance boost for
+      # tests, as it reduces disk I/O by not writing to the WAL.
+      BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
+
+      DATABASES = {
+          'default': {
+              'ENGINE': 'django.db.backends.postgresql',
+              'NAME': os.environ.get('WALDUR_DB_NAME', 'test_waldur'),
+              'USER': 'runner',
+              'HOST': 'postgres',
+              'PORT': 5432,
+              'PASSWORD': 'waldur',
+          }
+      }
+      EOF
+
 Run migration tests:
   extends: .Unit test runner
   rules:
@@ -290,28 +315,8 @@ Run migration tests:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes: *migration_test_changes
   script:
+    - !reference [.migration_test_settings, script]
     - |
-      echo "[+] Setting up test database configuration..."
-      cat > src/waldur_mastermind/test_settings.py <<-EOF
-      import os
-      from waldur_core.server.test_settings import *
-      from django.db.backends.base.schema import BaseDatabaseSchemaEditor
-
-      # Using UNLOGGED tables in PostgreSQL is a significant performance boost for
-      # tests, as it reduces disk I/O by not writing to the WAL.
-      BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
-
-      DATABASES = {
-          'default': {
-              'ENGINE': 'django.db.backends.postgresql',
-              'NAME': os.environ.get('WALDUR_DB_NAME', 'test_waldur'),
-              'USER': 'runner',
-              'HOST': 'postgres',
-              'PORT': 5432,
-              'PASSWORD': 'waldur',
-          }
-      }
-      EOF
       uv run waldur migrate --noinput
       # Fresh-install path (`migrate_fresh` builds the schema from the models in
       # seconds and fakes the migrations) must produce exactly the schema the full
@@ -323,7 +328,7 @@ Run migration tests:
       time WALDUR_DB_NAME=test_fresh uv run waldur migrate_fresh
       WALDUR_DB_NAME=test_fresh uv run python scripts/squash_migrations.py snapshot-db > schema_fresh.txt
       uv run python scripts/squash_migrations.py compare-schema schema_migrated.txt schema_fresh.txt
-  services:
+  services: &migration_postgres
     - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
       alias: postgres
       command:
@@ -339,11 +344,57 @@ Run migration tests:
           "-ctemp_buffers=16MB",
           "-cwal_buffers=48MB",
         ]
-  variables:
+  variables: &migration_db_variables
     POSTGRES_DB: test_waldur
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
     DJANGO_SETTINGS_MODULE: waldur_mastermind.test_settings
+
+Run upgrade migration test:
+  extends: .Unit test runner
+  rules:
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      changes: *migration_test_changes
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: *migration_test_changes
+  script:
+    - !reference [.migration_test_settings, script]
+    - |
+      # Every deployment upgrades an existing database, and the job above only
+      # ever starts from an empty one. That let regenerated squashes depend on a
+      # migration newer than the range they replace: Django counts a squash as
+      # applied wherever its originals are, so `migrate` refused every upgraded
+      # database with InconsistentMigrationHistory (#354). Initialise a database
+      # from the newest release tag (other than the one being built) and run this
+      # commit's `migrate` on top. `migrate_fresh` at the baseline takes seconds,
+      # records exactly what `migrate` records, and its from-the-models schema is
+      # what every `initdb` since 2026-08-29 produced.
+      echo "[+] Locating the previous release..."
+      BASELINE=$(git -c versionsort.suffix=-rc ls-remote --tags --refs --sort=-v:refname origin '[0-9]*.[0-9]*.[0-9]*' \
+        | sed 's|.*refs/tags/||' | grep -vx "${CI_COMMIT_TAG:-}" | head -1)
+      test -n "$BASELINE"
+      echo "[+] Baseline: $BASELINE"
+      git fetch --quiet --depth=1 origin "refs/tags/$BASELINE:refs/tags/$BASELINE"
+      git worktree add --quiet --detach /tmp/baseline "$BASELINE"
+      cp src/waldur_mastermind/test_settings.py /tmp/baseline/src/waldur_mastermind/
+      uv run python -c "import psycopg; psycopg.connect('host=postgres user=runner password=waldur dbname=postgres', autocommit=True).execute('CREATE DATABASE test_upgrade')"
+      echo "[+] Initialising a database from $BASELINE..."
+      (cd /tmp/baseline && UV_CACHE_DIR=$CI_PROJECT_DIR/.uv-cache uv sync --group dev --quiet && WALDUR_DB_NAME=test_upgrade uv run waldur migrate_fresh)
+      echo "[+] Upgrading it with this commit's migrations..."
+      time WALDUR_DB_NAME=test_upgrade uv run waldur migrate --noinput
+      # The upgraded database must end up with the schema a fresh install of this
+      # commit gets (auto-generated constraint names aside).
+      echo "[+] Comparing the upgraded schema with a fresh one..."
+      uv run python -c "import psycopg; psycopg.connect('host=postgres user=runner password=waldur dbname=postgres', autocommit=True).execute('CREATE DATABASE test_fresh')"
+      WALDUR_DB_NAME=test_fresh uv run waldur migrate_fresh
+      WALDUR_DB_NAME=test_upgrade uv run python scripts/squash_migrations.py snapshot-db > schema_upgraded.txt
+      WALDUR_DB_NAME=test_fresh uv run python scripts/squash_migrations.py snapshot-db > schema_fresh.txt
+      uv run python scripts/squash_migrations.py compare-schema schema_fresh.txt schema_upgraded.txt
+  services: *migration_postgres
+  variables: *migration_db_variables
 
 Run demo presets tests:
   extends: .Unit test runner

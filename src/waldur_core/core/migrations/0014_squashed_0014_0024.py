@@ -75,6 +75,7 @@ class Migration(migrations.Migration):
             ).remove_duplicate_notification_templates,
             hints={"NotificationTemplate": "core.NotificationTemplate"},
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="user",
             name="active_isds",
@@ -268,4 +269,5 @@ class Migration(migrations.Migration):
             code=_original("0024_remove_constance_site_logo").remove_site_logo_setting,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
     ]

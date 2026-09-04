@@ -74,16 +74,11 @@ class Migration(migrations.Migration):
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
         ("marketplace", "0145_clean_price_logs"),
-        (
-            "marketplace",
-            "0280_category_description_mk_category_description_sq_and_more",
-        ),
         ("openstack", "0036_merge_volume_type"),
         ("openstack_tenant", "0039_merge_volume_type"),
         ("structure", "0046_project_start_date"),
         ("structure", "0056_customer_project_metadata_checklist"),
         ("structure", "0073_alter_projectdigestconfiguration_uuid"),
-        ("structure", "0085_remove_project_display_credit_reports"),
     ]
 
     operations = [
@@ -1205,6 +1200,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0038_copy_resources").update_resource_content_types,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="instance",
             name="subnets",
@@ -1246,6 +1242,7 @@ class Migration(migrations.Migration):
                 "SELECT setval(pg_get_serial_sequence('openstack_volumetype', 'id'), (SELECT MAX(id) FROM openstack_volumetype) + 1);",
             ],
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="backup",
             options={"ordering": ["-created"]},
@@ -1309,6 +1306,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0044_floatingip_external_address").fill_external_address,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RenameField(
             model_name="floatingip",
             old_name="external_address",
@@ -1327,6 +1325,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0045_floatingip_external_address").copy_external_address,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="backup",
             name="backup_schedule",
@@ -1630,6 +1629,7 @@ class Migration(migrations.Migration):
                 "0051_alter_port_admin_state_up"
             ).convert_admin_state_up_to_boolean,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="port",
             name="admin_state_up",
@@ -1641,6 +1641,7 @@ class Migration(migrations.Migration):
                 "0051_alter_port_admin_state_up"
             ).copy_temp_to_admin_state_up,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="router",
             name="ports",
@@ -1656,6 +1657,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0053_remove_duplicates").delete_router_duplicates,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="image",
             name="backend_created_at",
@@ -2788,6 +2790,7 @@ class Migration(migrations.Migration):
             ).populate_external_network_refs,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="image",
             name="hw_rescue_bus",
@@ -3791,6 +3794,7 @@ class Migration(migrations.Migration):
                 "0072_rescue_support"
             ).reverse_fix_rescued_runtime_state,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="instance",
             name="config_drive",

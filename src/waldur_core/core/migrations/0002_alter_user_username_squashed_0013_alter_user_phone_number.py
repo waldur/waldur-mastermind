@@ -42,6 +42,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0002_alter_user_username").lowercase_usernames,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="CommonMailFooter",
             fields=[
@@ -80,6 +81,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0004_add_uuid_to_common_footer").gen_uuid,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.DeleteModel(
             name="CommonMailFooter",
         ),
@@ -127,6 +129,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0010_generate_missing_fingerprint").gen_fingerprint,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="user",
             name="identity_source",
@@ -158,6 +161,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0012_user_slug").fill_slug,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="user",
             name="phone_number",
