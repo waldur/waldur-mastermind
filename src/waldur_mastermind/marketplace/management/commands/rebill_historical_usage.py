@@ -4,15 +4,17 @@ import logging
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Q
 
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.invoices import ledger
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.marketplace import billing_discount
+from waldur_mastermind.marketplace import billing_discount, billing_mode
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
 from waldur_mastermind.marketplace.billing_utils import convert_quantity
 from waldur_mastermind.marketplace.enums import (
+    BillingModes,
     BillingTypes,
     DiscountAggregations,
     ResourceStates,
@@ -214,7 +216,8 @@ class Command(BaseCommand):
                 )
 
         usages = ComponentUsage.objects.filter(
-            component__billing_type=BillingTypes.USAGE,
+            Q(component__billing_type=BillingTypes.USAGE)
+            | Q(plan_period__plan__billing_mode=BillingModes.USAGE),
             component__is_prepaid=False,
         ).select_related(
             "resource",
@@ -317,6 +320,15 @@ class Command(BaseCommand):
         billing_period = usage.billing_period
         label = f"{resource.name} ({resource.uuid.hex}) / {offering_component.type} / {billing_period}"
 
+        effective_billing_type = billing_mode.resolve_component(
+            offering_component, usage.plan_period.plan if usage.plan_period else None
+        ).billing_type
+        if effective_billing_type != BillingTypes.USAGE:
+            # A limit plan on a usage offering (or the reverse) never bills
+            # this row from usage.
+            logger.debug("%s: not usage-billed under its plan, skipping", label)
+            return False
+
         invoice = invoice_models.Invoice.objects.filter(
             customer=customer,
             year=billing_period.year,
@@ -412,7 +424,7 @@ class Command(BaseCommand):
             usage.usage,
             resource.offering.type,
             offering_component.type,
-            billing_type=offering_component.billing_type,
+            billing_type=effective_billing_type,
         )
         logger.debug(
             "%s: quantity %s -> %s (billed item exists: %s)",

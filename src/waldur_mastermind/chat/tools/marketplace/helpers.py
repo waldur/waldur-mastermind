@@ -232,6 +232,7 @@ def serialize_offering_detailed(offering) -> dict:
                     "name": p.name,
                     "unit_price": str(p.unit_price),
                     "unit": p.unit,
+                    "billing_mode": p.billing_mode,
                 }
                 for p in offering.plans.filter(archived=False)
             ],

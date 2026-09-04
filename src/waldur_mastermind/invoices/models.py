@@ -29,6 +29,7 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.structures import InvoiceDetailsDict
+from waldur_mastermind.marketplace import billing_mode
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 
@@ -485,9 +486,12 @@ class InvoiceItem(
             return
         if not plan_component.component:
             return
-        if plan_component.component.billing_type == BillingTypes.FIXED or (
-            plan_component.component.billing_type == BillingTypes.LIMIT
-            and plan_component.component.limit_period != LimitPeriods.TOTAL
+        effective = billing_mode.resolve_component(
+            plan_component.component, plan_component.plan
+        )
+        if effective.billing_type == BillingTypes.FIXED or (
+            effective.billing_type == BillingTypes.LIMIT
+            and effective.limit_period != LimitPeriods.TOTAL
         ):
             self._update_quantity()
 
@@ -516,10 +520,37 @@ class InvoiceItem(
             last_period["total"] = str(
                 int(last_period["quantity"]) * last_period["billing_periods"]
             )
-            self.quantity = sum(
-                int(period["total"]) for period in resource_limit_periods
-            )
+            self.quantity = self.quantity_from_limit_periods()
             self.save(update_fields=["details", "quantity"])
+
+    def quantity_from_limit_periods(self) -> decimal.Decimal:
+        """Quantity of a limit-based item from its ``resource_limit_periods``.
+
+        Items billed per day count ``limit × days`` over every period. Items
+        billed per month (or any other unit) charge the plan's fee for the
+        month whatever the number of days, so their quantity is the day-weighted
+        average limit over the item's span — the same rule
+        ``LimitPeriodProcessor._update_invoice_item`` applies to limit changes.
+        """
+        periods = self.details.get("resource_limit_periods") or []
+        if self.unit == self.Units.PER_DAY:
+            return decimal.Decimal(sum(int(period["total"]) for period in periods))
+        # Weigh by each period's own day count (a partial day counts as one),
+        # and divide by the same total so equal limits always yield the limit.
+        days = [
+            utils.get_full_days(
+                parse_datetime(period["start"]), parse_datetime(period["end"])
+            )
+            for period in periods
+        ]
+        total_days = sum(days)
+        if total_days <= 0:
+            return decimal.Decimal(0)
+        weighted = sum(
+            decimal.Decimal(str(period["quantity"])) * period_days
+            for period, period_days in zip(periods, days, strict=True)
+        )
+        return quantize_price(decimal.Decimal(weighted) / total_days)
 
     class Meta:
         indexes = [

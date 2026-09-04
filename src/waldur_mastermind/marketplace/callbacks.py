@@ -12,7 +12,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 
-from . import log, models, signals, tasks
+from . import billing_mode, log, models, signals, tasks
 from .utils import format_limits_list, parse_date
 
 logger = logging.getLogger(__name__)
@@ -261,13 +261,22 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
                 )
 
             if plan_changed:
+                old_plan = locked_resource.plan
+                old_billing = billing_mode.describe_plan_billing(old_plan)
+                new_billing = billing_mode.describe_plan_billing(order.plan)
                 email_context.update(
                     {
-                        "resource_old_plan": locked_resource.plan.name,
+                        "resource_old_plan": old_plan.name,
                         "resource_plan": order.plan.name,
+                        "billing_consequence": billing_mode.describe_switch_consequence(
+                            old_billing, new_billing
+                        ),
                     }
                 )
                 locked_resource.plan = order.plan
+                log.log_resource_plan_switched(
+                    locked_resource, old_plan, order.plan, old_billing, new_billing
+                )
                 transaction.on_commit(
                     lambda: tasks.notify_about_resource_change.delay(
                         "marketplace_resource_update_succeeded",
@@ -276,7 +285,9 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
                     )
                 )
             if limits_changed:
-                components_map = order.offering.get_limit_components()
+                components_map = order.offering.get_limit_components(
+                    order.plan or locked_resource.plan
+                )
                 email_context.update(
                     {
                         "resource_old_limits": format_limits_list(

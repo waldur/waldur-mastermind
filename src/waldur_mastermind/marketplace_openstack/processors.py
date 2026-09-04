@@ -8,8 +8,7 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.core import utils as core_utils
-from waldur_mastermind.marketplace import models, processors, signals
-from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace import billing_mode, models, processors, signals
 from waldur_mastermind.marketplace.processors import (
     copy_attributes,
     get_order_post_data,
@@ -61,12 +60,12 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
             quotas = utils.map_limits_to_quotas(order.limits, order.offering)
             return dict(quotas=quotas, **payload)
 
-        # Usage-based offerings don't require limits — tenants are created
-        # with default quotas and billed by actual consumption.
-        has_usage_billing = order.offering.components.filter(
-            billing_type=BillingTypes.USAGE,
-        ).exists()
-        if has_usage_billing:
+        # A plan that bills the builtin components by usage does not require
+        # limits: the tenant is created with backend default quotas and
+        # billed by actual consumption. Under a limit plan quotas are the
+        # billed quantity, so they are mandatory.
+        resolved = billing_mode.resolve_for_order(order)
+        if resolved.is_usage_based and not resolved.limit_types:
             return payload
 
         raise serializers.ValidationError(

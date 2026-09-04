@@ -19,6 +19,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.marketplace import billing_mode
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes
 
@@ -83,8 +84,10 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
 
     def get_billing_type(self, item: models.InvoiceItem) -> str:
         plan_component = item.get_plan_component()
-        if plan_component:
-            return plan_component.component.billing_type
+        if plan_component and plan_component.component:
+            return billing_mode.resolve_component(
+                plan_component.component, plan_component.plan
+            ).billing_type
 
     def get_credit(self, item: models.InvoiceItem) -> bool:
         return item.credit is not None
@@ -229,8 +232,11 @@ class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
 
         if self.instance:
             plan_component = self.instance.get_plan_component()
-            if plan_component:
-                if plan_component.component.billing_type == BillingTypes.FIXED:
+            if plan_component and plan_component.component:
+                effective = billing_mode.resolve_component(
+                    plan_component.component, plan_component.plan
+                )
+                if effective.billing_type == BillingTypes.FIXED:
                     del fields["quantity"]
                 else:
                     del fields["start"]
@@ -243,30 +249,37 @@ class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
         """
         invoice_item = instance
         plan_component = invoice_item.get_plan_component()
-        if plan_component:
+        if plan_component and plan_component.component:
             offering_component = plan_component.component
-            if offering_component.billing_type == BillingTypes.USAGE:
+            effective = billing_mode.resolve_component(
+                offering_component, plan_component.plan
+            )
+            if effective.billing_type == BillingTypes.USAGE:
                 resource = invoice_item.resource
                 if not resource:
                     raise ValidationError(
                         _("Marketplace resource is not defined in invoice item.")
                     )
-                component_usage = (
-                    marketplace_models.ComponentUsage.objects.filter(
-                        resource=resource,
-                        component=offering_component,
-                        billing_period__year=invoice_item.invoice.year,
-                        billing_period__month=invoice_item.invoice.month,
-                    )
-                    .order_by("date")
-                    .last()
+                component_usages = marketplace_models.ComponentUsage.objects.filter(
+                    resource=resource,
+                    component=offering_component,
+                    billing_period__year=invoice_item.invoice.year,
+                    billing_period__month=invoice_item.invoice.month,
                 )
+                # After a plan switch the month holds one usage row per plan
+                # period; edit the row behind this item, not its sibling.
+                plan_period_uuid = (invoice_item.details or {}).get("plan_period_uuid")
+                if plan_period_uuid:
+                    component_usages = component_usages.filter(
+                        plan_period__uuid=plan_period_uuid
+                    )
+                component_usage = component_usages.order_by("date").last()
                 if not component_usage:
                     raise ValidationError(_("Component usage is not found."))
                 quantity = validated_data.get("quantity")
                 component_usage.usage = quantity
                 component_usage.save(update_fields=["usage"])
-            elif offering_component.billing_type == BillingTypes.FIXED:
+            elif effective.billing_type == BillingTypes.FIXED:
                 invoice_item = super().update(invoice_item, validated_data)
                 invoice_item._update_quantity()
                 return invoice_item

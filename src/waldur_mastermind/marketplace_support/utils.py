@@ -71,7 +71,7 @@ def format_create_description(order):
     )
 
     if order.limits:
-        components_map = order.offering.get_limit_components()
+        components_map = order.offering.get_limit_components(order.plan)
         for key, value in order.limits.items():
             component = components_map.get(key)
             if component:
@@ -199,7 +199,7 @@ def format_update_description(order):
 def format_update_limits_description(order):
     offering = order.resource.offering
     request_url = get_request_link(order.resource)
-    components_map = offering.get_limit_components()
+    components_map = offering.get_limit_components(order.resource.plan)
     old_limits = format_limits_list(components_map, order.resource.limits)
     new_limits = format_limits_list(components_map, order.limits)
     context = {
@@ -217,7 +217,7 @@ def format_update_limits_description(order):
 def format_renewal_description(order):
     offering = order.resource.offering
     request_url = get_request_link(order.resource)
-    components_map = offering.get_limit_components()
+    components_map = offering.get_limit_components(order.resource.plan)
     old_limits = format_limits_list(
         components_map, order.attributes.get("old_limits", {})
     )

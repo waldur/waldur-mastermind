@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import signals
+from django.db.models import F, signals
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.timezone import now
@@ -666,6 +666,13 @@ def switch_resource_plan_period_when_plan_is_updated(
     if instance.plan:
         callbacks.create_resource_plan_period(instance)
 
+    # Hourly usage accumulates "current value × hours since the last poll".
+    # Restart that clock at the switch so the first poll under the new plan
+    # counts only the hours that belong to it.
+    models.ComponentUsagePollRecord.objects.filter(resource=instance).update(
+        last_poll_time=now()
+    )
+
 
 def change_order_state(sender, instance, created=False, **kwargs):
     """Change the state of an order based on resource state changes."""
@@ -793,11 +800,13 @@ def sync_current_usages_from_component_usage(
     resource = instance.resource
     component_type = instance.component.type
 
+    # A month may hold one row per plan period after a plan switch; the
+    # row of the latest period is the current one.
     latest = (
         models.ComponentUsage.objects.filter(
             resource=resource, component=instance.component
         )
-        .order_by("-billing_period")
+        .order_by("-billing_period", F("plan_period__start").desc(nulls_last=True))
         .first()
     )
     if not latest:
@@ -901,7 +910,7 @@ def evaluate_usage_limit_on_resource_limit_change(
 
 
 def update_or_create_quotas(resource: Resource):
-    components_map = resource.offering.get_limit_components()
+    components_map = resource.offering.get_limit_components(resource.plan)
     for key, value in resource.limits.items():
         component = components_map.get(key)
         if component:

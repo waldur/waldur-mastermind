@@ -194,6 +194,7 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
                 self.order.limits,
                 self.order.offering,
                 self.order.resource,
+                plan=self.order.plan,
             )
             return
 

@@ -14,6 +14,11 @@
 <p>
     The plan has been changed from {{ resource_old_plan }} to {{ resource_plan }}.
 </p>
+{% if billing_consequence %}
+<p>
+    {{ billing_consequence }}
+</p>
+{% endif %}
 {% endif %}
 {% if support_email or support_phone %}
 <p>

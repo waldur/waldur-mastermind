@@ -1063,6 +1063,7 @@ class Command(BaseCommand):
                     "max_amount": plan.max_amount,
                     "article_code": plan.article_code,
                     "backend_id": plan.backend_id,
+                    "billing_mode": plan.billing_mode,
                     "created": plan.created.isoformat() if plan.created else None,
                     "modified": plan.modified.isoformat() if plan.modified else None,
                 }

@@ -340,18 +340,18 @@
       "offering_uuid": "f3000000000000000000000000000001",
       "type": "ram",
       "name": "RAM",
-      "description": "Amount of RAM in MB",
+      "description": "Amount of RAM in GB",
       "billing_type": "limit",
-      "measured_unit": "MB"
+      "measured_unit": "GB"
     },
     {
       "uuid": "c3000000000000000000000000000003",
       "offering_uuid": "f3000000000000000000000000000001",
       "type": "storage",
       "name": "Storage",
-      "description": "Storage capacity in MB",
+      "description": "Storage capacity in GB",
       "billing_type": "limit",
-      "measured_unit": "MB"
+      "measured_unit": "GB"
     }
   ],
   "plans": [

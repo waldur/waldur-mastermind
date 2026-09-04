@@ -7,7 +7,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.marketplace import billing_discount
+from waldur_mastermind.marketplace import billing_discount, billing_mode
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_limit import LimitPeriodProcessor
 from waldur_mastermind.marketplace.billing_utils import (
@@ -107,12 +107,10 @@ class MarketplaceBillingService:
                 )
                 return
 
+        resolved = billing_mode.resolve_for_resource(resource)
+
         # LIMIT components: delegate to LimitPeriodProcessor
-        limit_types = set(
-            resource.offering.components.filter(
-                billing_type=BillingTypes.LIMIT
-            ).values_list("type", flat=True)
-        )
+        limit_types = resolved.limit_types
         for component_type, new_quantity in resource.limits.items():
             if component_type not in limit_types:
                 continue
@@ -122,10 +120,9 @@ class MarketplaceBillingService:
 
         # Prepaid ONE_TIME components: supplementary charge for remaining period
         prepaid_types = {
-            c.type: c
-            for c in resource.offering.components.filter(
-                billing_type=BillingTypes.ONE_TIME, is_prepaid=True
-            )
+            c.type: c.component
+            for c in resolved.components.values()
+            if c.billing_type == BillingTypes.ONE_TIME and c.is_prepaid
         }
         if prepaid_types and resource.end_date:
             cls._handle_prepaid_limits_change(
@@ -185,7 +182,9 @@ class MarketplaceBillingService:
                 start=now,
                 end=core_utils.month_end(now),
                 details=details,
-                measured_unit=offering_component.measured_unit,
+                measured_unit=billing_mode.resolve_component(
+                    offering_component, plan_component.plan
+                ).measured_unit,
             )
 
     @classmethod
@@ -322,9 +321,9 @@ class MarketplaceBillingService:
                 )
                 continue
 
-            is_limit = offering_component.billing_type == BillingTypes.LIMIT
+            effective = billing_mode.resolve_component(offering_component, plan)
 
-            if is_limit:
+            if effective.billing_type == BillingTypes.LIMIT:
                 LimitPeriodProcessor.process_creation(
                     resource, plan_component, invoice, start, end, order_type
                 )
@@ -353,10 +352,13 @@ class MarketplaceBillingService:
         - ON_PLAN_SWITCH: Creates a single item if the order type is UPDATE.
         """
         offering_component = plan_component.component
+        effective = billing_mode.resolve_component(
+            offering_component, plan_component.plan
+        )
 
-        is_fixed = offering_component.billing_type == BillingTypes.FIXED
-        is_one = offering_component.billing_type == BillingTypes.ONE_TIME
-        is_switch = offering_component.billing_type == BillingTypes.ON_PLAN_SWITCH
+        is_fixed = effective.billing_type == BillingTypes.FIXED
+        is_one = effective.billing_type == BillingTypes.ONE_TIME
+        is_switch = effective.billing_type == BillingTypes.ON_PLAN_SWITCH
         if (
             is_fixed
             or (is_one and order_type == OrderTypes.CREATE)
@@ -454,7 +456,9 @@ class MarketplaceBillingService:
                 unit_price=discounted_unit_price,
                 unit=unit,
                 quantity=quantity,
-                measured_unit=offering_component.measured_unit,
+                measured_unit=billing_mode.resolve_component(
+                    offering_component, plan_component.plan
+                ).measured_unit,
                 article_code=offering_component.article_code
                 or resource.plan.article_code,
             )

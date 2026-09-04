@@ -16,6 +16,7 @@ from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.attribute_types import ATTRIBUTE_TYPES
 from waldur_mastermind.marketplace.enums import (
+    BillingModes,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -24,6 +25,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
     RobotAccountStates,
     ServiceAccountState,
+    SwitchBillingModes,
 )
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.proposal.enums import (
@@ -82,6 +84,9 @@ SPECTACULAR_SETTINGS = {
         "RoleType": TYPE_MAP.keys(),
         "InvitationState": InvitationState.values,
         "BillingUnit": Units.CHOICES,
+        # Plan-level billing mode; "BillingModeEnum" is taken by switch_billing_mode
+        "PlanBillingMode": BillingModes.CHOICES,
+        "BillingModeEnum": SwitchBillingModes.CHOICES,
         "CoreStates": CoreStates.labels,
         "OfferingState": OfferingStates.VALUES,
         "OrderState": OrderStates.VALUES,

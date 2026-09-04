@@ -85,6 +85,7 @@ def get_component_details(
     resource: Resource,
     plan_component: PlanComponent | None,
     offering_component: OfferingComponent | None = None,
+    plan=None,
 ):
     """
     Generate detailed metadata for invoice items.
@@ -103,6 +104,10 @@ def get_component_details(
     """
     customer = resource.offering.customer
     service_provider = getattr(customer, "serviceprovider", None)
+    # The plan the item is priced with: after a plan switch, usage accrued
+    # under the previous period is still billed by the previous plan.
+    if plan is None:
+        plan = plan_component.plan if plan_component else resource.plan
 
     # Determine component details from plan_component or offering_component
     if plan_component:
@@ -121,8 +126,8 @@ def get_component_details(
     return {
         "resource_name": resource.name,
         "resource_uuid": resource.uuid.hex,
-        "plan_name": resource.plan.name if resource.plan else "",
-        "plan_uuid": resource.plan.uuid.hex if resource.plan else "",
+        "plan_name": plan.name if plan else "",
+        "plan_uuid": plan.uuid.hex if plan else "",
         "offering_type": resource.offering.type,
         "offering_name": resource.offering.name,
         "offering_uuid": resource.offering.uuid.hex,

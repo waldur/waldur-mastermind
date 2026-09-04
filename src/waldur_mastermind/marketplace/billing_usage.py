@@ -3,13 +3,14 @@ from typing import cast
 
 from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import models as models_q
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.marketplace import billing_discount
+from waldur_mastermind.marketplace import billing_discount, billing_mode
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_utils import (
     convert_quantity,
@@ -28,7 +29,11 @@ BILLING_RELATED_FIELDS = (
     "resource__project",
     "resource__offering",
     "component",
+    # The billing-mode resolver reads the component's offering type and the
+    # plan of the period; both would otherwise be lazy-loaded per usage row.
+    "component__offering",
     "plan_period",
+    "plan_period__plan",
 )
 
 
@@ -87,9 +92,11 @@ class BillingUsageProcessor:
             f"component '{offering_component.type}'. Reported usage: {component_usage.usage}"
         )
 
-        if offering_component.is_prepaid:
+        effective = billing_mode.resolve_component(offering_component, plan_period.plan)
+
+        if effective.is_prepaid:
             cls._process_prepaid_usage(component_usage)
-        elif offering_component.billing_type == BillingTypes.USAGE:
+        elif effective.billing_type == BillingTypes.USAGE:
             cls._create_or_update_usage_invoice_item(
                 resource=resource,
                 offering_component=offering_component,
@@ -151,6 +158,24 @@ class BillingUsageProcessor:
                 is_overage=True,
             )
 
+    @staticmethod
+    def _periods_of_month(plan_period, date):
+        """Periods of the same resource overlapping the month of ``date``."""
+        month_start = core_utils.month_start(date)
+        month_end = core_utils.month_end(date)
+        return (
+            marketplace_models.ResourcePlanPeriod.objects.filter(
+                resource=plan_period.resource
+            )
+            .filter(models_q.Q(start__isnull=True) | models_q.Q(start__lte=month_end))
+            .filter(models_q.Q(end__isnull=True) | models_q.Q(end__gte=month_start))
+        )
+
+    @classmethod
+    def _is_only_plan_period_of_month(cls, plan_period, date) -> bool:
+        others = cls._periods_of_month(plan_period, date).exclude(pk=plan_period.pk)
+        return not others.exists()
+
     @classmethod
     def _create_or_update_usage_invoice_item(
         cls,
@@ -194,11 +219,32 @@ class BillingUsageProcessor:
         # created `if discount_amount > 0`) are always created with strictly
         # negative unit_price -- a hard domain invariant, unlike JSON detail
         # keys such as `is_compensation`, which older rows may not carry.
-        item = invoice.items.filter(
+        candidates = invoice.items.filter(
             resource=resource,
             details__offering_component_type=offering_component.type,
             unit_price__gte=0,
+        )
+        # One item per plan: after a mid-month plan switch the usage accrued
+        # under the old plan keeps its own item at the old price, while
+        # consecutive periods of the same plan continue one item.
+        same_plan_periods = [
+            period.uuid.hex
+            for period in cls._periods_of_month(plan_period, date).filter(plan=plan)
+        ]
+        item = candidates.filter(
+            details__plan_period_uuid__in=same_plan_periods or [plan_period.uuid.hex]
         ).first()
+        if item is None:
+            # Legacy usage items carry no plan period. Adopt the one that names
+            # this plan, or any one when no other period shares the month;
+            # never a limit item (those carry resource_limit_periods) that a
+            # plan switch just closed.
+            legacy = candidates.exclude(details__has_key="plan_period_uuid").exclude(
+                details__has_key="resource_limit_periods"
+            )
+            item = legacy.filter(details__plan_uuid=plan.uuid.hex).first()
+            if item is None and cls._is_only_plan_period_of_month(plan_period, date):
+                item = legacy.first()
 
         try:
             plan_component = plan.components.get(component=offering_component)
@@ -222,13 +268,19 @@ class BillingUsageProcessor:
             usage_to_bill,
             resource.offering.type,
             offering_component.type,
-            billing_type=offering_component.billing_type,
+            billing_type=billing_mode.resolve_component(
+                offering_component, plan
+            ).billing_type,
         )
 
         if item:
             old_quantity = item.quantity
             item.quantity = converted_usage
             update_fields = ["quantity"]
+            if item.details.get("plan_period_uuid") != plan_period.uuid.hex:
+                # An adopted legacy item is keyed to its period from now on.
+                item.details["plan_period_uuid"] = plan_period.uuid.hex
+                update_fields.append("details")
             # Keep the aggregation volume in sync with re-reported usage; the
             # org-aggregated discount is materialized at invoice finalization.
             if plan_component is not None and not is_overage:
@@ -244,8 +296,12 @@ class BillingUsageProcessor:
         else:
             # Create a new invoice item
             details = get_component_details(
-                resource, plan_component, offering_component=offering_component
+                resource,
+                plan_component,
+                offering_component=offering_component,
+                plan=plan,
             )
+            details["plan_period_uuid"] = plan_period.uuid.hex
             if is_overage:
                 details["is_overage"] = True  # Add a flag for reporting
             elif plan_component is not None:
@@ -262,7 +318,10 @@ class BillingUsageProcessor:
             )
             end = min(plan_period.end, month_end) if plan_period.end else month_end
 
-            item_name = f"{resource.name} / {offering_component.name}"
+            item_name = (
+                f"{resource.name} ({resource.offering.name} / {plan.name}) / "
+                f"{offering_component.name}"
+            )
             if is_overage:
                 item_name += " (Overage)"
 
@@ -277,7 +336,9 @@ class BillingUsageProcessor:
                 unit_price=unit_price,
                 quantity=converted_usage,
                 unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
-                measured_unit=offering_component.measured_unit,
+                measured_unit=billing_mode.resolve_component(
+                    offering_component, plan
+                ).measured_unit,
                 article_code=offering_component.article_code or plan.article_code,
                 name=item_name,
             )

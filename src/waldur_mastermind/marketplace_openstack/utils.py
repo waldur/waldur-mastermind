@@ -14,13 +14,12 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure.backend import ServiceBackend
+from waldur_mastermind.marketplace import billing_mode, plugins
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     OPENSTACK_VOLUME_OFFERING,
-    BillingTypes,
     OfferingStates,
     OrderTypes,
 )
@@ -217,11 +216,9 @@ def import_usage(resource: marketplace_models.Resource):
         return
 
     usages = get_usage_values(resource, tenant)
-    has_usage_billing = resource.offering.components.filter(
-        billing_type=BillingTypes.USAGE,
-    ).exists()
+    has_usage_billing = billing_mode.resolve_for_resource(resource).is_usage_based
     # Update ComponentUsage for billing (monthly peak for LIMIT components,
-    # hourly accumulator for USAGE components).
+    # hourly accumulator for USAGE components, both resolved per plan).
     import_current_usages(resource, usages, hourly_accumulation=has_usage_billing)
     # current_usages drives the UI's "right-now consumption" widget. Write
     # the fresh values directly — the ComponentUsage mirror would otherwise
