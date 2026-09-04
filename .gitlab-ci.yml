@@ -378,6 +378,11 @@ Run upgrade migration test:
       test -n "$BASELINE"
       echo "[+] Baseline: $BASELINE"
       git fetch --quiet --depth=1 origin "refs/tags/$BASELINE:refs/tags/$BASELINE"
+      # The build directory persists between attempts (GIT_STRATEGY: fetch) but /tmp
+      # does not, so a failed attempt leaves .git/worktrees/baseline registered against
+      # a path that no longer exists and every retry dies on "missing but already
+      # registered worktree". Clear the stale registration first.
+      git worktree prune
       git worktree add --quiet --detach /tmp/baseline "$BASELINE"
       cp src/waldur_mastermind/test_settings.py /tmp/baseline/src/waldur_mastermind/
       uv run python -c "import psycopg; psycopg.connect('host=postgres user=runner password=waldur dbname=postgres', autocommit=True).execute('CREATE DATABASE test_upgrade')"
