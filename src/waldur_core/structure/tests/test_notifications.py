@@ -1,12 +1,13 @@
 import json
 import tempfile
+from io import StringIO
 
 from ddt import data, ddt
 from django.core.management import call_command
 from django.test import TestCase
 from rest_framework import status, test
 
-from waldur_core.core.models import Notification
+from waldur_core.core.models import Notification, NotificationTemplate
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -312,3 +313,68 @@ class LoadNotificationsCommandTest(TestCase):
         call_command("load_notifications", self._write_json({}))
         notification = Notification.objects.get(key="users.invitation_created")
         self.assertFalse(notification.enabled)
+
+
+class LoadNotificationsPruneTest(TestCase):
+    """Tests for orphaned-notification reporting and pruning."""
+
+    def _write_json(self, data):
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(data, f)
+        f.close()
+        return f.name
+
+    def test_orphaned_notification_is_reported_but_kept_without_prune(self):
+        """A row whose key is not registered is reported, not deleted, by default."""
+        notification = factories.NotificationFactory(key="fake_app.orphaned_event")
+        out = StringIO()
+        call_command("load_notifications", self._write_json({}), stdout=out)
+        self.assertTrue(Notification.objects.filter(pk=notification.pk).exists())
+        self.assertIn("Orphaned notification 'fake_app.orphaned_event'", out.getvalue())
+        self.assertIn("Re-run with --prune", out.getvalue())
+
+    def test_prune_removes_orphaned_notification(self):
+        """--prune deletes a Notification row whose key is not registered."""
+        notification = factories.NotificationFactory(key="fake_app.orphaned_event")
+        call_command("load_notifications", self._write_json({}), "--prune")
+        self.assertFalse(Notification.objects.filter(pk=notification.pk).exists())
+
+    def test_prune_removes_unreferenced_templates(self):
+        """--prune deletes templates that no registered notification declares."""
+        notification = factories.NotificationFactory(key="fake_app.orphaned_event")
+        template_ids = list(notification.templates.values_list("pk", flat=True))
+        self.assertTrue(template_ids)
+        call_command("load_notifications", self._write_json({}), "--prune")
+        self.assertFalse(
+            NotificationTemplate.objects.filter(pk__in=template_ids).exists()
+        )
+
+    def test_prune_keeps_template_shared_with_registered_notification(self):
+        """A template still declared by a registered notification survives pruning."""
+        call_command("load_notifications", self._write_json({}))
+        shared_template = NotificationTemplate.objects.filter(
+            notification__isnull=False
+        ).first()
+        self.assertIsNotNone(shared_template)
+
+        orphan = factories.NotificationFactory(key="fake_app.orphaned_event")
+        orphan.templates.add(shared_template)
+
+        call_command("load_notifications", self._write_json({}), "--prune")
+
+        self.assertFalse(Notification.objects.filter(pk=orphan.pk).exists())
+        self.assertTrue(
+            NotificationTemplate.objects.filter(pk=shared_template.pk).exists()
+        )
+
+    def test_prune_keeps_customised_template(self):
+        """A template with operator-overridden content survives pruning."""
+        notification = factories.NotificationFactory(key="fake_app.orphaned_event")
+        template = notification.templates.first()
+        template.content = "Custom override content"
+        template.save()
+
+        call_command("load_notifications", self._write_json({}), "--prune")
+
+        self.assertFalse(Notification.objects.filter(pk=notification.pk).exists())
+        self.assertTrue(NotificationTemplate.objects.filter(pk=template.pk).exists())

@@ -43,6 +43,34 @@ Input file format (JSON or YAML):
           notifications:
             users.invitation_created: true
             users.invitation_approved: true
+
+Orphaned rows
+-------------
+
+A ``Notification`` row whose key is no longer in the ``NOTIFICATIONS`` registry
+(removed, renamed, or folded into another notification) is never cleaned up by
+this command's normal sync — it only ever creates or updates. Every run reports
+such rows, along with each of their templates classified as:
+
+- ``shared``: still declared by another *registered* notification, so it is
+  kept regardless of ``--prune``.
+- ``customized``: has operator-overridden content (``NotificationTemplate.content``
+  is non-blank), so it is kept and must be handled manually — pruning never
+  discards a customisation.
+- ``safe to remove``: not declared by any registered notification and has no
+  override; deleted only when ``--prune`` is passed.
+
+Deletion is opt-in via ``--prune`` and never runs automatically. In particular,
+``initdb`` runs this command on every unattended boot *without* ``--prune``, by
+design — deleting on boot is too strong a default for a command that has, until
+now, only ever added rows. Run ``waldur load_notifications <file> --prune``
+manually (or from a controlled maintenance job) to actually remove orphaned
+rows and their safe-to-remove templates.
+
+Renames are not detected. A rename looks identical to a removal plus an
+addition, and there is currently no reliable way to tell them apart; carrying
+state (like ``enabled``) across a rename is handled per-case by a hand-written
+data migration, as in ``core/migrations/0042_call_and_proposal_invitation_notifications.py``.
 """
 
 import json
@@ -51,7 +79,7 @@ import os
 
 import yaml
 from django.core.management.base import BaseCommand
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 from waldur_core.core.models import Notification, NotificationTemplate
 from waldur_core.structure.notifications import NOTIFICATIONS
@@ -68,6 +96,25 @@ def _is_registered(notification_key):
     return False
 
 
+def _registered_keys():
+    """Return the set of every notification key currently in the registry."""
+    return {
+        f"{section_key}.{notification['path']}"
+        for section_key, section in NOTIFICATIONS.items()
+        for notification in section
+    }
+
+
+def _registered_template_paths():
+    """Return the set of every template path declared by a registered notification."""
+    return {
+        f"{section_key}/{tmpl['path']}"
+        for section_key, section in NOTIFICATIONS.items()
+        for notification in section
+        for tmpl in notification["templates"]
+    }
+
+
 class Command(BaseCommand):
     help = (
         "Sync notifications and their templates from a JSON/YAML config file to the DB."
@@ -79,6 +126,17 @@ class Command(BaseCommand):
             "notifications_file",
             help="Path to a JSON or YAML file mapping notification keys to their "
             "enabled status (bool).",
+        )
+        parser.add_argument(
+            "--prune",
+            action="store_true",
+            default=False,
+            help="Delete Notification rows whose key is no longer in the "
+            "NOTIFICATIONS registry, along with any of their templates that "
+            "are not shared with a registered notification and have no "
+            "operator-customised content. Without this flag, orphaned rows "
+            "are only reported. Never enabled by default (e.g. by initdb) — "
+            "an unattended boot should not delete data.",
         )
 
     # ------------------------------------------------------------------
@@ -112,6 +170,81 @@ class Command(BaseCommand):
                         f"{exc}, skipping"
                     )
                 )
+
+        self._handle_orphans(prune=options["prune"])
+
+    # ------------------------------------------------------------------
+    # Orphaned rows: report always, delete only with --prune
+    # ------------------------------------------------------------------
+
+    def _handle_orphans(self, prune):
+        """
+        Report every Notification row whose key is no longer registered, and
+        (with --prune) delete it along with its safe-to-remove templates.
+
+        A template is safe to remove only if no *registered* notification still
+        declares its path, and it carries no operator-customised content —
+        either condition alone is enough to keep it.
+        """
+        registered_keys = _registered_keys()
+        registered_template_paths = _registered_template_paths()
+
+        orphans = Notification.objects.exclude(key__in=registered_keys)
+        if not orphans.exists():
+            return
+
+        templates_to_delete = set()
+
+        for notification in orphans:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Orphaned notification '{notification.key}' "
+                    f"(enabled={notification.enabled}) has no matching key in "
+                    "the NOTIFICATIONS registry."
+                )
+            )
+            logger.warning(
+                "Orphaned notification '%s' (enabled=%s): key is no longer registered.",
+                notification.key,
+                notification.enabled,
+            )
+
+            for template in notification.templates.all():
+                if template.path in registered_template_paths:
+                    status = "shared with a registered notification, keeping"
+                elif template.content:
+                    status = "has customised content, keeping"
+                else:
+                    status = "safe to remove" if prune else "would be removed"
+                    templates_to_delete.add(template.pk)
+                self.stdout.write(f"  template '{template.path}': {status}")
+
+        if not prune:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Re-run with --prune to delete the orphaned notification(s) "
+                    "listed above."
+                )
+            )
+            return
+
+        with transaction.atomic():
+            template_count = len(templates_to_delete)
+            NotificationTemplate.objects.filter(pk__in=templates_to_delete).delete()
+            notification_count = orphans.count()
+            orphans.delete()
+
+        self.stdout.write(
+            self.style.WARNING(
+                f"Pruned {notification_count} orphaned notification(s) and "
+                f"{template_count} orphaned template(s)."
+            )
+        )
+        logger.info(
+            "Pruned %d orphaned notification(s) and %d orphaned template(s).",
+            notification_count,
+            template_count,
+        )
 
     # ------------------------------------------------------------------
     # File loading
