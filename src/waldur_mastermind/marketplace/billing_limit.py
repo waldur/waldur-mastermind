@@ -1,5 +1,6 @@
 import datetime
 import logging
+from decimal import Decimal
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -218,7 +219,13 @@ class LimitPeriodProcessor:
                 else:
                     total += invoice_item.quantity
 
-        diff = new_quantity - total
+        # resource.limits is a JSONField, so a fractional limit arrives as a
+        # float, while the billed total is a Decimal summed from
+        # InvoiceItem.quantity. float - Decimal raises TypeError, which
+        # surfaced as a bare HTTP 500 from set_limits once the resource had
+        # billing history. Coerce via str() so 0.1 becomes Decimal("0.1")
+        # rather than its binary expansion.
+        diff = Decimal(str(new_quantity)) - Decimal(total)
         if diff == 0:
             return
 
