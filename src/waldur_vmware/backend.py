@@ -1,7 +1,6 @@
 import contextlib
 import logging
 import ssl
-import weakref
 from urllib.parse import urlencode
 
 from django.utils import timezone
@@ -12,7 +11,7 @@ from waldur_core.structure.backend import ServiceBackend, log_backend_action
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
-from waldur_vmware import vim_utils
+from waldur_vmware import sessions, vim_utils
 from waldur_vmware.client import VMwareClient
 from waldur_vmware.exceptions import VMwareError
 from waldur_vmware.utils import is_basic_mode
@@ -66,20 +65,6 @@ _tls_warning_emitted = set()
 
 class VMwareBackendError(ServiceBackendError):
     pass
-
-
-def _close_session(disconnect, service_instance):
-    """Close a vCenter session, ignoring a failure to do so.
-
-    Called from a weakref finalizer, which can run during interpreter shutdown;
-    failing to close a session that vCenter has already expired is not worth
-    surfacing there. ``Disconnect`` is passed in rather than imported, because
-    the module registry may already be torn down by then.
-    """
-    try:
-        disconnect(service_instance)
-    except Exception:
-        logger.debug("Failed to close the vCenter session.", exc_info=True)
 
 
 class VMwareBackend(ServiceBackend):
@@ -147,24 +132,65 @@ class VMwareBackend(ServiceBackend):
         return verify_ssl
 
     @cached_property
+    def credentials_fingerprint(self):
+        """Digest of everything a connection to this vCenter is opened with.
+
+        Sessions are cached per service settings for the life of the process, so
+        an operator editing the URL, the credentials or the TLS setting has to
+        invalidate the connection opened with the previous ones. See
+        :mod:`waldur_vmware.sessions`.
+        """
+        return sessions.credentials_fingerprint(
+            self.netloc,
+            self.settings.username,
+            self.settings.password,
+            self.verify_ssl,
+        )
+
+    @property
     def client(self):
         """
-        Construct a VMware REST API client for the Content Library.
+        Return a VMware REST API client for the Content Library.
 
         The Content Library has no vim25 (SOAP) equivalent — it is REST-only by
         design — so template discovery and deployment stay on this client while
         the rest of the plugin talks to vCenter over SOAP. See
         :mod:`waldur_vmware.client`.
+
+        Cached per process rather than per backend: a backend is built for every
+        Celery task, and ping() reaches this endpoint on every one of them.
         """
+        return self._rest_client()
+
+    def _rest_client(self, force_check=False):
+        return sessions.rest_sessions.acquire(
+            self.settings.pk,
+            self.credentials_fingerprint,
+            self._connect_rest,
+            force_check=force_check,
+        )
+
+    def _connect_rest(self):
         client = VMwareClient(self.netloc, verify_ssl=self.verify_ssl)
         client.login(self.settings.username, self.settings.password)
         return client
 
-    @cached_property
+    @property
     def soap_client(self):
         """
-        Construct VMware SOAP API client using credentials specified in the service settings.
+        Return a VMware SOAP API client for the vCenter of these service settings.
+
+        The session behind it is shared by every backend built from the same
+        settings in this process, and stays open between tasks: a vCenter session
+        is server-side state, a backend is constructed fresh for every task, and
+        vCenter caps how many sessions it will hold. See
+        :mod:`waldur_vmware.sessions` for how it is kept alive and released.
         """
+        return sessions.soap_sessions.acquire(
+            self.settings.pk, self.credentials_fingerprint, self._connect_soap
+        )
+
+    def _connect_soap(self):
         import pyVim.connect
 
         if self.verify_ssl:
@@ -174,7 +200,7 @@ class VMwareBackend(ServiceBackend):
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
 
-        service_instance = pyVim.connect.SmartConnect(
+        return pyVim.connect.SmartConnect(
             host=self.host,
             user=self.settings.username,
             pwd=self.settings.password,
@@ -182,33 +208,21 @@ class VMwareBackend(ServiceBackend):
             sslContext=context,
         )
 
-        # A vCenter session is server-side state that lives until it idles out,
-        # and a backend is constructed fresh for every Celery task — one per
-        # service settings object, on every pull. Nothing in the structure app
-        # disposes of a backend, and pyVmomi registers no atexit hook, so the
-        # session is tied to this object's lifetime instead: the finalizer runs
-        # when the backend is collected. close() is there for callers that want
-        # it to happen at a known point.
-        self._session_finalizer = weakref.finalize(
-            self, _close_session, pyVim.connect.Disconnect, service_instance
-        )
-        return service_instance
+    def release_sessions(self):
+        """Log the process out of this vCenter, both endpoints.
 
-    def close(self):
-        """Close the vCenter and Content Library sessions, if they were opened.
+        Not close(): the sessions belong to the process, not to this backend, so
+        this ends the ones every backend built from the same service settings is
+        sharing — including work in flight elsewhere. Nothing on a normal call
+        path needs it, because the cache releases sessions itself once they fall
+        idle or the process stops; it is here for a caller that wants them gone
+        at a known point, such as a test.
 
-        Safe to call more than once, and safe to call on a backend that never
+        Safe to call more than once, and safe to call when nothing ever
         connected: neither session is opened until something needs it.
         """
-        # `client` and `soap_client` are cached_property, so reading them off
-        # __dict__ tells us whether a session exists without opening one.
-        client = self.__dict__.get("client")
-        if client is not None:
-            client.close()
-
-        finalizer = getattr(self, "_session_finalizer", None)
-        if finalizer is not None:
-            finalizer()
+        sessions.rest_sessions.release(self.settings.pk)
+        sessions.soap_sessions.release(self.settings.pk)
 
     # ------------------------------------------------------------------
     # vim25 plumbing
@@ -368,9 +382,12 @@ class VMwareBackend(ServiceBackend):
             # The Content Library is a separate endpoint with its own session,
             # and pull_templates is the only thing that touches it. Without this
             # a broken REST route or credential passes the connection check and
-            # only surfaces on the next service-properties pull.
+            # only surfaces on the next service-properties pull. The check is
+            # forced past the cache's liveness interval: reporting an endpoint
+            # healthy on the strength of a minute-old answer is the one thing
+            # this method must not do.
             try:
-                self.client
+                self._rest_client(force_check=True)
             except VMwareError as e:
                 raise VMwareBackendError(e)
         except VMwareBackendError:

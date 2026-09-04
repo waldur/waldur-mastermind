@@ -4,6 +4,7 @@ import ddt
 from rest_framework import status, test
 
 from waldur_vmware import models
+from waldur_vmware.backend import VMwareBackend
 from waldur_vmware.tests.utils import override_plugin_settings
 
 from . import factories, fixtures
@@ -540,6 +541,17 @@ class TemplateDeploymentSpecTest(test.APITestCase):
         self.rest_client = mock.MagicMock()
         self.rest_client.deploy_vm_from_template.return_value = "vm-01"
         self.rest_client.get_template_library_item.return_value = {"nics": []}
+        # `client` reads through the process-wide session cache, so it is
+        # patched on the class rather than assigned on the instance — which
+        # would also leave a mock in the cache for the tests that follow.
+        patcher = mock.patch.object(
+            VMwareBackend,
+            "client",
+            new_callable=mock.PropertyMock,
+            return_value=self.rest_client,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def deploy(self, vm):
         """Provision `vm` and return the spec sent to the Content Library.
@@ -548,7 +560,6 @@ class TemplateDeploymentSpecTest(test.APITestCase):
         SOAP, so they are stubbed out; what this asserts on is the REST spec.
         """
         backend = vm.get_backend()
-        backend.client = self.rest_client
         backend._get_vm_properties = mock.Mock(
             return_value={
                 "runtime.powerState": "poweredOff",
