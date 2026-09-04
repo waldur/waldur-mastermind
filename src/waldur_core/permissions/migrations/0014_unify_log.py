@@ -35,6 +35,9 @@ def unify_log(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
+        # Reads logging.Event; logging stood at 0011 when this was written, and
+        # the squash replacing it must not rely on plan order for the model.
+        ("logging", "0011_json_field"),
         ("permissions", "0013_alter_rolepermission_unique_together"),
     ]
 

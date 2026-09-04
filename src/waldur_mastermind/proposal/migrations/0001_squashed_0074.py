@@ -121,12 +121,10 @@ class Migration(migrations.Migration):
         ("permissions", "0014_unify_log"),
         ("permissions", "0015_customer_manager"),
         ("permissions", "0016_userrole_modified_alter_userrole_created"),
-        ("permissions", "0027_role_description_mk_role_description_sq"),
         ("structure", "0040_useragreement_uuid"),
         ("structure", "0043_rename_divisions_to_organization_groups"),
         ("structure", "0070_add_useragreement_language"),
         ("structure", "0076_sciencedomain_sciencesubdomain"),
-        ("structure", "0085_remove_project_display_credit_reports"),
     ]
 
     operations = [
@@ -882,6 +880,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0017_call_role").create_call_role,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="RequestedResource",
             fields=[
@@ -1068,6 +1067,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0020_drop_fsm").drop_fsm,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="proposal",
             name="supporting_documentation",
@@ -1133,6 +1133,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0024_proposal_allocation_comment").create_projects,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="proposal",
             options={"ordering": ["round__start_time"]},
@@ -1165,6 +1166,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0027_proposal_member_role").create_role,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="call",
             name="default_project_role",
@@ -1230,6 +1232,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0030_proposal_manager_role").create_role,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="call",
             name="external_url",
@@ -1250,6 +1253,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0034_alter_proposal_state").remove_team_verification_state,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="proposal",
             name="project",
@@ -1295,6 +1299,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0036_call_slug").safe_fill_in_slug,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="call",
             name="fixed_duration_in_days",
@@ -1463,6 +1468,7 @@ class Migration(migrations.Migration):
             ).migrate_default_project_role,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="call",
             name="default_project_role",
@@ -1585,6 +1591,7 @@ class Migration(migrations.Migration):
             code=_original("0044_add_round_slug").generate_slugs_for_existing_rounds,
             reverse_code=_original("0044_add_round_slug").reverse_slug_generation,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="proposal",
             name="slug",
@@ -1603,6 +1610,7 @@ class Migration(migrations.Migration):
             ).generate_slugs_for_existing_proposals,
             reverse_code=_original("0045_add_proposal_slug").reverse_slug_generation,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="call",
             name="proposal_slug_template",
@@ -4076,6 +4084,7 @@ class Migration(migrations.Migration):
                 "0050_remove_callapplicantattributeconfig"
             ).noop_reverse,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="proposal",
             name="workflow_step",
@@ -4373,6 +4382,7 @@ class Migration(migrations.Migration):
                 "0052_callworkflowstep_responsible_role_and_more"
             ).reverse_backfill,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="WorkflowCriterion",
             fields=[
@@ -4472,6 +4482,7 @@ class Migration(migrations.Migration):
             ).backfill_allocation_decision,
             reverse_code=_original("0056_backfill_allocation_decision_step").noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="round",
             name="deciding_entity",
@@ -4533,6 +4544,7 @@ class Migration(migrations.Migration):
             ).copy_allocation_time_to_step,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="round",
             name="allocation_time",
@@ -4571,6 +4583,7 @@ class Migration(migrations.Migration):
             ).backfill_stranded_workflow_instances,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="callworkflowstep",
             name="checklist_required",
@@ -4601,6 +4614,7 @@ class Migration(migrations.Migration):
                 "0067_move_requested_resource_limits_out_of_attributes"
             ).move_limits_back,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="requestedoffering",
             name="require_purchase_order",
@@ -4630,6 +4644,7 @@ class Migration(migrations.Migration):
             ).seed_require_purchase_order,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="assignmentbatch",
             options={

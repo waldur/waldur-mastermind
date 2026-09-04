@@ -17,10 +17,15 @@ def align_call_slug(apps, schema_editor):
     schema_editor.execute(
         f'ALTER TABLE "{table}" ALTER COLUMN "slug" DROP DEFAULT', params=None
     )
+    # Statement names render quoted ("proposal_call_slug_a408e9e9"); introspection
+    # returns them bare. Compare like with like or the index is created twice.
     with schema_editor.connection.cursor() as cursor:
-        existing = set(
-            schema_editor.connection.introspection.get_constraints(cursor, table)
-        )
+        existing = {
+            schema_editor.quote_name(name)
+            for name in schema_editor.connection.introspection.get_constraints(
+                cursor, table
+            )
+        }
     for statement in schema_editor._field_indexes_sql(
         Call, Call._meta.get_field("slug")
     ):

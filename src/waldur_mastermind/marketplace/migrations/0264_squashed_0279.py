@@ -44,15 +44,12 @@ class Migration(migrations.Migration):
         ("contenttypes", "0002_remove_content_type_name"),
         ("core", "__first__"),
         ("logging", "0024_alter_webhook_destination_url"),
-        ("logging", "0028_split_openstack_resource_event_groups"),
         ("marketplace", "0263_remove_category_default_tenant_category"),
         ("permissions", "0021_alter_role_name_roleavailability"),
-        ("permissions", "0027_role_description_mk_role_description_sq"),
         ("quotas", "0005_drop_zero_usage"),
         ("reversion", "0002_add_index_on_version_for_content_type_and_db"),
         ("structure", "0085_remove_project_display_credit_reports"),
         ("support", "0021_allow_nullable_request_type_backend_id"),
-        ("support", "0027_alter_issuestatustransition_options"),
     ]
 
     operations = [
@@ -80,6 +77,7 @@ class Migration(migrations.Migration):
             code=_original("0267_terminate_slurm_resources").terminate_slurm_resources,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="offering",
             name="secret_options",
@@ -103,6 +101,7 @@ class Migration(migrations.Migration):
             ).scrub_secret_options,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="componentusage",
             name="missing_usage_policy",
@@ -124,6 +123,7 @@ class Migration(migrations.Migration):
                 "0271_missing_usage_policy"
             ).set_recurring_from_policy,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="accesssubnetofferingscope",
             options={"ordering": ["offering__name", "id"]},
@@ -351,6 +351,7 @@ class Migration(migrations.Migration):
             ).backfill_posix_identity_principals,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddIndex(
             model_name="order",
             index=models.Index(
@@ -425,6 +426,7 @@ class Migration(migrations.Migration):
                 "0278_one_time_plan_component_amount"
             ).unset_default_amount,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="category",
             name="description_hr",

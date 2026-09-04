@@ -56,12 +56,10 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
-        ("core", "0050_notificationtemplate_path_unique"),
         ("core", "__first__"),
         ("marketplace", "0108_rename_orderitem_order"),
         ("marketplace", "0205_backfill_initial_revisions"),
         ("marketplace", "0255_null_stale_scope_content_types"),
-        ("marketplace", "0263_remove_category_default_tenant_category"),
         ("structure", "0001_squashed_0036"),
     ]
 
@@ -882,6 +880,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0002_add_backend_name_field").set_backend_name,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterUniqueTogether(
             name="attachment",
             unique_together=set(),
@@ -945,6 +944,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0005_fix_issue_order_item").fix_issue_order_item,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="attachment",
             name="file_size",
@@ -1062,6 +1062,7 @@ class Migration(migrations.Migration):
             code=_original("0013_add_uuid_to_issue_status").generate_uuids,
             reverse_code=_original("0013_add_uuid_to_issue_status").reverse_uuids,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="issuestatus",
             name="uuid",
@@ -1076,6 +1077,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0015_rename_templates").rename_templates,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="IssueTag",
             fields=[

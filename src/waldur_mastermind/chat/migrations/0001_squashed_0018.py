@@ -388,6 +388,7 @@ class Migration(migrations.Migration):
             ).convert_injection_score_to_severity,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="message",
             name="injection_score",
@@ -456,6 +457,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0008_message_blocks_warning").backfill_blocks,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="AnonymousChatBudget",
             fields=[
@@ -1003,6 +1005,7 @@ class Migration(migrations.Migration):
                 "0013_anonymouschatinteraction_search_text_and_more"
             ).noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="anonymouschatfeedback",
             options={

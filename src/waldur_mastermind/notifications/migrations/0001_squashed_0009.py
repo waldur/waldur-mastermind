@@ -128,6 +128,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0006_broadcastmessage_fill").fill_state,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="broadcastmessage",
             name="send_at",

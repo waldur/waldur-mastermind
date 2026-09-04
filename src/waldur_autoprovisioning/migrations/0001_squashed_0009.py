@@ -159,6 +159,7 @@ class Migration(migrations.Migration):
             ).gen_uuids,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="rule",
             name="plans",

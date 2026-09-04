@@ -43,7 +43,6 @@ class Migration(migrations.Migration):
         ("contenttypes", "0002_remove_content_type_name"),
         ("invoices", "0001_squashed_0062"),
         ("logging", "0015_event_index"),
-        ("logging", "0028_split_openstack_resource_event_groups"),
         ("marketplace", "0140_categorycolumn_uuid"),
         ("structure", "0046_project_start_date"),
     ]
@@ -262,4 +261,5 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0012_invoice_events").index_invoice_events,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
     ]

@@ -84,7 +84,6 @@ class Migration(migrations.Migration):
         ),
         ("marketplace", "0179_courseaccount"),
         ("reversion", "0001_squashed_0004_auto_20160611_1202"),
-        ("reversion", "0002_add_index_on_version_for_content_type_and_db"),
     ]
 
     operations = [
@@ -99,6 +98,7 @@ class Migration(migrations.Migration):
                 "0181_alter_offeringtermsofservice_is_active_and_more"
             ).fix_multiple_active_tos,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="order",
             name="attachment",
@@ -137,6 +137,7 @@ class Migration(migrations.Migration):
                 "0183_update_offering_user_state_with_username"
             ).update_offering_user_state_for_username,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="category",
             name="description_bg",
@@ -342,6 +343,7 @@ class Migration(migrations.Migration):
             code=_original("0189_populate_order_slug").fill_slug,
             reverse_code=_original("0189_populate_order_slug").clear_slug,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="SoftwareCatalog",
             fields=[
@@ -1028,6 +1030,7 @@ class Migration(migrations.Migration):
                 "0198_alter_softwarecatalog_options_and_more"
             ).reverse_remove_duplicate_software_targets,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterUniqueTogether(
             name="softwaretarget",
             unique_together={
@@ -1115,6 +1118,7 @@ class Migration(migrations.Migration):
             ).sync_resource_states,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="order",
             name="consumer_reviewed_by",
@@ -1271,6 +1275,7 @@ class Migration(migrations.Migration):
             ).backfill_initial_revisions,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="offering",
             name="backend_id_rules",
@@ -1369,6 +1374,7 @@ class Migration(migrations.Migration):
                 "0212_deduplicate_component_usages"
             ).deduplicate_component_usages,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveIndex(
             model_name="softwarepackage",
             name="marketplace_parent__4bb7b4_idx",
@@ -1410,6 +1416,7 @@ class Migration(migrations.Migration):
             ).copy_parent_software_to_m2m,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="softwarepackage",
             name="parent_software",
@@ -1457,6 +1464,7 @@ class Migration(migrations.Migration):
             ).backfill_gpu_architectures,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="attribute",
             name="uuid",
@@ -1487,6 +1495,7 @@ class Migration(migrations.Migration):
             ).gen_attribute_uuids,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="attribute",
             name="uuid",
@@ -1504,6 +1513,7 @@ class Migration(migrations.Migration):
             ).gen_attributeoption_uuids,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="attributeoption",
             name="uuid",

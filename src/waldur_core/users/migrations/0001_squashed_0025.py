@@ -52,10 +52,9 @@ class Migration(migrations.Migration):
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
         ("core", "__first__"),
-        ("logging", "0028_split_openstack_resource_event_groups"),
+        ("logging", "0015_event_index"),
         ("permissions", "0013_alter_rolepermission_unique_together"),
         ("permissions", "0016_userrole_modified_alter_userrole_created"),
-        ("permissions", "0027_role_description_mk_role_description_sq"),
         ("structure", "0001_squashed_0036"),
     ]
 
@@ -417,6 +416,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0005_fill_data").fill_data,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="groupinvitation",
             name="customer_role",
@@ -522,6 +522,7 @@ class Migration(migrations.Migration):
                 "0010_clean_duplicate_profile_changed_logs"
             ).clean_duplicate_profile_changed_logs,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="invitation",
             name="tax_number",
@@ -723,4 +724,5 @@ class Migration(migrations.Migration):
             ).disable_misconfigured_auto_create_project,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
     ]

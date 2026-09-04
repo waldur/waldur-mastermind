@@ -80,9 +80,9 @@ uv run python scripts/squash_migrations.py regen marketplace 0132_squashed_0132_
 
 The script hides superseded `replaces`-squashes inside the range, repoints any
 dependency on their names to the replaced set's leaf, runs `squashmigrations` for the
-dependencies and `replaces` list, regenerates the operations from the originals, adds
-a dependency on every app a kept `RunPython` reads (`get_model()` calls; the originals
-often relied on plan order for that, which a squash changes), lints, and validates the
+dependencies and `replaces` list, regenerates the operations from the originals, drops
+any dependency the replaced range does not itself depend on (see "Key facts"), notes
+every app a kept `RunPython` reads without such a dependency, lints, and validates the
 graph plus `makemigrations --check`. On failure it reverts everything it touched.
 
 ### 3. DDL that an original issued from Python
@@ -101,8 +101,15 @@ Grep the replaced range for `cursor.execute` and check each one.
 # fresh replay + timing (auto-starts a temporary Postgres container)
 uv run python scripts/test_fresh_migrations.py
 
-# the data-operation and DDL pins
+# the data-operation, DDL and dependency pins
 DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings_local uv run pytest src/waldur_core/core/tests/test_migrate_fresh.py
+
+# the upgrade path: initialise a database from an older checkout (a worktree of the
+# previous release, `migrate_fresh`), then `migrate` from the working tree on top -
+# CI does the same in `Run upgrade migration test`. Also do it from a release older
+# than the squash's range, built with that release's own `migrate`: only then does
+# the squash itself run against existing rows, which is where a kept data operation
+# followed by DDL fails with "pending trigger events" (#354)
 
 # schema equivalence: dump a fresh DB before and after, then
 uv run python scripts/squash_migrations.py compare-schema before.sql after.sql
@@ -129,8 +136,19 @@ uvx prek run --files <touched files>
 - Don't squash `auth`, `contenttypes`, `axes`, `reversion` or other third-party apps.
 - `elidable=True` is ignored by the regeneration and means nothing here: a data
   migration is needed by every database that upgrades across it. Don't mark them.
-- A `RunPython` that reads another app's models should declare a dependency on that
-  app in the original migration; the regeneration infers one, but explicit is better.
-- Squashes span to each app's leaf, so a local DB that is a few migrations behind
-  makes `makemigrations` raise `InconsistentMigrationHistory` (Django resolves the
-  graph without DB knowledge). Run `waldur migrate` first; that is expected.
+- A squash may only depend on migrations its replaced range (transitively) depends
+  on. Django counts a replaces-squash as applied wherever all of its originals are,
+  and `check_consistent_history` then requires every dependency of the squash to be
+  applied too, so a newer dependency stops `waldur migrate` on every upgraded
+  database (#354: `logging.0028` regenerated into squashes that predate it). The
+  regeneration drops such dependencies and `SquashDependenciesTest` in
+  `waldur_core/core/tests/test_migrate_fresh.py` pins the rule.
+- A `RunPython` that reads another app's models relies on plan order unless a
+  migration of the range depends on that app - and a squash sits elsewhere in the
+  plan than its originals, so the models may not exist yet (`LookupError: No
+  installed app with label ...` on a fresh replay). Declare the dependency in the
+  **original** migration that reads them, on the migration that was that app's
+  latest when the original was written (`git ls-tree <commit that added it>`): that
+  is the state the original saw, and it is applied wherever the original is. Add
+  the same entry to the squash and regenerate. The regeneration prints a note for
+  every such app.

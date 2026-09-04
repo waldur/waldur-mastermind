@@ -38,12 +38,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0001_squashed_0076"),
         ("marketplace", "0237_resourcelimitchangerequest"),
-        (
-            "marketplace",
-            "0280_category_description_mk_category_description_sq_and_more",
-        ),
         ("openstack", "0073_instance_config_drive"),
-        ("openstack", "0082_instance_metadata"),
     ]
 
     operations = [
@@ -71,4 +66,5 @@ class Migration(migrations.Migration):
             ).backfill_instance_metadata,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
     ]

@@ -88,6 +88,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0113_init_order_resource").init_order_resource,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="order",
             name="resource",
@@ -102,6 +103,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0115_consumer_reviewed_by").init_consumer_reviewed_by,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="offering",
             name="resource_options",
@@ -140,6 +142,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0119_clean_componentusage").clean_componentusage,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterUniqueTogether(
             name="componentusage",
             unique_together=set(),
@@ -177,6 +180,7 @@ class Migration(migrations.Migration):
                 "0124_update_resource_for_orders"
             ).update_resource_for_orders,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RenameField(
             model_name="offering",
             old_name="divisions",
@@ -353,6 +357,7 @@ class Migration(migrations.Migration):
                 "0130_fix_limits_of_slurm_offering_components"
             ).fix_limits_of_slurm_offering_components,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.DeleteModel(
             name="AggregateResourceCount",
         ),

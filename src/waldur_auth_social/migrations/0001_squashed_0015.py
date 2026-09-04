@@ -34,7 +34,6 @@ class Migration(migrations.Migration):
     ]
 
     dependencies = [
-        ("core", "0050_notificationtemplate_path_unique"),
         ("core", "__first__"),
     ]
 
@@ -200,6 +199,7 @@ class Migration(migrations.Migration):
             code=_original("0010_apply_provider_defaults").apply_provider_defaults,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RenameField(
             model_name="identityprovider",
             old_name="scope",
@@ -221,6 +221,7 @@ class Migration(migrations.Migration):
                 "0013_enable_notifications_for_eduteams_users"
             ).enable_notifications_for_eduteams_users,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="identityprovider",
             options={"ordering": ["label", "id"]},

@@ -183,6 +183,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0045_customer_slug_project_slug").fill_slug,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AddField(
             model_name="customer",
             name="organization_groups",
@@ -221,6 +222,7 @@ class Migration(migrations.Migration):
                 "0049_migrate_organization_groups"
             ).migrate_organization_groups,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="organizationgroup",
             name="type",
@@ -263,6 +265,7 @@ class Migration(migrations.Migration):
         migrations.RunPython(
             code=_original("0052_accesssubnet_description").split_subnets,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.CreateModel(
             name="AffiliatedOrganization",
             fields=[
@@ -1124,6 +1127,7 @@ class Migration(migrations.Migration):
             code=_original("0077_affiliation_redesign").copy_first_affiliation_to_fk,
             reverse_code=_original("0077_affiliation_redesign").noop_reverse,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.RemoveField(
             model_name="project",
             name="affiliated_organizations",
@@ -1178,6 +1182,7 @@ class Migration(migrations.Migration):
             code=_original("0079_accesssubnet_scopes").mark_existing_as_portal_scoped,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="servicesettings",
             name="password",
@@ -1195,6 +1200,7 @@ class Migration(migrations.Migration):
             ).encrypt_existing_credentials,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterField(
             model_name="servicesettings",
             name="options",
@@ -1209,6 +1215,7 @@ class Migration(migrations.Migration):
             ).encrypt_existing_options,
             reverse_code=migrations.RunPython.noop,
         ),
+        waldur_core.core.migration_operations.FlushDeferredSql(),
         migrations.AlterModelOptions(
             name="accesssubnet",
             options={"ordering": ["inet", "id"]},
