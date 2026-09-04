@@ -24,7 +24,16 @@ class Command(BaseCommand):
         # reset cached_property
         file_engine[0].engine.__dict__.pop("template_loaders", None)
 
-        output = ["# Notifications\n"]
+        output = [
+            "# Notifications\n",
+            "When a notification is removed from a release, its database row is "
+            "not deleted automatically. Run `waldur load_notifications <file> "
+            "--prune` to report and remove notifications whose key is no longer "
+            "listed below, along with any of their templates that no other "
+            "notification declares and that have no operator-customised "
+            "content. Customised template content is never deleted "
+            "automatically.\n",
+        ]
 
         for key, section in NOTIFICATIONS.items():
             for app in settings.INSTALLED_APPS:
