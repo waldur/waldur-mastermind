@@ -158,12 +158,45 @@ class OAuthViewDefaultInit(OAuthViewInit):
     Start the OIDC flow with the identity provider configured as DEFAULT_IDP.
 
     Lets the frontend, or any plain link, begin sign-in without first fetching
-    the public configuration to learn the provider name. When no active default
-    provider is configured, the browser is sent to the Homeport login page with
-    auto-login disabled. The caller's return_url is deliberately not used for
-    that hop: init stores it unvalidated and only the complete step checks it
-    against the provider's allowed_redirects.
+    the public configuration to learn the provider name. Without an active
+    default provider it answers 404 rather than redirecting anywhere: the
+    frontend probes this endpoint before navigating and falls back to its own
+    login page, and a redirect would have to trust either the caller's
+    unvalidated return_url or HOMEPORT_URL, whose default is a placeholder.
+
+    Two kinds of caller, told apart by _is_probe(). A probe only asks whether
+    a default provider exists and is answered with 204 or 404, writing nothing;
+    a navigation is a sign-in attempt and gets the full OIDC init. They also
+    get separate throttle budgets: a probe happens on every anonymous landing
+    on the portal root, so it must not compete with real sign-ins.
     """
+
+    throttle_scope = "oauth_default"
+
+    @staticmethod
+    def _is_probe(request):
+        """
+        True when the caller only wants to know whether a default provider is
+        configured, rather than to start signing in.
+
+        The frontend's boot script sets probe=1 before it navigates (see
+        homeport's public/boot-redirect.js). Sec-Fetch-Mode is honoured as
+        well, so any fetch avoids the session write even without the
+        parameter. A missing header counts as a navigation: a browser too old
+        to send it is far more likely to be following a link than probing.
+        """
+        if request.query_params.get("probe"):
+            return True
+        mode = request.headers.get("Sec-Fetch-Mode")
+        return bool(mode) and mode != "navigate"
+
+    def initial(self, request, *args, **kwargs):
+        # Chosen before super() runs the throttle check, which reads this
+        # attribute off the view.
+        self.throttle_scope = (
+            "oauth_probe" if self._is_probe(request) else "oauth_default"
+        )
+        super().initial(request, *args, **kwargs)
 
     @extend_schema(
         parameters=[
@@ -175,23 +208,35 @@ class OAuthViewDefaultInit(OAuthViewInit):
                 "ui_locales",
                 description="Language hint forwarded to the identity provider.",
             ),
+            OpenApiParameter(
+                "probe",
+                description=(
+                    "Ask whether a default provider is configured instead of "
+                    "starting the flow: answers 204 or 404 and writes no "
+                    "session state."
+                ),
+            ),
         ],
-        responses={302: None},
+        responses={302: None, 204: None, 404: None},
     )
     def get(self, request, format=None):
         """
         Redirect user to the authorization endpoint of the default identity provider
         """
         provider = config.DEFAULT_IDP
-        if (
+        if not (
             provider
             and models.IdentityProvider.objects.filter(
                 provider=provider, is_active=True
             ).exists()
         ):
-            return super().get(request, provider, format)
-        homeport_url = config.HOMEPORT_URL.rstrip("/")
-        return redirect(f"{homeport_url}/login/?disableAutoLogin")
+            raise NotFound("No default identity provider is configured.")
+        if self._is_probe(request):
+            # No session flush, OIDC state or PKCE verifier here on purpose.
+            # A probe is not a sign-in, and starting one would leave an
+            # unusable session row behind on every anonymous page view.
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return super().get(request, provider, format)
 
 
 class OAuthViewComplete(BaseOAuthView):

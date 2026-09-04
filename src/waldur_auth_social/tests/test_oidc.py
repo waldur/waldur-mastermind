@@ -4,13 +4,14 @@ from urllib.parse import parse_qs, urlparse
 
 import responses
 from constance.test.unittest import override_config
+from django.contrib.sessions.models import Session
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import ValidationError
 from rest_framework.reverse import reverse
 
-from waldur_auth_social import models
+from waldur_auth_social import models, views
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_auth_social.serializers import IdentityProviderSerializer
 from waldur_auth_social.utils import (
@@ -141,7 +142,11 @@ class OAuthViewDefaultInitTest(test.APITestCase):
             **PROVIDER_DEFAULTS[ProviderChoices.KEYCLOAK],
         )
         self.url = reverse("auth_default_init")
-        self.fallback_url = "https://portal.example.com/login/?disableAutoLogin"
+
+    def assert_not_found(self, response):
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("No default identity provider", str(response.content))
+        self.assertNotIn(OIDC_STATE_KEY, self.client.session)
 
     @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
     def test_redirects_to_default_provider(self):
@@ -182,31 +187,66 @@ class OAuthViewDefaultInitTest(test.APITestCase):
         query_params = parse_qs(urlparse(response.url).query)
         self.assertEqual(query_params["code_challenge_method"], ["S256"])
 
-    @override_config(DEFAULT_IDP="", HOMEPORT_URL="https://portal.example.com/")
-    def test_unset_default_falls_back_to_login_page(self):
+    @override_config(DEFAULT_IDP="")
+    def test_unset_default_is_not_found(self):
         response = self.client.get(self.url, {"return_url": "https://evil.example"})
-        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertEqual(response.url, self.fallback_url)
-        self.assertNotIn(OIDC_STATE_KEY, self.client.session)
+        self.assert_not_found(response)
 
-    @override_config(
-        DEFAULT_IDP=ProviderChoices.KEYCLOAK,
-        HOMEPORT_URL="https://portal.example.com",
-    )
-    def test_inactive_default_provider_falls_back_to_login_page(self):
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_inactive_default_provider_is_not_found(self):
         self.provider.is_active = False
         self.provider.save()
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertEqual(response.url, self.fallback_url)
+        self.assert_not_found(self.client.get(self.url))
 
-    @override_config(
-        DEFAULT_IDP=ProviderChoices.TARA, HOMEPORT_URL="https://portal.example.com"
-    )
-    def test_missing_default_provider_falls_back_to_login_page(self):
+    @override_config(DEFAULT_IDP=ProviderChoices.TARA)
+    def test_missing_default_provider_is_not_found(self):
+        self.assert_not_found(self.client.get(self.url))
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_probe_reports_that_a_default_provider_exists(self):
+        response = self.client.get(self.url, {"probe": "1"})
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_probe_writes_no_session(self):
+        before = Session.objects.count()
+        self.client.get(self.url, {"probe": "1"})
+        self.assertEqual(Session.objects.count(), before)
+        self.assertNotIn(OIDC_STATE_KEY, self.client.session)
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_navigation_writes_the_session_the_flow_needs(self):
+        before = Session.objects.count()
+        response = self.client.get(self.url, HTTP_SEC_FETCH_MODE="navigate")
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(Session.objects.count(), before + 1)
+        self.assertIn(OIDC_STATE_KEY, self.client.session)
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_fetch_is_treated_as_a_probe_without_the_parameter(self):
+        response = self.client.get(self.url, HTTP_SEC_FETCH_MODE="cors")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertNotIn(OIDC_STATE_KEY, self.client.session)
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_missing_fetch_metadata_is_treated_as_a_navigation(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertEqual(response.url, self.fallback_url)
+
+    @override_config(DEFAULT_IDP="")
+    def test_probe_without_default_is_not_found(self):
+        self.assert_not_found(self.client.get(self.url, {"probe": "1"}))
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_probe_and_navigation_have_separate_throttle_budgets(self):
+        factory = test.APIRequestFactory()
+        view = views.OAuthViewDefaultInit()
+        probe = view.initialize_request(factory.get(self.url, {"probe": "1"}))
+        navigation = view.initialize_request(
+            factory.get(self.url, HTTP_SEC_FETCH_MODE="navigate")
+        )
+        self.assertTrue(view._is_probe(probe))
+        self.assertFalse(view._is_probe(navigation))
 
     @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
     def test_authenticated_user_is_rejected(self):
