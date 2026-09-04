@@ -1043,6 +1043,7 @@ Requires support user permissions.""",
                                 "messages": queue.get("messages", 0),
                                 "consumers": queue.get("consumers", 0),
                                 "object_type": parsed.get("object_type"),
+                                "kind": logging_enums.QueueKind.LEGACY,
                             }
                         )
                     consumer_uuid = logging_utils.parse_consumer_queue_name(
@@ -1054,6 +1055,7 @@ Requires support user permissions.""",
                             "messages": queue.get("messages", 0),
                             "consumers": queue.get("consumers", 0),
                             "object_type": None,
+                            "kind": logging_enums.QueueKind.CONSUMER,
                         }
         except Exception as e:
             logger.warning("Failed to get RMQ queues: %s", e)
@@ -1165,9 +1167,6 @@ Requires support user permissions.""",
                     }
                 )
 
-            if agent_connected:
-                connected_count += 1
-
             # Get queues for this offering (legacy path)
             offering_uuid_hex = identity.offering.uuid.hex
             queues = list(queues_by_offering.get(offering_uuid_hex, []))
@@ -1176,7 +1175,16 @@ Requires support user permissions.""",
             if identity.event_consumer:
                 consumer_uuid_hex = identity.event_consumer.uuid.hex
                 if consumer_uuid_hex in agent_queues_by_consumer:
-                    queues.append(agent_queues_by_consumer[consumer_uuid_hex])
+                    consumer_queue = agent_queues_by_consumer[consumer_uuid_hex]
+                    queues.append(consumer_queue)
+                    # A migrated agent holds no legacy subscription, so the loop
+                    # above never sees it connected. Its consumer queue does:
+                    # draining it means a live STOMP consumer on the broker.
+                    if consumer_queue.get("consumers", 0) >= 1:
+                        agent_connected = True
+
+            if agent_connected:
+                connected_count += 1
 
             for queue in queues:
                 total_queued_messages += queue.get("messages", 0)
@@ -1189,6 +1197,9 @@ Requires support user permissions.""",
                     "offering_name": identity.offering.name,
                     "version": identity.version,
                     "last_restarted": identity.last_restarted,
+                    "event_consumer_uuid": identity.event_consumer.uuid
+                    if identity.event_consumer
+                    else None,
                     "services": services_data,
                     "event_subscriptions": event_subscriptions_data,
                     "queues": queues,

@@ -1,6 +1,6 @@
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.core.enums import GENDER_CHOICES, CoreStates
-from waldur_core.logging.enums import ObservableObjectType
+from waldur_core.logging.enums import ObservableObjectType, QueueKind
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.server.constance_settings import (
@@ -124,6 +124,10 @@ SPECTACULAR_SETTINGS = {
         "AssignmentSource": AssignmentSources.CHOICES,
         "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
         "ObservableObjectTypeEnum": ObservableObjectType.choices(),
+        # RmqQueueStats.queue_kind and AgentQueueInfo.kind classify a queue the
+        # same way; name the set once so drf-spectacular does not emit a
+        # collision-suffixed Kind<n>Enum for the second one.
+        "QueueKindEnum": QueueKind.choices(),
         "GlauthGroupKind": [
             "project",
             "resource_role",

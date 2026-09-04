@@ -1017,3 +1017,20 @@ class ObservableObjectType(Enum):
     @classmethod
     def choices(cls):
         return [(t.value, t.value) for t in cls]
+
+
+class QueueKind(StrEnum):
+    """How Waldur uses a RabbitMQ queue, as opposed to RabbitMQ's own queue type.
+
+    Derived from the queue name: ``consumer_{uuid}`` is a unified consumer
+    queue, ``subscription_{uuid}_offering_{uuid}_{type}`` a legacy subscription
+    one, and anything else is not ours to classify.
+    """
+
+    CONSUMER = "consumer"
+    LEGACY = "legacy"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def choices(cls):
+        return [(k.value, k.value) for k in cls]

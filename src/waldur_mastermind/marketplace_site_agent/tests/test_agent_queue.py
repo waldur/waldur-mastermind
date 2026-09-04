@@ -1637,6 +1637,57 @@ class AgentConnectionStatsTest(test.APITestCase):
         self.assertNotEqual(a_subs[0]["uuid"], b_subs[0]["uuid"])
         self.assertEqual(response.json()["summary"]["connected_agents"], 0)
 
+    def _consumer_queue_response(self, identity, consumers):
+        return [
+            {
+                "vhost": identity.event_consumer.user.uuid.hex,
+                "queues": [
+                    {
+                        "name": identity.event_consumer.queue_name,
+                        "messages": 3,
+                        "consumers": consumers,
+                    }
+                ],
+                "total_messages": 3,
+            }
+        ]
+
+    def test_agent_draining_its_consumer_queue_is_connected(
+        self, mock_users, mock_queues
+    ):
+        """A migrated agent holds no legacy subscription: its live consumer on
+        the unified queue is the only evidence that it is connected."""
+        identity = factories.make_agent_with_consumer(offering=self.offering)
+        mock_queues.return_value = self._consumer_queue_response(identity, consumers=1)
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.URL)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        payload = response.json()
+        self.assertEqual(payload["summary"]["connected_agents"], 1)
+        self.assertEqual(payload["summary"]["disconnected_agents"], 0)
+
+        agent = payload["agents"][0]
+        self.assertEqual(
+            agent["event_consumer_uuid"], str(identity.event_consumer.uuid)
+        )
+        self.assertEqual(agent["queues"][0]["kind"], "consumer")
+
+    def test_agent_with_idle_consumer_queue_is_not_connected(
+        self, mock_users, mock_queues
+    ):
+        identity = factories.make_agent_with_consumer(offering=self.offering)
+        mock_queues.return_value = self._consumer_queue_response(identity, consumers=0)
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.URL)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        payload = response.json()
+        self.assertEqual(payload["summary"]["connected_agents"], 0)
+        self.assertEqual(payload["summary"]["disconnected_agents"], 1)
+
 
 @mock.patch(
     "waldur_core.logging.backend.RabbitMQManagementBackend.create_rabbitmq_virtual_host"

@@ -457,6 +457,12 @@ class AgentQueueInfoSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Parsed object type from queue name",
     )
+    kind = serializers.ChoiceField(
+        choices=logging_enums.QueueKind.choices(),
+        read_only=True,
+        help_text="Whether this is the agent's unified consumer queue or a "
+        "legacy subscription queue",
+    )
 
 
 class AgentServiceStatusSerializer(serializers.Serializer):
@@ -507,6 +513,12 @@ class AgentConnectionInfoSerializer(serializers.Serializer):
     last_restarted = serializers.DateTimeField(
         read_only=True,
         help_text="When the agent was last restarted",
+    )
+    event_consumer_uuid = serializers.UUIDField(
+        read_only=True,
+        allow_null=True,
+        help_text="UUID of the unified event consumer the agent drains, "
+        "null while it still runs on legacy subscriptions",
     )
     services = AgentServiceStatusSerializer(
         many=True,

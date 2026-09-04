@@ -525,6 +525,17 @@ class RmqQueueStatsSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Parsed object type from queue name (e.g., 'resource', 'order')",
     )
+    consumer_uuid = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Parsed EventConsumer UUID from a unified consumer queue name",
+    )
+    queue_kind = serializers.ChoiceField(
+        choices=enums.QueueKind.choices(),
+        read_only=True,
+        help_text="How Waldur uses the queue: a unified consumer queue, a legacy "
+        "subscription queue, or one whose name matches neither",
+    )
     message_ttl = serializers.IntegerField(
         read_only=True,
         allow_null=True,
@@ -1371,9 +1382,18 @@ class EventConsumerScopeOutputSerializer(serializers.Serializer):
         return getattr(target, "uuid", None) and target.uuid.hex
 
 
+@extend_schema_field(serializers.ListField(child=serializers.CharField()))
+class ObjectTypesField(serializers.JSONField):
+    """A JSONField holding a list of object types, typed as such in the schema."""
+
+
 class EventConsumerSerializer(serializers.ModelSerializer):
     scopes = EventConsumerScopeOutputSerializer(many=True, read_only=True)
     is_global = serializers.BooleanField(read_only=True)
+    object_types = ObjectTypesField(read_only=True)
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
+    user_username = serializers.ReadOnlyField(source="user.username")
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
 
     class Meta:
         model = models.EventConsumer
@@ -1384,6 +1404,9 @@ class EventConsumerSerializer(serializers.ModelSerializer):
             "is_global",
             "rmq_username",
             "queue_created",
+            "user_uuid",
+            "user_username",
+            "user_full_name",
             "created",
             "modified",
         )

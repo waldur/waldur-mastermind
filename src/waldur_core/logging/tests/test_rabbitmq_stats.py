@@ -52,6 +52,7 @@ class RabbitMQStatsGetTest(test.APITestCase):
                         "messages_ready": 90,
                         "messages_unacknowledged": 10,
                         "consumers": 1,
+                        "queue_type": "quorum",
                     }
                 ],
                 "total_messages": 100,
@@ -70,6 +71,56 @@ class RabbitMQStatsGetTest(test.APITestCase):
         self.assertEqual(queue["subscription_uuid"], "aabb1122")
         self.assertEqual(queue["offering_uuid"], "ccdd3344")
         self.assertEqual(queue["object_type"], "resource")
+        self.assertEqual(queue["queue_kind"], "legacy")
+        self.assertIsNone(queue["consumer_uuid"])
+        # The classification lives in queue_kind, so RabbitMQ's own value survives.
+        self.assertEqual(queue["queue_type"], "quorum")
+
+    @patch("waldur_core.logging.views.backend.RabbitMQManagementBackend")
+    def test_consumer_queue_is_classified_and_parsed(self, mock_backend_class):
+        consumer_uuid = "11112222333344445555666677778888"
+        mock_backend = mock_backend_class.return_value
+        mock_backend.list_all_subscription_queues.return_value = [
+            {
+                "vhost": "abc123def456",
+                "queues": [
+                    {
+                        "name": f"consumer_{consumer_uuid}",
+                        "messages": 5,
+                        "messages_ready": 5,
+                        "messages_unacknowledged": 0,
+                        "consumers": 1,
+                        "queue_type": "classic",
+                    },
+                    # The backend only lists subscription_* and consumer_*
+                    # queues, so an unclassifiable name is a malformed one.
+                    {
+                        "name": "subscription_bad",
+                        "messages": 0,
+                        "messages_ready": 0,
+                        "messages_unacknowledged": 0,
+                        "consumers": 0,
+                        "queue_type": "classic",
+                    },
+                ],
+                "total_messages": 5,
+            }
+        ]
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        consumer_queue, other_queue = response.data["vhosts"][0]["queues"]
+
+        self.assertEqual(consumer_queue["queue_kind"], "consumer")
+        self.assertEqual(consumer_queue["consumer_uuid"], consumer_uuid)
+        self.assertEqual(consumer_queue["queue_type"], "classic")
+        self.assertIsNone(consumer_queue["subscription_uuid"])
+
+        self.assertEqual(other_queue["queue_kind"], "unknown")
+        self.assertIsNone(other_queue["consumer_uuid"])
+        self.assertEqual(other_queue["queue_type"], "classic")
 
     @patch("waldur_core.logging.views.backend.RabbitMQManagementBackend")
     def test_stats_handles_backend_error(self, mock_backend_class):

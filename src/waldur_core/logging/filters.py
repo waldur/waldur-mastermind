@@ -234,6 +234,30 @@ class EventSubscriptionFilter(django_filters.FilterSet):
         fields = []
 
 
+class EventConsumerFilter(django_filters.FilterSet):
+    o = django_filters.OrderingFilter(fields=["created"])
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid", label="Owner UUID"
+    )
+    user_username = django_filters.CharFilter(field_name="user__username")
+    is_global = django_filters.BooleanFilter(
+        method="filter_is_global",
+        widget=BooleanWidget,
+        label="Consumer is bound to no scope and therefore receives every event",
+    )
+
+    class Meta:
+        model = models.EventConsumer
+        fields = []
+
+    def filter_is_global(self, queryset, name, value):
+        # is_global is a property (no bindings = unrestricted), so it is
+        # expressed here as the absence of EventConsumerScope rows.
+        if value:
+            return queryset.filter(scopes__isnull=True)
+        return queryset.filter(scopes__isnull=False).distinct()
+
+
 class EventSubscriptionQueueFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=["created"])
     event_subscription_uuid = core_filters.RelatedUUIDFilter(
