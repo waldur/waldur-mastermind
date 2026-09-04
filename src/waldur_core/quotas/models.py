@@ -172,8 +172,10 @@ class QuotaModelMixin(models.Model):
 
     @property
     def quota_limits(self):
+        # A missing row means "no limit set" and is simply absent from the dict.
+        # A stored 0 is a real limit and must not be coerced to -1 (unlimited).
         return {
-            row["name"]: row["value"] or -1
+            row["name"]: row["value"]
             for row in QuotaLimit.objects.filter(scope=self).values("name", "value")
         }
 
@@ -186,7 +188,7 @@ class QuotaModelMixin(models.Model):
             {
                 "name": name,
                 "usage": usages.get(name) or 0,
-                "limit": limits.get(name) or -1,
+                "limit": limits.get(name, -1),
             }
             for name in names
         ]

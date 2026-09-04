@@ -30,6 +30,7 @@ from waldur_mastermind.marketplace.utils import (
 from waldur_mastermind.marketplace_openstack import handlers
 from waldur_mastermind.marketplace_openstack.processors import InstanceDeleteProcessor
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
+from waldur_mastermind.marketplace_openstack.utils import map_limits_to_quotas
 from waldur_openstack import models as openstack_models
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.tests import factories as openstack_factories
@@ -287,6 +288,13 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), 0)
         self.assertEqual(tenant.get_quota_limit("gigabytes_rbd"), 0)
 
+        # quota_limits is the dict the tenant-create executor hands to
+        # push_tenant_quotas, so a zeroed volume type must reach Cinder as 0.
+        pushed = tenant.quota_limits
+        self.assertEqual(pushed["gigabytes_llvm"], 10)
+        self.assertEqual(pushed["gigabytes_ssd"], 0)
+        self.assertEqual(pushed["gigabytes_rbd"], 0)
+
     def test_volume_type_limits_zero_is_preserved(self):
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
         openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="rbd")
@@ -307,6 +315,28 @@ class TenantCreateTest(BaseOpenStackTest):
         tenant: openstack_models.Tenant = order.resource.scope
         self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), 1)
         self.assertEqual(tenant.get_quota_limit("gigabytes_rbd"), 0)
+
+        pushed = tenant.quota_limits
+        self.assertEqual(pushed["gigabytes_ssd"], 1)
+        self.assertEqual(pushed["gigabytes_rbd"], 0)
+
+    def test_create_pushes_the_same_quotas_as_an_update_with_the_same_limits(self):
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="rbd")
+        limits = {"cores": 2, "ram": 1024 * 10, "gigabytes_ssd": 0, "gigabytes_rbd": 10}
+
+        response = self.create_order(limits=limits)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        marketplace_utils.process_order(order, self.fixture.staff)
+
+        tenant: openstack_models.Tenant = order.resource.scope
+        created = tenant.quota_limits
+        updated = map_limits_to_quotas(limits, self.offering, is_create=False)
+
+        for name, value in updated.items():
+            self.assertEqual(created[name], value, name)
 
     def test_volume_type_limits_unset_in_fixed_storage_mode(self):
         self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
