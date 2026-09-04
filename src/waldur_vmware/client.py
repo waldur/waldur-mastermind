@@ -51,10 +51,11 @@ class VMwareClient:
         self._base_url = f"https://{self._host}/rest"
         self._session = requests.Session()
         self._session.verify = verify_ssl
-        # vCenter keeps a REST session server-side once login() runs, and a
-        # client is built per Celery task. Release both it and the pooled
-        # connections when this object is collected, in case close() is never
-        # reached. See VMwareBackend.close().
+        # vCenter keeps a REST session server-side once login() runs. A client
+        # built through VMwareBackend is cached and closed by
+        # :mod:`waldur_vmware.sessions`; this covers one built outside it, whose
+        # session and connection pool would otherwise be released only when
+        # vCenter expired them.
         self._finalizer = weakref.finalize(
             self, _close_session, self._session, self._base_url
         )
@@ -108,6 +109,27 @@ class VMwareClient:
         """
         self._post("com/vmware/cis/session", auth=(username, password))
         logger.info(f"Successfully logged in as {username}")
+
+    def is_session_alive(self):
+        """Whether vCenter still holds the session this client logged in with.
+
+        A client is cached per process and handed to backends built later, so it
+        can outlive its session: vCenter drops a REST session it has not seen
+        traffic on for about thirty minutes, and a restart takes all of them.
+        Asking the session endpoint about itself answers that in one round trip —
+        an expired session gets a 401, which arrives here as a VMwareError. See
+        :mod:`waldur_vmware.sessions`.
+
+        The `/rest` binding exposes only create and delete on the session path as
+        plain verbs; reading the current session is `?~action=get` on a POST. A
+        GET works against vcsim, but a vCenter answering it 405 would make this
+        report every session dead and turn the cache into a relogin per minute.
+        """
+        try:
+            return bool(self._post("com/vmware/cis/session?~action=get"))
+        except VMwareError:
+            logger.debug("The cached REST session did not answer.", exc_info=True)
+            return False
 
     def list_libraries(self):
         return self._get("com/vmware/content/library")

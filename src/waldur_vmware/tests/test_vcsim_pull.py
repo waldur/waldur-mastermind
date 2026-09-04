@@ -4,16 +4,18 @@ These replace the MagicMock-based pull tests: the old ones asserted that the
 backend passed REST dictionaries around, which proved nothing about the wire.
 """
 
-import gc
+import contextlib
+import time
+from unittest import mock
 
 import pytest
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_vmware import models, vim_utils
+from waldur_vmware import models, sessions, vim_utils
 from waldur_vmware.backend import VMwareBackend, VMwareBackendError
 
 from . import factories
-from .vcsim import VcsimTestCase
+from .vcsim import VCSIM_PASSWORD, VcsimTestCase
 
 pytestmark = pytest.mark.vcsim
 
@@ -254,53 +256,144 @@ class UnansweredPropertyTest(VcsimTestCase):
 
 
 class SessionLifecycleTest(VcsimTestCase):
-    """A vCenter session outlives the backend that opened it.
+    """One vCenter session per service settings, shared by every backend.
 
-    A backend is constructed fresh for every Celery task and nothing in the
-    structure app disposes of one, so before this the session stayed open until
-    vCenter idled it out — one per service settings object, on every pull.
+    A backend is constructed fresh for every Celery task, so a session tied to a
+    backend instance meant a login per pull of every resource — and vCenter caps
+    how many sessions it will hold at once. The session now lives in the process
+    cache instead; what these assert is that it is reused while it is good, and
+    replaced or released when it is not.
     """
-
-    def observed_session_keys(self):
-        """Session keys as a second, independent connection sees them."""
-        observer = self.observer.soap_client.content.sessionManager
-        return {session.key for session in observer.sessionList or []}
 
     def setUp(self):
         super().setUp()
-        self.observer = VMwareBackend(self.service_settings)
-        self.addCleanup(self.observer.close)
+        self.observer = self.independent_soap_client()
 
-    def test_closing_the_backend_ends_the_vcenter_session(self):
-        session_key = self.backend.soap_client.content.sessionManager.currentSession.key
-        self.assertIn(session_key, self.observed_session_keys())
+    def observed_session_keys(self):
+        """Session keys as a connection outside the cache sees them."""
+        session_manager = self.observer.content.sessionManager
+        return {session.key for session in session_manager.sessionList or []}
 
-        self.backend.close()
+    def session_key(self, backend=None):
+        backend = backend or self.backend
+        return backend.soap_client.content.sessionManager.currentSession.key
+
+    @contextlib.contextmanager
+    def clock_moved_on(self, seconds):
+        """Run the block as if `seconds` had passed since the last cache visit.
+
+        Only the caches are moved forward. Patching `time.monotonic` itself would
+        stop the clock for the logins running inside the block as well, and a
+        simulator that stalled would then hang the test rather than time out.
+        """
+        offset = seconds
+        caches = (sessions.soap_sessions, sessions.rest_sessions)
+        with contextlib.ExitStack() as stack:
+            for cache in caches:
+                stack.enter_context(
+                    mock.patch.object(cache, "clock", lambda: time.monotonic() + offset)
+                )
+            yield
+
+    def test_backends_for_the_same_settings_share_one_session(self):
+        first = self.session_key(VMwareBackend(self.service_settings))
+        second = self.session_key(VMwareBackend(self.service_settings))
+
+        self.assertEqual(first, second)
+
+    def test_a_sequence_of_pulls_logs_in_once(self):
+        """What the plugin does to a vCenter over a pull cycle, in miniature.
+
+        Each of these would have been its own Celery task, and so its own
+        backend and its own login.
+        """
+        before = self.observed_session_keys()
+
+        for _ in range(3):
+            backend = VMwareBackend(self.service_settings)
+            backend.pull_clusters()
+            backend.pull_networks()
+
+        self.assertEqual(len(self.observed_session_keys() - before), 1)
+
+    def test_the_rest_client_is_shared_as_well(self):
+        first = VMwareBackend(self.service_settings).client
+        second = VMwareBackend(self.service_settings).client
+
+        self.assertIs(first, second)
+
+    def test_the_rest_session_survives_the_liveness_check(self):
+        """The REST session answers for itself, so it is not relogged in hourly."""
+        client = self.backend.client
+
+        with self.clock_moved_on(sessions.LIVENESS_CHECK_INTERVAL + 1):
+            self.assertIs(VMwareBackend(self.service_settings).client, client)
+
+    def test_edited_credentials_are_not_served_from_the_cache(self):
+        """An edited password has to reach vCenter, not be short-circuited.
+
+        The simulator runs with a fixed password, so the login that follows is
+        expected to fail — which is the point: the cache logged out of the
+        session opened with the old credentials and tried the new ones rather
+        than handing back what it already had.
+        """
+        from pyVmomi import vim
+
+        stale_key = self.session_key()
+        self.service_settings.password = f"{VCSIM_PASSWORD}-rotated"
+        self.service_settings.save()
+
+        with self.assertRaises(vim.fault.InvalidLogin):
+            VMwareBackend(self.service_settings).soap_client
+
+        self.assertNotIn(stale_key, self.observed_session_keys())
+
+    def test_a_session_vcenter_dropped_is_replaced(self):
+        """The cache outlives the session: vCenter expires an idle one at ~30
+        minutes, and a restart takes all of them.
+        """
+        stale_key = self.session_key()
+        self.observer.content.sessionManager.TerminateSession(sessionId=[stale_key])
+
+        # Inside the liveness interval the cached session is handed out without
+        # asking vCenter about it, so the check has to be past it to happen.
+        with self.clock_moved_on(sessions.LIVENESS_CHECK_INTERVAL + 1):
+            fresh_key = self.session_key(VMwareBackend(self.service_settings))
+
+        self.assertNotEqual(stale_key, fresh_key)
+        self.assertIn(fresh_key, self.observed_session_keys())
+
+    def test_a_session_left_idle_is_logged_out(self):
+        """Waldur ends the session rather than leaving it for vCenter to expire."""
+        idle_key = self.session_key()
+
+        with self.clock_moved_on(sessions.IDLE_TIMEOUT + 1):
+            VMwareBackend(self.service_settings).soap_client
+
+        self.assertNotIn(idle_key, self.observed_session_keys())
+
+    def test_closing_the_process_cache_ends_every_session(self):
+        session_key = self.session_key()
+        self.backend.client
+
+        sessions.close_all_sessions()
 
         self.assertNotIn(session_key, self.observed_session_keys())
 
-    def test_collecting_the_backend_ends_the_vcenter_session(self):
-        """close() is not on any current call path, so collection has to do it.
+    def test_closing_the_backend_ends_the_vcenter_session(self):
+        session_key = self.session_key()
 
-        Nothing disposes of a backend explicitly today; the finalizer is what
-        makes the session's lifetime match the object's.
-        """
-        backend = VMwareBackend(self.service_settings)
-        session_key = backend.soap_client.content.sessionManager.currentSession.key
-        self.assertIn(session_key, self.observed_session_keys())
-
-        del backend
-        gc.collect()
+        self.backend.release_sessions()
 
         self.assertNotIn(session_key, self.observed_session_keys())
 
     def test_closing_a_backend_that_never_connected_is_harmless(self):
-        VMwareBackend(self.service_settings).close()
+        VMwareBackend(self.service_settings).release_sessions()
 
     def test_closing_twice_is_harmless(self):
         self.backend.ping()
-        self.backend.close()
-        self.backend.close()
+        self.backend.release_sessions()
+        self.backend.release_sessions()
 
 
 class VirtualMachineImportTest(VcsimTestCase):

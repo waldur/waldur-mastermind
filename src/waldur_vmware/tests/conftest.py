@@ -18,7 +18,23 @@ which is what wedges a CI shard on runners that drop packets to unbound ports.
 
 import pytest
 
+from waldur_vmware import sessions
+
 _OPT_IN_KEYWORDS = ("vcsim",)
+
+
+@pytest.fixture(autouse=True)
+def release_vcenter_sessions():
+    """Empty the process-wide session cache after every test in this package.
+
+    The cache is module state and outlives the database rollback that ends a
+    test, while service settings ids do not: a test that patches VMwareClient
+    leaves a mock in the cache under a pk the next test's settings may be given.
+    Tests that talk to vcsim would otherwise also hold one real session each for
+    the length of the run.
+    """
+    yield
+    sessions.close_all_sessions()
 
 
 def pytest_collection_modifyitems(config, items):

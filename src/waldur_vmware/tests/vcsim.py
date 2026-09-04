@@ -41,6 +41,21 @@ class VcsimTestCase(TestCase):
         )
         self.backend = VMwareBackend(self.service_settings)
 
+    def independent_soap_client(self):
+        """Open a vim25 connection of this test's own, outside the cache.
+
+        Anything asserting on what vCenter holds needs a second connection to
+        observe it from: a backend built from the same service settings is
+        handed the very session under test.
+        """
+        # Imported here, not at module level, for the reason given in
+        # waldur_vmware.backend: pyVim is heavy and optional.
+        import pyVim.connect
+
+        service_instance = self.backend._connect_soap()
+        self.addCleanup(pyVim.connect.Disconnect, service_instance)
+        return service_instance
+
     # -- Content Library helpers -------------------------------------------
     #
     # vcsim starts with no content libraries, so a test that needs a template
