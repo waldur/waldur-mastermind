@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 from waldur_core.permissions import models, utils
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.serializers import clone_role_for_customer
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -589,3 +590,29 @@ class OnlyOneProjectManagerTest(TestCase):
         )
 
         utils.validate_role_grant(self.project, self.other_user, ProjectRole.MANAGER)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_enabled_blocks_second_manager_via_clone(self):
+        clone = clone_role_for_customer(
+            ProjectRole.MANAGER, self.project.customer, conceal_template=False
+        )
+        self.project.add_user(self.manager, ProjectRole.MANAGER)
+
+        with self.assertRaisesMessage(
+            ValidationError, "Project already has an active project manager."
+        ):
+            utils.validate_role_grant(self.project, self.other_user, clone)
+
+    @override_config(ONLY_ONE_PROJECT_MANAGER=True)
+    def test_enabled_counts_clone_manager_as_existing_manager(self):
+        clone = clone_role_for_customer(
+            ProjectRole.MANAGER, self.project.customer, conceal_template=False
+        )
+        self.project.add_user(self.manager, clone)
+
+        with self.assertRaisesMessage(
+            ValidationError, "Project already has an active project manager."
+        ):
+            utils.validate_role_grant(
+                self.project, self.other_user, ProjectRole.MANAGER
+            )
