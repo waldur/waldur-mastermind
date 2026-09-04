@@ -642,9 +642,13 @@ Requires support user permissions.""",
                     "offering_uuid": parsed["offering_uuid"] if parsed else None,
                     "object_type": parsed["object_type"] if parsed else None,
                     "consumer_uuid": consumer_uuid,
-                    "queue_type": "consumer"
+                    # Not queue_type: that key already carries RabbitMQ's own
+                    # x-queue-type (classic/quorum/stream) from **queue.
+                    "queue_kind": enums.QueueKind.CONSUMER
                     if consumer_uuid
-                    else ("legacy" if parsed else "unknown"),
+                    else (
+                        enums.QueueKind.LEGACY if parsed else enums.QueueKind.UNKNOWN
+                    ),
                 }
                 enriched_queues.append(enriched_queue)
 
@@ -1192,9 +1196,18 @@ class EventConsumerViewSet(
     """
 
     lookup_field = "uuid"
-    queryset = models.EventConsumer.objects.all().order_by("-created")
+    # scopes are prefetched for the serializer's bindings and for is_global,
+    # which reads the populated cache instead of an exists() query per row.
+    queryset = (
+        models.EventConsumer.objects.all()
+        .select_related("user")
+        .prefetch_related("scopes__content_type", "scopes__scope")
+        .order_by("-created")
+    )
     serializer_class = serializers.EventConsumerSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.EventConsumerFilter
 
     def get_queryset(self):
         # Consumers owned by a site agent are excluded platform-wide: they are
