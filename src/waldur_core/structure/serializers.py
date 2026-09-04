@@ -52,6 +52,7 @@ from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
 from waldur_core.structure.notifications import NOTIFICATIONS
 from waldur_core.structure.registry import get_resource_type, get_service_type
 from waldur_core.structure.utils_data_access import log_user_data_access_sync
+from waldur_core.user_actions import serializers as user_action_serializers
 from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
@@ -4062,3 +4063,20 @@ class DashboardPendingActionSerializer(serializers.Serializer):
     # the frontend, so the feed carries identifiers rather than URLs.
     target_uuid = serializers.UUIDField(read_only=True, allow_null=True)
     customer_uuid = serializers.UUIDField(read_only=True, allow_null=True)
+    # Set only for items backed by a UserAction row. It addresses that row on
+    # the existing silence/unsilence/execute_action endpoints, so the feed can
+    # carry the queue's controls without duplicating them here. Computed items
+    # have no row and leave this null.
+    uuid = serializers.UUIDField(read_only=True, allow_null=True)
+    urgency = serializers.CharField(read_only=True, allow_null=True)
+    # UI-Router state and params, carried through from the queue. Computed
+    # items keep routing frontend-side and leave these empty.
+    route_name = serializers.CharField(read_only=True, allow_null=True)
+    route_params = serializers.DictField(read_only=True)
+    can_silence = serializers.BooleanField(read_only=True)
+    # The queue's own serializer, not a copy of it: an earlier copy declared
+    # api_endpoint as a CharField, and "False" is truthy in JS, so every
+    # navigation-only action executed server-side instead of navigating.
+    actions = user_action_serializers.CorrectiveActionSerializer(
+        read_only=True, many=True
+    )
