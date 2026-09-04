@@ -127,6 +127,95 @@ class OAuthViewInitTest(test.APITestCase):
         self.assertIn("Identity provider is not defined", str(response.content))
 
 
+class OAuthViewDefaultInitTest(test.APITestCase):
+    def setUp(self):
+        super().setUp()
+        self.provider = models.IdentityProvider.objects.create(
+            provider=ProviderChoices.KEYCLOAK,
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+            discovery_url="http://keycloak.test/.well-known/openid-configuration",
+            userinfo_url="http://keycloak.test/userinfo",
+            token_url="http://keycloak.test/token",
+            auth_url="http://keycloak.test/auth",
+            **PROVIDER_DEFAULTS[ProviderChoices.KEYCLOAK],
+        )
+        self.url = reverse("auth_default_init")
+        self.fallback_url = "https://portal.example.com/login/?disableAutoLogin"
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_redirects_to_default_provider(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn(OIDC_STATE_KEY, self.client.session)
+
+        parsed_url = urlparse(response.url)
+        self.assertEqual(parsed_url.netloc, "keycloak.test")
+        self.assertEqual(parsed_url.path, "/auth")
+        query_params = parse_qs(parsed_url.query)
+        self.assertEqual(query_params["client_id"], [self.provider.client_id])
+        self.assertEqual(query_params["state"], [self.client.session[OIDC_STATE_KEY]])
+        self.assertTrue(
+            query_params["redirect_uri"][0].endswith("/api-auth/keycloak/complete/")
+        )
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_return_url_and_locale_are_forwarded(self):
+        response = self.client.get(
+            self.url,
+            {"return_url": "https://portal.example.com", "ui_locales": "et"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(
+            self.client.session[OIDC_RETURN_URL_KEY], "https://portal.example.com"
+        )
+        query_params = parse_qs(urlparse(response.url).query)
+        self.assertEqual(query_params["ui_locales"], ["et"])
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_pkce_of_default_provider_is_honoured(self):
+        self.provider.enable_pkce = True
+        self.provider.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn(OIDC_CODE_VERIFIER_KEY, self.client.session)
+        query_params = parse_qs(urlparse(response.url).query)
+        self.assertEqual(query_params["code_challenge_method"], ["S256"])
+
+    @override_config(DEFAULT_IDP="", HOMEPORT_URL="https://portal.example.com/")
+    def test_unset_default_falls_back_to_login_page(self):
+        response = self.client.get(self.url, {"return_url": "https://evil.example"})
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(response.url, self.fallback_url)
+        self.assertNotIn(OIDC_STATE_KEY, self.client.session)
+
+    @override_config(
+        DEFAULT_IDP=ProviderChoices.KEYCLOAK,
+        HOMEPORT_URL="https://portal.example.com",
+    )
+    def test_inactive_default_provider_falls_back_to_login_page(self):
+        self.provider.is_active = False
+        self.provider.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(response.url, self.fallback_url)
+
+    @override_config(
+        DEFAULT_IDP=ProviderChoices.TARA, HOMEPORT_URL="https://portal.example.com"
+    )
+    def test_missing_default_provider_falls_back_to_login_page(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(response.url, self.fallback_url)
+
+    @override_config(DEFAULT_IDP=ProviderChoices.KEYCLOAK)
+    def test_authenticated_user_is_rejected(self):
+        user = structure_factories.UserFactory()
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
 class OAuthViewCompleteTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
