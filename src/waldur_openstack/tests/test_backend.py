@@ -426,6 +426,100 @@ class PullVolumeTest(BaseBackendTest):
 
         self.assertEqual(volume.image, None)
 
+    def test_volume_of_provisioning_instance_keeps_its_attachment_fields(self):
+        # Cinder reports no attachment and bootable="false" until the Nova
+        # server exists. Reconciling that would unlink the volume from the
+        # instance being created and make create_instance fail its
+        # `volumes.get(bootable=True)` guard.
+        vm = factories.InstanceFactory(
+            backend_id="",
+            state=CoreStates.CREATING,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        volume = factories.VolumeFactory(
+            backend_id=self.backend_volume_id,
+            instance=vm,
+            bootable=True,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.backend_volume.attachments = []
+        self.backend_volume.bootable = "false"
+
+        self.backend.pull_volume(volume)
+        volume.refresh_from_db()
+
+        self.assertEqual(volume.instance, vm)
+        self.assertTrue(volume.bootable)
+
+    def test_volume_of_provisioned_instance_is_reconciled(self):
+        vm = factories.InstanceFactory(
+            backend_id="instance_backend_id",
+            state=CoreStates.OK,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        volume = factories.VolumeFactory(
+            backend_id=self.backend_volume_id,
+            instance=vm,
+            bootable=True,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        self.backend_volume.attachments = []
+        self.backend_volume.bootable = "false"
+
+        self.backend.pull_volume(volume)
+        volume.refresh_from_db()
+
+        self.assertIsNone(volume.instance)
+        self.assertFalse(volume.bootable)
+
+
+class PullTenantVolumesTest(BaseBackendTest):
+    def _pull(self, volume, **backend_volume_fields):
+        backend_volume = self._get_valid_volume(volume.backend_id)
+        for name, value in backend_volume_fields.items():
+            setattr(backend_volume, name, value)
+        self.mocked_cinder.volumes.list.return_value = [backend_volume]
+        self.backend.pull_tenant_volumes(self.tenant)
+        volume.refresh_from_db()
+
+    def _create_volume(self, instance_state):
+        vm = factories.InstanceFactory(
+            backend_id="" if instance_state != CoreStates.OK else "instance_backend_id",
+            state=instance_state,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        volume = factories.VolumeFactory(
+            instance=vm,
+            bootable=True,
+            state=CoreStates.OK,
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+        )
+        return vm, volume
+
+    def test_volume_of_provisioning_instance_keeps_its_attachment_fields(self):
+        # The periodic tenant pull runs while an instance is still being
+        # created: it must not detach the volumes of that instance.
+        vm, volume = self._create_volume(CoreStates.CREATING)
+
+        self._pull(volume, attachments=[], bootable="false")
+
+        self.assertEqual(volume.instance, vm)
+        self.assertTrue(volume.bootable)
+
+    def test_volume_of_provisioned_instance_is_reconciled(self):
+        _, volume = self._create_volume(CoreStates.OK)
+
+        self._pull(volume, attachments=[], bootable="false")
+
+        self.assertIsNone(volume.instance)
+        self.assertFalse(volume.bootable)
+
 
 class PullInstanceAvailabilityZonesTest(BaseBackendTest):
     def test_default_zone_is_not_pulled(self):

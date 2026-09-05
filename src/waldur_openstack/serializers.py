@@ -5615,6 +5615,11 @@ class OpenStackBackupRestorationCreateSerializer(OpenStackBackupRestorationSeria
         backup_restoration = super().create(validated_data)
         # restoration for each instance volume from snapshot.
         for snapshot in backup.snapshots.all():
+            # The restored volume inherits the bootable flag of the volume the
+            # snapshot was taken from, the same way Cinder does it. Without it
+            # the restored instance has no system volume and create_instance
+            # fails its `volumes.get(bootable=True)` guard.
+            bootable = bool(snapshot.source_volume and snapshot.source_volume.bootable)
             volume = models.Volume(
                 source_snapshot=snapshot,
                 service_settings=snapshot.service_settings,
@@ -5623,6 +5628,7 @@ class OpenStackBackupRestorationCreateSerializer(OpenStackBackupRestorationSeria
                 name=f"{instance.name[:143]}-volume",
                 description="Restored from backup %s" % backup.uuid.hex,
                 size=snapshot.size,
+                bootable=bootable,
             )
             volume.save()
             volume.increase_backend_quotas_usage(validate=True)
