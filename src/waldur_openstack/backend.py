@@ -83,6 +83,36 @@ def get_tenant_session(tenant: models.Tenant):
     return get_keystone_session(tenant.service_settings, tenant)
 
 
+# Volume fields that describe how the volume is attached to an instance. Cinder
+# reports no attachment until the Nova server exists, so reconciling them while
+# the instance is still being provisioned unlinks the volume from the instance
+# (and can clear the bootable flag the serializer set on the system volume),
+# making create_instance fail its `volumes.get(bootable=True)` guard.
+VOLUME_ATTACHMENT_FIELDS = ("instance", "device", "bootable")
+
+INSTANCE_PROVISIONING_STATES = (CoreStates.CREATION_SCHEDULED, CoreStates.CREATING)
+
+
+def get_volume_pull_fields(volume: models.Volume, fields):
+    """
+    Drop the attachment fields from a pull while the volume's instance is still
+    being provisioned. The instance creation chain pulls what it needs itself,
+    and reconciles the rest once the instance leaves the provisioning states.
+    """
+    if (
+        volume.instance_id is None
+        or volume.instance.state not in INSTANCE_PROVISIONING_STATES
+    ):
+        return fields
+
+    logger.debug(
+        "Skipping attachment fields when pulling volume %s: instance %s is still being provisioned.",
+        volume.uuid.hex,
+        volume.instance.uuid.hex,
+    )
+    return tuple(field for field in fields if field not in VOLUME_ATTACHMENT_FIELDS)
+
+
 def reraise_exceptions(func):
     @functools.wraps(func)
     def wrapped(self, *args, **kwargs):
@@ -4106,7 +4136,7 @@ class OpenStackBackend(ServiceBackend):
         volumes = models.Volume.objects.filter(
             tenant=tenant,
             state__in=[CoreStates.OK, CoreStates.ERRED],
-        )
+        ).select_related("instance")
         backend_volumes_map = {
             backend_volume.backend_id: backend_volume
             for backend_volume in backend_volumes
@@ -4120,7 +4150,7 @@ class OpenStackBackend(ServiceBackend):
                 update_pulled_fields(
                     volume,
                     backend_volume,
-                    models.Volume.get_backend_fields(),
+                    get_volume_pull_fields(volume, models.Volume.get_backend_fields()),
                 )
                 handle_resource_update_success(volume)
 
@@ -4524,6 +4554,7 @@ class OpenStackBackend(ServiceBackend):
             if not update_fields:
                 update_fields = models.Volume.get_backend_fields()
 
+            update_fields = get_volume_pull_fields(volume, update_fields)
             update_pulled_fields(volume, imported_volume, update_fields)
 
         resource_pulled.send(sender=volume.__class__, instance=volume)
@@ -4763,8 +4794,16 @@ class OpenStackBackend(ServiceBackend):
             try:
                 instance.volumes.get(bootable=True)
             except models.Volume.DoesNotExist:
+                attached_volumes = (
+                    ", ".join(
+                        f"{volume.uuid.hex} (bootable={volume.bootable})"
+                        for volume in instance.volumes.all()
+                    )
+                    or "none"
+                )
                 raise OpenStackBackendError(
-                    "Current installation cannot create instance without a system volume."
+                    "Current installation cannot create instance without a system volume. "
+                    f"Volumes attached to instance {instance.name}: {attached_volumes}."
                 )
 
             nics = []

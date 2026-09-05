@@ -252,6 +252,28 @@ class BackupRestorationTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_restored_volume_inherits_bootable_flag_of_its_source_volume(self):
+        # Without the inherited flag the restored instance has no system volume
+        # and create_instance fails its `volumes.get(bootable=True)` guard.
+        for volume in self.backup.instance.volumes.all():
+            self.backup.snapshots.add(
+                factories.SnapshotFactory(
+                    project=self.fixture.project,
+                    tenant=self.tenant,
+                    state=CoreStates.OK,
+                    source_volume=volume,
+                    size=volume.size,
+                )
+            )
+
+        response = self.client.post(self.url, self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        restored_instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(2, restored_instance.volumes.count())
+        restored_system_volume = restored_instance.volumes.get(bootable=True)
+        self.assertTrue(restored_system_volume.source_snapshot.source_volume.bootable)
+
     def test_security_groups_cannot_be_associated_if_they_belong_to_another_tenant(
         self,
     ):
