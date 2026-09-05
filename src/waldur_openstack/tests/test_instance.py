@@ -1940,6 +1940,42 @@ class InstanceConsoleLogTest(InstanceActionsTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue("Invalid request." in response.data)
 
+    def test_length_is_read_from_query_string_on_get(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url, {"length": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.mock_console.assert_called_once_with(self.instance, 10)
+
+    # The POST form exists for action-oriented clients (the Ansible collection
+    # drives every instance action as a POST). It must behave exactly like GET,
+    # taking `length` from the body instead of the query string.
+    @data("staff", "admin", "manager", "owner")
+    def test_post_is_available_for_the_same_users_as_get(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.post(self.url, {"length": 50})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, self.backend_return_value)
+        self.mock_console.assert_called_once_with(self.instance, 50)
+
+    def test_post_without_length_returns_full_log(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.mock_console.assert_called_once_with(self.instance, None)
+
+    @data("user")
+    def test_post_not_available_for_users_unassociated_with_project(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.post(self.url, {"length": 50})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.mock_console.assert_not_called()
+
+    def test_post_rejects_invalid_length(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(self.url, {"length": "many"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.mock_console.assert_not_called()
+
 
 @ddt
 class InstancePlacementAllocationsTest(InstanceActionsTest):

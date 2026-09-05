@@ -3494,6 +3494,7 @@ class InstanceViewSet(
     console_permissions = [openstack_permissions.has_permissions_for_console]
 
     @extend_schema(
+        methods=["get"],
         summary="Get console log",
         description="Get console log for the instance",
         parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
@@ -3501,11 +3502,25 @@ class InstanceViewSet(
         responses={200: str},
         filters=False,
     )
-    @decorators.action(detail=True, methods=["get"])
+    @extend_schema(
+        methods=["post"],
+        summary="Get console log",
+        description=(
+            "Get console log for the instance. Same as the GET form, but takes "
+            "`length` in the request body, so action-oriented clients such as the "
+            "Ansible collection can call it like any other instance action."
+        ),
+        request=serializers.OpenStackConsoleLogSerializer,
+        responses={200: str},
+        filters=False,
+    )
+    @decorators.action(detail=True, methods=["get", "post"])
     def console_log(self, request, uuid=None):
         instance: models.Instance = self.get_object()
         backend = instance.get_backend()
-        serializer = self.get_serializer(data=request.query_params)
+        # GET carries `length` in the query string, POST in the body.
+        params = request.data if request.method == "POST" else request.query_params
+        serializer = self.get_serializer(data=params)
         serializer.is_valid(raise_exception=True)
         length = serializer.validated_data.get("length")
 
