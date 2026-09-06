@@ -1,11 +1,18 @@
 """Resolve how a component is billed under a given plan.
 
 ``OfferingComponent.billing_type`` is shared by every plan of an offering.
-``Plan.billing_mode`` lets one plan bill the offering's *builtin* components
-differently from another, so a single OpenStack offering can carry a
-limit-based plan and a usage-based plan. Everything that decides how a
-component is counted or invoiced must go through this module instead of
-reading ``component.billing_type`` directly.
+``Plan.billing_mode`` lets one plan bill differently from another, so a single
+OpenStack offering can carry a limit-based plan and a usage-based plan.
+Everything that decides how a component is counted or invoiced must go through
+this module instead of reading ``component.billing_type`` directly.
+
+Which components a plan governs is stated by ``OfferingComponent`` itself:
+``billed_per_plan`` is set for the ones a plugin provides -- for OpenStack
+cores, ram, storage and the per-volume-type quotas -- and a component the
+provider adds keeps its own accounting type under every plan. That used to be
+answered by asking the plugin registry whether the component's type was one it
+declares, which put the answer outside the data and left the volume type
+quotas out of the API's version of the same question.
 
 The module is imported from ``marketplace.models``, so it must not import
 models, serializers or views at module level.
@@ -29,10 +36,12 @@ from waldur_mastermind.marketplace.enums import (
 if TYPE_CHECKING:
     from waldur_mastermind.marketplace import models
 
-# Mirrors ``waldur_openstack.utils.is_valid_volume_type_name``; that module
-# pulls in OpenStack models and cannot be imported while the app registry
-# is still loading.
-VOLUME_TYPE_COMPONENT_PREFIX = "gigabytes_"
+# Modes that replace the builtin components' stored billing type. An
+# inheriting plan is absent here because it follows the components as stored.
+OVERRIDING_BILLING_MODES = (
+    BillingModes.LIMIT,
+    BillingModes.USAGE,
+)
 
 # Deterministic measured units for OpenStack builtin components.
 # Usage mode tracks component-hours; limit mode uses the raw quota unit.
@@ -42,29 +51,15 @@ OPENSTACK_USAGE_DEFAULT_UNIT = "GB-hours"
 OPENSTACK_LIMIT_DEFAULT_UNIT = "GB"
 
 
-def is_builtin_component_type(offering_type: str, component_type: str) -> bool:
-    """A builtin component is one the plugin registers for the offering type.
-
-    For OpenStack the per-volume-type storage quotas are builtin too: they
-    are created by the volume-type sync, not by the provider.
-    """
-    if component_type in plugins.manager.get_component_types(offering_type):
-        return True
-    return offering_type == OPENSTACK_TENANT_OFFERING and component_type.startswith(
-        VOLUME_TYPE_COMPONENT_PREFIX
-    )
-
-
-def get_builtin_component_types(offering: models.Offering) -> set[str]:
-    return {
-        component.type
-        for component in offering.components.all()
-        if is_builtin_component_type(offering.type, component.type)
-    }
-
-
 def offering_has_builtin_components(offering: models.Offering) -> bool:
-    return bool(plugins.manager.get_component_types(offering.type))
+    """Whether any component of this offering defers to the plan.
+
+    Read from the components themselves rather than from the plugin registry:
+    which components a plan governs is a fact about the offering, and asking
+    the registry made it change under an offering whenever a plugin changed
+    the types it registers.
+    """
+    return offering.components.filter(billed_per_plan=True).exists()
 
 
 def measured_unit_for(
@@ -120,9 +115,9 @@ def resolve_component(
     """
     if plan is None or plan.billing_mode == BillingModes.INHERIT:
         return _own_values(component)
-    offering_type = component.offering.type
-    if not is_builtin_component_type(offering_type, component.type):
+    if not component.billed_per_plan:
         return _own_values(component)
+    offering_type = component.offering.type
     if plan.billing_mode == BillingModes.LIMIT:
         billing_type = BillingTypes.LIMIT
         limit_period = LimitPeriods.MONTH
@@ -238,6 +233,21 @@ def check_plan_billing_mode(
     ):
         return "Billing mode can be set only for offerings with builtin components."
     if (
+        mode not in (None, BillingModes.INHERIT)
+        and offering.components.filter(billed_per_plan=True, is_prepaid=True).exists()
+    ):
+        # A mode resolves the builtin components to limit or usage, and neither
+        # is prepaid, so accepting one here would quietly stop charging the
+        # subscription upfront and start billing it per period instead. Prepaid
+        # is a property of the components; moving off it is what the offering
+        # level switch is for, and that rewrites the components and the plans
+        # together.
+        return (
+            "This offering charges its builtin components upfront, so its plans "
+            "follow the components. Use the offering's billing mode switch to "
+            "move it off prepaid first."
+        )
+    if (
         plan is not None
         and plan.pk
         and mode != plan.billing_mode
@@ -300,12 +310,12 @@ def usage_resource_q() -> Q:
     A queryset approximation of :func:`resolve_for_resource`: a usage plan
     always qualifies, a limit plan never does for its builtin components, and
     an inheriting plan follows the stored component types. Custom usage
-    components under a limit plan are missed; callers that need certainty
-    resolve each resource afterwards.
+    components under an overriding plan are missed; callers that need
+    certainty resolve each resource afterwards.
     """
     return Q(plan__billing_mode=BillingModes.USAGE) | (
         Q(offering__components__billing_type=BillingTypes.USAGE)
-        & ~Q(plan__billing_mode=BillingModes.LIMIT)
+        & ~Q(plan__billing_mode__in=OVERRIDING_BILLING_MODES)
     )
 
 

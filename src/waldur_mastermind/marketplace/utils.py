@@ -538,6 +538,8 @@ def create_offering_components(offering, custom_components=None):
         models.OfferingComponent.objects.create(
             offering=offering,
             parent=category_components.get(component_data.type, None),
+            # A component the plugin provides is billed the way the plan says.
+            billed_per_plan=True,
             **component_data._asdict(),
         )
 

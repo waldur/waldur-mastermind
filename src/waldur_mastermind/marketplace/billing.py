@@ -372,7 +372,7 @@ class MarketplaceBillingService:
             if is_fixed:
                 unit_price *= plan_component.amount
                 quantity = invoice_models.get_quantity(unit, start, end)
-            elif is_one and offering_component.is_prepaid:
+            elif is_one and effective.is_prepaid:
                 # Prepaid ONE_TIME: charge limit × duration_months upfront
                 unit = invoice_models.Units.QUANTITY
                 component_type = offering_component.type

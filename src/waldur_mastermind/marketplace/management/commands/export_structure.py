@@ -1002,6 +1002,7 @@ class Command(BaseCommand):
                     "name": component.name,
                     "description": component.description,
                     "billing_type": component.billing_type,
+                    "billed_per_plan": component.billed_per_plan,
                     "measured_unit": component.measured_unit,
                     "limit_period": component.limit_period,
                     "limit_amount": component.limit_amount,

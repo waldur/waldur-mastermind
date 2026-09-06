@@ -2300,16 +2300,17 @@ class QuotasUpdateSerializer(serializers.Serializer):
         # whenever the form offered a one-time component beside a fixed one —
         # which is every offering that charges a setup fee — so no amount could
         # be saved at all and every one of them sat at the field's default.
+        resolved = billing_mode.resolve_plan(plan)
         valid_types = {
-            component.type
-            for component in plan.offering.components.all()
-            if component.billing_type
+            effective.type
+            for effective in resolved.components.values()
+            if effective.billing_type
             in (
                 BillingTypes.FIXED,
                 BillingTypes.ONE_TIME,
                 BillingTypes.ON_PLAN_SWITCH,
             )
-            and not component.is_prepaid
+            and not effective.is_prepaid
         }
         component_map = validate_components(new_keys, valid_types, plan)
         for key, old_component in component_map.items():

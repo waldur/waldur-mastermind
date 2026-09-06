@@ -889,9 +889,8 @@ class Offering(
             return billing_mode.resolve_plan(plan).limit_components
         result = billing_mode.resolve_offering(self).limit_components
         if self._has_plan_mode(BillingModes.LIMIT):
-            for component in self.components.all():
-                if billing_mode.is_builtin_component_type(self.type, component.type):
-                    result.setdefault(component.type, component)
+            for component in self.components.filter(billed_per_plan=True):
+                result.setdefault(component.type, component)
         return result
 
     @cached_property
@@ -1239,6 +1238,15 @@ class OfferingComponent(
     billing_type = models.CharField(
         choices=BillingTypes.CHOICES, default=BillingTypes.FIXED, max_length=5
     )
+    billed_per_plan = models.BooleanField(
+        default=False,
+        help_text=(
+            "The plan's billing mode decides how this component is billed, and "
+            "billing_type above is only what it falls back to. Set for the "
+            "components a plugin provides; a component the provider adds keeps "
+            "its own accounting type under every plan."
+        ),
+    )
     # limit_period and limit_amount fields are used if billing_type is USAGE or LIMIT
     limit_period = models.CharField(
         choices=LimitPeriods.CHOICES, default=LimitPeriods.MONTH, max_length=10
@@ -1340,9 +1348,15 @@ class OfferingComponent(
 
     @property
     def is_builtin(self) -> bool:
-        return self.type in [
-            c.type for c in plugins.manager.get_components(self.offering.type)
-        ]
+        """The API's older name for ``billed_per_plan``.
+
+        It used to ask the plugin registry whether this component's type is one
+        the plugin declares, which left out the OpenStack per-volume-type
+        quotas: they are created by the volume type sync rather than declared,
+        so the API called them provider components while the billing resolver
+        treated them as builtin. Reading the stored flag makes the two agree.
+        """
+        return self.billed_per_plan
 
     def __str__(self):
         return str(self.name)
@@ -1441,13 +1455,17 @@ class Plan(
 
             factors = self.offering.component_factors
 
+            resolved = billing_mode.resolve_plan(self)
+
             for key, component in components_map.items():
                 price = component_prices.get(key, 0)
                 limit = limits.get(key, 0)
                 factor = factors.get(key, 1)
                 per_unit = Decimal(price) * Decimal(str(limit)) / Decimal(str(factor))
 
-                if component.is_prepaid:
+                effective = resolved.get(key)
+                is_prepaid = effective.is_prepaid if effective else component.is_prepaid
+                if is_prepaid:
                     months = duration_months
                     if not months and start_date and end_date:
                         months = core_utils.calculate_duration_months(
@@ -1479,23 +1497,31 @@ class Plan(
         get_estimate() with the duration multiplier. This avoids
         double-counting them via init_price.
         """
+        resolved = billing_mode.resolve_plan(self)
+
+        def is_plain_one_time(component) -> bool:
+            effective = resolved.get(component.type)
+            if effective is None:
+                return (
+                    component.billing_type == BillingTypes.ONE_TIME
+                    and not component.is_prepaid
+                )
+            return (
+                effective.billing_type == BillingTypes.ONE_TIME
+                and not effective.is_prepaid
+            )
+
         cached = self._cached_components()
         if cached is not None:
             return self._sum_prices(
-                item
-                for item in cached
-                if item.component.billing_type == BillingTypes.ONE_TIME
-                and not item.component.is_prepaid
+                item for item in cached if is_plain_one_time(item.component)
             )
-        components = self.components.filter(
-            component__billing_type=BillingTypes.ONE_TIME,
-            component__is_prepaid=False,
-        )
-        return (
-            components.aggregate(
-                sum=models.Sum(models.F("price") * models.F("amount"))
-            )["sum"]
-            or 0
+        # The plan's billing mode can turn a builtin component prepaid, which
+        # SQL cannot see, so the filter happens in Python.
+        return self._sum_prices(
+            item
+            for item in self.components.select_related("component")
+            if item.component and is_plain_one_time(item.component)
         )
 
     @property
@@ -2361,8 +2387,11 @@ class Resource(
         }
         factors = self.offering.component_factors
 
+        resolved = billing_mode.resolve_plan(self.plan)
+
         for key, component in components_map.items():
-            if not component.is_prepaid:
+            effective = resolved.get(key)
+            if not (effective.is_prepaid if effective else component.is_prepaid):
                 continue
             price = component_prices.get(key, 0)
             limit = final_limits.get(key, 0)
@@ -2399,13 +2428,19 @@ class Resource(
 
         if self.plan:
             component_factors = self.offering.component_factors
+            # The plan's billing mode can make a builtin component prepaid or
+            # limit-based regardless of what is stored on the component, so the
+            # two loops below select on the resolved values rather than filtering
+            # in SQL.
+            resolved = billing_mode.resolve_plan(self.plan)
 
             # 1. Subscription items (prepaid components)
-            for plan_component in self.plan.components.filter(
-                component__is_prepaid=True
-            ):
+            for plan_component in self.plan.components.all():
                 component = plan_component.component
                 if not component:
+                    continue
+                effective = resolved.get(component.type)
+                if not (effective.is_prepaid if effective else component.is_prepaid):
                     continue
                 limit_amount = Decimal(str(final_limits.get(component.type, 0)))
                 factor = Decimal(str(component_factors.get(component.type, 1)))
@@ -2430,12 +2465,16 @@ class Resource(
                 subscription_total += total
 
             # 2. Limit change items (billing_type='limit', where new_limit > current_limit)
-            for plan_component in self.plan.components.filter(
-                component__billing_type=BillingTypes.LIMIT,
-                component__is_prepaid=False,
-            ):
+            for plan_component in self.plan.components.all():
                 component = plan_component.component
                 if not component:
+                    continue
+                effective = resolved.get(component.type)
+                billing_type = (
+                    effective.billing_type if effective else component.billing_type
+                )
+                is_prepaid = effective.is_prepaid if effective else component.is_prepaid
+                if billing_type != BillingTypes.LIMIT or is_prepaid:
                     continue
 
                 current_limit = self.limits.get(component.type, 0)
@@ -2445,8 +2484,13 @@ class Resource(
                 if delta <= 0:
                     continue
 
-                # Skip components with no periodic billing
-                limit_period = component.limit_period
+                # Skip components with no periodic billing. The plan's mode can
+                # impose a period of its own, and the invoice reads it through
+                # the resolver, so the estimate has to as well or it quotes a
+                # different period than it charges.
+                limit_period = (
+                    effective.limit_period if effective else component.limit_period
+                )
                 if not limit_period or limit_period == LimitPeriods.TOTAL:
                     continue
 

@@ -434,6 +434,9 @@ def create_offering_component_for_volume_type(
             description=volume_type.description,
             billing_type=BillingTypes.LIMIT,
             limit_period=LimitPeriods.MONTH,
+            # Created by the volume type sync, not by the provider, so it
+            # follows the plan like the other builtin components.
+            billed_per_plan=True,
         ),
     )
 

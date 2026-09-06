@@ -119,6 +119,24 @@ from waldur_mastermind.proposal.models import (
 )
 from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
 
+OPENSTACK_TENANT_OFFERING = "OpenStack.Tenant"
+VOLUME_TYPE_COMPONENT_PREFIX = "gigabytes_"
+
+
+def is_plugin_provided_component(offering_type, component_type):
+    """The rule ``OfferingComponent.billed_per_plan`` replaced.
+
+    Used only for dumps taken before the field existed, so that importing one
+    reproduces what the offering would have resolved to at the time.
+    """
+    from waldur_mastermind.marketplace import plugins
+
+    if component_type in plugins.manager.get_component_types(offering_type):
+        return True
+    return offering_type == OPENSTACK_TENANT_OFFERING and component_type.startswith(
+        VOLUME_TYPE_COMPONENT_PREFIX
+    )
+
 
 class Command(BaseCommand):
     help = """
@@ -4432,6 +4450,15 @@ class Command(BaseCommand):
                         "renewal_duration_step"
                     ),
                     "is_prepaid": component_data.get("is_prepaid", False),
+                    # A dump taken before this field existed has no value for
+                    # it, and defaulting to False would leave an imported
+                    # builtin component no longer following its plan's billing
+                    # mode. Fall back to the rule the field replaced: a
+                    # component the plugin provides for this offering type.
+                    "billed_per_plan": component_data.get(
+                        "billed_per_plan",
+                        is_plugin_provided_component(offering.type, component_type),
+                    ),
                     "article_code": component_data.get("article_code", ""),
                     "backend_id": component_data.get("backend_id", ""),
                 }
