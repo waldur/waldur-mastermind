@@ -3,7 +3,6 @@ import json
 import uuid
 from typing import cast
 
-import pycountry
 from cryptography.fernet import InvalidToken
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
@@ -13,6 +12,7 @@ from rest_framework import serializers
 
 from waldur_core.core import encryption, utils
 from waldur_core.core import validators as core_validators
+from waldur_core.core.countries import ISO_3166_1
 
 
 class MappedChoiceField(serializers.ChoiceField):
@@ -124,9 +124,7 @@ class TimestampField(serializers.Field):
             )
 
 
-COUNTRIES = [(country.alpha_2, country.name) for country in pycountry.countries] + [
-    ("EU", "European Union")
-]
+COUNTRIES = ISO_3166_1 + [("EU", "European Union")]
 COUNTRIES_DICT = cast(dict[str, str], dict(COUNTRIES))
 
 

@@ -39,7 +39,6 @@ dependencies = [
   # Was pinned to git main in August 2025 because the ISO data in the then-latest
   # release (24.6.1) was stale. Upstream released 26.2.16 in February 2026, which
   # carries that data, so the git dependency is no longer needed.
-  "pycountry>=26.2.16",
   "PyJWT>=2.12.1,<3.0.0",
   "pysaml2==7.4.2",
   "python-cinderclient>=7.0.0,<8.0.0",
