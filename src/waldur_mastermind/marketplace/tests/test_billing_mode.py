@@ -43,6 +43,8 @@ class ResolveComponentTest(TestCase):
             measured_unit="GB",
             billing_type=BillingTypes.LIMIT,
             limit_period=LimitPeriods.MONTH,
+            # Created by the volume type sync, so it follows the plan.
+            billed_per_plan=True,
         )
         self.custom = factories.OfferingComponentFactory(
             offering=self.offering,
@@ -335,3 +337,121 @@ class PlanAdminFormTest(TestCase):
     def test_unused_plan_changes_mode(self):
         plan = factories.PlanFactory(offering=make_openstack_offering())
         self.assertTrue(self.form(plan, BillingModes.USAGE).is_valid())
+
+
+class StampBillingModeMigrationTest(TestCase):
+    """The 0284 data migration, exercised through its own function.
+
+    The migration itself runs against historical models; calling it with the
+    real app registry is equivalent here because it touches only fields that
+    have not changed since, and it keeps the test from rebuilding the schema.
+    """
+
+    def stamp(self):
+        import importlib
+
+        from django.apps import apps
+
+        # The module name starts with a digit, so it cannot be imported by name.
+        migration = importlib.import_module(
+            "waldur_mastermind.marketplace.migrations.0284_stamp_plan_billing_mode"
+        )
+        migration.stamp_billing_mode(apps, None)
+
+    def test_limit_components_stamp_the_plan_as_limit(self):
+        offering = make_openstack_offering()
+        plan = factories.PlanFactory(offering=offering)
+        self.stamp()
+        plan.refresh_from_db()
+        self.assertEqual(plan.billing_mode, BillingModes.LIMIT)
+
+    def test_usage_components_stamp_the_plan_as_usage(self):
+        offering = make_openstack_offering()
+        # switch_billing_mode remaps the units along with the billing type;
+        # without that the stamp would not reproduce the stored components and
+        # the migration would rightly leave the plan alone.
+        offering.components.update(billing_type=BillingTypes.USAGE)
+        for component in offering.components.all():
+            component.measured_unit = (
+                "core-hours" if component.type == "cores" else "GB-hours"
+            )
+            component.save(update_fields=["measured_unit"])
+        plan = factories.PlanFactory(offering=offering)
+        self.stamp()
+        plan.refresh_from_db()
+        self.assertEqual(plan.billing_mode, BillingModes.USAGE)
+
+    def test_usage_components_with_a_stale_unit_keep_inherit(self):
+        offering = make_openstack_offering()
+        offering.components.update(billing_type=BillingTypes.USAGE)
+        plan = factories.PlanFactory(offering=offering)
+        self.stamp()
+        plan.refresh_from_db()
+        self.assertEqual(plan.billing_mode, BillingModes.INHERIT)
+
+    def test_explicit_mode_is_left_alone(self):
+        offering = make_openstack_offering()
+        plan = factories.PlanFactory(offering=offering, billing_mode=BillingModes.USAGE)
+        self.stamp()
+        plan.refresh_from_db()
+        self.assertEqual(plan.billing_mode, BillingModes.USAGE)
+
+    def test_offering_without_builtin_components_keeps_inherit(self):
+        offering = factories.OfferingFactory(type=BASIC_OFFERING)
+        plan = factories.PlanFactory(offering=offering)
+        self.stamp()
+        plan.refresh_from_db()
+        self.assertEqual(plan.billing_mode, BillingModes.INHERIT)
+
+    def test_disagreeing_components_keep_inherit(self):
+        offering = make_openstack_offering()
+        offering.components.filter(type="cores").update(billing_type=BillingTypes.USAGE)
+        plan = factories.PlanFactory(offering=offering)
+        self.stamp()
+        plan.refresh_from_db()
+        self.assertEqual(plan.billing_mode, BillingModes.INHERIT)
+
+
+class SwitchAppliesToPlansTest(test.APITestCase):
+    """The offering-level switch has to reach the plans.
+
+    Once every plan carries an explicit mode, rewriting only the components
+    leaves the plans overriding them, and the endpoint would report success
+    while changing nothing about what is billed.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = make_openstack_offering(customer=self.fixture.customer)
+        self.plan = factories.PlanFactory(
+            offering=self.offering, billing_mode=BillingModes.LIMIT
+        )
+
+    def switch(self, mode):
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.post(
+            factories.OfferingFactory.get_url(
+                self.offering, action="switch_billing_mode"
+            ),
+            {"billing_mode": mode},
+            format="json",
+        )
+
+    def test_switch_to_usage_moves_the_plan_and_the_billing(self):
+        response = self.switch("usage")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.billing_mode, BillingModes.USAGE)
+        effective = billing_mode.resolve_plan(self.plan).get("cores")
+        self.assertEqual(effective.billing_type, BillingTypes.USAGE)
+
+    def test_switch_to_prepaid_leaves_the_plan_inherit(self):
+        # Prepaid has no plan mode: it lives on the component. Inherit is what
+        # reproduces the switch, by following the components it just rewrote.
+        response = self.switch("prepaid")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.billing_mode, BillingModes.INHERIT)
+        effective = billing_mode.resolve_plan(self.plan).get("cores")
+        self.assertEqual(effective.billing_type, BillingTypes.ONE_TIME)
+        self.assertTrue(effective.is_prepaid)

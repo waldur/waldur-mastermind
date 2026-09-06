@@ -45,6 +45,11 @@ class BillingModes:
         # builtin components are billed on accumulated usage (component-hours)
         (USAGE, "Usage-based"),
     )
+    # Prepaid is deliberately absent. It is not a third way of counting a
+    # component -- it is limit-based billing paid upfront for a fixed term --
+    # and it stays where it already lives, on OfferingComponent.is_prepaid,
+    # which providers set per component through the component API and the
+    # offering-level switch.
 
 
 class SwitchBillingModes:
@@ -59,6 +64,17 @@ class SwitchBillingModes:
         (PREPAID, "Prepaid (One-time)"),
         (USAGE, "Usage-based"),
     )
+
+
+# The offering-level switch says the same thing as a plan mode, in the older
+# vocabulary, and applies it to the offering's plans. Prepaid has no plan mode,
+# so the plans are set to inherit and the components govern, which is what
+# prepaid has always meant.
+PLAN_MODE_BY_SWITCH_MODE = {
+    SwitchBillingModes.MONTHLY: BillingModes.LIMIT,
+    SwitchBillingModes.PREPAID: BillingModes.INHERIT,
+    SwitchBillingModes.USAGE: BillingModes.USAGE,
+}
 
 
 class LimitPeriods:

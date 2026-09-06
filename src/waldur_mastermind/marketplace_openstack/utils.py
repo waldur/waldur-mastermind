@@ -98,7 +98,7 @@ def create_offering_components(offering):
 
     for component_data in fixed_components:
         marketplace_models.OfferingComponent.objects.create(
-            offering=offering, **component_data._asdict()
+            offering=offering, billed_per_plan=True, **component_data._asdict()
         )
 
 

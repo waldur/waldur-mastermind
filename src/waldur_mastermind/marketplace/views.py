@@ -162,8 +162,10 @@ from waldur_mastermind.marketplace.catalog_loaders import (
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     OPENSTACK_TENANT_OFFERING,
+    PLAN_MODE_BY_SWITCH_MODE,
     SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
+    BillingModes,
     BillingTypes,
     CourseAccountState,
     ImpactLevel,
@@ -4184,21 +4186,21 @@ class ProviderOfferingViewSet(
         serializer.is_valid(raise_exception=True)
 
         mode = serializer.validated_data["billing_mode"]
+        plans_follow = billing_mode.offering_has_builtin_components(offering)
 
-        # Determine which components to switch:
-        # - For offerings with builtin types (OpenStack, Rancher), switch only builtin + volume types
-        # - For generic offerings (site agent), switch all components
-        builtin_types = plugins.manager.get_component_types(offering.type)
-        if builtin_types:
-            target_types = set(builtin_types)
-            if offering.type == OPENSTACK_TENANT_OFFERING:
-                from waldur_openstack.utils import is_valid_volume_type_name
-
-                for comp in offering.components.all():
-                    if is_valid_volume_type_name(comp.type):
-                        target_types.add(comp.type)
-            target_components = offering.components.filter(type__in=target_types)
-        else:
+        # Switch the components that defer to the plan -- for OpenStack that is
+        # cores, ram, storage and the per-volume-type quotas. An offering whose
+        # components all carry their own accounting type, such as a site agent
+        # offering, has none, and there every component is switched.
+        target_components = offering.components.filter(billed_per_plan=True)
+        if not target_components.exists() and not plugins.manager.get_component_types(
+            offering.type
+        ):
+            # A generic offering, such as a site agent one, provides no
+            # components of its own, so the switch acts on all of them. An
+            # offering type that does provide them but has none marked is not
+            # such a case, and sweeping in the provider's own components there
+            # would rewrite accounting the plan was never meant to govern.
             target_components = offering.components.all()
 
         if mode == "prepaid":
@@ -4236,6 +4238,17 @@ class ProviderOfferingViewSet(
                 )
                 offering.save(update_fields=["plugin_options"])
                 self._restore_openstack_measured_units(target_components)
+
+        # A plan carrying an explicit mode overrides the components, so changing
+        # only the components would leave the switch doing nothing to what is
+        # billed. The mode goes to the plans as well, decided against the
+        # components as they now are: a switch to prepaid leaves them on inherit,
+        # because prepaid lives on the component and inherit is what defers to it.
+        if plans_follow:
+            plan_mode = PLAN_MODE_BY_SWITCH_MODE[mode]
+            if billing_mode.check_plan_billing_mode(offering, plan_mode):
+                plan_mode = BillingModes.INHERIT
+            offering.plans.update(billing_mode=plan_mode)
 
         return Response(status=status.HTTP_200_OK)
 

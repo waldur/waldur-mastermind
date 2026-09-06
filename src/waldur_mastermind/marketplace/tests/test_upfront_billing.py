@@ -496,6 +496,7 @@ class OpenStackComponentEditingTest(test.APITestCase):
         builtin_component = factories.OfferingComponentFactory(
             offering=self.offering,
             type=builtin_types[0],
+            billed_per_plan=True,
             name="Builtin",
             billing_type=BillingTypes.FIXED,
         )
@@ -525,6 +526,7 @@ class OpenStackComponentEditingTest(test.APITestCase):
         builtin_component = factories.OfferingComponentFactory(
             offering=self.offering,
             type=builtin_types[0],
+            billed_per_plan=True,
             name="Builtin",
             billing_type=BillingTypes.LIMIT,
         )
@@ -564,6 +566,7 @@ class SwitchBillingModeTest(test.APITestCase):
                 type=bt,
                 billing_type=BillingTypes.LIMIT,
                 limit_period=LimitPeriods.MONTH,
+                billed_per_plan=True,
             )
             self.target_components.append(comp)
 
@@ -667,12 +670,14 @@ class SwitchBillingModeTest(test.APITestCase):
             offering=self.offering,
             type="gigabytes_ssd",
             billing_type=BillingTypes.LIMIT,
+            billed_per_plan=True,
             limit_period=LimitPeriods.MONTH,
         )
         vol_hpc = factories.OfferingComponentFactory(
             offering=self.offering,
             type="gigabytes_hpc",
             billing_type=BillingTypes.LIMIT,
+            billed_per_plan=True,
             limit_period=LimitPeriods.MONTH,
         )
 
@@ -824,6 +829,8 @@ class GenericSwitchBillingModeTest(test.APITransactionTestCase):
                     type=bt,
                     billing_type=billing_type,
                     limit_period=limit_period,
+                    # create_offering_components marks these in production.
+                    billed_per_plan=True,
                 )
                 self.target_components.append(comp)
         else:

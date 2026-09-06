@@ -251,6 +251,18 @@ Limit-based components are billed based on the quantity of a resource a user has
 
 - **`QUARTERLY`**: This period has specialized logic for billing every three months, ensuring charges align with standard financial quarters.
 
+#### Per-Plan Billing Mode
+
+`Plan.billing_mode` (`inherit` | `limit` | `usage`) overrides how the offering's **builtin** components are billed under that plan; custom components keep their own `billing_type`. Which components a plan governs is stated on the component itself, by `OfferingComponent.billed_per_plan`: it is set for the ones a plugin provides and for the OpenStack per-volume-type quotas the volume type sync creates, and it is what `OfferingComponent.is_builtin` reports to the API. Prepaid is deliberately **not** a plan mode — it is limit-based billing paid upfront for a fixed term, and it stays on `OfferingComponent.is_prepaid`; a plan mode is refused on an offering whose builtin components are prepaid, because every mode would resolve them to something that is not. Every consumer of billing type resolves through `marketplace/billing_mode.py` (`resolve_component`, `resolve_for_resource`, `resolve_for_order`, `resolve_for_plan_period`) instead of reading `OfferingComponent.billing_type` directly. With `inherit` the component values apply unchanged.
+
+Consequences:
+
+- `Resource.is_usage_based` / `is_limit_based` are resolved per resource; the offering-level flags are true when any component or any plan resolves to that type.
+- Usage import accumulates hourly for components that resolve to `USAGE` and keeps a monthly high-water mark otherwise. `ComponentUsage` rows are keyed by plan period as well as month, so a mid-month plan switch starts a fresh row under the new period and the pre-switch row stays priced by the old plan; usage invoice items carry `details.plan_period_uuid` for the same reason.
+- A plan switch closes limit items at the switch instant and re-registers the new plan. Closing an item recomputes its quantity with the plan's unit rule (`InvoiceItem.quantity_from_limit_periods`): per-day items count `limit × days`, per-month items keep the day-weighted average limit, so a monthly fee is neither multiplied by days nor reduced. Switching back to a plan within the same month continues that plan's item with a new limit period instead of opening a second full-month line (`LimitPeriodProcessor._reopen_closed_item`). Usage items are named `resource (offering / plan) / component` and carry `details.plan_name` of the plan period that priced them; usage items appear as usage is reported. Switching onto a limit plan requires the resource's current limits to pass the plugin's limits validator. The switch emits `marketplace_resource_plan_switched` and `OrderDetails` exposes `old_plan_billing_mode` / `new_plan_billing_mode`.
+- Orders on a usage plan carry no limits; the OpenStack tenant is created with backend default quotas.
+- Only OpenStack tenant plans were given an explicit mode by migration; the mechanism is inert elsewhere, because an `inherit` plan resolves to the component's own values.
+
 #### Quarterly Billing Implementation
 
 The implementation for `QUARTERLY` components ensures they are billed on a strict three-month cycle.
@@ -586,7 +598,7 @@ Consumer approval is **skipped** when any of these conditions are met:
 | **Same Organization Auto-Approval** | Public offering with auto-approval enabled | `offering.shared && offering.customer == project.customer && auto_approve_in_service_provider_projects == True` |
 | **Termination by Service Provider** | Service provider owner terminating resource | `order.type == TERMINATE && has_owner_access(user, offering.customer)` |
 | **Project Permission** | User has order approval permission | `has_permission(APPROVE_ORDER, project)` |
-| **Project Auto-Approval Rule** | Project has an enabled `ProjectOrderAutoApproval` whose `monthly_cost_limit` is at or above the order's estimated monthly cost (and the offering has no usage-billed components) | See *Project-Level Auto-Approval Rule* below |
+| **Project Auto-Approval Rule** | Project has an enabled `ProjectOrderAutoApproval` whose `monthly_cost_limit` is at or above the order's estimated monthly cost (and the order's plan bills nothing by usage) | See *Project-Level Auto-Approval Rule* below |
 
 #### Project-Level Auto-Approval Rule
 
@@ -597,8 +609,9 @@ handler schedules a re-checked evaluation via `transaction.on_commit`. The order
 is auto-approved when **all** of the following hold:
 
 - An enabled rule exists for the order's project.
-- The order's offering has **no** components with `billing_type=USAGE`
-  (LIMIT/FIXED/ONE_TIME/ON_PLAN_SWITCH are considered predictable).
+- The order's plan resolves **no** component to `billing_type=USAGE`
+  (LIMIT/FIXED/ONE_TIME/ON_PLAN_SWITCH are considered predictable); a limit
+  plan on an offering that also has a usage plan still qualifies.
 - The recurring monthly cost — `plan.get_estimate(order.limits)` with no
   start/end dates, so one-time fees and switch fees are excluded — is
   `<= rule.monthly_cost_limit` (inclusive boundary).
