@@ -94,8 +94,23 @@ def send_comment_added_notification(serialized_comment):
     ):
         is_system_comment = True
 
+    issue = comment.issue
+    author = comment.author.user if comment.author_id else None
+
+    if author is None and issue.caller is None:
+        # Neither side is a known user, which happens for comments imported from
+        # a remote service desk. There is nobody to tell, and letting this fall
+        # through would queue a send that can only log a warning and give up.
+        return
+
+    if author == issue.caller:
+        # The customer replied. Before this, their comment reached nobody: the
+        # only comment notification went to the caller, who is the author here.
+        notify_helpdesk_new_comment(comment)
+        return
+
     _send_issue_notification(
-        issue=comment.issue,
+        issue=issue,
         template="comment_added",
         extra_context={
             "comment": comment,
@@ -104,6 +119,51 @@ def send_comment_added_notification(serialized_comment):
         },
         notification_key="support.notification_comment_added",
     )
+
+
+def notify_helpdesk_new_comment(comment):
+    """Tell whoever works the ticket that its caller has commented."""
+    issue = comment.issue
+
+    # `broadcast_mail` consults only the Notification row, where `_send_email`
+    # checks this as well. Without it a deployment with support switched off
+    # would still mail its whole staff roster.
+    if not config.WALDUR_SUPPORT_ENABLED:
+        return
+
+    if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE != backend.SupportBackendType.BASIC:
+        # Atlassian, Zammad and SMAX show the comment to their own agents.
+        return
+
+    if issue.provider_helpdesk_id:
+        # A ticket routed to a provider is announced by
+        # `notify_provider_customer_comment` instead.
+        return
+
+    recipients = get_caller_comment_recipients(comment)
+    if not recipients:
+        logger.info(
+            "Nobody is available to notify about a comment on issue %s.", issue.key
+        )
+        return
+
+    try:
+        broadcast_mail(
+            "support",
+            "notification_comment_added_staff",
+            {
+                "issue": issue,
+                "comment": comment,
+                "issue_url": core_utils.format_homeport_link(
+                    "support/issue/{uuid}/", uuid=issue.uuid
+                ),
+            },
+            recipients,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to notify the helpdesk about a comment on issue %s", issue.key
+        )
 
 
 @shared_task(name="waldur_mastermind.support.send_comment_updated_notification")
@@ -487,21 +547,55 @@ def reroute_issue_to_provider(issue, new_helpdesk):
     return new_child, old_helpdesks
 
 
-def get_helpdesk_personnel_emails() -> list[str]:
-    """Addresses of the people who work the operator's helpdesk.
+def get_helpdesk_personnel():
+    """The people who work the operator's helpdesk, as users.
 
     `is_staff or is_support` is the predicate the support app uses everywhere
     for helpdesk personnel; `SupportUser` is not a usable roster on the built-in
     backend, where rows only appear incidentally when somebody comments or
     resolves. Honours each user's own notification opt-out.
     """
-    return list(
+    return (
         core_models.User.objects.filter(is_active=True, notifications_enabled=True)
         .filter(Q(is_staff=True) | Q(is_support=True))
         .exclude(email="")
-        .values_list("email", flat=True)
-        .distinct()
     )
+
+
+def get_caller_comment_recipients(comment) -> list[str]:
+    """Who to tell that the person who raised the ticket has replied.
+
+    The assignee owns the ticket once it has one, so they alone are told;
+    otherwise nobody in particular owns it yet and the whole helpdesk hears.
+    The author never gets their own comment back, which matters when a staff
+    member raised the ticket themselves.
+    """
+    issue = comment.issue
+    author = comment.author.user if comment.author_id else None
+
+    assignee = issue.assignee.user if issue.assignee_id else None
+    if (
+        assignee is not None
+        and assignee != author
+        and assignee.is_active
+        and assignee.notifications_enabled
+        and assignee.email
+    ):
+        return [assignee.email]
+
+    # No reachable assignee: an agent who has left, or who switched
+    # notifications off, must not swallow the reply. Fall back to the whole
+    # helpdesk, the way the new-ticket notification does.
+
+    personnel = get_helpdesk_personnel()
+    if author is not None:
+        personnel = personnel.exclude(pk=author.pk)
+    return list(personnel.values_list("email", flat=True).distinct())
+
+
+def get_helpdesk_personnel_emails() -> list[str]:
+    """Addresses of the people who work the operator's helpdesk."""
+    return list(get_helpdesk_personnel().values_list("email", flat=True).distinct())
 
 
 @shared_task(name="waldur_mastermind.support.notify_staff_new_issue")

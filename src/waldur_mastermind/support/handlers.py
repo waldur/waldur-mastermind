@@ -147,16 +147,17 @@ def send_comment_added_notification(
     if comment.is_forwarded:
         return
 
-    # Skip notifications about comments added to an issue by caller himself
-    if comment.author.user == comment.issue.caller:
-        return
+    # A comment from the caller is not sent back to them: the task routes it to
+    # whoever works the ticket instead. An edit of their own comment still
+    # notifies nobody, which is what it did before.
+    is_caller_comment = comment.author.user == comment.issue.caller
 
     serialized_comment = core_utils.serialize_instance(comment)
     if created:
         transaction.on_commit(
             lambda: tasks.send_comment_added_notification.delay(serialized_comment)
         )
-    else:
+    elif not is_caller_comment:
         old_description = comment.tracker.previous("description")
         if old_description != comment.description:
             transaction.on_commit(

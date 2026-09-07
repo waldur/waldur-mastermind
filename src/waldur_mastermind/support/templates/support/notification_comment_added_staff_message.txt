@@ -1,0 +1,13 @@
+{{ comment.author.name|default:"The requester" }} has commented on a support request.
+
+Request: {{ issue.key }}
+Summary: {{ issue.summary.strip }}
+Status: {{ issue.status }}
+{% if issue.assignee %}Assignee: {{ issue.assignee.name }}
+{% endif %}{% if issue.customer %}Organization: {{ issue.customer.name }}
+{% endif %}{% if issue.project %}Project: {{ issue.project.name }}
+{% endif %}
+Comment:
+{{ comment.description.strip }}
+
+Open the request: {{ issue_url }}
