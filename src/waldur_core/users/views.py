@@ -384,7 +384,9 @@ class InvitationViewSet(viewsets.ModelViewSet):
     def accept(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
 
-        if has_user(invitation.scope, request.user, invitation.role):
+        if has_user(
+            invitation.scope, request.user, invitation.role, match_clones=False
+        ):
             raise ValidationError(_("User has already the same role in this scope."))
 
         if invitation.email.casefold() != request.user.email.casefold():
@@ -595,7 +597,7 @@ class GroupInvitationViewSet(ActionsViewSet):
             raise ValidationError(_("Only pending invitation can be requested."))
 
         # Check if user already has the requested role in the scope
-        if has_user(invitation.scope, user, invitation.role):
+        if has_user(invitation.scope, user, invitation.role, match_clones=False):
             raise ValidationError(_("User already has this role in the scope."))
 
         # Check if multiple roles are disabled for this scope

@@ -294,7 +294,7 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
             role = self.invitation.role
 
         # Defense-in-depth: skip if user already has the role
-        if has_user(scope, self.created_by, role):
+        if has_user(scope, self.created_by, role, match_clones=False):
             return {"project": created_project, "project_created": project_created}
 
         validate_role_grant(scope, self.created_by, role)

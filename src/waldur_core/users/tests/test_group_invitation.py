@@ -12,6 +12,7 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import Role, UserRole
+from waldur_core.permissions.serializers import clone_role_for_customer
 from waldur_core.permissions.utils import add_user, has_user
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
@@ -1058,6 +1059,26 @@ class RequestApproveTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
+
+    def test_approve_grants_clone_when_user_holds_template(self):
+        # The "already has the role" skip in approve is identity-strict:
+        # approving a clone request for a template holder must grant the
+        # clone, not silently no-op.
+        clone = clone_role_for_customer(
+            CustomerRole.OWNER, self.customer, conceal_template=False
+        )
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer, role=clone
+        )
+        requester = structure_factories.UserFactory()
+        add_user(self.customer, requester, CustomerRole.OWNER)
+        permission_request = factories.PermissionRequestFactory(
+            invitation=invitation, created_by=requester
+        )
+
+        permission_request.approve(self.staff)
+
+        self.assertTrue(has_user(self.customer, requester, clone, match_clones=False))
 
     def test_customer_owner_can_approve_project_scoped_request(self):
         project_invitation = factories.ProjectGroupInvitationFactory(scope=self.project)

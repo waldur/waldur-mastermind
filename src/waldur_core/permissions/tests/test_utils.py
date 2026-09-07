@@ -616,3 +616,70 @@ class OnlyOneProjectManagerTest(TestCase):
             utils.validate_role_grant(
                 self.project, self.other_user, ProjectRole.MANAGER
             )
+
+
+class TemplateAwareRoleMatchingTest(TestCase):
+    """Role checks resolve organization-scoped clones one level deep: a user
+    holding a clone satisfies a check for the clone's template, never the
+    reverse (issue #316)."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.project = self.fixture.project
+        self.user = factories.UserFactory()
+        self.clone = clone_role_for_customer(
+            ProjectRole.MEMBER, self.customer, conceal_template=False
+        )
+        utils.add_user(self.project, self.user, self.clone)
+
+    def test_clone_holder_satisfies_has_user_for_template(self):
+        self.assertTrue(utils.has_user(self.project, self.user, ProjectRole.MEMBER))
+
+    def test_template_holder_does_not_satisfy_has_user_for_clone(self):
+        member = factories.UserFactory()
+        utils.add_user(self.project, member, ProjectRole.MEMBER)
+        self.assertFalse(utils.has_user(self.project, member, self.clone))
+
+    def test_match_clones_false_is_identity_strict(self):
+        self.assertFalse(
+            utils.has_user(
+                self.project, self.user, ProjectRole.MEMBER, match_clones=False
+            )
+        )
+        self.assertTrue(
+            utils.has_user(self.project, self.user, self.clone, match_clones=False)
+        )
+
+    def test_expiration_time_applies_to_clone_match(self):
+        expiring = factories.UserFactory()
+        utils.add_user(
+            self.project,
+            expiring,
+            self.clone,
+            expiration_time=timezone.now() + timezone.timedelta(days=1),
+        )
+        self.assertTrue(utils.has_user(self.project, expiring, ProjectRole.MEMBER))
+        # Not a permanent role
+        self.assertFalse(
+            utils.has_user(
+                self.project, expiring, ProjectRole.MEMBER, expiration_time=None
+            )
+        )
+        # Expired by then
+        self.assertFalse(
+            utils.has_user(
+                self.project,
+                expiring,
+                ProjectRole.MEMBER,
+                expiration_time=timezone.now() + timezone.timedelta(days=2),
+            )
+        )
+
+    def test_orphaned_clone_no_longer_matches_template(self):
+        # Deleting a template SET_NULLs its clones; an orphan is a plain
+        # custom role and must not match anything but itself.
+        self.clone.template = None
+        self.clone.save()
+        self.assertFalse(utils.has_user(self.project, self.user, ProjectRole.MEMBER))
+        self.assertTrue(utils.has_user(self.project, self.user, self.clone))

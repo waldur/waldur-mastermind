@@ -29,6 +29,7 @@ from waldur_core.permissions.models import (
     Role,
     RoleAvailability,
 )
+from waldur_core.permissions.serializers import clone_role_for_customer
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories as structure_factories
@@ -1594,6 +1595,28 @@ class InvitationAcceptTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
             response.data, ["User has already the same role in this scope."]
+        )
+
+    def test_template_holder_can_accept_invitation_to_org_scoped_clone(self):
+        # The duplicate-role guard is identity-strict: holding the system role
+        # must not block accepting an invitation to its organization clone.
+        clone = clone_role_for_customer(
+            ProjectRole.ADMIN, self.customer, conceal_template=False
+        )
+        project_invitation = factories.ProjectInvitationFactory(
+            scope=self.project, role=clone
+        )
+        self.project.add_user(self.user, ProjectRole.ADMIN)
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            factories.ProjectInvitationFactory.get_url(
+                project_invitation, action="accept"
+            )
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            get_permissions(self.project, self.user).filter(role=clone).exists()
         )
 
     @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
