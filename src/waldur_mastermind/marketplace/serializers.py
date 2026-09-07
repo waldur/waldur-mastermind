@@ -3997,6 +3997,7 @@ class ProviderOfferingDetailsSerializer(
     can_update_options = serializers.SerializerMethodField()
     components = OfferingComponentSerializer(required=False, many=True)
     order_count = serializers.SerializerMethodField()
+    billing_period_applies = serializers.SerializerMethodField()
     plans = BaseProviderPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.SerializerMethodField()
@@ -4064,6 +4065,7 @@ class ProviderOfferingDetailsSerializer(
             "url",
             "uuid",
             "created",
+            "billing_period_applies",
             "name",
             "slug",
             "description",
@@ -4346,6 +4348,30 @@ class ProviderOfferingDetailsSerializer(
             return offering.get_quota_usage("order_count")
         except ObjectDoesNotExist:
             return 0
+
+    @extend_schema_field(
+        {
+            "type": "object",
+            "additionalProperties": {"type": "boolean"},
+            "description": (
+                "Per plan billing mode, whether a plan's billing period changes "
+                "what is invoiced. False means every component of this offering "
+                "would price a quantity of its own under that mode, so the "
+                "period is inert on the invoice."
+            ),
+        }
+    )
+    def get_billing_period_applies(self, offering: models.Offering) -> dict:
+        """Whether the plan's billing period matters, per billing mode.
+
+        The plan form needs this before a plan exists, so it cannot be derived
+        from a plan's resolved components; answering it here keeps the rule in
+        the resolver rather than duplicated in the client.
+        """
+        return {
+            mode: billing_mode.billing_period_applies(offering, mode)
+            for mode, _label in BillingModes.CHOICES
+        }
 
     @extend_schema_field(OfferingComponentSerializer(many=True))
     def get_components(self, offering: models.Offering):
