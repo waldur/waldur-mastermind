@@ -20,6 +20,24 @@ class SupportedFormat:
     TEXT = "text"
 
 
+#: Fallback when the operator blanked the setting out of the database. The
+#: same value is the Constance default.
+DEFAULT_ISSUE_KEY_PREFIX = "WLD"
+
+
+def build_backend_id(uuid, marker: str = "") -> str:
+    """Compose the id of a locally-created ticket, comment or attachment.
+
+    Shape is ``<PREFIX>[-<marker>]-<8 hex chars>``, e.g. ``WLD-A1B2C3D4`` for a
+    ticket and ``WLD-C-A1B2C3D4`` for its comment. The prefix is operator
+    configurable; ids already stored on an object are never recomputed, so a
+    changed prefix only affects objects created after the change.
+    """
+    prefix = config.WALDUR_SUPPORT_ISSUE_KEY_PREFIX or DEFAULT_ISSUE_KEY_PREFIX
+    parts = [prefix, marker, uuid.hex[:8].upper()]
+    return "-".join(part for part in parts if part)
+
+
 def get_active_backend() -> "SupportBackend":
     backend_type = config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
     if backend_type == SupportBackendType.ATLASSIAN:

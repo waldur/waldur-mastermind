@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from waldur_mastermind.support import models
 
-from . import SupportBackend, SupportBackendError
+from . import SupportBackend, SupportBackendError, build_backend_id
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class BasicBackend(SupportBackend):
         return cls()
 
     def create_issue(self, issue):
-        issue.backend_id = f"WLD-{issue.uuid.hex[:8].upper()}"
+        issue.backend_id = build_backend_id(issue.uuid)
         issue.key = issue.backend_id
 
         if not issue.status:
@@ -65,7 +65,7 @@ class BasicBackend(SupportBackend):
         return
 
     def create_comment(self, comment):
-        comment.backend_id = f"WLD-C-{comment.uuid.hex[:8].upper()}"
+        comment.backend_id = build_backend_id(comment.uuid, "C")
         comment.save(update_fields=["backend_id"])
 
         # Track first response time
@@ -81,7 +81,7 @@ class BasicBackend(SupportBackend):
         return
 
     def create_attachment(self, attachment):
-        attachment.backend_id = f"WLD-A-{attachment.uuid.hex[:8].upper()}"
+        attachment.backend_id = build_backend_id(attachment.uuid, "A")
         attachment.save(update_fields=["backend_id"])
 
     def delete_attachment(self, attachment):

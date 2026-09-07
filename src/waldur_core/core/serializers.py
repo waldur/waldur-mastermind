@@ -667,6 +667,14 @@ color_hex_validator = RegexValidator(
 )
 
 
+ISSUE_KEY_PREFIX_RE = re.compile("^[A-Z]{3,5}$")
+issue_key_prefix_validator = RegexValidator(
+    ISSUE_KEY_PREFIX_RE,
+    _("Enter three to five capital latin letters, eg. WLD"),
+    "invalid",
+)
+
+
 class ConstanceSettingsSerializer(serializers.Serializer):
     def get_fields(self):
         fields = OrderedDict()
@@ -753,6 +761,12 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["allow_blank"] = True
             fields[name] = field_class(**kwargs)
         return fields
+
+    def validate_WALDUR_SUPPORT_ISSUE_KEY_PREFIX(self, value):
+        # The prefix is pasted into every ticket key, so a stray space or a
+        # lowercase letter would show up in mail subjects forever.
+        issue_key_prefix_validator(value)
+        return value
 
     def validate_OIDC_ALLOWED_USER_EMAIL_PATTERNS(self, value):
         # An unusable pattern never matches, so a silently accepted typo would
