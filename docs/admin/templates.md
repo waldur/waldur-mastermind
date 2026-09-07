@@ -4587,6 +4587,23 @@ Description:
 
 ```
 
+### notification_comment_added_staff_message.html (waldur_mastermind.support)
+
+```html
+
+<p>{{ comment.author.name|default:"The requester" }} has commented on a support request.</p>
+<p><strong>Request:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary.strip }}<br>
+<strong>Status:</strong> {{ issue.status }}
+{% if issue.assignee %}<br><strong>Assignee:</strong> {{ issue.assignee.name }}{% endif %}
+{% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}
+{% if issue.project %}<br><strong>Project:</strong> {{ issue.project.name }}{% endif %}</p>
+<p><strong>Comment:</strong></p>
+<p>{{ comment.description.strip }}</p>
+<p><a href="{{ issue_url }}">Open the request</a></p>
+
+```
+
 ### notification_issue_updated_message.html (waldur_mastermind.support)
 
 ```html
@@ -4706,6 +4723,14 @@ Description:
 ```txt
 
 [{{ issue.key }}] New support request: {{ issue.summary.strip }}
+
+```
+
+### notification_comment_added_staff_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] New comment from {{ comment.author.name|default:"the requester" }}: {{ issue.summary.strip }}
 
 ```
 
@@ -4839,6 +4864,26 @@ The issue you have created has a new comment. Please go to {{issue_url}} to see 
 ```txt
 
 [{{ issue.key }}] New ticket: {{ issue.summary }}
+
+```
+
+### notification_comment_added_staff_message.txt (waldur_mastermind.support)
+
+```txt
+
+{{ comment.author.name|default:"The requester" }} has commented on a support request.
+
+Request: {{ issue.key }}
+Summary: {{ issue.summary.strip }}
+Status: {{ issue.status }}
+{% if issue.assignee %}Assignee: {{ issue.assignee.name }}
+{% endif %}{% if issue.customer %}Organization: {{ issue.customer.name }}
+{% endif %}{% if issue.project %}Project: {{ issue.project.name }}
+{% endif %}
+Comment:
+{{ comment.description.strip }}
+
+Open the request: {{ issue_url }}
 
 ```
 

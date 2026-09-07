@@ -1770,6 +1770,14 @@ Type of support backend. Possible values: basic, atlassian, zammad, smax.
 
 Toggler for request type displaying
 
+#### WALDUR_SUPPORT_ISSUE_KEY_PREFIX
+
+**Type:** issue_key_prefix_field
+
+**Default value:** WLD
+
+Prefix of ticket keys created by the built-in service desk, e.g. WLD in WLD-A1B2C3D4. Three to five capital latin letters. Keys of existing tickets are not rewritten.
+
 #### WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED
 
 **Type:** bool
@@ -2688,6 +2696,14 @@ Field name from the introspection response JSON used to identify the Waldur user
 
 Seconds to cache successful token introspection results. Reduces load on the introspection endpoint. Set to 0 to disable caching. Default: 300 (5 minutes).
 
+#### OIDC_REGISTRATION_METHOD
+
+**Type:** str
+
+**Default value:** oidc
+
+Value stored in User.registration_method for accounts created or adopted via Bearer token introspection (OIDCAuthentication). Set to the social IdP provider slug (e.g. 'eduteams') when introspection and OAuth share the same identity provider so IdentityProvider.protected_fields apply.
+
 #### OIDC_DEFAULT_LOGOUT_URL
 
 **Type:** url_field
@@ -3354,7 +3370,7 @@ If true, a support ticket is created when a user adds or removes an SSH public k
 
 **Type:** multiple_choice_field
 
-**Default value:** ['resource-usage', 'user-usage', 'quotas', 'usage-monitoring', 'usage-trends', 'organization-summary', 'project-detail', 'resources-geography', 'project-classification', 'usage-by-customer', 'usage-by-org-type', 'usage-by-creator', 'call-performance', 'review-progress', 'resource-demand', 'capacity', 'provider-overview', 'provider-revenue', 'provider-orders', 'provider-resources', 'provider-customers', 'provider-offerings', 'openstack-instances', 'offering-usage', 'user-analytics', 'user-demographics', 'user-organizations', 'user-affiliations', 'user-roles', 'growth', 'revenue', 'pricelist', 'orders', 'offering-costs', 'maintenance-overview', 'provisioning-stats']
+**Default value:** ['resource-usage', 'user-usage', 'quotas', 'usage-monitoring', 'usage-trends', 'organization-summary', 'project-detail', 'resources-geography', 'project-classification', 'usage-by-customer', 'usage-by-org-type', 'usage-by-creator', 'projects-by-affiliated-organization', 'call-performance', 'review-progress', 'resource-demand', 'capacity', 'provider-overview', 'provider-revenue', 'provider-orders', 'provider-resources', 'provider-customers', 'provider-offerings', 'openstack-instances', 'offering-usage', 'user-analytics', 'user-demographics', 'user-organizations', 'user-affiliations', 'user-roles', 'growth', 'revenue', 'pricelist', 'orders', 'offering-costs', 'maintenance-overview', 'provisioning-stats']
 
 Select which reporting screens should be visible to users. Uncheck to disable specific reports.
 

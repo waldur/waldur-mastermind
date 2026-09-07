@@ -2791,6 +2791,57 @@ Notification about a new comment in the issue. The recipient is issue caller.
 
 ```
 
+### support.notification_comment_added_staff
+
+Notification to the assignee, or to all staff and support users when the ticket is unassigned, about a comment the issue caller added. Sent only by the built-in service desk — the Atlassian, Zammad and SMAX backends notify their own agents.
+
+#### Templates
+
+=== "support/notification_comment_added_staff_subject.txt"
+
+```txt
+
+    [{{ issue.key }}] New comment from {{ comment.author.name|default:"the requester" }}: {{ issue.summary.strip }}
+
+```
+
+=== "support/notification_comment_added_staff_message.txt"
+
+```txt
+
+    {{ comment.author.name|default:"The requester" }} has commented on a support request.
+
+    Request: {{ issue.key }}
+    Summary: {{ issue.summary.strip }}
+    Status: {{ issue.status }}
+    {% if issue.assignee %}Assignee: {{ issue.assignee.name }}
+    {% endif %}{% if issue.customer %}Organization: {{ issue.customer.name }}
+    {% endif %}{% if issue.project %}Project: {{ issue.project.name }}
+    {% endif %}
+    Comment:
+    {{ comment.description.strip }}
+
+    Open the request: {{ issue_url }}
+
+```
+
+=== "support/notification_comment_added_staff_message.html"
+
+```txt
+
+    <p>{{ comment.author.name|default:"The requester" }} has commented on a support request.</p>
+    <p><strong>Request:</strong> {{ issue.key }}<br>
+    <strong>Summary:</strong> {{ issue.summary.strip }}<br>
+    <strong>Status:</strong> {{ issue.status }}
+    {% if issue.assignee %}<br><strong>Assignee:</strong> {{ issue.assignee.name }}{% endif %}
+    {% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}
+    {% if issue.project %}<br><strong>Project:</strong> {{ issue.project.name }}{% endif %}</p>
+    <p><strong>Comment:</strong></p>
+    <p>{{ comment.description.strip }}</p>
+    <p><a href="{{ issue_url }}">Open the request</a></p>
+
+```
+
 ### support.notification_comment_updated
 
 Notification about an update in the issue comment. The recipient is issue caller.
