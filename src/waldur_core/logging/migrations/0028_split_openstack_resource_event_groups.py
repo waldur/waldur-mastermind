@@ -3,9 +3,12 @@ from django.db import migrations
 RESOURCES = "resources"
 OPENSTACK_RESOURCES = "openstack_resources"
 
+# `event_groups` lives on the concrete BaseHook table (0023). WebHook and
+# EmailHook are its multi-table children in the live models, but 0023 never
+# updated their `bases` in the migration state, so the historical child models
+# do not expose the inherited fields. Iterating BaseHook reaches every hook.
 MODELS = [
-    ("logging", "WebHook"),
-    ("logging", "EmailHook"),
+    ("logging", "BaseHook"),
     ("logging", "SystemNotification"),
 ]
 
