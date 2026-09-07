@@ -5530,6 +5530,20 @@ def validate_prepaid_duration_against_component(
             )
 
 
+class LimitValueField(serializers.FloatField):
+    """A component limit, which may be fractional.
+
+    Order.limits and Resource.limits are JSONFields written with the stdlib
+    encoder, so the value has to stay JSON-native — a Decimal raises at save
+    time. Whole numbers are returned as int so that a limit of 5 keeps
+    serialising as 5 rather than 5.0 and existing payloads are unchanged.
+    """
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        return int(value) if float(value).is_integer() else value
+
+
 class BaseOrderSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Order
@@ -5591,7 +5605,7 @@ class BaseOrderSerializer(BaseItemSerializer):
         read_only=True, source="resource.backend_type", allow_null=True
     )
     state = serializers.SerializerMethodField()
-    limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    limits = serializers.DictField(child=LimitValueField(), required=False)
     accepting_terms_of_service = serializers.BooleanField(
         required=False, write_only=True
     )
@@ -7522,7 +7536,7 @@ class ResourceRenewSerializer(serializers.Serializer):
         help_text=_("Number of months to extend the subscription by."),
     )
     limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=0),
+        child=LimitValueField(min_value=0),
         required=False,
         help_text=_("Optional new limits for the resource. Supports upgrades only."),
     )
@@ -7562,7 +7576,7 @@ class RenewalEstimateRequestSerializer(serializers.Serializer):
         min_value=1, max_value=MAX_RENEWAL_MONTHS
     )
     limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=0), required=False
+        child=LimitValueField(min_value=0), required=False
     )
 
     def validate(self, attrs):
@@ -7732,7 +7746,7 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
         fields = ("limits", "request_comment", "attachment")
 
     limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=0), required=True
+        child=LimitValueField(min_value=0), required=True
     )
     attachment = serializers.FileField(
         required=False,
@@ -8078,14 +8092,14 @@ class ResourceLimitChangeRequestSerializer(serializers.HyperlinkedModelSerialize
 class ResourceReallocateTargetSerializer(serializers.Serializer):
     resource_uuid = serializers.UUIDField(required=True)
     allocated_limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=1),
+        child=LimitValueField(min_value=1),
         required=True,
     )
 
 
 class ResourceReallocateLimitsSerializer(serializers.Serializer):
     limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=1),
+        child=LimitValueField(min_value=1),
         required=True,
     )
 
