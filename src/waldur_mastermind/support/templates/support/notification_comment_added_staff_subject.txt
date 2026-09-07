@@ -1,0 +1,1 @@
+[{{ issue.key }}] New comment from {{ comment.author.name|default:"the requester" }}: {{ issue.summary.strip }}
