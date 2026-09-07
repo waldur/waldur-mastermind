@@ -10,7 +10,7 @@ privilege staff accounts — whenever the IdP introspection returned an
 We keep that adoption behaviour *by design* (so existing accounts keep
 working across the OIDC rollout rather than being locked out), but make
 it fully auditable: an OIDC token that adopts a non-OIDC account re-tags
-the account with `registration_method="oidc"`, emits a WARNING log, and
+the account with the configured OIDC_REGISTRATION_METHOD, emits a WARNING log, and
 records a django-reversion snapshot of the pre-adoption state so the
 change can be reviewed and reverted if it turns out to be a takeover.
 """
@@ -18,13 +18,13 @@ change can be reviewed and reverted if it turns out to be a takeover.
 import httpx
 import jwt
 import respx
+from constance import config
 from constance.test.unittest import override_config
 from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 from reversion.models import Version
 
-from waldur_core.core.authentication import OIDCAuthentication
 from waldur_core.core.models import User
 
 VALID_PAYLOAD = {"exp": 9999999999, "username": "victim", "sub": "att-sub"}
@@ -70,10 +70,7 @@ class OidcAccountAdoptionTest(APITestCase):
 
         # The account is re-tagged so subsequent logins bind cleanly.
         victim.refresh_from_db()
-        self.assertEqual(
-            victim.registration_method,
-            OIDCAuthentication.REGISTRATION_METHOD,
-        )
+        self.assertEqual(victim.registration_method, config.OIDC_REGISTRATION_METHOD)
 
         # A WARNING was emitted naming the adoption and the token subject.
         self.assertTrue(
@@ -116,19 +113,14 @@ class OidcAccountAdoptionTest(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         new_user = User.objects.get(username="newcomer")
-        self.assertEqual(
-            new_user.registration_method,
-            OIDCAuthentication.REGISTRATION_METHOD,
-            "Newly provisioned OIDC user should be marked with the OIDC "
-            "registration method so subsequent logins re-bind safely.",
-        )
+        self.assertEqual(new_user.registration_method, config.OIDC_REGISTRATION_METHOD)
 
     @respx.mock
     def test_existing_oidc_user_can_log_in_again_without_new_revision(self):
         user = User.objects.create(
             username="legit-oidc",
             email="oidc@waldur.example",
-            registration_method=OIDCAuthentication.REGISTRATION_METHOD,
+            registration_method=config.OIDC_REGISTRATION_METHOD,
             is_active=True,
         )
         versions_before = Version.objects.get_for_object(user).count()
@@ -172,3 +164,83 @@ class OidcAccountAdoptionTest(APITestCase):
         # Rejected before any adoption/re-tagging happened.
         user.refresh_from_db()
         self.assertEqual(user.registration_method, "default")
+
+
+@override_config(
+    OIDC_INTROSPECTION_URL="http://oidc.example.com/introspect",
+    OIDC_CLIENT_ID="test-client",
+    OIDC_CLIENT_SECRET="test-secret",
+    OIDC_USER_FIELD="username",
+    OIDC_REGISTRATION_METHOD="eduteams",
+)
+class OidcConfiguredRegistrationMethodTest(APITestCase):
+    def tearDown(self):
+        cache.clear()
+
+    @respx.mock
+    def test_new_user_is_provisioned_with_configured_registration_method(self):
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": "newcomer"}
+            )
+        )
+        token = jwt.encode({"exp": 9999999999, "username": "newcomer"}, "k")
+
+        response = self.client.get(
+            "/api/users/me/", HTTP_AUTHORIZATION=f"Bearer {token}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        new_user = User.objects.get(username="newcomer")
+        self.assertEqual(new_user.registration_method, config.OIDC_REGISTRATION_METHOD)
+
+    @respx.mock
+    def test_eduteams_user_is_not_retagged_on_subsequent_bearer_login(self):
+        user = User.objects.create(
+            username="federated-user",
+            email="federated@waldur.example",
+            registration_method=config.OIDC_REGISTRATION_METHOD,
+            is_active=True,
+        )
+        versions_before = Version.objects.get_for_object(user).count()
+
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": "federated-user"}
+            )
+        )
+        token = jwt.encode({"exp": 9999999999, "username": "federated-user"}, "k")
+        response = self.client.get(
+            "/api/users/me/", HTTP_AUTHORIZATION=f"Bearer {token}"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.registration_method, config.OIDC_REGISTRATION_METHOD)
+        self.assertEqual(
+            Version.objects.get_for_object(user).count(),
+            versions_before,
+            "Matching registration_method must not trigger adoption revisions.",
+        )
+
+    @respx.mock
+    def test_legacy_registration_method_is_retagged_to_configured_value(self):
+        user = User.objects.create(
+            username="legacy-oidc",
+            email="legacy@waldur.example",
+            registration_method="default",
+            is_active=True,
+        )
+
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": "legacy-oidc"}
+            )
+        )
+        token = jwt.encode({"exp": 9999999999, "username": "legacy-oidc"}, "k")
+        response = self.client.get(
+            "/api/users/me/", HTTP_AUTHORIZATION=f"Bearer {token}"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertEqual(user.registration_method, config.OIDC_REGISTRATION_METHOD)

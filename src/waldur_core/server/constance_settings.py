@@ -1125,6 +1125,13 @@ CONSTANCE_CONFIG = {
         "Seconds to cache successful token introspection results. Reduces load on the introspection endpoint. "
         "Set to 0 to disable caching. Default: 300 (5 minutes).",
     ),
+    "OIDC_REGISTRATION_METHOD": (
+        "oidc",
+        "Value stored in User.registration_method for accounts created or adopted "
+        "via Bearer token introspection (OIDCAuthentication). Set to the social "
+        "IdP provider slug (e.g. 'eduteams') when introspection and OAuth share "
+        "the same identity provider so IdentityProvider.protected_fields apply.",
+    ),
     "OIDC_ACCESS_TOKEN_ENABLED": (
         False,
         "If true, OIDC complete view returns access token instead of Waldur token",
@@ -2081,6 +2088,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_CLIENT_SECRET",
         "OIDC_USER_FIELD",
         "OIDC_CACHE_TIMEOUT",
+        "OIDC_REGISTRATION_METHOD",
         "OIDC_DEFAULT_LOGOUT_URL",
         "WALDUR_AUTH_SOCIAL_ROLE_CLAIM",
     ),
