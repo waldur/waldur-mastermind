@@ -683,3 +683,48 @@ class TemplateAwareRoleMatchingTest(TestCase):
         self.clone.save()
         self.assertFalse(utils.has_user(self.project, self.user, ProjectRole.MEMBER))
         self.assertTrue(utils.has_user(self.project, self.user, self.clone))
+
+
+class TemplateAwareBulkLookupTest(TestCase):
+    """Bulk role lookups resolve organization-scoped clones one level deep,
+    matching the intent of the checks they back (issue #316)."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.project = self.fixture.project
+        self.user = factories.UserFactory()
+        self.clone = clone_role_for_customer(
+            ProjectRole.MEMBER, self.customer, conceal_template=False
+        )
+        utils.add_user(self.project, self.user, self.clone)
+
+    def test_bulk_lookups_include_clone_holders(self):
+        project_ct = ContentType.objects.get_for_model(self.project)
+        self.assertIn(self.user, utils.get_users(self.project, RoleEnum.PROJECT_MEMBER))
+        self.assertIn(
+            self.user.id,
+            list(utils.get_user_ids(project_ct, [self.project.id], ProjectRole.MEMBER)),
+        )
+        self.assertIn(
+            self.user.id,
+            list(
+                utils.get_user_ids(
+                    project_ct, [self.project.id], RoleEnum.PROJECT_MEMBER
+                )
+            ),
+        )
+        self.assertIn(
+            self.project.id,
+            list(utils.get_scope_ids(self.user, project_ct, ProjectRole.MEMBER)),
+        )
+
+    def test_mail_fanout_reaches_clone_holders(self):
+        # Backs e.g. resource-termination notifications, which look up
+        # get_user_mails(ProjectRole.ADMIN) and used to skip clone holders.
+        admin = factories.UserFactory()
+        admin_clone = clone_role_for_customer(
+            ProjectRole.ADMIN, self.customer, conceal_template=False
+        )
+        utils.add_user(self.project, admin, admin_clone)
+        self.assertIn(admin.email, self.project.get_user_mails(ProjectRole.ADMIN))
