@@ -518,20 +518,17 @@ class SmaxServiceBackend(SupportBackend):
         )
         return self.manager.add_comment(issue.backend_id, comment)
 
-    def _is_issue_active(self, issue):
-        return issue.resolved is None
-
     def comment_create_is_available(self, issue=None):
-        return self._is_issue_active(issue)
+        return self.issue_is_active(issue)
 
     def comment_update_is_available(self, comment=None):
-        return self._is_issue_active(comment.issue)
+        return self.issue_is_active(comment.issue)
 
     def comment_destroy_is_available(self, comment=None):
-        return self._is_issue_active(comment.issue)
+        return self.issue_is_active(comment.issue)
 
     def attachment_destroy_is_available(self, attachment=None):
-        return self._is_issue_active(attachment.issue)
+        return self.issue_is_active(attachment.issue)
 
     def attachment_create_is_available(self, issue=None):
-        return self._is_issue_active(issue)
+        return self.issue_is_active(issue)

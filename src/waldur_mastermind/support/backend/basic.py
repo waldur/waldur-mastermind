@@ -87,6 +87,44 @@ class BasicBackend(SupportBackend):
     def delete_attachment(self, attachment):
         return
 
+    def issue_is_active(self, issue) -> bool:
+        """Cheaper than the base predicate, and answers the same question.
+
+        `resolution_date` is a stored column that `update_issue`, `set_resolved`
+        and `set_canceled` keep in step with the status, and it is already what
+        `Issue.objects.open()`, the SLA badge and the support statistics key
+        off. Reading it costs nothing, where the base `resolved` property runs
+        three or four queries every time. That matters here because these
+        predicates are serialized per issue *and per comment*: on the base
+        implementation a fifty-comment thread paid several hundred queries and
+        as many log lines to render.
+        """
+        return issue is not None and issue.resolution_date is None
+
+    # A ticket that has reached Resolved or Canceled is closed for changes.
+    # Staff are not exempt: the way to add something to a closed ticket is to
+    # reopen it, which staff and support can already do. This mirrors the SMAX
+    # backend, and keeps `add_comment_is_available` a property of the ticket
+    # rather than of whoever is asking.
+    def comment_create_is_available(self, issue=None):
+        return self.issue_is_active(issue)
+
+    def comment_update_is_available(self, comment=None):
+        return self.issue_is_active(comment.issue)
+
+    def comment_destroy_is_available(self, comment=None):
+        return self.issue_is_active(comment.issue)
+
+    def attachment_create_is_available(self, issue=None):
+        return self.issue_is_active(issue)
+
+    def attachment_destroy_is_available(self, attachment=None):
+        # Deliberately not gated on the ticket being open. Closing a ticket must
+        # not strip the only supported way to remove a file from it: an erasure
+        # request arrives long after the ticket is resolved, and the alternative
+        # is the Django admin or a shell.
+        return True
+
     def get_users(self):
         return
 
@@ -141,9 +179,6 @@ class BasicBackend(SupportBackend):
         else:
             candidates = self._registered_statuses
         return sorted(candidates - {issue.status})
-
-    def attachment_destroy_is_available(self, attachment=None):
-        return True
 
     def _set_sla_deadlines(self, issue):
         response_hours = config.WALDUR_SUPPORT_SLA_RESPONSE_HOURS
