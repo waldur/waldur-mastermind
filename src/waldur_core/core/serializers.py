@@ -729,6 +729,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 "url_field",
                 "secret_field",
                 "non_empty_field",
+                "issue_key_prefix_field",
             ):
                 field_class = serializers.CharField
             if not field_class:
@@ -740,6 +741,9 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["allow_null"] = True
             if config_type == "secret_field":
                 kwargs["allow_blank"] = True
+            if config_type == "issue_key_prefix_field":
+                kwargs["allow_blank"] = False
+                kwargs["validators"] = [issue_key_prefix_validator]
             if config_type == "non_empty_field":
                 # The setting stays optional in the payload, but it cannot be
                 # blanked out once it is submitted.

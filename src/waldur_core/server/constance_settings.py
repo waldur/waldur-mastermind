@@ -281,6 +281,14 @@ CONSTANCE_ADDITIONAL_FIELDS = {
     # String setting that must not be blanked out - an empty value would change
     # the meaning of the setting rather than just unset it.
     "non_empty_field": ["django.forms.CharField", {"required": True}],
+    # Three to five capital latin letters. Validated here as well as in the
+    # settings serializer: the Django admin builds its form straight from this
+    # table and never reaches DRF, so a serializer-only rule let an admin store
+    # a prefix with a space or a newline in it.
+    "issue_key_prefix_field": [
+        "django.forms.RegexField",
+        {"regex": r"^[A-Z]{3,5}$", "required": True, "strip": True},
+    ],
     "url_field": ["django.forms.URLField", {"required": False}],
     "secret_field": ["django.forms.CharField", {"required": False}],
     "dict_field": ["waldur_core.core.serializers.DictField", {"required": False}],
@@ -703,7 +711,7 @@ CONSTANCE_CONFIG = {
         "Prefix of ticket keys created by the built-in service desk, "
         "e.g. WLD in WLD-A1B2C3D4. Three to five capital latin letters. "
         "Keys of existing tickets are not rewritten.",
-        "non_empty_field",
+        "issue_key_prefix_field",
     ),
     "WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED": (
         False,
