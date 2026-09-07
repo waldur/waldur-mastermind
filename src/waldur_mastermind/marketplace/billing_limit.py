@@ -403,7 +403,15 @@ class LimitPeriodProcessor:
         )
         resource_limit_periods = invoice_item.details["resource_limit_periods"]
         old_period = resource_limit_periods.pop()
-        old_quantity = int(old_period["quantity"])
+        # int() truncates a fractional quantity to 0, so a limit change on a
+        # component that was previously set to e.g. 0.1 is billed as if the old
+        # limit had been nothing. Keep the value JSON-native rather than
+        # Decimal: it is written straight back into details["resource_limit_periods"]
+        # by serialize_resource_limit_period, and a Decimal is not JSON
+        # encodable. Whole numbers stay int so existing payloads are unchanged.
+        old_quantity = float(old_period["quantity"])
+        if old_quantity.is_integer():
+            old_quantity = int(old_quantity)
         old_start = parse_datetime(old_period["start"])
         today = timezone.now()
         new_quantity = convert_quantity(
