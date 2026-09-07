@@ -257,6 +257,40 @@ def check_plan_billing_mode(
     return None
 
 
+# Billing types whose invoice quantity is derived from the plan's billing
+# period: a fixed component is prorated across it, and a limit component is
+# billed for it. Everything else carries a quantity of its own -- accumulated
+# usage, or a prepaid subscription's limit times its months -- and the period
+# does not enter the arithmetic.
+PERIODIC_BILLING_TYPES = (BillingTypes.FIXED, BillingTypes.LIMIT)
+
+
+class PlanModeStub:
+    """A stand-in plan for resolving an offering under a mode no plan holds yet.
+
+    The resolver reads only ``billing_mode``, so this is enough to answer what a
+    plan *would* bill before one exists, which is what the creation form needs.
+    """
+
+    def __init__(self, billing_mode: str | None):
+        self.billing_mode = billing_mode
+
+
+def billing_period_applies(offering: models.Offering, mode: str | None = None) -> bool:
+    """Whether the plan's billing period changes any invoice under this mode.
+
+    False means the period is inert on the invoice: every component prices a
+    quantity of its own, so whichever period the plan carries the charges are
+    the same. It is still not free of consequence -- a plan change is refused
+    between plans whose periods differ -- but nothing on the invoice moves.
+    """
+    plan = PlanModeStub(mode) if mode else None
+    return any(
+        effective.billing_type in PERIODIC_BILLING_TYPES
+        for effective in ResolvedPlan(offering, plan).components.values()
+    )
+
+
 def describe_plan_billing(plan: models.Plan | None) -> str | None:
     """One word for how a plan bills: limit, usage, mixed or fixed."""
     if plan is None:

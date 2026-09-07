@@ -455,3 +455,65 @@ class SwitchAppliesToPlansTest(test.APITestCase):
         effective = billing_mode.resolve_plan(self.plan).get("cores")
         self.assertEqual(effective.billing_type, BillingTypes.ONE_TIME)
         self.assertTrue(effective.is_prepaid)
+
+
+class BillingPeriodAppliesTest(test.APITestCase):
+    """When the plan's billing period changes what is invoiced.
+
+    Measured on a real invoice: a fixed component priced 5 bills 4.00 under a
+    monthly plan and 120.00 under a daily one, while the usage components bill
+    the same under either. The period is what a fixed or limit component's
+    quantity is derived from; everything else carries its own.
+    """
+
+    def setUp(self):
+        self.offering = make_openstack_offering()
+
+    def test_limit_components_are_billed_for_the_period(self):
+        self.assertTrue(
+            billing_mode.billing_period_applies(self.offering, BillingModes.LIMIT)
+        )
+
+    def test_usage_components_price_their_own_quantity(self):
+        self.assertFalse(
+            billing_mode.billing_period_applies(self.offering, BillingModes.USAGE)
+        )
+
+    def test_a_custom_fixed_component_keeps_the_period_relevant(self):
+        # Usage governs the builtins, but a provider's own fixed component is
+        # still prorated across the period, so the choice still matters.
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="support",
+            name="Support",
+            measured_unit="months",
+            billing_type=BillingTypes.FIXED,
+        )
+        self.assertTrue(
+            billing_mode.billing_period_applies(self.offering, BillingModes.USAGE)
+        )
+
+    def test_inherit_follows_the_stored_components(self):
+        self.assertTrue(billing_mode.billing_period_applies(self.offering))
+        self.offering.components.update(billing_type=BillingTypes.USAGE)
+        self.assertFalse(billing_mode.billing_period_applies(self.offering))
+
+    def test_prepaid_components_do_not_depend_on_the_period(self):
+        # Prepaid sets the invoice unit to QUANTITY itself and multiplies the
+        # limit by the subscription's months.
+        self.offering.components.update(
+            billing_type=BillingTypes.ONE_TIME, is_prepaid=True
+        )
+        self.assertFalse(billing_mode.billing_period_applies(self.offering))
+
+    def test_the_api_reports_it_per_mode(self):
+        # The plan form asks the offering, because no plan exists yet to ask.
+        fixture = fixtures.ProjectFixture()
+        offering = make_openstack_offering(customer=fixture.customer)
+        self.client.force_authenticate(fixture.staff)
+        response = self.client.get(factories.OfferingFactory.get_url(offering))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        applies = response.data["billing_period_applies"]
+        self.assertTrue(applies[BillingModes.LIMIT])
+        self.assertFalse(applies[BillingModes.USAGE])
+        self.assertTrue(applies[BillingModes.INHERIT])
