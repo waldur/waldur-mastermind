@@ -1222,6 +1222,57 @@ class CourseAccountDateFieldsTest(test.APITestCase):
         self.assertIsNone(null_account["project_end_date"])
 
 
+class CourseAccountNullUserTest(test.APITestCase):
+    """Test for CourseAccount serializer when the linked user is None.
+
+    user is SET_NULL on delete, so a course account left over from a failed
+    or partial close (see test_delete_erred_course_account_without_user) can
+    have user=None while still being listed. user_uuid/username must come
+    back as null rather than being dropped from the payload entirely - a
+    dropped key crashes typed API clients (waldur-api-client) that expect it.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.course_project = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+        )
+        self.account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=None,
+            email="orphaned@example.com",
+            state=CourseAccountState.CLOSED,
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_COURSE_ACCOUNT)
+        self.fixture.project.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
+
+    def test_retrieve_serializes_null_user_as_none(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CourseAccountFactory.get_url(self.account)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("user_uuid", response.data)
+        self.assertIn("username", response.data)
+        self.assertIsNone(response.data["user_uuid"])
+        self.assertIsNone(response.data["username"])
+
+    def test_list_serializes_null_user_as_none(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CourseAccountFactory.get_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        account_data = next(
+            a for a in response.data if a["email"] == "orphaned@example.com"
+        )
+        self.assertIn("user_uuid", account_data)
+        self.assertIn("username", account_data)
+        self.assertIsNone(account_data["user_uuid"])
+        self.assertIsNone(account_data["username"])
+
+
 @override_waldur_core_settings(
     COURSE_ACCOUNT_USE_API=False,  # Disable API calls for these tests
 )

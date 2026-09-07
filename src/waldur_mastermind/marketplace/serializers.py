@@ -13518,8 +13518,16 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, allow_null=True, source="project.end_date"
     )
 
-    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
-    username = serializers.CharField(read_only=True, source="user.username")
+    # user is SET_NULL on delete: a course account left over from a failed or
+    # partial close can have user=None, so these must tolerate (and emit) null
+    # rather than being silently dropped from the response (see get_attribute's
+    # SkipField path for a read-only field with no default).
+    user_uuid = serializers.UUIDField(
+        read_only=True, source="user.uuid", allow_null=True, default=None
+    )
+    username = serializers.CharField(
+        read_only=True, source="user.username", allow_null=True, default=None
+    )
 
     customer_uuid = serializers.UUIDField(
         read_only=True, source="project.customer.uuid"
