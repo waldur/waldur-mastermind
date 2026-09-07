@@ -19,4 +19,10 @@ waldur override_constance_settings /etc/waldur/freeipa.yaml
 echo "INFO: Override marketplace settings..."
 waldur override_constance_settings /etc/waldur/marketplace.yaml
 
+# Last, and after the support settings above: the seeding decides what to do
+# from the configured backend type, which the override just applied. Run from
+# initdb instead and it would still read the shipped default.
+echo "INFO: Seeding service desk defaults..."
+waldur init_service_desk_defaults
+
 exit 0
