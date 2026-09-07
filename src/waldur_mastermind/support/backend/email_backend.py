@@ -2,7 +2,7 @@ import logging
 
 from waldur_core.core.utils import broadcast_mail
 
-from . import SupportBackend
+from . import SupportBackend, build_backend_id
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class EmailSupportBackend(SupportBackend):
         return cls(settings_dict=settings_dict, provider_helpdesk=provider_helpdesk)
 
     def create_issue(self, issue):
-        issue.backend_id = f"WLD-E-{issue.uuid.hex[:8].upper()}"
+        issue.backend_id = build_backend_id(issue.uuid, "E")
         issue.key = issue.backend_id
         issue.save()
 
@@ -51,7 +51,7 @@ class EmailSupportBackend(SupportBackend):
         return
 
     def create_comment(self, comment):
-        comment.backend_id = f"WLD-EC-{comment.uuid.hex[:8].upper()}"
+        comment.backend_id = build_backend_id(comment.uuid, "EC")
         comment.save(update_fields=["backend_id"])
 
         if self.provider_helpdesk:
@@ -82,7 +82,7 @@ class EmailSupportBackend(SupportBackend):
         return
 
     def create_attachment(self, attachment):
-        attachment.backend_id = f"WLD-EA-{attachment.uuid.hex[:8].upper()}"
+        attachment.backend_id = build_backend_id(attachment.uuid, "EA")
         attachment.save(update_fields=["backend_id"])
 
     def delete_attachment(self, attachment):

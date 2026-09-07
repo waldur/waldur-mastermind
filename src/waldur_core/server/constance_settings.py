@@ -698,6 +698,13 @@ CONSTANCE_CONFIG = {
         True,
         "Toggler for request type displaying",
     ),
+    "WALDUR_SUPPORT_ISSUE_KEY_PREFIX": (
+        "WLD",
+        "Prefix of ticket keys created by the built-in service desk, "
+        "e.g. WLD in WLD-A1B2C3D4. Three to five capital latin letters. "
+        "Keys of existing tickets are not rewritten.",
+        "non_empty_field",
+    ),
     "WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED": (
         False,
         "Enable automatic routing of tickets to provider helpdesks.",
@@ -1935,6 +1942,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "WALDUR_SUPPORT_ENABLED",
         "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE",
         "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
+        "WALDUR_SUPPORT_ISSUE_KEY_PREFIX",
         "WALDUR_SUPPORT_PROVIDER_ROUTING_ENABLED",
         "WALDUR_SUPPORT_AUTO_ASSIGN",
         "WALDUR_SUPPORT_AUTO_ASSIGN_STRATEGY",
