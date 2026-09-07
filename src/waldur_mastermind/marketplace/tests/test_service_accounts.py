@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import httpx
@@ -13,8 +14,10 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.enums import ServiceAccountState
+from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import ResourceStates, ServiceAccountState
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 TOKEN_URL = "http://example.com/api/token"
@@ -967,3 +970,105 @@ class ServiceAccountOfferingTest(test.APITestCase):
             set([account["username"] for account in response.data]),
             set([account.username for account in self.customer_service_accounts]),
         )
+
+
+class GetScopeOfferingIdentifiersTest(test.APITestCase):
+    """Tests for waldur_mastermind.marketplace.utils.get_scope_offering_identifiers"""
+
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+
+    def _identifiers(self):
+        return marketplace_utils.get_scope_offering_identifiers(
+            self.project.resource_set.exclude(state=ResourceStates.TERMINATED)
+        )
+
+    def test_uses_backend_id_when_set(self):
+        offering = factories.OfferingFactory(backend_id="hpc-backend-id")
+        factories.ResourceFactory(
+            project=self.project, offering=offering, state=ResourceStates.OK
+        )
+        self.assertEqual(self._identifiers(), ["hpc-backend-id"])
+
+    def test_falls_back_to_slug_when_backend_id_not_set(self):
+        offering = factories.OfferingFactory(backend_id="", slug="my-offering-slug")
+        factories.ResourceFactory(
+            project=self.project, offering=offering, state=ResourceStates.CREATING
+        )
+        self.assertEqual(self._identifiers(), ["my-offering-slug"])
+
+    def test_excludes_terminated_resources(self):
+        offering = factories.OfferingFactory(backend_id="terminated-backend-id")
+        factories.ResourceFactory(
+            project=self.project, offering=offering, state=ResourceStates.TERMINATED
+        )
+        self.assertEqual(self._identifiers(), [])
+
+    def test_deduplicates_identifiers_across_resources(self):
+        offering = factories.OfferingFactory(backend_id="shared-backend-id")
+        factories.ResourceFactory.create_batch(
+            2, project=self.project, offering=offering, state=ResourceStates.OK
+        )
+        self.assertEqual(self._identifiers(), ["shared-backend-id"])
+
+    def test_returns_empty_list_when_project_has_no_resources(self):
+        self.assertEqual(self._identifiers(), [])
+
+
+@override_waldur_core_settings(
+    SERVICE_ACCOUNT_USE_API=True,
+    SERVICE_ACCOUNT_TOKEN_URL=TOKEN_URL,
+    SERVICE_ACCOUNT_URL=SERVICE_ACCOUNT_URL,
+    SERVICE_ACCOUNT_TOKEN_CLIENT_ID=TOKEN_CLIENT_ID,
+    SERVICE_ACCOUNT_TOKEN_SECRET=TOKEN_SECRET,
+)
+class ServiceAccountScopeOfferingSlugsPayloadTest(BaseServiceAccountTest):
+    """Regression test for HPCMP-413: scopeOfferingSlugs must prefer backend_id."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def _create_project_service_account_and_get_payload(self, identifier):
+        response = self.client.post(
+            factories.ProjectServiceAccountFactory.get_list_url(),
+            {
+                "project": self.fixture.project.uuid,
+                "description": "test",
+                "preferred_identifier": identifier,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        create_call = next(
+            call
+            for call in respx.calls
+            if str(call.request.url) == SERVICE_ACCOUNT_URL
+            and call.request.method == "POST"
+        )
+        return json.loads(create_call.request.content)
+
+    def test_uses_offering_backend_id_when_set(self):
+        offering = self.fixture.offering
+        offering.backend_id = "hpc-backend-id"
+        offering.save()
+        resource = self.fixture.resource
+        resource.state = models.Resource.States.OK
+        resource.save()
+
+        payload = self._create_project_service_account_and_get_payload(
+            "test-identifier-1"
+        )
+        self.assertEqual(payload["scopeOfferingSlugs"], ["hpc-backend-id"])
+
+    def test_falls_back_to_offering_slug_when_backend_id_not_set(self):
+        offering = self.fixture.offering
+        offering.backend_id = ""
+        offering.save()
+        resource = self.fixture.resource
+        resource.state = models.Resource.States.OK
+        resource.save()
+
+        payload = self._create_project_service_account_and_get_payload(
+            "test-identifier-2"
+        )
+        self.assertEqual(payload["scopeOfferingSlugs"], [offering.slug])

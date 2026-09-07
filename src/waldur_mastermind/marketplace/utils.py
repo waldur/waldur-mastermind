@@ -4462,6 +4462,19 @@ def rotate_service_account_api_key(service_account: models.ScopedServiceAccount)
         raise
 
 
+def get_scope_offering_identifiers(resource_queryset) -> list[str]:
+    """Return each resource's offering backend_id, falling back to slug if not yet set.
+
+    backend_id is only populated once a processing agent has provisioned the
+    resource, so a project/customer with not-yet-provisioned resources still
+    needs the slug fallback.
+    """
+    offering_ids = set(
+        resource_queryset.values_list("offering__backend_id", "offering__slug")
+    )
+    return list({backend_id or slug for backend_id, slug in offering_ids})
+
+
 def post_service_account_to_url(
     url: str, service_account: dict, owner_username: str = "", scope_type: str = ""
 ):
@@ -4472,25 +4485,20 @@ def post_service_account_to_url(
             customer = project.customer
             scope_name = project.name
             scope_slug = project.slug
-            scope_offering_slugs = []
-            offering_slugs = set(
-                project.resource_set.exclude(
-                    state=ResourceStates.TERMINATED
-                ).values_list("offering__slug", flat=True)
+            scope_offering_slugs = get_scope_offering_identifiers(
+                project.resource_set.exclude(state=ResourceStates.TERMINATED)
             )
         elif scope_type == "customer":
             customer: structure_models.Customer = service_account["customer"]
             scope_name = customer.name
             scope_slug = customer.slug
-            offering_slugs = set(
-                models.Resource.objects.exclude(state=ResourceStates.TERMINATED)
-                .filter(project__customer=customer)
-                .values_list("offering__slug", flat=True)
+            scope_offering_slugs = get_scope_offering_identifiers(
+                models.Resource.objects.exclude(state=ResourceStates.TERMINATED).filter(
+                    project__customer=customer
+                )
             )
         else:
             raise ValueError(f"Unsupported service account type: {scope_type}")
-
-        scope_offering_slugs = list(offering_slugs)
 
         payload = {
             "ownerUsername": owner_username,
@@ -5296,12 +5304,8 @@ def post_course_account_to_url(
         if api_access_token is None:
             api_access_token = get_course_account_api_token()
         project: structure_models.Project = course_account["project"]
-        offering_slugs = list(
-            set(
-                project.resource_set.exclude(
-                    state=ResourceStates.TERMINATED
-                ).values_list("offering__slug", flat=True)
-            )
+        offering_slugs = get_scope_offering_identifiers(
+            project.resource_set.exclude(state=ResourceStates.TERMINATED)
         )
 
         payload = {
