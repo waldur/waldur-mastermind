@@ -7,9 +7,9 @@ delivered before the split.
 
 from importlib import import_module
 
-from django.apps import apps as global_apps
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.db.migrations.loader import MigrationLoader
+from django.test import TestCase, override_settings
 
 from waldur_core.logging import models
 from waldur_core.logging.enums import EVENT_GROUP_MAPPING, EventGroup
@@ -30,9 +30,24 @@ PRE_SPLIT_RESOURCES = {
 }
 
 
+MIGRATION = ("logging", "0028_split_openstack_resource_event_groups")
+
+
+# pytest runs with --no-migrations, which empties MIGRATION_MODULES and with it
+# the loader; the historical registry is built from the migration files.
+@override_settings(MIGRATION_MODULES={})
 class SplitOpenstackResourcesMigrationTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Run against the historical models the executor hands to RunPython,
+        # not the live registry: 0023 never updated the hooks' `bases`, so the
+        # historical WebHook/EmailHook lack the fields inherited from BaseHook.
+        loader = MigrationLoader(None)
+        cls.historical_apps = loader.project_state(MIGRATION).apps
+
     def _run(self):
-        migration.add_openstack_resources(global_apps, None)
+        migration.add_openstack_resources(self.historical_apps, None)
 
     def test_system_notification_keeps_delivering_openstack_events(self):
         """SystemNotification expands its groups on every dispatch, so without
@@ -108,7 +123,7 @@ class SplitOpenstackResourcesMigrationTest(TestCase):
         )
 
         self._run()
-        migration.drop_openstack_resources(global_apps, None)
+        migration.drop_openstack_resources(self.historical_apps, None)
 
         hook.refresh_from_db()
         self.assertEqual(["resources", "openstack_resources"], hook.event_groups)
