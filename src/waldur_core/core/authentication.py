@@ -521,11 +521,12 @@ class PATAuthentication(BaseAuthentication):
 
 
 class OIDCAuthentication(BaseAuthentication):
-    # Marker stored on `User.registration_method` for accounts governed by
-    # this OIDC backend. A username collision with an account carrying a
-    # different marker triggers an audited adoption (see `_adopt_local_account`)
-    # rather than a silent, unrecorded takeover.
-    REGISTRATION_METHOD = "oidc"
+    # Accounts governed by this backend store User.registration_method from the
+    # OIDC_REGISTRATION_METHOD Constance setting. A username collision with an
+    # account carrying a different marker triggers an audited adoption (see
+    # `_adopt_local_account`) rather than a silent takeover.
+    def _registration_method(self) -> str:
+        return config.OIDC_REGISTRATION_METHOD
 
     def authenticate(self, request):
         raw_token = parse_token_from_request(request, b"bearer")
@@ -601,8 +602,8 @@ class OIDCAuthentication(BaseAuthentication):
         An OIDC token whose `username` claim matches a pre-existing local
         account (e.g. a `default`/SAML/social user, or an OIDC user created
         before we started tagging them) is allowed to *adopt* that account:
-        the account is re-tagged with `registration_method="oidc"` so future
-        logins bind cleanly. This is a deliberate design choice — it keeps
+        the account is re-tagged with the configured OIDC_REGISTRATION_METHOD so
+        future logins bind cleanly. This is a deliberate design choice — it keeps
         existing users working across the OIDC rollout rather than locking
         them out.
 
@@ -619,9 +620,10 @@ class OIDCAuthentication(BaseAuthentication):
         safely: `get_or_create` retries the lookup on `IntegrityError` instead
         of surfacing a 500.
         """
+        registration_method = self._registration_method()
         existing, created = models.User.all_objects.get_or_create(
             username=user_identifier,
-            defaults={"registration_method": self.REGISTRATION_METHOD},
+            defaults={"registration_method": registration_method},
         )
         if created:
             return existing
@@ -629,12 +631,17 @@ class OIDCAuthentication(BaseAuthentication):
         if not existing.is_active:
             raise AuthenticationFailed("User inactive or deleted.")
 
-        if existing.registration_method != self.REGISTRATION_METHOD:
-            self._adopt_local_account(existing, parsed_token)
+        if existing.registration_method != registration_method:
+            self._adopt_local_account(existing, parsed_token, registration_method)
 
         return existing
 
-    def _adopt_local_account(self, user: models.User, parsed_token: dict) -> None:
+    def _adopt_local_account(
+        self,
+        user: models.User,
+        parsed_token: dict,
+        registration_method: str,
+    ) -> None:
         """
         Re-tag a pre-existing non-OIDC account as OIDC-governed, leaving a
         durable audit trail (WARNING log + reversion snapshot of the pre-change
@@ -658,7 +665,7 @@ class OIDCAuthentication(BaseAuthentication):
             user.is_superuser,
             token_sub,
             token_iss,
-            self.REGISTRATION_METHOD,
+            registration_method,
         )
 
         # Snapshot the pre-adoption state first so an operator can revert the
@@ -672,7 +679,7 @@ class OIDCAuthentication(BaseAuthentication):
                 f"iss={token_iss!r}) adopted it."
             )
 
-        user.registration_method = self.REGISTRATION_METHOD
+        user.registration_method = registration_method
         with reversion.create_revision():
             user.save(update_fields=["registration_method"])
             reversion.set_comment(

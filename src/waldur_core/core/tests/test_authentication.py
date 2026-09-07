@@ -4,6 +4,7 @@ import httpx
 import jwt
 import respx
 from axes.signals import user_locked_out
+from constance import config
 from constance.test.unittest import override_config
 from django.conf import settings
 from django.core.cache import cache
@@ -451,3 +452,5 @@ class OIDCAuthenticationTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["username"], non_existent_username)
         self.assertTrue(User.objects.filter(username=non_existent_username).exists())
+        new_user = User.objects.get(username=non_existent_username)
+        self.assertEqual(new_user.registration_method, config.OIDC_REGISTRATION_METHOD)
