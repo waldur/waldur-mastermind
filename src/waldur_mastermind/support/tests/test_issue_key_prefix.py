@@ -50,6 +50,20 @@ class BuildBackendIdTest(TestCase):
             build_backend_id(issue.uuid), f"WLD-{issue.uuid.hex[:8].upper()}"
         )
 
+    def test_a_value_that_evaded_validation_is_normalised(self):
+        # Written straight into the database, or stored before the setting was
+        # validated on write. A space or a newline here would otherwise land in
+        # the mail subject and make every support notification raise.
+        issue = blank_issue()
+        for stored, expected in (
+            ("  ", "WLD"),
+            (" acme ", "ACME"),
+            ("wld", "WLD"),
+        ):
+            with override_config(WALDUR_SUPPORT_ISSUE_KEY_PREFIX=stored):
+                built = build_backend_id(issue.uuid)
+                self.assertTrue(built.startswith(expected + "-"), (stored, built))
+
 
 class BasicBackendKeyTest(TestCase):
     def setUp(self):
@@ -109,6 +123,31 @@ class EmailBackendKeyTest(TestCase):
         self.assertTrue(
             attachment.backend_id.startswith("ACME-EA-"), attachment.backend_id
         )
+
+
+class IssueKeyPrefixAdminFormTest(TestCase):
+    """The Django admin builds its form from CONSTANCE_ADDITIONAL_FIELDS and
+    never goes through the settings serializer, so the shape has to be enforced
+    there as well. A newline is the case that hurts: it reaches the mail subject
+    through the ticket key, and `send_mail` then raises a header error that the
+    support tasks do not catch."""
+
+    def submit(self, value):
+        from constance.forms import ConstanceForm
+
+        form = ConstanceForm(
+            initial={}, data={"WALDUR_SUPPORT_ISSUE_KEY_PREFIX": value}
+        )
+        form.is_valid()
+        return form.errors.get("WALDUR_SUPPORT_ISSUE_KEY_PREFIX")
+
+    def test_well_formed_prefixes_are_accepted(self):
+        for value in ("WLD", "ACME", "HELLO"):
+            self.assertIsNone(self.submit(value), value)
+
+    def test_malformed_prefixes_are_rejected(self):
+        for value in ("wld", "AC", "TOOLONG", "AC-1", "AC ME", "A\nB", ""):
+            self.assertIsNotNone(self.submit(value), value)
 
 
 class IssueKeyPrefixSettingTest(test.APITestCase):

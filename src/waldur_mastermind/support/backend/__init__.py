@@ -33,7 +33,13 @@ def build_backend_id(uuid, marker: str = "") -> str:
     configurable; ids already stored on an object are never recomputed, so a
     changed prefix only affects objects created after the change.
     """
-    prefix = config.WALDUR_SUPPORT_ISSUE_KEY_PREFIX or DEFAULT_ISSUE_KEY_PREFIX
+    # Normalised rather than trusted: the setting is validated on write, but a
+    # value stored before that validation existed, or written straight into the
+    # database, would otherwise end up inside every ticket key. A stray newline
+    # there reaches the mail subject and makes every support notification raise.
+    prefix = (
+        config.WALDUR_SUPPORT_ISSUE_KEY_PREFIX or ""
+    ).strip().upper() or DEFAULT_ISSUE_KEY_PREFIX
     parts = [prefix, marker, uuid.hex[:8].upper()]
     return "-".join(part for part in parts if part)
 
