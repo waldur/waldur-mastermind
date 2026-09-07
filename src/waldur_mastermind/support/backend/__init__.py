@@ -129,6 +129,23 @@ class SupportBackend:
         """
         return []
 
+    def issue_is_active(self, issue) -> bool:
+        """Is the ticket still open for changes?
+
+        `resolved` comes from `IssueStatus.check_success_status`, which answers
+        None both while a ticket is being worked on and whenever the status
+        registry cannot classify it: a missing terminal type, an unknown status
+        name, an unexpected type value. Every one of those reads as active, so
+        this predicate fails open on a misconfigured registry rather than
+        locking a deployment out of its own tickets.
+
+        Each call costs several queries, since `resolved` is an uncached
+        property. `BasicBackend` overrides this with the stored resolution date,
+        which it keeps in step itself; a backend that cannot do the same should
+        keep using this.
+        """
+        return issue is not None and issue.resolved is None
+
     def comment_create_is_available(self, issue=None):
         return True
 
