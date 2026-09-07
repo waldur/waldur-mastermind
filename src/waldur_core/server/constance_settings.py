@@ -231,6 +231,10 @@ REPORTING_SCREEN_CHOICES = [
     ("usage-by-customer", "Resources: Usage by customer"),
     ("usage-by-org-type", "Resources: Usage by organization type"),
     ("usage-by-creator", "Resources: Usage by creator"),
+    (
+        "projects-by-affiliated-organization",
+        "Resources: Projects by affiliated organization",
+    ),
     # Proposals
     ("call-performance", "Proposals: Call performance"),
     ("review-progress", "Proposals: Review progress"),
