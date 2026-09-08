@@ -751,6 +751,10 @@ class SetMtuExecutor(core_executors.ActionExecutor):
 class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
+        # The router pull that imports the new interface port lives inside
+        # create_subnet, not in this chain. As a chained task its failure would
+        # run get_failure_signature and mark a subnet ERRED that exists and
+        # works in Neutron; inside the backend method it is guarded (#387).
         return core_tasks.BackendMethodTask().si(
             serialized_subnet,
             "create_subnet",

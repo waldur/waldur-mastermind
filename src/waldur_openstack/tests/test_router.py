@@ -124,27 +124,61 @@ class RouterInterfaceTest(BaseRouterTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    # Both pulls have to be mocked. remove_router_interface_safely calls
+    # pull_tenant_ports as well, and leaving it real made it raise on a session
+    # with no auth_url -- harmlessly, because eager Celery swallowed it after
+    # the assertions below had already run against the pull that came first.
+    # That hid whether the second pull happened at all.
     @override_settings(task_always_eager=True)
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_ports")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
-    def test_remove_router_interface_with_subnet(self, mock_remove, mock_pull):
+    def test_remove_router_interface_with_subnet(
+        self, mock_remove, mock_pull_routers, mock_pull_ports
+    ):
         response = self.client.post(
             self.url_remove, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mock_remove.assert_called_once()
-        mock_pull.assert_called_once()
+        mock_pull_ports.assert_called_once()
+        mock_pull_routers.assert_called_once()
 
     @override_settings(task_always_eager=True)
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_ports")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
     @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
-    def test_remove_router_interface_with_port(self, mock_remove, mock_pull):
+    def test_remove_router_interface_with_port(
+        self, mock_remove, mock_pull_routers, mock_pull_ports
+    ):
         response = self.client.post(
             self.url_remove, {"port": factories.PortFactory.get_url(self.port)}
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mock_remove.assert_called_once()
-        mock_pull.assert_called_once()
+        mock_pull_ports.assert_called_once()
+        mock_pull_routers.assert_called_once()
+
+    @override_settings(task_always_eager=True)
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_ports")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.remove_router_interface")
+    def test_removal_refreshes_ports_before_routers(
+        self, mock_remove, mock_pull_routers, mock_pull_ports
+    ):
+        """Order matters: pull_tenant_routers rebuilds the router's port set
+        from local Port rows, so it has to run after the sweep that drops the
+        port just removed -- otherwise the stale one stays attached."""
+        manager = mock.Mock()
+        manager.attach_mock(mock_pull_ports, "ports")
+        manager.attach_mock(mock_pull_routers, "routers")
+
+        response = self.client.post(
+            self.url_remove, {"port": factories.PortFactory.get_url(self.port)}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual([call[0] for call in manager.mock_calls], ["ports", "routers"])
 
     def test_remove_router_interface_missing_params(self):
         response = self.client.post(self.url_remove, {})

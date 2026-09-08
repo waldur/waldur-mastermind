@@ -236,8 +236,15 @@ class TenantRouterSkipTest(test.APITestCase):
         # Should return router ID
         self.assertEqual(result, "router-123")
 
-        # _get_router should be called to check for existing router
-        mock_get_router.assert_called_once_with(self.tenant)
+        # _get_router should be called to check for existing router, naming the
+        # routers to prefer: the one for this network, then the tenant's default.
+        mock_get_router.assert_called_once_with(
+            self.tenant,
+            preferred_names=(
+                "test-network-router",
+                f"{self.tenant.name}-int-net-router",
+            ),
+        )
 
         # _create_router should be called since no router exists
         mock_create_router.assert_called_once_with(self.tenant, "test-network-router")
