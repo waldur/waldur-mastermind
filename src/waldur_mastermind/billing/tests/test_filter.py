@@ -56,7 +56,7 @@ class CustomerEstimatedCostFilterTest(test.APITestCase):
         self.assertEqual([200, 100, 300, 0], actual)
 
 
-class CustomerTotalCostFilterTest(test.APITransactionTestCase):
+class CustomerTotalCostFilterTest(test.APITestCase):
     def setUp(self):
         self.prices = [200, 100, 300, 0]
         customers = structure_factories.CustomerFactory.create_batch(len(self.prices))

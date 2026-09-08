@@ -545,7 +545,7 @@ class RobotAccountAccessTest(test.APITestCase):
         return f"{base_url}{action}/"
 
 
-class RobotAccountRoleRevocationTest(test.APITransactionTestCase):
+class RobotAccountRoleRevocationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.robot_account = factories.RobotAccountFactory(

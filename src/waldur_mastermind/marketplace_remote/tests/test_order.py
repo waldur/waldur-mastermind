@@ -67,7 +67,7 @@ class OrderReviewByProviderTest(test.APITestCase):
         self.assertFalse(order_should_not_be_reviewed_by_provider(self.order))
 
 
-class LimitsUpdateTest(test.APITransactionTestCase):
+class LimitsUpdateTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

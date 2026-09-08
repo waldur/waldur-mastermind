@@ -256,7 +256,7 @@ class OAuthViewDefaultInitTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class OAuthViewCompleteTest(test.APITransactionTestCase):
+class OAuthViewCompleteTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.provider = models.IdentityProvider.objects.create(
@@ -280,6 +280,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
 
         # Mock external requests
         responses.start()
+        self.addCleanup(responses.reset)
         self.addCleanup(responses.stop)
 
     def _mock_token_request(
@@ -1027,7 +1028,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertTrue(user.is_support)
 
 
-class MultiHomeportRedirectTest(test.APITransactionTestCase):
+class MultiHomeportRedirectTest(test.APITestCase):
     """Tests for multi-homeport redirect functionality"""
 
     def setUp(self):
@@ -1053,6 +1054,7 @@ class MultiHomeportRedirectTest(test.APITransactionTestCase):
 
         # Mock external requests
         responses.start()
+        self.addCleanup(responses.reset)
         self.addCleanup(responses.stop)
 
     def _mock_token_request(
@@ -1678,7 +1680,7 @@ class SchacPersonalUniqueIDParsingTest(test.APITestCase):
         self.assertEqual(result, "LT37510040173")
 
 
-class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
+class EnabledUserProfileAttributesSyncTest(test.APITestCase):
     """Test that IdP sync respects ENABLED_USER_PROFILE_ATTRIBUTES setting."""
 
     def setUp(self):
@@ -1704,6 +1706,7 @@ class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
 
         # Mock external requests
         responses.start()
+        self.addCleanup(responses.reset)
         self.addCleanup(responses.stop)
 
     def _mock_token_request(
@@ -2008,7 +2011,7 @@ class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
         self.assertIsNone(user.gender)
 
 
-class OIDCEmailMatchmakingTest(test.APITransactionTestCase):
+class OIDCEmailMatchmakingTest(test.APITestCase):
     """Tests for OIDC email-based failover user matching."""
 
     def setUp(self):
@@ -2034,6 +2037,7 @@ class OIDCEmailMatchmakingTest(test.APITransactionTestCase):
 
         # Mock external requests
         responses.start()
+        self.addCleanup(responses.reset)
         self.addCleanup(responses.stop)
 
     def _mock_token_request(self):
@@ -2307,7 +2311,7 @@ class OIDCEmailMatchmakingTest(test.APITransactionTestCase):
         self.assertEqual(existing_user.last_name, "NewLast")
 
 
-class OIDCAllowedEmailPatternsTest(test.APITransactionTestCase):
+class OIDCAllowedEmailPatternsTest(test.APITestCase):
     """Tests for the OIDC_ALLOWED_USER_EMAIL_PATTERNS allowlist.
 
     The allowlist widens signup beyond invitations and, once configured, also
@@ -2335,6 +2339,7 @@ class OIDCAllowedEmailPatternsTest(test.APITransactionTestCase):
         session.save()
 
         responses.start()
+        self.addCleanup(responses.reset)
         self.addCleanup(responses.stop)
 
     def _mock_token_request(self):

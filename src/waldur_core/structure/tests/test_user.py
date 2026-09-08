@@ -808,7 +808,7 @@ class UserUpdateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class UserConfirmEmailTest(test.APITransactionTestCase):
+class UserConfirmEmailTest(test.APITestCase):
     def setUp(self):
         fixture = fixtures.UserFixture()
         self.user = fixture.user

@@ -210,7 +210,7 @@ class GetPolicyTest(test.APITestCase):
 
 @freeze_time("2024-09-01")
 @ddt
-class CreatePolicyTest(test.APITransactionTestCase):
+class CreatePolicyTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer

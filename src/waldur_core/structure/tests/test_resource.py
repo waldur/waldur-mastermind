@@ -54,7 +54,7 @@ class ResourceCreateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
-class ResourceEventsTest(test.APITransactionTestCase):
+class ResourceEventsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.client.force_authenticate(user=self.fixture.staff)

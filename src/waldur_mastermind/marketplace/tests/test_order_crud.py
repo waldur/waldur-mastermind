@@ -26,7 +26,7 @@ from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.utils import TestCreateProcessor
 
 
-class BaseOrderCreateTest(test.APITransactionTestCase):
+class BaseOrderCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project

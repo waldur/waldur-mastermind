@@ -126,7 +126,7 @@ Check TransactionTestCase usage:
   interruptible: true
   <<: *source_analysis_rules
   script:
-    - python scripts/analyze_transaction_test_cases.py --ci --baseline 80
+    - python scripts/analyze_transaction_test_cases.py --ci --baseline 0
 
 Check Action decorators:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm

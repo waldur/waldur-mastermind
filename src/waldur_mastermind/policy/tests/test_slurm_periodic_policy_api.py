@@ -523,7 +523,7 @@ class SlurmPeriodicUsagePolicyPeriodValidationTest(test.APITestCase):
 
 
 @freeze_time("2026-03-15")
-class SlurmPolicyGetCurrentPeriodFromComponentTest(test.APITransactionTestCase):
+class SlurmPolicyGetCurrentPeriodFromComponentTest(test.APITestCase):
     """_get_current_period() should derive period from component, not DB field."""
 
     def setUp(self):

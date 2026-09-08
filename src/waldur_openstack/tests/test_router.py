@@ -16,7 +16,7 @@ from waldur_openstack.backend import OpenStackBackend
 from . import factories, fixtures
 
 
-class BaseRouterTest(test.APITransactionTestCase):
+class BaseRouterTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(user=self.fixture.owner)
@@ -617,7 +617,7 @@ class SetExternalGatewayRBACNetworkTest(BaseExternalGatewayTest):
 
 @ddt
 @mock.patch("waldur_openstack.executors.RouterSetExternalGatewayExecutor.execute")
-class ExternalGatewayTenantScopeTest(test.APITransactionTestCase):
+class ExternalGatewayTenantScopeTest(test.APITestCase):
     """Regression tests for WAL-9987: consumer-side users must not be able to
     attach a router to a provider-internal (non-shared) external network, even
     by calling the API directly and bypassing the homeport dropdown.

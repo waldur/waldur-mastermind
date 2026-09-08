@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.test import override_settings
 from rest_framework import status, test
 
@@ -85,7 +85,7 @@ class RoleNameUniquenessTest(test.APITestCase):
         self.assertEqual(role.content_type, resource_ct)
 
 
-class RoleAvailabilityScopingTest(test.APITransactionTestCase):
+class RoleAvailabilityScopingTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.resource_ct = ContentType.objects.get_for_model(
@@ -168,7 +168,9 @@ class RoleAvailabilityScopingTest(test.APITransactionTestCase):
             content_type=offering_ct,
             object_id=self.offering_a.id,
         )
-        with self.assertRaises(IntegrityError):
+        # The savepoint keeps the failure from poisoning the test's wrapping
+        # transaction, so APITestCase is enough here.
+        with self.assertRaises(IntegrityError), transaction.atomic():
             RoleAvailability.objects.create(
                 role=self.role,
                 content_type=offering_ct,

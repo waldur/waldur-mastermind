@@ -256,7 +256,7 @@ class DeleteProcessorEmptyBackendIdTest(TestCase):
         )
 
 
-class OrderCreateValidationTest(test.APITransactionTestCase):
+class OrderCreateValidationTest(test.APITestCase):
     """
     Test API order creation order validation for duplicate resources.
 

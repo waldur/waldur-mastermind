@@ -13,7 +13,7 @@ from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_core.core.models import TokenExchangeCode, User
 
 
-class KeycloakTokenExchangeTest(test.APITransactionTestCase):
+class KeycloakTokenExchangeTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.provider = models.IdentityProvider.objects.create(
@@ -38,6 +38,7 @@ class KeycloakTokenExchangeTest(test.APITransactionTestCase):
 
         # Mock external requests
         responses.start()
+        self.addCleanup(responses.reset)
         self.addCleanup(responses.stop)
 
     def _mock_oidc_responses(self, user_info):

@@ -214,7 +214,7 @@ class CallCreateTest(test.APITestCase):
 
 
 @ddt
-class CallUpdateTest(test.APITransactionTestCase):
+class CallUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.call = self.fixture.call

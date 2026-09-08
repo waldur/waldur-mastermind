@@ -11,7 +11,7 @@ from waldur_mastermind.billing.tests.utils import get_financial_report_url
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 
 
-class PriceEstimateSignalsTest(test.APITransactionTestCase):
+class PriceEstimateSignalsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 

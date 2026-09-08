@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
-class LexisLinkCreateTest(test.APITransactionTestCase):
+class LexisLinkCreateTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
