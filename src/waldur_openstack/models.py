@@ -1309,6 +1309,19 @@ class SubNet(structure_models.BaseResource):
     is_connected = models.BooleanField(
         default=True, help_text=_("Is subnet connected to the default tenant router.")
     )
+    router = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=Router,
+        null=True,
+        blank=True,
+        related_name="subnets",
+        help_text=_(
+            "Router this subnet is attached to. Set explicitly at creation time, "
+            "otherwise recorded from the backend once the attachment is made. "
+            "While the subnet is disconnected it keeps the router it was last "
+            "attached to, which is the one a reconnect returns it to."
+        ),
+    )
 
     class Meta(structure_models.BaseResource.Meta):
         verbose_name = _("Subnet")
