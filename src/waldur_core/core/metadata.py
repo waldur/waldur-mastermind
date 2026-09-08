@@ -551,7 +551,7 @@ class WaldurAuthSAML2(BaseModel):
     OPTIONAL_ATTRIBUTES: list[str] = Field(
         [], description="SAML attributes that may be useful to have but not required"
     )
-    SAML_ATTRIBUTE_MAPPING: dict[str, str] = Field(
+    SAML_ATTRIBUTE_MAPPING: dict[str, list[str]] = Field(
         {}, description="Mapping between SAML attributes and User fields"
     )
     ORGANIZATION: dict[str, Any] = Field(
