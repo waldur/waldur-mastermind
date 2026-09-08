@@ -218,13 +218,29 @@ class CommentIssueResourceFilterBackend(IssueResourceFilterBackend):
 
 
 class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
+    """Who may see an issue.
+
+    A ticket raised against a project or an organization is scoped to it, and
+    the roles held there decide who sees it. Raising the ticket does not grant
+    standing access on its own: someone who leaves the project stops seeing the
+    ticket along with everything else in that scope, which is the point of
+    scoping it. A ticket raised against nothing in particular has no such scope
+    to inherit from, so its caller is the only non-privileged person who can
+    see it.
+    """
+
     def filter_queryset(self, request, queryset, view):
         return (
             super().filter_queryset(request, queryset, view).distinct()
-            # A caller sees their own top-level tickets, but not the internal
-            # provider-routed child issues (those are visible to staff/support
-            # and to the provider's own support users below).
-            | queryset.filter(caller=request.user, parent_issue__isnull=True).distinct()
+            # The caller of an unscoped ticket. Provider-routed child issues are
+            # excluded here as internal, and reach the provider's own support
+            # users through the clause below.
+            | queryset.filter(
+                caller=request.user,
+                parent_issue__isnull=True,
+                customer__isnull=True,
+                project__isnull=True,
+            ).distinct()
             # Provider support users can see issues routed to their helpdesk.
             | queryset.filter(
                 provider_helpdesk__support_users__user=request.user,
@@ -237,7 +253,13 @@ class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter)
     def filter_queryset(self, request, queryset, view):
         return (
             super().filter_queryset(request, queryset, view).distinct()
-            | queryset.filter(issue__caller=request.user).distinct()
+            # Mirrors the issue rule above: on a scoped ticket the roles decide,
+            # and being the caller adds nothing.
+            | queryset.filter(
+                issue__caller=request.user,
+                issue__customer__isnull=True,
+                issue__project__isnull=True,
+            ).distinct()
             # Provider support users can see comments on issues routed to their
             # helpdesk.
             | queryset.filter(

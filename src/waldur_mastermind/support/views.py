@@ -209,8 +209,14 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if user.is_staff or user.is_support or not obj:
             return
         issue = obj
-        # if it's a personal issue
-        if not issue.customer and not issue.project and issue.caller == user:
+        # The caller may reply on their own ticket. Scope is already settled by
+        # the time this runs: reaching here means the issue survived
+        # `IssueCallerOrRoleFilterBackend`, which on a ticket raised against a
+        # project or an organization admits only the roles held there. So this
+        # covers the caller who still has access but holds none of the roles
+        # below -- a plain project member on their own thread, refused with a
+        # 403 while the UI went on offering them the button.
+        if issue.caller == user:
             return
         if issue.customer and issue.customer.has_user(user, CustomerRole.OWNER):
             return
