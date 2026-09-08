@@ -403,7 +403,12 @@ class LimitPeriodProcessor:
         )
         resource_limit_periods = invoice_item.details["resource_limit_periods"]
         old_period = resource_limit_periods.pop()
-        old_quantity = int(old_period["quantity"])
+        # Stays JSON-native rather than Decimal: the value is written straight
+        # back into details["resource_limit_periods"] by
+        # serialize_resource_limit_period, and a Decimal is not JSON encodable.
+        old_quantity = float(old_period["quantity"])
+        if old_quantity.is_integer():
+            old_quantity = int(old_quantity)
         old_start = parse_datetime(old_period["start"])
         today = timezone.now()
         new_quantity = convert_quantity(

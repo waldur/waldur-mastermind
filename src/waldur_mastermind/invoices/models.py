@@ -517,8 +517,13 @@ class InvoiceItem(
             last_period["billing_periods"] = utils.get_full_days(
                 parse_datetime(last_period["start"]), self.end
             )
+            # int() would truncate a fractional limit to zero and bill the
+            # final sub-period as nothing; on a value like "1.4" further down
+            # it raises outright. Compute in Decimal, which is exact and
+            # renders without a binary expansion.
             last_period["total"] = str(
-                int(last_period["quantity"]) * last_period["billing_periods"]
+                decimal.Decimal(str(last_period["quantity"]))
+                * last_period["billing_periods"]
             )
             self.quantity = self.quantity_from_limit_periods()
             self.save(update_fields=["details", "quantity"])
@@ -534,7 +539,11 @@ class InvoiceItem(
         """
         periods = self.details.get("resource_limit_periods") or []
         if self.unit == self.Units.PER_DAY:
-            return decimal.Decimal(sum(int(period["total"]) for period in periods))
+            # total is a decimal string once a limit is fractional, and
+            # int("1.4") raises ValueError.
+            return decimal.Decimal(
+                sum(decimal.Decimal(period["total"]) for period in periods)
+            )
         # Weigh by each period's own day count (a partial day counts as one),
         # and divide by the same total so equal limits always yield the limit.
         days = [

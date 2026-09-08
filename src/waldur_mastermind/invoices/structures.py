@@ -12,7 +12,10 @@ class InvoiceResourceLimitPeriodDict(TypedDict):
 
     start: str  # Start datetime of the period, serialized in ISO 8601 format.
     end: str  # End datetime of the period, serialized in ISO 8601 format.
-    quantity: int  # The resource limit amount (e.g., 10 GB) active during this period.
+    # The resource limit active during this period (e.g. 10 GB). May be
+    # fractional; whole numbers are stored as int, so integer-only payloads
+    # are unchanged.
+    quantity: float
     billing_periods: int  # The number of full days in the period, used for proration.
     total: str  # Total prorated usage for the period (quantity * billing_periods), serialized as a string.
 

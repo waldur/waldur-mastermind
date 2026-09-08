@@ -7747,6 +7747,13 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
     )
     state = serializers.CharField(source="get_state_display", read_only=True)
     uuid = serializers.UUIDField(read_only=True)
+    # The model field is a bare JSONField, so without this any JSON value at all
+    # reached approve() and on into validate_limits, where a non-numeric or
+    # fractional value raised TypeError against the Decimal-typed quota sum.
+    # Typed like every other limit payload.
+    requested_limits = serializers.DictField(
+        child=serializers.IntegerField(min_value=0), required=True
+    )
 
     class Meta:
         model = models.ResourceLimitChangeRequest
