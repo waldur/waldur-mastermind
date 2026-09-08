@@ -1341,6 +1341,10 @@ class OpenStackBackend(ServiceBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
+        # Built on first use by the port-import branch below, then shared by
+        # every router in this pull.
+        port_mappings = None
+
         for backend_router in backend_routers:
             backend_id = backend_router["id"]
             try:
@@ -1405,13 +1409,52 @@ class OpenStackBackend(ServiceBackend):
                 router_obj, _ = models.Router.objects.update_or_create(
                     tenant=tenant, backend_id=backend_id, defaults=defaults
                 )
-                # Set the ports relationship
+                # Set the ports relationship. A Neutron port with no local Port
+                # row used to be dropped here silently, which is what made a
+                # freshly created interface unremovable: fixed_ips above is read
+                # straight off the Neutron response, so the address showed in the
+                # UI, while the removal dialog -- which lists router.ports -- had
+                # nothing to offer. Import the missing ones instead, so this pull
+                # is self-sufficient and the several callers that refresh routers
+                # without refreshing ports still converge.
                 port_backend_ids = [port["id"] for port in ports]
                 port_objs = list(
                     models.Port.objects.filter(
                         tenant=tenant, backend_id__in=port_backend_ids
                     )
                 )
+                known = {port.backend_id for port in port_objs}
+                missing = [port for port in ports if port["id"] not in known]
+                if missing:
+                    # Four queries, so build them at most once per pull rather
+                    # than once per router. Steady state has no missing ports
+                    # and never gets here at all.
+                    if port_mappings is None:
+                        port_mappings = self._port_pull_mappings(tenant)
+                    for backend_port in missing:
+                        # Only the tenant's own ports. A router gateway port
+                        # belongs to the external network's project -- Neutron
+                        # leaves its tenant_id empty ("Port has no 'project-id',
+                        # as it is hidden from user") -- and pull_tenant_ports
+                        # lists by tenant_id, so importing it here would only
+                        # have its stale sweep delete it again on the next pass.
+                        # The gateway is managed through set/remove_external_gateway,
+                        # not through the router-interface actions.
+                        #
+                        # tenant_id is Neutron's deprecated alias for project_id
+                        # and both are returned today, but reading only the alias
+                        # would skip every port -- silently restoring this very
+                        # bug -- against anything that drops it.
+                        owner = backend_port.get("tenant_id") or backend_port.get(
+                            "project_id"
+                        )
+                        if owner != tenant.backend_id:
+                            continue
+                        imported = self._upsert_port_from_neutron_dict(
+                            tenant, backend_port, *port_mappings
+                        )
+                        if imported:
+                            port_objs.append(imported)
                 router_obj.ports.set(port_objs)
             except IntegrityError:
                 logger.warning(
@@ -3172,8 +3215,9 @@ class OpenStackBackend(ServiceBackend):
                 subnet.gateway_ip = backend_subnet["gateway_ip"]
 
             # Automatically create router for subnet
+            router_backend_id = None
             if not subnet.tenant.skip_creation_of_default_router:
-                self.connect_subnet(subnet)
+                router_backend_id = self.connect_subnet(subnet)
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
         else:
@@ -3187,6 +3231,7 @@ class OpenStackBackend(ServiceBackend):
                 },
                 scopes=[subnet, subnet.network],
             )
+            self.import_new_router_interface(subnet, router_backend_id)
 
     @log_backend_action()
     @reraise_exceptions
@@ -3260,7 +3305,7 @@ class OpenStackBackend(ServiceBackend):
             )
             return
 
-        self.connect_router(
+        router_backend_id = self.connect_router(
             subnet.network.tenant,
             subnet.network.name,
             subnet.backend_id,
@@ -3277,6 +3322,33 @@ class OpenStackBackend(ServiceBackend):
             },
             scopes=[subnet, subnet.network],
         )
+        return router_backend_id
+
+    def import_new_router_interface(self, subnet: models.SubNet, router_backend_id):
+        """Import the interface port that connecting the subnet just created.
+
+        Neutron creates a `network:router_interface` port when a subnet is
+        attached to a router. Until Waldur imports it, `router.ports` -- the
+        list the removal action offers -- does not contain it, so the interface
+        cannot be removed even though its address shows on the router (#387).
+
+        Deliberately not a task in the creation chain: a `CreateExecutor`'s
+        failure signature would mark a subnet ERRED that exists and works in
+        Neutron. The subnet is already created and saved by the time this runs,
+        so a backend hiccup here is logged and the next periodic pull converges.
+        """
+        if not router_backend_id:
+            return
+        try:
+            self.pull_tenant_routers(subnet.tenant, router_backend_id)
+        except OpenStackBackendError:
+            logger.warning(
+                "Could not import the router interface for subnet %s on router %s; "
+                "the periodic pull will pick it up.",
+                subnet.backend_id,
+                router_backend_id,
+                exc_info=True,
+            )
 
     @log_backend_action()
     def delete_subnet(self, subnet: models.SubNet):
@@ -3585,7 +3657,20 @@ class OpenStackBackend(ServiceBackend):
 
         return external_network_id
 
-    def _get_router(self, tenant: models.Tenant):
+    def _get_router(self, tenant: models.Tenant, preferred_names=()):
+        """Pick the router a new subnet should be attached to.
+
+        This used to return ``routers[0]``. Neutron guarantees no order on
+        ``list_routers``, so in a tenant with more than one router the choice
+        was effectively arbitrary and could hand a new subnet to a router that
+        has nothing to do with it -- a customer's point-to-point uplink router,
+        say, rather than the tenant's own internal one (#387).
+
+        Prefer a router named after the network being connected, then the
+        default router Waldur creates with the tenant, then the oldest router in
+        the tenant. Every step is deterministic, so the same tenant always
+        yields the same answer.
+        """
         session = get_tenant_session(tenant)
         neutron = get_neutron_client(session)
 
@@ -3594,8 +3679,17 @@ class OpenStackBackend(ServiceBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
-        # If any router in Tenant exists, use it
-        return routers[0] if routers else None
+        if not routers:
+            return None
+
+        by_name = {router["name"]: router for router in routers}
+        for name in preferred_names:
+            if name in by_name:
+                return by_name[name]
+
+        return sorted(
+            routers, key=lambda router: (router.get("created_at") or "", router["id"])
+        )[0]
 
     def create_router(self, router: models.Router):
         backend_router = self._create_router(router.tenant, router.name)
@@ -3714,7 +3808,13 @@ class OpenStackBackend(ServiceBackend):
             return None
 
         router_name = f"{network_name}-router"
-        router = self._get_router(tenant) or self._create_router(tenant, router_name)
+        router = self._get_router(
+            tenant,
+            # The router for this very network, else the one Waldur creates
+            # alongside the tenant (its internal network is named
+            # "<tenant>-int-net", so its router is "<tenant>-int-net-router").
+            preferred_names=(router_name, f"{tenant.name}-int-net-router"),
+        ) or self._create_router(tenant, router_name)
         self._connect_network_to_router(tenant, router, external, network_id, subnet_id)
 
         return router["id"]
@@ -7118,8 +7218,11 @@ class OpenStackBackend(ServiceBackend):
             },
             scopes=[router, router.project, router.project.customer],
         )
-        self.pull_tenant_routers(router.tenant, router.backend_id)
+        # Ports first: pull_tenant_routers rebuilds the router's port set from
+        # the local Port rows, so refreshing it before the sweep that deletes
+        # the just-removed port leaves the stale one attached for a moment.
         self.pull_tenant_ports(router.tenant)
+        self.pull_tenant_routers(router.tenant, router.backend_id)
 
     def delete_router(self, router: models.Router):
         if not router.backend_id:
