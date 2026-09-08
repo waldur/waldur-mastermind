@@ -93,14 +93,14 @@ classDiagram
         +string billing_type
         +bool billed_per_plan
         +string limit_period
-        +int limit_amount
+        +decimal limit_amount
         +int limit_decimal_places
         +int unit_factor
-        +int max_value
-        +int min_value
-        +int max_available_limit
+        +decimal max_value
+        +decimal min_value
+        +decimal max_available_limit
         +bool is_boolean
-        +int default_limit
+        +decimal default_limit
         +bool is_prepaid
         +OfferingComponent overage_component [FK]
         +int min_prepaid_duration

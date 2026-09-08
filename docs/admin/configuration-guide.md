@@ -217,7 +217,7 @@ SAML attributes that are required to identify a user
 
 #### SAML_ATTRIBUTE_MAPPING
 
-**Type:** Mapping[str, str]
+**Type:** Mapping[str, list[str]]
 
 Mapping between SAML attributes and User fields
 
