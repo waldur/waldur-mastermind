@@ -312,6 +312,12 @@ def validate_limit_amount(value, component):
     if not component.limit_amount:
         return
 
+    # `current` below is summed from ComponentQuota.limit, a DecimalField, so it
+    # is a Decimal whenever any quota row exists. Adding a float to it raises
+    # TypeError, which surfaces as a bare HTTP 500. Coerce via str() so 0.1
+    # becomes Decimal("0.1") rather than its binary expansion.
+    value = decimal.Decimal(str(value))
+
     if component.limit_period == LimitPeriods.MONTH:
         current = (
             (
@@ -420,12 +426,18 @@ def validate_maximum_available_limit(value, component, resource=None):
 
 
 def validate_min_max_limit(value, component):
+    # min_value is nullable, so None is "unset" and 0 is a real bound: a
+    # truthiness test made min_value=0 no bound at all, which left a negative
+    # limit orderable. max_value deliberately keeps the truthiness test —
+    # existing rows hold 0 meaning "no maximum", and the frontend agrees
+    # (offerings/store/limits.ts), so tightening it here would 400 orders the
+    # UI still offers. Changing that is a data-migration question of its own.
     if component.max_value and value > component.max_value:
         raise serializers.ValidationError(
             _("The limit %s value cannot be more than %s.")
             % (value, component.max_value)
         )
-    if component.min_value and value < component.min_value:
+    if component.min_value is not None and value < component.min_value:
         raise serializers.ValidationError(
             _("The limit %s value cannot be less than %s.")
             % (value, component.min_value)
@@ -860,15 +872,20 @@ def get_invoice_item_for_component_usage(component_usage: models.ComponentUsage)
 
 
 def serialize_resource_limit_period(
-    start: datetime.datetime, end: datetime.datetime, quantity: int
+    start: datetime.datetime, end: datetime.datetime, quantity: float
 ) -> InvoiceResourceLimitPeriodDict:
     billing_periods = get_full_days(start, end)
+    # quantity stays as passed in — it goes back into a JSONField, where a
+    # Decimal is not encodable. The total is only ever read back as a string,
+    # so compute it in Decimal to keep a fractional quantity out of its binary
+    # expansion: 0.1 * 3 must render as 0.3, not 0.30000000000000004.
+    total = decimal.Decimal(str(quantity)) * billing_periods
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
         "quantity": quantity,
         "billing_periods": billing_periods,
-        "total": str(quantity * billing_periods),
+        "total": str(total),
     }
 
 

@@ -29,7 +29,9 @@ from . import log, models, utils
 class ResourceLimitPeriod(serializers.Serializer):
     start = serializers.CharField(help_text="Start date of the resource limit period")
     end = serializers.CharField(help_text="End date of the resource limit period")
-    quantity = serializers.IntegerField(
+    # A component may allow fractional limits, and this serializer is what the
+    # generated clients are typed from for details.resource_limit_periods.
+    quantity = serializers.FloatField(
         help_text="Quantity of resources consumed during this period"
     )
     billing_periods = serializers.IntegerField(help_text="Number of billing periods")

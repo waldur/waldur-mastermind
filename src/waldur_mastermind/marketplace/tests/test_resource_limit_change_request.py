@@ -27,6 +27,32 @@ class ResourceLimitChangeRequestCreateTest(test.APITestCase):
             "requested_limits": {"storage": 500},
         }
 
+    def post_limits(self, limits):
+        self.client.force_authenticate(self.fixture.manager)
+        return self.client.post(
+            self.list_url,
+            {"resource": self.resource.uuid.hex, "requested_limits": limits},
+            format="json",
+        )
+
+    def test_fractional_requested_limit_is_rejected(self):
+        # requested_limits is a bare JSONField on the model, so until it was
+        # typed here any value at all reached approve() and on into
+        # validate_limits, where it met a Decimal-typed quota sum.
+        response = self.post_limits({"storage": 0.5})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("requested_limits", response.data)
+
+    def test_non_numeric_requested_limit_is_rejected(self):
+        response = self.post_limits({"storage": "a lot"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("requested_limits", response.data)
+
+    def test_negative_requested_limit_is_rejected(self):
+        response = self.post_limits({"storage": -1})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("requested_limits", response.data)
+
     def test_project_member_without_update_permission_can_create_request(self):
         """Project member without UPDATE_RESOURCE_LIMITS can create request."""
         self.client.force_authenticate(self.fixture.manager)
@@ -297,6 +323,36 @@ class ResourceLimitChangeRequestApproveRejectTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.request.refresh_from_db()
         self.assertEqual(self.request.state, ReviewStates.PENDING)
+
+    def approve_legacy_fractional_request(self, limit_amount):
+        """Approve a row whose fractional value predates the typed serializer.
+
+        The stored value is still a float, and validate_limit_amount compares it
+        against a quota sum taken from ComponentQuota.limit — a DecimalField.
+        Decimal + float raises TypeError, which surfaced as a bare 500.
+        """
+        component = factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            type="storage",
+            billing_type=BillingTypes.LIMIT,
+            limit_amount=limit_amount,
+        )
+        models.ComponentQuota.objects.create(
+            resource=self.resource, component=component, limit=10
+        )
+        models.ResourceLimitChangeRequest.objects.filter(pk=self.request.pk).update(
+            requested_limits={"storage": 0.5}
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        return self.client.post(self.approve_url, {"comment": "Approved"})
+
+    def test_fractional_limit_over_threshold_is_rejected_not_a_server_error(self):
+        response = self.approve_legacy_fractional_request(limit_amount=10)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_fractional_limit_under_threshold_is_approved(self):
+        response = self.approve_legacy_fractional_request(limit_amount=100)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_cannot_approve_when_requested_limits_exceed_component_maximum(self):
         """Approval is rejected when a requested limit exceeds the component maximum."""
