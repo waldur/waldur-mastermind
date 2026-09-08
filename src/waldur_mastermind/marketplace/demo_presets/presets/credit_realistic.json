@@ -1712,62 +1712,6 @@
       "end_date": "2026-12-01",
       "grace_coefficient": "15",
       "created": "2026-01-20T00:00:00"
-    },
-    {
-      "uuid": "cdb00000000000000000000000000130",
-      "project_uuid": "c3000000000000000000000000000210",
-      "value": "28883",
-      "end_date": "2026-12-01",
-      "grace_coefficient": "15",
-      "created": "2026-01-20T00:00:00"
-    },
-    {
-      "uuid": "cdb00000000000000000000000000140",
-      "project_uuid": "c3000000000000000000000000000220",
-      "value": "25276",
-      "end_date": "2026-12-01",
-      "grace_coefficient": "15",
-      "created": "2026-01-20T00:00:00"
-    },
-    {
-      "uuid": "cdb00000000000000000000000000150",
-      "project_uuid": "c3000000000000000000000000000230",
-      "value": "34142",
-      "end_date": "2026-12-01",
-      "grace_coefficient": "15",
-      "created": "2026-01-20T00:00:00"
-    },
-    {
-      "uuid": "cdb00000000000000000000000000160",
-      "project_uuid": "c3000000000000000000000000000240",
-      "value": "37941",
-      "end_date": "2026-12-01",
-      "grace_coefficient": "15",
-      "created": "2026-01-20T00:00:00"
-    },
-    {
-      "uuid": "cdb00000000000000000000000000170",
-      "project_uuid": "c3000000000000000000000000000250",
-      "value": "11863",
-      "end_date": "2027-12-01",
-      "grace_coefficient": "15",
-      "created": "2026-01-20T00:00:00"
-    },
-    {
-      "uuid": "cdb00000000000000000000000000180",
-      "project_uuid": "c3000000000000000000000000000280",
-      "value": "17625",
-      "end_date": "2027-12-01",
-      "grace_coefficient": "15",
-      "created": "2026-01-20T00:00:00"
-    },
-    {
-      "uuid": "cdb00000000000000000000000000190",
-      "project_uuid": "c3000000000000000000000000000290",
-      "value": "21122",
-      "end_date": "2026-12-01",
-      "grace_coefficient": "15",
-      "created": "2026-01-20T00:00:00"
     }
   ],
   "invoices": [
@@ -15608,9 +15552,10 @@
     "title": "Credit management \u2014 realistic shapes",
     "description": "Production-shaped preset for credit-explainer tool validation. 3 customers (small/mid/large), 30 projects across all utilisation buckets including overdrawn and no-credit, 6 months of invoices and component usages, fired policies on overdrawn projects.",
     "version": "1.0.0",
+    "rebase_billing_history": true,
     "scenarios": [
       "explain_project_credit_balance across utilisation bands",
-      "list_overdrawn_projects (3 overdrawn out of 19 credit-bearing)",
+      "list_overdrawn_projects (3 overdrawn out of 12 credit-bearing)",
       "Project with no credit configured",
       "Customer with no customer credit",
       "Fired policy on overdrawn project (paused resources)",

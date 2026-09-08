@@ -1,8 +1,10 @@
+import datetime
 import json
 import queue
 import threading
 import unittest
 from contextlib import contextmanager
+from decimal import Decimal
 from unittest.mock import MagicMock, Mock, patch
 
 import openai
@@ -32,6 +34,7 @@ from waldur_mastermind.chat.tests.utils import (
     blocks_from_text,
     text_from_blocks,
 )
+from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.ui_registry import ui_registry  # noqa: F401
 
 """
@@ -2134,6 +2137,112 @@ class LLMStreamerAnonymousPathTest(_LLMStreamerTestBase, unittest.TestCase):
         self.assertNotIn("search_tools", streamer._enabled_tool_names)
 
 
+class LLMStreamerPreloadAllToolsTest(_LLMStreamerTestBase, unittest.TestCase):
+    """``preload_all_tools`` is the validation harness's way of skipping the
+    search_tools round: every registered tool must be callable on turn 0."""
+
+    def test_preloads_every_registered_tool(self):
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "tok",
+            user=None,
+            preload_all_tools=True,
+        )
+        registered = {name.value for name in tool_registry.definitions}
+        self.assertTrue(registered <= streamer._enabled_tool_names)
+        self.assertIn("explain_resource_paused_reason", streamer._enabled_tool_names)
+
+    def test_without_preload_a_user_gets_the_lazy_load_surface(self):
+        # What the validation harness runs with by default: the deployed
+        # authenticated path, where every data tool arrives via search_tools.
+        user = Mock(is_staff=True, is_support=False, is_anonymous=False)
+        user.username = "staff"
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "tok", user=user)
+        self.assertEqual(streamer._enabled_tool_names, {"search_tools", "ask_user"})
+
+    def test_preload_keeps_search_tools_callable(self):
+        # Rejecting search_tools as "not loaded" tells the model to call
+        # search_tools to load it; it retries until the round cap.
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "tok",
+            user=None,
+            preload_all_tools=True,
+        )
+        self.assertIn("search_tools", streamer._enabled_tool_names)
+
+
+class LLMStreamerRejectedToolCallsTest(_LLMStreamerTestBase, unittest.TestCase):
+    """A call the lazy-load guard refuses leaves no block anywhere.
+
+    Nothing runs and nothing is persisted, so ``rejected_tool_calls`` is the
+    only record that the model reached for the tool — which is what the
+    validation harness scores ``forbidden_tools`` against.
+    """
+
+    def test_a_refused_call_is_recorded_with_its_arguments(self):
+        user = Mock(is_staff=True, is_support=False, is_anonymous=False)
+        user.id = 1
+        user.username = "staff"
+        # create_vm is never seeded on turn 0; the model calls it anyway.
+        refused = [
+            _make_chunk(
+                tool_calls=[
+                    _make_tool_call_delta(
+                        0,
+                        name="create_vm",
+                        call_id="call_1",
+                        arguments='{"project": "Acme"}',
+                    )
+                ]
+            )
+        ]
+        text = [_make_chunk(content="Let me look that up.")]
+
+        streamer = LLMStreamer(_messages(), "https://example.com/v1", "tok", user=user)
+        streamer.client = _mock_openai_client_multi([refused, text])
+        list(streamer)
+
+        self.assertEqual(
+            streamer.rejected_tool_calls,
+            [{"name": "create_vm", "arguments": {"project": "Acme"}}],
+        )
+        # ...and the turn still carries no tool block for it.
+        self.assertEqual(
+            [b for b in streamer.accumulated_blocks if b["key"] == "tool"], []
+        )
+
+    def test_nothing_is_recorded_when_the_tool_was_loaded(self):
+        user = Mock(is_staff=True, is_support=False, is_anonymous=False)
+        user.id = 1
+        user.username = "staff"
+        allowed = [
+            _make_chunk(
+                tool_calls=[
+                    _make_tool_call_delta(
+                        0, name="search_offerings", call_id="call_1", arguments="{}"
+                    )
+                ]
+            )
+        ]
+        text = [_make_chunk(content="Here.")]
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value={"type": "success", "summary": "ok"},
+        ):
+            streamer = LLMStreamer(
+                _messages(), "https://example.com/v1", "tok", user=user
+            )
+            streamer.client = _mock_openai_client_multi([allowed, text])
+            streamer._enabled_tool_names.add("search_offerings")
+            list(streamer)
+
+        self.assertEqual(streamer.rejected_tool_calls, [])
+
+
 class LLMStreamerAnonymousToolExecutionTest(_LLMStreamerTestBase, unittest.TestCase):
     """Anonymous (user=None) chats must actually execute tool calls.
 
@@ -2206,3 +2315,31 @@ class LLMStreamerAnonymousToolExecutionTest(_LLMStreamerTestBase, unittest.TestC
 
         # Round 0 runs (one create call); cancellation aborts before round 1.
         self.assertEqual(streamer.client.chat.completions.create.call_count, 1)
+
+
+class LLMStreamerToolResultEncodingTest(unittest.TestCase):
+    """Tool results reach the model through json.dumps; ORM values must survive it."""
+
+    def _followup(self, result_data):
+        streamer = LLMStreamer.__new__(LLMStreamer)
+        streamer.accumulated_blocks = []
+        streamer._round_block_offset = 0
+        tool_calls = {
+            "c1": {
+                "id": "c1",
+                "name": "get_resource_usage",
+                "arguments": "{}",
+                "_result_data": result_data,
+                "_summary": "Done",
+            }
+        }
+        return streamer._extend_with_tool_results([], tool_calls)
+
+    def test_decimal_and_date_in_a_tool_result_do_not_kill_the_stream(self):
+        followup = self._followup(
+            {"usage": Decimal("42.00"), "period": datetime.date(2026, 9, 1)}
+        )
+
+        content = json.loads(followup[-1]["content"])
+        self.assertEqual(content["usage"], "42.00")
+        self.assertEqual(content["period"], "2026-09-01")

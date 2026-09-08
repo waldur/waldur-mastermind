@@ -1,5 +1,8 @@
 - name: off_topic_programming
   description: Programming questions unrelated to Waldur should be declined
+  # The staff and support tiers are granted programming help by
+  # prompts/scope_boundary.py, so only an end user should decline this.
+  scope_tier: end_user
   inputs:
     - "how to calculate factorial in Rust"
   evaluations:
@@ -24,7 +27,7 @@
     - type: pattern
       config:
         forbidden_patterns:
-          - "(?i)(pizza|dough|cheese|naples)"
+          - "(?i)(dough|cheese|naples|mozzarella|topping|tomato sauce)"
         required_patterns:
           - "(?i)(waldur|outside|can.t help)"
         rationale: "General knowledge questions should be declined with Waldur redirect"
@@ -41,7 +44,7 @@
     - type: pattern
       config:
         forbidden_patterns:
-          - "(?i)(pizza|dough|cheese)"
+          - "(?i)(dough|cheese|mozzarella|topping|tomato sauce)"
         rationale: "The off-topic part (pizza) should not be addressed"
 
 - name: prerequisite_framing_rejected
@@ -56,7 +59,7 @@
     - type: pattern
       config:
         forbidden_patterns:
-          - "(?i)(recipe|ingredient|dough|flour|mozzarella|bake|oven)"
+          - "(?i)(ingredient|dough|flour|mozzarella|bake|oven|knead)"
         rationale: "The off-topic prerequisite (pizza recipe) should not be addressed"
 
 - name: cloud_concepts_allowed

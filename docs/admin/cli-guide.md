@@ -2,24 +2,19 @@
 
 ## ai_assistant
 
-AI Assistant management commands.
+Check the AI Assistant's configuration and score it against the
+validation scenario packs. The subcommands are listed below; each
+takes --help of its own.
 
-  Available subcommands:
-
-```yaml
-health       - Check AI Assistant infrastructure health
-validate_scenarios - Validate scenario YAML files
-test_evaluation   - Test evaluation with real AI Assistant responses
-run_all       - Run all checks (health, validate, test)
-```
-
-  Examples:
+Examples:
 
 ```yaml
 waldur ai_assistant health
 waldur ai_assistant validate_scenarios
 waldur ai_assistant test_evaluation
 waldur ai_assistant test_evaluation --scenario greeting_no_tool
+waldur ai_assistant test_evaluation --user support --preload-tools
+waldur ai_assistant test_evaluation --preset credit_realistic
 waldur ai_assistant run_all
 ```
 
@@ -31,10 +26,12 @@ usage: waldur ai_assistant
 positional arguments:
   {health,validate_scenarios,test_evaluation,run_all}
                         Available subcommands
-    health              Check AI Assistant infrastructure health
-    validate_scenarios  Validate scenario YAML files
-    test_evaluation     Test evaluation with real AI Assistant responses
-    run_all             Run all checks (health, validate, test)
+    health              Check the LLM configuration, endpoint and a live
+                        request
+    validate_scenarios  Parse the scenario packs and report what they cover
+    test_evaluation     Put the scenario packs to the live LLM and score the
+                        answers
+    run_all             health, then validate_scenarios, then test_evaluation
 
 ```
 

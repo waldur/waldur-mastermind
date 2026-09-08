@@ -100,7 +100,8 @@ class GetResourceUsageTool(BaseTool):
                 "type": u.component.type,
                 "name": u.component.name,
                 "measured_unit": u.component.measured_unit,
-                "usage": u.usage,
+                # Stringified: the streamer json.dumps() the payload.
+                "usage": str(u.usage),
             }
             for u in usage_qs
         ]

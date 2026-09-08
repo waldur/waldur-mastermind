@@ -187,6 +187,7 @@ class SystemPromptTest(TestCase):
             assistant_name="TestBot",
             organization="TestOrg",
             currency="EUR",
+            today="2026-09-08",
             custom_instructions="[custom instructions]",
         )
         self.assertIn("TestBot", result)

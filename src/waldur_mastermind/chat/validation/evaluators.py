@@ -38,6 +38,13 @@ class ToolUsageEvaluator(Evaluator):
             tool_calls (list[dict]|None): Native function call results from the API,
                                           e.g. [{"name": "show_user_resources"}].
                                           None or empty list means no tool was called.
+            forbidden_tools (list[str]|None): Tools that fail the turn if called at
+                                              all, whatever else was called.
+            attempted_tool_calls (list[dict]|None): Every tool the model reached
+                                              for, including calls the lazy-load
+                                              guard refused. Defaults to
+                                              ``tool_calls``. Scored for
+                                              ``forbidden_tools`` only.
             rationale (str): Explanation of why this is expected
         """
         expected_tool = config.get("expected_tool")
@@ -57,6 +64,37 @@ class ToolUsageEvaluator(Evaluator):
             else (domain_names[0] if domain_names else None)
         )
         tool_call = {"name": actual_tool} if actual_tool else None
+
+        # A mutating tool riding along with the expected one is a failure
+        # the expected_tool check alone cannot see. Scored against every tool
+        # the model reached for, not only the ones that ran: a call the
+        # lazy-load guard refused never executed -- so it is no tool *use* and
+        # stays out of the expected_tool match above -- but reaching for
+        # create_vm is exactly what forbidden_tools is here to catch.
+        attempted = config.get("attempted_tool_calls") or api_tool_calls
+        attempted_names = [c.get("name") for c in attempted if c.get("name")]
+        forbidden_set = set(config.get("forbidden_tools") or [])
+        forbidden = [n for n in attempted_names if n in forbidden_set]
+        if forbidden:
+            reached_for = (
+                f"Called forbidden tool '{forbidden[0]}'"
+                if forbidden[0] in names
+                else (
+                    f"Reached for forbidden tool '{forbidden[0]}' (the "
+                    "lazy-load guard refused it, so it did not run)"
+                )
+            )
+            return EvaluationResult(
+                passed=False,
+                score=0.0,
+                message=f"{reached_for}. {rationale}",
+                details={
+                    "expected_tool": expected_tool,
+                    "forbidden_tool": forbidden[0],
+                    "tool_calls": api_tool_calls,
+                    "attempted_tool_calls": attempted,
+                },
+            )
 
         # Check if expectation matches reality
         if expected_tool is None:

@@ -4,6 +4,7 @@ from unittest import mock
 from constance.test.unittest import override_config as override_constance_config
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.exceptions import PermissionDenied
 
@@ -22,6 +23,13 @@ class BuildContextTest(TestCase):
         self.user = structure_factories.UserFactory()
         session = ChatSession.objects.create(user=self.user)
         self.thread = ThreadSession.objects.create(chat_session=session)
+
+    def test_system_prompt_states_todays_date(self):
+        # Without it the model computes "last month" from its training-era
+        # sense of now and passes year=2024 to invoice tools, which then
+        # report an empty month as fact.
+        system_msg = build_context(self.user, "hi")[0]["content"]
+        self.assertIn(timezone.localdate().isoformat(), system_msg)
 
     def test_builds_context_with_system_prompt_and_history(self):
         Message.objects.create(

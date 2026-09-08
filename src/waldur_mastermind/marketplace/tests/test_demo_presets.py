@@ -1,14 +1,17 @@
 import collections
+import datetime
 import decimal
 import json
 import pathlib
 import uuid
 from io import StringIO
+from unittest import mock
 
 from ddt import data, ddt
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -16,6 +19,37 @@ from waldur_mastermind.marketplace.demo_presets.manifest import (
     DemoPresetManager,
     PresetMetadata,
 )
+from waldur_mastermind.marketplace.demo_presets.time_shift import (
+    rebase_to_current_month,
+)
+
+
+def _billing_preset(*, opt_in=True):
+    """One invoice month so the shift's effect on each field is visible."""
+    preset = {
+        "_metadata": {"title": "probe"},
+        "invoices": [
+            {
+                "uuid": "11" * 16,
+                "customer_uuid": "a3" + "0" * 30,
+                "year": 2025,
+                "month": 12,
+                "created": "2025-12-01",
+                "invoice_date": "2025-12-15",
+            }
+        ],
+        "invoice_items": [
+            {
+                "uuid": "22" * 16,
+                "invoice_uuid": "11" * 16,
+                "start": "2025-12-01T00:00:00",
+                "end": "2025-12-31T23:59:59",
+            }
+        ],
+    }
+    if opt_in:
+        preset["_metadata"]["rebase_billing_history"] = True
+    return preset
 
 
 class DemoPresetManagerTest(TestCase):
@@ -403,3 +437,142 @@ class DemoPresetLoadTest(test.APITestCase):
             f"Preset '{preset_name}' failed to load: {result['message']}\n"
             f"Output: {result.get('output', '')}",
         )
+
+
+class PresetMonthRebaseTest(TestCase):
+    """A preset's billing history must land on the month it is loaded in.
+
+    The generator anchors months on ``date.today()`` and writes them
+    absolutely, so a committed preset ages: scenarios asking about "last
+    month" reach a month it holds no data for, and the assistant is scored
+    against an empty answer it gave correctly.
+    """
+
+    def setUp(self):
+        path = DemoPresetManager.get_preset_path("credit_realistic")
+        self.preset = json.loads(path.read_text())
+
+    @staticmethod
+    def _months(data):
+        return sorted({(i["year"], i["month"]) for i in data["invoices"]})
+
+    def test_newest_month_follows_the_load_date(self):
+        for today in (datetime.date(2026, 9, 8), datetime.date(2027, 2, 1)):
+            with self.subTest(today=today):
+                shifted = rebase_to_current_month(self.preset, today=today)
+                self.assertEqual(self._months(shifted)[-1], (today.year, today.month))
+
+    def test_relative_spacing_is_preserved(self):
+        before = self._months(self.preset)
+        shifted = self._months(
+            rebase_to_current_month(self.preset, today=datetime.date(2027, 2, 1))
+        )
+        self.assertEqual(len(shifted), len(before))
+        gaps = {
+            (b[0] - a[0]) * 12 + (b[1] - a[1])
+            for a, b in zip(shifted, shifted[1:], strict=False)
+        }
+        self.assertEqual(gaps, {1})
+
+    def test_a_month_end_clamps_to_the_shorter_month(self):
+        # Items end on the last instant of their month; December's 31st has
+        # to become February's 28th, not spill into March.
+        shifted = rebase_to_current_month(
+            _billing_preset(), today=datetime.date(2026, 2, 1)
+        )
+        self.assertEqual(shifted["invoice_items"][0]["end"], "2026-02-28T23:59:59")
+
+    def test_the_terminated_resource_is_billed_in_every_month(self):
+        # support_compensations/terminated_billed_visibility asks whether a
+        # terminated resource was billed last month; it can only answer if
+        # the history reaches that far.
+        shifted = rebase_to_current_month(self.preset, today=datetime.date(2026, 9, 8))
+        term = next(r for r in shifted["resources"] if "Sirius VM 1" in r["name"])
+        invoices = {i["uuid"]: (i["year"], i["month"]) for i in shifted["invoices"]}
+        billed = {
+            invoices[i["invoice_uuid"]]
+            for i in shifted["invoice_items"]
+            if i.get("resource_uuid") == term["uuid"]
+        }
+        self.assertEqual(billed, set(self._months(shifted)))
+
+    def test_credit_expiry_is_left_alone(self):
+        # end_date is a future expiry, not history; shifting it would move
+        # an expiry that has nothing to do with the billing window.
+        shifted = rebase_to_current_month(self.preset, today=datetime.date(2027, 2, 1))
+        self.assertEqual(
+            [c["end_date"] for c in shifted["customer_credits"]],
+            [c["end_date"] for c in self.preset["customer_credits"]],
+        )
+
+    def test_the_source_preset_is_not_mutated(self):
+        before = self._months(self.preset)
+        rebase_to_current_month(self.preset, today=datetime.date(2027, 2, 1))
+        self.assertEqual(self._months(self.preset), before)
+
+    def test_load_feeds_import_structure_a_rebased_file(self):
+        # The rebase is worthless if the loader still hands the committed
+        # file straight to import_structure.
+        imported = {}
+
+        def record(command, **kwargs):
+            if command == "import_structure":
+                imported["months"] = self._months(
+                    json.loads(pathlib.Path(kwargs["input"]).read_text())
+                )
+
+        with mock.patch(
+            "waldur_mastermind.marketplace.demo_presets.manifest.call_command",
+            side_effect=record,
+        ):
+            DemoPresetManager.load_preset("credit_realistic", dry_run=True)
+
+        today = timezone.localdate()
+        self.assertEqual(imported["months"][-1], (today.year, today.month))
+
+    def test_a_preset_that_does_not_opt_in_is_left_alone(self):
+        # Four other presets carry invoices; the loader is shared, so a
+        # shift they never asked for moved their history and left their
+        # invoice_date, ledger and policy timestamps behind.
+        preset = _billing_preset(opt_in=False)
+        shifted = rebase_to_current_month(preset, today=datetime.date(2027, 2, 1))
+        self.assertIs(shifted, preset)
+
+    def test_invoice_date_moves_with_the_invoice(self):
+        # invoice_date is imported and drives due_date; left behind, every
+        # shifted invoice read as months overdue.
+        shifted = rebase_to_current_month(
+            _billing_preset(), today=datetime.date(2026, 2, 1)
+        )
+        self.assertEqual(shifted["invoices"][0]["invoice_date"], "2026-02-15")
+
+    def test_load_leaves_a_non_opted_in_preset_as_committed(self):
+        imported = {}
+
+        def record(command, **kwargs):
+            if command == "import_structure":
+                imported["months"] = self._months(
+                    json.loads(pathlib.Path(kwargs["input"]).read_text())
+                )
+
+        committed = self._months(
+            json.loads(DemoPresetManager.get_preset_path("hpc_ai_platform").read_text())
+        )
+        with mock.patch(
+            "waldur_mastermind.marketplace.demo_presets.manifest.call_command",
+            side_effect=record,
+        ):
+            DemoPresetManager.load_preset("hpc_ai_platform", dry_run=True)
+
+        self.assertEqual(imported["months"], committed)
+
+    def test_today_defaults_to_the_django_clock(self):
+        # credit_history, billing._register and build_context all read
+        # Django's clock; date.today() is the machine's, which can be a
+        # month ahead of it for three hours around midnight on the 1st.
+        with mock.patch(
+            "waldur_mastermind.marketplace.demo_presets.time_shift.timezone"
+        ) as tz:
+            tz.localdate.return_value = datetime.date(2027, 2, 1)
+            shifted = rebase_to_current_month(self.preset)
+        self.assertEqual(self._months(shifted)[-1], (2027, 2))

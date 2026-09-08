@@ -15,7 +15,7 @@ Run::
 
     DJANGO_SETTINGS_MODULE=waldur_core.server.support_validation_settings \
         uv run python scripts/support_validation_run.py \
-            --preset credit_management \
+            --preset credit_realistic \
             --scenario-file support_credits \
             --user staff
 """
@@ -41,13 +41,14 @@ from constance import config  # noqa: E402
 from django.contrib.auth import get_user_model  # noqa: E402
 from django.core.management import call_command  # noqa: E402
 
-from waldur_mastermind.chat.block_schemas import (  # noqa: E402
-    blocks_to_text,
-    clean_answer_blocks,
-)
+from waldur_mastermind.chat.block_schemas import clean_answer_blocks  # noqa: E402
 from waldur_mastermind.chat.context_assembler import build_context  # noqa: E402
 from waldur_mastermind.chat.llm_streamer import LLMStreamer  # noqa: E402
+from waldur_mastermind.chat.validation import turn_blocks  # noqa: E402
 from waldur_mastermind.chat.validation.evaluators import get_evaluator  # noqa: E402
+from waldur_mastermind.chat.validation.presets import (  # noqa: E402
+    is_preset_loaded,
+)
 from waldur_mastermind.chat.validation.scenarios import (  # noqa: E402
     load_scenarios_from_yaml,
 )
@@ -68,16 +69,17 @@ SCENARIOS_DIR = (
 )
 
 
-def configure_llm_from_env() -> None:
-    """Load LLM credentials from the environment into Constance config.
+def require_llm_config() -> None:
+    """Stop early when the LLM endpoint is not configured.
 
-    Required: AI_ASSISTANT_API_URL, AI_ASSISTANT_API_TOKEN,
-    AI_ASSISTANT_MODEL. Optional: AI_ASSISTANT_BACKEND_TYPE (default 'vllm').
+    support_validation_settings seeds Constance from AI_ASSISTANT_API_URL,
+    AI_ASSISTANT_API_TOKEN and AI_ASSISTANT_MODEL in memory; nothing is
+    written here, so a token cannot land in a database this script was
+    never meant to touch.
     """
-    url = os.environ.get("AI_ASSISTANT_API_URL", "").strip()
-    token = os.environ.get("AI_ASSISTANT_API_TOKEN", "").strip()
-    model = os.environ.get("AI_ASSISTANT_MODEL", "").strip()
-    backend = os.environ.get("AI_ASSISTANT_BACKEND_TYPE", "vllm").strip()
+    url = (config.AI_ASSISTANT_API_URL or "").strip()
+    token = (config.AI_ASSISTANT_API_TOKEN or "").strip()
+    model = (config.AI_ASSISTANT_MODEL or "").strip()
     missing = [
         name
         for name, value in (
@@ -89,19 +91,15 @@ def configure_llm_from_env() -> None:
     ]
     if missing:
         raise SystemExit(
-            "Missing required environment variable(s): "
-            f"{', '.join(missing)}. Export AI_ASSISTANT_API_URL, "
-            "AI_ASSISTANT_API_TOKEN and AI_ASSISTANT_MODEL before running "
+            f"LLM endpoint not configured: {', '.join(missing)}. Export "
+            "AI_ASSISTANT_API_URL, AI_ASSISTANT_API_TOKEN and "
+            "AI_ASSISTANT_MODEL and run under "
+            "waldur_core.server.support_validation_settings "
             "(AI_ASSISTANT_BACKEND_TYPE is optional, default 'vllm')."
         )
-    config.AI_ASSISTANT_ENABLED = True
-    config.AI_ASSISTANT_BACKEND_TYPE = backend
-    config.AI_ASSISTANT_API_URL = url
-    config.AI_ASSISTANT_API_TOKEN = token
-    config.AI_ASSISTANT_MODEL = model
     print(
-        f"[llm] backend={backend} model={model} url={url} "
-        f"token={token[:6]}...{token[-4:] if len(token) > 10 else ''}"
+        f"[llm] backend={config.AI_ASSISTANT_BACKEND_TYPE} model={model} "
+        f"url={url} token={token[:6]}...{token[-4:] if len(token) > 10 else ''}"
     )
 
 
@@ -148,24 +146,15 @@ def run_scenario(
             )
             for _ in streamer:
                 pass
-            response_text = blocks_to_text(
+            response_text = turn_blocks.response_text(
                 clean_answer_blocks(streamer.accumulated_blocks)
-            ).strip()
-            # Tool calls accumulate across rounds in accumulated_blocks
-            # (streamer.tool_calls is reset per round, so it's empty by
-            # the time we read it after exit).
-            api_tool_calls = []
-            for blk in streamer.accumulated_blocks:
-                if blk.get("key") != "tool":
-                    continue
-                tool = blk.get("tool") or {}
-                if tool.get("name"):
-                    api_tool_calls.append(
-                        {
-                            "name": tool.get("name"),
-                            "arguments": tool.get("arguments") or {},
-                        }
-                    )
+            )
+            api_tool_calls = turn_blocks.tool_calls_from_blocks(
+                streamer.accumulated_blocks
+            )
+            # Calls the lazy-load guard refused leave no block; they ran
+            # nothing, but they say which tool the model reached for.
+            rejected_calls = list(streamer.rejected_tool_calls)
         except Exception:  # noqa: BLE001 — surface in report
             report_lines.append("```")
             report_lines.append(traceback.format_exc())
@@ -184,6 +173,10 @@ def run_scenario(
                 report_lines.append(f"- `{c['name']}({c.get('arguments')})`")
         else:
             report_lines.append("- _(none)_")
+        for c in rejected_calls:
+            report_lines.append(
+                f"- `{c['name']}({c.get('arguments')})` — _refused, not loaded_"
+            )
         report_lines.append("")
         report_lines.append("**Response:**")
         report_lines.append("")
@@ -198,6 +191,7 @@ def run_scenario(
             eval_config = dict(evaluation.config)
             if evaluation.type in {"tool_usage", "tool_arguments"}:
                 eval_config["tool_calls"] = api_tool_calls
+                eval_config["attempted_tool_calls"] = api_tool_calls + rejected_calls
             elif evaluation.type == "language":
                 eval_config["input_text"] = input_text
             result = evaluator.evaluate(response_text, eval_config)
@@ -220,8 +214,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--preset",
-        default="credit_management",
-        help="demo preset to load (default: credit_management)",
+        default="credit_realistic",
+        help="demo preset to load (default: credit_realistic)",
     )
     parser.add_argument(
         "--scenario-file",
@@ -256,7 +250,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    configure_llm_from_env()
+    require_llm_config()
 
     tracer: LLMTracer | None = None
     if args.trace_llm:
@@ -266,6 +260,15 @@ def main() -> int:
 
     if not args.skip_preset_load:
         load_preset(args.preset)
+    elif not is_preset_loaded(args.preset):
+        # Every assertion in these packs is a figure from the preset, so
+        # running without it produces a report of failures the assistant
+        # did not cause.
+        raise SystemExit(
+            f"preset '{args.preset}' is not loaded in this database. Drop "
+            "--skip-preset-load, or point DJANGO_SETTINGS_MODULE at the "
+            "database that has it."
+        )
 
     user = pick_user(args.user)
     print(f"[user] running as {user.username} (staff={user.is_staff})")

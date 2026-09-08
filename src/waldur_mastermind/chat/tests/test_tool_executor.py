@@ -338,6 +338,17 @@ class ToolExecutorUnknownToolTest(ToolExecutorBaseTest):
         self.assertIn("Unknown tool", result["error"])
         self.assertIn("nonexistent_tool", result["error"])
 
+    def test_unknown_tool_error_is_not_rendered_to_the_user(self):
+        # test_streamer already asserts "Unknown tool" never reaches the
+        # wire -- but by mocking execute_tool to return no ui_component.
+        # The real executor attached one, so the internal name leaked into
+        # the chat. The model still gets it through ``summary``.
+        result = self.tool_executor.execute_tool("nonexistent_tool", {})
+
+        self.assertNotIn("ui_component", result)
+        self.assertNotIn("ui_data", result)
+        self.assertIn("nonexistent_tool", result["summary"])
+
 
 class ToolExecutorErrorHandlingTest(ToolExecutorBaseTest):
     def test_handles_permission_denied(self):

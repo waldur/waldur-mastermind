@@ -1,0 +1,148 @@
+# Tool-selection scenarios: neighbouring tools whose descriptions overlap.
+# Unit tests prove each tool works once called; only a live model shows
+# which of two plausible tools it reaches for, and whether it carries the
+# user's name for the thing into the arguments. One scenario per confusion,
+# not one per tool.
+#
+# Account and marketplace clusters read the `credit_realistic` preset
+# (30 projects, one public offering "Compute (Demo Realistic)"). The
+# proposals cluster reads `call_management` (five calls, three active).
+
+- name: resource_status_by_name
+  preset: credit_realistic
+  description: A named resource's status is a lookup by name, not a listing of everything
+  inputs:
+    - "What's the status of Acme Zenith VM 2?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: get_project_resources
+        rationale: "get_project_resources is the tool that searches resources by name; display_user_resources lists them all"
+    - type: data_match
+      config:
+        expected_values:
+          - "Acme Zenith VM 2"
+        rationale: "Name the resource that was asked about"
+    - type: pattern
+      config:
+        required_patterns:
+          - "(?i)\\b(ok|active|running|healthy|operational)\\b"
+        rationale: "The resource is in state OK; say so"
+
+- name: resource_usage_not_status
+  preset: credit_realistic
+  description: Consumption questions go to the usage tool, scoped to the named resource
+  inputs:
+    - "How many CPU hours has Acme Sirius VM 2 consumed this month?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: get_resource_usage
+        rationale: "Component usage lives in get_resource_usage; status and quota tools do not have it"
+    - type: tool_arguments
+      config:
+        tool: get_resource_usage
+        args_must_contain:
+          resource_name: Acme Sirius VM 2
+        rationale: "Right tool, wrong resource is the failure this catches"
+
+- name: organisation_projects_not_resources
+  preset: credit_realistic
+  description: Asking for an organisation's projects lists projects, not its resources
+  inputs:
+    - "Which projects belong to Bluewave Genomics?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: list_projects
+        rationale: "The question is about projects; display_user_resources and get_project_resources answer a different one"
+
+- name: offering_details_not_search
+  preset: credit_realistic
+  description: A named offering's plans come from the detail tool, and the detail tool's link directive is honoured
+  inputs:
+    - "What plans does the offering Compute (Demo Realistic) come with?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: get_offering
+        rationale: "Plans and components are only in get_offering; search_offerings returns the listing row"
+    - type: data_match
+      config:
+        expected_values:
+          - "Standard"
+        rationale: "The offering has one plan, named Standard"
+    - type: pattern
+      config:
+        required_patterns:
+          - "\\[View offering\\]\\("
+        rationale: "The tool description mandates closing with an inline [View offering](url) link"
+
+- name: catalog_overview_lists_categories
+  preset: credit_realistic
+  description: An open-ended "what can I order" is answered from the catalogue, not from general knowledge
+  inputs:
+    - "What kinds of services can I order on this platform?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: list_categories
+        rationale: "The categories tool exists for exactly this question; a generic answer ignores what the deployment actually offers"
+    - type: data_match
+      config:
+        expected_values:
+          - "Virtual machines"
+        rationale: "Name the one category the preset has"
+
+- name: vm_request_plans_never_creates
+  preset: credit_realistic
+  description: A fully specified VM request still goes through plan_vm; create_vm is never called without a confirmed preview
+  inputs:
+    - "Create a VM named build-runner with 4 vCPUs and 8 GB RAM in project Acme Atlas"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: plan_vm
+        forbidden_tools:
+          - create_vm
+        # Scored against every call the model made, including one the
+        # lazy-load guard refused: reaching for create_vm fails the turn
+        # whether or not the tool was loaded when it did.
+        rationale: "create_vm submits a real order; it is only valid after plan_vm's preview and the user's yes"
+
+- name: open_calls_browsed_not_matched
+  preset: call_management
+  description: Browsing open calls is a listing, not matchmaking against a research topic
+  inputs:
+    - "Which calls for proposals are currently open?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: list_calls
+        rationale: "No research topic was given, so there is nothing to match; list_calls filtered by state is the answer"
+    - type: data_match
+      config:
+        expected_values:
+          - "GPU Research Program"
+        rationale: "Name at least the active GPU call from the preset"
+
+- name: research_topic_matched_to_calls
+  preset: call_management
+  description: A research topic is matched against calls with the topic carried into the keywords
+  # Known red at baseline (0/9, Sept 2026): the model opens an ask_user form
+  # for "more detail" before it has loaded or tried the search. Extending
+  # ask_user's DO NOT USE clause to searches the user gave terms for changed
+  # nothing (0/6). Same reflex as #384; kept as the regression target.
+  inputs:
+    - "I run GPU-heavy climate simulations. Which calls should I apply to?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: find_matching_calls
+        rationale: "A topic was given; find_matching_calls ranks calls against it, list_calls would just dump them"
+    - type: tool_arguments
+      config:
+        tool: find_matching_calls
+        args_must_contain:
+          keywords: climate
+        rationale: "The user's topic must reach the keywords, not a generic query"

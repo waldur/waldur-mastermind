@@ -11,9 +11,12 @@
 #   Bluewave Delta II — credit 9,861;  spend 10,431  → over by 570    (paused)
 #   Bluewave Vela     — credit 33,211; spend 25,924  → 78% used, NOT over
 #   Bluewave Elysium  — credit 19,909; spend 0       → unspent
-#   Acme customer credit 97,989; Bluewave 750,000; Crestford has none.
+#   Acme and Bluewave organization credits read 0 after load (one
+#   minimal-consumption compensation takes the whole 97,989.81 and 750,000);
+#   Crestford has none.
 
 - name: session_org_triage
+  preset: credit_realistic
   description: Operator triages a whole org — wants every over-budget project + amounts.
   inputs:
     - "I'm reviewing Bluewave Genomics. Which of their projects are over budget, and by how much?"
@@ -37,6 +40,7 @@
         rationale: "Vela (78% used) and Elysium (unspent) are NOT over budget."
 
 - name: session_combined_diagnosis
+  preset: credit_realistic
   description: "Unavailable resource — needs BOTH paused-cause and credit status, clearly."
   inputs:
     - "Users say Bluewave Glacier VM 1 is unavailable. Why is it down, and what's the project's credit situation?"
@@ -59,6 +63,7 @@
         rationale: "Must connect the pause to the credit overrun, not claim it's fine."
 
 - name: session_proportional_risk
+  preset: credit_realistic
   description: "Calibration test — Vela is at 78%, getting close but NOT over. Don't over/under-alarm."
   inputs:
     - "Should I be worried about Bluewave Vela running out of credit?"
@@ -80,6 +85,7 @@
         rationale: "Vela is NOT overdrawn — claiming it ran out is wrong (over-alarm)."
 
 - name: session_comparison
+  preset: credit_realistic
   description: "Comparison clarity — which of two overdrawn projects is worse, with reasoning."
   inputs:
     - "Between Bluewave Gamma and Bluewave Delta II, which one is in worse shape on credit?"
@@ -97,6 +103,7 @@
         rationale: "Both are overdrawn; a clear comparison must say so."
 
 - name: session_honest_negative
+  preset: credit_realistic
   description: "Honest negative — Crestford has no customer credit. Don't fabricate one."
   inputs:
     - "Does Crestford Climate Centre have any organization-level credit allocated?"
@@ -114,6 +121,7 @@
         rationale: "Crestford has no customer credit — must say so, not invent a number."
 
 - name: session_exec_summary
+  preset: credit_realistic
   description: "Executive summary — concise prioritized health overview of a whole org."
   inputs:
     - "Give me a short health summary of Bluewave Genomics' credit across its projects."
