@@ -58,6 +58,11 @@ class PluginManager:
         :key available_limits: optional list of strings each of which corresponds to offering component type,
         which supports user-defined limits, such as VPC RAM and vCPU.
         :key limits_validator: optional function to validate limis.
+        :key max_limit_decimal_places: optional int capping how many decimal places a
+        provider may allow on this plugin's component limits. Declare 0 for a backend
+        that maps a limit onto an integer quota, so a fractional limit is rejected at
+        the API instead of being silently truncated at the backend boundary. Omit it
+        where Waldur cannot know — the operator then owns the decision.
         :key: can_update_limits: boolean which indicates whether plugin allows user to set limits on resource.
         :key resource_model: optional Django model class which corresponds to resource.
         :key get_filtered_components: optional function to filter out enabled offering components.
@@ -152,6 +157,12 @@ class PluginManager:
         Returns function to validate limis.
         """
         return self.backends.get(offering_type, {}).get("limits_validator")
+
+    def get_max_limit_decimal_places(self, offering_type):
+        """
+        Returns the cap on component limit precision, or None when uncapped.
+        """
+        return self.backends.get(offering_type, {}).get("max_limit_decimal_places")
 
     def get_resource_model(self, offering_type):
         """

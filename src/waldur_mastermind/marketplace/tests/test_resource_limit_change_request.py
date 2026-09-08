@@ -35,13 +35,13 @@ class ResourceLimitChangeRequestCreateTest(test.APITestCase):
             format="json",
         )
 
-    def test_fractional_requested_limit_is_rejected(self):
-        # requested_limits is a bare JSONField on the model, so until it was
-        # typed here any value at all reached approve() and on into
-        # validate_limits, where it met a Decimal-typed quota sum.
+    def test_fractional_requested_limit_is_accepted_at_creation(self):
+        # Whether a fraction is allowed belongs to the offering component, and
+        # that is settled by validate_limits when the request is approved —
+        # the same place a limit over the component maximum is caught. The
+        # serializer's job here is only to keep non-numeric values out.
         response = self.post_limits({"storage": 0.5})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("requested_limits", response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_non_numeric_requested_limit_is_rejected(self):
         response = self.post_limits({"storage": "a lot"})
@@ -336,6 +336,9 @@ class ResourceLimitChangeRequestApproveRejectTest(test.APITestCase):
             type="storage",
             billing_type=BillingTypes.LIMIT,
             limit_amount=limit_amount,
+            # Let the component accept the fraction, so the comparison against
+            # the Decimal quota sum is what this exercises.
+            limit_decimal_places=1,
         )
         models.ComponentQuota.objects.create(
             resource=self.resource, component=component, limit=10
@@ -353,6 +356,22 @@ class ResourceLimitChangeRequestApproveRejectTest(test.APITestCase):
     def test_fractional_limit_under_threshold_is_approved(self):
         response = self.approve_legacy_fractional_request(limit_amount=100)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_fractional_limit_is_rejected_on_an_integer_only_component(self):
+        factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            type="storage",
+            billing_type=BillingTypes.LIMIT,
+        )
+        models.ResourceLimitChangeRequest.objects.filter(pk=self.request.pk).update(
+            requested_limits={"storage": 0.5}
+        )
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.post(self.approve_url, {"comment": "Approved"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("whole number", str(response.data))
 
     def test_cannot_approve_when_requested_limits_exceed_component_maximum(self):
         """Approval is rejected when a requested limit exceeds the component maximum."""

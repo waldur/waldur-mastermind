@@ -95,6 +95,9 @@ class MarketplaceOpenStackConfig(AppConfig):
             available_limits=AVAILABLE_LIMITS,
             can_update_limits=True,
             limits_validator=utils.tenant_limits_validator,
+            # map_limits_to_quotas casts to int before pushing: the OpenStack API
+            # rejects a fractional quota, so a fraction would be truncated.
+            max_limit_decimal_places=0,
             get_importable_resources_backend_method="get_importable_tenants",
             import_resource_backend_method="import_tenant",
             import_resource_executor=openstack_executors.TenantImportExecutor,

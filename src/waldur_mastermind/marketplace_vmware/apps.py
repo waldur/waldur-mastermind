@@ -27,6 +27,8 @@ class MarketplaceVMwareConfig(AppConfig):
             create_resource_processor=processors.VirtualMachineCreateProcessor,
             service_type=VMwareConfig.service_name,
             can_update_limits=True,
+            # Limits map onto VirtualMachine.cores and .ram, both integer fields.
+            max_limit_decimal_places=0,
             components=(
                 Component(
                     type="cpu",

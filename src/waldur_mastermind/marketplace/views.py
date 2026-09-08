@@ -4298,6 +4298,9 @@ class ProviderOfferingViewSet(
             data=component_data
         )
         serializer.is_valid(raise_exception=True)
+        utils.validate_component_precision_is_supported(
+            offering.type, serializer.validated_data.get("limit_decimal_places")
+        )
         serializer.save(offering=offering)
         return Response(status=status.HTTP_201_CREATED)
 

@@ -57,6 +57,7 @@ from waldur_mastermind.marketplace.models import (
     SlurmPartitionQoS,
     SoftwareCatalog,
 )
+from waldur_mastermind.marketplace.utils import narrow_limit_value
 from waldur_mastermind.policy.models import (
     CustomerEstimatedCostPolicy,
     ProjectEstimatedCostPolicy,
@@ -1005,7 +1006,13 @@ class Command(BaseCommand):
                     "billed_per_plan": component.billed_per_plan,
                     "measured_unit": component.measured_unit,
                     "limit_period": component.limit_period,
-                    "limit_amount": component.limit_amount,
+                    # A Decimal column, but exported as a JSON number to
+                    # match the API rather than as the decimal string this
+                    # file uses for prices.
+                    "limit_amount": narrow_limit_value(component.limit_amount)
+                    if component.limit_amount is not None
+                    else None,
+                    "limit_decimal_places": component.limit_decimal_places,
                     "article_code": component.article_code,
                     "backend_id": component.backend_id,
                 }

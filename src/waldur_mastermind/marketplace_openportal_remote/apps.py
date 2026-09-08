@@ -44,6 +44,8 @@ class MarketplaceOpenPortalRemoteConfig(AppConfig):
             update_resource_processor=processor.UpdateRemoteAllocationLimitsProcessor,
             delete_resource_processor=processor.DeleteRemoteAllocationProcessor,
             can_update_limits=True,
+            # Allocation.node_limit is a BigIntegerField.
+            max_limit_decimal_places=0,
             components=(
                 Component(
                     type="node",

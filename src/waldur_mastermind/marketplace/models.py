@@ -10,7 +10,11 @@ from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator, RegexValidator
+from django.core.validators import (
+    MaxValueValidator,
+    MinValueValidator,
+    RegexValidator,
+)
 from django.db import models
 from django.db.models import Index, Q, Sum
 from django.db.models import signals as django_signals
@@ -47,6 +51,7 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
+    MAX_LIMIT_DECIMAL_PLACES,
     BillingModes,
     BillingTypes,
     CategoryColumnWidget,
@@ -1251,20 +1256,51 @@ class OfferingComponent(
     limit_period = models.CharField(
         choices=LimitPeriods.CHOICES, default=LimitPeriods.MONTH, max_length=10
     )
-    limit_amount = models.IntegerField(blank=True, null=True)
+    # The bounds are Decimal rather than integer so a component that accepts a
+    # fractional limit can also describe one: a minimum of 0.5, a default of
+    # 0.1, a quota cap of 10.5. decimal_places matches ComponentQuota and
+    # MAX_LIMIT_DECIMAL_PLACES, so a bound can always express any limit the
+    # component is allowed to hold. They are rendered as JSON numbers rather
+    # than DRF's default decimal strings — see LimitBoundField.
+    limit_amount = models.DecimalField(
+        max_digits=20, decimal_places=2, blank=True, null=True
+    )
+    # Opt-in precision for the limits a customer may request. Zero keeps the
+    # component integer-only, which is what every backend that maps a limit onto
+    # an integer quota requires; a plugin declaring max_limit_decimal_places
+    # caps what a provider may configure here. The ceiling is two places because
+    # ComponentQuota and ResourceComponentUsageSummary store limits with
+    # decimal_places=2, so anything finer would round there while
+    # InvoiceItem.quantity kept it.
+    limit_decimal_places = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MaxValueValidator(MAX_LIMIT_DECIMAL_PLACES)],
+        help_text=_(
+            "Number of decimal places accepted for this component's limit. "
+            "0 keeps the limit integer-only."
+        ),
+    )
     # unit_factor is for metadata only and is not involved in any computations in Mastermind
     unit_factor = models.IntegerField(
         default=1,
         help_text=_("The conversion factor from backend units to measured_unit"),
     )
     # max_value and min_value fields are used if billing_type is LIMIT
-    max_value = models.IntegerField(blank=True, null=True)
-    min_value = models.IntegerField(blank=True, null=True)
-    max_available_limit = models.IntegerField(blank=True, null=True)
+    max_value = models.DecimalField(
+        max_digits=20, decimal_places=2, blank=True, null=True
+    )
+    min_value = models.DecimalField(
+        max_digits=20, decimal_places=2, blank=True, null=True
+    )
+    max_available_limit = models.DecimalField(
+        max_digits=20, decimal_places=2, blank=True, null=True
+    )
     # is_boolean field allows to render checkbox in UI which set limit amount to 1
     is_boolean = models.BooleanField(default=False)
     # default_limit field is used by UI to prefill limit values
-    default_limit = models.IntegerField(blank=True, null=True)
+    default_limit = models.DecimalField(
+        max_digits=20, decimal_places=2, blank=True, null=True
+    )
     # following fields are used for prepaid billing
     is_prepaid = models.BooleanField(default=False)
     overage_component = models.ForeignKey(
@@ -1334,7 +1370,10 @@ class OfferingComponent(
         elif self.limit_period == LimitPeriods.ANNUAL:
             usages = usages.filter(billing_period__year=date.year)
 
-        total = usages.aggregate(models.Sum("usage"))["usage__sum"] or 0
+        total = usages.aggregate(models.Sum("usage"))["usage__sum"] or Decimal(0)
+        # total is Decimal from ComponentUsage.usage; the reported amount may
+        # arrive as a float, and Decimal + float is a TypeError.
+        amount = Decimal(str(amount))
 
         if total + amount > self.limit_amount:
             message = _("Total amount exceeds limit. Total amount: %s, limit: %s.") % (

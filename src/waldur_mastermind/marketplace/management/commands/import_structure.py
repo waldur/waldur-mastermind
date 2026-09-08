@@ -4437,6 +4437,9 @@ class Command(BaseCommand):
                     "limit_period": component_data.get("limit_period")
                     or LimitPeriods.MONTH,
                     "limit_amount": component_data.get("limit_amount"),
+                    "limit_decimal_places": component_data.get(
+                        "limit_decimal_places", 0
+                    ),
                     "min_value": component_data.get("min_value"),
                     "max_value": component_data.get("max_value"),
                     "min_prepaid_duration": component_data.get("min_prepaid_duration"),
