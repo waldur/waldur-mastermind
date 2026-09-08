@@ -25,6 +25,7 @@ OFFERING_COMPONENT_FIELDS = (
     "default_limit",
     "limit_period",
     "limit_amount",
+    "limit_decimal_places",
 )
 
 PLAN_FIELDS = (

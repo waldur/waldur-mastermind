@@ -40,6 +40,8 @@ class MarketplaceOpenPortalConfig(AppConfig):
             create_resource_processor=processor.CreateAllocationProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,
             can_update_limits=True,
+            # Allocation.node_limit is a BigIntegerField.
+            max_limit_decimal_places=0,
             components=(
                 Component(
                     type="node",

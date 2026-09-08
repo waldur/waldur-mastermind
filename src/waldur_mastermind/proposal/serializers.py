@@ -32,6 +32,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
     BasePublicPlanSerializer,
+    LimitValueField,
     OfferingComponentSerializer,
     OfferingOptionsField,
     UserAttributeConfigBaseSerializer,
@@ -317,6 +318,11 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
     has_purchase_order = serializers.ReadOnlyField()
     # Written through the dedicated multipart action, as orders do.
     attachment = serializers.FileField(read_only=True)
+    # Copied verbatim into Order.limits when the proposal is allocated, so this
+    # has to accept exactly what the ordering path accepts rather than staying
+    # an untyped JSONField. Precision is settled per component by
+    # validate_limits on the resulting order.
+    limits = serializers.DictField(child=LimitValueField(), required=False)
 
     class Meta:
         model = models.RequestedResource
@@ -807,7 +813,10 @@ class CallResourceTemplateSerializer(
         view_name="proposal-call-offering-detail",
         lookup_field="uuid",
     )
-    limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    # Copied verbatim into Order.limits when the proposal is allocated, so it
+    # has to accept exactly what the ordering path accepts. Precision is
+    # settled per component by validate_limits on that order.
+    limits = serializers.DictField(child=LimitValueField(), required=False)
 
     class Meta:
         model = models.CallResourceTemplate

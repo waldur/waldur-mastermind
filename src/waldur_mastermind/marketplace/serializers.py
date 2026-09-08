@@ -1,6 +1,7 @@
 import datetime
 import ipaddress
 import logging
+import math
 import re
 from decimal import Decimal
 from typing import Literal, cast
@@ -85,6 +86,7 @@ from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
+    MAX_LIMIT_DECIMAL_PLACES,
     OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
     SWAPPABLE_OFFERING_TYPES,
@@ -3245,6 +3247,56 @@ class OfferingOptionsSerializer(serializers.Serializer):
         return attrs
 
 
+class LimitValueField(serializers.FloatField):
+    """A component limit, which may be fractional.
+
+    Order.limits and Resource.limits are JSONFields written with the stdlib
+    encoder, so the value has to stay JSON-native — a Decimal raises at save
+    time. Whole numbers are returned as int so that a limit of 5 keeps
+    serialising as 5 rather than 5.0 and existing payloads are unchanged.
+    """
+
+    @staticmethod
+    def _narrow(value):
+        # FloatField, unlike DecimalField, accepts nan and inf, and
+        # MinValueValidator waves nan through because every comparison against
+        # it is False. Persisting one into a jsonb column is a DataError.
+        if not math.isfinite(float(value)):
+            raise serializers.ValidationError(_("A valid number is required."))
+        return utils.narrow_limit_value(value)
+
+    def to_internal_value(self, data):
+        return self._narrow(super().to_internal_value(data))
+
+    def to_representation(self, value):
+        # FloatField.to_representation would render a stored 2 as 2.0. These
+        # fields are read as well as written — orders and proposal resources
+        # both return their limits — so narrowing here too is what keeps an
+        # integer-only deployment's payloads byte-identical.
+        return self._narrow(value)
+
+
+class LimitBoundField(serializers.DecimalField):
+    """A component's limit bound: min, max, default, cap or quota threshold.
+
+    Stored as Decimal so a component that accepts a fractional limit can also
+    describe one, but rendered as a JSON number rather than DRF's default
+    decimal string. A string here would be a silent break: homeport tests these
+    bounds for truthiness, and "0.00" is truthy where 0 is not.
+    """
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("max_digits", 20)
+        kwargs.setdefault("decimal_places", MAX_LIMIT_DECIMAL_PLACES)
+        kwargs.setdefault("coerce_to_string", False)
+        super().__init__(**kwargs)
+
+    def to_representation(self, value):
+        # Whole bounds keep rendering as 10 rather than 10.0, so payloads for
+        # integer-only components are unchanged.
+        return LimitValueField._narrow(super().to_representation(value))
+
+
 class OfferingComponentSerializer(serializers.ModelSerializer):
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     factor = serializers.SerializerMethodField()
@@ -3268,6 +3320,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             "unit_factor",
             "limit_period",
             "limit_amount",
+            "limit_decimal_places",
             "article_code",
             "max_value",
             "min_value",
@@ -3290,6 +3343,14 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             "limit_period": {"allow_null": True},
         }
 
+    # Declared rather than inferred, so the bounds stay JSON numbers instead of
+    # the decimal strings a ModelSerializer would produce for these columns.
+    limit_amount = LimitBoundField(required=False, allow_null=True)
+    max_value = LimitBoundField(required=False, allow_null=True)
+    min_value = LimitBoundField(required=False, allow_null=True)
+    max_available_limit = LimitBoundField(required=False, allow_null=True)
+    default_limit = LimitBoundField(required=False, allow_null=True)
+
     def validate(self, attrs):
         if "limit_period" not in attrs or not attrs["limit_period"]:
             # On update, preserve the existing value when limit_period is
@@ -3303,6 +3364,8 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             attrs["max_value"] = 1
             attrs["limit_period"] = LimitPeriods.MONTH
             attrs["limit_amount"] = None
+            # A checkbox is on or off; a precision here would be meaningless.
+            attrs["limit_decimal_places"] = 0
         if (
             self.instance
             and self.instance.offering.type == OPENSTACK_TENANT_OFFERING
@@ -3317,6 +3380,13 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     "Built-in OpenStack offering component type, name and unit are not editable."
                 )
+        if self.instance:
+            # On create the offering is only known to the caller, which checks
+            # there; see create_offering_component and create_offering_components.
+            utils.validate_component_precision_is_supported(
+                self.instance.offering.type,
+                attrs.get("limit_decimal_places", self.instance.limit_decimal_places),
+            )
         self._validate_prepaid(attrs)
 
         return attrs
@@ -4748,10 +4818,19 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             max_value = values.get("max_value") or values.get("max")
             max_available_limit = values.get("max_available_limit")
 
+            limit_decimal_places = values.get("limit_decimal_places", 0)
+            # A component whose type matches a plugin fixed component is routed
+            # here rather than through create_offering_component, so without
+            # this the precision a provider asked for was dropped in silence.
+            utils.validate_component_precision_is_supported(
+                offering.type, limit_decimal_places
+            )
+
             models.OfferingComponent.objects.filter(offering=offering, type=key).update(
                 min_value=min_value,
                 max_value=max_value,
                 max_available_limit=max_available_limit,
+                limit_decimal_places=limit_decimal_places,
                 article_code=values.get("article_code", ""),
             )
 
@@ -5591,7 +5670,7 @@ class BaseOrderSerializer(BaseItemSerializer):
         read_only=True, source="resource.backend_type", allow_null=True
     )
     state = serializers.SerializerMethodField()
-    limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    limits = serializers.DictField(child=LimitValueField(), required=False)
     accepting_terms_of_service = serializers.BooleanField(
         required=False, write_only=True
     )
@@ -7033,7 +7112,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     def get_available_actions(self, resource: models.Resource) -> list[str]:
         return plugins.manager.get_available_resource_actions(resource)
 
-    def get_limits(self, resource: models.Resource) -> dict[str, int]:
+    def get_limits(self, resource: models.Resource) -> dict[str, float]:
+        # float, not int: a component may allow fractional limits, and the
+        # annotation is what the generated clients are typed from.
         return resource.limits
 
     def get_attributes(self, resource: models.Resource) -> dict:
@@ -7522,7 +7603,7 @@ class ResourceRenewSerializer(serializers.Serializer):
         help_text=_("Number of months to extend the subscription by."),
     )
     limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=0),
+        child=LimitValueField(min_value=0),
         required=False,
         help_text=_("Optional new limits for the resource. Supports upgrades only."),
     )
@@ -7561,9 +7642,7 @@ class RenewalEstimateRequestSerializer(serializers.Serializer):
     extension_months = serializers.IntegerField(
         min_value=1, max_value=MAX_RENEWAL_MONTHS
     )
-    limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=0), required=False
-    )
+    limits = serializers.DictField(child=LimitValueField(min_value=0), required=False)
 
     def validate(self, attrs):
         resource = self.context.get("resource")
@@ -7731,9 +7810,7 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
         model = models.Order
         fields = ("limits", "request_comment", "attachment")
 
-    limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=0), required=True
-    )
+    limits = serializers.DictField(child=LimitValueField(min_value=0), required=True)
     attachment = serializers.FileField(
         required=False,
         help_text=_("Optional PDF attachment for the limit update request."),
@@ -7748,11 +7825,10 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
     state = serializers.CharField(source="get_state_display", read_only=True)
     uuid = serializers.UUIDField(read_only=True)
     # The model field is a bare JSONField, so without this any JSON value at all
-    # reached approve() and on into validate_limits, where a non-numeric or
-    # fractional value raised TypeError against the Decimal-typed quota sum.
-    # Typed like every other limit payload.
+    # reached approve() and on into validate_limits. Typed like every other
+    # limit payload; precision is settled per component in validate_limits.
     requested_limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=0), required=True
+        child=LimitValueField(min_value=0), required=True
     )
 
     class Meta:
@@ -8085,14 +8161,14 @@ class ResourceLimitChangeRequestSerializer(serializers.HyperlinkedModelSerialize
 class ResourceReallocateTargetSerializer(serializers.Serializer):
     resource_uuid = serializers.UUIDField(required=True)
     allocated_limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=1),
+        child=LimitValueField(min_value=0),
         required=True,
     )
 
 
 class ResourceReallocateLimitsSerializer(serializers.Serializer):
     limits = serializers.DictField(
-        child=serializers.IntegerField(min_value=1),
+        child=LimitValueField(min_value=0),
         required=True,
     )
 
@@ -15107,7 +15183,7 @@ class ResourceUsageByCustomerSerializer(serializers.Serializer):
         help_text="Component usages keyed by component type",
     )
     limits = serializers.DictField(
-        child=serializers.IntegerField(),
+        child=LimitValueField(),
         help_text="Resource limits keyed by limit name",
     )
 

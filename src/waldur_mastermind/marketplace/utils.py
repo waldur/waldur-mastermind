@@ -312,10 +312,11 @@ def validate_limit_amount(value, component):
     if not component.limit_amount:
         return
 
-    # `current` below is summed from ComponentQuota.limit, a DecimalField, so it
-    # is a Decimal whenever any quota row exists. Adding a float to it raises
-    # TypeError, which surfaces as a bare HTTP 500. Coerce via str() so 0.1
-    # becomes Decimal("0.1") rather than its binary expansion.
+    # `current` is summed from ComponentQuota.limit and limit_amount is a
+    # Decimal column, but the requested value comes out of a JSONField as int
+    # or float. Adding a float to a Decimal raises TypeError, which surfaced as
+    # a bare HTTP 500. Coerce via str() so 0.1 becomes Decimal("0.1") rather
+    # than its binary expansion.
     value = decimal.Decimal(str(value))
 
     if component.limit_period == LimitPeriods.MONTH:
@@ -401,12 +402,22 @@ def validate_maximum_available_limit(value, component, resource=None):
     if resource:
         all_offering_resources = all_offering_resources.exclude(id=resource.id)
 
+    # max_available_limit is a Decimal column while the limits it is compared
+    # against come out of a JSONField as int or float. Comparing the two is
+    # fine, but subtracting is a TypeError, so the running total is carried as
+    # Decimal from the start.
     current_total_limits = sum(
-        resource["limits"].get(component.type, 0)
-        for resource in all_offering_resources.values("limits")
+        (
+            decimal.Decimal(str(resource["limits"].get(component.type, 0)))
+            for resource in all_offering_resources.values("limits")
+        ),
+        decimal.Decimal(0),
     )
 
-    if current_total_limits + value >= component.max_available_limit:
+    if (
+        current_total_limits + decimal.Decimal(str(value))
+        >= component.max_available_limit
+    ):
         error_message = "Requested %s cannot be provisioned due to offering safety limit. You can allocate up to %s of %s."
         if component.type == "cores":
             value = component.max_available_limit - current_total_limits - 1
@@ -442,6 +453,88 @@ def validate_min_max_limit(value, component):
             _("The limit %s value cannot be less than %s.")
             % (value, component.min_value)
         )
+
+
+def narrow_limit_value(value):
+    """Render a limit or bound as the JSON-native number it should be.
+
+    Limits live in JSONFields and bounds are Decimal columns, but both are
+    exchanged as JSON numbers. Whole values stay int so that a limit of 5 is
+    still 5 rather than 5.0 or "5.00", which keeps payloads for integer-only
+    deployments byte-identical.
+    """
+    number = float(value)
+    return int(number) if number.is_integer() else number
+
+
+def add_limit_values(*values):
+    """Add limit values exactly, returning a JSON-native result.
+
+    Limits live in JSONFields, so they arrive as int or float, and adding
+    floats directly leaves binary-expansion noise: 1.1 + 0.3 is
+    1.4000000000000001, which validate_limit_precision then rejects for a
+    request that is arithmetically valid, and which reallocation would store as
+    a limit nobody asked for. Sum in Decimal and narrow back the way
+    LimitValueField does, so whole numbers stay int.
+    """
+    total = sum((decimal.Decimal(str(value)) for value in values), decimal.Decimal(0))
+    return narrow_limit_value(total)
+
+
+def validate_component_precision_is_supported(offering_type, limit_decimal_places):
+    """Refuse a fractional component on a backend that cannot express one.
+
+    Without this a provider could set a precision the plugin then truncates at
+    the far end — the customer is billed for 0.1 and given 0. Plugins that map a
+    limit onto an integer quota declare ``max_limit_decimal_places=0``; a plugin
+    that declares nothing is uncapped, because for a backend Waldur cannot
+    introspect the operator owns the decision.
+    """
+    if not limit_decimal_places:
+        return
+    cap = plugins.manager.get_max_limit_decimal_places(offering_type)
+    if cap is not None and limit_decimal_places > cap:
+        raise serializers.ValidationError(
+            {
+                "limit_decimal_places": _(
+                    "Offerings of type %(type)s accept at most %(cap)s decimal "
+                    "places on a component limit."
+                )
+                % {"type": offering_type, "cap": cap}
+            }
+        )
+
+
+def validate_limit_precision(value, component):
+    """Reject a limit finer than the component was configured to accept.
+
+    The serializers parse a limit as a number without deciding whether one is
+    allowed, because that answer belongs to the component: most backends map a
+    limit onto an integer quota and would truncate a fraction silently at the
+    far end. Enforcing it here covers every route into `limits` at once —
+    ordering, updating, renewing, reallocating, a limit change request and a
+    proposal resource template.
+    """
+    places = component.limit_decimal_places or 0
+    exponent = decimal.Decimal(1).scaleb(-places)
+    amount = decimal.Decimal(str(value))
+    try:
+        truncated = amount.quantize(exponent, rounding=decimal.ROUND_DOWN)
+    except decimal.InvalidOperation:
+        # More digits than the decimal context can hold. Nothing legitimate
+        # reaches this, and letting it through would be an uncaught 500.
+        raise serializers.ValidationError(
+            _("The limit %s value is out of range.") % value
+        )
+    if amount != truncated:
+        if places == 0:
+            message = _("The limit %s value must be a whole number.") % value
+        else:
+            message = _(
+                "The limit %(value)s value cannot have more than "
+                "%(places)s decimal places."
+            ) % {"value": value, "places": places}
+        raise serializers.ValidationError(message)
 
 
 def get_components_map(limits, offering: models.Offering, plan=None):
@@ -492,6 +585,8 @@ def validate_limits(limits, offering, resource=None, is_creation=False, plan=Non
         limits_validator(limits)
 
     for component, value in get_components_map(limits, offering, plan):
+        validate_limit_precision(value, component)
+
         validate_min_max_limit(value, component)
 
         validate_limit_amount(value, component)
@@ -557,6 +652,9 @@ def create_offering_components(offering, custom_components=None):
 
     if custom_components:
         for component_data in custom_components:
+            validate_component_precision_is_supported(
+                offering.type, component_data.get("limit_decimal_places")
+            )
             models.OfferingComponent.objects.create(offering=offering, **component_data)
 
 
@@ -5792,7 +5890,9 @@ def validate_target_allocation(
             )
 
         new_target_limits = target_limits.copy()
-        new_target_limits[component] = target_limits.get(component, 0) + allocated_value
+        new_target_limits[component] = add_limit_values(
+            target_limits.get(component, 0), allocated_value
+        )
 
         try:
             validate_limits(
@@ -5806,7 +5906,9 @@ def validate_target_allocation(
                 error=str(e),
             )
 
-        total_allocated[component] += allocated_value
+        total_allocated[component] = add_limit_values(
+            total_allocated[component], allocated_value
+        )
 
 
 def calculate_new_limits(current_limits, allocated_limits, subtract=False):
@@ -5818,9 +5920,11 @@ def calculate_new_limits(current_limits, allocated_limits, subtract=False):
     for component, allocated_value in allocated_limits.items():
         current_value = new_limits.get(component, 0)
         if subtract:
-            new_limits[component] = max(0, current_value - allocated_value)
+            new_limits[component] = max(
+                0, add_limit_values(current_value, -allocated_value)
+            )
         else:
-            new_limits[component] = current_value + allocated_value
+            new_limits[component] = add_limit_values(current_value, allocated_value)
 
     return new_limits
 

@@ -1987,23 +1987,35 @@ class ResourceReallocateLimitsTest(test.APITestCase):
             "Limits to reallocate and targets cannot be empty.", str(response.data)
         )
 
-    def test_reallocate_limits_validates_positive_values(self):
+    def reallocate_allocated(self, allocated):
         targets = [
             {
                 "resource_uuid": self.target_resource_1.uuid.hex,
-                "allocated_limits": {"vcpu": -1, "ram": 6},
+                "allocated_limits": allocated,
             }
         ]
-        response = self.reallocate_limits(
+        return self.reallocate_limits(
             self.fixture.owner,
             self.source_resource,
             {"vcpu": 3, "ram": 6},
             targets,
         )
+
+    def test_reallocate_limits_rejects_negative_values(self):
+        response = self.reallocate_allocated({"vcpu": -1, "ram": 6})
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            "Ensure this value is greater than or equal to 1.", str(response.data)
+            "Ensure this value is greater than or equal to 0.", str(response.data)
         )
+
+    def test_reallocate_limits_rejects_zero_values(self):
+        # The serializer floor is 0 so that a fractional component can be
+        # reallocated below 1; positivity is enforced downstream instead.
+        response = self.reallocate_allocated({"vcpu": 0, "ram": 6})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("must be positive", str(response.data))
 
     def test_reallocate_limits_requires_permission_for_target_resource(self):
         other_project = ProjectFactory()

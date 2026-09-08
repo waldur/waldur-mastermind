@@ -518,6 +518,14 @@ class CourseAccountState(models.IntegerChoices):
     PENDING = 4, _("Pending")
 
 
+# Ceiling on OfferingComponent.limit_decimal_places. ComponentQuota and
+# ResourceComponentUsageSummary store limits as DecimalField(decimal_places=2),
+# so a finer limit would be rounded there while InvoiceItem.quantity, which has
+# ten places, kept it — the reported allocation and the invoice would disagree.
+# Raising this means migrating those columns first.
+MAX_LIMIT_DECIMAL_PLACES = 2
+
+
 SUPPORT_OFFERING = "Support.OfferingTemplate"
 BOOKING_OFFERING = "Marketplace.Booking"
 BASIC_OFFERING = "Marketplace.Basic"
