@@ -11,14 +11,14 @@ class DashboardMyOrdersTest(test.APITestCase):
         self.url = factories.OrderFactory.get_list_url(action="dashboard-my-orders")
         self.user = self.fixture.user
 
-    def _create_order(self, state, user=None):
+    def _create_order(self, state, user=None, name="my-resource"):
         return factories.OrderFactory(
             project=self.fixture.project,
             offering=self.fixture.offering,
             plan=self.fixture.plan,
             created_by=user or self.user,
             state=state,
-            attributes={"name": "my-resource"},
+            attributes={"name": name},
         )
 
     def test_anonymous_user_cannot_access(self):
@@ -38,6 +38,24 @@ class DashboardMyOrdersTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         uuids = {row["uuid"] for row in response.data}
         self.assertEqual(uuids, {pending.uuid.hex, executing.uuid.hex})
+
+    def test_query_narrows_the_list_and_its_count(self):
+        gpu = self._create_order(OrderStates.PENDING_PROVIDER, name="GPU Sandbox")
+        self._create_order(OrderStates.PENDING_PROVIDER, name="Data Lake Storage")
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url, {"query": "gpu"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["uuid"] for row in response.data], [gpu.uuid.hex])
+        self.assertEqual(response["X-Result-Count"], "1")
+
+    def test_query_matches_the_project_name(self):
+        self._create_order(OrderStates.PENDING_PROVIDER, name="GPU Sandbox")
+        self._create_order(OrderStates.PENDING_PROVIDER, name="Data Lake Storage")
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url, {"query": self.fixture.project.name})
+        self.assertEqual(len(response.data), 2)
 
     def test_visible_without_project_or_customer_permissions(self):
         # fixture.user holds no role in the project or customer, but still

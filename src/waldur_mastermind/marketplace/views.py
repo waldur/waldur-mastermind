@@ -7398,6 +7398,11 @@ class OrderViewSet(
             .select_related("offering", "resource", "project", "project__customer")
             .order_by("-created", "id")
         )
+        # The queryset is built here rather than taken from get_queryset, so
+        # the viewset's filterset is not applied on its own; without this the
+        # `query` term the dashboard's search box sends was accepted and
+        # ignored, and the box narrowed nothing.
+        orders = self.filter_queryset(orders)
         # Paginated rather than sliced to DASHBOARD_LIST_LIMIT: PAGE_SIZE is
         # also 10, so the page the dashboard renders is unchanged, but the
         # client now learns how many orders there really are instead of
