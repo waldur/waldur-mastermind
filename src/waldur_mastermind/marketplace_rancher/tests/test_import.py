@@ -40,7 +40,7 @@ MOCK_NODES = [
 ]
 
 
-class BaseClusterImportTest(test.APITransactionTestCase):
+class BaseClusterImportTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()

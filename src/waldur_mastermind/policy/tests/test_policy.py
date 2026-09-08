@@ -423,7 +423,7 @@ class GetPolicyTest(test.APITestCase):
 
 
 @ddt
-class CreatePolicyTest(test.APITransactionTestCase):
+class CreatePolicyTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project

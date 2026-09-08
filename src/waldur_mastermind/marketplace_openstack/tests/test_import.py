@@ -175,7 +175,7 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
         self.mocked_nova.servers.list.assert_called()
 
 
-class InstanceImportTest(test.APITransactionTestCase):
+class InstanceImportTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.mocked_keystone = mock.patch("keystoneclient.v3.client.Client").start()()
@@ -361,7 +361,7 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
 
 
 @ddt
-class TenantImportTest(test.APITransactionTestCase):
+class TenantImportTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.mocked_keystone = mock.patch("keystoneclient.v3.client.Client").start()()

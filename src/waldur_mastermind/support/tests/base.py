@@ -17,7 +17,7 @@ from . import fixtures
     ATLASSIAN_AFFECTED_RESOURCE_FIELD="Affected resource",
     ATLASSIAN_TEMPLATE_FIELD="Waldur template",
 )
-class BaseTest(test.APITransactionTestCase):
+class BaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SupportFixture()
         mock_patch = mock.patch("waldur_mastermind.support.backend.get_active_backend")

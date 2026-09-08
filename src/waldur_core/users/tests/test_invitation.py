@@ -129,7 +129,7 @@ class InvitationFieldValidationTest(test.APITestCase):
         self.assertEqual(invitation.extra_invitation_text, "")
 
 
-class BaseInvitationTest(test.APITransactionTestCase):
+class BaseInvitationTest(test.APITestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)

@@ -351,7 +351,7 @@ class TryApplyTransitionTest(test.APITestCase):
         self.assertFalse(applied)
 
 
-class SignalIntegrationTest(test.APITransactionTestCase):
+class SignalIntegrationTest(test.APITestCase):
     """End-to-end: creating a qualifying order through the signal path."""
 
     def setUp(self):

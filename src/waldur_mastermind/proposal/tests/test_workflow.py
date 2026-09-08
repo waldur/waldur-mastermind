@@ -1024,7 +1024,7 @@ class WorkflowStepPanelMemberTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class WorkflowStepActiveUniqueConstraintTest(test.APITransactionTestCase):
+class WorkflowStepActiveUniqueConstraintTest(test.APITestCase):
     """At most one workflow step instance per proposal may be ACTIVE at a time."""
 
     def setUp(self):

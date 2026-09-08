@@ -412,7 +412,7 @@ class ResourceGetTest(test.APITestCase):
         self.assertEqual(response.data["offering_backend_id"], "")
 
 
-class ResourceSwitchPlanTest(test.APITransactionTestCase):
+class ResourceSwitchPlanTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -1410,7 +1410,7 @@ class ResourceCostEstimateTest(test.APITestCase):
         self.assertEqual(order.cost, 50)
 
 
-class ResourceUpdateLimitsTest(test.APITransactionTestCase):
+class ResourceUpdateLimitsTest(test.APITestCase):
     def setUp(self):
         plugins.manager.register(
             offering_type="TEST_TYPE",

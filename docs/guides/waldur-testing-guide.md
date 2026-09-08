@@ -40,11 +40,20 @@
 Choose the right test base class for each test:
 
 - **Default: `test.APITestCase`** — uses transaction rollback, much faster
-- **Use `test.APITransactionTestCase`** only when:
-  1. `transaction.on_commit()` callbacks must fire (e.g., Celery task dispatch)
-  2. `IntegrityError` is deliberately triggered (breaks TestCase's wrapping transaction)
-  3. Threading or multi-process database access is needed
-  4. `responses.start()` in `setUp` for class-wide HTTP mocking (leaks across TestCase classes)
+- **`test.APITransactionTestCase` is a last resort.** It truncates every table
+  between tests. Only two situations actually need it:
+  1. Threading or multi-process database access (`select_for_update` under real
+     concurrency)
+  2. `transaction.on_commit()` callbacks must fire and wrapping the triggering
+     call is impractical
+
+Three reasons that look like they need it, but do not:
+
+| Looks like it needs TransactionTestCase | What to do instead |
+|---|---|
+| `transaction.on_commit()` must fire | Wrap the triggering call in `self.captureOnCommitCallbacks(execute=True)` |
+| Deliberate `IntegrityError` | Raise it inside `transaction.atomic()` — the savepoint keeps the wrapping transaction intact |
+| `responses.start()` in `setUp` | Register `addCleanup(responses.reset)` *before* `addCleanup(responses.stop)`; leaked mocks come from a missing `reset()`, not from the base class |
 
 ```python
 # GOOD: Default to APITestCase
@@ -52,14 +61,32 @@ class MyTest(test.APITestCase):
     def test_something(self):
         ...
 
-# GOOD: Use APITransactionTestCase when on_commit is needed
-class OrderProcessingTest(test.APITransactionTestCase):
+# GOOD: on_commit under APITestCase — capture the callbacks explicitly
+class OrderProcessingTest(test.APITestCase):
     def test_order_triggers_task(self):
-        # on_commit callback fires Celery task
-        ...
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(self.url, payload)
+        mock_task.delay.assert_called_once()
+
+# GOOD: a deliberate IntegrityError, contained by a savepoint
+class UniqueConstraintTest(test.APITestCase):
+    def test_duplicate_is_rejected(self):
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Model.objects.create(**duplicate)
 ```
 
-A CI lint job (`scripts/analyze_transaction_test_cases.py --ci --baseline N`) enforces this — adding new unjustified `APITransactionTestCase` classes will fail the pipeline. The baseline is lowered as classes are migrated.
+A CI lint job (`scripts/analyze_transaction_test_cases.py --ci --baseline 0`)
+enforces this: any `APITransactionTestCase` class the analyzer cannot see a
+reason for fails the pipeline. When the reason lives in production code the
+analyzer cannot see — typically an `on_commit()` in a signal handler the test
+drives through the API — state it in a comment on the class:
+
+```python
+# APITransactionTestCase required: the order handler dispatches the task
+# from transaction.on_commit
+class OrderNotificationTest(test.APITransactionTestCase):
+    ...
+```
 
 ### 7. Performance Testing Considerations
 
@@ -128,6 +155,22 @@ class MyTest(test.APITransactionTestCase):
         super().setUp()
         # Set up mocks directly instead of inheriting from a TestCase mixin
 ```
+
+The declaration is already misleading — the class reads as a
+`TransactionTestCase` while running with `TestCase` semantics — and it turns
+into a hard error the moment the first base is migrated: a base class may not
+precede its own subclass, so `class MyTest(test.APITestCase, SomeTestMixin)`
+cannot be linearised and the whole module fails to import. Drop the redundant
+base rather than rewriting it:
+
+```python
+# GOOD: SomeTestMixin already supplies APITestCase
+class MyTest(SomeTestMixin):
+    ...
+```
+
+`analyze_transaction_test_cases.py` fails CI on an unlinearisable base list and
+warns about a mixed one.
 
 ### 12. OpenStack Backend Test Patterns
 

@@ -187,7 +187,7 @@ class ProjectMoveTest(test.APITestCase):
         self.assertEqual(private_offering.customer, self.new_customer)
 
 
-class ProjectStartDateTest(test.APITransactionTestCase):
+class ProjectStartDateTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project

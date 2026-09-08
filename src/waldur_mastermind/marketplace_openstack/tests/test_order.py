@@ -721,7 +721,7 @@ class InstancePreFlightCheckTest(test.APITestCase):
         mock_backend.return_value.get_allocation_candidates.assert_not_called()
 
 
-class InstanceDeleteTest(test.APITransactionTestCase):
+class InstanceDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
@@ -968,7 +968,7 @@ class VolumeCreateTest(test.APITestCase):
         return order
 
 
-class VolumeDeleteTest(test.APITransactionTestCase):
+class VolumeDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
 

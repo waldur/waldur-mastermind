@@ -809,7 +809,7 @@ MODE_EXPECTATIONS = {
 
 
 @ddt
-class GenericSwitchBillingModeTest(test.APITransactionTestCase):
+class GenericSwitchBillingModeTest(test.APITestCase):
     def _create_offering_with_components(
         self, offering_type, billing_type, limit_period
     ):

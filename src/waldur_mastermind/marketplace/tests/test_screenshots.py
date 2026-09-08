@@ -48,7 +48,7 @@ class ScreenshotsGetTest(test.APITestCase):
 
 
 @ddt
-class ScreenshotsCreateTest(test.APITransactionTestCase):
+class ScreenshotsCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

@@ -3,7 +3,7 @@ from rest_framework import status, test
 from waldur_openstack.tests import factories, fixtures
 
 
-class EffectiveRoutesTest(test.APITransactionTestCase):
+class EffectiveRoutesTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.OpenStackFixture()

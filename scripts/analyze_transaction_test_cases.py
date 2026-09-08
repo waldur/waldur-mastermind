@@ -54,6 +54,12 @@ UNSAFE_PATTERNS = {
 }
 
 # Patterns that need manual review
+# A class may opt out of the gate by carrying this marker in a comment or its
+# docstring, followed by the reason. Use it when the dependency lives in
+# production code the analyzer cannot see — typically a transaction.on_commit()
+# in a signal handler the test drives through the API.
+JUSTIFICATION_MARKER = "APITransactionTestCase required:"
+
 REVIEW_PATTERNS = {
     "assertNumQueries": "may behave differently with TestCase wrapping",
     "custom_base_class": "inherits from custom base, not directly from APITransactionTestCase",
@@ -331,6 +337,26 @@ def _check_mock_decorators_for_on_commit(class_node):
     return on_commit_total > 0 and on_commit_in_patch == on_commit_total
 
 
+def find_justification(source_lines, class_node):
+    """
+    Return the reason text if the class carries a JUSTIFICATION_MARKER, else None.
+
+    Looked for in the decorators and comments immediately above the class and
+    anywhere in its body, so both a leading comment and a docstring line count.
+    """
+    start = min(
+        (d.lineno for d in class_node.decorator_list), default=class_node.lineno
+    )
+    # A few lines of leading comments belong to the class as much as its body.
+    first = max(0, start - 6)
+    last = getattr(class_node, "end_lineno", class_node.lineno)
+    for line in source_lines[first:last]:
+        if JUSTIFICATION_MARKER in line:
+            reason = line.split(JUSTIFICATION_MARKER, 1)[1].strip().strip("\"'")
+            return reason or "justified in place"
+    return None
+
+
 def analyze_class(class_node, from_imports, module_imports):
     """
     Analyze a single class node for patterns requiring TransactionTestCase.
@@ -431,6 +457,7 @@ def analyze_file(file_path, src_root):
         print(f"  Warning: Syntax error in {rel_path}: {e}", file=sys.stderr)
         return results
 
+    source_lines = source.splitlines()
     module_imports, from_imports = _resolve_import_aliases(tree)
 
     # Check if this file imports APITransactionTestCase at all
@@ -489,7 +516,12 @@ def analyze_file(file_path, src_root):
             elif pattern == "on_commit_patched":
                 review_found.append("on_commit (patched/mocked)")
 
-        if unsafe_found:
+        justification = find_justification(source_lines, node)
+
+        if justification:
+            classification = UNSAFE
+            reasons = [f"justified: {justification}"]
+        elif unsafe_found:
             classification = UNSAFE
             reasons = [f"{p}: {UNSAFE_PATTERNS[p]}" for p in sorted(unsafe_found)]
             reasons += [
@@ -898,6 +930,80 @@ def run_analysis(src_root):
     return all_results
 
 
+def find_mro_conflicts(src_root):
+    """
+    Find test classes whose base list cannot be linearised, or that silently
+    mix TransactionTestCase and TestCase semantics.
+
+    Both come from the same declaration shape:
+
+        class Foo(test.APITransactionTestCase, SomeBaseTest):
+
+    where SomeBaseTest is itself an APITestCase. Python linearises this — the
+    class reads as a TransactionTestCase but the MRO gives it TestCase
+    teardown. Change the first base to APITestCase and the same list becomes
+    unlinearisable, and the module fails to import: a base may not precede its
+    own subclass. Migrating such a class means dropping the redundant base,
+    not rewriting it.
+
+    Returns (conflicts, mixed): lists of (file_path, line_number, class_name,
+    bases). `conflicts` breaks collection outright and is a hard CI failure.
+    """
+    definitions = defaultdict(list)  # class name -> [(file, bases, lineno)]
+    test_classes = set()  # (file, class name) defined in a test module
+    for fpath in collect_test_files(os.path.join(src_root, "src")):
+        try:
+            tree = ast.parse(open(fpath, encoding="utf-8").read())
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            continue
+        parts = fpath.split(os.sep)
+        is_test_module = "tests" in parts or parts[-1].startswith("test_")
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                bases = tuple(ast.unparse(b).split(".")[-1] for b in node.bases)
+                definitions[node.name].append((fpath, bases, node.lineno))
+                if is_test_module:
+                    test_classes.add((fpath, node.name))
+
+    def ancestors(name, seen=None):
+        """Names reachable through the base graph. Resolution is by bare name,
+        so unrelated classes sharing a name merge — acceptable for a warning."""
+        if seen is None:
+            seen = set()
+        found = set()
+        for _fpath, bases, _lineno in definitions.get(name, []):
+            for base in bases:
+                if base in seen:
+                    continue
+                seen.add(base)
+                found.add(base)
+                found |= ancestors(base, seen)
+        return found
+
+    conflicts = []
+    mixed = []
+    for class_name, entries in definitions.items():
+        for fpath, bases, lineno in entries:
+            if len(bases) < 2 or (fpath, class_name) not in test_classes:
+                continue
+            kinds = set()
+            for index, base in enumerate(bases):
+                lineage = ancestors(base) | {base}
+                if "APITestCase" in lineage:
+                    kinds.add("testcase")
+                elif "APITransactionTestCase" in lineage:
+                    kinds.add("transaction")
+                if not kinds:
+                    continue
+                for later in bases[index + 1 :]:
+                    if base == later or base in ancestors(later):
+                        conflicts.append((fpath, lineno, class_name, bases))
+            if kinds == {"testcase", "transaction"}:
+                mixed.append((fpath, lineno, class_name, bases))
+
+    return sorted(set(conflicts)), sorted(set(mixed))
+
+
 def print_report(results):
     """Print the analysis report to stdout."""
     safe = [r for r in results if r.classification == SAFE]
@@ -1035,8 +1141,17 @@ def main():
         sys.exit(1)
 
     results = run_analysis(project_root)
+    conflicts, mixed = find_mro_conflicts(project_root)
 
     if args.ci:
+        if conflicts:
+            print("ERROR: unlinearisable base list — these modules cannot be imported:")
+            for fpath, lineno, class_name, bases in conflicts:
+                print(f"  {fpath}:{lineno} {class_name}({', '.join(bases)})")
+            print(
+                "\nA base class may not precede its own subclass. Drop the redundant base."
+            )
+            sys.exit(1)
         safe = [r for r in results if r.classification == SAFE]
         baseline = args.baseline if args.baseline is not None else 0
         if len(safe) > baseline:
@@ -1050,9 +1165,25 @@ def main():
             sys.exit(1)
         else:
             print(f"OK: {len(safe)} SAFE class(es) found (baseline: {baseline}).")
+            if mixed:
+                print(
+                    f"WARNING: {len(mixed)} class(es) mix TransactionTestCase and "
+                    "TestCase bases; the MRO decides which semantics win."
+                )
+                for fpath, lineno, class_name, bases in mixed:
+                    print(f"  {fpath}:{lineno} {class_name}({', '.join(bases)})")
             sys.exit(0)
     else:
         print_report(results)
+        if conflicts or mixed:
+            print("-" * 60)
+            print("Multiple inheritance problems")
+            print("-" * 60)
+            for fpath, lineno, class_name, bases in conflicts:
+                print(f"  BROKEN  {fpath}:{lineno} {class_name}({', '.join(bases)})")
+            for fpath, lineno, class_name, bases in mixed:
+                print(f"  MIXED   {fpath}:{lineno} {class_name}({', '.join(bases)})")
+            print()
 
 
 if __name__ == "__main__":

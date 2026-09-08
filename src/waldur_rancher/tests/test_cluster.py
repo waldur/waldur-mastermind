@@ -84,7 +84,7 @@ class ClusterGetTest(test.APITestCase):
         self.assertEqual(response.data["rancher_cluster"], None)
 
 
-class BaseClusterCreateTest(test.APITransactionTestCase):
+class BaseClusterCreateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()

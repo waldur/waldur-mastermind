@@ -14,7 +14,7 @@ from waldur_mastermind.marketplace.utils import import_current_usages
 
 
 @freeze_time("2026-04-15 12:00:00")
-class HourlyAccumulationTest(test.APITransactionTestCase):
+class HourlyAccumulationTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory()
@@ -112,7 +112,7 @@ class HourlyAccumulationTest(test.APITransactionTestCase):
         self.assertEqual(record.accumulated_total, Decimal("22.00"))
 
 
-class HighWatermarkPreservedTest(test.APITransactionTestCase):
+class HighWatermarkPreservedTest(test.APITestCase):
     """Ensure LIMIT components still use max() even when hourly_accumulation=True."""
 
     def setUp(self):

@@ -12,7 +12,7 @@ from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase, APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
@@ -4008,7 +4008,7 @@ class ToSConsentStatsTest(APITestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class ToSConsentNotificationTest(APITransactionTestCase):
+class ToSConsentNotificationTest(APITestCase):
     """Test cases for ToS consent notification tasks and handlers."""
 
     def setUp(self):

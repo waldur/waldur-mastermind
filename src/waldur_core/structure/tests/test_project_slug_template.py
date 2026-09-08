@@ -131,7 +131,7 @@ class ProjectSlugTemplateGenerationTest(TestCase):
         self.assertEqual(p2.slug, f"{customer.slug}-002")
 
 
-class ProjectSlugTemplateAPICreateTest(test.APITransactionTestCase):
+class ProjectSlugTemplateAPICreateTest(test.APITestCase):
     """Tests that slug template is applied when creating projects via the API."""
 
     def setUp(self):
@@ -202,7 +202,7 @@ class ProjectSlugTemplateAPICreateTest(test.APITransactionTestCase):
         self.assertNotIn("{", response.data["slug"])
 
 
-class CustomerProjectSlugTemplateAPITest(test.APITransactionTestCase):
+class CustomerProjectSlugTemplateAPITest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.customer = self.fixture.customer

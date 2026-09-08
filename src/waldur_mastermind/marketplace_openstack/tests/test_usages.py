@@ -19,7 +19,7 @@ TenantQuotas = openstack_models.Tenant.Quotas
 
 
 @freeze_time("2019-01-01")
-class UsagesSynchronizationTest(test.APITransactionTestCase):
+class UsagesSynchronizationTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = openstack_fixtures.OpenStackFixture()
@@ -113,7 +113,7 @@ class UsagesSynchronizationTest(test.APITransactionTestCase):
 
 
 @freeze_time("2026-04-15 12:00:00")
-class UsageBasedTenantSynchronizationTest(test.APITransactionTestCase):
+class UsageBasedTenantSynchronizationTest(test.APITestCase):
     """End-to-end usage sync for an OpenStack tenant offering with a
     usage-billed component, exercising the hourly accumulator path that
     `import_usage` selects when the offering has any USAGE component."""

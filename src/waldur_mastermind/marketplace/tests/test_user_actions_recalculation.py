@@ -3,7 +3,7 @@ from unittest import mock
 
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase, APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
@@ -16,7 +16,7 @@ from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
-class OrderStateChangeRecalculationTest(APITransactionTestCase):
+class OrderStateChangeRecalculationTest(APITestCase):
     """Test that UserActions are recalculated when Order state changes."""
 
     def setUp(self):

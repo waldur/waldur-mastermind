@@ -4,7 +4,7 @@ from waldur_openstack import models
 from waldur_openstack.tests import factories, fixtures
 
 
-class TenantTopologyTest(test.APITransactionTestCase):
+class TenantTopologyTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.OpenStackFixture()
