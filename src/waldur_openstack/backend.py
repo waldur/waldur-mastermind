@@ -1344,6 +1344,11 @@ class OpenStackBackend(ServiceBackend):
         # Built on first use by the port-import branch below, then shared by
         # every router in this pull.
         port_mappings = None
+        # subnet backend id -> the routers that hold an interface on it, collected
+        # while walking the routers and applied to SubNet.router at the end (#388).
+        # A list because Neutron lets a subnet have an interface on more than one
+        # router, and the choice between them must not depend on listing order.
+        subnet_routers: dict[str, list[models.Router]] = {}
 
         for backend_router in backend_routers:
             backend_id = backend_router["id"]
@@ -1456,6 +1461,21 @@ class OpenStackBackend(ServiceBackend):
                         if imported:
                             port_objs.append(imported)
                 router_obj.ports.set(port_objs)
+
+                # A router interface port names the subnet it serves, so the
+                # router a subnet is attached to falls out of the listing we
+                # already have -- no extra Neutron call, and it covers
+                # attachments made outside Waldur as well as our own.
+                for port in ports:
+                    if port["device_owner"] not in VALID_ROUTER_INTERFACE_OWNERS:
+                        continue
+                    for fixed_ip in port["fixed_ips"]:
+                        subnet_backend_id = fixed_ip.get("subnet_id")
+                        if not subnet_backend_id:
+                            continue
+                        candidates = subnet_routers.setdefault(subnet_backend_id, [])
+                        if router_obj not in candidates:
+                            candidates.append(router_obj)
             except IntegrityError:
                 logger.warning(
                     "Could not create router with backend ID %s "
@@ -1464,12 +1484,112 @@ class OpenStackBackend(ServiceBackend):
                     tenant,
                 )
 
+        self._sync_subnet_routers(
+            tenant, subnet_routers, full_pull=not router_backend_id
+        )
+
         if not router_backend_id:
             remote_ids = {ip["id"] for ip in backend_routers}
             stale_routers = models.Router.objects.filter(tenant=tenant).exclude(
                 backend_id__in=remote_ids
             )
             stale_routers.delete()
+
+    def _sync_subnet_routers(
+        self,
+        tenant: models.Tenant,
+        subnet_routers: dict[str, list[models.Router]],
+        full_pull: bool,
+    ):
+        """Record on each subnet the router that holds its interface (#388).
+
+        Neutron has no subnet->router attribute: the attachment *is* a
+        `network:router_interface` port whose `device_id` is the router, and
+        removing the interface deletes that port. So this is the only place the
+        association is recorded, and once an interface is gone the backend can no
+        longer tell us where it used to be.
+
+        Hence: only live attachments are written, and a subnet with no interface
+        anywhere keeps the router it was last attached to. That is what a
+        reconnect returns it to, and disconnecting pulls the routers right
+        afterwards, so clearing here would erase the choice before the user could
+        act on it. `is_connected` remains the flag that says whether the
+        attachment is live, and a deleted router nulls the column through
+        on_delete=SET_NULL.
+
+        With interfaces on several routers -- which Neutron allows -- the one
+        already recorded wins if it is still among them, so repeated pulls do not
+        flap; otherwise the lowest backend id, for the same reason `_get_router`
+        no longer takes `routers[0]`.
+
+        A network shared over RBAC is routed by the tenant that consumes it: the
+        interface port sits on the *consumer's* router while the subnet belongs
+        to the owner, so the consumer's subnets tab would otherwise show no
+        router at all -- the very question this issue is about, asked by the
+        tenant with the least visibility. Such a router is therefore recorded,
+        but only as a fallback: a router of the subnet's own tenant always wins
+        and is never overwritten by a foreign one, because that value is also
+        what `connect_subnet` re-attaches to and the owner's tenant session
+        cannot address a router in another project.
+
+        The owner of the shared network therefore reads the consumer's router
+        name on their own subnet -- a deliberate decision, not an oversight.
+        Within one customer, which is what sharing a network between projects
+        normally means, the reader can already see both tenants, and the pair
+        answers "who is routing the network I shared?". Blanking it would need a
+        per-caller visibility filter and would leave the owner no signal at all,
+        since a single FK has no third state between "your router" and "none".
+        """
+        if not subnet_routers:
+            return
+        # Own subnets plus the ones reachable through an RBAC share, so a
+        # consumer's pull can record its own attachment. select_related because
+        # the foreign-router branch below reads the recorded router itself.
+        subnets = tenant.available_subnets.select_related("router").filter(
+            backend_id__in=list(subnet_routers)
+        )
+
+        # backend_id is nullable on Router, and sorting None against str raises.
+        def by_backend_id(router):
+            return router.backend_id or ""
+
+        for subnet in subnets:
+            candidates = subnet_routers[subnet.backend_id]
+            own = [
+                router for router in candidates if router.tenant_id == subnet.tenant_id
+            ]
+            if own:
+                if any(router.id == subnet.router_id for router in own):
+                    continue
+                if not full_pull and subnet.router_id:
+                    # A pull scoped to one router sees only that router's ports,
+                    # so it cannot tell whether the recorded one still holds an
+                    # interface -- and a subnet may sit on several routers. Let
+                    # the next full pull decide rather than reassigning here.
+                    continue
+                chosen = min(own, key=by_backend_id)
+            else:
+                # Only a foreign router holds it. Never displace a router of the
+                # subnet's own tenant. Between consumers, take the lowest backend
+                # id -- each consumer's pull sees only its own routers, so
+                # "whichever pulled last" would flap the value on every sweep,
+                # and the recorded router has to be weighed in as a candidate to
+                # make the outcome independent of the order the tenants pull in.
+                current = subnet.router
+                if current and current.tenant_id == subnet.tenant_id:
+                    continue
+                pool = list(candidates)
+                # ...but only while it still holds an interface. The consumer
+                # that owns it records its own detachment in router.ports, so a
+                # router that let go is dropped here instead of outranking a
+                # consumer that is actually routing the subnet.
+                if current and current.ports.filter(subnet=subnet).exists():
+                    pool.append(current)
+                chosen = min(pool, key=by_backend_id)
+                if chosen.id == subnet.router_id:
+                    continue
+            subnet.router = chosen
+            subnet.save(update_fields=["router"])
 
     def _tenant_mappings(self, queryset):
         rows = queryset.exclude(backend_id="").values("id", "backend_id")
@@ -3305,11 +3425,33 @@ class OpenStackBackend(ServiceBackend):
             )
             return
 
+        # The caller may name the router (#388); without one Waldur resolves it
+        # through _get_router. The serializer refuses the field on a tenant that
+        # set skip_creation_of_default_router, so the two never combine -- and
+        # the flag is checked first here regardless, in case a router reached the
+        # column by another route (a pull, or the flag being set afterwards).
+        #
+        # A router of another tenant can be recorded for an RBAC-shared subnet
+        # (see _sync_subnet_routers); it is display only. Attaching through it
+        # would authenticate as this subnet's tenant against a router in someone
+        # else's project, so the implicit resolution is used instead.
+        router = subnet.router
+        if router and router.tenant_id != subnet.tenant_id:
+            logger.info(
+                "Ignoring router %s recorded on subnet %s: it belongs to tenant %s, "
+                "which is not the subnet's own tenant.",
+                router.backend_id,
+                subnet.name,
+                router.tenant_id,
+            )
+            router = None
+        router_backend_id = router.backend_id if router else None
         router_backend_id = self.connect_router(
             subnet.network.tenant,
             subnet.network.name,
             subnet.backend_id,
             network_id=subnet.network.backend_id,
+            router_backend_id=router_backend_id,
         )
         subnet.is_connected = True
         subnet.save(update_fields=["is_connected"])
@@ -3691,6 +3833,32 @@ class OpenStackBackend(ServiceBackend):
             routers, key=lambda router: (router.get("created_at") or "", router["id"])
         )[0]
 
+    def _show_router(self, tenant: models.Tenant, router_backend_id):
+        """Fetch one router as _get_router would have returned it, or None.
+
+        A router deleted straight in Horizon leaves a stale local row until the
+        next full pull, and SubNet.router keeps pointing at it. Raising here
+        would fail connect_subnet, and with it the executor chain whose second
+        task is the very pull that would clean the row up -- so the subnet would
+        sit ERRED and every retry would fail the same way. Returning None lets
+        the caller fall back to the implicit resolution, which is what happened
+        before the router could be named at all.
+        """
+        session = get_tenant_session(tenant)
+        neutron = get_neutron_client(session)
+        try:
+            return neutron.show_router(router_backend_id)["router"]
+        except neutron_exceptions.NotFound:
+            logger.warning(
+                "Router %s recorded for tenant %s no longer exists in the backend; "
+                "falling back to the implicit router selection.",
+                router_backend_id,
+                tenant,
+            )
+            return None
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
     def create_router(self, router: models.Router):
         backend_router = self._create_router(router.tenant, router.name)
         router.backend_id = backend_router["id"]
@@ -3799,6 +3967,7 @@ class OpenStackBackend(ServiceBackend):
         subnet_id,
         external=False,
         network_id=None,
+        router_backend_id=None,
     ):
         if tenant.skip_creation_of_default_router:
             logger.info(
@@ -3808,13 +3977,17 @@ class OpenStackBackend(ServiceBackend):
             return None
 
         router_name = f"{network_name}-router"
-        router = self._get_router(
-            tenant,
-            # The router for this very network, else the one Waldur creates
-            # alongside the tenant (its internal network is named
-            # "<tenant>-int-net", so its router is "<tenant>-int-net-router").
-            preferred_names=(router_name, f"{tenant.name}-int-net-router"),
-        ) or self._create_router(tenant, router_name)
+        router = (
+            self._show_router(tenant, router_backend_id) if router_backend_id else None
+        )
+        if router is None:
+            router = self._get_router(
+                tenant,
+                # The router for this very network, else the one Waldur creates
+                # alongside the tenant (its internal network is named
+                # "<tenant>-int-net", so its router is "<tenant>-int-net-router").
+                preferred_names=(router_name, f"{tenant.name}-int-net-router"),
+            ) or self._create_router(tenant, router_name)
         self._connect_network_to_router(tenant, router, external, network_id, subnet_id)
 
         return router["id"]

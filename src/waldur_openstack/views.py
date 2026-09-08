@@ -2651,7 +2651,9 @@ class SubNetViewSet(structure_views.ResourceViewSet):
 
     def get_queryset(self):
         user: structure_models.User = self.request.user
-        queryset = models.SubNet.objects.all().order_by("network")
+        queryset = (
+            models.SubNet.objects.all().select_related("router").order_by("network")
+        )
 
         if user.is_staff or user.is_support:
             return queryset
@@ -2665,7 +2667,9 @@ class SubNetViewSet(structure_views.ResourceViewSet):
     @extend_schema(
         request=None,
         summary="Connect subnet to router",
-        description="Connect the subnet to the default tenant router.",
+        description="Connect the subnet to its router: the one chosen when the "
+        "subnet was created or last attached to, and otherwise the tenant router "
+        "Waldur picks.",
         responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
@@ -2678,7 +2682,8 @@ class SubNetViewSet(structure_views.ResourceViewSet):
     @extend_schema(
         request=None,
         summary="Disconnect subnet from router",
-        description="Disconnect the subnet from the default tenant router.",
+        description="Disconnect the subnet from its router. The router is "
+        "remembered, so connecting again returns the subnet to it.",
         responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])

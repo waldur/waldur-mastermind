@@ -2453,6 +2453,26 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
     port_security_enabled = serializers.BooleanField(
         source="network.port_security_enabled", read_only=True
     )
+    router = serializers.HyperlinkedRelatedField(
+        view_name="openstack-router-detail",
+        lookup_field="uuid",
+        queryset=models.Router.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "Router to attach the subnet to. Optional: when omitted Waldur picks "
+            "a router of the tenant itself. Cannot be changed here afterwards -- "
+            "use the router's add/remove interface actions."
+        ),
+    )
+    # allow_null keeps the keys present (and nullable in the OpenAPI schema) for a
+    # subnet with no router; without it DRF raises SkipField and drops them.
+    router_name = serializers.CharField(
+        source="router.name", read_only=True, allow_null=True
+    )
+    router_uuid = serializers.UUIDField(
+        source="router.uuid", read_only=True, allow_null=True
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.SubNet
@@ -2471,6 +2491,9 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             "host_routes",
             "is_connected",
             "port_security_enabled",
+            "router",
+            "router_name",
+            "router_uuid",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -2495,6 +2518,12 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         # Make cidr read-only on update
         if self.instance and "cidr" in fields:
             fields["cidr"].read_only = True
+
+        # Re-targeting an existing subnet is a router-interface operation, not a
+        # subnet update: writing the field here would change what the API reports
+        # without moving the interface in Neutron.
+        if self.instance and "router" in fields:
+            fields["router"].read_only = True
 
         return fields
 
@@ -2565,7 +2594,56 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             attrs["project"] = network.project
             options = network.service_settings.options
             attrs.setdefault("dns_nameservers", options.get("dns_nameservers", []))
+            self.validate_router_choice(
+                network.tenant, attrs.get("router"), attrs.get("disable_gateway")
+            )
         return attrs
+
+    def validate_router_choice(self, tenant, router, disable_gateway=False):
+        """A named router must be one this subnet can actually be attached to.
+
+        The field is a plain hyperlink, so the caller can name any router they
+        can resolve; without this check a router of another tenant would reach
+        the backend and Neutron would refuse the attachment there, turning a
+        400 into an ERRED subnet.
+        """
+        if router is None:
+            return
+        if tenant.skip_creation_of_default_router:
+            # The two settings contradict each other: the tenant has opted out
+            # of Waldur attaching subnets to routers at all, so naming one here
+            # would be silently ignored by connect_subnet. Say so instead.
+            raise serializers.ValidationError(
+                {
+                    "router": _(
+                        "Tenant is configured to skip connecting subnets to a router, "
+                        "so a router cannot be chosen for its subnets."
+                    )
+                }
+            )
+        if router.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                {
+                    "router": _(
+                        "Router does not belong to the same tenant as the subnet."
+                    )
+                }
+            )
+        if router.state != CoreStates.OK:
+            raise serializers.ValidationError(
+                {"router": _("Router is not in a valid state for connecting a subnet.")}
+            )
+        if disable_gateway:
+            # Neutron refuses a router interface on a subnet with no gateway IP,
+            # and _connect_network_to_router returns early for exactly that, so
+            # the subnet would report a router it was never attached to.
+            raise serializers.ValidationError(
+                {
+                    "router": _(
+                        "A subnet without a gateway IP cannot be attached to a router."
+                    )
+                }
+            )
 
     # Keep the previously defined methods below
     def check_cidr_overlap(self, tenant, new_cidr):
