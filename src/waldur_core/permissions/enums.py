@@ -21,6 +21,33 @@ class RoleEnum(StrEnum):
     PROPOSAL_MANAGER = "PROPOSAL.MANAGER"
 
 
+# Descriptions for every system role, keyed by role name. get_system_role()
+# applies these when it creates a row, so a role first touched at runtime
+# (rather than seeded by a migration) still has a human-readable label instead
+# of falling back to the raw enum name in the UI. Kept in sync with
+# permissions.yaml, which import_roles replays over these on every deployment;
+# a test fails if the two drift in either direction.
+ROLE_DESCRIPTIONS: dict[str, str] = {
+    RoleEnum.CUSTOMER_OWNER: "Organization owner",
+    RoleEnum.CUSTOMER_SUPPORT: "Organization support",
+    RoleEnum.CUSTOMER_MANAGER: "Service provider manager",
+    RoleEnum.CUSTOMER_READER: "Organization reader",
+    RoleEnum.PROJECT_ADMIN: "Project administrator",
+    RoleEnum.PROJECT_MANAGER: "Project manager",
+    RoleEnum.PROJECT_MEMBER: "Project member",
+    RoleEnum.OFFERING_MANAGER: "Offering manager",
+    RoleEnum.CALL_REVIEWER: "Call reviewer",
+    RoleEnum.CALL_MANAGER: "Call manager",
+    RoleEnum.CALL_PANEL_MEMBER: "Call panel member",
+    RoleEnum.PROPOSAL_MEMBER: "Proposal member",
+    RoleEnum.PROPOSAL_MANAGER: "Proposal manager",
+    # Declared in permissions.yaml but deliberately absent from RoleEnum:
+    # adding a member there would extend the role choices published in the
+    # OpenAPI schema, so it is keyed by name here instead.
+    "CUSTOMER.CALL_ORGANIZER": "Organization call organizer",
+}
+
+
 SYSTEM_CUSTOMER_ROLES = (
     RoleEnum.CUSTOMER_MANAGER,
     RoleEnum.CUSTOMER_OWNER,

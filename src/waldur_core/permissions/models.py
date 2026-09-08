@@ -15,6 +15,7 @@ from waldur_core.core.mixins import ScopeMixin
 from waldur_core.core.models import DescribableMixin, User, UuidMixin
 
 from . import signals
+from .enums import ROLE_DESCRIPTIONS
 
 
 class RoleManager(models.Manager):
@@ -26,7 +27,14 @@ class RoleManager(models.Manager):
             return self._cache[cache_key]
         role, _ = self.get_or_create(
             name=cache_key,
-            defaults={"is_system_role": True, "content_type": content_type},
+            defaults={
+                "is_system_role": True,
+                "content_type": content_type,
+                # Without this a role first created here (rather than by a
+                # seeding migration) has a blank description, and the UI falls
+                # back to showing the raw enum name.
+                "description": ROLE_DESCRIPTIONS.get(cache_key, ""),
+            },
         )
         self._cache[cache_key] = role
         return role
