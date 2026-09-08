@@ -4521,13 +4521,34 @@ def post_service_account_to_url(
         raise
 
 
-def extract_error_details_from_httpx_error(exc: httpx.HTTPError):
-    """Extract error details from an HTTPx error depending on the error type."""
-    if isinstance(exc, httpx.HTTPStatusError):
-        if exc.response.text:
-            return exc.response.json()
-        return f"Status code: {exc.response.status_code}, empty body"
-    return str(exc)
+def extract_error_details_from_httpx_error(exc: httpx.HTTPError) -> str:
+    """Extract error details from an HTTPx error depending on the error type.
+
+    Always includes the HTTP status code so a stored error_message is
+    identifiable even when the backend's body is empty, unparseable, or
+    just an opaque wrapper - without this, `str(exc)` on a raw
+    HTTPStatusError only shows the generic "Server error '500 ...'"
+    request-line text, discarding whatever detail the backend actually
+    returned (or forcing a crash here if that detail isn't valid JSON).
+    """
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return str(exc)
+
+    response = exc.response
+    status_code = response.status_code
+    if not response.text:
+        return f"Status code: {status_code}, empty body"
+
+    try:
+        body = response.json()
+    except ValueError:
+        return f"Status code: {status_code}, message: {response.text}"
+
+    message = body
+    if isinstance(body, dict):
+        message = body.get("detail") or body.get("message") or body
+
+    return f"Status code: {status_code}, message: {message}"
 
 
 def create_service_account(service_account: dict, owner_username: str, scope_type: str):

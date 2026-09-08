@@ -1618,10 +1618,28 @@ class ExtractErrorDetailsFromHttpxErrorTest(test.APITestCase):
             f"Server error '{status_code}'", request=request, response=response
         )
 
-    def test_status_error_with_json_body_returns_parsed_json(self):
+    def test_status_error_with_json_body_returns_status_and_detail(self):
         exc = self._make_status_error(500, json_body={"detail": "DB connection failed"})
         result = utils.extract_error_details_from_httpx_error(exc)
-        self.assertEqual(result, {"detail": "DB connection failed"})
+        self.assertEqual(result, "Status code: 500, message: DB connection failed")
+
+    def test_status_error_with_json_body_without_detail_key_returns_whole_body(self):
+        exc = self._make_status_error(500, json_body={"code": "internal_error"})
+        result = utils.extract_error_details_from_httpx_error(exc)
+        self.assertEqual(
+            result, "Status code: 500, message: {'code': 'internal_error'}"
+        )
+
+    def test_status_error_with_non_json_body_returns_raw_text_instead_of_crashing(self):
+        # A bare 500 from an infra layer (gateway, k8s service) often isn't JSON at
+        # all - exc.response.json() must not be called unguarded here, or this
+        # blows up with a fresh, uncaught JSONDecodeError instead of recording
+        # any error message.
+        exc = self._make_status_error(500, text="<html>Internal Server Error</html>")
+        result = utils.extract_error_details_from_httpx_error(exc)
+        self.assertEqual(
+            result, "Status code: 500, message: <html>Internal Server Error</html>"
+        )
 
     def test_status_error_with_empty_body_returns_status_string(self):
         exc = self._make_status_error(500, text="")
@@ -1676,6 +1694,20 @@ class CreateCourseAccountTaskErrorHandlingTest(test.APITestCase):
         self._run_task()
         self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
         self.assertIn("DB connection failed", self.course_account.error_message)
+
+    @patch("waldur_mastermind.marketplace.utils.create_course_account")
+    def test_http_500_with_non_json_body_stores_raw_text_instead_of_crashing(
+        self, mock_create
+    ):
+        mock_create.side_effect = self._make_status_error(
+            500, text="<html>Internal Server Error</html>"
+        )
+        self._run_task()
+        self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
+        self.assertEqual(
+            self.course_account.error_message,
+            "Status code: 500, message: <html>Internal Server Error</html>",
+        )
 
     @patch("waldur_mastermind.marketplace.utils.create_course_account")
     def test_http_500_with_empty_body_stores_status_string(self, mock_create):
