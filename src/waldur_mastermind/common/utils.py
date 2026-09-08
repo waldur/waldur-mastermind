@@ -54,6 +54,17 @@ def create_request(
     return view(request, **kwargs)
 
 
+def update_request(
+    view: Callable,
+    user: core_models.User,
+    post_data: dict,
+    **kwargs,
+) -> Response:
+    factory = APIRequestFactory()
+    request = factory.patch("/", data=json.dumps(post_data), **get_headers(user))
+    return view(request, **kwargs)
+
+
 def delete_request(
     view: Callable, user: core_models.User, query_params: dict | None = None, **extra
 ) -> Response:

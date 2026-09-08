@@ -411,6 +411,44 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class VirtualMachineRuntimeStateTest(test.APITestCase):
+    """The power state has to reach clients as it is stored.
+
+    The UI decides whether Start, Stop, Reset and the guest actions are
+    available by comparing this field to POWERED_ON, POWERED_OFF and SUSPENDED,
+    so a label -- or the null the serializer used to return -- leaves every one
+    of them disabled.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.vm = self.fixture.virtual_machine
+        self.url = factories.VirtualMachineFactory.get_url(self.vm)
+
+    def test_runtime_state_is_serialized(self):
+        self.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_OFF
+        self.vm.save()
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["runtime_state"],
+            models.VirtualMachine.RuntimeStates.POWERED_OFF,
+        )
+
+    def test_unknown_runtime_state_is_serialized_as_empty(self):
+        self.vm.runtime_state = ""
+        self.vm.save()
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["runtime_state"], "")
+
+
 class VirtualMachineDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
