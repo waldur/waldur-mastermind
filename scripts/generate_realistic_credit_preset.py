@@ -521,7 +521,15 @@ class CreditPresetGenerator:
             )
         self.preset["customer_credits"] = customer_credits
 
-        # Project credits (skip the "no_credit" bucket).
+        # Project credits (skip the "no_credit" bucket). A project credit
+        # needs a customer credit to import, so customers without one get
+        # none — but the RNG draws and uuid counter still advance so every
+        # other seed-42 value stays where the scenario packs expect it.
+        credit_customers = {
+            cust["uuid"]
+            for cust in self._consumer_customers
+            if cust["_spec"].has_customer_credit
+        }
         project_credits: list[dict] = []
         for spec in self._project_specs:
             if spec["bucket"] == "no_credit":
@@ -529,20 +537,20 @@ class CreditPresetGenerator:
                 continue
             value = self.rng.randint(*spec["credit_band"])
             spec["credit_value"] = value
-            project_credits.append(
-                {
-                    "uuid": self._next_uuid("project_credit", sub="b"),
-                    "project_uuid": spec["project_uuid"],
-                    "value": str(value),
-                    "end_date": (
-                        end_date_curr_year
-                        if self.rng.random() < 0.85
-                        else end_date_next_year
-                    ),
-                    "grace_coefficient": "15",
-                    "created": f"{today.year}-01-20T00:00:00",
-                }
-            )
+            credit = {
+                "uuid": self._next_uuid("project_credit", sub="b"),
+                "project_uuid": spec["project_uuid"],
+                "value": str(value),
+                "end_date": (
+                    end_date_curr_year
+                    if self.rng.random() < 0.85
+                    else end_date_next_year
+                ),
+                "grace_coefficient": "15",
+                "created": f"{today.year}-01-20T00:00:00",
+            }
+            if spec["customer_uuid"] in credit_customers:
+                project_credits.append(credit)
         self.preset["project_credits"] = project_credits
 
     # ---- invoices + items + usages -----------------------------------------
@@ -899,9 +907,13 @@ class CreditPresetGenerator:
                 "policies on overdrawn projects."
             ),
             "version": "1.0.0",
+            # The loader moves this history onto the month it is loaded
+            # in (demo_presets/time_shift.py); the months written below
+            # are only right on the day this runs.
+            "rebase_billing_history": True,
             "scenarios": [
                 "explain_project_credit_balance across utilisation bands",
-                "list_overdrawn_projects (3 overdrawn out of 19 credit-bearing)",
+                "list_overdrawn_projects (3 overdrawn out of 12 credit-bearing)",
                 "Project with no credit configured",
                 "Customer with no customer credit",
                 "Fired policy on overdrawn project (paused resources)",

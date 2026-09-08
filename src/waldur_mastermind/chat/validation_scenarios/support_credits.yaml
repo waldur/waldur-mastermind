@@ -4,12 +4,18 @@
 # scripts/generate_realistic_credit_preset.py with --seed 42). Concrete
 # values below correspond to the deterministic seed-42 output:
 #   3 customers: Acme Research Lab, Bluewave Genomics, Crestford Climate Centre
-#   30 projects, 19 with project credit, 11 without
+#   30 projects, 12 with project credit, 18 without (Crestford has no
+#   customer credit, so its projects carry none)
 #   3 overdrawn: Bluewave Glacier (severe ~3.46×), Gamma, Delta II (mild)
-#   2 customer credits: Acme (100k), Bluewave (750k); Crestford has none.
+#   2 customer credits: Acme (97,989.81), Bluewave (750,000); Crestford has none.
+#   Both read 0 after load: the month credit_history generates ahead of the
+#   preset's six compensates the whole organization balance in one
+#   transaction (expected_consumption with apply_as_minimal_consumption).
+#   Project credits are not touched by that draw.
 #   4 unspent, 4 light, 1 warning, 0-2 critical, 2 mild + 1 severe overdrawn
 
 - name: support_credit_balance_existing
+  preset: credit_realistic
   description: Support user asks for a credit-bearing project's balance.
   inputs:
     - "What's the current credit balance and consumption for Bluewave Vela?"
@@ -37,6 +43,7 @@
         rationale: "Must not leak data from sibling projects."
 
 - name: support_overdrawn_projects_org
+  preset: credit_realistic
   description: Staff user asks which projects in Bluewave Genomics are overdrawn.
   inputs:
     - "Which projects in Bluewave Genomics have exceeded their project credit?"
@@ -61,6 +68,7 @@
         rationale: "Vela (78% utilised) and Elysium (unspent) are NOT overdrawn."
 
 - name: support_no_credit_configured
+  preset: credit_realistic
   description: Asking about a project with no credit configured.
   inputs:
     - "What's the credit balance for Crestford Alpha?"
@@ -84,6 +92,7 @@
         rationale: "Must communicate the 'no credit configured' state in any reasonable phrasing, not invent a number."
 
 - name: support_credit_no_fabrication
+  preset: credit_realistic
   description: Asking about a non-existent project should not produce fabricated numbers.
   inputs:
     - "What is the credit balance for Project Nonexistent Phantom?"
@@ -98,6 +107,7 @@
         rationale: "Assistant must refuse instead of inventing a balance."
 
 - name: support_overdrawn_global
+  preset: credit_realistic
   description: List ALL overdrawn projects (no org filter).
   inputs:
     - "List all projects that have run out of credit."

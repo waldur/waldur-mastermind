@@ -6,6 +6,7 @@ import time
 
 import httpx
 from constance import config
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import connections, transaction
 from django.db.models import Max
 from django.utils.translation import gettext_lazy as _
@@ -192,6 +193,11 @@ class LLMStreamer:
         self.accumulated_warning: str = ""
         self.pending_tool_calls: dict[str, dict] = {}
         self.tool_calls: dict[int, dict] = {}
+        # Tool calls the lazy-load guard refused: nothing ran, and no
+        # block is absorbed or persisted for them, so this list is the
+        # only record that the model reached for the tool at all. The
+        # validation harness scores `forbidden_tools` against it.
+        self.rejected_tool_calls: list[dict] = []
         self.user = user
         self.input_tokens = None
         self.output_tokens = None
@@ -254,17 +260,13 @@ class LLMStreamer:
             self._rehydrate_enabled_tools_from_history()
 
         if preload_all_tools:
-            # Pre-load account tools for validation scenarios
-            account_tools = [
-                ToolName.DISPLAY_USER_RESOURCES,
-                ToolName.LIST_ORGANIZATIONS,
-                ToolName.LIST_PROJECTS,
-                ToolName.GET_PROJECT_RESOURCES,
-                ToolName.GET_PROJECT_QUOTA,
-                ToolName.GET_RESOURCE_USAGE,
-            ]
-            for tool_name in account_tools:
-                self._enabled_tool_names.add(tool_name.value)
+            # Validation harness: every registered tool is callable on
+            # turn 0. search_tools is in too — a model that reaches for
+            # it anyway then gets a cheap no-op round instead of the
+            # "not loaded" rejection, which it retries until the cap.
+            self._enabled_tool_names.update(
+                name.value for name in tool_registry.definitions
+            )
 
     def _rehydrate_enabled_tools_from_history(self) -> None:
         """Pre-populate ``_enabled_tool_names`` from prior tool activity.
@@ -984,7 +986,11 @@ class LLMStreamer:
                 {
                     "role": "tool",
                     "tool_call_id": entry["id"],
-                    "content": json.dumps(result_data) if result_data else summary,
+                    # Tools hand back ORM values; a Decimal or date here
+                    # must not take the whole stream down.
+                    "content": json.dumps(result_data, cls=DjangoJSONEncoder)
+                    if result_data
+                    else summary,
                 }
             )
         return followup
@@ -1067,6 +1073,9 @@ class LLMStreamer:
             if tool_name not in self._enabled_tool_names:
                 self._turn_report.append(
                     f"  ⨯ rejected unloaded tool call: {tool_name}"
+                )
+                self.rejected_tool_calls.append(
+                    {"name": tool_name, "arguments": arguments}
                 )
                 # search_tools takes ``categories``, not ``tool_names`` —
                 # look up the unloaded tool's category so the LLM gets a

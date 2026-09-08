@@ -5,6 +5,7 @@
 # CustomerCredit, leaving the user-visible invoice net of those rows.
 
 - name: invoice_compensation_concealed_resource
+  preset: credit_realistic
   description: User asks why their invoice net is lower than gross — assistant must surface compensations + the concealed terminated resource.
   inputs:
     - "On Acme Sirius last month — what was the invoice gross vs net, and were any resources hidden from my view?"
@@ -39,6 +40,7 @@
         rationale: "There IS a compensation; refusing it is wrong."
 
 - name: terminated_billed_visibility
+  preset: credit_realistic
   description: User asks if a terminated resource is still being billed — assistant should explain visibility-vs-billing distinction.
   inputs:
     - "On project Acme Sirius, were any terminated resources still billed or compensated last month?"

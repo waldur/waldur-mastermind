@@ -48,6 +48,51 @@ class ToolUsageEvaluatorTest(unittest.TestCase):
         self.assertIsNone(result.details["expected_tool"])
         self.assertEqual(result.details["actual_tool"], "show_user_resources")
 
+    def test_forbidden_tool_called_fails_even_when_expected_tool_was_called(self):
+        """A mutating tool must never ride along with the planning tool."""
+        config = {
+            "expected_tool": "plan_vm",
+            "forbidden_tools": ["create_vm"],
+            "tool_calls": [{"name": "plan_vm"}, {"name": "create_vm"}],
+            "rationale": "Creation needs a confirmed preview first",
+        }
+
+        result = self.evaluator.evaluate("Creating the VM now.", config)
+
+        self.assertFalse(result.passed)
+        self.assertIn("create_vm", result.message)
+        self.assertEqual(result.details["forbidden_tool"], "create_vm")
+
+    def test_forbidden_tool_only_attempted_still_fails(self):
+        """A refused call ran nothing, but the model still reached for it.
+
+        The lazy-load guard leaves no block for a tool that was not loaded,
+        so the harness passes those calls separately.
+        """
+        config = {
+            "expected_tool": "plan_vm",
+            "forbidden_tools": ["create_vm"],
+            "tool_calls": [{"name": "plan_vm"}],
+            "attempted_tool_calls": [{"name": "plan_vm"}, {"name": "create_vm"}],
+        }
+
+        result = self.evaluator.evaluate("Creating the VM now.", config)
+
+        self.assertFalse(result.passed)
+        self.assertIn("create_vm", result.message)
+        self.assertIn("refused", result.message)
+
+    def test_forbidden_tool_not_called_passes(self):
+        config = {
+            "expected_tool": "plan_vm",
+            "forbidden_tools": ["create_vm"],
+            "tool_calls": [{"name": "search_tools"}, {"name": "plan_vm"}],
+        }
+
+        result = self.evaluator.evaluate("Which project?", config)
+
+        self.assertTrue(result.passed)
+
     def test_correct_tool_called(self):
         """Test that correct tool call is detected."""
         response = "Here are your resources."

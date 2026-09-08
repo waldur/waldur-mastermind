@@ -53,13 +53,14 @@ class ToolExecutor:
         try:
             tool = tool_registry.get(tool_name)
             if not tool:
+                # Like every other error here: the model reads ``summary``
+                # and recovers, the user sees nothing. A ui_component put
+                # the internal tool name in the chat.
                 error_msg = f"Unknown tool: {tool_name}"
                 return {
                     "type": "error",
                     "error": error_msg,
                     "summary": error_msg,
-                    "ui_component": "markdown",
-                    "ui_data": {"c": error_msg},
                 }
 
             return tool.execute(self.user, arguments)

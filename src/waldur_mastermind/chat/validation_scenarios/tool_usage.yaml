@@ -70,3 +70,32 @@
       config:
         expected_tool: null
         rationale: "Network debugging questions are knowledge-based and should not trigger tools"
+
+- name: ambiguous_request_asks_via_form
+  description: A request too vague to act on is clarified with an ask_user form, not a prose list
+  # Withholding ask_user from turn 0 fixed one scenario and turned every
+  # early clarification into a markdown bullet list. This is the guard.
+  inputs:
+    - "i want some compute"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: "ask_user"
+        rationale: "Clarifying an ambiguous request must render a form the user can tap, not a list in prose"
+
+- name: named_project_looked_up_not_confirmed
+  description: A project the user names is looked up as typed; a miss is reported, not queried back
+  inputs:
+    - "What is the quota for project Nonexistent-Project-XYZ?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: "get_project_quota"
+        rationale: "The name is given; the answer is a lookup, not a question about the name"
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "(?i)(exact name|confirm the|is that (the|correct)|did you mean)"
+        required_patterns:
+          - "(?i)(not found|no project|does not exist|doesn.t exist|couldn.t find|could not find|no match|unable to find)"
+        rationale: "A miss is the answer: say the project does not exist, do not ask the user to re-type it"

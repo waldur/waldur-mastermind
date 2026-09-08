@@ -287,9 +287,9 @@ class AskUserToolHappyPathTest(TestCase):
 
 class AskUserToolValidationErrorTest(TestCase):
     """The tool runs belt-and-suspenders shape checks inside execute() so
-    bad LLM-supplied args produce a friendly markdown rejection instead of
-    crashing or silently passing through. The validation_error type makes
-    the rejection visible to the LLM in the next round so it can self-correct.
+    bad LLM-supplied args produce a rejection instead of crashing or
+    silently passing through. The validation_error type makes the rejection
+    visible to the LLM in the next round so it can self-correct.
     """
 
     def setUp(self):
@@ -298,8 +298,17 @@ class AskUserToolValidationErrorTest(TestCase):
     def _assert_rejection(self, arguments):
         result = self.tool.execute(None, arguments)
         self.assertEqual(result["type"], "validation_error")
-        self.assertEqual(result["ui_component"], "markdown")
         return result
+
+    def test_the_rejection_is_not_shown_to_the_user(self):
+        # These messages name arguments and types: "`questions` must be a
+        # list of 1-4 question objects". Rendering that as markdown put a
+        # schema complaint in the chat, run together with whatever the model
+        # said next. The model still gets it via ``summary`` and retries.
+        result = self._assert_rejection({"questions": []})
+        self.assertNotIn("ui_component", result)
+        self.assertNotIn("ui_data", result)
+        self.assertTrue(result["summary"])
 
     def test_zero_questions_rejected(self):
         self._assert_rejection({"questions": []})

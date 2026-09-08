@@ -41,6 +41,16 @@ class Scenario:
     description: str
     inputs: list[str]
     evaluations: list[EvaluationCriteria | dict] = field(default_factory=list)
+    # Demo preset this scenario's assertions were written against. The
+    # harness skips the scenario when that data is absent rather than
+    # scoring the assistant on values it was never given.
+    preset: str | None = None
+    # Scope tier ("end_user", "staff", "support") whose prompt this
+    # scenario's assertions were written against. Each tier grants
+    # different subject matter, so a scenario run under another one scores
+    # the tier rather than the assistant; the harness skips it instead.
+    # Not ``role``: !6157 uses that key for which identity path to take.
+    scope_tier: str | None = None
 
     def __post_init__(self):
         """Convert evaluation dicts to EvaluationCriteria objects."""
@@ -120,6 +130,8 @@ def load_scenarios_from_yaml(yaml_path: Path) -> list[Scenario]:
                     description=scenario_data.get("description", ""),
                     inputs=scenario_data.get("inputs", []),
                     evaluations=scenario_data.get("evaluations", []),
+                    preset=scenario_data.get("preset"),
+                    scope_tier=scenario_data.get("scope_tier"),
                 )
                 scenarios.append(scenario)
 

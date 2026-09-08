@@ -3,6 +3,7 @@ import logging
 
 from constance import config
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 from waldur_mastermind.chat.input_guards import SeverityLevel
@@ -106,6 +107,21 @@ def _get_custom_instructions():
     return f"=== ADDITIONAL INSTRUCTIONS ===\n{resolved}"
 
 
+def resolve_prompt_role(user) -> str:
+    """The scope tier whose prompt this user is served.
+
+    Named separately from ``build_context`` so the validation harness can
+    ask which tier a run would exercise: each tier grants different
+    subject matter, and a scenario scored against the wrong one measures
+    the tier rather than the assistant.
+    """
+    if user and user.is_staff:
+        return "staff"
+    if user and user.is_support:
+        return "support"
+    return "end_user"
+
+
 def build_context(
     user,
     user_input,
@@ -127,13 +143,7 @@ def build_context(
     tool_names = get_tool_set_for_user(user)
     tools_prompt = tool_registry.get_tools_prompt(tool_names)
     organization = config.SITE_NAME
-    if user and user.is_staff:
-        role = "staff"
-    elif user and user.is_support:
-        role = "support"
-    else:
-        role = "end_user"
-    scope_boundary = build_scope_boundary(role, organization)
+    scope_boundary = build_scope_boundary(resolve_prompt_role(user), organization)
     custom_instructions = _get_custom_instructions()
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format_map(
         _SafeFormatDict(
@@ -142,6 +152,7 @@ def build_context(
             assistant_name=config.AI_ASSISTANT_NAME,
             organization=organization,
             currency=config.CURRENCY_NAME or "EUR",
+            today=timezone.localdate().isoformat(),
             custom_instructions=custom_instructions,
         )
     )

@@ -1,5 +1,7 @@
+import contextlib
 import json
 import logging
+import tempfile
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
@@ -9,6 +11,9 @@ from django.core.management import call_command
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.demo_presets.credit_history import (
     generate_credit_history,
+)
+from waldur_mastermind.marketplace.demo_presets.time_shift import (
+    rebase_to_current_month,
 )
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
@@ -178,18 +183,20 @@ class DemoPresetManager:
             if not dry_run and not skip_roles:
                 cls._ensure_system_roles_exist(output)
 
-            # Import the preset data
-            import_args = {
-                "input": str(file_path),
-                "skip_users": skip_users,
-                "skip_roles": skip_roles,
-                "skip_rabbitmq_messages": True,
-                "stdout": output,
-            }
-            if dry_run:
-                import_args["dry_run"] = True
+            # Import the preset data, with its billing history moved onto
+            # the current month -- see demo_presets/time_shift.py.
+            with cls._rebased_preset_file(file_path) as import_path:
+                import_args = {
+                    "input": str(import_path),
+                    "skip_users": skip_users,
+                    "skip_roles": skip_roles,
+                    "skip_rabbitmq_messages": True,
+                    "stdout": output,
+                }
+                if dry_run:
+                    import_args["dry_run"] = True
 
-            call_command("import_structure", **import_args)
+                call_command("import_structure", **import_args)
 
             # Generate invoices for imported resources (if not dry run)
             if not dry_run:
@@ -249,6 +256,31 @@ class DemoPresetManager:
                 "output": output.getvalue(),
                 "users": [],
             }
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _rebased_preset_file(file_path: Path):
+        """Yield a preset file whose billing history ends this month.
+
+        The committed file is never rewritten: a preset that needs no shift
+        is imported as it stands, and one that does is written to a
+        temporary copy for the duration of the import.
+        """
+        data = json.loads(file_path.read_text())
+        rebased = rebase_to_current_month(data)
+        if rebased is data:
+            yield file_path
+            return
+
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8"
+        ) as handle:
+            json.dump(rebased, handle)
+            temporary = Path(handle.name)
+        try:
+            yield temporary
+        finally:
+            temporary.unlink(missing_ok=True)
 
     @staticmethod
     def _count_import_errors(output: str) -> int:

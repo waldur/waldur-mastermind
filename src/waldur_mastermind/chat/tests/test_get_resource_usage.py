@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 from django.test import TestCase
@@ -64,7 +65,17 @@ class GetResourceUsageToolTest(TestCase):
         components = result["data"]["components"]
         self.assertEqual(len(components), 1)
         self.assertEqual(components[0]["type"], "cpu")
-        self.assertEqual(components[0]["usage"], 42)
+        self.assertEqual(components[0]["usage"], "42.00")
+
+    def test_result_survives_the_streamer_json_encoding(self):
+        # The streamer hands tool results to the model via json.dumps; a
+        # Decimal in the payload kills the whole stream, not just the tool.
+        result = self.tool.execute(
+            self.fixture.member,
+            {"resource_uuid": str(self.resource.uuid)},
+        )
+
+        json.dumps(result)
 
     def test_name_fallback(self):
         result = self.tool.execute(

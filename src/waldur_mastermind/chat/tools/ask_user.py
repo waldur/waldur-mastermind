@@ -41,7 +41,10 @@ _USAGE_INSTRUCTIONS = (
     "Pre-filter long option lists to ≤8 relevant candidates before asking — "
     "never dump raw API results.\n"
     "\n"
-    "DO NOT USE FOR: answers retrievable via a tool (use the tool), concept "
+    "DO NOT USE FOR: answers retrievable via a tool (use the tool) — this "
+    "includes anything about a resource, project or organization the user "
+    "named: take the name as written, look it up, and say plainly if nothing "
+    "matches it. Also not for concept "
     "questions (answer from knowledge), info the user already supplied, "
     "pre-execution 'are you sure?' confirms (just act, or use the right "
     "confirm tool). Never use for VM creation picks — `plan_vm` builds those "
@@ -360,15 +363,15 @@ class AskUserTool(BaseTool):
 
     @staticmethod
     def _reject(message: str) -> dict:
-        # ``validation_error`` shows the message to the user as markdown
-        # AND surfaces it back to the LLM in the next round's tool message
-        # (same flow ``DisplayUserResourcesTool`` uses for invalid UUIDs),
-        # so the model self-corrects on its next attempt.
+        # ``summary`` reaches the LLM in the next round's tool message, so
+        # the model self-corrects on its next attempt. Deliberately no
+        # ``ui_component``: these messages name arguments and types, and
+        # rendering them put "`questions` must be a list of 1-4 question
+        # objects" in the chat, run together with the model's next sentence.
+        # A result without a ui_component renders as nothing.
         return {
             "type": "validation_error",
             "summary": message,
-            "ui_component": "markdown",
-            "ui_data": {"c": message},
         }
 
 

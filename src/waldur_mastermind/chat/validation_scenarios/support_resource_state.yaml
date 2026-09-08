@@ -9,6 +9,7 @@
 #   NOT paused: every other resource (Acme/Crestford projects + non-overdrawn Bluewave).
 
 - name: paused_due_to_cost_policy
+  preset: credit_realistic
   description: Severely-overdrawn project resource — explainer must cite cost policy + numbers.
   inputs:
     - "Why is Bluewave Glacier VM 1 paused?"
@@ -39,6 +40,7 @@
         rationale: "Cite the policy as cause; do not claim 'not paused' or leak sibling-resource data."
 
 - name: not_paused_resource_explainer
+  preset: credit_realistic
   description: Asking why an OK resource is paused — must cleanly say it isn't.
   inputs:
     - "Is Acme Yarrow VM 1 currently paused?"
@@ -59,6 +61,7 @@
         rationale: "Honest-no answer; do not invent a policy cause."
 
 - name: paused_unknown_resource
+  preset: credit_realistic
   description: Resource doesn't exist — refuse, do not fabricate.
   inputs:
     - "Why is the Phantom-9000 server paused?"
@@ -72,6 +75,7 @@
         rationale: "Refuse; do not hallucinate a paused-cause for a resource that does not exist."
 
 - name: paused_with_credit_context
+  preset: credit_realistic
   description: Combined scenario — paused AND ask for credit context. Should call BOTH tools.
   inputs:
     - "Why is Bluewave Gamma VM 1 paused, and what's the project's credit situation?"
