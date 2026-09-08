@@ -206,9 +206,13 @@ class VmwareVirtualMachineSerializer(structure_serializers.BaseResourceSerialize
         write_only=True,
     )
 
-    runtime_state = serializers.CharField(
-        source="get_runtime_state_display", read_only=True
-    )
+    # Serialized as stored, not as a display label: `runtime_state` has no
+    # choices on the model -- it comes from RuntimeStateMixin as a plain
+    # CharField -- so `get_runtime_state_display` does not exist and the field
+    # resolved to null for every VM. Clients match on the stored value anyway
+    # (the UI enables Start, Stop, Reset and the guest actions by comparing it
+    # to POWERED_ON/POWERED_OFF/SUSPENDED), so a label would not do.
+    runtime_state = serializers.ReadOnlyField()
 
     tools_state = serializers.CharField(
         source="get_tools_state_display", read_only=True
