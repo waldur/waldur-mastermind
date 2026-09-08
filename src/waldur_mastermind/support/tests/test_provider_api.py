@@ -1726,9 +1726,15 @@ class ProviderRoutingVisibilityTest(ProviderHelpdeskBaseTest):
     def setUp(self):
         super().setUp()
         self.caller = structure_factories.UserFactory()
-        self.parent = factories.IssueFactory(caller=self.caller)
+        # Unscoped, so the caller sees their own parent ticket: what is under
+        # test here is which fields they see on it, not scope-based access.
+        self.parent = factories.IssueFactory(
+            caller=self.caller, customer=None, project=None
+        )
         self.child = factories.IssueFactory(
             caller=self.caller,
+            customer=None,
+            project=None,
             parent_issue=self.parent,
             provider_helpdesk=self.helpdesk,
         )

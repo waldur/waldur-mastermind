@@ -59,6 +59,68 @@ class CommentCreateTest(base.BaseTest):
             )
         )
 
+    def test_caller_can_comment_on_their_own_project_scoped_issue(self):
+        # A plain project member holds neither of the roles this endpoint
+        # otherwise requires, so raising a ticket from their own project used to
+        # leave them unable to reply on their own thread, while the UI went on
+        # offering them the button.
+        member = self.fixture.member
+        self.client.force_authenticate(member)
+        issue = factories.IssueFactory(
+            caller=member,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+        )
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self._get_url(issue), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Comment.objects.filter(
+                issue=issue, description=payload["description"]
+            ).exists()
+        )
+
+    def test_caller_who_lost_the_project_can_neither_see_nor_comment(self):
+        # Scope governs: raising the ticket does not keep access alive after the
+        # role that gave it is gone.
+        member = self.fixture.member
+        issue = factories.IssueFactory(
+            caller=member,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+        )
+        self.fixture.project.remove_user(member)
+        self.client.force_authenticate(member)
+
+        response = self.client.post(
+            self._get_url(issue), data=self._get_valid_payload()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            self.client.get(factories.IssueFactory.get_url(issue)).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_a_project_member_who_is_not_the_caller_still_cannot_comment(self):
+        # The counterpart: being in the project is not by itself enough.
+        self.client.force_authenticate(self.fixture.member)
+        issue = factories.IssueFactory(
+            customer=self.fixture.customer, project=self.fixture.project
+        )
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self._get_url(issue), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            models.Comment.objects.filter(
+                issue=issue, description=payload["description"]
+            ).exists()
+        )
+
     @data("admin", "manager", "user")
     def test_user_without_access_to_instance_cannot_comment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))

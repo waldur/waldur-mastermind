@@ -82,7 +82,11 @@ class IssueRetrieveTest(base.BaseTest):
     @data("user")
     def test_user_can_see_a_list_of_all_issues_where_user_is_a_caller(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        issue = factories.IssueFactory(caller=getattr(self.fixture, user))
+        # Unscoped: a ticket raised against a project is seen through the roles
+        # held there, not through having raised it.
+        issue = factories.IssueFactory(
+            caller=getattr(self.fixture, user), customer=None, project=None
+        )
         url = factories.IssueFactory.get_list_url()
 
         response = self.client.get(url)
@@ -93,7 +97,9 @@ class IssueRetrieveTest(base.BaseTest):
     @data("user")
     def test_user_can_not_see_link_to_jira_if_he_is_not_staff_or_support(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        issue = factories.IssueFactory(caller=getattr(self.fixture, user))
+        issue = factories.IssueFactory(
+            caller=getattr(self.fixture, user), customer=None, project=None
+        )
         url = factories.IssueFactory.get_url(issue=issue)
 
         response = self.client.get(url)
@@ -863,3 +869,84 @@ class IssueSerializerSafeResourceTest(base.BaseTest):
             response = self.client.get(factories.IssueFactory.get_list_url())
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class ScopedTicketFollowsItsRolesTest(base.BaseTest):
+    """A ticket raised in a project or an organization belongs to that scope.
+
+    Whoever raised it sees it through the roles they hold there, not through
+    having raised it, so losing the role takes the ticket with it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.member = self.fixture.member
+        self.issue = factories.IssueFactory(
+            caller=self.member,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+        )
+        self.comment = factories.CommentFactory(issue=self.issue, is_public=True)
+        self.client.force_authenticate(self.member)
+
+    def issue_uuids(self):
+        response = self.client.get(factories.IssueFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row["uuid"] for row in response.data}
+
+    def comment_uuids(self):
+        response = self.client.get(factories.CommentFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row["uuid"] for row in response.data}
+
+    def test_the_caller_sees_their_ticket_while_they_are_in_the_project(self):
+        self.assertIn(self.issue.uuid.hex, self.issue_uuids())
+        self.assertIn(self.comment.uuid.hex, self.comment_uuids())
+        self.assertEqual(
+            self.client.get(factories.IssueFactory.get_url(self.issue)).status_code,
+            status.HTTP_200_OK,
+        )
+
+    def test_leaving_the_project_takes_the_ticket_out_of_the_list(self):
+        self.fixture.project.remove_user(self.member)
+
+        self.assertNotIn(self.issue.uuid.hex, self.issue_uuids())
+
+    def test_leaving_the_project_hides_the_ticket_itself(self):
+        self.fixture.project.remove_user(self.member)
+
+        self.assertEqual(
+            self.client.get(factories.IssueFactory.get_url(self.issue)).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_leaving_the_project_hides_the_comments_on_it(self):
+        self.fixture.project.remove_user(self.member)
+
+        self.assertNotIn(self.comment.uuid.hex, self.comment_uuids())
+
+    def test_losing_the_organization_role_hides_an_organization_scoped_ticket(self):
+        owner = self.fixture.owner
+        issue = factories.IssueFactory(
+            caller=owner, customer=self.fixture.customer, project=None
+        )
+        self.client.force_authenticate(owner)
+        self.assertIn(issue.uuid.hex, self.issue_uuids())
+
+        self.fixture.customer.remove_user(owner)
+
+        self.assertNotIn(issue.uuid.hex, self.issue_uuids())
+        self.assertEqual(
+            self.client.get(factories.IssueFactory.get_url(issue)).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_a_ticket_raised_against_nothing_stays_with_its_caller(self):
+        # No scope to inherit from, so the caller is the only non-privileged
+        # person who can see it, whatever roles they hold elsewhere.
+        unscoped = factories.IssueFactory(
+            caller=self.member, customer=None, project=None
+        )
+        self.fixture.project.remove_user(self.member)
+
+        self.assertIn(unscoped.uuid.hex, self.issue_uuids())

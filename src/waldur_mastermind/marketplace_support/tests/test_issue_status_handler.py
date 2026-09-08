@@ -3,6 +3,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace.enums import (
@@ -293,6 +294,9 @@ class ProcessingLogVisibilityTest(test.APITestCase):
 
         self.customer = structure_factories.CustomerFactory()
         self.project = structure_factories.ProjectFactory(customer=self.customer)
+        # The caller needs a role in the ticket's scope to see it at all; what
+        # is under test is that the processing log stays hidden from them.
+        self.project.add_user(self.regular_user, ProjectRole.MEMBER)
 
         # Create issue with processing_log data
         self.issue = support_factories.IssueFactory(
