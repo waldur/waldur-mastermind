@@ -2478,8 +2478,15 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     def create_subnet(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # Read before save(): the serializer pops it, since it instructs the
+        # executor rather than describing the subnet.
+        skip_router_connection = serializer.validated_data.get(
+            "skip_router_connection", False
+        )
         subnet = serializer.save()
-        executors.SubNetCreateExecutor.execute(subnet)
+        executors.SubNetCreateExecutor.execute(
+            subnet, skip_router_connection=skip_router_connection
+        )
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_subnet_validators = [core_validators.StateValidator(CoreStates.OK)]

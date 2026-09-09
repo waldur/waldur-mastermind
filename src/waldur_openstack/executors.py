@@ -751,6 +751,15 @@ class SetMtuExecutor(core_executors.ActionExecutor):
 class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
+        # Passed on only when asked for (#227). Leaving the default path's task
+        # payload byte-identical keeps a rolling upgrade safe: a worker running
+        # the previous release would reject an unknown keyword argument, and the
+        # only callers that set this are on the new release anyway.
+        backend_kwargs = (
+            {"skip_router_connection": True}
+            if kwargs.get("skip_router_connection")
+            else {}
+        )
         # The router pull that imports the new interface port lives inside
         # create_subnet, not in this chain. As a chained task its failure would
         # run get_failure_signature and mark a subnet ERRED that exists and
@@ -759,6 +768,7 @@ class SubNetCreateExecutor(core_executors.CreateExecutor):
             serialized_subnet,
             "create_subnet",
             state_transition="begin_creating",
+            **backend_kwargs,
         )
 
 
