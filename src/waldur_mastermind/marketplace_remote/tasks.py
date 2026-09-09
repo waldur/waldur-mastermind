@@ -44,6 +44,7 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceState,
     MissingUsagePolicies,
     OfferingStates,
+    OfferingUserStates,
     OrderStates,
     OrderTypes,
     ResourceStates,
@@ -65,6 +66,7 @@ from waldur_mastermind.marketplace_remote.exceptions import RemoteWaldurError
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
     pull_fields,
+    pull_offering_user_runtime_state_fields,
     sync_project_permission,
 )
 
@@ -442,12 +444,23 @@ class OfferingUserPullTask(BackgroundPullTask):
         from waldur_api_client.api.marketplace_offering_users import (
             marketplace_offering_users_list,
         )
+        from waldur_api_client.models.offering_user_field_enum import (
+            OfferingUserFieldEnum,
+        )
 
         client = get_client_for_offering(local_offering)
         remote_offering_users = {
-            remote_offering_user.user_username: remote_offering_user.username
+            remote_offering_user.user_username: remote_offering_user
             for remote_offering_user in marketplace_offering_users_list.sync_all(
-                client=client, offering_uuid=[UUID(local_offering.backend_id)]
+                client=client,
+                offering_uuid=[UUID(local_offering.backend_id)],
+                field=[
+                    OfferingUserFieldEnum.USER_USERNAME,
+                    OfferingUserFieldEnum.USERNAME,
+                    OfferingUserFieldEnum.RUNTIME_STATE,
+                    OfferingUserFieldEnum.SERVICE_PROVIDER_COMMENT,
+                    OfferingUserFieldEnum.SERVICE_PROVIDER_COMMENT_URL,
+                ],
             )
         }
         # Build lookup dicts upfront to avoid N+1 queries
@@ -455,7 +468,7 @@ class OfferingUserPullTask(BackgroundPullTask):
             offering_user.user.username: offering_user
             for offering_user in models.OfferingUser.objects.filter(
                 offering=local_offering
-            ).select_related("user")
+            ).select_related("user", "offering__customer")
         }
         local_offering_users = {
             username: offering_user.username
@@ -477,11 +490,17 @@ class OfferingUserPullTask(BackgroundPullTask):
                 )
                 continue
             user = user_map[local_username]
-            models.OfferingUser.objects.create(
+            remote_offering_user = remote_offering_users[local_username]
+            remote_username = remote_offering_user.username
+            offering_user = models.OfferingUser.objects.create(
                 user=user,
                 offering=local_offering,
-                username=remote_offering_users[local_username],
+                username=remote_username if isinstance(remote_username, str) else "",
             )
+            if offering_user.state != OfferingUserStates.DELETED:
+                pull_offering_user_runtime_state_fields(
+                    offering_user, remote_offering_user
+                )
 
         stale = set(local_offering_users.keys()) - set(remote_offering_users.keys())
         for local_username in stale:
@@ -507,20 +526,27 @@ class OfferingUserPullTask(BackgroundPullTask):
 
         common = set(local_offering_users.keys()) & set(remote_offering_users.keys())
         for local_username in common:
-            remote_username = remote_offering_users[local_username]
-            if local_offering_users[local_username] == remote_username:
-                continue
-            # O(1) lookup instead of database query
+            remote_offering_user = remote_offering_users[local_username]
+            remote_username = remote_offering_user.username
             offering_user = local_offering_user_objects[local_username]
-            offering_user.username = remote_username
-            offering_user.save(update_fields=["username"])
+            if (
+                isinstance(remote_username, str)
+                and offering_user.username != remote_username
+            ):
+                offering_user.username = remote_username
+                offering_user.save(update_fields=["username"])
+            if offering_user.state != OfferingUserStates.DELETED:
+                pull_offering_user_runtime_state_fields(
+                    offering_user, remote_offering_user
+                )
 
 
 class OfferingUserListPullTask(BackgroundListPullTask):
     """Pull and synchronize remote marketplace offering users.
 
     This task synchronizes user associations with marketplace offerings from
-    remote Waldur instances, ensuring local user mappings are up to date.
+    remote Waldur instances, including usernames and runtime metadata
+    (runtime_state, service provider comments).
     Runs every 60 minutes via celery beat.
     """
 

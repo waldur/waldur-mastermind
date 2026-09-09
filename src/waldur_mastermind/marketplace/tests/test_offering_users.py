@@ -1035,6 +1035,41 @@ class OfferingUserStateTransitionTest(test.APITestCase):
             "https://service.example.com/help",
         )
 
+    def test_update_comments_emits_single_audit_event_with_changed_fields(self):
+        """update_comments emits one handler audit event for comment field changes."""
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+        service_provider_user = UserFactory()
+        self.offering.customer.add_user(
+            service_provider_user, ServiceProviderRole.MANAGER
+        )
+
+        self.client.force_authenticate(user=service_provider_user)
+        url = self.get_url(self.offering_user, "update_comments")
+        response = self.client.patch(
+            url,
+            {
+                "service_provider_comment": "Updated service comment",
+                "service_provider_comment_url": "https://service.example.com/help",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        events = Event.objects.filter(event_type="marketplace_offering_user_updated")
+        self.assertEqual(events.count(), 1)
+        event = events.get()
+        self.assertEqual(
+            event.context["changed_fields"],
+            ["service_provider_comment", "service_provider_comment_url"],
+        )
+        self.assertEqual(
+            event.context["new_service_provider_comment"], "Updated service comment"
+        )
+        self.assertEqual(
+            event.context["new_service_provider_comment_url"],
+            "https://service.example.com/help",
+        )
+
     def test_update_comments_action_unauthorized(self):
         """Test that unauthorized users cannot update service provider comments."""
         unauthorized_user = UserFactory()
@@ -3761,17 +3796,40 @@ class OfferingUserUpdateRuntimeStateTest(test.APITestCase):
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
-    def test_event_logged_on_runtime_state_update(self):
-        """An event is emitted when runtime state is updated."""
+    def test_update_runtime_state_emits_single_audit_event_with_changed_fields(self):
+        """update_runtime_state emits one handler audit event with all changed fields."""
         self.client.force_authenticate(user=self.fixture.owner)
-        self.client.post(
+        response = self.client.post(
             self.get_url(self.offering_user),
-            {"runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING},
+            {
+                "runtime_state": OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+                "service_provider_comment": "Please link your account",
+                "service_provider_comment_url": "https://help.example.com/link",
+            },
         )
-        self.assertTrue(
-            Event.objects.filter(
-                event_type="marketplace_offering_user_updated"
-            ).exists()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        events = Event.objects.filter(event_type="marketplace_offering_user_updated")
+        self.assertEqual(events.count(), 1)
+        event = events.get()
+        self.assertEqual(
+            event.context["changed_fields"],
+            [
+                "runtime_state",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ],
+        )
+        self.assertEqual(
+            event.context["new_runtime_state"],
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+        )
+        self.assertEqual(
+            event.context["new_service_provider_comment"], "Please link your account"
+        )
+        self.assertEqual(
+            event.context["new_service_provider_comment_url"],
+            "https://help.example.com/link",
         )
 
     def test_can_update_runtime_state_with_comments(self):
@@ -3908,6 +3966,60 @@ class OfferingUserRuntimeStateFilterTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
+
+
+class OfferingUserRuntimeMetadataAuditLogTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = OfferingFactory(customer=self.fixture.customer)
+        self.offering_user = OfferingUserFactory(
+            offering=self.offering,
+            user=self.fixture.user,
+            username="testuser",
+        )
+
+    def test_runtime_metadata_change_is_audited(self):
+        self.offering_user.runtime_state = (
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING
+        )
+        self.offering_user.service_provider_comment = "Please link your account"
+        self.offering_user.service_provider_comment_url = (
+            "https://help.example.com/link"
+        )
+        self.offering_user.save(
+            update_fields=[
+                "runtime_state",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ]
+        )
+
+        event = (
+            Event.objects.filter(event_type="marketplace_offering_user_updated")
+            .order_by("-created")
+            .first()
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(
+            event.context["changed_fields"],
+            [
+                "runtime_state",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ],
+        )
+        self.assertEqual(
+            event.context["new_runtime_state"],
+            OfferingUserRuntimeStates.PENDING_ACCOUNT_LINKING,
+        )
+        self.assertEqual(
+            event.context["new_service_provider_comment"],
+            "Please link your account",
+        )
+        self.assertEqual(
+            event.context["new_service_provider_comment_url"],
+            "https://help.example.com/link",
+        )
 
 
 class OfferingUserRuntimeStateStompTest(test.APITestCase):
