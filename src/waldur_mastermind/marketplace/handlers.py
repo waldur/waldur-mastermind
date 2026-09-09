@@ -1522,28 +1522,38 @@ def log_offering_user_deleted(sender, instance: OfferingUser, **kwargs):
     )
 
 
-def log_offering_user_username_updated(
+def log_offering_user_fields_updated(
     sender, instance: OfferingUser, created=False, **kwargs
 ):
     if created:
         return
-    if not instance.tracker.has_changed("username"):
+
+    tracked_fields = (
+        "username",
+        "runtime_state",
+        "service_provider_comment",
+        "service_provider_comment_url",
+    )
+    changed_fields = [
+        field for field in tracked_fields if instance.tracker.has_changed(field)
+    ]
+    if not changed_fields:
         return
 
-    old_username = instance.tracker.previous("username")
-    new_username = instance.username
+    event_context = {
+        "offering_user_uuid": instance.uuid.hex,
+        "changed_fields": changed_fields,
+        "offering": instance.offering,
+        "affected_user": instance.user,
+    }
+    for field in changed_fields:
+        event_context[f"old_{field}"] = instance.tracker.previous(field) or ""
+        event_context[f"new_{field}"] = getattr(instance, field) or ""
 
     event_logger.emit(
-        "Offering user username changed for {offering_user_uuid}: '{old_username}' -> '{new_username}'.",
+        "Offering user fields changed for {offering_user_uuid}.",
         event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
-        event_context={
-            "offering_user_uuid": instance.uuid.hex,
-            "old_username": old_username or "",
-            "new_username": new_username or "",
-            "changed_fields": ["username"],
-            "offering": instance.offering,
-            "affected_user": instance.user,
-        },
+        event_context=event_context,
         scopes=[instance.offering, instance.offering.customer],
     )
 

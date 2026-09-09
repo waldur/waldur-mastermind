@@ -11806,11 +11806,6 @@ class OfferingUsersViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        event_logger.emit(
-            f"Service provider comments updated for user {offering_user.user} in offering {offering_user.offering.name}.",
-            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
-            event_context={"offering_user": offering_user},
-        )
         logger.info(
             f"Service provider comments updated for user {offering_user.user.username} in offering {offering_user.offering.name} by {request.user.username}."
         )
@@ -11872,12 +11867,6 @@ class OfferingUsersViewSet(
             update_fields.append("service_provider_comment_url")
         offering_user.save(update_fields=update_fields)
 
-        event_logger.emit(
-            f"Runtime state for user {offering_user.user} in offering {offering_user.offering.name} "
-            f"set to {offering_user.runtime_state}.",
-            event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
-            event_context={"offering_user": offering_user},
-        )
         logger.info(
             f"Runtime state for user {offering_user.user.username} in offering "
             f"{offering_user.offering.name} set to {offering_user.runtime_state} "

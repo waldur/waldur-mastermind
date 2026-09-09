@@ -423,9 +423,9 @@ class MarketplaceConfig(AppConfig):
             )
 
         signals.post_save.connect(
-            handlers.log_offering_user_username_updated,
+            handlers.log_offering_user_fields_updated,
             sender=models.OfferingUser,
-            dispatch_uid="waldur_mastermind.marketplace.log_offering_user_username_updated",
+            dispatch_uid="waldur_mastermind.marketplace.log_offering_user_fields_updated",
         )
 
         signals.post_save.connect(
