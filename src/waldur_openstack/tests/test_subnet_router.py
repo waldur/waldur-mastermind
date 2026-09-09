@@ -101,6 +101,19 @@ class CreateSubnetWithRouterTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     @mock.patch("waldur_openstack.executors.SubNetCreateExecutor.execute")
+    def test_router_without_a_backend_id_is_rejected(self, executor):
+        """connect_subnet addresses the router by backend_id; an empty one is
+        falsy, so the implicit resolution would attach the subnet elsewhere
+        while the API kept reporting this choice."""
+        self.router.backend_id = ""
+        self.router.save()
+
+        response = self._post(router=factories.RouterFactory.get_url(self.router))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("router", response.data)
+
+    @mock.patch("waldur_openstack.executors.SubNetCreateExecutor.execute")
     def test_router_is_refused_together_with_disable_gateway(self, executor):
         """Neutron will not put a router interface on a subnet with no gateway
         IP, and _connect_network_to_router returns early for that, so accepting
@@ -281,6 +294,31 @@ class ConnectSubnetToChosenRouterTest(test.APITestCase):
             OTHER_ROUTER_BACKEND_ID, {"subnet_id": "subnet-backend-id"}
         )
 
+    def test_the_stale_pointer_is_dropped_when_the_fallback_attaches_elsewhere(self):
+        """Otherwise the API advertises a router that neither exists nor holds
+        the interface, until the next full pull nulls the column."""
+        self.subnet.router = self.router
+        self.subnet.save()
+
+        with (
+            mock.patch("waldur_openstack.backend.get_tenant_session"),
+            mock.patch("waldur_openstack.backend.get_neutron_client") as get_client,
+        ):
+            client = mock.MagicMock()
+            get_client.return_value = client
+            client.show_router.side_effect = neutron_exceptions.NotFound()
+            client.list_routers.return_value = {
+                "routers": [{"id": OTHER_ROUTER_BACKEND_ID, "name": "some-router"}]
+            }
+            client.show_subnet.return_value = {
+                "subnet": {"id": "subnet-backend-id", "gateway_ip": "192.168.99.1"}
+            }
+            client.list_ports.return_value = {"ports": []}
+            self.backend.connect_subnet(self.subnet)
+
+        self.subnet.refresh_from_db()
+        self.assertIsNone(self.subnet.router)
+
     def test_a_backend_error_other_than_not_found_still_propagates(self):
         self.subnet.router = self.router
         self.subnet.save()
@@ -458,6 +496,29 @@ class PullSubnetRouterTest(test.APITestCase):
         )
 
         self.assertEqual(self.subnet.router.backend_id, OTHER_ROUTER_BACKEND_ID)
+
+    def test_a_single_router_pull_reassigns_once_the_old_router_let_go(self):
+        """Moving an interface with remove_router_interface + add_router_interface
+        does two scoped pulls. The first empties the old router's ports, so the
+        second must be allowed to record the new one -- the help text sends users
+        to those very actions, and waiting for the two-hourly full pull would
+        misreport exactly what this field answers."""
+        self._pull(
+            {OTHER_ROUTER_BACKEND_ID: [self._interface_port(OTHER_ROUTER_BACKEND_ID)]}
+        )
+        self.assertEqual(self.subnet.router.backend_id, OTHER_ROUTER_BACKEND_ID)
+
+        # The interface is removed from the first router: its own pull drops the
+        # port, which is what remove_router_interface_safely does.
+        self._pull(
+            {OTHER_ROUTER_BACKEND_ID: []}, router_backend_id=OTHER_ROUTER_BACKEND_ID
+        )
+        self._pull(
+            {ROUTER_BACKEND_ID: [self._interface_port(ROUTER_BACKEND_ID)]},
+            router_backend_id=ROUTER_BACKEND_ID,
+        )
+
+        self.assertEqual(self.subnet.router.backend_id, ROUTER_BACKEND_ID)
 
     def test_a_single_router_pull_records_the_subnet_as_well(self):
         """This is the path create_subnet takes right after attaching."""
@@ -684,6 +745,39 @@ class PullSubnetRouterOverRbacTest(test.APITestCase):
 
         self.assertEqual(self.subnet.router.backend_id, "b-router")
         self.assertEqual(after_one_order, "b-router")
+
+    def test_the_owner_handing_the_subnet_over_records_the_consumer_router(self):
+        """The owner detaching is how a shared network is handed to the tenant
+        that consumes it. A remembered owner router must then yield to the
+        consumer that is actually routing the subnet -- otherwise the consumer's
+        subnets tab names a router that holds nothing, which is the question
+        this field exists to answer."""
+        self._pull(
+            self.owner,
+            {"owner-router": [self._port("owner-router", self.owner)]},
+        )
+        self.assertEqual(self.subnet.router.backend_id, "owner-router")
+
+        # The owner removes its interface; its own pull drops the port.
+        self._pull(self.owner, {"owner-router": []})
+        self._pull(
+            self.consumer,
+            {"consumer-router": [self._port("consumer-router", self.consumer)]},
+        )
+
+        self.assertEqual(self.subnet.router.backend_id, "consumer-router")
+
+    def test_a_live_owner_attachment_still_beats_a_consumer(self):
+        self._pull(
+            self.owner,
+            {"owner-router": [self._port("owner-router", self.owner)]},
+        )
+        self._pull(
+            self.consumer,
+            {"consumer-router": [self._port("consumer-router", self.consumer)]},
+        )
+
+        self.assertEqual(self.subnet.router.backend_id, "owner-router")
 
     def test_a_consumer_that_detached_is_replaced_by_one_that_is_still_routing(self):
         """The lowest backend id wins between consumers, but only among routers

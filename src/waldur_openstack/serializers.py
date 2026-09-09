@@ -2633,6 +2633,13 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             raise serializers.ValidationError(
                 {"router": _("Router is not in a valid state for connecting a subnet.")}
             )
+        if not router.backend_id:
+            # connect_subnet reads backend_id to address the router; an empty one
+            # is falsy, so the implicit resolution would quietly attach the
+            # subnet elsewhere while the API kept reporting this choice.
+            raise serializers.ValidationError(
+                {"router": _("Router does not exist in the backend yet.")}
+            )
         if disable_gateway:
             # Neutron refuses a router interface on a subnet with no gateway IP,
             # and _connect_network_to_router returns early for exactly that, so

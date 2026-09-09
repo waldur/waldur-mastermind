@@ -15,6 +15,7 @@ from django.db import IntegrityError, transaction
 from django.utils import dateparse, timezone
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from glanceclient import exc as glance_exceptions
 from keystoneauth1.exceptions.http import NotFound
@@ -1527,10 +1528,13 @@ class OpenStackBackend(ServiceBackend):
         to the owner, so the consumer's subnets tab would otherwise show no
         router at all -- the very question this issue is about, asked by the
         tenant with the least visibility. Such a router is therefore recorded,
-        but only as a fallback: a router of the subnet's own tenant always wins
-        and is never overwritten by a foreign one, because that value is also
-        what `connect_subnet` re-attaches to and the owner's tenant session
-        cannot address a router in another project.
+        but only as a fallback: a router of the subnet's own tenant wins while it
+        actually holds the interface. Once the owner detaches -- which is how a
+        shared network is handed over to the tenant that consumes it -- the
+        live foreign attachment is recorded instead of a router that holds
+        nothing. `connect_subnet` ignores a foreign value and falls back to the
+        implicit resolution, so the reconnect path cannot end up dialling a
+        router in another project.
 
         The owner of the shared network therefore reads the consumer's router
         name on their own subnet -- a deliberate decision, not an oversight.
@@ -1561,11 +1565,20 @@ class OpenStackBackend(ServiceBackend):
             if own:
                 if any(router.id == subnet.router_id for router in own):
                     continue
-                if not full_pull and subnet.router_id:
+                if (
+                    not full_pull
+                    and subnet.router_id
+                    and subnet.router.ports.filter(subnet=subnet).exists()
+                ):
                     # A pull scoped to one router sees only that router's ports,
                     # so it cannot tell whether the recorded one still holds an
-                    # interface -- and a subnet may sit on several routers. Let
-                    # the next full pull decide rather than reassigning here.
+                    # interface -- and a subnet may sit on several routers. Defer
+                    # to the next full pull, unless the recorded router has
+                    # visibly let go: remove_router_interface and
+                    # add_router_interface both pull, so moving an interface from
+                    # A to B empties A's ports for this subnet, and waiting two
+                    # hours to say so would misreport exactly the thing this
+                    # field exists to answer.
                     continue
                 chosen = min(own, key=by_backend_id)
             else:
@@ -1576,14 +1589,29 @@ class OpenStackBackend(ServiceBackend):
                 # and the recorded router has to be weighed in as a candidate to
                 # make the outcome independent of the order the tenants pull in.
                 current = subnet.router
+                still_attached = bool(
+                    current and current.ports.filter(subnet=subnet).exists()
+                )
+                if current and current.tenant_id == subnet.tenant_id and still_attached:
+                    # A live attachment on the subnet's own tenant always wins.
+                    continue
                 if current and current.tenant_id == subnet.tenant_id:
+                    # A *remembered* one does not: the owner detached it (which
+                    # is how a network gets handed to the tenant it is shared
+                    # with) and someone else is routing it now. Saying so beats
+                    # naming a router that holds nothing -- and connect_subnet
+                    # ignores a foreign value anyway, falling back to the
+                    # implicit resolution, so the reconnect path stays safe.
+                    chosen = min(candidates, key=by_backend_id)
+                    subnet.router = chosen
+                    subnet.save(update_fields=["router"])
                     continue
                 pool = list(candidates)
                 # ...but only while it still holds an interface. The consumer
                 # that owns it records its own detachment in router.ports, so a
                 # router that let go is dropped here instead of outranking a
                 # consumer that is actually routing the subnet.
-                if current and current.ports.filter(subnet=subnet).exists():
+                if still_attached:
                     pool.append(current)
                 chosen = min(pool, key=by_backend_id)
                 if chosen.id == subnet.router_id:
@@ -3446,7 +3474,7 @@ class OpenStackBackend(ServiceBackend):
             )
             router = None
         router_backend_id = router.backend_id if router else None
-        router_backend_id = self.connect_router(
+        resolved_backend_id = self.connect_router(
             subnet.network.tenant,
             subnet.network.name,
             subnet.backend_id,
@@ -3454,7 +3482,16 @@ class OpenStackBackend(ServiceBackend):
             router_backend_id=router_backend_id,
         )
         subnet.is_connected = True
-        subnet.save(update_fields=["is_connected"])
+        update_fields = ["is_connected"]
+        if router and resolved_backend_id != router.backend_id:
+            # The named router was gone from Neutron and connect_router fell back
+            # to another one. Drop the stale pointer rather than advertise a
+            # router that neither exists nor holds the interface; the pull that
+            # follows records where the subnet actually landed.
+            subnet.router = None
+            update_fields.append("router")
+        subnet.save(update_fields=update_fields)
+        router_backend_id = resolved_backend_id
 
         event_logger.emit(
             "SubNet %s has been connected to network" % subnet.name,
@@ -3483,7 +3520,13 @@ class OpenStackBackend(ServiceBackend):
             return
         try:
             self.pull_tenant_routers(subnet.tenant, router_backend_id)
-        except OpenStackBackendError:
+        except Exception:
+            # Deliberately broad. OpenStackBackendError alone was too narrow:
+            # the session setup raises keystoneauth ClientException unwrapped,
+            # neutronclient's base NeutronException is not a
+            # NeutronClientException, and the ORM writes can raise IntegrityError
+            # -- any of which would escape create_subnet, run the executor's
+            # failure signature and mark ERRED a subnet that exists and works.
             logger.warning(
                 "Could not import the router interface for subnet %s on router %s; "
                 "the periodic pull will pick it up.",
@@ -3824,14 +3867,45 @@ class OpenStackBackend(ServiceBackend):
         if not routers:
             return None
 
-        by_name = {router["name"]: router for router in routers}
-        for name in preferred_names:
-            if name in by_name:
-                return by_name[name]
+        def by_age(router):
+            return (router.get("created_at") or "", router["id"])
 
-        return sorted(
-            routers, key=lambda router: (router.get("created_at") or "", router["id"])
-        )[0]
+        # Neutron does not enforce unique router names inside a project, and
+        # list_routers has no defined order, so pick among same-named routers
+        # the same way as the fallback below rather than "whichever came last".
+        for name in preferred_names:
+            matches = [router for router in routers if router["name"] == name]
+            if matches:
+                return min(matches, key=by_age)
+
+        return min(routers, key=by_age)
+
+    def _default_router_name(self, tenant: models.Tenant):
+        """Name of the router Waldur creates alongside the tenant.
+
+        It is `<internal network>-router`, and the internal network is named
+        `slugify(tenant.name)[:25] + "-int-net"` at creation (see
+        OpenStackTenantSerializer.create). Re-deriving that from `tenant.name`
+        here would miss every tenant whose name is not already a short slug --
+        a space, an upper-case letter or more than 25 characters is enough, and
+        names come from user-supplied order attributes -- and would break on a
+        rename. The preference would then silently never match and the caller
+        would fall through to "the oldest router in the tenant", which is the
+        arbitrary pick #387 set out to remove.
+
+        So ask the network row first, and keep the derived name only as a guess
+        for tenants whose internal network Waldur has not recorded.
+        """
+        network = (
+            models.Network.objects.filter(
+                tenant=tenant, backend_id=tenant.internal_network_id
+            ).first()
+            if tenant.internal_network_id
+            else None
+        )
+        if network:
+            return f"{network.name}-router"
+        return f"{slugify(tenant.name)[:25]}-int-net-router"
 
     def _show_router(self, tenant: models.Tenant, router_backend_id):
         """Fetch one router as _get_router would have returned it, or None.
@@ -3984,9 +4058,8 @@ class OpenStackBackend(ServiceBackend):
             router = self._get_router(
                 tenant,
                 # The router for this very network, else the one Waldur creates
-                # alongside the tenant (its internal network is named
-                # "<tenant>-int-net", so its router is "<tenant>-int-net-router").
-                preferred_names=(router_name, f"{tenant.name}-int-net-router"),
+                # alongside the tenant.
+                preferred_names=(router_name, self._default_router_name(tenant)),
             ) or self._create_router(tenant, router_name)
         self._connect_network_to_router(tenant, router, external, network_id, subnet_id)
 
