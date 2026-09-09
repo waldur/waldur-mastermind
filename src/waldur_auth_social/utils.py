@@ -381,6 +381,14 @@ def get_user_payload(
     return payload
 
 
+def oauth_registration_method(identity_provider: IdentityProvider) -> str:
+    """Map an identity provider to the User.registration_method value."""
+    registration_method = identity_provider.provider
+    if identity_provider.provider == ProviderChoices.REMOTE_EDUTEAMS:
+        registration_method = ProviderChoices.EDUTEAMS
+    return registration_method
+
+
 def create_or_update_oauth_user(
     identity_provider: IdentityProvider,
     backend_user: dict,
@@ -537,6 +545,11 @@ def create_or_update_oauth_user(
                 user.is_support = should_be_support
                 update_fields.add("is_support")
 
+        registration_method = oauth_registration_method(identity_provider)
+        if user.registration_method != registration_method:
+            user.registration_method = registration_method
+            update_fields.add("registration_method")
+
         if update_fields:
             user.last_sync = timezone.now()
             update_fields.add("last_sync")
@@ -578,13 +591,10 @@ def create_or_update_oauth_user(
             if "support" in roles:
                 merged_dict["is_support"] = True
 
-        registration_method = identity_provider.provider
-        if identity_provider.provider == ProviderChoices.REMOTE_EDUTEAMS:
-            registration_method = ProviderChoices.EDUTEAMS
         user = cast(
             User,
             User.objects.create_user(
-                registration_method=registration_method,
+                registration_method=oauth_registration_method(identity_provider),
                 **merged_dict,
             ),
         )
