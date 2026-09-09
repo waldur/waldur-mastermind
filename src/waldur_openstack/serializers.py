@@ -2467,6 +2467,15 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
     )
     # allow_null keeps the keys present (and nullable in the OpenAPI schema) for a
     # subnet with no router; without it DRF raises SkipField and drops them.
+    skip_router_connection = serializers.BooleanField(
+        default=False,
+        write_only=True,
+        help_text=_(
+            "Create the subnet without attaching it to a router. Off by default, "
+            "so an omitted field behaves exactly as before: Waldur attaches the "
+            "subnet to a router of the tenant."
+        ),
+    )
     router_name = serializers.CharField(
         source="router.name", read_only=True, allow_null=True
     )
@@ -2494,6 +2503,7 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             "router",
             "router_name",
             "router_uuid",
+            "skip_router_connection",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -2594,10 +2604,25 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             attrs["project"] = network.project
             options = network.service_settings.options
             attrs.setdefault("dns_nameservers", options.get("dns_nameservers", []))
+            if attrs.get("skip_router_connection") and attrs.get("router"):
+                raise serializers.ValidationError(
+                    {
+                        "router": _(
+                            "A router cannot be chosen for a subnet that is "
+                            "created without a router connection."
+                        )
+                    }
+                )
             self.validate_router_choice(
                 network.tenant, attrs.get("router"), attrs.get("disable_gateway")
             )
         return attrs
+
+    def create(self, validated_data):
+        # Not a model field: it tells the executor what to do, and the view
+        # reads it off validated_data before this pops it.
+        validated_data.pop("skip_router_connection", None)
+        return super().create(validated_data)
 
     def validate_router_choice(self, tenant, router, disable_gateway=False):
         """A named router must be one this subnet can actually be attached to.
