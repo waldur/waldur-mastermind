@@ -1917,6 +1917,23 @@ class OpenStackBackend(ServiceBackend):
         if not network_mappings:
             return
 
+        # Which subnets a router interface actually serves. Only worth asking
+        # when the pull is scoped to a tenant or a single network -- the
+        # settings-wide sweep below deliberately does not filter by network at
+        # all, and one port listing per network there would be unbounded.
+        connected_subnet_ids = (
+            self._connected_subnet_ids(neutron, list(network_mappings))
+            if (tenant or network)
+            else None
+        )
+        backend_fields = models.SubNet.get_backend_fields()
+        if connected_subnet_ids is None:
+            # Nothing was measured, so do not let the model default overwrite
+            # what connect_subnet / disconnect_subnet recorded.
+            backend_fields = tuple(
+                field for field in backend_fields if field != "is_connected"
+            )
+
         try:
             if tenant:
                 backend_subnets = neutron.list_subnets(tenant_id=tenant.backend_id)[
@@ -1944,12 +1961,16 @@ class OpenStackBackend(ServiceBackend):
                     )
                     continue
 
+                extra = {}
+                if connected_subnet_ids is not None:
+                    extra["is_connected"] = backend_subnet["id"] in connected_subnet_ids
                 imported_subnet = self._backend_subnet_to_subnet(
                     backend_subnet,
                     network=network,
                     service_settings=network.service_settings,
                     project=network.project,
                     tenant=network.tenant,
+                    **extra,
                 )
 
                 try:
@@ -1971,7 +1992,7 @@ class OpenStackBackend(ServiceBackend):
 
                 else:
                     modified = update_pulled_fields(
-                        subnet, imported_subnet, models.SubNet.get_backend_fields()
+                        subnet, imported_subnet, backend_fields
                     )
                     handle_resource_update_success(subnet)
                     if modified:
@@ -2000,6 +2021,32 @@ class OpenStackBackend(ServiceBackend):
                     scopes=[subnet, subnet.network],
                 )
             stale_subnets.delete()
+
+    def _connected_subnet_ids(self, neutron, network_backend_ids):
+        """Subnet ids that a router interface currently serves.
+
+        Listed per network rather than per tenant on purpose: a subnet shared
+        over RBAC is routed by the tenant that consumes it, so its interface
+        port carries *that* tenant's project id and a tenant-filtered listing
+        would report the owner's subnet as unconnected. One call per network,
+        which is the same shape as `is_subnet_connected` uses for a single
+        subnet -- and Waldur allows one subnet per internal network, so this is
+        not more traffic than the per-subnet path it replaces.
+        """
+        connected: set[str] = set()
+        for backend_id in network_backend_ids:
+            try:
+                ports = neutron.list_ports(network_id=backend_id)["ports"]
+            except neutron_exceptions.NeutronClientException as e:
+                raise OpenStackBackendError(e)
+            for port in ports:
+                if port["device_owner"] not in VALID_ROUTER_INTERFACE_OWNERS:
+                    continue
+                for fixed_ip in port.get("fixed_ips") or []:
+                    subnet_id = fixed_ip.get("subnet_id")
+                    if subnet_id:
+                        connected.add(subnet_id)
+        return connected
 
     def pull_shared_subnets(self):
         """Synchronize external/shared subnets"""
