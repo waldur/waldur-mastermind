@@ -2439,6 +2439,18 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         label="CIDR",
     )
     allocation_pools = OpenStackSubNetAllocationPoolField(required=False)
+    # Declared rather than derived. The model field is
+    # GenericIPAddressField(protocol="IPv4"), and ModelSerializer builds an
+    # IPAddressField with its own default protocol ("both") *and* copies the
+    # model's IPv4 validator -- so a bad address came back with two messages
+    # that disagree: "Enter a valid IPv4 address." and "Enter a valid IPv4 or
+    # IPv6 address.". One field, one protocol, one message.
+    gateway_ip = serializers.IPAddressField(
+        protocol="IPv4",
+        required=False,
+        allow_null=True,
+        help_text=_("IP address of the gateway for this subnet"),
+    )
     network_name = serializers.CharField(source="network.name", read_only=True)
     tenant = serializers.HyperlinkedRelatedField(
         source="network.tenant",
