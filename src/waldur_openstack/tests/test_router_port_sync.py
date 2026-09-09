@@ -260,6 +260,113 @@ class GetRouterSelectionTest(test.APITestCase):
         self.assertEqual(self._get(routers)["id"], "aaa")
         self.assertEqual(self._get(list(reversed(routers)))["id"], "aaa")
 
+    def test_two_routers_of_the_same_name_resolve_deterministically(self):
+        """Neutron does not enforce unique router names inside a project, and a
+        name lookup that keeps "whichever came last" is order-dependent again."""
+        routers = [
+            self._router("shared-name", "2026-08-03T11:09:31Z", "newer"),
+            self._router("shared-name", "2025-05-29T17:01:55Z", "older"),
+        ]
+        self.assertEqual(self._get(routers, ("shared-name",))["id"], "older")
+        self.assertEqual(
+            self._get(list(reversed(routers)), ("shared-name",))["id"], "older"
+        )
+
+
+class DefaultRouterNameTest(test.APITestCase):
+    """The name of the router Waldur creates alongside a tenant.
+
+    `connect_router` used to guess it as f"{tenant.name}-int-net-router", but
+    the internal network is created as slugify(name)[:25] + "-int-net", so the
+    guess missed every tenant whose name is not already a short slug -- and
+    names come from user-supplied order attributes. The preference then never
+    matched and the selection fell through to "the oldest router in the
+    tenant", which is the arbitrary pick #387 removed.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+        self.tenant.name = "Maanteeamet PRD Harku 1"
+        self.tenant.backend_id = "tenant-backend-id"
+        self.tenant.internal_network_id = "int-net-backend-id"
+        self.tenant.save()
+        self.backend = OpenStackBackend(self.tenant.service_settings)
+
+    def test_the_name_comes_from_the_internal_network_row(self):
+        factories.NetworkFactory(
+            tenant=self.tenant,
+            service_settings=self.tenant.service_settings,
+            project=self.tenant.project,
+            backend_id="int-net-backend-id",
+            name="maanteeamet-prd-harku-1-int-net",
+        )
+
+        self.assertEqual(
+            self.backend._default_router_name(self.tenant),
+            "maanteeamet-prd-harku-1-int-net-router",
+        )
+
+    def test_the_name_is_derived_when_the_network_is_not_recorded(self):
+        self.assertEqual(
+            self.backend._default_router_name(self.tenant),
+            "maanteeamet-prd-harku-1-int-net-router",
+        )
+
+    def test_a_long_tenant_name_is_truncated_the_way_creation_truncates_it(self):
+        self.tenant.name = "A very long tenant name that will certainly be cut"
+        self.tenant.internal_network_id = ""
+        self.tenant.save()
+
+        self.assertEqual(
+            self.backend._default_router_name(self.tenant),
+            "a-very-long-tenant-name-t-int-net-router",
+        )
+
+    def test_connect_router_prefers_the_tenant_default_over_the_oldest(self):
+        """End to end through connect_router: the int-net router wins even
+        though the point-to-point router is older."""
+        factories.NetworkFactory(
+            tenant=self.tenant,
+            service_settings=self.tenant.service_settings,
+            project=self.tenant.project,
+            backend_id="int-net-backend-id",
+            name="maanteeamet-prd-harku-1-int-net",
+        )
+        with (
+            mock.patch("waldur_openstack.backend.get_tenant_session"),
+            mock.patch("waldur_openstack.backend.get_neutron_client") as get_client,
+        ):
+            client = mock.MagicMock()
+            get_client.return_value = client
+            client.list_routers.return_value = {
+                "routers": [
+                    {
+                        "id": "p2p",
+                        "name": "p2p-router",
+                        "created_at": "2025-01-01T00:00:00Z",
+                    },
+                    {
+                        "id": "int-net",
+                        "name": "maanteeamet-prd-harku-1-int-net-router",
+                        "created_at": "2026-01-01T00:00:00Z",
+                    },
+                ]
+            }
+            client.show_subnet.return_value = {
+                "subnet": {"id": "subnet-backend-id", "gateway_ip": "10.0.0.1"}
+            }
+            client.list_ports.return_value = {"ports": []}
+            chosen = self.backend.connect_router(
+                self.tenant,
+                "marvin-test",
+                "subnet-backend-id",
+                network_id="network-backend-id",
+            )
+
+        self.assertEqual(chosen, "int-net")
+        client.create_router.assert_not_called()
+
 
 class CreateSubnetImportsInterfaceTest(test.APITestCase):
     """create_subnet imports the interface port it just caused Neutron to make.
