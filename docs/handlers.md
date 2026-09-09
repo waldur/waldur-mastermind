@@ -651,7 +651,7 @@ td:nth-child(4) {
 | `log_offering_access_subnet_save` | `Django Signal (post_save)` | `marketplace.OfferingAccessSubnet` | Log offering default access subnet creation and updates. |
 | `log_offering_user_created` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Log offering user creation. |
 | `log_offering_user_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Log offering user deletion. |
-| `log_offering_user_username_updated` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
+| `log_offering_user_fields_updated` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
 | `log_order_events` | `Django Signal (post_save)` | `marketplace.Order` | Log order creation and state transition events. |
 | `log_project_credit` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `log_request_events` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
