@@ -7,13 +7,20 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from waldur_core.core import auth_utils
 from waldur_core.core.authentication import refresh_token
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import (
     AllowedScopeInputSerializer,
     RestrictedSerializerMixin,
 )
-from waldur_core.logging import backend, enums, event_logger, models
+from waldur_core.logging import (
+    backend,
+    enums,
+    event_dispatch,
+    event_logger,
+    models,
+)
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.utils import holds_any_role_on_scope_or_ancestor
 
@@ -1394,6 +1401,30 @@ class EventConsumerSerializer(serializers.ModelSerializer):
     user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_is_staff = serializers.ReadOnlyField(source="user.is_staff")
+    # Declared rather than derived from the model field: ModelSerializer drops
+    # allow_blank on a read-only field, and the resulting SDK enum would then
+    # reject the empty string that rows predating the attribution hold.
+    auth_kind = serializers.ChoiceField(
+        choices=auth_utils.auth_method_choices(include_blank=True), read_only=True
+    )
+    authorized_via = serializers.ChoiceField(
+        choices=enums.ConsumerAuthorization.choices(include_blank=True), read_only=True
+    )
+    delivery_blocked_reason = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_delivery_blocked_reason(self, consumer) -> str | None:
+        # None (not "") means events are being delivered — the frontend shows a
+        # warning only for a non-null value.
+        #
+        # Costs a few queries per row: the viewset prefetches the bindings but
+        # not their ancestor chains, which scope_keys_for walks, plus one role
+        # query per consumer (staff/support rows short-circuit before either).
+        # Bounded by page size. Not batched because the role check is per-owner
+        # — one query over every owner and every binding on the page would match
+        # one owner's role against another's binding.
+        return event_dispatch.delivery_blocked_reason(consumer)
 
     class Meta:
         model = models.EventConsumer
@@ -1407,6 +1438,12 @@ class EventConsumerSerializer(serializers.ModelSerializer):
             "user_uuid",
             "user_username",
             "user_full_name",
+            "user_is_staff",
+            "auth_kind",
+            "auth_token_prefix",
+            "auth_token_name",
+            "authorized_via",
+            "delivery_blocked_reason",
             "created",
             "modified",
         )

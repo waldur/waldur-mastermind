@@ -226,6 +226,97 @@ def build_messages(
     return DispatchResult(messages, delivered_user_ids)
 
 
+_OBSERVABLE_OBJECT_TYPE_VALUES = frozenset(
+    member.value for member in ObservableObjectType
+)
+
+
+def delivery_blocked_reason(consumer) -> str | None:
+    """Why nothing at all can reach this consumer, or None if something can.
+
+    Kept next to :func:`build_messages` so the two cannot drift: the ladder
+    below walks the drop conditions in the order the dispatcher applies them —
+    the candidate querysets (``user__is_active``, ``queue_created``, a non-empty
+    ``rmq_username``), the staff/support bypass, the global-consumer
+    staff/support filter, and finally the batched role re-check.
+
+    The last rung is deliberately WIDER than dispatch: it asks whether the owner
+    holds a role anywhere in the chain of *any* binding, rather than against one
+    event's scope-keys. So an empty answer means "something is being delivered",
+    not "everything is".
+
+    It is the standalone registration guard (``holds_any_role_on_scope_or_ancestor``,
+    which the serializer applies), NOT the site-agent one: ``register_queue``
+    also admits an identity manager, who holds no role on the offering at all.
+    Such a consumer is reported blocked here — correctly, since dispatch drops
+    it too — which is why the message says the owner holds no role rather than
+    that they lost one.
+
+    ``object_types`` is only half-modelled, and deliberately so. Dispatch drops
+    a message per event when the type is outside the allow-list; whether a given
+    consumer will ever see a matching event cannot be decided from the row. What
+    *can* be decided is an allow-list none of whose entries is a live
+    :class:`ObservableObjectType` — a type that was renamed or removed out from
+    under a stored row — which matches nothing by construction.
+    """
+    user = consumer.user
+    if not user.is_active:
+        return "Owner account is deactivated."
+    if not consumer.queue_created:
+        return "Queue is not provisioned in RabbitMQ."
+    if not consumer.rmq_username:
+        return "Consumer has no RabbitMQ credential."
+    # Before the staff/support bypass: a dead type filter drops the message
+    # after authorization, so privilege does not rescue it.
+    if consumer.object_types and not any(
+        object_type in _OBSERVABLE_OBJECT_TYPE_VALUES
+        for object_type in consumer.object_types
+    ):
+        return (
+            "None of the object types this consumer filters on still exists, "
+            "so every event is dropped by the filter."
+        )
+    if user.is_staff or user.is_support:
+        return None
+
+    scopes = list(consumer.scopes.all())
+    if not scopes:
+        return (
+            "Owner is no longer staff/support, so this global consumer "
+            "receives nothing."
+        )
+
+    # Self-referential user bindings are authorized by identity, not by a role,
+    # exactly as in build_messages. Everything else contributes its scope chain
+    # to ONE role query, rather than a query per binding.
+    user_ct_id = _user_ct_id()
+    role_keys = set()
+    resolvable = False
+    for binding in scopes:
+        if binding.content_type_id == user_ct_id:
+            if binding.object_id == user.id:
+                return None
+            # Someone else's identity: no role can ever authorize it, so it
+            # contributes no scope keys — but it IS a live binding, and leaving
+            # it out of `resolvable` would report a consumer bound only to other
+            # users (a staff registration whose owner was later demoted) as
+            # pointing at rows that no longer exist.
+            resolvable = True
+            continue
+        scope = binding.scope
+        if scope is not None:
+            resolvable = True
+            role_keys.update(permission_utils.scope_keys_for(scope))
+    if not resolvable:
+        # Every binding is a dangling GenericFK — the bound project/offering row
+        # was deleted. Distinct from a role problem: the fix is to re-register,
+        # not to restore a role.
+        return "The entities this consumer is bound to no longer exist."
+    if permission_utils.users_with_role_on_any_scope_key({user.id}, role_keys):
+        return None
+    return "Owner holds no role on any scope this consumer is bound to."
+
+
 def dispatch_global_event(
     payload_builder,
     object_type: ObservableObjectType,

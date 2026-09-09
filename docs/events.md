@@ -15,6 +15,7 @@
 - auth_logged_in_with_username
 - auth_logged_out
 - auth_login_failed_with_username
+- event_consumer_registered_with_broad_credential
 - passkey_authentication_failed
 - passkey_authentication_succeeded
 - passkey_registered
@@ -484,6 +485,7 @@
 - auth_logged_out
 - auth_logged_out_with_saml2
 - auth_login_failed_with_username
+- event_consumer_registered_with_broad_credential
 - freeipa_profile_created
 - freeipa_profile_deleted
 - freeipa_profile_disabled

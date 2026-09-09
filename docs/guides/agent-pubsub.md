@@ -273,8 +273,67 @@ standalone (owned by any external integration).
 | `queue_created` | BooleanField | Whether a queue exists in RMQ |
 | `object_types` | JSONField | Allow-list of event types (empty = all) |
 | `scopes` | reverse FK | The consumer's entity bindings — see below |
+| `auth_kind` | CharField | How the registering request authenticated: `pat`, `token` (DRF), `session`, `oidc`, `unknown` |
+| `auth_token_prefix` | CharField(10) | PAT prefix, when `auth_kind` is `pat` |
+| `auth_token_name` | CharField(150) | PAT name, when `auth_kind` is `pat` |
+| `authorized_via` | CharField | Permission branch that authorised the registration — see below |
 
 The queue name is `consumer_{consumer_uuid}` (property `EventConsumer.queue_name`).
+
+### Registration attribution
+
+The last four fields answer the two questions a queue otherwise cannot: **on
+what credential** it runs, and **by what right** it was registered. Both are
+refreshed on *every* re-registration, including the already-provisioned 200
+fast path, because they describe the credential in use now — an agent that
+restarts with a PAT after having been registered from a staff browser session
+must stop looking like a staff-session agent.
+
+They matter because a site agent on a staff user's session token is otherwise
+indistinguishable from one on a scoped PAT of an offering manager, while having
+a far broader delivery scope and an RMQ password that rotates with
+`token_lifetime`. A PAT is recorded by prefix and name rather than by foreign
+key on purpose: tracing a consumer back to a credential matters most once that
+credential has been revoked or deleted.
+
+`authorized_via` values:
+
+| Value | Path | Meaning |
+|-------|------|---------|
+| `staff` | both | `user.is_staff` |
+| `support` | standalone | `user.is_support` (global consumers) |
+| `customer_owner` | site agent | `CREATE_OFFERING` on the offering's customer |
+| `offering_manager` | site agent | `UPDATE_OFFERING` on the offering |
+| `identity_manager` | site agent | `is_identity_manager` with `managed_isds` |
+| `scope_role` | standalone | Holds a role on every requested binding |
+| `self` | standalone | Bound only to the caller's own user scope |
+
+Registering with a non-PAT credential, or as staff, emits an
+`event_consumer_registered_with_broad_credential` audit event — but only when
+the attribution *changes*, so an agent restarting every few minutes does not
+bury the signal.
+
+Rows registered before this was recorded carry empty strings in all four fields.
+
+### Why nothing is arriving
+
+`EventConsumerSerializer` and the connection-stats endpoint both expose
+`delivery_blocked_reason` (`event_dispatch.delivery_blocked_reason`), which is
+null while events flow. It walks the drop conditions of `build_messages` in
+order: a deactivated owner, an unprovisioned queue, a missing RMQ credential, a
+global consumer whose owner is no longer staff/support, bindings whose target
+rows are gone, and finally an owner holding no role on any scope the consumer is
+bound to. Without it, each of those is silent — no log line, no exception, no
+state on the row.
+
+It checks a role anywhere in a binding's chain rather than against one event's
+scope-keys, so a null value means "something is being delivered", not
+"everything is".
+
+Note that `register_queue` admits an **identity manager**, who holds no role on
+the offering at all — the standalone path's `holds_any_role_on_scope_or_ancestor`
+guard does not apply there. Delivery re-authorization bypasses only staff and
+support, so such a consumer is reported blocked, and genuinely receives nothing.
 
 ### Scope bindings
 

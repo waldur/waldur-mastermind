@@ -15,11 +15,12 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeStampedModel
 
+from waldur_core.core import auth_utils
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail, validate_outbound_url
-from waldur_core.logging.enums import ObservableObjectType
+from waldur_core.logging.enums import ConsumerAuthorization, ObservableObjectType
 from waldur_core.logging.log import scrub_sensitive
 
 logger = logging.getLogger(__name__)
@@ -353,6 +354,46 @@ class EventConsumer(UuidMixin, TimeStampedModel):
             "Empty list means all types."
         ),
         validators=[validate_observable_object_types],
+    )
+    # How and by what right the consumer was registered. Refreshed on EVERY
+    # (re-)registration: these describe the credential the queue currently runs
+    # on, not the one it was first created with. Blank on rows that predate the
+    # attribution, and on any path that does not record it.
+    auth_kind = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        choices=auth_utils.auth_method_choices(),
+        help_text=_(
+            "How the registering request authenticated: pat, token (DRF), "
+            "session, oidc or unknown."
+        ),
+    )
+    auth_token_prefix = models.CharField(
+        # The Personal Access Token is referenced by its denormalized prefix and
+        # name rather than by FK on purpose: tracing a consumer back to a
+        # credential matters most once that credential has been revoked or
+        # deleted, which is exactly when a FK would be gone.
+        max_length=10,
+        blank=True,
+        default="",
+        help_text=_("Prefix of the Personal Access Token used, when auth_kind is pat."),
+    )
+    auth_token_name = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text=_("Name of the Personal Access Token used, when auth_kind is pat."),
+    )
+    authorized_via = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        choices=ConsumerAuthorization.choices(),
+        help_text=_(
+            "Which permission branch authorised the registration "
+            "(see ConsumerAuthorization)."
+        ),
     )
 
     @property
