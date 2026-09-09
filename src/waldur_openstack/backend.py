@@ -7528,6 +7528,20 @@ class OpenStackBackend(ServiceBackend):
         self.pull_tenant_ports(router.tenant)
         self.pull_tenant_routers(router.tenant, router.backend_id)
 
+        # Measured, not assumed: Neutron allows interfaces on several routers, so
+        # only the backend can say whether anything still holds this subnet.
+        # Without this the flag stays True until the next `pull_subnets` -- up to
+        # two hours of reporting a subnet as connected right after the user
+        # detached it.
+        affected_subnet = subnet or (port and port.subnet)
+        if affected_subnet:
+            affected_subnet.is_connected = self.is_subnet_connected(
+                router.tenant,
+                affected_subnet.backend_id,
+                affected_subnet.network.backend_id,
+            )
+            affected_subnet.save(update_fields=["is_connected"])
+
     def delete_router(self, router: models.Router):
         if not router.backend_id:
             logger.warning(

@@ -1343,8 +1343,15 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                 port = models.Port.objects.create(
                     subnet=subnet,
                     network=subnet.network,
-                    tenant=subnet.tenant,
-                    project=subnet.project,
+                    # The interface belongs to the tenant whose router holds it,
+                    # not to the subnet's owner (#394). For an own subnet the two
+                    # are the same; for one shared over RBAC, Neutron puts the
+                    # port in the router's project, and billing and quota have to
+                    # follow it there. Same convention as
+                    # OpenStackPortSerializer's `target_tenant` branch, which
+                    # keeps the service settings of the network.
+                    tenant=router.tenant,
+                    project=router.project,
                     service_settings=subnet.service_settings,
                     fixed_ips=[{"subnet_id": subnet.backend_id, "ip_address": free_ip}],
                 )
@@ -1358,6 +1365,16 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                 {"status": _(f"Unable to add a new router interface: {e.args[0]}")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # A router now holds it, so say so rather than waiting for the next
+        # `pull_subnets` -- the only other writer of this flag -- to notice. The
+        # Subnets tab renders "<router> (disconnected)" from it, which for a
+        # subnet just handed to a consumer's router is precisely the wrong answer
+        # to the question #388 added the column for.
+        connected_subnet = subnet or port.subnet
+        if connected_subnet and not connected_subnet.is_connected:
+            connected_subnet.is_connected = True
+            connected_subnet.save(update_fields=["is_connected"])
 
         added_interface = None
         if subnet:
