@@ -193,6 +193,13 @@ browser logout or session-token rotation (the raw secret is read from the
 request header — only its hash is stored). A caller still using a plain session
 token keeps the DRF token as the password.
 
+Which of the two it was is recorded on the consumer (`auth_kind`, plus the PAT's
+prefix and name) together with the permission branch that authorised the
+registration (`authorized_via`), and refreshed on every re-registration. Without
+it a site agent on a staff session is indistinguishable from one on a scoped
+PAT, and a revoked PAT cannot be traced to the queues it backed. A non-PAT or
+staff-authorised registration is audited, on change only.
+
 Queues are provisioned with the hardened arguments the legacy path uses —
 `x-message-ttl` (1h), `x-max-length` (10 000), `reject-publish-dlx` overflow and
 a DLQ — and registration is idempotent, reconciling stale RMQ state.

@@ -1,16 +1,21 @@
 import json
 from unittest import mock
 
+from constance.test import override_config
+from ddt import data, ddt, unpack
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.core.authentication import refresh_token
+from waldur_core.core.tests.helpers import create_pat
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
+from waldur_core.logging.enums import ConsumerAuthorization
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import enums
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -1637,6 +1642,44 @@ class AgentConnectionStatsTest(test.APITestCase):
         self.assertNotEqual(a_subs[0]["uuid"], b_subs[0]["uuid"])
         self.assertEqual(response.json()["summary"]["connected_agents"], 0)
 
+    def test_attribution_is_exposed(self, mock_users, mock_queues):
+        """An operator reading connection stats must see who the queue runs as
+        and on what credential, without a second call to /api/event-consumers/."""
+        support = structure_factories.UserFactory()
+        support.is_support = True
+        support.save()
+
+        owner = structure_factories.UserFactory()
+        identity = factories.make_agent_with_consumer(
+            offering=self.offering, user=owner, name="A"
+        )
+        consumer = identity.event_consumer
+        consumer.auth_kind = "pat"
+        consumer.auth_token_prefix = "w_170000"
+        consumer.auth_token_name = "site agent"
+        consumer.authorized_via = ConsumerAuthorization.OFFERING_MANAGER
+        # Provisioned, so the blocked reason below is about the owner's role
+        # rather than about a missing queue.
+        consumer.queue_created = True
+        consumer.rmq_username = "aabb000000000000000000000000ccdd"
+        consumer.save()
+
+        self.client.force_authenticate(user=support)
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+
+        agent = response.json()["agents"][0]
+        self.assertEqual(agent["auth_kind"], "pat")
+        self.assertEqual(agent["auth_token_prefix"], "w_170000")
+        self.assertEqual(agent["auth_token_name"], "site agent")
+        self.assertEqual(
+            agent["authorized_via"], ConsumerAuthorization.OFFERING_MANAGER
+        )
+        self.assertEqual(agent["user_username"], owner.username)
+        self.assertFalse(agent["user_is_staff"])
+        # The owner holds no role on the offering, so nothing is delivered.
+        self.assertIn("holds no role", agent["delivery_blocked_reason"])
+
     def _consumer_queue_response(self, identity, consumers):
         return [
             {
@@ -1844,3 +1887,116 @@ class AgentConsumerLifecycleTest(test.APITestCase):
         self.assertFalse(
             logging_models.EventConsumer.objects.filter(id=consumer_id).exists()
         )
+
+
+@ddt
+@override_config(PAT_ENABLED=True)
+@mock.patch(
+    "waldur_core.logging.backend.RabbitMQManagementBackend.create_rabbitmq_virtual_host"
+)
+@mock.patch(
+    "waldur_core.logging.backend.RabbitMQManagementBackend.create_rabbitmq_user"
+)
+@mock.patch(
+    "waldur_core.logging.backend.RabbitMQManagementBackend.assign_rabbitmq_vhost_permissions"
+)
+@mock.patch("waldur_core.logging.backend.RabbitMQManagementBackend.create_queue")
+class AgentQueueAttributionTest(test.APITestCase):
+    """register_queue records HOW and BY WHAT RIGHT the queue was registered.
+
+    The permission check runs in ActionsPermission and discards which branch
+    passed, so the action resolves it again; these tests pin each branch.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = enums.SITE_AGENT_OFFERING
+        self.offering.save()
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+
+    def _register(self, user, expected=status.HTTP_201_CREATED):
+        agent_identity = factories.AgentIdentityFactory(
+            offering=self.offering, name="Test Agent Identity", created_by=user
+        )
+        url = _agent_identity_url(agent_identity, action="register_queue")
+        response = self.client.post(url, {})
+        self.assertEqual(response.status_code, expected, response.content)
+        agent_identity.refresh_from_db()
+        return agent_identity.event_consumer
+
+    @data(
+        ("staff", ConsumerAuthorization.STAFF),
+        ("offering_owner", ConsumerAuthorization.CUSTOMER_OWNER),
+        ("offering_manager", ConsumerAuthorization.OFFERING_MANAGER),
+    )
+    @unpack
+    def test_permission_branch_is_recorded(self, user_role, expected, *mocks):
+        user = getattr(self.fixture, user_role)
+        self.client.force_login(user)
+
+        consumer = self._register(user)
+
+        self.assertEqual(consumer.authorized_via, expected)
+
+    def test_identity_manager_branch_is_recorded(self, *mocks):
+        identity_manager = structure_factories.UserFactory(
+            is_identity_manager=True, managed_isds=["isd:efp"]
+        )
+        self.client.force_login(identity_manager)
+
+        consumer = self._register(identity_manager)
+
+        self.assertEqual(
+            consumer.authorized_via, ConsumerAuthorization.IDENTITY_MANAGER
+        )
+
+    def test_pat_registration_records_the_token(self, *mocks):
+        user = self.fixture.staff
+        user.can_use_personal_access_tokens = True
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        pat, plaintext = create_pat(user, name="site agent")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {plaintext}")
+
+        consumer = self._register(user)
+
+        self.assertEqual(consumer.auth_kind, "pat")
+        self.assertEqual(consumer.auth_token_prefix, pat.token_prefix)
+        self.assertEqual(consumer.auth_token_name, "site agent")
+
+    def test_drf_token_registration_records_token(self, *mocks):
+        user = self.fixture.staff
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {refresh_token(user).key}")
+
+        consumer = self._register(user)
+
+        self.assertEqual(consumer.auth_kind, "token")
+        self.assertEqual(consumer.auth_token_prefix, "")
+        self.assertEqual(consumer.auth_token_name, "")
+
+    def test_session_registration_records_session(self, *mocks):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+
+        consumer = self._register(user)
+
+        self.assertEqual(consumer.auth_kind, "session")
+        self.assertEqual(consumer.auth_token_prefix, "")
+
+    def test_failed_provisioning_records_no_attribution(
+        self, mock_create_queue, mock_assign_permissions, mock_create_user, mock_vhost
+    ):
+        """Same invariant as the standalone path: a 400 from RMQ must not leave
+        the row describing a credential the queue never got."""
+        user = self.fixture.staff
+        self.client.force_login(user)
+        mock_vhost.return_value = False
+
+        consumer = self._register(user, expected=status.HTTP_400_BAD_REQUEST)
+
+        # The consumer and its binding are committed before provisioning runs.
+        self.assertIsNotNone(consumer)
+        self.assertEqual(consumer.auth_kind, "")
+        self.assertEqual(consumer.authorized_via, "")

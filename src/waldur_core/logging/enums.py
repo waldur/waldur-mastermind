@@ -432,6 +432,9 @@ class EventType(StrEnum):
     PASSKEY_REVOKED_BY_STAFF = "passkey_revoked_by_staff"
     PASSKEY_AUTHENTICATION_SUCCEEDED = "passkey_authentication_succeeded"
     PASSKEY_AUTHENTICATION_FAILED = "passkey_authentication_failed"
+    EVENT_CONSUMER_REGISTERED_WITH_BROAD_CREDENTIAL = (
+        "event_consumer_registered_with_broad_credential"
+    )
 
 
 class EventGroup(StrEnum):
@@ -500,6 +503,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PASSKEY_REVOKED_BY_STAFF,
         EventType.PASSKEY_AUTHENTICATION_SUCCEEDED,
         EventType.PASSKEY_AUTHENTICATION_FAILED,
+        EventType.EVENT_CONSUMER_REGISTERED_WITH_BROAD_CREDENTIAL,
     ],
     EventGroup.CALL: [
         EventType.CALL_DOCUMENT_ADDED,
@@ -1035,3 +1039,34 @@ class QueueKind(StrEnum):
     @classmethod
     def choices(cls):
         return [(k.value, k.value) for k in cls]
+
+
+class ConsumerAuthorization(StrEnum):
+    """Which permission branch let a caller register an event consumer.
+
+    Recorded on ``EventConsumer.authorized_via`` at every registration, so an
+    operator can tell a site agent running on a staff session from one on a
+    scoped credential of an offering manager. ``staff``, ``customer_owner``,
+    ``offering_manager`` and ``identity_manager`` are the branches of
+    ``_can_manage_offering_agent`` (the site-agent path); ``staff``,
+    ``support``, ``scope_role`` and ``self`` are the standalone
+    ``/api/event-consumers/register/`` path.
+    """
+
+    STAFF = "staff"
+    SUPPORT = "support"
+    CUSTOMER_OWNER = "customer_owner"
+    OFFERING_MANAGER = "offering_manager"
+    IDENTITY_MANAGER = "identity_manager"
+    SCOPE_ROLE = "scope_role"
+    SELF = "self"
+
+    @classmethod
+    def choices(cls, include_blank=False):
+        """``include_blank`` adds the empty string a row registered before the
+        branch was recorded holds; a read-only serializer field must declare it
+        or the generated SDK enum rejects those rows."""
+        choices = [(a.value, a.value) for a in cls]
+        if include_blank:
+            choices.insert(0, ("", ""))
+        return choices

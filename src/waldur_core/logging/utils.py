@@ -13,8 +13,10 @@ from django.core.cache import cache
 from django.db.models import QuerySet
 from rest_framework.exceptions import ValidationError
 
-from waldur_core.logging import backend, models
+from waldur_core.core.auth_utils import AUTH_METHOD_PAT, get_auth_method
+from waldur_core.logging import backend, event_logger, models
 from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
+from waldur_core.logging.enums import ConsumerAuthorization, EventType
 from waldur_core.logging.mixins import LoggableMixin
 
 logger = logging.getLogger(__name__)
@@ -337,6 +339,67 @@ def resolve_consumer_rmq_password(request) -> str:
         if raw_pat:
             return raw_pat
     return refresh_token(request.user).key
+
+
+def record_consumer_attribution(consumer, request, authorized_via: str | None) -> bool:
+    """Record HOW and BY WHAT RIGHT this consumer is currently registered.
+
+    Called on every (re-)registration, including the already-provisioned fast
+    path, because the fields describe the credential the queue runs on *now*:
+    an agent that restarts with a PAT after having been registered from a staff
+    browser session must stop looking like a staff-session agent.
+
+    ``request.auth`` is the only discriminator available — the same one
+    :func:`resolve_consumer_rmq_password` uses to pick the RMQ password, so the
+    recorded ``auth_kind`` and the password the agent actually holds can never
+    disagree. The PAT is referenced by prefix + name, denormalized on purpose
+    (see the model fields).
+
+    Returns whether anything changed, and emits an audit event when a changed
+    attribution is a broad one (non-PAT credential, or authorised as staff).
+    Emitting only on change matters: a site agent calls register_queue on every
+    restart, and an event per restart would bury the signal.
+    """
+    auth_kind = get_auth_method(request.auth)
+    is_pat = auth_kind == AUTH_METHOD_PAT
+    updated = {
+        "auth_kind": auth_kind,
+        "auth_token_prefix": request.auth.token_prefix if is_pat else "",
+        "auth_token_name": request.auth.name if is_pat else "",
+        "authorized_via": authorized_via or "",
+    }
+    changed = [
+        field for field, value in updated.items() if getattr(consumer, field) != value
+    ]
+    if not changed:
+        return False
+
+    for field, value in updated.items():
+        setattr(consumer, field, value)
+    consumer.save(update_fields=changed)
+
+    # Support is in the gate alongside staff: `register` admits either for the
+    # empty-scopes global consumer, i.e. the all-user PII firehose, so auditing
+    # only the staff half would leave the very case this exists to surface
+    # unaudited.
+    if not is_pat or updated["authorized_via"] in (
+        ConsumerAuthorization.STAFF,
+        ConsumerAuthorization.SUPPORT,
+    ):
+        event_logger.emit(
+            "Event consumer {consumer_uuid} has been registered for user "
+            "{affected_user_username} with a broad credential "
+            "(auth_kind={auth_kind}, authorized_via={authorized_via}).",
+            event_type=EventType.EVENT_CONSUMER_REGISTERED_WITH_BROAD_CREDENTIAL,
+            event_context={
+                "affected_user": consumer.user,
+                "consumer_uuid": consumer.uuid.hex,
+                "auth_kind": auth_kind,
+                "authorized_via": updated["authorized_via"],
+            },
+            scopes=[consumer.user],
+        )
+    return True
 
 
 def provision_consumer_queue(consumer, password: str) -> dict:

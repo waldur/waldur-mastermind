@@ -2,6 +2,7 @@ import fnmatch
 import logging
 
 import rest_framework
+from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from django.db.models import Count, Max
 from django_filters.rest_framework import DjangoFilterBackend
@@ -1179,6 +1180,29 @@ class UserDataAccessLogViewSet(
         return super().get_permissions()
 
 
+def _resolve_consumer_authorization(request, resolved_scopes) -> str:
+    """Which permission branch let this standalone registration through.
+
+    Mirrors the guards `register` applies, in the same order: privilege first
+    (a staff/support caller may bind to anything, and is the only one who may
+    request the global empty binding set), then identity (a caller binding only
+    to their own user scope needs no role at all), then the per-scope role the
+    serializer validated with `holds_any_role_on_scope_or_ancestor`.
+    """
+    user = request.user
+    if user.is_staff:
+        return enums.ConsumerAuthorization.STAFF
+    if user.is_support:
+        return enums.ConsumerAuthorization.SUPPORT
+    user_ct_id = ContentType.objects.get_for_model(core_models.User).id
+    if resolved_scopes and all(
+        scope["content_type_id"] == user_ct_id and scope["object_id"] == user.id
+        for scope in resolved_scopes
+    ):
+        return enums.ConsumerAuthorization.SELF
+    return enums.ConsumerAuthorization.SCOPE_ROLE
+
+
 class EventConsumerViewSet(
     mixins.ListModelMixin,
     mixins.DestroyModelMixin,
@@ -1318,6 +1342,12 @@ class EventConsumerViewSet(
 
         effective_object_types = consumer.object_types or all_object_types
 
+        # Resolved once, recorded on each successful exit below: the attribution
+        # must describe a registration that actually completed, or a 400 from
+        # provisioning would leave the row claiming a credential the queue never
+        # got (and an audit event for a registration that never happened).
+        authorized_via = _resolve_consumer_authorization(request, resolved_scopes)
+
         rmq_backend = backend.RabbitMQManagementBackend()
 
         # Fast path: already provisioned and valid — refresh the password.
@@ -1339,6 +1369,11 @@ class EventConsumerViewSet(
                     utils.resolve_consumer_rmq_password(request),
                 )
             ):
+                # The RMQ password now matches the presented credential, so the
+                # attribution can be recorded: a re-registration on a different
+                # credential must refresh it even when the queue itself is
+                # untouched.
+                utils.record_consumer_attribution(consumer, request, authorized_via)
                 data = {
                     "rmq_username": consumer.rmq_username,
                     "queue_name": consumer.queue_name,
@@ -1357,6 +1392,7 @@ class EventConsumerViewSet(
         result = utils.provision_consumer_queue(
             consumer, utils.resolve_consumer_rmq_password(request)
         )
+        utils.record_consumer_attribution(consumer, request, authorized_via)
         result["observable_object_types"] = effective_object_types
         out = serializers.EventConsumerRegistrationResponseSerializer(data=result)
         out.is_valid(raise_exception=True)

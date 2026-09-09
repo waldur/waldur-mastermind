@@ -2,6 +2,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
+from waldur_core.core import auth_utils
 from waldur_core.logging import enums as logging_enums
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
@@ -519,6 +520,51 @@ class AgentConnectionInfoSerializer(serializers.Serializer):
         allow_null=True,
         help_text="UUID of the unified event consumer the agent drains, "
         "null while it still runs on legacy subscriptions",
+    )
+    # Who the queue runs as, and on what credential. Blank/null for an agent
+    # still on legacy subscriptions, and for consumers registered before the
+    # attribution was recorded.
+    user_uuid = serializers.UUIDField(
+        read_only=True, allow_null=True, help_text="Consumer owner UUID"
+    )
+    user_username = serializers.CharField(
+        read_only=True, allow_null=True, help_text="Consumer owner username"
+    )
+    user_full_name = serializers.CharField(
+        read_only=True, allow_null=True, help_text="Consumer owner full name"
+    )
+    user_is_staff = serializers.BooleanField(
+        read_only=True,
+        allow_null=True,
+        help_text="Whether the consumer owner is a staff user, whose delivery "
+        "scope is platform-wide",
+    )
+    auth_kind = serializers.ChoiceField(
+        choices=auth_utils.auth_method_choices(include_blank=True),
+        read_only=True,
+        allow_null=True,
+        help_text="How the agent authenticated when it registered the queue",
+    )
+    auth_token_prefix = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Prefix of the Personal Access Token backing the queue",
+    )
+    auth_token_name = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Name of the Personal Access Token backing the queue",
+    )
+    authorized_via = serializers.ChoiceField(
+        choices=logging_enums.ConsumerAuthorization.choices(include_blank=True),
+        read_only=True,
+        allow_null=True,
+        help_text="Permission branch that authorised the registration",
+    )
+    delivery_blocked_reason = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Why no event can reach this consumer, null when delivery works",
     )
     services = AgentServiceStatusSerializer(
         many=True,
