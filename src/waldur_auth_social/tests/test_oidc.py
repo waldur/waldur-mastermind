@@ -2846,3 +2846,87 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
         response = self._login(self._user_info_for(user))
 
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+
+
+class CreateOrUpdateOauthUserRegistrationMethodTest(test.APITestCase):
+    @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=True)
+    def test_update_promotes_default_registration_method_to_idp(self):
+        user = structure_factories.UserFactory(
+            username="federated_user",
+            email="federated@example.com",
+            registration_method="default",
+        )
+        idp = models.IdentityProvider(
+            provider=ProviderChoices.EDUTEAMS,
+            **PROVIDER_DEFAULTS[ProviderChoices.EDUTEAMS],
+        )
+
+        synced, created = create_or_update_oauth_user(
+            idp,
+            {
+                "sub": "federated_user",
+                "given_name": "Federated",
+                "family_name": "User",
+                "email": "federated@example.com",
+            },
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(synced.pk, user.pk)
+        user.refresh_from_db()
+        self.assertEqual(user.registration_method, ProviderChoices.EDUTEAMS)
+
+    @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=True)
+    def test_update_maps_remote_eduteams_provider_to_eduteams_registration_method(self):
+        user = structure_factories.UserFactory(
+            username="remote_user",
+            email="remote@example.com",
+            registration_method="default",
+        )
+        idp = models.IdentityProvider(
+            provider=ProviderChoices.REMOTE_EDUTEAMS,
+            **PROVIDER_DEFAULTS[ProviderChoices.REMOTE_EDUTEAMS],
+        )
+
+        synced, created = create_or_update_oauth_user(
+            idp,
+            {
+                "voperson_id": "remote_user",
+                "given_name": "Remote",
+                "family_name": "User",
+                "mail": "remote@example.com",
+            },
+            is_interactive_login=False,
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(synced.pk, user.pk)
+        user.refresh_from_db()
+        self.assertEqual(user.registration_method, ProviderChoices.EDUTEAMS)
+
+    @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=True)
+    def test_update_keeps_matching_registration_method(self):
+        user = structure_factories.UserFactory(
+            username="eduteams_user",
+            email="eduteams@example.com",
+            registration_method=ProviderChoices.EDUTEAMS,
+        )
+        idp = models.IdentityProvider(
+            provider=ProviderChoices.EDUTEAMS,
+            **PROVIDER_DEFAULTS[ProviderChoices.EDUTEAMS],
+        )
+
+        synced, created = create_or_update_oauth_user(
+            idp,
+            {
+                "sub": "eduteams_user",
+                "given_name": "Edu",
+                "family_name": "Teams",
+                "email": "eduteams@example.com",
+            },
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(synced.pk, user.pk)
+        user.refresh_from_db()
+        self.assertEqual(user.registration_method, ProviderChoices.EDUTEAMS)
