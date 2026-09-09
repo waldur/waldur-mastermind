@@ -22,25 +22,47 @@ class RoleTest(test.APITestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project
 
+    def _row(self, response, role):
+        """Pick one role out of a list response.
+
+        The roles table is not empty: migrations seed the system roles
+        (``0002_import_data.fill_system_roles`` and
+        ``0008_customer_role.create_customer_role``). Indexing ``data[0]``
+        therefore returns whichever role sorts first by name — CUSTOMER.MANAGER,
+        not the role under test — unless something earlier in the same pytest
+        process happened to flush the table.
+        """
+        return next(row for row in response.data if row["uuid"] == role.uuid.hex)
+
     def test_get_role(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         response = self.client.get(ROLE_ENDPOINT)
-        self.assertEqual(
-            list(response.data[0]["permissions"]), [PermissionEnum.UPDATE_OFFERING]
+        # assertIn, not equality: system roles do not start empty either.
+        # Migrations grant them a baseline set (e.g. ORDER.CREATE in
+        # 0019_order_create_permission), so the role carries more than the one
+        # permission this test adds.
+        self.assertIn(
+            PermissionEnum.UPDATE_OFFERING,
+            self._row(response, CustomerRole.OWNER)["permissions"],
         )
 
     def test_staff_can_create_role(self):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
+        # A name no migration seeds: role names are unique across scopes, so
+        # posting CUSTOMER.OWNER here asserts nothing about the create
+        # permission — it only ever returns "Name should be unique."
         response = self.client.post(
             ROLE_ENDPOINT,
             {
-                "name": RoleEnum.CUSTOMER_OWNER,
+                "name": "CUSTOMER.TEST_ROLE",
                 "content_type": "customer",
                 "permissions": [PermissionEnum.UPDATE_OFFERING.value],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["permissions"], [PermissionEnum.UPDATE_OFFERING])
+        self.assertFalse(response.data["is_system_role"])
 
     def test_non_staff_can_not_create_create_role(self):
         user = UserFactory(is_staff=False)
@@ -60,7 +82,7 @@ class RoleTest(test.APITestCase):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role_uuid = response.data[0]["uuid"]
+        role_uuid = self._row(response, CustomerRole.OWNER)["uuid"]
         response = self.client.put(
             f"{ROLE_ENDPOINT}{role_uuid}/",
             {
@@ -83,7 +105,7 @@ class RoleTest(test.APITestCase):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role_uuid = response.data[0]["uuid"]
+        role_uuid = self._row(response, CustomerRole.OWNER)["uuid"]
         response = self.client.put(
             f"{ROLE_ENDPOINT}{role_uuid}/",
             {
@@ -101,7 +123,7 @@ class RoleTest(test.APITestCase):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role_uuid = response.data[0]["uuid"]
+        role_uuid = self._row(response, CustomerRole.OWNER)["uuid"]
         response = self.client.delete(f"{ROLE_ENDPOINT}{role_uuid}/")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -143,51 +165,51 @@ class RoleTest(test.APITestCase):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role = response.data[0]
+        role = self._row(response, CustomerRole.OWNER)
         self.assertEqual(role["is_active"], True)
         self.client.post(
             f"{ROLE_ENDPOINT}{role['uuid']}/disable/",
         )
         response = self.client.get(ROLE_ENDPOINT)
-        self.assertEqual(response.data[0]["is_active"], False)
+        self.assertEqual(self._row(response, CustomerRole.OWNER)["is_active"], False)
 
     def test_non_staff_can_not_disable_role(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         user = UserFactory(is_staff=False)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role = response.data[0]
+        role = self._row(response, CustomerRole.OWNER)
         self.assertEqual(role["is_active"], True)
         self.client.post(
             f"{ROLE_ENDPOINT}{role['uuid']}/disable/",
         )
         response = self.client.get(ROLE_ENDPOINT)
-        self.assertEqual(response.data[0]["is_active"], True)
+        self.assertEqual(self._row(response, CustomerRole.OWNER)["is_active"], True)
 
     def test_staff_can_enable_role(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role = response.data[0]
+        role = self._row(response, CustomerRole.OWNER)
         self.assertEqual(role["is_active"], True)
         self.client.post(
             f"{ROLE_ENDPOINT}{role['uuid']}/disable/",
         )
         response = self.client.get(ROLE_ENDPOINT)
-        self.assertEqual(response.data[0]["is_active"], False)
+        self.assertEqual(self._row(response, CustomerRole.OWNER)["is_active"], False)
         self.client.post(
             f"{ROLE_ENDPOINT}{role['uuid']}/enable/",
         )
         response = self.client.get(ROLE_ENDPOINT)
-        self.assertEqual(response.data[0]["is_active"], True)
+        self.assertEqual(self._row(response, CustomerRole.OWNER)["is_active"], True)
 
     def test_non_staff_can_not_enable_role(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         user = UserFactory(is_staff=False)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role = response.data[0]
+        role = self._row(response, CustomerRole.OWNER)
         action_response = self.client.post(
             f"{ROLE_ENDPOINT}{role['uuid']}/enable/",
         )
