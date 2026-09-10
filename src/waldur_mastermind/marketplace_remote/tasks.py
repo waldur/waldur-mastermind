@@ -38,6 +38,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
@@ -492,10 +493,16 @@ class OfferingUserPullTask(BackgroundPullTask):
             user = user_map[local_username]
             remote_offering_user = remote_offering_users[local_username]
             remote_username = remote_offering_user.username
-            offering_user = models.OfferingUser.objects.create(
-                user=user,
-                offering=local_offering,
+            # Through the shared creator so a provider-scoped offering gets a
+            # backed account; the remote's username only applies outside it.
+            # state is passed rather than left to the creator's own rule, which
+            # would open an account with a username as OK -- that is a change to
+            # what this sync means and does not belong in this branch.
+            offering_user, _ = marketplace_utils.create_offering_user(
+                user,
+                local_offering,
                 username=remote_username if isinstance(remote_username, str) else "",
+                state=OfferingUserStates.CREATION_REQUESTED,
             )
             if offering_user.state != OfferingUserStates.DELETED:
                 pull_offering_user_runtime_state_fields(
@@ -529,8 +536,12 @@ class OfferingUserPullTask(BackgroundPullTask):
             remote_offering_user = remote_offering_users[local_username]
             remote_username = remote_offering_user.username
             offering_user = local_offering_user_objects[local_username]
+            # A backed account's username is owned by its provider account, so
+            # the remote's name does not apply: under provider scope the two
+            # routinely differ, and writing here would raise every hour.
             if (
                 isinstance(remote_username, str)
+                and not offering_user.is_provider_backed
                 and offering_user.username != remote_username
             ):
                 offering_user.username = remote_username

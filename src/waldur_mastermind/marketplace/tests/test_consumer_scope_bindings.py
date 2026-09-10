@@ -5,14 +5,19 @@ A consumer is bound to a list of entities; an event matches if its scope-keys
 owner is re-authorized at delivery, so revoking their role stops delivery.
 """
 
-from rest_framework import test
+import json
+from unittest import mock
+
+from rest_framework import status, test
 
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import event_dispatch
+from waldur_core.logging import models as logging_models
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions import utils as permission_utils
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_mastermind.marketplace import enums
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import enums, models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
@@ -258,3 +263,137 @@ class ConsumerScopeBindingTest(test.APITestCase):
         topics = self._consumer_topics(messages)
         self.assertIn(f"consumer_{scoped.uuid.hex}", topics)
         self.assertIn(f"consumer_{global_consumer.uuid.hex}", topics)
+
+
+class ProviderScopeBindingTest(test.APITestCase):
+    """Provider-wide delivery: the customer binding, and the provider account event."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = enums.SITE_AGENT_OFFERING
+        self.offering.save()
+        self.provider = self.fixture.service_provider
+        self.provider_customer = self.provider.customer
+
+    def _consumer(self, *scopes):
+        return logging_factories.EventConsumerFactory.with_scopes(
+            *scopes,
+            user=self.fixture.staff,
+            queue_created=True,
+            rmq_username=RMQ,
+        )
+
+    def _topics(self, messages):
+        return [m["topic"] for m in messages if m["topic"].startswith("consumer_")]
+
+    def _dispatch_offering_user_event(self):
+        return marketplace_utils.prepare_messages(
+            self.offering,
+            {"offering_user_uuid": "x", "action": "create"},
+            logging_enums.ObservableObjectType.OFFERING_USER,
+        )
+
+    def test_customer_bound_consumer_receives_offering_user_events(self):
+        # The documented way to say "everything from this provider". Previously
+        # untested, and the reason the service_provider binding is a trap.
+        consumer = self._consumer(self.provider_customer)
+        self.assertIn(
+            f"consumer_{consumer.uuid.hex}",
+            self._topics(self._dispatch_offering_user_event()),
+        )
+
+    def test_unrelated_customer_bound_consumer_receives_nothing(self):
+        other = structure_factories.CustomerFactory()
+        consumer = self._consumer(other)
+        self.assertNotIn(
+            f"consumer_{consumer.uuid.hex}",
+            self._topics(self._dispatch_offering_user_event()),
+        )
+
+    def test_provider_account_event_reaches_a_customer_bound_consumer(self):
+        account = models.ServiceProviderAccount.objects.create(
+            service_provider=self.provider,
+            user=structure_factories.UserFactory(),
+            username="jsmith",
+        )
+        consumer = self._consumer(self.provider_customer)
+        messages = marketplace_utils.prepare_provider_account_messages(
+            account, {"action": "create"}
+        )
+        self.assertIn(f"consumer_{consumer.uuid.hex}", self._topics(messages))
+
+    def test_provider_account_event_carries_the_provider_not_an_offering(self):
+        account = models.ServiceProviderAccount.objects.create(
+            service_provider=self.provider,
+            user=structure_factories.UserFactory(),
+            username="jsmith",
+        )
+        self._consumer(self.provider_customer)
+        messages = marketplace_utils.prepare_provider_account_messages(
+            account, {"action": "create"}
+        )
+        payload = json.loads(messages[0]["payload"])
+        self.assertEqual(payload["object_type"], "service_provider_account")
+        self.assertEqual(payload["service_provider_uuid"], self.provider.uuid.hex)
+        # There is no offering behind a provider account, and claiming one would
+        # send a consumer looking for something that does not exist.
+        self.assertNotIn("offering_uuid", payload)
+
+
+# Registration provisions a real queue, so the broker has to be stubbed or the
+# test measures RabbitMQ availability rather than the binding logic. Same set of
+# patches as waldur_core.logging.tests.test_event_consumer_registration.
+@mock.patch("waldur_core.logging.backend.RabbitMQManagementBackend.create_queue")
+@mock.patch(
+    "waldur_core.logging.backend.RabbitMQManagementBackend.assign_rabbitmq_vhost_permissions"
+)
+@mock.patch(
+    "waldur_core.logging.backend.RabbitMQManagementBackend.create_rabbitmq_user"
+)
+@mock.patch(
+    "waldur_core.logging.backend.RabbitMQManagementBackend.create_rabbitmq_virtual_host"
+)
+class ServiceProviderBindingRegistrationTest(test.APITestCase):
+    """Registering a consumer against a ServiceProvider scope."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.provider = self.fixture.service_provider
+
+    def _register(self, user, scope_type, uuid_value):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            "/api/event-consumers/register/",
+            {"scopes": [{"type": scope_type, "uuid": uuid_value}], "object_types": []},
+            format="json",
+        )
+
+    def test_a_provider_owner_may_bind_to_the_service_provider(self, *mocks):
+        """The role check walks ServiceProvider -> customer, so an owner passes.
+
+        Worth pinning down: if it did not, the customer substitution below would
+        be unreachable and a provider binding would stay silently inert.
+        """
+        response = self._register(
+            self.fixture.service_owner, "service_provider", self.provider.uuid.hex
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_the_binding_is_stored_against_the_customer_so_it_matches(self, *mocks):
+        self._register(
+            self.fixture.service_owner, "service_provider", self.provider.uuid.hex
+        )
+        consumer = logging_models.EventConsumer.objects.filter(
+            user=self.fixture.service_owner
+        ).latest("created")
+        scope = consumer.scopes.get()
+        self.assertEqual(scope.scope, self.provider.customer)
+
+    def test_a_stranger_may_not_bind_to_someone_elses_provider(self, *mocks):
+        response = self._register(
+            structure_factories.UserFactory(),
+            "service_provider",
+            self.provider.uuid.hex,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -216,6 +216,25 @@ class RobotAccountStates:
     VALUES = [val for (_, val) in CHOICES]
 
 
+class AccountScopes:
+    """Where a user's login/POSIX account is held.
+
+    ``OFFERING`` is the historical behaviour: one account row, and one set of
+    values, per offering. ``PROVIDER`` holds one account per user per service
+    provider, which is what a directory shared across several offerings needs.
+    """
+
+    OFFERING = "offering"
+    PROVIDER = "provider"
+
+    CHOICES = (
+        (OFFERING, "Per offering"),
+        (PROVIDER, "Per service provider"),
+    )
+
+    VALUES = (OFFERING, PROVIDER)
+
+
 class OfferingUserStates:
     # creation flow
     CREATION_REQUESTED = 1

@@ -1855,14 +1855,20 @@ class LimitBillingDuplicateInvoiceTest(test.APITestCase):
 
 
 @freeze_time("2024-10-15")
-class MonthlyLimitFractionalQuantityTest(test.APITestCase):
-    """The monthly counterpart of TotalLimitTest's fractional case.
+class FractionalLimitBillingBase(test.APITestCase):
+    """Setup shared by the fractional billing cases: one LIMIT component on a
+    resource billed for the whole of October, and helpers to change its limit
+    and read the resulting invoice item back.
 
-    A limit change splits the billing period in two, and _update_invoice_item
-    re-serialises the sub-period the old limit covered. Truncating that
-    quantity to an integer dropped the sub-period's prorated share from the
-    invoice silently: the request succeeded and the customer was undercharged.
+    Deliberately carries no tests of its own -- each period and plan unit takes
+    a different branch and asserts something different.
     """
+
+    #: Plan unit under test. PER_DAY and everything else take different
+    #: branches in both _update_invoice_item and quantity_from_limit_periods.
+    PLAN_UNIT = marketplace_models.Plan.Units.PER_DAY
+    #: Limit period under test.
+    LIMIT_PERIOD = LimitPeriods.MONTH
 
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -1871,13 +1877,13 @@ class MonthlyLimitFractionalQuantityTest(test.APITestCase):
             type="storage_tb",
             name="Storage",
             billing_type=BillingTypes.LIMIT,
-            limit_period=LimitPeriods.MONTH,
+            limit_period=self.LIMIT_PERIOD,
             measured_unit="TB",
         )
         self.plan = marketplace_factories.PlanFactory(
             offering=self.fixture.offering,
             unit_price=0,
-            unit=marketplace_models.Plan.Units.PER_DAY,
+            unit=self.PLAN_UNIT,
         )
         self.plan_component = marketplace_factories.PlanComponentFactory(
             plan=self.plan,
@@ -1928,6 +1934,17 @@ class MonthlyLimitFractionalQuantityTest(test.APITestCase):
             invoice=self.invoice,
             new_quantity=new_quantity,
         )
+
+
+@freeze_time("2024-10-15")
+class MonthlyLimitFractionalQuantityTest(FractionalLimitBillingBase):
+    """The monthly counterpart of TotalLimitTest's fractional case.
+
+    A limit change splits the billing period in two, and _update_invoice_item
+    re-serialises the sub-period the old limit covered. Truncating that
+    quantity to an integer dropped the sub-period's prorated share from the
+    invoice silently: the request succeeded and the customer was undercharged.
+    """
 
     def test_old_period_keeps_its_fractional_quantity(self):
         self.change_limit_to(0.5)
@@ -1994,6 +2011,75 @@ class MonthlyLimitFractionalQuantityTest(test.APITestCase):
         self.assertEqual(len(periods), 2)
         for period in periods:
             self.assertIsInstance(period["quantity"], int)
+
+
+@freeze_time("2024-10-15")
+class NonDailyFractionalQuantityTest(FractionalLimitBillingBase):
+    """The same fractional limit change, billed per month rather than per day.
+
+    _update_invoice_item takes a different branch for non-PER_DAY units: rather
+    than summing quantity x days, it weights each sub-period by its share of
+    the billing period. quantity_from_limit_periods reads the same periods back
+    the same way. Neither had any fractional coverage, and the day-weighted
+    branch is where a truncated quantity would be hardest to notice, because
+    the result is plausible rather than zero.
+    """
+
+    PLAN_UNIT = marketplace_models.Plan.Units.PER_MONTH
+
+    def test_the_day_weighted_average_keeps_the_fraction(self):
+        self.change_limit_to(0.5)
+
+        item = self.get_item()
+        periods = item.details["resource_limit_periods"]
+        total_days = sum(p["billing_periods"] for p in periods)
+        expected = (
+            sum(Decimal(str(p["quantity"])) * p["billing_periods"] for p in periods)
+            / total_days
+        )
+        self.assertAlmostEqual(Decimal(item.quantity), expected, places=6)
+        # Strictly between the two limits: neither sub-period was dropped.
+        self.assertGreater(Decimal(item.quantity), Decimal("0.1"))
+        self.assertLess(Decimal(item.quantity), Decimal("0.5"))
+
+    def test_quantity_from_limit_periods_agrees_after_termination(self):
+        self.change_limit_to(0.5)
+        item = self.get_item()
+
+        item.terminate(end=timezone.datetime(2024, 10, 20, tzinfo=UTC))
+
+        item.refresh_from_db()
+        self.assertGreater(Decimal(item.quantity), 0)
+        self.assertEqual(item.quantity, item.quantity_from_limit_periods())
+
+
+@freeze_time("2024-10-15")
+class QuarterlyFractionalQuantityTest(FractionalLimitBillingBase):
+    """QUARTERLY dispatches through the same _update_invoice_item branch as
+    MONTH but with a different period window, and had no fractional test."""
+
+    LIMIT_PERIOD = LimitPeriods.QUARTERLY
+
+    def test_the_old_period_keeps_its_fractional_quantity(self):
+        self.change_limit_to(0.5)
+
+        periods = self.get_item().details["resource_limit_periods"]
+        self.assertEqual(periods[0]["quantity"], 0.1)
+        self.assertEqual(periods[-1]["quantity"], 0.5)
+
+
+@freeze_time("2024-10-15")
+class AnnualFractionalQuantityTest(FractionalLimitBillingBase):
+    """ANNUAL, likewise."""
+
+    LIMIT_PERIOD = LimitPeriods.ANNUAL
+
+    def test_the_old_period_keeps_its_fractional_quantity(self):
+        self.change_limit_to(0.5)
+
+        periods = self.get_item().details["resource_limit_periods"]
+        self.assertEqual(periods[0]["quantity"], 0.1)
+        self.assertEqual(periods[-1]["quantity"], 0.5)
 
 
 @freeze_time("2020-11-01")

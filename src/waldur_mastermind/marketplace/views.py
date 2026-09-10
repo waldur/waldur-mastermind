@@ -599,9 +599,23 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         # half-applied.
         with transaction.atomic():
             for offering in models.Offering.objects.filter(id__in=set(offering_ids)):
-                offering_user, created = models.OfferingUser.objects.get_or_create(
-                    user=user, offering=offering
+                offering_user, created = utils.create_offering_user(
+                    user, offering, username=username
                 )
+                if offering_user.is_provider_backed:
+                    # The model refuses this write, but a bare 500 from the
+                    # collector is no use to the caller: say which account owns
+                    # the name, as OfferingUserSerializer.validate does.
+                    parent = offering_user.service_provider_account
+                    raise rf_exceptions.ValidationError(
+                        _(
+                            "The account for %(offering)s is owned by service "
+                            "provider account %(uuid)s. Change the username "
+                            "there; every offering account of this user at the "
+                            "provider follows it."
+                        )
+                        % {"offering": offering.name, "uuid": parent.uuid.hex}
+                    )
                 old_username = offering_user.username
                 previous_home_dir = (offering_user.backend_metadata or {}).get(
                     "homeDir"
@@ -628,7 +642,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 # home directory is re-applied only when the stored one was
                 # absent or still matched the previous username. An operator's
                 # explicit override survives both paths.
-                prefix = offering.plugin_options.get("homedir_prefix", "/home/")
+                prefix = offering.resolve_account_setting("homedir_prefix", "/home/")
                 if previous_home_dir not in (None, f"{prefix}{old_username}"):
                     offering_user.backend_metadata["homeDir"] = previous_home_dir
                 # save() without update_fields so OfferingUser.save() runs the FSM
@@ -643,6 +657,64 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
 
     set_offerings_username_serializer_class = serializers.SetOfferingsUsernameSerializer
+
+    @extend_schema(
+        summary="Report username conflicts before adopting provider accounts",
+        description=(
+            "Lists every user whose offering accounts at this provider disagree "
+            "about the username, with the evidence needed to choose which one "
+            "survives: how many offerings use it, whether any of those accounts "
+            "belongs to a user with a live resource, and the home directories "
+            "recorded for it. An empty list means the provider can adopt "
+            "provider-level accounts without operator input."
+        ),
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.ProviderUsernameConflictSerializer(
+                many=True
+            )
+        },
+    )
+    @action(detail=True, methods=["get"])
+    def username_conflicts(self, request, uuid=None):
+        provider: models.ServiceProvider = self.get_object()
+        conflicts = utils.provider_username_conflicts(provider)
+        return Response(conflicts, status=status.HTTP_200_OK)
+
+    username_conflicts_permissions = [structure_permissions.is_owner]
+
+    @extend_schema(
+        summary="Adopt provider-level accounts",
+        description=(
+            "Backs every offering account at this provider with one provider-level "
+            "account per user, so a person resolves to a single username and POSIX "
+            "identity across the provider's offerings.\n\n"
+            "Users whose accounts already agree are adopted without input. A user "
+            "whose accounts disagree must be given a surviving username in "
+            "'resolutions', keyed by user UUID — see the 'username_conflicts' "
+            "action. The call is refused while any conflict is unresolved, rather "
+            "than adopting part of the provider and leaving the rest on the old "
+            "per-offering behaviour."
+        ),
+        request=serializers.AdoptProviderAccountsSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.AdoptProviderAccountsResponseSerializer
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def adopt_provider_accounts(self, request, uuid=None):
+        provider: models.ServiceProvider = self.get_object()
+        serializer = serializers.AdoptProviderAccountsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = utils.adopt_provider_accounts(
+            provider, serializer.validated_data.get("resolutions") or {}
+        )
+        return Response(result, status=status.HTTP_200_OK)
+
+    adopt_provider_accounts_permissions = [structure_permissions.is_owner]
+    adopt_provider_accounts_serializer_class = (
+        serializers.AdoptProviderAccountsSerializer
+    )
 
     stat_permissions = [
         permission_factory(
@@ -2299,7 +2371,7 @@ def validate_offering_has_plans(offering):
 def validate_offering_username_generation_policy(offering):
     service_provider_policy = utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
     if (
-        offering.plugin_options.get("username_generation_policy")
+        offering.resolve_account_setting("username_generation_policy")
         == service_provider_policy
     ):
         raise rf_exceptions.ValidationError(
@@ -4472,6 +4544,9 @@ class ProviderOfferingViewSet(
         offering_users = models.OfferingUser.objects.filter(
             is_restricted=False,
             offering=offering,
+            # A backed account's username is owned by its provider account and
+            # refreshed by propagation; writing it here is refused.
+            service_provider_account__isnull=True,
         )
 
         for offering_user in offering_users:
@@ -11078,7 +11153,9 @@ class OfferingUsersViewSet(
             # one. An explicit per-user override (a homeDir that no longer
             # matches the derived pattern) is left untouched.
             backend_metadata = instance.backend_metadata or {}
-            prefix = instance.offering.plugin_options.get("homedir_prefix", "/home/")
+            prefix = instance.offering.resolve_account_setting(
+                "homedir_prefix", "/home/"
+            )
             current_home = backend_metadata.get("homeDir")
             if new_username and current_home in (None, f"{prefix}{old_username}"):
                 backend_metadata["homeDir"] = f"{prefix}{new_username}"
@@ -11171,8 +11248,20 @@ class OfferingUsersViewSet(
                 warnings.extend(posix_ids.posix_value_advisories(label, value))
                 pinned_namespaces.append(namespace)
 
-            offering_user.backend_metadata = backend_metadata
-            offering_user.save(update_fields=["backend_metadata"])
+            # On a backed account these columns are a cache of the provider
+            # account, which owns them: the parent is written first and pushed
+            # back down. Writing the child first would diverge it from its
+            # parent, which the model refuses -- so the write-through below
+            # would never have run.
+            if offering_user.is_provider_backed:
+                parent = offering_user.service_provider_account
+                parent.backend_metadata = dict(backend_metadata)
+                parent.save(update_fields=["backend_metadata"])
+                utils.propagate_provider_account(parent)
+                offering_user.refresh_from_db()
+            else:
+                offering_user.backend_metadata = backend_metadata
+                offering_user.save(update_fields=["backend_metadata"])
 
             if pinned_namespaces:
                 # The pin lands on the user's identity in the pool, which every
@@ -11694,6 +11783,13 @@ class OfferingUsersViewSet(
         offering_user.set_deleted()
         offering_user.save(update_fields=["state"])
 
+        # The provider account outlives its offering associations, so releasing
+        # it is a second stage that only runs once nothing live still reads
+        # through it. Wiring it only to the role-lost task left the agent's own
+        # teardown path leaving accounts in OK with no readers.
+        if offering_user.is_provider_backed:
+            tasks.request_provider_account_deletion_for_user(offering_user.user)
+
         event_logger.emit(
             f"User {offering_user.user} in offering {offering_user.offering.name} marked as deleted.",
             event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
@@ -11729,6 +11825,13 @@ class OfferingUsersViewSet(
         offering_user: models.OfferingUser = self.get_object()
         offering_user.request_deletion()
         offering_user.save(update_fields=["state"])
+
+        # The provider account outlives its offering associations, so releasing
+        # it is a second stage that only runs once nothing live still reads
+        # through it. Wiring it only to the role-lost task left the agent's own
+        # teardown path leaving accounts in OK with no readers.
+        if offering_user.is_provider_backed:
+            tasks.request_provider_account_deletion_for_user(offering_user.user)
 
         event_logger.emit(
             f"Deletion requested for user {offering_user.user} in offering {offering_user.offering.name}.",
@@ -11940,6 +12043,136 @@ class OfferingUsersViewSet(
                         result[user_field].append(offering_info)
 
         return Response(result, status=status.HTTP_200_OK)
+
+
+def validate_provider_account_has_no_offering_users(account):
+    """Refuse a delete that the FK would refuse anyway, with a usable message.
+
+    ``service_provider_account`` is ``RESTRICT``, so the database raises
+    ``RestrictedError`` -- an unhandled 500 rather than a 409 naming the rows in
+    the way. The accounts have to be released through the offering-user
+    lifecycle first, which is what drops the provider account too.
+    """
+    live = models.OfferingUser.objects.filter(service_provider_account=account)
+    if live.exists():
+        raise rf_exceptions.ValidationError(
+            _(
+                "The account is still used by %(count)s offering account(s). "
+                "Delete those first."
+            )
+            % {"count": live.count()}
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List service provider accounts",
+        description="""
+        Returns a paginated list of the accounts a service provider holds for its users --
+        one per user per provider, shared by every offering of that provider.
+        Scoped to providers whose organization the caller can see.
+        """,
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve a service provider account",
+        description="Returns one provider account, including its POSIX identity and the number of offering accounts reading through it.",
+    ),
+    update=extend_schema(summary="Update a service provider account"),
+    partial_update=extend_schema(summary="Update a service provider account"),
+    destroy=extend_schema(
+        summary="Delete a service provider account",
+        description="Refused while offering accounts still read through this record.",
+    ),
+)
+class ServiceProviderAccountViewSet(core_views.ActionsViewSet):
+    """Accounts held once per user per service provider.
+
+    Writes to ``username`` and the POSIX attributes land here rather than on the
+    individual OfferingUser rows, which read through to this record.
+    """
+
+    queryset = (
+        models.ServiceProviderAccount.objects.all()
+        .select_related("user", "service_provider__customer")
+        # Read by the serializer instead of a COUNT per row.
+        .annotate(offering_count=Count("offering_users"))
+        # The annotation groups, and QuerySet.ordered is False for a grouped
+        # query however Meta.ordering is set -- so the ordering has to be said
+        # again here or the paginated endpoint yields inconsistent pages.
+        .order_by(*models.ServiceProviderAccount._meta.ordering)
+    )
+    serializer_class = serializers.ServiceProviderAccountSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ServiceProviderAccountFilter
+    disabled_actions = ["create"]
+
+    # Without these the viewset inherits an empty unsafe_methods_permissions,
+    # so ActionsPermission runs no check at all and anyone who can see the
+    # provider's organization could rewrite another person's username and POSIX
+    # identity. The same permission the offering-user endpoints require, on the
+    # provider rather than the offering: this record is shared by every offering
+    # of the provider, so a manager of one of them must not rewrite it for all.
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["service_provider", "service_provider.customer"],
+        )
+    ]
+    destroy_validators = [validate_provider_account_has_no_offering_users]
+
+    def get_queryset(self):
+        # Scope to providers whose organization the caller can see. The sibling
+        # OfferingUsersViewSet does not scope at all; that is not a precedent worth
+        # copying into a new endpoint carrying the same personal data.
+        qs = super().get_queryset()
+        user = self.request.user
+        visible_customers = filter_queryset_for_user(
+            structure_models.Customer.objects.all(), user
+        )
+        # A ServiceProvider is a permission scope of its own, so a provider
+        # manager holds no role on the customer and would not be reached by the
+        # customer filter alone -- they would get a 404 on the very records they
+        # are allowed to write.
+        provider_ids = permission_models.UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            content_type=ContentType.objects.get_for_model(models.ServiceProvider),
+        ).values_list("object_id", flat=True)
+        return qs.filter(
+            Q(service_provider__customer__in=visible_customers)
+            | Q(service_provider_id__in=provider_ids)
+        )
+
+    def perform_update(self, serializer):
+        instance: models.ServiceProviderAccount = serializer.instance
+        old_username = instance.username
+        new_username = serializer.validated_data.get("username", old_username)
+        serializer.save()
+
+        if "username" in serializer.validated_data and old_username != new_username:
+            # Home directory is derived from the username, so re-derive it unless
+            # an operator pinned an explicit one. Same rule as OfferingUsersViewSet.
+            backend_metadata = instance.backend_metadata or {}
+            prefix = instance.service_provider.account_homedir_prefix or "/home/"
+            current_home = backend_metadata.get("homeDir")
+            if new_username and current_home in (None, f"{prefix}{old_username}"):
+                backend_metadata["homeDir"] = f"{prefix}{new_username}"
+                instance.backend_metadata = backend_metadata
+                instance.save(update_fields=["backend_metadata"])
+            logger.info(
+                "ServiceProviderAccount username update: uuid=%s provider_uuid=%s "
+                "old_username=%r new_username=%r source_user_uuid=%s",
+                instance.uuid.hex,
+                instance.service_provider.uuid.hex,
+                old_username,
+                new_username,
+                getattr(self.request.user, "uuid", None) and self.request.user.uuid.hex,
+            )
+
+        # The backed offering users cache these values for filtering and ordering,
+        # so they have to follow the parent rather than drift from it.
+        utils.propagate_provider_account(instance)
 
 
 @extend_schema_view(

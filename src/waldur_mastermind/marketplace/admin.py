@@ -372,7 +372,12 @@ def get_admin_link_for_scope(scope):
 class OfferingUserInline(admin.TabularInline):
     model = models.OfferingUser
     fields = ("user", "username", "created")
-    readonly_fields = ("created",)
+    # username is read-only because a provider-backed account's is owned by its
+    # ServiceProviderAccount and the model refuses a write here. Read-only for
+    # every row rather than conditionally: the inline is a view onto one
+    # offering's accounts, some backed and some not, and a field that is
+    # editable on some rows and not others is worse than one that never is.
+    readonly_fields = ("created", "username")
     extra = 1
 
 

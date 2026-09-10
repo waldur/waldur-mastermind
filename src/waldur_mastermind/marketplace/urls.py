@@ -133,6 +133,11 @@ def register_in(router):
         basename="marketplace-offering-user",
     )
     router.register(
+        r"marketplace-service-provider-accounts",
+        views.ServiceProviderAccountViewSet,
+        basename="marketplace-service-provider-account",
+    )
+    router.register(
         r"marketplace-offering-user-checklist-completions",
         views.OfferingUserChecklistCompletionsViewSet,
         basename="marketplace-offering-user-checklist-completion",

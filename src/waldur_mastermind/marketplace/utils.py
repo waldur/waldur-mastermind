@@ -2399,7 +2399,7 @@ def setup_linux_related_data(
 
     login_shell = instance.backend_metadata.get("loginShell")
     if not login_shell:
-        instance.backend_metadata["loginShell"] = offering.plugin_options.get(
+        instance.backend_metadata["loginShell"] = offering.resolve_account_setting(
             "login_shell", "/bin/bash"
         )
 
@@ -2407,7 +2407,7 @@ def setup_linux_related_data(
         # Derived from the username, so it is only meaningful once one exists —
         # an account materialised before its username is known keeps no homeDir
         # rather than a "/home/None" placeholder.
-        homedir_prefix = offering.plugin_options.get("homedir_prefix", "/home/")
+        homedir_prefix = offering.resolve_account_setting("homedir_prefix", "/home/")
         instance.backend_metadata["homeDir"] = f"{homedir_prefix}{instance.username}"
 
 
@@ -3608,7 +3608,7 @@ def create_username_from_freeipa_profile(user):
 
 
 def generate_username(user, offering):
-    username_generation_policy = offering.plugin_options.get(
+    username_generation_policy = offering.resolve_account_setting(
         "username_generation_policy", UsernameGenerationPolicy.SERVICE_PROVIDER.value
     )
 
@@ -3631,6 +3631,320 @@ def generate_username(user, offering):
         return user.details.get("site_username", "")
 
     return ""
+
+
+def get_or_create_provider_account(user, offering):
+    """The provider-level account backing this user's access to ``offering``.
+
+    Returns ``None`` when the offering is not in provider scope, or its customer
+    has no ServiceProvider row — the caller then keeps the historical
+    per-offering behaviour.
+
+    The account is named and given its POSIX identity once; a second offering of
+    the same provider finds the existing row, which is the whole point. Because
+    ``posix_ids.principal_filter`` keys on the Waldur user, the UID and primary
+    GID here are the same ones the user's offering accounts already hold.
+    """
+    if not offering.uses_provider_accounts:
+        return None
+    provider = offering.service_provider
+    if provider is None:
+        logger.warning(
+            "Offering %s asks for provider-level accounts but its customer is not "
+            "a service provider; falling back to a per-offering account.",
+            offering,
+        )
+        return None
+
+    account, created = models.ServiceProviderAccount.objects.get_or_create(
+        service_provider=provider, user=user
+    )
+    if not account.username:
+        username = generate_username(user, offering)
+        if username:
+            account.username = username
+            account.state = OfferingUserStates.OK
+
+    # Only mint the POSIX identity while the account is still missing it.
+    # setup_linux_related_data rewrites homeDir unconditionally from the
+    # offering's own homedir_prefix, so running it for every offering would let
+    # the second one move a shared account's home -- and would silently discard
+    # an operator's override, which the offering-user API is careful to keep.
+    needs_posix_identity = created or not (account.backend_metadata or {}).get(
+        "uidnumber"
+    )
+    if needs_posix_identity:
+        setup_linux_related_data(account, offering)
+    account.save()
+    if created:
+        logger.info("The provider account %s has been created", account)
+    return account
+
+
+def create_offering_user(user, offering, username=None, state=None):
+    """Create this user's account on ``offering``, backed when the provider owns it.
+
+    Under provider scope the account belongs to the ServiceProvider and the row
+    created here is only the association that reads through it: username, UID,
+    primary GID and home directory are decided once, on the provider account.
+    Outside provider scope the historical per-offering behaviour is kept.
+
+    ``username`` and ``state`` are what the caller would have used on its own --
+    a remote sync knows the remote's name, the Rancher handler uses the Waldur
+    username. Both are ignored under provider scope, where the provider account
+    is the only thing entitled to decide them.
+
+    Every creator has to go through here rather than calling
+    ``OfferingUser.objects.create``: a row created unbacked on a provider-scoped
+    offering stays unbacked until someone runs an adoption, which is the whole
+    divergence provider scope exists to remove.
+
+    Returns ``(offering_user, created)``.
+    """
+    provider_account = get_or_create_provider_account(user, offering)
+    if provider_account is not None:
+        offering_user, created = models.OfferingUser.objects.get_or_create(
+            offering=offering,
+            user=user,
+            defaults={"service_provider_account": provider_account},
+        )
+        if created:
+            logger.info(
+                "The offering user %s has been created, backed by %s",
+                offering_user,
+                provider_account,
+            )
+        elif not offering_user.is_provider_backed:
+            # defaults apply only on insert, so a row that predates provider
+            # scope would stay unbacked for ever and the same person would hold
+            # a backed and an unbacked account at the same provider.
+            offering_user.service_provider_account = provider_account
+            offering_user.pull_from_provider_account()
+            offering_user.save(
+                update_fields=[
+                    "service_provider_account",
+                    "username",
+                    "backend_metadata",
+                ]
+            )
+            logger.info(
+                "The offering user %s has been adopted by %s",
+                offering_user,
+                provider_account,
+            )
+        return offering_user, created
+
+    if username is None:
+        username = generate_username(user, offering)
+    if state is None:
+        state = (
+            OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
+        )
+    offering_user, created = models.OfferingUser.objects.get_or_create(
+        offering=offering,
+        user=user,
+        defaults={"username": username, "state": state},
+    )
+    if created:
+        setup_linux_related_data(offering_user, offering)
+        offering_user.save(update_fields=["backend_metadata"])
+        logger.info("The offering user %s has been created", offering_user)
+    return offering_user, created
+
+
+def provider_username_conflicts(service_provider) -> list[dict]:
+    """Users whose offering accounts at this provider disagree about the username.
+
+    Adopting provider-level accounts collapses each user's offering accounts onto
+    one username. Where they already agree that is silent; where they differ, one
+    of the names has to lose, and renaming a live POSIX account orphans every file
+    it owns -- so the choice belongs to an operator, not to a tie-break rule here.
+
+    Each candidate is reported with the evidence needed to choose: how many of the
+    provider's offerings use it, whether any of those accounts belongs to a user
+    with a live resource, and the home directory recorded for it.
+    """
+    offering_users = (
+        models.OfferingUser.objects.filter(
+            offering__customer_id=service_provider.customer_id
+        )
+        .exclude(username="")
+        .exclude(username__isnull=True)
+        .select_related("user", "offering")
+    )
+
+    by_user: dict[int, list] = defaultdict(list)
+    for offering_user in offering_users:
+        by_user[offering_user.user_id].append(offering_user)
+
+    conflicts = []
+    for accounts in by_user.values():
+        usernames = {account.username for account in accounts}
+        if len(usernames) < 2:
+            continue
+
+        # Resolved per offering, because "has a live resource" is a fact about the
+        # offering the account belongs to, not about the provider as a whole.
+        active_by_offering = {}
+        for account in accounts:
+            if account.offering_id not in active_by_offering:
+                active_by_offering[account.offering_id] = _users_with_active_resources(
+                    account.offering, [account]
+                )
+
+        candidates = []
+        for username in sorted(usernames):
+            matching = [a for a in accounts if a.username == username]
+            candidates.append(
+                {
+                    "username": username,
+                    "offering_count": len(matching),
+                    "offering_uuids": sorted(a.offering.uuid.hex for a in matching),
+                    "has_active_resources": any(
+                        a.user_id in active_by_offering[a.offering_id] for a in matching
+                    ),
+                    "home_directories": sorted(
+                        {
+                            (a.backend_metadata or {}).get("homeDir")
+                            for a in matching
+                            if (a.backend_metadata or {}).get("homeDir")
+                        }
+                    ),
+                }
+            )
+
+        user = accounts[0].user
+        conflicts.append(
+            {
+                "user_uuid": user.uuid.hex,
+                "user_username": user.username,
+                "user_full_name": user.full_name,
+                "candidates": candidates,
+            }
+        )
+
+    return sorted(conflicts, key=lambda c: c["user_username"] or "")
+
+
+def adopt_provider_accounts(service_provider, resolutions: dict | None = None) -> dict:
+    """Back every offering account at this provider with a provider-level account.
+
+    ``resolutions`` maps a user uuid hex to the username an operator chose for a
+    conflicted user. Users whose accounts already agree need no entry and are
+    adopted without input.
+
+    Refuses outright while any conflict is unresolved: adopting half a provider
+    would leave the rest silently on the old per-offering behaviour, which is
+    worse than not starting.
+    """
+    resolutions = resolutions or {}
+    with transaction.atomic():
+        # Lock the provider row so a concurrent adoption (or a username edit that
+        # would create a fresh conflict) serialises behind this one: checking
+        # conflicts outside the transaction that resolves them is a TOCTOU.
+        service_provider = models.ServiceProvider.objects.select_for_update().get(
+            pk=service_provider.pk
+        )
+        return _adopt_provider_accounts_locked(service_provider, resolutions)
+
+
+def _adopt_provider_accounts_locked(service_provider, resolutions: dict) -> dict:
+    """The body of :func:`adopt_provider_accounts`, run under the provider lock."""
+    unresolved = [
+        conflict
+        for conflict in provider_username_conflicts(service_provider)
+        if conflict["user_uuid"] not in resolutions
+    ]
+    if unresolved:
+        # DRF's, not Django's: this surfaces straight to the operator as the
+        # response body, and the conflict report is the useful half of it.
+        raise serializers.ValidationError(
+            {
+                "conflicts": unresolved,
+                "detail": _(
+                    "Some users hold different usernames on different offerings of "
+                    "this provider. Choose the surviving username for each before "
+                    "adopting provider-level accounts."
+                ),
+            }
+        )
+
+    adopted = 0
+    backed = 0
+    offering_users = models.OfferingUser.objects.filter(
+        offering__customer_id=service_provider.customer_id,
+        service_provider_account__isnull=True,
+    ).select_related("user")
+
+    by_user: dict[int, list] = defaultdict(list)
+    for offering_user in offering_users:
+        by_user[offering_user.user_id].append(offering_user)
+
+    for accounts in by_user.values():
+        user = accounts[0].user
+        chosen = resolutions.get(user.uuid.hex)
+        if chosen is None:
+            # No conflict, so any of them is the same answer.
+            chosen = next((a.username for a in accounts if a.username), "")
+
+        account, created = models.ServiceProviderAccount.objects.get_or_create(
+            service_provider=service_provider,
+            user=user,
+            defaults={"username": chosen},
+        )
+        if created:
+            adopted += 1
+        source = next((a for a in accounts if a.username == chosen), accounts[0])
+        if not account.backend_metadata:
+            account.backend_metadata = dict(source.backend_metadata or {})
+        if account.username != chosen:
+            account.username = chosen
+        account.state = source.state
+        account.save()
+
+        for offering_user in accounts:
+            offering_user.service_provider_account = account
+            offering_user.pull_from_provider_account()
+            offering_user.save(
+                update_fields=[
+                    "service_provider_account",
+                    "username",
+                    "backend_metadata",
+                ]
+            )
+            backed += 1
+
+    logger.info(
+        "Adopted %d provider account(s) at %s, backing %d offering account(s)",
+        adopted,
+        service_provider,
+        backed,
+    )
+    return {"adopted": adopted, "backed": backed}
+
+
+def propagate_provider_account(account) -> int:
+    """Push a provider account's values down onto every offering user backing it.
+
+    The columns on OfferingUser are a cache of the parent, not a second source of
+    truth: ``OfferingUserFilter`` searches ``backend_metadata__uidnumber`` and the
+    model orders by ``username``, so both have to follow. Returns how many rows
+    actually changed.
+    """
+    updated = 0
+    for offering_user in account.offering_users.all():
+        if offering_user.pull_from_provider_account():
+            offering_user.save(
+                update_fields=["username", "backend_metadata", "modified"]
+            )
+            updated += 1
+    if updated:
+        logger.info(
+            "Propagated provider account %s to %d offering user(s)",
+            account.uuid.hex,
+            updated,
+        )
+    return updated
 
 
 def user_offerings_mapping(offerings):
@@ -3678,10 +3992,9 @@ def user_offerings_mapping(offerings):
                 if username
                 else OfferingUserStates.CREATION_REQUESTED
             )
-            offering_user = models.OfferingUser.objects.create(
-                user=user, offering=offering, username=username, state=state
+            offering_user, _ = create_offering_user(
+                user, offering, username=username, state=state
             )
-            logger.info("Offering user %s has been created.", offering_user)
         elif offering_user.state == OfferingUserStates.DELETION_REQUESTED:
             # Only restore from DELETION_REQUESTED — no backend action taken yet.
             # DELETING/ERROR_DELETING/DELETED are left untouched since
@@ -5164,6 +5477,40 @@ def _resolve_event_consumer_customer(
     if project:
         return project.customer
     return None
+
+
+def prepare_provider_account_messages(
+    account,
+    message_payload: dict,
+) -> list[dict[str, str]]:
+    """Build ``service_provider_account`` messages for one provider account.
+
+    The sibling of :func:`prepare_messages` for events that have no offering.
+    A provider account belongs to the provider, not to any one of its offerings,
+    so the event is anchored on the provider's **customer** -- which is the key
+    ``get_scope_ancestors`` already yields for every offering of that provider,
+    so a consumer bound there receives both this and the per-offering events.
+
+    The legacy per-offering subscription path does not apply: its queue name is
+    built from an offering uuid, and this event has none.
+    """
+    customer = account.service_provider.customer
+    scope_keys = permission_utils.scope_keys_for(customer)
+
+    def _build_payload():
+        payload = dict(message_payload)
+        payload["service_provider_uuid"] = account.service_provider.uuid.hex
+        payload["customer_uuid"] = customer.uuid.hex
+        payload["object_type"] = ObservableObjectType.SERVICE_PROVIDER_ACCOUNT.value
+        return payload
+
+    dispatch_result = event_dispatch.build_messages(
+        scope_keys,
+        _build_payload,
+        ObservableObjectType.SERVICE_PROVIDER_ACCOUNT,
+        include_global=True,
+    )
+    return dispatch_result.messages
 
 
 def prepare_messages(

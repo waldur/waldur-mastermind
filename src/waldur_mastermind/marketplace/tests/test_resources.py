@@ -1445,6 +1445,24 @@ class ResourceUpdateLimitsTest(test.APITestCase):
         payload = {"limits": limits}
         return self.client.post(url, payload)
 
+    def test_a_fraction_is_refused_on_an_integer_only_component(self):
+        """update_limits is the UI's change-limits route and had no fractional
+        test, though it is one of the eight validate_limits call sites."""
+        response = self.update_limits(self.fixture.owner, self.resource, {"vcpu": 1.5})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_fraction_is_accepted_where_the_component_allows_it(self):
+        models.OfferingComponent.objects.filter(
+            offering=self.resource.offering, type="vcpu"
+        ).update(limit_decimal_places=1)
+
+        response = self.update_limits(self.fixture.owner, self.resource, {"vcpu": 1.5})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.filter(resource=self.resource).latest("created")
+        self.assertEqual(order.limits["vcpu"], 1.5)
+
     def test_create_update_limits_order(self):
         response = self.update_limits(self.fixture.owner, self.resource)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -2000,6 +2018,67 @@ class ResourceReallocateLimitsTest(test.APITestCase):
             {"vcpu": 3, "ram": 6},
             targets,
         )
+
+    def allow_fractions(self, places=1):
+        """Let every component of the offering take a fractional limit."""
+        models.OfferingComponent.objects.filter(
+            offering=self.source_resource.offering
+        ).update(limit_decimal_places=places)
+
+    def test_a_fraction_is_refused_on_integer_only_components(self):
+        """The reallocate paths call validate_limits three times and none of
+        them had a fractional test, though this is where add_limit_values --
+        the only exact-arithmetic helper -- is actually used in production."""
+        response = self.reallocate_allocated({"vcpu": 0.5, "ram": 6})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_fractional_split_that_balances_exactly_is_accepted(self):
+        """0.1 + 0.2 as floats is 0.30000000000000004, which overshoots the
+        amount being reallocated and fails a split that balances exactly."""
+        self.allow_fractions()
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 0.1, "ram": 6},
+            },
+            {
+                "resource_uuid": self.target_resource_2.uuid.hex,
+                "allocated_limits": {"vcpu": 0.2, "ram": 4},
+            },
+        ]
+
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 0.3, "ram": 10},
+            targets,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_source_limit_after_a_fractional_reallocation_is_exact(self):
+        """The subtraction must not leave 9.699999999999999 behind."""
+        self.allow_fractions()
+        targets = [
+            {
+                "resource_uuid": self.target_resource_1.uuid.hex,
+                "allocated_limits": {"vcpu": 0.3, "ram": 6},
+            }
+        ]
+
+        response = self.reallocate_limits(
+            self.fixture.owner,
+            self.source_resource,
+            {"vcpu": 0.3, "ram": 6},
+            targets,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        source_order = models.Order.objects.filter(
+            resource=self.source_resource, type=OrderTypes.UPDATE
+        ).latest("created")
+        self.assertEqual(source_order.limits["vcpu"], 9.7)
 
     def test_reallocate_limits_rejects_negative_values(self):
         response = self.reallocate_allocated({"vcpu": -1, "ram": 6})

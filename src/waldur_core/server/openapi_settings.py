@@ -16,6 +16,7 @@ from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.attribute_types import ATTRIBUTE_TYPES
 from waldur_mastermind.marketplace.enums import (
+    AccountScopes,
     BillingModes,
     OfferingStates,
     OfferingUserStates,
@@ -105,6 +106,11 @@ SPECTACULAR_SETTINGS = {
         "ChecklistOperators": checklist_enums.OPERATORS,
         "ServiceAccountState": ServiceAccountState.VALUES,
         "OfferingUserState": OfferingUserStates.VALUES,
+        # Where a user's account lives: the ServiceProvider column and the
+        # offering plugin option override it carry the same two values, so
+        # name the set once instead of letting the collision resolver mint a
+        # hash-suffixed name that moves whenever anything else shifts.
+        "AccountScope": AccountScopes.CHOICES,
         "OnboardingVerificationStatus": VerificationStatus.VALUES,
         "AgentServiceState": AgentServiceState.VALUES,
         # Rename Rancher role enum to avoid conflict with permissions RoleEnum

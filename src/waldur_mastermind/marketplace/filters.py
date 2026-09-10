@@ -2416,6 +2416,62 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
             ).distinct()
 
 
+class ServiceProviderAccountFilter(core_filters.CreatedModifiedFilter):
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid", label="User UUID"
+    )
+    user_username = django_filters.CharFilter(
+        field_name="user__username", lookup_expr="iexact", label="User username"
+    )
+    provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-service-provider-detail",
+        field_name="service_provider__uuid",
+        label="Service provider UUID",
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="service_provider__customer__uuid",
+        label="Provider organization UUID",
+    )
+    is_restricted = django_filters.BooleanFilter(
+        field_name="is_restricted", label="Is restricted"
+    )
+    state = core_filters.MappedMultipleChoiceFilter(
+        OfferingUserStates.CHOICES, label="Account state"
+    )
+    runtime_state = core_filters.MappedMultipleChoiceFilter(
+        OfferingUserRuntimeStates.CHOICES, label="Account runtime state"
+    )
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            "created",
+            "modified",
+            "username",
+            ("user__first_name", "user_first_name"),
+            ("user__last_name", "user_last_name"),
+        )
+    )
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by username, user name, UID or primary GID",
+    )
+
+    class Meta:
+        model = models.ServiceProviderAccount
+        fields = []
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(username__icontains=value)
+            | Q(user__first_name__icontains=value)
+            | Q(user__last_name__icontains=value)
+            | Q(user__username__icontains=value)
+            | Q(backend_metadata__uidnumber__icontains=value)
+            | Q(backend_metadata__primarygroup__icontains=value)
+        )
+
+
 class OfferingUserChecklistCompletionsFilter(core_filters.CreatedModifiedFilter):
     """Filter for checklist completions related to offering users."""
 

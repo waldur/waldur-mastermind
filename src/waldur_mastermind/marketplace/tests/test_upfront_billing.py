@@ -262,6 +262,60 @@ class PrepaidOneTimeBillingTest(test.APITestCase):
         self.assertEqual(item.unit_price, Decimal("10"))
         self.assertEqual(float(item.total), 120.0)
 
+    def test_a_fractional_prepaid_limit_is_charged_in_full(self):
+        """Prepaid divides the limit by the component factor and multiplies by
+        the remaining months, all in float. None of that had a fractional test,
+        so a truncation here would have produced a plausible-looking undercharge
+        rather than an error.
+        """
+        self.component.limit_decimal_places = 1
+        self.component.save(update_fields=["limit_decimal_places"])
+        resource = factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.project,
+            limits={"cpu": 0.5},
+            end_date=datetime.date(2024, 4, 15),  # 3 months
+        )
+        resource.set_state_ok()
+        resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.project.customer, year=2024, month=1
+        )
+        item = invoice.items.filter(resource=resource).first()
+        # quantity = limit x months = 0.5 x 3, not 0 and not 3.
+        self.assertEqual(item.quantity, Decimal("1.5"))
+        self.assertEqual(float(item.total), 15.0)
+
+    def test_changing_a_prepaid_limit_to_a_fraction_bills_the_delta(self):
+        """_handle_prepaid_limits_change computes new/factor - old/factor."""
+        self.component.limit_decimal_places = 1
+        self.component.save(update_fields=["limit_decimal_places"])
+        resource = factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.project,
+            limits={"cpu": 1},
+            end_date=datetime.date(2024, 4, 15),
+        )
+        resource.set_state_ok()
+        resource.save()
+
+        resource.limits = {"cpu": 1.5}
+        resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.project.customer, year=2024, month=1
+        )
+        supplementary = [
+            item
+            for item in invoice.items.filter(resource=resource)
+            if item.details.get("is_supplementary")
+        ]
+        self.assertEqual(len(supplementary), 1, "no delta item was raised")
+        self.assertGreater(supplementary[0].quantity, 0)
+
     def test_prepaid_without_end_date_charges_limit_only(self):
         """Without end_date, prepaid charges just the limit (no month multiplier)."""
         resource = factories.ResourceFactory(

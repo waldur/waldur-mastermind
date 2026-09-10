@@ -40,10 +40,9 @@ def create_offering_user_for_openportal_remote_user(sender, allocation, user, **
         )
         return
 
-    marketplace_models.OfferingUser.objects.update_or_create(
-        offering=offering,
-        user=user,
-    )
+    # Through the shared creator so a provider-scoped offering gets a backed
+    # account rather than one that stays unbacked until an adoption run.
+    marketplace_utils.create_offering_user(user, offering)
 
 
 def drop_offering_user_for_openportal_remote_user(sender, allocation, user, **kwargs):

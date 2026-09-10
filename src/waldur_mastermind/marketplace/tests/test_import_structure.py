@@ -79,6 +79,74 @@ class ImportStructureCommandTest(TestCase):
         call_command("import_structure", *args, **kwargs)
         return output.getvalue()
 
+    def test_import_does_not_overwrite_a_provider_backed_username(self):
+        """QuerySet.update() bypasses the model guard, so the import filters itself.
+
+        Model.save() refuses a delegated write on a backed account, but the two
+        update paths in this command go through QuerySet.update(), which does
+        not call save() at all. They are the only way a backed row's cached
+        username could end up diverged from its provider account in the
+        database, and a dump is exactly where a stale one would come from.
+        """
+        from waldur_core.structure.tests import factories as structure_factories
+        from waldur_mastermind.marketplace import models
+        from waldur_mastermind.marketplace.tests import factories
+
+        offering = factories.OfferingFactory()
+        provider = factories.ServiceProviderFactory(customer=offering.customer)
+        user = structure_factories.UserFactory()
+        account = models.ServiceProviderAccount.objects.create(
+            service_provider=provider, user=user, username="owned_by_provider"
+        )
+        offering_user = models.OfferingUser.objects.create(
+            offering=offering, user=user, service_provider_account=account
+        )
+
+        self._create_test_json(
+            {
+                "offering_users": [
+                    {
+                        "uuid": offering_user.uuid.hex,
+                        "offering_uuid": offering.uuid.hex,
+                        "user_uuid": user.uuid.hex,
+                        "username": "from_the_dump",
+                    }
+                ]
+            }
+        )
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.username, "owned_by_provider")
+
+    def test_import_still_sets_the_username_on_an_unbacked_account(self):
+        from waldur_core.structure.tests import factories as structure_factories
+        from waldur_mastermind.marketplace import models
+        from waldur_mastermind.marketplace.tests import factories
+
+        offering = factories.OfferingFactory()
+        user = structure_factories.UserFactory()
+        offering_user = models.OfferingUser.objects.create(
+            offering=offering, user=user, username="before"
+        )
+
+        self._create_test_json(
+            {
+                "offering_users": [
+                    {
+                        "uuid": offering_user.uuid.hex,
+                        "offering_uuid": offering.uuid.hex,
+                        "user_uuid": user.uuid.hex,
+                        "username": "after",
+                    }
+                ]
+            }
+        )
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.username, "after")
+
     # UUID validation tests
 
     def test_import_aborts_on_malformed_uuid(self):
