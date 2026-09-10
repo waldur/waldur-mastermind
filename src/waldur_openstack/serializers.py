@@ -6039,9 +6039,17 @@ class OpenStackRouterInterfaceSerializer(serializers.Serializer):
             tenant = router.tenant
             if attrs.get("subnet"):
                 subnet: models.SubNet = attrs["subnet"]
-                if subnet.tenant != tenant:
+                # Visibility, not ownership (#394). A network shared over RBAC is
+                # routed by the tenant that consumes it: Neutron accepts the
+                # attachment and puts the interface port in the *router's*
+                # project, which is exactly how a shared network is handed over.
+                # `available_subnets` is the tenant's own subnets plus the ones
+                # reaching it through a NetworkRBACPolicy, so a tenant with no
+                # policy is still refused.
+                if not tenant.available_subnets.filter(pk=subnet.pk).exists():
                     raise serializers.ValidationError(
-                        "Subnet must belong to the same tenant as the router."
+                        "Subnet must belong to the router's tenant, or be shared "
+                        "with it."
                     )
             if attrs.get("port"):
                 port: models.Port = attrs["port"]
