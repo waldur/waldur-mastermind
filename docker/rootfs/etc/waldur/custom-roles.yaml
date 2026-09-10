@@ -1,0 +1,16 @@
+# Operator-defined roles, loaded by `import_roles` on every deployment.
+# Same schema as permissions.yaml; keep built-in Waldur roles out of this file.
+#
+# Note: a role listed here is created as a *system* role — it cannot be deleted
+# or renamed through the UI/API afterwards, and removing it from this file does
+# not remove it from the database.
+#
+# - role: CUSTOMER.AUDITOR
+#   description: Read-only auditor
+#   scope: customer          # customer | service_provider | call_organizer |
+#                            # project | offering | resource |
+#                            # resource_project | call | proposal
+#   permissions:
+#     - CUSTOMER.LIST_USERS
+#     - PROJECT.LIST
+[]
