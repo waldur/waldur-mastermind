@@ -286,6 +286,39 @@ def normalize_mapped_claim_value(user_field: str, value):
     return value
 
 
+def normalize_lookup_claim_value(
+    identity_provider: IdentityProvider, claim: str, value
+) -> str | None:
+    """
+    Reduce a lookup claim to the single string stored in the lookup field.
+
+    IdPs may deliver any claim as a list (MyAccessID sends ``mail`` as one).
+    Passed through as-is, Django stringifies the list on save and on lookup,
+    so the account is keyed on its repr, e.g. ``['user@example.com']``.
+    """
+    if isinstance(value, list | tuple):
+        if not value:
+            return None
+        if len(value) > 1:
+            # Picking one value would make the lookup depend on the order the
+            # IdP happens to return them in.
+            raise OAuthException(
+                identity_provider.provider,
+                f"Unable to match user because identity claim {claim} "
+                "has multiple values.",
+            )
+        value = value[0]
+
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, int | float):
+        return str(value)
+    raise OAuthException(
+        identity_provider.provider,
+        f"Unable to match user because identity claim {claim} is not a scalar value.",
+    )
+
+
 def get_lookup_value(
     identity_provider: IdentityProvider, backend_user: dict[str, str]
 ) -> str | None:
@@ -293,7 +326,9 @@ def get_lookup_value(
     for claim in claims.split():
         claim = claim.strip()
         if claim in backend_user and claim:
-            return backend_user[claim]
+            return normalize_lookup_claim_value(
+                identity_provider, claim, backend_user[claim]
+            )
 
 
 def get_lookup_params(

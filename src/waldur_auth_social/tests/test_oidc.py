@@ -410,6 +410,66 @@ class OAuthViewCompleteTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("User is deactivated", str(response.content))
 
+    def _use_mail_as_lookup_claim(self):
+        self.provider.user_claim = "mail"
+        self.provider.save()
+
+    def test_single_value_list_lookup_claim_is_unwrapped(self):
+        self._use_mail_as_lookup_claim()
+        self._mock_token_request()
+        self._mock_userinfo_request(
+            {
+                "sub": "test_sub",
+                "mail": ["first.second@example.com"],
+                "email": "first.second@example.com",
+            }
+        )
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(
+            list(User.objects.values_list("username", flat=True)),
+            ["first.second@example.com"],
+        )
+
+    def test_single_value_list_lookup_claim_matches_existing_user(self):
+        self._use_mail_as_lookup_claim()
+        user = structure_factories.UserFactory(username="first.second@example.com")
+        self._mock_token_request()
+        self._mock_userinfo_request(
+            {"sub": "test_sub", "mail": ["first.second@example.com"]}
+        )
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(list(User.objects.values_list("pk", flat=True)), [user.pk])
+
+    def test_multi_value_lookup_claim_is_refused(self):
+        self._use_mail_as_lookup_claim()
+        self._mock_token_request()
+        self._mock_userinfo_request(
+            {"sub": "test_sub", "mail": ["a@example.com", "b@example.com"]}
+        )
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("identity claim mail has multiple values", str(response.content))
+        self.assertFalse(User.objects.exists())
+
+    def test_empty_list_lookup_claim_is_treated_as_missing(self):
+        self._use_mail_as_lookup_claim()
+        self._mock_token_request()
+        self._mock_userinfo_request({"sub": "test_sub", "mail": []})
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("identity field is missing", str(response.content))
+        self.assertFalse(User.objects.exists())
+
     @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
     def test_deactivated_user_with_pending_invitation_can_login(self):
         """
