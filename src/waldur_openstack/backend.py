@@ -3408,6 +3408,12 @@ class OpenStackBackend(ServiceBackend):
             subnet.backend_id = backend_subnet["id"]
             if backend_subnet.get("gateway_ip"):
                 subnet.gateway_ip = backend_subnet["gateway_ip"]
+            # Neutron always allocates a pool -- the CIDR minus the gateway --
+            # when the request carries none, and it is the only place that value
+            # exists. Discarding it left the row claiming the subnet had no
+            # addresses at all, which `get_free_ip` believes (#390).
+            if backend_subnet.get("allocation_pools"):
+                subnet.allocation_pools = backend_subnet["allocation_pools"]
 
             # Automatically create router for subnet, unless the caller asked
             # for an unattached one (#227) or the tenant opted out of routers
@@ -3461,7 +3467,14 @@ class OpenStackBackend(ServiceBackend):
         if backend_subnet["cidr"] != subnet.cidr:
             data["cidr"] = subnet.cidr
 
-        if backend_subnet["allocation_pools"] != subnet.allocation_pools:
+        # Only a pool we actually hold. The comparison is true for every subnet
+        # whose pool has not been pulled yet, and sending that empty value asks
+        # Neutron to drop a pool the tenant is using -- a rename should not do
+        # that (#390).
+        if (
+            subnet.allocation_pools
+            and backend_subnet["allocation_pools"] != subnet.allocation_pools
+        ):
             data["allocation_pools"] = subnet.allocation_pools
 
         neutron.update_subnet(subnet.backend_id, {"subnet": data})
@@ -8264,7 +8277,22 @@ class OpenStackBackend(ServiceBackend):
             for ip in port["fixed_ips"]:
                 used_ips.add(ip["ip_address"])
 
-        for pool in subnet.allocation_pools:
+        # A row whose pool was never stored (#390, and anything created before
+        # that fix) is not a subnet without addresses: ask the backend, which is
+        # where the pool lives. One extra call, and only when we know nothing.
+        allocation_pools = subnet.allocation_pools
+        if not isinstance(allocation_pools, list) or not allocation_pools:
+            try:
+                allocation_pools = (
+                    neutron.show_subnet(subnet.backend_id)["subnet"].get(
+                        "allocation_pools"
+                    )
+                    or []
+                )
+            except neutron_exceptions.NeutronClientException as e:
+                raise OpenStackBackendError(e)
+
+        for pool in allocation_pools:
             start = ipaddress.IPv4Address(pool["start"])
             end = ipaddress.IPv4Address(pool["end"])
             for ip_int in range(int(start), int(end) + 1):
