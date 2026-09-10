@@ -2115,6 +2115,61 @@ def request_offering_user_deletion_for_user(user_uuid: str):
         offering_user.set_deleted()
         offering_user.save(update_fields=["state"])
 
+    request_provider_account_deletion_for_user(user)
+
+
+def request_provider_account_deletion_for_user(user) -> None:
+    """Release a provider account once the user's last offering account is gone.
+
+    The account is the provider's whole directory entry, so it must outlive the
+    individual offering associations: losing access to one of a provider's
+    offerings while still holding another must not delete the entry that the
+    other one depends on. Only when nothing live still reads through it does the
+    account itself move to DELETION_REQUESTED.
+    """
+    live_states = [
+        OfferingUserStates.OK,
+        OfferingUserStates.CREATION_REQUESTED,
+        OfferingUserStates.CREATING,
+        OfferingUserStates.PENDING_ACCOUNT_LINKING,
+        OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+        OfferingUserStates.ERROR_CREATING,
+    ]
+    accounts = models.ServiceProviderAccount.objects.filter(
+        user=user,
+        state__in=live_states,
+    ).annotate(
+        has_live_offering_users=Exists(
+            models.OfferingUser.objects.filter(
+                service_provider_account=OuterRef("pk"),
+                state__in=live_states,
+            )
+        )
+    )
+    for account in accounts.filter(has_live_offering_users=False):
+        # An account still waiting for a username was never provisioned anywhere,
+        # so there is nothing for a provider to tear down: it goes straight to
+        # DELETED. CREATION_REQUESTED is not a legal source for request_deletion,
+        # so calling it here would raise rather than clean up. Mirrors what
+        # request_offering_user_deletion_for_user does for unprovisioned accounts.
+        if account.state == OfferingUserStates.CREATION_REQUESTED:
+            logger.info(
+                "Provider account %s of user %s was never provisioned and no "
+                "offering account reads through it any more, marking it deleted.",
+                account,
+                user,
+            )
+            account.set_deleted()
+        else:
+            logger.info(
+                "No offering account of user %s reads through provider account %s any "
+                "more, requesting its deletion.",
+                user,
+                account,
+            )
+            account.request_deletion()
+        account.save(update_fields=["state"])
+
 
 def _get_eligible_offerings_for_project(project):
     """Return offerings in a project that support offering user creation."""
@@ -2203,24 +2258,7 @@ def _create_or_restore_offering_user(user, offering):
             logger.info("An offering user for %s in %s already exists", user, offering)
         return
 
-    # Create new offering user
-    username = utils.generate_username(user, offering)
-    state = OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
-    offering_user, created = models.OfferingUser.objects.get_or_create(
-        offering=offering,
-        user=user,
-        defaults={
-            "username": username,
-            "state": state,
-        },
-    )
-    if not created:
-        logger.info("An offering user for %s in %s already exists", user, offering)
-        return
-    utils.setup_linux_related_data(offering_user, offering)
-    offering_user.save(update_fields=["backend_metadata"])
-
-    logger.info("The offering user %s has been created", offering_user)
+    utils.create_offering_user(user, offering)
 
 
 @shared_task(

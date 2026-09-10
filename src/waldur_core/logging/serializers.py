@@ -1351,6 +1351,21 @@ class EventConsumerRegistrationSerializer(serializers.Serializer):
                     f"may not subscribe to its events."
                 )
                 continue
+            # A ServiceProvider never appears in an event's scope-key chain --
+            # get_scope_ancestors walks offering -> customer, not the provider row
+            # -- so binding to one would be accepted and then match nothing, for
+            # ever, with no error to explain the silence. The operator's intent is
+            # unambiguous, so bind to the provider's customer instead: that is
+            # exactly the key every offering of that provider yields.
+            #
+            # Matched on the natural key rather than by importing the model, since
+            # this module is deliberately free of marketplace imports -- the same
+            # reason EventConsumerScope binds through a GenericForeignKey.
+            if (app_label, model_name) == ("marketplace", "serviceprovider"):
+                instance = instance.customer
+                content_type = ContentType.objects.get_by_natural_key(
+                    "structure", "customer"
+                )
             resolved.append(
                 {"content_type_id": content_type.id, "object_id": instance.id}
             )

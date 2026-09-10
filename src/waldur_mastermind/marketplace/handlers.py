@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import F, signals
+from django.db.models import F, Q, signals
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.timezone import now
@@ -1902,6 +1902,9 @@ def update_offering_user_username_after_offering_settings_change(
             OfferingUserStates.CREATING,
             OfferingUserStates.OK,
         ],
+        # A backed account's username is owned by its provider account and
+        # refreshed by propagation; writing it here is refused.
+        service_provider_account__isnull=True,
     )
 
     for offering_user in offering_users:
@@ -1942,14 +1945,29 @@ def update_offering_user_username_after_user_change(sender, instance: User, **kw
     if not details.get("site_username"):
         return
 
+    # The policy may be set on the offering or defaulted by its provider, and
+    # resolve_account_setting is Python-side, so the filter selects a superset
+    # -- either names it -- and the loop confirms per row. A plain filter on
+    # plugin_options would miss every offering that inherits the policy from
+    # its provider, which is the gap the account_ defaults introduced.
+    policy = utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value
     offering_users = models.OfferingUser.objects.filter(
+        Q(offering__plugin_options__username_generation_policy=policy)
+        | Q(
+            offering__customer__serviceprovider__account_username_generation_policy=policy
+        ),
         user=user,
         offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
-        offering__plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value,
-    )
+        # A backed account's username is owned by its provider account and
+        # refreshed by propagation; writing it here is refused.
+        service_provider_account__isnull=True,
+    ).select_related("offering__customer__serviceprovider")
 
     for offering_user in offering_users:
         offering = offering_user.offering
+        if offering.resolve_account_setting("username_generation_policy") != policy:
+            # The offering overrides its provider with a different policy.
+            continue
         old_username = offering_user.username
         new_username = utils.generate_username(user, offering)
         logger.info(
@@ -1985,13 +2003,30 @@ def update_offering_user_username_after_freeipa_profile_update(
     if not profile.tracker.has_changed("username") or not created:
         return
 
+    # The policy may be set on the offering or defaulted by its provider, and
+    # resolve_account_setting is Python-side, so the filter selects a superset
+    # -- either names it -- and the loop confirms per row. A plain filter on
+    # plugin_options would miss every offering that inherits the policy from
+    # its provider, which is the gap the account_ defaults introduced.
+    policy = utils.UsernameGenerationPolicy.FREEIPA.value
     offering_users = models.OfferingUser.objects.filter(
+        Q(offering__plugin_options__username_generation_policy=policy)
+        | Q(
+            offering__customer__serviceprovider__account_username_generation_policy=policy
+        ),
         user=profile.user,
         is_restricted=False,
-        offering__plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.FREEIPA.value,
-    )
+        # A backed account's username is owned by its provider account and
+        # refreshed by propagation; writing it here is refused.
+        service_provider_account__isnull=True,
+    ).select_related("offering__customer__serviceprovider")
 
     for offering_user in offering_users:
+        if (
+            offering_user.offering.resolve_account_setting("username_generation_policy")
+            != policy
+        ):
+            continue
         logger.info(
             "Updating %s username after FreeIPA profile %s change",
             offering_user,
@@ -2647,6 +2682,77 @@ def send_offering_user_created_message(
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
+
+
+def _provider_account_payload(account, action: str) -> dict:
+    """The wire payload for one provider-account change."""
+    metadata = account.backend_metadata or {}
+    return {
+        "service_provider_account_uuid": account.uuid.hex,
+        "user_uuid": account.user.uuid.hex,
+        "username": account.username,
+        "state": account.get_state_display(),
+        "runtime_state": account.runtime_state,
+        "action": action,
+        # Unlike the per-offering event, this one carries the POSIX identity:
+        # a directory writer consuming it has no offering to read them back
+        # from, and re-fetching per account is what the agents already avoid.
+        "uidnumber": metadata.get("uidnumber"),
+        "primarygroup": metadata.get("primarygroup"),
+        "login_shell": metadata.get("loginShell"),
+        "home_directory": metadata.get("homeDir"),
+    }
+
+
+def _publish_provider_account(account, action: str) -> None:
+    messages = marketplace_utils.prepare_provider_account_messages(
+        account, _provider_account_payload(account, action)
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+
+def send_provider_account_created_message(
+    sender, instance: models.ServiceProviderAccount, created=False, **kwargs
+):
+    """Announce a new provider-level account."""
+    if not created or get_skip_side_effects():
+        return
+    _publish_provider_account(instance, "create")
+
+
+def send_provider_account_updated_message(
+    sender, instance: models.ServiceProviderAccount, created=False, **kwargs
+):
+    """Announce a change to a provider-level account.
+
+    Only the fields the tracker watches are worth an event; a save that touches
+    nothing a consumer can observe should not wake every queue.
+    """
+    if created or get_skip_side_effects():
+        return
+    watched = (
+        "username",
+        "state",
+        "runtime_state",
+        "is_restricted",
+        "service_provider_comment",
+        "service_provider_comment_url",
+        # A UID/GID/home change is exactly what a directory writer needs to hear.
+        "backend_metadata",
+    )
+    if not any(instance.tracker.has_changed(field) for field in watched):
+        return
+    _publish_provider_account(instance, "update")
+
+
+def send_provider_account_deleted_message(
+    sender, instance: models.ServiceProviderAccount, **kwargs
+):
+    """Announce a provider-level account going away."""
+    if get_skip_side_effects():
+        return
+    _publish_provider_account(instance, "delete")
 
 
 def send_offering_user_updated_message(

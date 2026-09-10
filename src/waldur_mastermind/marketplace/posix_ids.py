@@ -152,12 +152,14 @@ def resolve(offering: models.Offering) -> models.PosixIdPool | None:
 def principal_filter(consumer) -> dict:
     """Lookup keys identifying the principal that owns ``consumer``'s identity.
 
-    An offering user's identity belongs to the Waldur **user**, so every offering
-    account of that user which resolves to the same pool shares one UID and one
-    primary GID. Robot accounts and groups have no user behind them, so they stay
-    keyed on the consumer row itself.
+    A user account's identity belongs to the Waldur **user**, so every account of
+    that user which resolves to the same pool shares one UID and one primary GID.
+    That covers both scopes: an OfferingUser and the ServiceProviderAccount backing
+    it are the same principal and must not be handed different numbers. Robot
+    accounts and groups have no user behind them, so they stay keyed on the
+    consumer row itself.
     """
-    if isinstance(consumer, models.OfferingUser):
+    if isinstance(consumer, models.BaseAccount):
         return {"user_id": consumer.user_id}
     ct = ContentType.objects.get_for_model(consumer.__class__)
     return {"content_type": ct, "object_id": consumer.pk}
@@ -254,7 +256,7 @@ def allocate(offering: models.Offering, namespace: str, consumer) -> int | None:
     the value already allocated for the first one.
     """
     if isinstance(
-        consumer, models.OfferingUser
+        consumer, models.BaseAccount
     ) and namespace not in pool_sourced_namespaces(offering):
         # The offering takes this identifier from the user rather than from the
         # allocator (or manages no POSIX account at all). Allocating here would
@@ -391,6 +393,20 @@ def _pool_ids_still_in_use_by(user_id: int) -> set:
         pool_id = resolved[offering_id]
         if pool_id is not None:
             pool_ids.add(pool_id)
+
+    # A provider account outlives the offering accounts that read through it: it
+    # is only deleted once the user has lost access to every offering of that
+    # provider. Until then it still holds the reservation, so its pool must not
+    # be treated as free just because the last OfferingUser row went away.
+    provider_accounts = models.ServiceProviderAccount.objects.filter(
+        user_id=user_id
+    ).select_related("service_provider")
+    for account in provider_accounts:
+        pool = models.PosixIdPool.objects.filter(
+            service_provider=account.service_provider
+        ).first()
+        if pool is not None:
+            pool_ids.add(pool.pk)
     return pool_ids
 
 
@@ -417,8 +433,8 @@ def release_posix_allocations(consumer) -> int:
             consumer.__class__.__name__,
             consumer.pk,
         )
-    if isinstance(consumer, models.OfferingUser):
-        # The consumer-scoped pass above is not dead code for offering users:
+    if isinstance(consumer, models.BaseAccount):
+        # The consumer-scoped pass above is not dead code for user accounts:
         # deployments retrofitted by the migration keep the duplicate rows of a
         # (pool, user) group consumer-scoped until the collapse command is run,
         # and those rows belong to one account each.

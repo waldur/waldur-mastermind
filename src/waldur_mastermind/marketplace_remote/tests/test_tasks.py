@@ -654,6 +654,38 @@ class OfferingUserPullTest(testcases.TransactionTestCase):
         )
         tasks.OfferingUserPullTask().pull(self.offering)
 
+    def test_a_backed_account_is_not_renamed_by_the_remote(self):
+        """Under provider scope the local name comes from the provider account,
+        so it will routinely differ from the remote's. Writing it here raised
+        every hour inside the Celery task once the model started refusing
+        delegated writes.
+        """
+        from waldur_mastermind.marketplace.enums import AccountScopes
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        user = UserFactory(username="alice@myaccessid.org")
+        provider = marketplace_factories.ServiceProviderFactory(
+            customer=self.offering.customer
+        )
+        provider.account_scope = AccountScopes.PROVIDER
+        provider.save()
+        account = models.ServiceProviderAccount.objects.create(
+            service_provider=provider, user=user, username="owned_by_provider"
+        )
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.offering, user=user, service_provider_account=account
+        )
+        self.mock_offering_users(
+            [{"user_username": "alice@myaccessid.org", "username": "alice"}]
+        )
+
+        tasks.OfferingUserPullTask().pull(self.offering)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.username, "owned_by_provider")
+
     def test_missing_offering_user_is_created_if_there_is_user_in_local_db(self):
         user = UserFactory(username="alice@myaccessid.org")
         self.mock_offering_users(

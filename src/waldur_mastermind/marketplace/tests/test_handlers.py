@@ -484,6 +484,86 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITestCase):
         self.assertEqual(offering_user.username, "old_username")
 
 
+class UsernamePolicyResolutionTest(APITestCase):
+    """The identity-claim handler must see a policy set on the provider.
+
+    The handler used to filter on the offering's own plugin_options only, so an
+    offering inheriting the policy from its ServiceProvider was invisible to it
+    -- the same gap as the provider defaults, one layer along. It now selects a
+    superset in SQL and confirms per row with resolve_account_setting, so both
+    halves need covering: the inherited case is picked up, and an offering that
+    overrides its provider is left alone.
+    """
+
+    POLICY = utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value
+
+    def build(self, offering_policy=None, provider_policy=None):
+        offering = factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            plugin_options=(
+                {"username_generation_policy": offering_policy}
+                if offering_policy
+                else {}
+            ),
+        )
+        if provider_policy:
+            provider = factories.ServiceProviderFactory(customer=offering.customer)
+            provider.account_username_generation_policy = provider_policy
+            provider.save()
+        offering_user = factories.OfferingUserFactory(
+            offering=offering, username="old_username"
+        )
+        return offering_user
+
+    def rename(self, offering_user, name="new_site_username"):
+        user = offering_user.user
+        user.details = {"site_username": name}
+        user.save()
+        offering_user.refresh_from_db()
+        return offering_user
+
+    def test_a_policy_set_on_the_offering_is_honoured(self):
+        offering_user = self.build(offering_policy=self.POLICY)
+
+        self.assertEqual(self.rename(offering_user).username, "new_site_username")
+
+    def test_a_policy_inherited_from_the_provider_is_honoured(self):
+        offering_user = self.build(provider_policy=self.POLICY)
+
+        self.assertEqual(self.rename(offering_user).username, "new_site_username")
+
+    def test_an_offering_overriding_its_provider_is_left_alone(self):
+        offering_user = self.build(
+            offering_policy=utils.UsernameGenerationPolicy.FREEIPA.value,
+            provider_policy=self.POLICY,
+        )
+
+        self.assertEqual(self.rename(offering_user).username, "old_username")
+
+    def test_an_offering_with_no_policy_anywhere_is_left_alone(self):
+        offering_user = self.build()
+
+        self.assertEqual(self.rename(offering_user).username, "old_username")
+
+    def test_a_provider_backed_account_is_never_rewritten(self):
+        """Its username is owned by the provider account, so the handler skips it."""
+        offering_user = self.build(offering_policy=self.POLICY)
+        provider = factories.ServiceProviderFactory(
+            customer=offering_user.offering.customer
+        )
+        account = marketplace_models.ServiceProviderAccount.objects.create(
+            service_provider=provider,
+            user=offering_user.user,
+            username="owned_by_provider",
+        )
+        marketplace_models.OfferingUser.objects.filter(pk=offering_user.pk).update(
+            service_provider_account=account, username="owned_by_provider"
+        )
+        offering_user.refresh_from_db()
+
+        self.assertEqual(self.rename(offering_user).username, "owned_by_provider")
+
+
 class UpdateOfferingUserUsernameAfterOfferingSettingsChangeTest(APITestCase):
     def setUp(self):
         self.old_username = "old_username"

@@ -1018,6 +1018,11 @@ class ObservableObjectType(Enum):
     USER_PROFILE = "user_profile"
     USER_SSH_KEY = "user_ssh_key"
     USER_LIFECYCLE = "user_lifecycle"
+    # Provider-scoped account changes. Emitted alongside the per-offering
+    # OFFERING_USER events rather than instead of them, so a consumer that only
+    # knows the older type keeps working -- and one that does not recognise this
+    # one drops it with a warning rather than mis-handling it.
+    SERVICE_PROVIDER_ACCOUNT = "service_provider_account"
 
     @classmethod
     def choices(cls):

@@ -138,6 +138,24 @@ def is_plugin_provided_component(offering_type, component_type):
     )
 
 
+def _without_delegated(defaults: dict, offering_user) -> dict:
+    """Drop the columns a provider account owns, when this row is backed by one.
+
+    These two updates go through ``QuerySet.update()``, which bypasses
+    ``Model.save()`` and so bypasses the refusal there. They are the only paths
+    that could leave a backed account's cached username diverged from its
+    parent in the database, and a dump is exactly where a stale one would come
+    from.
+    """
+    if not offering_user.is_provider_backed:
+        return defaults
+    return {
+        key: value
+        for key, value in defaults.items()
+        if key not in ("username", "backend_metadata")
+    }
+
+
 class Command(BaseCommand):
     help = """
     Import comprehensive Waldur structure data from JSON format.
@@ -5727,7 +5745,9 @@ class Command(BaseCommand):
                         if self.update_existing:
                             with transaction.atomic():
                                 OfferingUser.objects.filter(uuid=uuid).update(
-                                    **defaults
+                                    **_without_delegated(
+                                        defaults, existing_offering_user
+                                    )
                                 )
                             self.stats["offering_users"]["updated"] += 1
                         else:
@@ -5742,7 +5762,9 @@ class Command(BaseCommand):
                                 with transaction.atomic():
                                     OfferingUser.objects.filter(
                                         pk=existing_by_pair.pk
-                                    ).update(**defaults)
+                                    ).update(
+                                        **_without_delegated(defaults, existing_by_pair)
+                                    )
                                 self.stats["offering_users"]["updated"] += 1
                             else:
                                 self.stats["offering_users"]["skipped"] += 1

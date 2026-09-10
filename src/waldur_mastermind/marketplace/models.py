@@ -52,6 +52,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
     MAX_LIMIT_DECIMAL_PLACES,
+    AccountScopes,
     BillingModes,
     BillingTypes,
     CategoryColumnWidget,
@@ -132,6 +133,47 @@ class ServiceProvider(
         help_text=_(
             "List of allowed domains for offering endpoints. "
             "Only staff can modify this field. "
+        ),
+    )
+    # Account scope and its provider-level defaults. Each is overridable by the
+    # offering plugin_option of the same name and resolved most-specific-first,
+    # exactly as PosixIdPool.resolve() picks a pool -- one mental model for
+    # operators, who configure both on the same provider.
+    account_scope = models.CharField(
+        max_length=20,
+        default=AccountScopes.OFFERING,
+        choices=AccountScopes.CHOICES,
+        help_text=_(
+            "Default for this provider's offerings: hold user accounts per "
+            "offering (the historical behaviour) or once per provider. Choose "
+            "'provider' when one directory fronts several offerings. Any single "
+            "offering can override this with an 'account_scope' plugin option, so "
+            "a provider can run both -- for example a cluster with its own "
+            "separate directory alongside offerings that share the main one."
+        ),
+    )
+    account_username_generation_policy = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text=_(
+            "Provider-level default for the offering plugin option of the same name. "
+            "Blank means each offering decides for itself."
+        ),
+    )
+    account_homedir_prefix = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_(
+            "Provider-level default home directory prefix. Blank means each "
+            "offering decides for itself."
+        ),
+    )
+    account_login_shell = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_(
+            "Provider-level default login shell. Blank means each offering "
+            "decides for itself."
         ),
     )
 
@@ -857,6 +899,63 @@ class Offering(
     @classmethod
     def get_url_name(cls):
         return "marketplace-provider-offering"
+
+    @cached_property
+    def service_provider(self):
+        """The ServiceProvider row for this offering's customer, if there is one.
+
+        Through the reverse one-to-one rather than a filter, so a caller can
+        ``select_related("customer__serviceprovider")`` and pay nothing here at
+        all. Cached because resolve_account_setting consults it once per
+        setting -- scope, username policy, homedir prefix, login shell -- which
+        was four identical queries for every offering.
+        """
+        try:
+            return self.customer.serviceprovider
+        except ServiceProvider.DoesNotExist:
+            return None
+
+    #: Offering plugin_option name -> the ServiceProvider field holding its
+    #: provider-wide default. The two differ because the plugin options are
+    #: long-standing public configuration that cannot be renamed, while the
+    #: provider fields carry an ``account_`` prefix to group them. Resolving
+    #: by a single name would silently stop finding the provider default.
+    ACCOUNT_SETTING_FIELDS = {
+        "account_scope": "account_scope",
+        "username_generation_policy": "account_username_generation_policy",
+        "homedir_prefix": "account_homedir_prefix",
+        "login_shell": "account_login_shell",
+    }
+
+    def resolve_account_setting(self, name: str, default=None):
+        """Most specific value for an account setting: the offering's, else the provider's.
+
+        Mirrors :meth:`PosixIdPool.resolve` so operators meet one rule for every
+        account-related setting rather than one per field. ``name`` is the
+        offering plugin_option key; the provider field it maps to is given by
+        :attr:`ACCOUNT_SETTING_FIELDS`.
+        """
+        value = (self.plugin_options or {}).get(name)
+        if value:
+            return value
+        provider = self.service_provider
+        if provider is not None:
+            field = self.ACCOUNT_SETTING_FIELDS.get(name, name)
+            provider_value = getattr(provider, field, None)
+            if provider_value:
+                return provider_value
+        return default
+
+    def resolve_account_scope(self) -> str:
+        """Whether this offering's accounts are held per offering or per provider."""
+        scope = self.resolve_account_setting("account_scope", AccountScopes.OFFERING)
+        # An unrecognised override must not silently turn provider accounts on or
+        # off; fall back to the historical behaviour.
+        return scope if scope in AccountScopes.VALUES else AccountScopes.OFFERING
+
+    @property
+    def uses_provider_accounts(self) -> bool:
+        return self.resolve_account_scope() == AccountScopes.PROVIDER
 
     @cached_property
     def component_factors(self) -> dict[str, int]:
@@ -3372,21 +3471,26 @@ class OfferingFile(
         return "offering: %s" % self.offering
 
 
-class OfferingUser(
+class BaseAccount(
     TimeStampedModel,
     core_models.UuidMixin,
     common_mixins.BackendMetadataMixin,
     LoggableMixin,
 ):
     """
-    User accounts within offerings.
+    A login/POSIX account held by a Waldur user within one namespace.
 
-    Manages user accounts with username mapping and restriction flags.
-    Provides user management functionality for offering-specific
-    access control and account management.
+    Subclasses supply the namespace: :class:`OfferingUser` scopes the account to a
+    single offering, :class:`ServiceProviderAccount` to a whole service provider. The
+    provider scope exists for the shared-directory topology, where one LDAP tree
+    fronts several offerings and the same person must resolve to one username, one
+    UID and one home directory everywhere.
+
+    Everything that describes the *account* lives here. What stays on the subclass
+    is the scope FK — and, on OfferingUser, the per-service facts (terms-of-service
+    consent, checklists, restriction) that are deliberately not shared.
     """
 
-    offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
     is_restricted = models.BooleanField(
@@ -3418,26 +3522,10 @@ class OfferingUser(
             "URL link for additional information or actions related to service provider comment"
         ),
     )
-    tracker = cast(
-        FieldInstanceTracker,
-        FieldTracker(
-            fields=[
-                "username",
-                "state",
-                "runtime_state",
-                "is_restricted",
-                "service_provider_comment",
-                "service_provider_comment_url",
-            ]
-        ),
-    )
 
     class Meta:
-        unique_together = ("offering", "user")
+        abstract = True
         ordering = ["username", "id"]
-        indexes = [
-            Index(fields=["offering", "user"], name="mp_offeringuser_offer_user_idx"),
-        ]
 
     @transition(
         field=state,
@@ -3596,7 +3684,6 @@ class OfferingUser(
 
     def get_log_fields(self):
         return (
-            "offering",
             "user",
             "username",
             "is_restricted",
@@ -3605,6 +3692,201 @@ class OfferingUser(
             "service_provider_comment",
             "service_provider_comment_url",
         )
+
+
+class ServiceProviderAccount(BaseAccount):
+    """
+    One account per user per service provider, for providers running a shared directory.
+
+    An offering resolves to a provider account when its scope resolves to
+    ``provider`` (see :meth:`Offering.resolve_account_scope`). Every
+    :class:`OfferingUser` of that provider then points here and reads its username
+    and POSIX attributes through, so the provider's directory sees one entry per
+    person however many of its offerings they use.
+
+    The provider scope is the same one :class:`PosixIdPool` already uses by default,
+    so a provider account and its UID/GID come from the same boundary.
+    """
+
+    service_provider = models.ForeignKey(
+        ServiceProvider, on_delete=models.CASCADE, related_name="provider_accounts"
+    )
+
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(
+            fields=[
+                "username",
+                "state",
+                "runtime_state",
+                "is_restricted",
+                "service_provider_comment",
+                "service_provider_comment_url",
+                # Tracked so a POSIX identity change fires the update event: the
+                # payload carries uidnumber/primarygroup, and a directory writer
+                # that never hears about them is the whole point missed.
+                "backend_metadata",
+            ]
+        ),
+    )
+
+    class Meta(BaseAccount.Meta):
+        abstract = False
+        verbose_name = _("Service provider account")
+        unique_together = ("service_provider", "user")
+        indexes = [
+            Index(
+                fields=["service_provider", "user"],
+                name="mp_spaccount_provider_user_idx",
+            ),
+        ]
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-service-provider-account"
+
+    def get_log_fields(self):
+        return ("service_provider", *super().get_log_fields())
+
+    def __str__(self) -> str:
+        return f"{self.service_provider}: {self.username}"
+
+
+class OfferingUser(BaseAccount):
+    """
+    User accounts within offerings.
+
+    Manages user accounts with username mapping and restriction flags.
+    Provides user management functionality for offering-specific
+    access control and account management.
+
+    When ``service_provider_account`` is set the account is owned at provider level:
+    ``username`` and ``backend_metadata`` are projections of that row, kept as
+    columns so existing querysets, filters and ordering keep working, and written
+    only through the parent. ``is_restricted`` and the consent/checklist records
+    stay per offering — they are facts about a service, not about an account.
+    """
+
+    offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
+    service_provider_account = models.ForeignKey(
+        ServiceProviderAccount,
+        # RESTRICT, not PROTECT: both models hang off User with CASCADE, so
+        # deleting a user collects the provider account and its offering
+        # accounts in one pass. PROTECT refuses that even though the
+        # referencing rows are themselves being deleted; RESTRICT allows it
+        # while still refusing a direct delete that would orphan a live one,
+        # which is the ordering guarantee this FK exists for.
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="offering_users",
+        help_text=_(
+            "Provider-level account backing this one. When set, the username and "
+            "POSIX attributes are owned there and must not be written here."
+        ),
+    )
+
+    tracker = cast(
+        FieldInstanceTracker,
+        FieldTracker(
+            fields=[
+                "username",
+                "state",
+                "runtime_state",
+                "is_restricted",
+                "service_provider_comment",
+                "service_provider_comment_url",
+            ]
+        ),
+    )
+
+    class Meta(BaseAccount.Meta):
+        abstract = False
+        unique_together = ("offering", "user")
+        indexes = [
+            Index(fields=["offering", "user"], name="mp_offeringuser_offer_user_idx"),
+        ]
+
+    @property
+    def is_provider_backed(self) -> bool:
+        """Whether the account is owned by a ServiceProviderAccount rather than here."""
+        return self.service_provider_account_id is not None
+
+    def pull_from_provider_account(self) -> bool:
+        """Copy the provider account's **identity** down onto this row.
+
+        Only ``username`` and ``backend_metadata`` are delegated: they describe the
+        person's account at the provider, and the columns here are a cache of them
+        so querysets, the ordering and ``OfferingUserFilter`` (which searches
+        ``backend_metadata__uidnumber``) keep working.
+
+        ``state``, ``runtime_state`` and ``is_restricted`` are deliberately NOT
+        delegated. They describe *this association* -- whether the user still holds
+        this offering, and whether they are restricted on it -- and the provider
+        account's own release works by counting offering accounts that are still
+        live. Delegating ``state`` makes that count constant and the two-stage
+        deletion impossible.
+
+        Returns whether anything changed, so callers can skip a pointless save.
+        """
+        parent = self.service_provider_account
+        if parent is None:
+            return False
+        changed = False
+        if self.username != parent.username:
+            self.username = parent.username
+            changed = True
+        if self.backend_metadata != parent.backend_metadata:
+            self.backend_metadata = dict(parent.backend_metadata or {})
+            changed = True
+        return changed
+
+    def save(self, *args, **kwargs):
+        """Refuse a delegated write on a backed account.
+
+        The serializer refuses one on the API path, but several older paths set
+        ``username`` straight on the model — ``set_offerings_username``,
+        ``refresh_offering_usernames``, the FreeIPA and identity-claim signal
+        handlers, and the remote-sync task. This used to re-sync them silently,
+        which stopped the divergence but left the caller believing a write had
+        landed: the remote sync rewrote a username every hour and had it
+        reverted every hour, logging nothing.
+
+        A caller's own write is told apart from a legitimate one by comparing
+        against the parent rather than by inspecting the caller. Every path that
+        is allowed to touch these columns — ``propagate_provider_account``,
+        adoption, the provider-aware creator — calls
+        ``pull_from_provider_account()`` first, so the values already match and
+        nothing here fires. A path that assigned its own value does not match,
+        and that is exactly the case worth refusing.
+
+        On insert there is nothing to refuse: a new backed row simply takes the
+        parent's values, which is how the creator builds one.
+        """
+        if self.service_provider_account_id:
+            if self._state.adding:
+                self.pull_from_provider_account()
+            else:
+                self._refuse_delegated_write()
+        return super().save(*args, **kwargs)
+
+    def _refuse_delegated_write(self):
+        parent = self.service_provider_account
+        diverged = [
+            field
+            for field in ("username", "backend_metadata")
+            if getattr(self, field) != getattr(parent, field)
+        ]
+        if diverged:
+            raise ValidationError(
+                f"{', '.join(sorted(diverged))} on offering account {self.pk} "
+                f"{'is' if len(diverged) == 1 else 'are'} owned by service "
+                f"provider account {parent.uuid.hex}. Change it there and let it "
+                f"propagate; writing it here would be undone."
+            )
+
+    def get_log_fields(self):
+        return ("offering", *super().get_log_fields())
 
     def __str__(self) -> str:
         return f"{self.offering.name}: {self.username}"

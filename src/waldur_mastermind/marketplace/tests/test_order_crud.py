@@ -921,6 +921,81 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
         order = models.Order.objects.last()
         self.assertEqual(order.limits["cpu_count"], 5)
 
+    def build_limit_offering(self, **component_kwargs):
+        """An ACTIVE offering whose components all take user-set limits."""
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE, type=SUPPORT_OFFERING
+        )
+        plan = factories.PlanFactory(offering=offering)
+        for key in self.DEFAULT_LIMITS:
+            models.OfferingComponent.objects.create(
+                offering=offering,
+                type=key,
+                billing_type=BillingTypes.LIMIT,
+                **component_kwargs,
+            )
+        return offering, plan
+
+    def post_limits(self, offering, plan, limits):
+        return self.create_order(
+            self.fixture.staff,
+            offering,
+            add_payload={
+                "offering": factories.OfferingFactory.get_public_url(offering),
+                "plan": factories.PlanFactory.get_public_url(plan),
+                "limits": limits,
+                "attributes": {},
+            },
+        )
+
+    def test_whole_limits_are_returned_as_integers_not_floats(self):
+        """The shape every SDK consumer depends on.
+
+        The limit fields are FloatField-derived so that a fraction can pass, and
+        DRF would render a stored 5 as 5.0 unless the field narrows it back.
+        Asserting equality is not enough -- 5 == 5.0 == Decimal("5.00") -- so
+        this asserts the type.
+        """
+        offering, plan = self.build_limit_offering()
+
+        response = self.post_limits(offering, plan, self.DEFAULT_LIMITS)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        for key, value in response.data["limits"].items():
+            self.assertIsInstance(value, int, f"{key} came back as {type(value)}")
+
+    def test_a_fraction_is_refused_on_an_integer_only_component(self):
+        """Order create is the main door, and it was the one without a test."""
+        offering, plan = self.build_limit_offering()
+
+        response = self.post_limits(
+            offering, plan, {**self.DEFAULT_LIMITS, "cpu_count": 0.5}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_fraction_is_accepted_where_the_component_allows_it(self):
+        offering, plan = self.build_limit_offering(limit_decimal_places=1)
+
+        response = self.post_limits(
+            offering, plan, {**self.DEFAULT_LIMITS, "cpu_count": 0.5}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        order = models.Order.objects.last()
+        self.assertEqual(order.limits["cpu_count"], 0.5)
+        # The whole ones alongside it keep their shape.
+        self.assertIsInstance(order.limits["storage"], int)
+
+    def test_a_fraction_finer_than_the_component_allows_is_refused(self):
+        offering, plan = self.build_limit_offering(limit_decimal_places=1)
+
+        response = self.post_limits(
+            offering, plan, {**self.DEFAULT_LIMITS, "cpu_count": 0.55}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_user_can_not_create_order_with_invalid_limits(self):
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
         plan = factories.PlanFactory(offering=offering)

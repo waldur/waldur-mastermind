@@ -411,6 +411,7 @@ class MarketplaceConfig(AppConfig):
 
         for posix_consumer_model in (
             models.OfferingUser,
+            models.ServiceProviderAccount,
             models.RobotAccount,
             models.OfferingUserGroup,
             models.OfferingRoleGroup,
@@ -444,6 +445,28 @@ class MarketplaceConfig(AppConfig):
             handlers.send_offering_user_created_message,
             sender=models.OfferingUser,
             dispatch_uid="waldur_mastermind.marketplace.send_offering_user_created_message",
+        )
+
+        # Provider-level accounts announce themselves on their own object type,
+        # anchored on the provider's customer. The per-offering OFFERING_USER
+        # events keep firing too, so a consumer that only knows those is
+        # unaffected by this.
+        signals.post_save.connect(
+            handlers.send_provider_account_created_message,
+            sender=models.ServiceProviderAccount,
+            dispatch_uid="waldur_mastermind.marketplace.send_provider_account_created_message",
+        )
+
+        signals.post_save.connect(
+            handlers.send_provider_account_updated_message,
+            sender=models.ServiceProviderAccount,
+            dispatch_uid="waldur_mastermind.marketplace.send_provider_account_updated_message",
+        )
+
+        signals.post_delete.connect(
+            handlers.send_provider_account_deleted_message,
+            sender=models.ServiceProviderAccount,
+            dispatch_uid="waldur_mastermind.marketplace.send_provider_account_deleted_message",
         )
 
         signals.post_save.connect(

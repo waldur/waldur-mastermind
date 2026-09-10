@@ -90,6 +90,7 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
     SWAPPABLE_OFFERING_TYPES,
+    AccountScopes,
     BillingModes,
     BillingTypes,
     CourseAccountState,
@@ -934,7 +935,25 @@ class ScriptPluginOptionsSerializer(serializers.Serializer):
     )
 
 
+class AccountPluginOptionsSerializer(serializers.Serializer):
+    account_scope = serializers.ChoiceField(
+        required=False,
+        choices=AccountScopes.CHOICES,
+        # Deliberately no default: an absent key means "inherit from the
+        # provider", and a declared default would be written into every
+        # offering saved through the API, permanently shadowing the provider
+        # setting it is meant to fall back to.
+        help_text=(
+            "Where this offering's accounts are held, overriding the service "
+            "provider's own account_scope. 'offering' keeps one account per "
+            "offering (the historical behaviour); 'provider' shares one account "
+            "per user across the provider's offerings. Omit to inherit."
+        ),
+    )
+
+
 class MergedPluginOptionsSerializer(
+    AccountPluginOptionsSerializer,
     LifecyclePluginOptionsSerializer,
     OpenStackPluginOptionsSerializer,
     HeappePluginOptionsSerializer,
@@ -1252,6 +1271,49 @@ class ServiceProviderSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
+    def validate_account_scope(self, value):
+        """Refuse provider scope while any user's usernames still disagree.
+
+        Turning the scope on is what makes offering accounts read through a single
+        provider account, so it cannot be done while it is ambiguous which username
+        that account should carry. The conflicts are reported by the provider's
+        ``username_conflicts`` action and resolved by ``adopt_provider_accounts``.
+        """
+        if (
+            value == AccountScopes.PROVIDER
+            and self.instance is not None
+            and self.instance.account_scope != AccountScopes.PROVIDER
+        ):
+            conflicts = utils.provider_username_conflicts(self.instance)
+            if conflicts:
+                raise serializers.ValidationError(
+                    _(
+                        "%(count)d user(s) hold different usernames on different "
+                        "offerings of this provider. Resolve them with the "
+                        "adopt_provider_accounts action before enabling "
+                        "provider-level accounts."
+                    )
+                    % {"count": len(conflicts)}
+                )
+        return value
+
+    def update(self, instance, validated_data):
+        """Adopt the provider's existing accounts when the scope is turned on.
+
+        Validation only refuses an ambiguous flip; nothing used to act on a
+        clean one, so an operator could enable provider scope and have every
+        existing account stay per-offering while only new ones were backed --
+        the mixed state the setting exists to remove. validate_account_scope
+        has already established there are no unresolved conflicts, so the
+        adoption cannot pick a username arbitrarily.
+        """
+        was_provider_scope = instance.account_scope == AccountScopes.PROVIDER
+        instance = super().update(instance, validated_data)
+        if not was_provider_scope and instance.account_scope == AccountScopes.PROVIDER:
+            adopted = utils.adopt_provider_accounts(instance)
+            logger.info("Provider scope enabled for %s; adopted %s", instance, adopted)
+        return instance
+
     class Meta:
         model = models.ServiceProvider
         fields = (
@@ -1273,6 +1335,10 @@ class ServiceProviderSerializer(
             "description",
             "offering_count",
             "allowed_domains",
+            "account_scope",
+            "account_username_generation_policy",
+            "account_homedir_prefix",
+            "account_login_shell",
         )
         related_paths = {
             "customer": ("uuid", "name", "native_name", "abbreviation", "slug")
@@ -9642,6 +9708,31 @@ class OfferingUserSerializer(
     def get_home_directory(self, offering_user: models.OfferingUser):
         return (offering_user.backend_metadata or {}).get("homeDir")
 
+    def validate(self, attrs):
+        """Refuse writes to fields a provider account owns.
+
+        On a backed account the columns here are a cache of the provider account,
+        kept so filtering and ordering keep working. Writing to them directly
+        would be silently undone the next time the parent propagates, so say so
+        rather than accepting an edit that will not stick.
+        """
+        instance = self.instance
+        if instance is not None and instance.is_provider_backed:
+            delegated = {"username"} & set(attrs)
+            if delegated:
+                raise serializers.ValidationError(
+                    {
+                        field: _(
+                            "This account is owned by the service provider account "
+                            "%(uuid)s. Change it there instead; every offering "
+                            "account of this user at the provider follows it."
+                        )
+                        % {"uuid": instance.service_provider_account.uuid.hex}
+                        for field in delegated
+                    }
+                )
+        return super().validate(attrs)
+
     def to_internal_value(self, data):
         # Pre-process data to convert UUID fields to URL fields before field validation
         if self.instance is None:  # Only for creation
@@ -9978,7 +10069,19 @@ class OfferingUserSerializer(
                 _("It is not allowed to create users for current offering.")
             )
 
-        instance = super().create(validated_data)
+        # Through the shared creator, so an offering in provider scope gets a
+        # backed account here too. Creating the row directly would insert an
+        # unbacked one, which is the divergence provider scope exists to
+        # remove -- and this is the one public route into it.
+        instance, created = utils.create_offering_user(
+            validated_data["user"],
+            offering,
+            username=validated_data.get("username"),
+        )
+        if not created:
+            raise rf_exceptions.ValidationError(
+                _("An account for this user on this offering already exists.")
+            )
 
         # Set state to OK for backward compatibility when username is provided during creation
         if (
@@ -10004,6 +10107,153 @@ class OfferingUserSerializer(
         instance = super().update(instance, validated_data)
 
         return instance
+
+
+class ProviderUsernameCandidateSerializer(serializers.Serializer):
+    """One username competing to survive adoption, with the evidence for choosing it."""
+
+    username = serializers.CharField()
+    offering_count = serializers.IntegerField()
+    offering_uuids = serializers.ListField(child=serializers.CharField())
+    has_active_resources = serializers.BooleanField()
+    home_directories = serializers.ListField(child=serializers.CharField())
+
+
+class ProviderUsernameConflictSerializer(serializers.Serializer):
+    """A user whose offering accounts disagree about their username."""
+
+    user_uuid = serializers.CharField()
+    user_username = serializers.CharField()
+    user_full_name = serializers.CharField()
+    candidates = ProviderUsernameCandidateSerializer(many=True)
+
+
+class AdoptProviderAccountsSerializer(serializers.Serializer):
+    """Surviving usernames for the users whose accounts disagree."""
+
+    resolutions = serializers.DictField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=(
+            "User UUID (hex) to the username that survives adoption. Only needed "
+            "for users reported by the 'username_conflicts' action."
+        ),
+    )
+
+
+class AdoptProviderAccountsResponseSerializer(serializers.Serializer):
+    adopted = serializers.IntegerField(help_text="Provider accounts created.")
+    backed = serializers.IntegerField(
+        help_text="Offering accounts now reading through a provider account."
+    )
+
+
+class ServiceProviderAccountSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    """A user's account at a service provider, shared by that provider's offerings."""
+
+    # Read-only rather than writable: the endpoint has no create action, so the
+    # only thing a writable identity field could do is re-parent an existing
+    # account onto another provider or another person -- silently handing over
+    # its username and POSIX identity.
+    service_provider = serializers.HyperlinkedRelatedField(
+        read_only=True,
+        view_name="marketplace-service-provider-detail",
+        lookup_field="uuid",
+    )
+    service_provider_uuid = serializers.ReadOnlyField(source="service_provider.uuid")
+    service_provider_name = serializers.ReadOnlyField(
+        source="service_provider.customer.name"
+    )
+    user = serializers.HyperlinkedRelatedField(
+        read_only=True,
+        view_name="user-detail",
+        lookup_field="uuid",
+    )
+    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    user_username = serializers.ReadOnlyField(source="user.username")
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_email = serializers.ReadOnlyField(source="user.email")
+    state = serializers.SerializerMethodField()
+    uidnumber = serializers.SerializerMethodField()
+    primarygroup = serializers.SerializerMethodField()
+    login_shell = serializers.SerializerMethodField()
+    home_directory = serializers.SerializerMethodField()
+    offering_count = serializers.SerializerMethodField()
+    # Restriction is enforced per offering -- the GLAuth rendering and the site
+    # agent both read OfferingUser.is_restricted, and nothing consults the
+    # provider account's copy. Exposing it as writable here would look like a
+    # provider-wide switch that silently does nothing, so it is read-only until
+    # something actually enforces it.
+    is_restricted = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = models.ServiceProviderAccount
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "service_provider",
+            "service_provider_uuid",
+            "service_provider_name",
+            "user",
+            "user_uuid",
+            "user_username",
+            "user_full_name",
+            "user_email",
+            "username",
+            "state",
+            "runtime_state",
+            "is_restricted",
+            "service_provider_comment",
+            "service_provider_comment_url",
+            "uidnumber",
+            "primarygroup",
+            "login_shell",
+            "home_directory",
+            "offering_count",
+        )
+        extra_kwargs = dict(
+            url={
+                "lookup_field": "uuid",
+                "view_name": "marketplace-service-provider-account-detail",
+            },
+        )
+
+    @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.VALUES))
+    def get_state(self, account) -> str:
+        return account.get_state_display()
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_uidnumber(self, account):
+        return (account.backend_metadata or {}).get("uidnumber")
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_primarygroup(self, account):
+        return (account.backend_metadata or {}).get("primarygroup")
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_login_shell(self, account):
+        return (account.backend_metadata or {}).get("loginShell")
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_home_directory(self, account):
+        return (account.backend_metadata or {}).get("homeDir")
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_offering_count(self, account) -> int:
+        """How many of the provider's offerings currently read through this account.
+
+        ServiceProviderAccountViewSet annotates this, so a list page costs one
+        query instead of a COUNT per row. The fallback keeps the field correct
+        for an instance that did not come from that queryset.
+        """
+        annotated = getattr(account, "offering_count", None)
+        if annotated is not None:
+            return annotated
+        return account.offering_users.count()
 
 
 class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
