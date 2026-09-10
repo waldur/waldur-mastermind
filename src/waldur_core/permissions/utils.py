@@ -513,6 +513,19 @@ def validate_only_one_project_manager(scope, role):
         raise ValidationError("Project already has an active project manager.")
 
 
+def validate_single_role_per_scope(scope, user):
+    """Reject a second role in one scope when INVITATION_DISABLE_MULTIPLE_ROLES is on.
+
+    Unlike the duplicate-grant guard in ``validate_role_grant``, this counts any
+    active role the user holds in ``scope``, not only the one being granted.
+    """
+    if not config.INVITATION_DISABLE_MULTIPLE_ROLES:
+        return
+
+    if has_user(scope, user):
+        raise ValidationError("User already has role within this scope.")
+
+
 def check_grant_policy(scope, role):
     """Enforce the org-scoping policy for granting ``role`` on ``scope``.
 
@@ -594,6 +607,7 @@ def validate_role_grant(scope, user, role, expiration_time=None):
 
     check_grant_policy(scope, role)
 
+    validate_single_role_per_scope(scope, user)
     validate_only_one_project_manager(scope, role)
     validate_user_restrictions(scope, user)
 

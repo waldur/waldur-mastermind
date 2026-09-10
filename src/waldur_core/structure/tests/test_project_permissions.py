@@ -284,6 +284,55 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             "Project already has an active project manager.",
         )
 
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_cannot_grant_second_role_when_multiple_roles_disabled(self):
+        member = factories.UserFactory()
+        self.project.add_user(member, ProjectRole.MANAGER)
+
+        response = client_add_user(
+            self.client, self.owner, member, self.project, ProjectRole.ADMIN
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["non_field_errors"][0],
+            "User already has role within this scope.",
+        )
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=False)
+    def test_can_grant_second_role_when_multiple_roles_enabled(self):
+        member = factories.UserFactory()
+        self.project.add_user(member, ProjectRole.MANAGER)
+
+        response = client_add_user(
+            self.client, self.owner, member, self.project, ProjectRole.ADMIN
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_same_role_is_rejected_when_multiple_roles_disabled(self):
+        member = factories.UserFactory()
+        self.project.add_user(member, ProjectRole.ADMIN)
+
+        response = client_add_user(
+            self.client, self.owner, member, self.project, ProjectRole.ADMIN
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["non_field_errors"][0],
+            "User has already the same role in this scope.",
+        )
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_can_grant_role_in_another_project_when_multiple_roles_disabled(self):
+        member = factories.UserFactory()
+        self.project.add_user(member, ProjectRole.MANAGER)
+        other_project = factories.ProjectFactory(customer=self.customer)
+
+        response = client_add_user(
+            self.client, self.owner, member, other_project, ProjectRole.ADMIN
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):
     def setUp(self) -> None:
