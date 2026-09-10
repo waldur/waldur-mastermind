@@ -20,11 +20,19 @@ class BaseRouterTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(user=self.fixture.owner)
-        self.mock = mock.patch("waldur_openstack.backend.OpenStackBackend.get_free_ip")
-        self.mock_get_free_ip = self.mock.start()
+        # Both patches used to be started and never stopped -- the second
+        # assignment even dropped the handle of the first -- so every test that
+        # ran later in the same process got a fake `get_free_ip` returning
+        # "1.1.1.1" and a `create_port` that does nothing. That is invisible
+        # until something actually exercises those methods (test_subnet_allocation_pools
+        # does), and then it fails for reasons that have nothing to do with it.
+        patcher = mock.patch("waldur_openstack.backend.OpenStackBackend.get_free_ip")
+        self.mock_get_free_ip = patcher.start()
+        self.addCleanup(patcher.stop)
         self.mock_get_free_ip.return_value = "1.1.1.1"
-        self.mock = mock.patch("waldur_openstack.backend.OpenStackBackend.create_port")
-        self.mock_create_port = self.mock.start()
+        patcher = mock.patch("waldur_openstack.backend.OpenStackBackend.create_port")
+        self.mock_create_port = patcher.start()
+        self.addCleanup(patcher.stop)
 
 
 class SetRoutesTest(BaseRouterTest):

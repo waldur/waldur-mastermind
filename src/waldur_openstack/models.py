@@ -1291,7 +1291,12 @@ class SubNet(structure_models.BaseResource):
     allocation_pools = cast(
         list[dict[str, str]],
         JSONField(
-            default=dict,
+            # A list, as the name, the type cast, the serializer field and every
+            # generated client say (#390). The default used to be `dict`, so a
+            # subnet whose pool nobody supplied carried `{}` -- not an empty
+            # list, but a value of the wrong shape -- until the next pull.
+            default=list,
+            blank=True,
             help_text=_("List of IP ranges available for allocation in this subnet"),
         ),
     )
