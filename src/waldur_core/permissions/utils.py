@@ -646,13 +646,30 @@ def ensure_unique_role_name(name, exclude_id=None):
     return f"{name}-{index}"
 
 
-def add_user(scope, user, role, created_by=None, expiration_time=None, force=False):
+def add_user(
+    scope,
+    user,
+    role,
+    created_by=None,
+    expiration_time=None,
+    force=False,
+    source="",
+    reason=None,
+):
     """Grant ``role`` to ``user`` on ``scope`` (low-level write primitive).
 
     Enforces the org-scoping policy (:func:`check_grant_policy`) so direct
     callers that bypass ``validate_role_grant`` still respect availability and
     concealment. Pass ``force=True`` for the few internal grants that must bypass
     the policy (e.g. onboarding's initial owner grant).
+
+    ``source`` records the provenance of a machine-issued grant (e.g.
+    ``rule:<uuid>``) and is what makes automatic revocation safe: reconciliation
+    only ever touches rows it recognises as its own. ``reason`` is carried into
+    the audit event, so an automatic grant can say what caused it instead of the
+    generic "System-initiated role assignment". Both are appended last on
+    purpose — several callers pass ``created_by`` and ``expiration_time``
+    positionally.
     """
     if not force:
         check_grant_policy(scope, role)
@@ -664,16 +681,20 @@ def add_user(scope, user, role, created_by=None, expiration_time=None, force=Fal
         object_id=scope.id,
         expiration_time=expiration_time,
         created_by=created_by,
+        source=source,
     )
     signals.role_granted.send(
         sender=models.UserRole,
         instance=permission,
         current_user=created_by,
+        reason=reason,
     )
     return permission
 
 
-def add_user_or_skip(scope, user, role, created_by=None, expiration_time=None):
+def add_user_or_skip(
+    scope, user, role, created_by=None, expiration_time=None, source="", reason=None
+):
     """Grant ``role`` respecting the org-scoping policy, skipping on rejection.
 
     For non-interactive callers — signal handlers, auto-provisioning, group sync,
@@ -683,7 +704,13 @@ def add_user_or_skip(scope, user, role, created_by=None, expiration_time=None):
     """
     try:
         return add_user(
-            scope, user, role, created_by=created_by, expiration_time=expiration_time
+            scope,
+            user,
+            role,
+            created_by=created_by,
+            expiration_time=expiration_time,
+            source=source,
+            reason=reason,
         )
     except ValidationError as exc:
         logger.warning(

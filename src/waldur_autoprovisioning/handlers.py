@@ -4,8 +4,11 @@ from typing import cast
 from django.db import transaction
 
 from waldur_autoprovisioning.models import Rule
+from waldur_autoprovisioning.reconciliation import (
+    reconcile_autoprovisioned_roles,
+    resolve_customer,
+)
 from waldur_core.core.models import User
-from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
@@ -15,71 +18,22 @@ from waldur_mastermind.marketplace.tasks import process_order_on_commit
 logger = logging.getLogger(__name__)
 
 
-def get_or_create_project(rule: Rule, user: User) -> Project | None:
+def get_or_create_project(rule: Rule, user: User, customer: Customer) -> Project | None:
+    """Find or create the project this rule provisions for the user.
+
+    Role grants are deliberately *not* made here — they are issued by
+    :func:`~waldur_autoprovisioning.reconciliation.reconcile_autoprovisioned_roles`
+    once the project exists, so that every rule-issued grant is tagged with the
+    rule's provenance through a single code path.
+    """
     project = None
-    project_role = rule.project_role or ProjectRole.ADMIN
-
     project_name = rule.resolve_project_name(user)
-
-    if not rule.use_user_organization_as_customer_name:
-        if not rule.customer:
-            logger.warning(
-                "Rule '%s' (id=%s) has no customer configured and 'use_user_organization_as_customer_name' is disabled.",
-                rule.name,
-                rule.pk,
-            )
-            return
-
-        customer = rule.customer
-    else:
-        if not user.should_protect_user_details:
-            logger.warning(
-                "Rule '%s' (id=%s) requires using user's organization, but user '%s' (id=%s) is not marked as protected (should_protect_user_details is False).",
-                rule.name,
-                rule.pk,
-                user.username,
-                user.pk,
-            )
-            return
-
-        if not user.organization:
-            logger.warning(
-                "User '%s' (id=%s) has no organization claim; cannot resolve Customer when 'use_user_organization_as_customer_name' is enabled.",
-                user.username,
-                user.pk,
-            )
-            return
-
-        customers = Customer.objects.filter(name=user.organization)
-
-        if not customers:
-            logger.warning(
-                "No Customer found with name='%s' for user '%s' (id=%s) from organization claim.",
-                user.organization,
-                user.username,
-                user.pk,
-            )
-            return
-        elif customers.count() > 1:
-            logger.warning(
-                "Multiple Customers found with name='%s' for user '%s' (id=%s) from organization claim.",
-                user.organization,
-                user.username,
-                user.pk,
-            )
-            return
-        else:
-            customer = customers.first()
 
     try:
         project = cast(
             Project,
             Project.available_objects.get(name=project_name, customer=customer),
         )
-
-        if not project.has_user(user, project_role):
-            project.add_user_or_skip(user, project_role)
-
     except Project.MultipleObjectsReturned:
         logger.warning("Multiple projects with the same name %s exist.", project_name)
     except Project.DoesNotExist:
@@ -87,7 +41,6 @@ def get_or_create_project(rule: Rule, user: User) -> Project | None:
             Project,
             Project.available_objects.create(customer=customer, name=project_name),
         )
-        project.add_user_or_skip(user, project_role)
 
     return project
 
@@ -160,16 +113,59 @@ def get_or_create_order(
 
 
 def handle_new_user(sender, instance: User, created=False, **kwargs):
-    """Create project and order for new user based on autoprovisioning rules."""
-    user = instance
+    """Provision projects and orders when an account first appears.
 
+    Only on creation. This used to run on every ``User.save()`` — including the
+    attribute sync of an ordinary login — which meant editing a profile could
+    materialise projects. Ongoing re-evaluation of the *roles* a rule asserts is
+    handled by ``reconcile_autoprovisioned_roles``, called from the identity
+    synchronisation paths where fresh claims actually arrive.
+    """
+    if not created:
+        return
+
+    provision_for_user(instance)
+
+
+def handle_identity_synced(sender, user: User, created=False, **kwargs):
+    """Reconcile rule-issued roles after identity data is refreshed.
+
+    Skipped for a freshly created account: ``handle_new_user`` has already run
+    the full provisioning pass, reconciliation included.
+    """
+    if created:
+        return
+
+    reconcile_autoprovisioned_roles(user)
+
+
+def provision_for_user(user: User):
+    """Run every matching rule for a user: projects, orders, then role grants."""
     rules = cast(list[Rule], Rule.get_objects_by_user_patterns(user))
 
     if not rules:
         return
 
     for rule in rules:
-        project = get_or_create_project(rule, user)
+        resolution = resolve_customer(rule, user)
+        if resolution.customer is None:
+            logger.warning(
+                "Rule '%s' (id=%s) matched user '%s' (id=%s) but resolves no "
+                "organization: %s",
+                rule.name,
+                rule.pk,
+                user.username,
+                user.pk,
+                resolution.block_reason,
+            )
+            continue
+
+        if not rule.create_project:
+            # Organization-level rule: the customer role is granted by the
+            # reconciliation pass below.
+            continue
+
+        project = get_or_create_project(rule, user, resolution.customer)
 
         if not project:
             continue
@@ -183,7 +179,14 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
                 project, user, plan.offering, plan, limits, attributes
             )
 
+            # continue, not return: an already-provisioned order for one rule
+            # must not stop the remaining rules — nor the role reconciliation
+            # that follows the loop.
             if not order or not order_created:
-                return
+                continue
 
             process_order_on_commit(order, user)
+
+    # Grants happen last and in one place, so every rule-issued role carries the
+    # rule's provenance and any project created above is already visible.
+    reconcile_autoprovisioned_roles(user)

@@ -1452,6 +1452,68 @@ class UserIdentityBridgeFieldsVisibilityTest(test.APITestCase):
         self.assertFalse(response.data["is_identity_manager"])
 
 
+class UserDetailsClaimVisibilityTest(test.APITestCase):
+    """`User.details` holds the raw identity provider claims.
+
+    Whatever the provider puts in the claims listed in
+    `IdentityProvider.extra_fields` lands there verbatim, and auto-provisioning
+    rules match on it to grant roles — so it is a support surface, restricted to
+    staff and support, and never writable over the API.
+    """
+
+    def setUp(self):
+        self.staff = factories.UserFactory(is_staff=True, agreement_date=timezone.now())
+        self.support = factories.UserFactory(
+            is_support=True, agreement_date=timezone.now()
+        )
+        self.regular_user = factories.UserFactory(agreement_date=timezone.now())
+        self.target = factories.UserFactory(
+            agreement_date=timezone.now(), details={"roles": ["acme-owner"]}
+        )
+
+    def _get(self, actor, target):
+        self.client.force_authenticate(actor)
+        return self.client.get(factories.UserFactory.get_url(target))
+
+    def test_staff_can_see_claims(self):
+        response = self._get(self.staff, self.target)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["details"], {"roles": ["acme-owner"]})
+
+    def test_support_can_see_claims(self):
+        response = self._get(self.support, self.target)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["details"], {"roles": ["acme-owner"]})
+
+    def test_regular_user_cannot_see_claims_of_another_user(self):
+        response = self._get(self.regular_user, self.target)
+        self.assertNotIn("details", response.data)
+
+    def test_regular_user_cannot_see_their_own_claims(self):
+        """Deliberate: the claims are uncontrolled provider data, and the user
+        has no reason to inspect them on their own profile."""
+        response = self._get(self.regular_user, self.regular_user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("details", response.data)
+
+    def test_claims_are_absent_from_me_for_a_regular_user(self):
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get("/api/users/me/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("details", response.data)
+
+    def test_claims_are_read_only(self):
+        """Claims grant roles, so nothing may PATCH them into existence."""
+        self.client.force_authenticate(self.staff)
+        self.client.patch(
+            factories.UserFactory.get_url(self.target),
+            {"details": {"roles": ["forged-owner"]}},
+            format="json",
+        )
+        self.target.refresh_from_db()
+        self.assertEqual(self.target.details, {"roles": ["acme-owner"]})
+
+
 class UserAggregationEndpointsTest(test.APITestCase):
     """Tests for user aggregation endpoints (staff/support only)."""
 

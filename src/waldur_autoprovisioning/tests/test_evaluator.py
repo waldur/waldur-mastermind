@@ -24,8 +24,8 @@ class EvaluateForUserTest(TestCase):
         user = _user(email="anyone@anywhere.tld")
         result = models.Rule.evaluate_for_user(rule, user)
         self.assertTrue(result.matched)
-        # All six filters reported as not configured
-        self.assertEqual(len(result.filter_results), 6)
+        # All seven filters reported as not configured
+        self.assertEqual(len(result.filter_results), 7)
         for fr in result.filter_results:
             self.assertFalse(fr.configured)
 

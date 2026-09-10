@@ -33,21 +33,45 @@ class PermissionMixin:
         return has_user(self, user, role, timestamp)
 
     @transaction.atomic()
-    def add_user(self, user, role, created_by=None, expiration_time=None, force=False):
+    def add_user(
+        self,
+        user,
+        role,
+        created_by=None,
+        expiration_time=None,
+        force=False,
+        source="",
+        reason=None,
+    ):
         role = self.get_or_create_role(role)
         permission = add_user(
-            self, user, role, created_by, expiration_time, force=force
+            self,
+            user,
+            role,
+            created_by,
+            expiration_time,
+            force=force,
+            source=source,
+            reason=reason,
         )
         return permission
 
     @transaction.atomic()
-    def add_user_or_skip(self, user, role, created_by=None, expiration_time=None):
+    def add_user_or_skip(
+        self, user, role, created_by=None, expiration_time=None, source="", reason=None
+    ):
         """Grant a role, skipping (with a log) if the org-scoping policy rejects
         it. For non-interactive callers where one rejection must not abort the
         whole operation (signal handlers, auto-provisioning, team-restore)."""
         role = self.get_or_create_role(role)
         return add_user_or_skip(
-            self, user, role, created_by=created_by, expiration_time=expiration_time
+            self,
+            user,
+            role,
+            created_by=created_by,
+            expiration_time=expiration_time,
+            source=source,
+            reason=reason,
         )
 
     @transaction.atomic()

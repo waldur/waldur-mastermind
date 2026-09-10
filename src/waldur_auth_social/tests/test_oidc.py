@@ -2990,3 +2990,68 @@ class CreateOrUpdateOauthUserRegistrationMethodTest(test.APITestCase):
         self.assertEqual(synced.pk, user.pk)
         user.refresh_from_db()
         self.assertEqual(user.registration_method, ProviderChoices.EDUTEAMS)
+
+
+class ExtraFieldsWithdrawalTest(test.APITestCase):
+    """A claim the provider stops asserting must disappear from `User.details`.
+
+    Before, `details` was only assigned when at least one configured extra field
+    had a value, so the previous login's claims stayed on the account for ever.
+    That was invisible while `details` was purely informational; it stops being
+    invisible once authorization is derived from it — an auto-provisioning rule
+    keyed on a claim could never see the claim withdrawn, so the role it granted
+    could never be revoked.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.provider = models.IdentityProvider.objects.create(
+            provider=ProviderChoices.KEYCLOAK,
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+            discovery_url="http://keycloak.test/.well-known/openid-configuration",
+            userinfo_url="http://keycloak.test/userinfo",
+            token_url="http://keycloak.test/token",
+            auth_url="http://keycloak.test/auth",
+            user_field="username",
+            user_claim="sub",
+            extra_fields="roles",
+            attribute_mapping={"email": "email"},
+        )
+
+    def test_claim_is_recorded(self):
+        user, _ = create_or_update_oauth_user(
+            self.provider,
+            {"sub": "alice", "email": "alice@example.com", "roles": ["acme-owner"]},
+        )
+        self.assertEqual(user.details, {"roles": ["acme-owner"]})
+
+    def test_withdrawn_claim_is_cleared(self):
+        create_or_update_oauth_user(
+            self.provider,
+            {"sub": "alice", "email": "alice@example.com", "roles": ["acme-owner"]},
+        )
+        user, _ = create_or_update_oauth_user(
+            self.provider,
+            {"sub": "alice", "email": "alice@example.com", "roles": []},
+        )
+        self.assertEqual(user.details, {})
+
+    def test_claim_absent_from_the_response_is_cleared(self):
+        create_or_update_oauth_user(
+            self.provider,
+            {"sub": "alice", "email": "alice@example.com", "roles": ["acme-owner"]},
+        )
+        user, _ = create_or_update_oauth_user(
+            self.provider, {"sub": "alice", "email": "alice@example.com"}
+        )
+        self.assertEqual(user.details, {})
+
+    def test_details_untouched_when_no_extra_fields_configured(self):
+        self.provider.extra_fields = ""
+        self.provider.save()
+        user, _ = create_or_update_oauth_user(
+            self.provider,
+            {"sub": "bob", "email": "bob@example.com", "roles": ["acme-owner"]},
+        )
+        self.assertEqual(user.details, {})

@@ -12,6 +12,7 @@ import logging
 from constance import config
 
 from waldur_auth_social.utils import update_user_attributes_from_source
+from waldur_core.core import signals as core_signals
 from waldur_core.core.models import User
 from waldur_core.users.scim.pull.client import ScimError, ScimPullClient
 from waldur_core.users.scim.server.mapping import (
@@ -76,6 +77,12 @@ def pull_user_attributes(
         set_scim_external_id(user, str(external_id), source=source)
         user.save(update_fields=["attribute_sources"])
         changed = changed | {"externalId"}
+
+    # Same hook the OIDC login path uses, so a pull refreshes claim-derived
+    # roles rather than only attributes.
+    core_signals.user_identity_synced.send(
+        sender=User, user=user, source=source, created=False
+    )
 
     return changed
 

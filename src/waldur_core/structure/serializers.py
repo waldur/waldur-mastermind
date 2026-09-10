@@ -2446,6 +2446,8 @@ class UserSerializer(
             "active_isds",
             "deactivation_reason",
             "is_admin_deactivated",
+            # Raw identity provider claims (staff/support only, see get_fields)
+            "details",
         )
         read_only_fields = (
             "uuid",
@@ -2465,6 +2467,9 @@ class UserSerializer(
             "is_admin_deactivated",
             "uid_number",
             "primary_gid",
+            # Provider-asserted, and now load-bearing for role assignment:
+            # nothing may PATCH a user's claims into existence.
+            "details",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -2480,12 +2485,22 @@ class UserSerializer(
         except (KeyError, AttributeError):
             return fields
 
-        if user.is_anonymous:
-            return fields
-
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
         if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
+
+        # Raw identity provider claims. Whatever the provider puts in the claims
+        # listed in IdentityProvider.extra_fields lands here verbatim, and
+        # auto-provisioning rules match on it to grant roles — so this is a
+        # support and debugging surface, not a profile field. Staff and support
+        # only, the user themselves included. Checked before the anonymous
+        # return below so an unauthenticated caller cannot receive it either;
+        # AnonymousUser has no is_support, hence the getattr.
+        if not (user.is_staff or getattr(user, "is_support", False)):
+            fields.pop("details", None)
+
+        if user.is_anonymous:
             return fields
 
         if not user.is_staff:
