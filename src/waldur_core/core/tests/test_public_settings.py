@@ -197,6 +197,17 @@ class BuildLogoUrlTest(TestCase):
         )
 
 
+class PublicConstanceSettingsTest(test.APITestCase):
+    def setUp(self):
+        cache.delete("API_CONFIGURATION")
+
+    def test_invitation_disable_multiple_roles_is_exposed(self):
+        response = self.client.get("/api/configuration/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("INVITATION_DISABLE_MULTIPLE_ROLES", response.data["WALDUR_CORE"])
+
+
 class LogoUrlConfigurationTest(test.APITestCase):
     def setUp(self):
         cache.delete("API_CONFIGURATION")

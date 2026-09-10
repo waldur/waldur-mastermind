@@ -533,6 +533,35 @@ class PermissionFactoryValidationTest(TestCase):
         self.assertIsNotNone(result)
 
 
+class SingleRolePerScopeTest(TestCase):
+    def setUp(self):
+        self.project = factories.ProjectFactory()
+        self.user = factories.UserFactory()
+        self.project.add_user(self.user, ProjectRole.MANAGER)
+
+    def test_disabled_by_default_allows_second_role(self):
+        utils.validate_role_grant(self.project, self.user, ProjectRole.ADMIN)
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_enabled_blocks_second_role(self):
+        with self.assertRaisesMessage(
+            ValidationError, "User already has role within this scope."
+        ):
+            utils.validate_role_grant(self.project, self.user, ProjectRole.ADMIN)
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_enabled_allows_role_in_another_scope(self):
+        other_project = factories.ProjectFactory(customer=self.project.customer)
+
+        utils.validate_role_grant(other_project, self.user, ProjectRole.ADMIN)
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_enabled_allows_role_after_previous_is_revoked(self):
+        utils.delete_user(self.project, self.user, ProjectRole.MANAGER)
+
+        utils.validate_role_grant(self.project, self.user, ProjectRole.ADMIN)
+
+
 class OnlyOneProjectManagerTest(TestCase):
     def setUp(self):
         self.project = factories.ProjectFactory()

@@ -1139,6 +1139,19 @@ class RequestApproveTest(BaseInvitationTest):
         # comes from @transaction.atomic on PermissionRequest.approve.
         self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
 
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_approve_rejects_second_role_when_multiple_roles_disabled(self):
+        add_user(self.customer, self.created_by, CustomerRole.SUPPORT)
+        self.client.force_authenticate(user=self.staff)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("User already has role within this scope.", str(response.data))
+        self.assertFalse(has_user(self.customer, self.created_by, CustomerRole.OWNER))
+        self.permission_request.refresh_from_db()
+        self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
+
 
 @ddt
 class RequestRejectTest(BaseInvitationTest):
