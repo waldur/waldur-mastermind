@@ -8,6 +8,7 @@ from waldur_autoprovisioning.tests import factories as autoprovisioning_factorie
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BASIC_OFFERING as MARKETPLACE_BASIC
@@ -170,12 +171,28 @@ class GetOrCreateProjectWithTemplateTest(TestCase):
 
     @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
     def test_get_or_create_project_uses_template(self, mock_process_order):
-        project = handlers.get_or_create_project(self.rule, self.user)
+        project = handlers.get_or_create_project(
+            self.rule, self.user, self.rule.customer
+        )
 
         self.assertIsNotNone(project)
         self.assertEqual(project.name, "test_user_custom_workspace")
         self.assertEqual(project.customer, self.rule.customer)
+
+    @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+    def test_provisioning_grants_the_project_role(self, mock_process_order):
+        """The role is issued by reconciliation, not by project creation, so
+        that every rule-issued grant carries the rule's provenance."""
+        handlers.provision_for_user(self.user)
+
+        project = structure_models.Project.available_objects.get(
+            name="test_user_custom_workspace", customer=self.rule.customer
+        )
         self.assertTrue(project.has_user(self.user, ProjectRole.ADMIN))
+        grant = UserRole.objects.get(
+            user=self.user, role=ProjectRole.ADMIN, is_active=True
+        )
+        self.assertEqual(grant.source, self.rule.grant_source)
 
     @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
     def test_get_or_create_project_without_template_uses_username(
@@ -184,20 +201,25 @@ class GetOrCreateProjectWithTemplateTest(TestCase):
         self.rule.project_name_template = ""
         self.rule.save()
 
-        project = handlers.get_or_create_project(self.rule, self.user)
+        project = handlers.get_or_create_project(
+            self.rule, self.user, self.rule.customer
+        )
 
         self.assertIsNotNone(project)
         self.assertEqual(project.name, "test_user")
         self.assertEqual(project.customer, self.rule.customer)
-        self.assertTrue(project.has_user(self.user, ProjectRole.ADMIN))
 
     @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
     def test_get_or_create_project_returns_existing_project(self, mock_process_order):
         # Create project first time
-        project1 = handlers.get_or_create_project(self.rule, self.user)
+        project1 = handlers.get_or_create_project(
+            self.rule, self.user, self.rule.customer
+        )
 
         # Call again should return same project
-        project2 = handlers.get_or_create_project(self.rule, self.user)
+        project2 = handlers.get_or_create_project(
+            self.rule, self.user, self.rule.customer
+        )
 
         self.assertEqual(project1.id, project2.id)
         self.assertEqual(project1.name, "test_user_custom_workspace")
@@ -217,7 +239,9 @@ class GetOrCreateProjectWithTemplateTest(TestCase):
             last_name="Role",
         )
 
-        project = handlers.get_or_create_project(self.rule, new_user)
+        project = handlers.get_or_create_project(
+            self.rule, new_user, self.rule.customer
+        )
 
         self.assertIsNotNone(project)
         self.assertTrue(project.has_user(new_user, ProjectRole.MANAGER))
@@ -293,7 +317,7 @@ class GetOrCreateProjectPolicyTest(TestCase):
         rule = self._concealed_rule()
         user = self._make_user()
         # No project exists yet -> exercises the Project.DoesNotExist branch.
-        project = handlers.get_or_create_project(rule, user)
+        project = handlers.get_or_create_project(rule, user, rule.customer)
         self.assertIsNotNone(project)
         self.assertFalse(project.has_user(user, ProjectRole.ADMIN))
 
@@ -303,6 +327,23 @@ class GetOrCreateProjectPolicyTest(TestCase):
         project = structure_models.Project.available_objects.create(
             name=rule.resolve_project_name(user), customer=rule.customer
         )
-        result = handlers.get_or_create_project(rule, user)
+        result = handlers.get_or_create_project(rule, user, rule.customer)
         self.assertEqual(result.pk, project.pk)
         self.assertFalse(project.has_user(user, ProjectRole.ADMIN))
+
+    def test_concealed_role_skipped_by_reconciliation(self):
+        """The grant path that actually runs on login must also respect the
+        organization's concealment, and must not raise.
+
+        Unlike the other tests here the user *does* match the rule, so the
+        post_save handler provisions on creation — which is exactly the path
+        under test.
+        """
+        rule = self._concealed_rule()
+        user = User.objects.create(username="matching", email="matching@example.com")
+
+        project = structure_models.Project.available_objects.get(
+            name=rule.resolve_project_name(user), customer=rule.customer
+        )
+        self.assertFalse(project.has_user(user, ProjectRole.ADMIN))
+        self.assertFalse(UserRole.objects.filter(user=user, is_active=True).exists())

@@ -61,7 +61,7 @@ class RuleTestMatchEndpointTest(test.APITestCase):
         self.assertTrue(response.data["would_provision"])
         self.assertEqual(response.data["block_reason"], "")
         self.assertEqual(response.data["resolved_project_name"], target.username)
-        # Six filter results, email_patterns matched
+        # Seven filter results, email_patterns matched
         filter_names = {fr["name"] for fr in response.data["filter_results"]}
         self.assertEqual(
             filter_names,
@@ -72,6 +72,7 @@ class RuleTestMatchEndpointTest(test.APITestCase):
                 "nationalities",
                 "organization_types",
                 "assurance_levels",
+                "claims",
             },
         )
         email_fr = next(

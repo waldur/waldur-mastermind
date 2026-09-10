@@ -22,6 +22,9 @@ The `Rule` model (`src/waldur_autoprovisioning/models.py:11`) defines auto-provi
 - **plan_attributes**: Custom attributes for resource provisioning
 - **plan_limits**: Resource limits (e.g., `{"vcpu": 4, "ram": 8192, "storage": 100}`)
 - **project_role**: Role assigned to users in created projects
+- **customer_role**: Role granted on the organization itself (optional)
+- **create_project**: Whether to create/join a project at all (default `true`)
+- **revoke_when_unmatched**: Withdraw this rule's grants once a user stops matching (default `false`)
 - **use_user_organization_as_customer_name**: Map user's organization claim to existing customer
 - **project_name_template**: Template for project naming (e.g., `"{username}_workspace"`)
 
@@ -44,6 +47,28 @@ Rules also support AAI (Authentication and Authorization Infrastructure) attribu
 Pattern matching uses OR logic within a field: a user matches if ANY email pattern OR ANY affiliation OR ANY identity source matches.
 
 **Note:** For assurance levels, AND logic is used - user must have ALL specified assurance URIs.
+
+#### Identity provider claims
+
+- **user_claims**: a map of claim name to accepted values, e.g.
+  `{"roles": ["acme-owner", "acme-admin"], "entitlements": ["urn:mace:example.org:group:hpc-*"]}`
+
+Every configured claim must match (AND); within one claim any listed value
+matches (OR). A value ending in `*` matches by prefix, which is what entitlement
+URNs usually need because they carry a trailing `#authority` fragment. Values
+are compared literally — this field decides whether a role is granted, so unlike
+`user_email_patterns` it is deliberately not a regex.
+
+Claims sit alongside the AAI filters as an additional requirement, **not** in the
+basic OR group: a rule that grants a role off a claim is never satisfied just
+because an email pattern happened to match.
+
+Values are read from `User.details`, which is populated from the claims listed in
+`IdentityProvider.extra_fields` — **a claim the identity provider is not
+configured to pass through will never match.** A claim whose name is also a
+mapped `User` field (`affiliations`, `organization`, `identity_source`,
+`nationality`, …) falls back to that field, so a deployment that maps the claim
+through `attribute_mapping` instead also works.
 
 ## Organization Mapping Feature
 
@@ -126,7 +151,12 @@ else:
     "user_email_patterns": [".+@university\\.edu"],
     "user_affiliations": ["staff", "faculty"],
     "user_identity_sources": ["eduGAIN"],
+    "user_claims": {"roles": ["acme-owner"]},
     "customer": "customer-uuid",
+    "create_project": true,
+    "revoke_when_unmatched": false,
+    "customer_role": "role-uuid",
+    "customer_role_display_name": "Owner",
     "use_user_organization_as_customer_name": false,
     "project_role": "role-uuid",
     "project_role_display_name": "Admin",
@@ -141,15 +171,20 @@ else:
 The serializer enforces these validation constraints:
 
 - Either `customer` or `use_user_organization_as_customer_name=true` must be specified
-- Either `project_role` or `project_role_name` must be provided (but not both)
-- Project role must be valid for project-level permissions
+- Either `project_role` or `customer_role` must be provided — a rule has to grant something
+- A rule with `create_project=false` must specify a `customer_role`, since it has nothing else to grant
+- `project_role` / `customer_role` may each be given as a URL or by name (`*_role_name`), but not both
+- Roles must be valid for their scope (project role on projects, organization role on organizations)
 - Email patterns must be valid regex expressions
+- A claim must have a non-empty name and at least one accepted value; a bare `*` is rejected
 
 ## Processing Flow
 
 ### Trigger Mechanism
 
-Auto-provisioning activates via Django signal (`src/waldur_autoprovisioning/apps.py:13`):
+Two triggers, deliberately separate.
+
+**Provisioning** (projects and orders) runs once, when the account first appears:
 
 ```python
 signals.post_save.connect(
@@ -159,16 +194,99 @@ signals.post_save.connect(
 )
 ```
 
+The handler returns early unless `created`. It used to run on *every*
+`User.save()`, which meant an ordinary profile edit could materialise projects.
+
+**Role reconciliation** runs whenever identity data is refreshed — after an OIDC
+login and after a SCIM pull — via `waldur_core.core.signals.user_identity_synced`:
+
+```python
+core_signals.user_identity_synced.connect(
+    handlers.handle_identity_synced,
+    dispatch_uid="waldur_autoprovisioning.handle_identity_synced",
+)
+```
+
+That is the moment a claim may have been added or withdrawn, which `post_save`
+cannot distinguish.
+
 ### Auto-Provisioning Workflow
 
 1. **User Creation**: New user triggers `handle_new_user` handler
 2. **Rule Matching**: System finds applicable rules using `Rule.get_objects_by_user_patterns()`
-3. **Customer Resolution**: Either use configured customer or resolve from organization
-4. **Project Creation**: `get_or_create_project()` creates or assigns project
+3. **Customer Resolution**: `resolve_customer()` — either the configured customer or the one
+   resolved from the organization claim
+4. **Project Creation**: `get_or_create_project()` creates or assigns the project, when
+   `create_project` is enabled
 5. **Resource Provisioning**: If plan is specified, creates marketplace order
 6. **Order Processing**: Marketplace processes the order asynchronously
+7. **Role Reconciliation**: `reconcile_autoprovisioned_roles()` issues every role the matching
+   rules assert, and withdraws the ones they no longer do
+
+## Role reconciliation
+
+Rules used to be grant-only: a matching user gained a role and nothing ever took
+it away. Inbound SCIM behaves the opposite way — a group-membership `PUT`
+revokes what the identity provider no longer asserts. `revoke_when_unmatched`
+brings rules into line with that.
+
+### Provenance
+
+Every rule-issued grant records `UserRole.source = "rule:<rule uuid>"`.
+Reconciliation only ever revokes rows carrying the source of a rule it is
+currently evaluating. Two consequences worth stating plainly:
+
+- A role granted **by a person** carries an empty `source` and is never revoked
+  automatically, even when it names the same (user, scope, role) triple as a rule.
+- One rule never cleans up after another.
+
+Grants that already existed before this field was introduced have an empty
+source, so no pre-existing grant becomes eligible for automatic revocation.
+
+### Opting in
+
+`revoke_when_unmatched` defaults to `false`. Enabling claim matching on a live
+deployment therefore cannot silently strip access that is already in use; an
+administrator turns revocation on per rule, deliberately.
+
+When it is on, note that revoking a user's **last** role triggers the usual
+`role_revoked` consequences — which include deactivating the user if
+`DEACTIVATE_USER_IF_NO_ROLES` is enabled, and removing them from provider-side
+groups (FreeIPA, Matrix rooms, site-agent queues).
+
+### Backfill
+
+Reconciliation is driven by logins, so editing a rule leaves existing users out
+of step until each of them next signs in. To close that window:
+
+```bash
+# Preview one user
+waldur reconcile_autoprovisioned_roles --username alice --dry-run
+
+# Apply to everyone
+waldur reconcile_autoprovisioned_roles --all
+```
 
 ## Configuration Examples
+
+### Organization role from an identity provider claim
+
+Grant organization ownership to whoever carries `roles: acme-owner`, and take it
+away when they stop:
+
+```json
+{
+    "name": "Acme owners",
+    "user_claims": {"roles": ["acme-owner"]},
+    "customer": "acme-customer-uuid",
+    "customer_role_name": "CUSTOMER.OWNER",
+    "create_project": false,
+    "revoke_when_unmatched": true
+}
+```
+
+`roles` must be listed in the identity provider's `extra_fields` for the claim to
+reach Waldur at all.
 
 ### Basic Project Creation
 

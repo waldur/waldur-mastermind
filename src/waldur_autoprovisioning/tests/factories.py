@@ -16,6 +16,7 @@ class RuleFactory(
 
     user_affiliations = factory.LazyFunction(list)
     user_email_patterns = factory.LazyFunction(list)
+    user_claims = factory.LazyFunction(dict)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     plan = factory.SubFactory(marketplace_factories.PlanFactory)
     plan_attributes = factory.LazyFunction(dict)

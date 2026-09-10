@@ -1,7 +1,7 @@
 from django.test import RequestFactory, TestCase
 
 from waldur_autoprovisioning.serializers import RuleSerializer
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.tests import factories as permission_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -84,6 +84,11 @@ class RuleSerializerProjectRoleTest(TestCase):
         }
         self.project_admin_role = ProjectRole.ADMIN
         self.project_manager_role = ProjectRole.MANAGER
+        # Touching the classproperty get_or_creates the role. Referring to a
+        # system role by name without this is a bet on the roles table not
+        # having been emptied by an earlier TransactionTestCase in the same
+        # process — a bet that loses in some CI shards.
+        self.customer_owner_role = CustomerRole.OWNER
 
     def test_project_role_description_exposed(self):
         """Test that project_role_description is properly exposed."""
@@ -162,14 +167,40 @@ class RuleSerializerProjectRoleTest(TestCase):
         self.assertIn("Cannot specify both", str(serializer.errors["non_field_errors"]))
 
     def test_neither_provided_is_invalid(self):
-        """Test that providing neither project_role nor project_role_name is invalid when creating."""
+        """A rule has to grant something: neither a project nor an organization
+        role is not a valid rule."""
         data = self.base_data.copy()
 
         serializer = RuleSerializer(data=data)
         self.assertFalse(serializer.is_valid())
         self.assertIn("non_field_errors", serializer.errors)
         self.assertIn(
-            "Either project_role or project_role_name must be provided",
+            "Either project_role or customer_role must be provided",
+            str(serializer.errors["non_field_errors"]),
+        )
+
+    def test_customer_role_alone_is_enough(self):
+        """An organization-level rule grants no project role at all."""
+        data = self.base_data.copy()
+        data["customer_role_name"] = self.customer_owner_role.name
+        data["create_project"] = False
+
+        serializer = RuleSerializer(data=data)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        rule = serializer.save()
+        self.assertEqual(rule.customer_role, self.customer_owner_role)
+        self.assertIsNone(rule.project_role)
+        self.assertFalse(rule.create_project)
+
+    def test_rule_without_project_must_have_customer_role(self):
+        data = self.base_data.copy()
+        data["project_role_name"] = "PROJECT.ADMIN"
+        data["create_project"] = False
+
+        serializer = RuleSerializer(data=data)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn(
+            "must specify a customer_role",
             str(serializer.errors["non_field_errors"]),
         )
 
@@ -216,8 +247,10 @@ class RuleSerializerProjectRoleTest(TestCase):
 
         self.assertEqual(updated_rule.project_role, self.project_manager_role)
 
-    def test_update_rule_cannot_clear_role(self):
-        """Test that updating a rule cannot clear the project role (role is always required)."""
+    def test_update_without_a_role_keeps_the_existing_one(self):
+        """An update that simply omits the role fields leaves them alone; it is
+        clearing *both* roles that is refused, since the rule would grant
+        nothing."""
         # Create initial rule with a role
         initial_data = self.base_data.copy()
         initial_data["project_role"] = permission_factories.RoleFactory.get_url(
@@ -237,11 +270,17 @@ class RuleSerializerProjectRoleTest(TestCase):
         }
 
         update_serializer = RuleSerializer(rule, data=update_data)
-        self.assertFalse(update_serializer.is_valid())
-        self.assertIn("non_field_errors", update_serializer.errors)
+        self.assertTrue(update_serializer.is_valid(), update_serializer.errors)
+        updated = update_serializer.save()
+        self.assertEqual(updated.project_role, self.project_admin_role)
+
+        # Explicitly clearing the only role the rule has is refused.
+        clear_data = dict(update_data, project_role_name=None)
+        clear_serializer = RuleSerializer(rule, data=clear_data)
+        self.assertFalse(clear_serializer.is_valid())
         self.assertIn(
-            "Either project_role or project_role_name must be provided",
-            str(update_serializer.errors["non_field_errors"]),
+            "Either project_role or customer_role must be provided",
+            str(clear_serializer.errors["non_field_errors"]),
         )
 
     def test_case_sensitive_role_name_lookup(self):

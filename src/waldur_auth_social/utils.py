@@ -26,6 +26,7 @@ from waldur_auth_social.const import (
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
 from waldur_autoprovisioning.models import Rule
+from waldur_core.core import signals as core_signals
 from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.user_attributes import (
@@ -410,8 +411,12 @@ def get_user_payload(
             value = backend_user.get(claim)
             if value:
                 extra_fields[claim] = value
-        if extra_fields:
-            payload["details"] = extra_fields
+        # Assigned even when empty. Skipping the assignment left the previous
+        # login's claims in place, so a claim the provider had *stopped*
+        # asserting stayed on the account for ever — invisible while `details`
+        # was only informational, but authorization is now derived from it and
+        # a withdrawn claim has to actually disappear.
+        payload["details"] = extra_fields
 
     return payload
 
@@ -645,6 +650,14 @@ def create_or_update_oauth_user(
         user.active_isds = [source]
         user._change_source = source
         user.save()
+
+    # Identity data has landed; anything that derives authorisation from claims
+    # (auto-provisioning role reconciliation) runs off this signal. Sent on both
+    # branches: a claim can be granted or withdrawn on any subsequent login, not
+    # only when the account first appears.
+    core_signals.user_identity_synced.send(
+        sender=User, user=user, source=source, created=created
+    )
 
     return user, created
 

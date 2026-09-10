@@ -35,7 +35,39 @@ class Rule(
         null=True,
         blank=True,
     )
+    customer_role = models.ForeignKey(
+        to=Role,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="autoprovisioning_customer_rules",
+        help_text="Role granted on the organization itself. Leave empty to grant "
+        "no organization-level role.",
+    )
+    create_project = models.BooleanField(
+        default=True,
+        help_text="Create (or join) a project for the matched user. Disable to "
+        "grant only the organization-level role.",
+    )
+    user_claims = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Identity provider claims the user must carry, as "
+        '{"claim": ["accepted", "values"]}. All claims must match; within one '
+        "claim any value matches. A value ending in '*' matches by prefix.",
+    )
+    revoke_when_unmatched = models.BooleanField(
+        default=False,
+        help_text="Revoke the roles this rule granted once the user stops "
+        "matching it. Off by default so enabling a rule cannot silently strip "
+        "access that is already in use.",
+    )
     use_user_organization_as_customer_name = models.BooleanField(default=False)
+
+    @property
+    def grant_source(self) -> str:
+        """Provenance token written to ``UserRole.source`` for this rule's grants."""
+        return f"rule:{self.uuid.hex}"
 
     @classmethod
     def get_url_name(cls):

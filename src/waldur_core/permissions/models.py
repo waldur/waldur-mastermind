@@ -178,6 +178,17 @@ class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
         related_name="+",
     )
     revoke_reason = models.CharField(max_length=255, blank=True, default="")
+    source = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text=(
+            "Provenance of a machine-issued grant, e.g. 'rule:<uuid>'. Empty for "
+            "grants made by a person. Only rows carrying a source are eligible "
+            "for automatic reconciliation."
+        ),
+    )
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(null=True, default=True, db_index=True)
     tracker = cast(

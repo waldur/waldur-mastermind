@@ -49,6 +49,22 @@ class RuleSerializer(
         required=False,
         default=dict,
     )
+    customer_role = serializers.HyperlinkedRelatedField(
+        queryset=Role.objects.all(),
+        view_name="role-detail",
+        lookup_field="uuid",
+        required=False,
+        allow_null=True,
+    )
+    customer_role_display_name = serializers.CharField(
+        source="customer_role.name", read_only=True
+    )
+    customer_role_description = serializers.CharField(
+        source="customer_role.description", read_only=True
+    )
+    customer_role_name = serializers.CharField(
+        required=False, allow_null=True, write_only=True
+    )
     user_affiliations = serializers.ListField(
         child=serializers.CharField(),
         required=False,
@@ -58,6 +74,37 @@ class RuleSerializer(
         child=serializers.CharField(),
         required=False,
         default=list,
+    )
+    # These four exist on the model and are honoured by the evaluator, but were
+    # never exposed on the API — the dry-run dialog rendered filter rows nobody
+    # could configure.
+    user_identity_sources = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+    )
+    user_nationalities = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+    )
+    user_organization_types = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+    )
+    user_assurance_levels = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+    )
+    user_claims = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        required=False,
+        default=dict,
+        help_text='Identity provider claims the user must carry, as {"claim": '
+        '["accepted", "values"]}. All claims must match; within one claim any '
+        "value matches. A value ending in '*' matches by prefix.",
     )
     plan_name = serializers.CharField(
         source="plan.name", required=False, read_only=True
@@ -86,14 +133,25 @@ class RuleSerializer(
             "url",
             "user_affiliations",
             "user_email_patterns",
+            "user_identity_sources",
+            "user_nationalities",
+            "user_organization_types",
+            "user_assurance_levels",
+            "user_claims",
             "customer",
             "customer_name",
             "customer_uuid",
             "use_user_organization_as_customer_name",
+            "create_project",
+            "revoke_when_unmatched",
             "project_role",
             "project_role_name",  # used for accepting role name to set
             "project_role_display_name",  # used for displaying the role name
             "project_role_description",
+            "customer_role",
+            "customer_role_name",  # used for accepting role name to set
+            "customer_role_display_name",  # used for displaying the role name
+            "customer_role_description",
             "plan",
             "plan_attributes",
             "plan_limits",
@@ -118,32 +176,104 @@ class RuleSerializer(
             },
         }
 
+    def _resolve_role(self, attrs, field: str, scope_model: str, label: str):
+        """Normalise the ``<field>`` / ``<field>_name`` pair into a single Role.
+
+        Returns the role that will be in effect after the write. Mutates
+        ``attrs``: the write-only ``_name`` alias is dropped (it is not a model
+        field), and an explicitly cleared role is written back as ``None`` —
+        without that, unsetting a role over the API silently kept the old one.
+        """
+        name_key = f"{field}_name"
+        instance = getattr(self, "instance", None)
+        # Distinguishes "left alone" (absent) from "cleared" (present as null).
+        provided = field in attrs or name_key in attrs
+
+        role = attrs.get(field)
+        role_name = attrs.get(name_key)
+        attrs.pop(name_key, None)
+
+        if role_name == "":
+            role_name = None
+
+        if role and role_name:
+            raise serializers.ValidationError(
+                f"Cannot specify both {field} and {name_key}. Choose one."
+            )
+
+        if role_name:
+            try:
+                role = Role.objects.get(name=role_name)
+            except Role.DoesNotExist:
+                raise serializers.ValidationError(
+                    f"{label} with name '{role_name}' does not exist."
+                )
+
+        if role is not None:
+            attrs[field] = role
+        elif provided:
+            attrs[field] = None
+        else:
+            role = getattr(instance, field, None)
+
+        if role and role.content_type != ContentType.objects.get_by_natural_key(
+            "structure", scope_model
+        ):
+            raise serializers.ValidationError(
+                f"The specified role is not a valid {scope_model} role."
+            )
+
+        return role
+
+    def validate_user_claims(self, value):
+        for claim, accepted in (value or {}).items():
+            if not claim or not claim.strip():
+                raise serializers.ValidationError("Claim name cannot be empty.")
+            if not accepted:
+                raise serializers.ValidationError(
+                    f"Claim '{claim}' must list at least one accepted value."
+                )
+            for entry in accepted:
+                if not entry or not entry.strip():
+                    raise serializers.ValidationError(
+                        f"Claim '{claim}' has an empty accepted value."
+                    )
+                if entry.strip() == "*":
+                    raise serializers.ValidationError(
+                        f"Claim '{claim}' cannot accept a bare '*' — that would "
+                        "match every value the claim carries."
+                    )
+        return value
+
     def validate(self, attrs):
-        project_role = attrs.get("project_role")
-        project_role_name = attrs.get("project_role_name")
-        # Compose values considering update vs create
         instance = getattr(self, "instance", None)
         customer = attrs.get("customer", getattr(instance, "customer", None))
         use_org_as_customer = attrs.get(
             "use_user_organization_as_customer_name",
             getattr(instance, "use_user_organization_as_customer_name", False),
         )
+        create_project = attrs.get(
+            "create_project", getattr(instance, "create_project", True)
+        )
 
-        # Treat empty string as None for project_role_name
-        if project_role_name == "":
-            project_role_name = None
-            attrs.pop("project_role_name", None)
+        project_role = self._resolve_role(
+            attrs, "project_role", "project", "Project role"
+        )
+        customer_role = self._resolve_role(
+            attrs, "customer_role", "customer", "Organization role"
+        )
 
-        # Check that exactly one of project_role or project_role_name is provided
-        if project_role and project_role_name:
+        # A rule must grant something. Before organization-level rules existed
+        # this was "a project role is mandatory"; now either half suffices.
+        if not project_role and not customer_role:
             raise serializers.ValidationError(
-                "Cannot specify both project_role and project_role_name. Choose one."
+                "Either project_role or customer_role must be provided."
             )
 
-        # Require at least one role specification for both creation and updates
-        if not project_role and not project_role_name:
+        if not create_project and not customer_role:
             raise serializers.ValidationError(
-                "Either project_role or project_role_name must be provided."
+                "A rule that does not create a project must specify a customer_role, "
+                "otherwise it grants nothing."
             )
 
         # Either explicit customer must be set or we must take customer from user's organization
@@ -151,27 +281,6 @@ class RuleSerializer(
             raise serializers.ValidationError(
                 "Either customer must be specified or use_user_organization_as_customer_name must be true."
             )
-
-        if (
-            project_role
-            and project_role.content_type
-            != ContentType.objects.get_by_natural_key("structure", "project")
-        ):
-            raise serializers.ValidationError(
-                "The specified role is not a valid project role."
-            )
-
-        # If project_role_name is provided, look up the role by name
-        if project_role_name:
-            try:
-                role = Role.objects.get(name=project_role_name)
-                attrs["project_role"] = role
-            except Role.DoesNotExist:
-                raise serializers.ValidationError(
-                    f"Project role with name '{project_role_name}' does not exist."
-                )
-            # Remove project_role_name from attrs as it's not a model field
-            attrs.pop("project_role_name", None)
 
         return attrs
 
@@ -224,6 +333,10 @@ class RuleTestMatchResponseSerializer(serializers.Serializer):
     user_registration_method = serializers.CharField(allow_blank=True)
     user_identity_source = serializers.CharField(allow_blank=True)
     user_affiliations = serializers.ListField(child=serializers.CharField())
+    user_claims = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        help_text="Values the user carries for each claim the rule requires.",
+    )
     user_is_protected = serializers.BooleanField()
     filter_results = FilterCheckResultSerializer(many=True)
     customer_lookup_performed = serializers.BooleanField()

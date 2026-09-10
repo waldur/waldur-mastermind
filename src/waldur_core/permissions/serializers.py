@@ -468,6 +468,7 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
     user_image = serializers.ImageField(source="user.image", read_only=True)
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(read_only=True, source="created_by.uuid")
+    source = serializers.CharField(read_only=True)
 
     class Meta:
         model = models.UserRole
@@ -485,6 +486,7 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
             "user_image",
             "created_by_full_name",
             "created_by_uuid",
+            "source",
         )
 
 
@@ -518,6 +520,8 @@ class PermissionSerializer(serializers.ModelSerializer):
     resource_uuid = serializers.SerializerMethodField()
     project_uuid = serializers.SerializerMethodField()
     scope_is_removed = serializers.SerializerMethodField()
+    # Provenance of a machine-issued grant; never settable over the API.
+    source = serializers.CharField(read_only=True)
 
     class Meta:
         model = models.UserRole
@@ -536,6 +540,7 @@ class PermissionSerializer(serializers.ModelSerializer):
             "revoked_by_full_name",
             "revoked_by_username",
             "revoke_reason",
+            "source",
             "role_name",
             "role_description",
             "role_uuid",
