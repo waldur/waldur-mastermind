@@ -2430,7 +2430,7 @@ If true, user email in Waldur database and in invitatation must strictly match.
 
 **Type:** bool
 
-Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.
+Do not allow a user to hold multiple roles within the same scope (project or organization). Applies to invitations, permission requests and direct role assignment. When enabled, users can still get roles in different scopes but cannot have multiple roles in the same scope.
 
 #### ONLY_ONE_PROJECT_MANAGER
 
