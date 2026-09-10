@@ -212,6 +212,13 @@ def send_issue_updated_notification(
     if not instance.backend_id:
         return
 
+    if not instance.tracker.previous("backend_id"):
+        # This is the save that materialised the ticket: the backend creates an
+        # issue in two saves — first without a backend id, then with one, along
+        # with the key and the default status. Nothing has been updated yet, so
+        # the caller must not be told that it has.
+        return
+
     # Skip notifications if assignee or modification date changed
     tracked_fields = ("summary", "description", "status", "priority")
     changed = dict(
