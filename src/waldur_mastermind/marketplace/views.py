@@ -2361,6 +2361,18 @@ def validate_offering_update(offering):
         )
 
 
+def validate_offering_owns_components(offering):
+    # The API and ordering resolve a child offering's components from its
+    # parent, so one written onto the child would never be shown or used.
+    if not utils.offering_owns_pricing(offering):
+        raise rf_exceptions.ValidationError(
+            _(
+                "This offering is a child offering, so its components belong "
+                "to the parent."
+            )
+        )
+
+
 def validate_offering_has_plans(offering):
     if not models.offering_has_plans(offering):
         raise rf_exceptions.ValidationError(
@@ -4150,7 +4162,10 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
-    update_offering_component_validators = update_validators
+    update_offering_component_validators = [
+        *update_validators,
+        validate_offering_owns_components,
+    ]
 
     @extend_schema(
         summary="Remove an offering component",
@@ -4192,9 +4207,13 @@ class ProviderOfferingViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        builtin_components = plugins.manager.get_components(offering.type)
-        valid_types = {component.type for component in builtin_components}
-        if offering_component.type in valid_types:
+        # The stored flag also covers components a plugin creates rather than
+        # declares, such as the OpenStack per-volume-type quotas.
+        if (
+            offering_component.is_builtin
+            or offering_component.type
+            in plugins.manager.get_component_types(offering.type)
+        ):
             return Response(
                 {
                     "details": _(
@@ -4214,7 +4233,10 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
-    remove_offering_component_validators = update_validators
+    remove_offering_component_validators = [
+        *update_validators,
+        validate_offering_owns_components,
+    ]
 
     @extend_schema(
         request=serializers.SwitchBillingModeSerializer,
@@ -4354,7 +4376,10 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
-    switch_billing_mode_validators = update_validators
+    switch_billing_mode_validators = [
+        *update_validators,
+        validate_offering_owns_components,
+    ]
 
     @extend_schema(
         request=serializers.OfferingComponentSerializer,
@@ -4383,7 +4408,10 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
-    create_offering_component_validators = update_validators
+    create_offering_component_validators = [
+        *update_validators,
+        validate_offering_owns_components,
+    ]
 
     @extend_schema(
         summary="Synchronize offering service settings",
