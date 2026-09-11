@@ -3597,6 +3597,26 @@ class UpdateOfferingComponent(OfferingComponentSerializer):
             # Only check uniqueness if type is actually changing
             if new_type != current_type:
                 offering = self.instance.offering
+                builtin_types = plugins.manager.get_component_types(offering.type)
+
+                # Renaming a builtin away drops it from under the plugin, the same
+                # as removing it; renaming onto one sidesteps the create check.
+                if self.instance.is_builtin or current_type in builtin_types:
+                    raise serializers.ValidationError(
+                        {
+                            "type": _(
+                                "The type of a built-in component cannot be changed."
+                            )
+                        }
+                    )
+                if new_type in builtin_types:
+                    raise serializers.ValidationError(
+                        {
+                            "type": _("Cannot use a built-in component type: %s")
+                            % new_type
+                        }
+                    )
+
                 existing_component = (
                     offering.components.filter(type=new_type)
                     .exclude(uuid=self.instance.uuid)
@@ -9089,7 +9109,12 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 {"resource": _("Resource is not in valid state.")}
             )
 
-        valid_components = set(self.get_components_map(offering))
+        # save() records usage against the plan's offering, and a child
+        # offering's resources take their plan from the parent: a type has to
+        # exist on both, or save() would fail on it.
+        valid_components = set(self.get_components_map(offering)) & set(
+            self.get_components_map(resource.plan.offering)
+        )
         actual_components = {usage["type"] for usage in attrs["usages"]}
 
         invalid_components = ", ".join(sorted(actual_components - valid_components))

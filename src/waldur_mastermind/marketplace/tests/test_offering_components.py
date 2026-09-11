@@ -51,6 +51,22 @@ class OfferingComponentRemoveTest(BaseOfferingUpdateTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         cpu_component.refresh_from_db()
 
+    def test_a_plugin_created_builtin_component_cannot_be_removed(self):
+        # The OpenStack volume type sync creates components like this one: the
+        # plugin does not declare the type, only the stored flag marks it builtin.
+        self.offering.type = OPENSTACK_TENANT_OFFERING
+        self.offering.save()
+        component = factories.OfferingComponentFactory(
+            offering=self.offering, type="gigabytes_ssd", billed_per_plan=True
+        )
+
+        response = self.remove_offering_component(component, "owner")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(
+            models.OfferingComponent.objects.filter(pk=component.pk).exists()
+        )
+
     def test_it_should_not_be_possible_to_remove_components_if_they_are_used(self):
         # Arrange
         component = factories.OfferingComponentFactory(offering=self.offering)
@@ -297,6 +313,78 @@ class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
         self.assertEqual("Cores", component.name)
         self.assertEqual("hours", component.measured_unit)
         self.assertEqual(BillingTypes.FIXED, component.billing_type)
+
+    def test_the_type_of_a_builtin_component_cannot_be_changed(self):
+        self.offering.type = VMWARE_VM_OFFERING
+        self.offering.save()
+        component = factories.OfferingComponentFactory(
+            offering=self.offering, type="cpu", billed_per_plan=True
+        )
+
+        response = self.update_offering_component(
+            {
+                "type": "vcpu",
+                "name": "CPU",
+                "measured_unit": "vCPU",
+                "billing_type": BillingTypes.LIMIT,
+                "uuid": component.uuid.hex,
+            },
+            "owner",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("type", response.data)
+        component.refresh_from_db()
+        self.assertEqual("cpu", component.type)
+
+    def test_a_custom_component_cannot_take_a_builtin_type(self):
+        self.offering.type = VMWARE_VM_OFFERING
+        self.offering.save()
+        component = factories.OfferingComponentFactory(
+            offering=self.offering, type="licence"
+        )
+
+        response = self.update_offering_component(
+            {
+                "type": "cpu",
+                "name": "Licence",
+                "measured_unit": "seats",
+                "billing_type": BillingTypes.FIXED,
+                "uuid": component.uuid.hex,
+            },
+            "owner",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        component.refresh_from_db()
+        self.assertEqual("licence", component.type)
+
+    def test_other_fields_of_a_builtin_component_can_still_be_edited(self):
+        self.offering.type = VMWARE_VM_OFFERING
+        self.offering.save()
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="cpu",
+            billed_per_plan=True,
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        response = self.update_offering_component(
+            {
+                "type": "cpu",
+                "name": "Virtual CPU",
+                "measured_unit": "vCPU",
+                "billing_type": BillingTypes.LIMIT,
+                "article_code": "VCPU-1",
+                "uuid": component.uuid.hex,
+            },
+            "owner",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        component.refresh_from_db()
+        self.assertEqual("Virtual CPU", component.name)
+        self.assertEqual("VCPU-1", component.article_code)
 
     def test_update_without_limit_period_preserves_existing_value(self):
         component = factories.OfferingComponentFactory(
