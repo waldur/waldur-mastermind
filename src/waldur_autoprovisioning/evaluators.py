@@ -3,7 +3,7 @@ from typing import Any
 
 from waldur_autoprovisioning.models import Rule
 from waldur_autoprovisioning.reconciliation import resolve_customer
-from waldur_core.core.models import User
+from waldur_core.core.models import _CLAIM_FALLBACK_USER_FIELDS, User
 
 
 def compute_test_match(rule: Rule, user: User) -> dict[str, Any]:
@@ -43,6 +43,7 @@ def compute_test_match(rule: Rule, user: User) -> dict[str, Any]:
             claim: Rule._get_user_claim_values(user, claim)
             for claim in (rule.user_claims or {})
         },
+        "unconfigured_claims": _get_unconfigured_claims(rule),
         "user_is_protected": user.should_protect_user_details,
         "filter_results": [asdict(fr) for fr in eval_result.filter_results],
         "customer_lookup_performed": bool(resolution and resolution.lookup_performed),
@@ -54,3 +55,35 @@ def compute_test_match(rule: Rule, user: User) -> dict[str, Any]:
             else None
         ),
     }
+
+
+def _get_unconfigured_claims(rule: Rule) -> list[str]:
+    """Claims the rule matches on that no identity provider actually passes through.
+
+    An empty user value in the dry-run reads the same whether the provider sent
+    a different value or never sent the claim at all — but the fixes are
+    opposite: adjust the rule, versus add the claim to the provider's extra
+    fields. This tells the two apart.
+
+    Imported inside the function: ``waldur_auth_social`` imports this app (for
+    ``matches_autoprovisioning_rule``), so a module-level import would be a
+    cycle. ``waldur_auth_social`` is also an optional extension, so a missing
+    app must not break the dry-run.
+    """
+    claims = list(rule.user_claims or {})
+    if not claims:
+        return []
+
+    try:
+        from waldur_auth_social.models import IdentityProvider
+    except ImportError:  # pragma: no cover - extension not installed
+        return []
+
+    passed_through = set(_CLAIM_FALLBACK_USER_FIELDS)
+    for provider in IdentityProvider.objects.filter(is_active=True):
+        passed_through.update((provider.extra_fields or "").split())
+        # A claim mapped onto a profile field arrives that way instead.
+        for mapped in (provider.attribute_mapping or {}).values():
+            passed_through.update(str(mapped).split())
+
+    return [claim for claim in claims if claim not in passed_through]

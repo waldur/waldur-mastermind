@@ -337,6 +337,13 @@ class RuleTestMatchResponseSerializer(serializers.Serializer):
         child=serializers.ListField(child=serializers.CharField()),
         help_text="Values the user carries for each claim the rule requires.",
     )
+    unconfigured_claims = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Claims the rule matches on that no active identity provider "
+        "passes through, so Waldur never receives them. Distinguishes 'the "
+        "provider sent a different value' from 'the provider never sent this "
+        "claim', which need opposite fixes.",
+    )
     user_is_protected = serializers.BooleanField()
     filter_results = FilterCheckResultSerializer(many=True)
     customer_lookup_performed = serializers.BooleanField()
