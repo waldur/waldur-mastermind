@@ -227,6 +227,10 @@ logger = logging.getLogger(__name__)
 # scopes are listed wherever an offering-level grant should be sufficient.
 OFFERING_SCOPED_SOURCES = ["offering", "offering.customer"]
 
+# A service provider manager holds their role on the ServiceProvider itself,
+# while organization owners hold theirs on its customer; accept either.
+SERVICE_PROVIDER_SOURCES = ["*", "customer"]
+
 
 def get_allowed_offering_users_for_user(
     request_user, include_consent_filtering=False, action=None
@@ -732,7 +736,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     stat_permissions = [
         permission_factory(
             PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
-            ["customer"],
+            SERVICE_PROVIDER_SOURCES,
         )
     ]
 
@@ -826,7 +830,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     revenue_permissions = [
         permission_factory(
             PermissionEnum.GET_SERVICE_PROVIDER_REVENUE,
-            ["customer"],
+            SERVICE_PROVIDER_SOURCES,
         )
     ]
 
@@ -1137,10 +1141,11 @@ class ServiceProviderCustomersViewSet(
         service_provider = get_object_or_404(
             models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
-        if not has_permission(
+        if not has_permission_on_any_source(
             self.request,
             PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
-            service_provider.customer,
+            service_provider,
+            SERVICE_PROVIDER_SOURCES,
         ):
             raise PermissionDenied()
         return service_provider
@@ -1188,10 +1193,11 @@ class ServiceProviderCustomerProjectsViewSet(
         service_provider = get_object_or_404(
             models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
-        if not has_permission(
+        if not has_permission_on_any_source(
             self.request,
             PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS,
-            service_provider.customer,
+            service_provider,
+            SERVICE_PROVIDER_SOURCES,
         ):
             raise PermissionDenied()
         return service_provider
@@ -1602,10 +1608,11 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
         service_provider = get_object_or_404(
             models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
-        if not has_permission(
+        if not has_permission_on_any_source(
             self.request,
             PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
-            service_provider.customer,
+            service_provider,
+            SERVICE_PROVIDER_SOURCES,
         ):
             raise PermissionDenied()
         return service_provider
