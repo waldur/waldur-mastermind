@@ -58,9 +58,9 @@ class RobotAccountGlauthConfigTest(test.APITestCase):
                     "loginShell": "/bin/bash",
                     "homeDir": f"/home/{self.robot_account.username}",
                     "passsha256": "",
-                    "customattributes": {
-                        "preferredUsername": [self.robot_account.username]
-                    },
+                    "customattributes": [
+                        {"preferredUsername": [self.robot_account.username]}
+                    ],
                 }
             ],
             "groups": [{"name": self.robot_account.username, "gidnumber": 2001}],
