@@ -401,6 +401,47 @@ class ProviderTicketListTest(ProviderHelpdeskBaseTest):
         self.assertEqual(len(uuids), 1)
         self.assertIn(self.child_issue.uuid.hex, uuids)
 
+    def test_staff_can_narrow_list_to_one_helpdesk(self):
+        # A helpdesk's tickets page is scoped by this filter; without it staff
+        # saw other helpdesks' tickets there and could not assign them.
+        other_sp = marketplace_factories.ServiceProviderFactory()
+        other_helpdesk = factories.ProviderHelpdeskFactory(service_provider=other_sp)
+        other_child = factories.IssueFactory(
+            parent_issue=factories.IssueFactory(backend_id="WLD-500"),
+            provider_helpdesk=other_helpdesk,
+            backend_id="WLD-501",
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            _provider_ticket_list_url(),
+            {"provider_helpdesk_uuid": self.helpdesk.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [item["uuid"] for item in response.data]
+        self.assertEqual(uuids, [self.child_issue.uuid.hex])
+        self.assertNotIn(other_child.uuid.hex, uuids)
+        self.assertEqual(
+            str(response.data[0]["provider_helpdesk_uuid"]), self.helpdesk.uuid.hex
+        )
+
+    def test_owner_filtering_by_foreign_helpdesk_sees_nothing(self):
+        other_sp = marketplace_factories.ServiceProviderFactory()
+        other_helpdesk = factories.ProviderHelpdeskFactory(service_provider=other_sp)
+        factories.IssueFactory(
+            parent_issue=factories.IssueFactory(backend_id="WLD-600"),
+            provider_helpdesk=other_helpdesk,
+            backend_id="WLD-601",
+        )
+
+        self.client.force_authenticate(self.owner)
+        response = self.client.get(
+            _provider_ticket_list_url(),
+            {"provider_helpdesk_uuid": other_helpdesk.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
     def test_issues_without_parent_are_not_listed(self):
         # Non-child issues (regular issues) should not appear
         factories.IssueFactory(backend_id="WLD-300")
@@ -701,6 +742,40 @@ class ProviderTicketStatsTest(ProviderHelpdeskBaseTest):
         self.assertIn("total_open", response.data)
         self.assertIn("total_escalated", response.data)
         self.assertEqual(response.data["total_escalated"], 1)
+
+    def test_stats_can_be_narrowed_to_one_helpdesk(self):
+        other_sp = marketplace_factories.ServiceProviderFactory()
+        other_helpdesk = factories.ProviderHelpdeskFactory(service_provider=other_sp)
+        factories.IssueFactory(
+            parent_issue=self.parent_issue,
+            provider_helpdesk=other_helpdesk,
+            backend_id="WLD-1003",
+            is_escalated=True,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = _provider_ticket_list_url() + "stats/"
+
+        response = self.client.get(url)
+        self.assertEqual(response.data["total_escalated"], 2)
+
+        response = self.client.get(
+            url, {"provider_helpdesk_uuid": self.helpdesk.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_escalated"], 1)
+
+    def test_stats_ignore_ordering_when_counting_by_status(self):
+        factories.IssueFactory(
+            parent_issue=self.parent_issue,
+            provider_helpdesk=self.helpdesk,
+            backend_id="WLD-1004",
+            status="open",
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = _provider_ticket_list_url() + "stats/"
+        response = self.client.get(url, {"o": "created"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["by_status"]["open"], 2)
 
 
 # =====================================================================

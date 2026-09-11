@@ -11,7 +11,8 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import (
     decorators,
     generics,
@@ -899,13 +900,22 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Get statistics for provider tickets",
+        parameters=[
+            OpenApiParameter(
+                name="provider_helpdesk_uuid",
+                type=OpenApiTypes.UUID,
+                required=False,
+                location=OpenApiParameter.QUERY,
+                description="Count only the tickets routed to this helpdesk.",
+            ),
+        ],
         responses={200: serializers.ProviderStatsSerializer},
     )
     @decorators.action(detail=False, methods=["get"])
     def stats(self, request):
         from django.db.models import Avg, ExpressionWrapper, F, fields
 
-        qs = self.get_queryset()
+        qs = self.filter_queryset(self.get_queryset())
         # Same open/closed definition as the support statistics and the is_open
         # filter. resolved_qs below still keys off resolution_date, because it
         # needs the timestamp to measure a duration.
@@ -919,8 +929,11 @@ class ProviderTicketViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         )
         avg_resolve = resolved_qs.aggregate(avg=Avg("resolve_time"))["avg"]
 
+        # order_by() drops any ?o= ordering, which would otherwise join the
+        # GROUP BY and split one status across several rows.
         by_status = dict(
-            open_qs.values_list("status")
+            open_qs.order_by()
+            .values_list("status")
             .annotate(count=Count("id"))
             .values_list("status", "count")
         )

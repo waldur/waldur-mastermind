@@ -349,6 +349,9 @@ class AttachmentFilter(django_filters.FilterSet):
 
 
 class ProviderTicketFilter(django_filters.FilterSet):
+    provider_helpdesk_uuid = core_filters.RelatedUUIDFilter(
+        view_name="provider-helpdesk-detail", field_name="provider_helpdesk__uuid"
+    )
     status = django_filters.CharFilter()
     priority = django_filters.CharFilter()
     is_escalated = django_filters.BooleanFilter()
