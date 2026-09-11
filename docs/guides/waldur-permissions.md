@@ -230,3 +230,40 @@ PAT auth should `select_related("customer", "project__customer",
 "offering")` (or whichever ancestors apply) — scoped PATs walk the
 ancestor chain on every permission check, so each missed `select_related`
 multiplies into one query per ancestor per check.
+
+## Role hygiene report
+
+`waldur_core/permissions/hygiene.py` checks the role catalogue for names that
+are not machine codes, system roles this release does not define, clones whose
+name or organization binding drifted, custom roles that are silently offered in
+every organization, and permissions that can never apply to a role's scope.
+Offering catalog roles (`resource` / `resource_project`) are exempt — their
+names are the provider's to choose.
+
+Two entry points, both read-only:
+
+```bash
+waldur check_role_names                       # text, exits 1 on errors
+waldur check_role_names --severity warning    # errors and warnings only
+waldur check_role_names --format json
+```
+
+```http
+GET /api/roles/hygiene_report/                # staff only
+```
+
+Only the findings that cannot be legitimately deployment-specific carry the
+error severity that fails the command: a name that is not a machine code, a
+system role bound to the wrong scope, a clone whose name drifted from its
+organization, a clone that lost its organization binding, and a role bound to
+more than one organization. A role name this release does not define is a
+warning — `import_roles` marks every role in a deployment's own
+`permissions.yaml` as a system role, and a deployment cannot add its roles to
+`SYSTEM_ROLE_SCOPES`.
+
+Two tables drive the scope checks and are the place to extend when a scope type
+or permission category is added, both in `permissions/enums.py`:
+`SCOPE_ANCESTORS` (which scopes a role governs from where it is granted) and
+`PERMISSION_TARGET_SCOPES` (the scope each permission category acts on). A
+permission is meaningful on its target scope and on every ancestor of it; a
+category missing from the table is skipped rather than guessed at.

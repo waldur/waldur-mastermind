@@ -19,6 +19,7 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
 )
+from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -26,9 +27,10 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from waldur_core.core.models import User
-from waldur_core.core.permissions import IsAdminOrReadOnly
+from waldur_core.core.permissions import IsAdminOrReadOnly, IsStaff
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet, count_action
+from waldur_core.permissions import hygiene
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.utils import (
     add_user,
@@ -326,6 +328,25 @@ class RoleViewSet(ActionsViewSet):
         )
 
     clone_to_customer_serializer_class = serializers.RoleCloneSerializer
+
+    @extend_schema(
+        summary="Role hygiene report",
+        description="Staff-only. Reports roles whose name is not a machine "
+        "code, whose scope or organization binding is wrong, that are silently "
+        "global, or that carry permissions inert for their scope. Read-only.",
+        responses=serializers.RoleHygieneReportSerializer,
+    )
+    # IsStaff rather than a local is_staff test: it also rejects a deactivated
+    # staff account and a personal access token without the STAFF_ACCESS scope,
+    # which a hand-rolled check silently lets through.
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[rf_permissions.IsAuthenticated, IsStaff],
+    )
+    def hygiene_report(self, request):
+        report = hygiene.build_report(models.Role.objects.all())
+        return Response(report, status=status.HTTP_200_OK)
 
 
 class CustomerRoleConcealmentViewSet(ActionsViewSet):
