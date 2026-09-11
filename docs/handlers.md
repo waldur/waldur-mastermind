@@ -27,7 +27,8 @@ td:nth-child(4) {
 
 | Handler Name | Signal Type | Sender | Description |
 |--------------|-------------|--------|-------------|
-| `handle_new_user` | `Django Signal (post_save)` | `core.User` | Create project and order for new user based on autoprovisioning rules. |
+| `handle_identity_synced` | `Custom Signal (user_identity_synced)` | `—` | Reconcile rule-issued roles after identity data is refreshed. |
+| `handle_new_user` | `Django Signal (post_save)` | `core.User` | Provision projects and orders when an account first appears. |
 
 ## Application: `waldur_core`
 
@@ -895,10 +896,10 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 821
+Total unique handlers found: 822
 
 - **waldur_auth_saml2**: 1 handlers
-- **waldur_autoprovisioning**: 1 handlers
+- **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 424 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers

@@ -1364,6 +1364,25 @@ options:
 
 Create or update price estimates based on invoices.
 
+## reconcile_autoprovisioned_roles
+
+Re-apply auto-provisioning rules, granting and revoking roles.
+
+```bash
+
+usage: waldur reconcile_autoprovisioned_roles (--username USERNAME | --all)
+                                              [--dry-run] [--rate RATE]
+
+options:
+  --username USERNAME  Reconcile a single user identified by their Waldur
+                       username.
+  --all                Reconcile every active user.
+  --dry-run            Report what would change without writing anything.
+  --rate RATE          Users per second when using --all. 0 (default) means no
+                       limit.
+
+```
+
 ## reencrypt_fields
 
 Re-encrypt stored secrets under the current FIELD_ENCRYPTION_KEY. Run this after promoting a new key (with the previous one in FIELD_ENCRYPTION_KEY_FALLBACKS) so the old key can then be retired; rows are otherwise only re-encrypted when they happen to be rewritten. Use --dry-run to audit which rows the configured keys can still decrypt.
