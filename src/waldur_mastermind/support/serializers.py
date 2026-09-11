@@ -1228,6 +1228,9 @@ class ProviderTicketSerializer(
 ):
     parent_issue_key = serializers.ReadOnlyField(source="parent_issue.key")
     parent_issue_uuid = serializers.ReadOnlyField(source="parent_issue.uuid")
+    provider_helpdesk_uuid = serializers.ReadOnlyField(
+        source="provider_helpdesk.uuid", allow_null=True
+    )
     provider_assignee_name = serializers.ReadOnlyField(
         source="provider_assignee.user.full_name"
     )
@@ -1250,6 +1253,7 @@ class ProviderTicketSerializer(
             "modified",
             "parent_issue_key",
             "parent_issue_uuid",
+            "provider_helpdesk_uuid",
             "is_escalated",
             "escalated_at",
             "provider_assignee",
