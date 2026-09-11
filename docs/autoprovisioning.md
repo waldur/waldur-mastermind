@@ -1,15 +1,18 @@
 # Auto-Provisioning
 
-Waldur's auto-provisioning feature automatically creates projects and provisions resources for new users based on predefined rules. This capability streamlines user onboarding by eliminating manual setup processes.
+Waldur's auto-provisioning feature turns what an identity provider asserts about a user into projects, roles and resources, without an administrator acting on each account.
 
 ## Overview
 
-Auto-provisioning works by matching new users against configured rules based on email patterns or affiliations. When a matching rule is found, the system:
+A rule matches users on their profile attributes and identity provider claims. For every matching rule the system:
 
-1. Creates or assigns users to projects
-2. Grants appropriate project roles
-3. Optionally provisions marketplace resources
-4. Processes orders automatically
+1. Resolves the organization — the rule's own, or the one named by the user's organization claim
+2. Creates or joins a project, unless the rule is organization-level only
+3. Grants the roles the rule asserts: a project role, an organization role, or both
+4. Optionally provisions a marketplace resource and processes the order asynchronously
+5. Withdraws roles it previously granted once the user stops matching, when the rule opts into revocation
+
+Provisioning (steps 1–4) happens once, when the account first appears. Role reconciliation (steps 3 and 5) re-runs every time identity data is refreshed, which is what keeps a grant in step with a claim that comes and goes.
 
 ## Core Components
 
@@ -74,16 +77,21 @@ through `attribute_mapping` instead also works.
 
 ### Organization Mapping Overview
 
-The organization mapping feature (added in commit 77c31bb25) allows auto-provisioning rules to dynamically resolve customers based on user organization claims from identity providers. This enables multi-tenant scenarios where each organization has its own customer in Waldur.
+Organization mapping allows auto-provisioning rules to resolve the customer dynamically from the user's organization claim. This enables multi-tenant scenarios where each organization has its own customer in Waldur.
 
 ### How It Works
 
-When `use_user_organization_as_customer_name` is enabled:
+When `use_user_organization_as_customer_name` is enabled, `resolve_customer()` checks, in this order:
 
-1. System extracts organization claim from user's identity provider data
-2. Looks up existing customer with matching name
-3. Creates project under the resolved customer
-4. Validates user has protected details flag set
+1. The user's details are protected — their registration method is listed in
+   `PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS`. An unprotected user's
+   organization claim is self-asserted and is not trusted here.
+2. The user carries an organization claim at all.
+3. Exactly one customer has that name. Zero matches and ambiguous matches both
+   block the rule rather than guessing.
+
+The resolved customer is then used for the project (when `create_project` is on)
+and for any organization-level role the rule grants.
 
 ### Protected User Details
 
@@ -103,33 +111,32 @@ def should_protect_user_details(self) -> bool:
 
 ### Customer Resolution Logic
 
-From `src/waldur_autoprovisioning/handlers.py:33`:
+`resolve_customer()` (`src/waldur_autoprovisioning/reconciliation.py`) is the single
+place that answers "which organization does this rule target for this user?", and
+it is shared by three callers: the provisioning handler, the dry-run evaluator
+behind `test-match`, and reconciliation. They therefore always agree on the
+verdict *and* on the wording of the reason.
+
+It returns a `CustomerResolution` rather than logging and bailing out:
 
 ```python
-if not rule.use_user_organization_as_customer_name:
-    if not rule.customer:
-        logger.warning("Rule has no customer configured")
-        return
-    customer = rule.customer
-else:
-    if not user.should_protect_user_details:
-        logger.warning("User not marked as protected for organization-based rules")
-        return
+@dataclass(frozen=True)
+class CustomerResolution:
+    """Outcome of working out which organization a rule applies to for a user."""
 
-    if not user.organization:
-        logger.warning("User has no organization claim")
-        return
-
-    customers = Customer.objects.filter(name=user.organization)
-    if not customers:
-        logger.warning("No Customer found with name='%s'", user.organization)
-        return
-    elif customers.count() > 1:
-        logger.warning("Multiple Customers found with name='%s'", user.organization)
-        return
-    else:
-        customer = customers.first()
+    customer: Customer | None
+    block_reason: str = ""
+    candidates: tuple = ()
+    ambiguous: bool = False
+    lookup_performed: bool = False
 ```
+
+A `None` customer always carries a `block_reason` naming what went wrong — no
+organization configured, registration method not protected, no organization
+claim, no customer with that name, or several customers sharing it. That string
+is what the caller logs and what the test-match dialog shows the administrator,
+so a rule that silently provisions nothing can be diagnosed without reading the
+server log.
 
 ## API Endpoints
 
@@ -166,6 +173,23 @@ else:
 }
 ```
 
+### Dry-run evaluation
+
+**Endpoint**: `POST /api/autoprovisioning-rules/<uuid>/test-match/`, staff only.
+
+Takes `{"user_uuid": "..."}` and evaluates the rule against that user without
+writing anything — no project, no grant, no order. The response carries a
+per-filter breakdown (`configured`, `matched`, the user's value and the rule's
+value for each of affiliations, email patterns, identity sources, nationalities,
+organization types, assurance levels and claims), the customer-lookup verdict
+when `use_user_organization_as_customer_name` is set, a top-line
+`would_provision` flag and a human-readable `block_reason`.
+
+It also reports `unconfigured_claims`: claims the rule matches on that no active
+identity provider lists in its `extra_fields`. That distinguishes "the provider
+sent a different value" from "the provider never sends this claim", which look
+identical in the raw filter breakdown.
+
 ### Validation Rules
 
 The serializer enforces these validation constraints:
@@ -194,8 +218,8 @@ signals.post_save.connect(
 )
 ```
 
-The handler returns early unless `created`. It used to run on *every*
-`User.save()`, which meant an ordinary profile edit could materialise projects.
+The handler returns early unless `created`, so an ordinary profile edit never
+materialises projects.
 
 **Role reconciliation** runs whenever identity data is refreshed — after an OIDC
 login and after a SCIM pull — via `waldur_core.core.signals.user_identity_synced`:
@@ -225,10 +249,10 @@ cannot distinguish.
 
 ## Role reconciliation
 
-Rules used to be grant-only: a matching user gained a role and nothing ever took
-it away. Inbound SCIM behaves the opposite way — a group-membership `PUT`
-revokes what the identity provider no longer asserts. `revoke_when_unmatched`
-brings rules into line with that.
+A rule with `revoke_when_unmatched` enabled withdraws the roles it granted once
+the user stops matching it, the same way inbound SCIM revokes a membership the
+identity provider no longer asserts in a group `PUT`. Without it a rule is
+grant-only: a matching user gains a role and nothing takes it away.
 
 ### Provenance
 
@@ -265,7 +289,13 @@ waldur reconcile_autoprovisioned_roles --username alice --dry-run
 
 # Apply to everyone
 waldur reconcile_autoprovisioned_roles --all
+
+# Throttle a large run to 20 users per second
+waldur reconcile_autoprovisioned_roles --all --rate 20
 ```
+
+`--username` and `--all` are mutually exclusive and one of them is required.
+`--dry-run` reports what would change and writes nothing.
 
 ## Configuration Examples
 
