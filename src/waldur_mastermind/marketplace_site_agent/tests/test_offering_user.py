@@ -384,9 +384,9 @@ class OfferingUserGlauthConfigTest(test.APITestCase):
                     "homeDir": f"/tmp/{self.fixture.offering_user.username}",
                     "passsha256": "",
                     "disabled": False,
-                    "customattributes": {
-                        "preferredUsername": [self.fixture.offering_user.username]
-                    },
+                    "customattributes": [
+                        {"preferredUsername": [self.fixture.offering_user.username]}
+                    ],
                 }
             ],
             "groups": [
@@ -403,6 +403,10 @@ class OfferingUserGlauthConfigTest(test.APITestCase):
         # collides with it and is silently dropped (so no group reaches LDAP).
         self.assertIn("[[groups]]", response.data)
         self.assertNotIn("groups = [", response.data)
+        # Custom attributes must use array-of-tables too; a plain
+        # [users.customattributes] table is ignored by GLAuth.
+        self.assertIn("[[users.customattributes]]", response.data)
+        self.assertNotIn("\n[users.customattributes]\n", response.data)
 
         self.assertEqual(
             1,
@@ -451,7 +455,8 @@ class OfferingUserGlauthConfigTest(test.APITestCase):
         self.assertEqual(user_record["givenname"], 'John "Johnny"')
         self.assertEqual(user_record["sn"], r"Doe\Smith")
         self.assertEqual(
-            user_record["customattributes"]["displayName"], ['John "Johnny" Doe\\Smith']
+            user_record["customattributes"][0]["displayName"],
+            ['John "Johnny" Doe\\Smith'],
         )
 
 
@@ -675,7 +680,7 @@ class GlauthSettableAttributesTest(test.APITestCase):
         self.fixture.offering.save(update_fields=["plugin_options"])
         user_record = tomllib.loads(self._get_config())["users"][0]
         self.assertEqual(
-            user_record["customattributes"]["displayName"],
+            user_record["customattributes"][0]["displayName"],
             [self.fixture.manager.get_full_name()],
         )
 
@@ -684,7 +689,7 @@ class GlauthSettableAttributesTest(test.APITestCase):
         self.fixture.offering.save(update_fields=["plugin_options"])
         user_record = tomllib.loads(self._get_config())["users"][0]
         self.assertEqual(
-            user_record["customattributes"]["waldurUsername"],
+            user_record["customattributes"][0]["waldurUsername"],
             [self.fixture.manager.username],
         )
 

@@ -345,6 +345,17 @@ def _strip_internal(tree: dict) -> dict:
     return {k: v for k, v in tree.items() if not k.startswith("_")}
 
 
+def _glauth_users_for_toml(user_records):
+    prepared = []
+    for user in user_records:
+        record = dict(user)
+        custom_attributes = record.get("customattributes")
+        if custom_attributes is not None:
+            record["customattributes"] = [custom_attributes]
+        prepared.append(record)
+    return prepared
+
+
 def _render_glauth_toml(offering, *, resource_filter=None) -> str:
     """Render the glauth TOML config for an offering or single resource.
 
@@ -392,7 +403,9 @@ def _render_glauth_toml(offering, *, resource_filter=None) -> str:
         + tomli_w.dumps({"name": group["name"], "gidnumber": int(group["gidnumber"])})
         for group in groups
     )
-    users_toml = tomli_w.dumps({"users": user_data["users"] + robot_data["users"]})
+    users_toml = tomli_w.dumps(
+        {"users": _glauth_users_for_toml(user_data["users"] + robot_data["users"])}
+    )
     return group_blocks + users_toml
 
 
