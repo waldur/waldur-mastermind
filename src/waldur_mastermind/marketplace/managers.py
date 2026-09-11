@@ -39,9 +39,13 @@ class OfferingQuerySet(django_models.QuerySet):
         connected_customers = get_connected_customers(user)
         connected_projects = get_connected_projects(user)
         connected_offerings = get_connected_offerings(user)
+        # A service provider manager holds their role on the ServiceProvider,
+        # not on its customer, so the customer clause alone misses them.
+        connected_service_providers = get_connected_serviceproviders(user)
 
         return self.filter(
             Q(customer__in=connected_customers)
+            | Q(customer__serviceprovider__in=connected_service_providers)
             | Q(project__in=connected_projects)
             | Q(id__in=connected_offerings)
         ).distinct()
