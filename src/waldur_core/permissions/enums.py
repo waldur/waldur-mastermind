@@ -311,6 +311,116 @@ DELETE_PERMISSIONS = {
 }
 
 
+# Canonical scope of every system role this release defines, mirroring the
+# content types passed to Role.objects.get_system_role in fixtures.py. Note
+# CUSTOMER.MANAGER lives on ServiceProvider, not Customer.
+SYSTEM_ROLE_SCOPES: dict[str, tuple[str, str]] = {
+    RoleEnum.CUSTOMER_OWNER: TYPE_MAP["customer"],
+    RoleEnum.CUSTOMER_SUPPORT: TYPE_MAP["customer"],
+    RoleEnum.CUSTOMER_READER: TYPE_MAP["customer"],
+    RoleEnum.CUSTOMER_MANAGER: TYPE_MAP["service_provider"],
+    RoleEnum.PROJECT_ADMIN: TYPE_MAP["project"],
+    RoleEnum.PROJECT_MANAGER: TYPE_MAP["project"],
+    RoleEnum.PROJECT_MEMBER: TYPE_MAP["project"],
+    RoleEnum.OFFERING_MANAGER: TYPE_MAP["offering"],
+    RoleEnum.CALL_REVIEWER: TYPE_MAP["call"],
+    RoleEnum.CALL_MANAGER: TYPE_MAP["call"],
+    RoleEnum.CALL_PANEL_MEMBER: TYPE_MAP["call"],
+    RoleEnum.PROPOSAL_MEMBER: TYPE_MAP["proposal"],
+    RoleEnum.PROPOSAL_MANAGER: TYPE_MAP["proposal"],
+    # Shipped in permissions.yaml with a migration of its own, but never given
+    # a RoleEnum member. Keyed by the name it is imported under, which is all
+    # this table is looked up by.
+    "CUSTOMER.CALL_ORGANIZER": TYPE_MAP["call_organizer"],
+}
+
+
+# Scope prefix a role name is expected to carry for each scope type. Only used
+# to spot a name claiming a scope it does not have (PROJECT. on a customer
+# role); a name with a prefix outside this table makes no scope claim.
+SCOPE_NAME_PREFIXES: dict[str, str] = {
+    "customer": "CUSTOMER",
+    "service_provider": "SERVICE_PROVIDER",
+    "project": "PROJECT",
+    "offering": "OFFERING",
+    "resource": "RESOURCE",
+    "resource_project": "RESOURCE_PROJECT",
+    "call_organizer": "CALL_ORGANIZER",
+    "call": "CALL",
+    "proposal": "PROPOSAL",
+}
+
+
+# Scope types each scope type is nested under, ordered outward. A role granted
+# on an ancestor governs the scopes below it, which is why a permission is
+# meaningful on its target scope *and* on every ancestor of that target.
+SCOPE_ANCESTORS: dict[str, tuple[str, ...]] = {
+    "customer": (),
+    "service_provider": ("customer",),
+    "project": ("customer",),
+    "offering": ("service_provider", "customer"),
+    "resource": ("offering", "project", "service_provider", "customer"),
+    "resource_project": (
+        "resource",
+        "offering",
+        "project",
+        "service_provider",
+        "customer",
+    ),
+    "call_organizer": ("customer",),
+    "call": ("call_organizer", "customer"),
+    "proposal": ("call", "call_organizer", "customer"),
+}
+
+
+# The scope type each permission category acts on, keyed by the part of the
+# permission name before the dot. A role carrying a permission whose target is
+# neither its own scope nor a scope below it can never exercise it. STAFF and
+# SUPPORT are personal access token scopes and are inert on any role, hence the
+# empty tuple.
+PERMISSION_TARGET_SCOPES: dict[str, tuple[str, ...]] = {
+    "ACCESS_SUBNET": ("customer",),
+    "CALL": ("call",),
+    "CUSTOMER": ("customer",),
+    "INVITATION": ("customer",),
+    "LEXIS_LINK": ("customer",),
+    "OFFERING": ("offering",),
+    "OFFERINGUSER": ("offering",),
+    "OFFERING_ACCESS_SUBNET": ("offering",),
+    "OPENSTACK_INSTANCE": ("project",),
+    "OPENSTACK_ROUTER": ("project",),
+    "ORDER": ("project", "offering"),
+    "POSIX_ID_POOL": ("customer", "service_provider"),
+    "PROJECT": ("project",),
+    "PROPOSAL": ("proposal",),
+    "RESOURCE": ("resource",),
+    "RESOURCE_PROJECT": ("resource_project",),
+    "ROUND": ("call",),
+    "SERVICE_ACCOUNT": ("project",),
+    "SERVICE_PROVIDER": ("service_provider",),
+    "STAFF": (),
+    "SUPPORT": (),
+}
+
+
+def get_permission_scope_types(permission: str) -> tuple[str, ...] | None:
+    """Scope types on which ``permission`` can actually be exercised.
+
+    Returns ``None`` when the permission category is unknown, so callers can
+    stay silent rather than guess.
+    """
+    category = permission.split(".")[0]
+    targets = PERMISSION_TARGET_SCOPES.get(category)
+    if targets is None:
+        return None
+    scopes: list[str] = []
+    for target in targets:
+        for scope in (target, *SCOPE_ANCESTORS.get(target, ())):
+            if scope not in scopes:
+                scopes.append(scope)
+    return tuple(scopes)
+
+
 def generate_permission_description():
     # Group permissions by category (based on prefix before the dot)
     categories = {}

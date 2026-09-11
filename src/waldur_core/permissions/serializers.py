@@ -13,6 +13,7 @@ from waldur_core.core.serializers import (
     TranslatedModelSerializerMixin,
 )
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.permissions import hygiene
 from waldur_core.permissions.enums import TYPE_KEYS, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import (
     build_org_role_name,
@@ -774,3 +775,29 @@ class UserRolePermissionActionSerializer(serializers.Serializer):
     """Input for revoke/restore actions on a specific user role grant."""
 
     reason = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+
+class RoleHygieneFindingSerializer(serializers.Serializer):
+    """One problem found with one role. See waldur_core.permissions.hygiene."""
+
+    check = serializers.CharField()
+    severity = serializers.ChoiceField(choices=hygiene.SEVERITY_ORDER)
+    role_uuid = serializers.CharField()
+    role_name = serializers.CharField()
+    role_description = serializers.CharField(allow_blank=True)
+    # A ChoiceField rather than a CharField: _scope_type only ever returns a
+    # TYPE_MAP key or None, so the generated SDK gets a union instead of a bare
+    # string, and the frontend can switch on it without casting.
+    scope_type = serializers.ChoiceField(choices=list(TYPE_MAP), allow_null=True)
+    is_system_role = serializers.BooleanField()
+    message = serializers.CharField()
+    details = serializers.DictField()
+
+
+class RoleHygieneReportSerializer(serializers.Serializer):
+    roles_checked = serializers.IntegerField()
+    roles_with_findings = serializers.IntegerField()
+    error_count = serializers.IntegerField()
+    warning_count = serializers.IntegerField()
+    info_count = serializers.IntegerField()
+    findings = RoleHygieneFindingSerializer(many=True)
