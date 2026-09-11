@@ -206,6 +206,42 @@ options:
 
 Check connectivity of all active provider helpdesks.
 
+## check_role_names
+
+Report malformed, mis-scoped and silently global roles.
+
+  Read-only: nothing is created, changed or deleted. Exits with status 1 when
+  an error-severity finding is reported, so it can run as an ops check. The
+  status follows what the filters actually report.
+
+  Usage:
+
+```yaml
+waldur check_role_names
+waldur check_role_names --severity warning
+waldur check_role_names --format json
+waldur check_role_names --check global-custom-role --check org-role-unmanaged
+```
+
+```bash
+
+usage: waldur check_role_names [--format {text,json}]
+                               [--severity {error,warning,info}]
+                               [--check {clone-name-drift,cross-scope-permission,global-custom-role,label-equals-name,label-missing,multi-org-binding,name-not-a-code,org-role-unmanaged,scope-prefix-mismatch,system-name-unknown,system-scope-mismatch,template-without-scope}]
+                               [--exit-zero]
+
+options:
+  --format {text,json}  Output format (default: text)
+  --severity {error,warning,info}
+                        Lowest severity to report (default: info, i.e.
+                        everything)
+  --check {clone-name-drift,cross-scope-permission,global-custom-role,label-equals-name,label-missing,multi-org-binding,name-not-a-code,org-role-unmanaged,scope-prefix-mismatch,system-name-unknown,system-scope-mismatch,template-without-scope}
+                        Report only this check; repeat for several
+  --exit-zero           Always exit with status 0, even when errors are
+                        reported
+
+```
+
 ## clean_celery_results
 
 Clean up old Celery task results from the database to prevent bloat.
