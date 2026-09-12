@@ -238,20 +238,6 @@ wheels = [
 ]
 
 [[package]]
-name = "azure-mgmt-consumption"
-version = "10.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-common" },
-    { name = "azure-mgmt-core" },
-    { name = "msrest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/4c/a9/f8c817e67a9005752b0c11cc289fd2334c4f1c9287b0cc8b4abd220e4101/azure-mgmt-consumption-10.0.0.zip", hash = "sha256:06a086436c1737f77ab86894d51f5973b6e0fa5edf56558e4c296589ebab9130", size = 157978, upload-time = "2022-06-21T02:17:29.927Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/99/75a22c84941348dc9d0cbb95fe63c2adb8545543236c207817a439027648/azure_mgmt_consumption-10.0.0-py3-none-any.whl", hash = "sha256:507059238cba2dcafc19866c24c53c5e145cafd721a39ab8c605590a3f169e81", size = 138711, upload-time = "2022-06-21T02:17:27.597Z" },
-]
-
-[[package]]
 name = "azure-mgmt-core"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -278,20 +264,6 @@ wheels = [
 ]
 
 [[package]]
-name = "azure-mgmt-rdbms"
-version = "10.1.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-mgmt-core" },
-    { name = "msrest" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/04/47ffeb3959a6722d74be12e5d26a7da425a28b0f5150adf1ff2e910e2b5f/azure_mgmt_rdbms-10.1.1.tar.gz", hash = "sha256:963455ace0d6566d299826713e54ed8fa87a88fec6467e8fd3932387ca0a2e8c", size = 384512, upload-time = "2025-11-25T19:43:12.658Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/c4/7443bbb09a160edcd9a03374e6758e080ff43c748f6070c1b5ee73d2bf80/azure_mgmt_rdbms-10.1.1-py3-none-any.whl", hash = "sha256:cb0d85c016e616727f7be89132b288b26a1edcac2729bc769ec93eede61fcbfa", size = 774670, upload-time = "2025-11-25T19:43:14.803Z" },
-]
-
-[[package]]
 name = "azure-mgmt-resource"
 version = "24.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -304,20 +276,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/50/4c/b27a3dfbedebbcc8e346a956a803528bd94a19fdf14b1de4bd781b03a6cc/azure_mgmt_resource-24.0.0.tar.gz", hash = "sha256:cf6b8995fcdd407ac9ff1dd474087129429a1d90dbb1ac77f97c19b96237b265", size = 3030022, upload-time = "2025-06-17T08:04:01.731Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/18/f047cb553dad6fdb65c625c4fe48552e043c4e9a859416a70c5047d07475/azure_mgmt_resource-24.0.0-py3-none-any.whl", hash = "sha256:27b32cd223e2784269f5a0db3c282042886ee4072d79cedc638438ece7cd0df4", size = 3613790, upload-time = "2025-06-17T08:04:04.046Z" },
-]
-
-[[package]]
-name = "azure-mgmt-sql"
-version = "3.0.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-common" },
-    { name = "azure-mgmt-core" },
-    { name = "msrest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3f/af/398c57d15064ea23475076cd087b1a143b66d33a029e6e47c4688ca32310/azure-mgmt-sql-3.0.1.zip", hash = "sha256:129042cc011225e27aee6ef2697d585fa5722e5d1aeb0038af6ad2451a285457", size = 996625, upload-time = "2021-07-16T02:07:56.492Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0e/46/db6dd21a237c32eb747c4a1790a6b0aafe1f52c55e07b90f732231027d47/azure_mgmt_sql-3.0.1-py2.py3-none-any.whl", hash = "sha256:1d1dd940d4d41be4ee319aad626341251572a5bf4a2addec71779432d9a1381f", size = 912881, upload-time = "2021-07-16T02:07:53.079Z" },
 ]
 
 [[package]]
@@ -1222,7 +1180,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/49/e8/58c7f85958bda41dafea50497cbd59738c5c43dbbea5ee83d651234398f4/greenlet-3.2.4-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:1a921e542453fe531144e91e1feedf12e07351b1cf6c9e8a3325ea600a715a31", size = 272814, upload-time = "2025-08-07T13:15:50.011Z" },
     { url = "https://files.pythonhosted.org/packages/62/dd/b9f59862e9e257a16e4e610480cfffd29e3fae018a68c2332090b53aac3d/greenlet-3.2.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:cd3c8e693bff0fff6ba55f140bf390fa92c994083f838fece0f63be121334945", size = 641073, upload-time = "2025-08-07T13:42:57.23Z" },
     { url = "https://files.pythonhosted.org/packages/f7/0b/bc13f787394920b23073ca3b6c4a7a21396301ed75a655bcb47196b50e6e/greenlet-3.2.4-cp313-cp313-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:710638eb93b1fa52823aa91bf75326f9ecdfd5e0466f00789246a5280f4ba0fc", size = 655191, upload-time = "2025-08-07T13:45:29.752Z" },
-    { url = "https://files.pythonhosted.org/packages/f2/d6/6adde57d1345a8d0f14d31e4ab9c23cfe8e2cd39c3baf7674b4b0338d266/greenlet-3.2.4-cp313-cp313-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:c5111ccdc9c88f423426df3fd1811bfc40ed66264d35aa373420a34377efc98a", size = 649516, upload-time = "2025-08-07T13:53:16.314Z" },
     { url = "https://files.pythonhosted.org/packages/7f/3b/3a3328a788d4a473889a2d403199932be55b1b0060f4ddd96ee7cdfcad10/greenlet-3.2.4-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d76383238584e9711e20ebe14db6c88ddcedc1829a9ad31a584389463b5aa504", size = 652169, upload-time = "2025-08-07T13:18:32.861Z" },
     { url = "https://files.pythonhosted.org/packages/ee/43/3cecdc0349359e1a527cbf2e3e28e5f8f06d3343aaf82ca13437a9aa290f/greenlet-3.2.4-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:23768528f2911bcd7e475210822ffb5254ed10d71f4028387e5a99b4c6699671", size = 610497, upload-time = "2025-08-07T13:18:31.636Z" },
     { url = "https://files.pythonhosted.org/packages/b8/19/06b6cf5d604e2c382a6f31cafafd6f33d5dea706f4db7bdab184bad2b21d/greenlet-3.2.4-cp313-cp313-musllinux_1_1_aarch64.whl", hash = "sha256:00fadb3fedccc447f517ee0d3fd8fe49eae949e1cd0f6a611818f4f6fb7dc83b", size = 1121662, upload-time = "2025-08-07T13:42:41.117Z" },
@@ -3408,11 +3365,8 @@ dependencies = [
     { name = "atlassian-python-api" },
     { name = "azure-identity" },
     { name = "azure-mgmt-compute" },
-    { name = "azure-mgmt-consumption" },
     { name = "azure-mgmt-network" },
-    { name = "azure-mgmt-rdbms" },
     { name = "azure-mgmt-resource" },
-    { name = "azure-mgmt-sql" },
     { name = "azure-mgmt-storage" },
     { name = "beautifulsoup4" },
     { name = "celery" },
@@ -3508,11 +3462,8 @@ requires-dist = [
     { name = "atlassian-python-api", specifier = ">=4.0.7" },
     { name = "azure-identity", specifier = ">=1.25.1,<2.0.0" },
     { name = "azure-mgmt-compute", specifier = ">=37.1.0,<38.0.0" },
-    { name = "azure-mgmt-consumption", specifier = ">=10.0.0,<11.0.0" },
     { name = "azure-mgmt-network", specifier = ">=30.1.0,<31.0.0" },
-    { name = "azure-mgmt-rdbms", specifier = ">=10.1.1,<11.0.0" },
     { name = "azure-mgmt-resource", specifier = ">=24.0.0,<25.0.0" },
-    { name = "azure-mgmt-sql", specifier = ">=3.0.1,<4.0.0" },
     { name = "azure-mgmt-storage", specifier = ">=24.0.0,<25.0.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },
     { name = "celery", specifier = "==5.6.3" },

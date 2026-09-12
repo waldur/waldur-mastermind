@@ -180,37 +180,3 @@ class VirtualMachine(structure_models.VirtualMachine, core_models.AvailableMixin
     @classmethod
     def get_url_name(cls):
         return "azure-virtualmachine"
-
-
-class SQLServer(BaseResourceGroupModel, core_models.AvailableMixin):
-    name = models.CharField(
-        max_length=80, validators=[validators.SQLServerNameValidator]
-    )
-    username = models.CharField(
-        max_length=50, validators=[validators.SQLServerUsernameValidator]
-    )
-    password = models.CharField(
-        max_length=128, validators=validators.SQLServerPasswordValidators
-    )
-    storage_mb = models.PositiveIntegerField(
-        null=True, validators=validators.SQLServerStorageValidators
-    )
-    fqdn = models.TextField(null=True, blank=True)
-    tracker = cast(FieldInstanceTracker, FieldTracker())
-
-    @classmethod
-    def get_url_name(cls):
-        return "azure-sql-server"
-
-
-class SQLDatabase(BaseResource):
-    server = models.ForeignKey(on_delete=models.CASCADE, to=SQLServer)
-    charset = models.CharField(max_length=255, blank=True, null=True, default="utf8")
-    collation = models.CharField(
-        max_length=255, blank=True, null=True, default="utf8_general_ci"
-    )
-    tracker = cast(FieldInstanceTracker, FieldTracker())
-
-    @classmethod
-    def get_url_name(cls):
-        return "azure-sql-database"

@@ -9,9 +9,7 @@ import re
 from django.core.exceptions import ValidationError
 from django.core.validators import (
     MaxLengthValidator,
-    MaxValueValidator,
     MinLengthValidator,
-    MinValueValidator,
     RegexValidator,
 )
 from django.utils.translation import gettext_lazy as _
@@ -124,15 +122,8 @@ StorageAccountNameValidator = RegexValidator(
 )
 
 
-SQLServerNameValidator = RegexValidator(
-    regex=re.compile(r"^[a-z0-9][a-z0-9-]+[a-z0-9]$"),
-    message=_(
-        'The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. '
-        "The hyphen may not lead or trail in the name."
-    ),
-)
-
-
+# The SQL server model is gone, but historical waldur_azure migrations still
+# reference this validator by import path, so it must stay importable.
 class SQLServerUsernameValidator(BlacklistValidator):
     blacklist = (
         "azure_superuser",
@@ -142,17 +133,3 @@ class SQLServerUsernameValidator(BlacklistValidator):
         "guest",
         "public",
     )
-
-
-SQLServerPasswordValidators = [
-    MinLengthValidator(8),
-    MaxLengthValidator(128),
-    validate_password,
-]
-
-
-# See also: https://docs.microsoft.com/en-us/azure/postgresql/concepts-pricing-tiers
-SQLServerStorageValidators = [
-    MinValueValidator(5 * 1024),
-    MaxValueValidator(4 * 1024 * 1024),
-]
