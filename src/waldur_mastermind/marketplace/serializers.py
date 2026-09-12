@@ -4133,6 +4133,16 @@ class OfferingOptionsField(serializers.JSONField):
     pass
 
 
+class BillingModeComponentSerializer(serializers.Serializer):
+    """An offering component as a plan in one billing mode would bill it."""
+
+    type = serializers.CharField()
+    billing_type = serializers.ChoiceField(choices=BillingTypes.CHOICES)
+    measured_unit = serializers.CharField(allow_blank=True)
+    is_prepaid = serializers.BooleanField()
+    limit_period = serializers.ChoiceField(choices=LimitPeriods.CHOICES)
+
+
 class ProviderOfferingDetailsSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -4154,6 +4164,7 @@ class ProviderOfferingDetailsSerializer(
     components = OfferingComponentSerializer(required=False, many=True)
     order_count = serializers.SerializerMethodField()
     billing_period_applies = serializers.SerializerMethodField()
+    billing_mode_components = serializers.SerializerMethodField()
     plans = BaseProviderPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.SerializerMethodField()
@@ -4222,6 +4233,7 @@ class ProviderOfferingDetailsSerializer(
             "uuid",
             "created",
             "billing_period_applies",
+            "billing_mode_components",
             "name",
             "slug",
             "description",
@@ -4526,6 +4538,41 @@ class ProviderOfferingDetailsSerializer(
         """
         return {
             mode: billing_mode.billing_period_applies(offering, mode)
+            for mode, _label in BillingModes.CHOICES
+        }
+
+    @extend_schema_field(
+        serializers.DictField(
+            child=serializers.ListField(child=BillingModeComponentSerializer()),
+            help_text=(
+                "Per plan billing mode, every component of this offering as a "
+                "plan in that mode would bill it: billing type, measured unit, "
+                "prepaid flag and limit period."
+            ),
+        )
+    )
+    def get_billing_mode_components(self, offering: models.Offering) -> dict:
+        """How each component would bill under each plan mode.
+
+        A plan exposes its own resolved components, but the plan form has to
+        price a mode before any plan carries it -- the first usage plan on an
+        offering bills core-hours, not the cores the offering stores. Only the
+        resolver knows those units, so it answers here rather than in a copy
+        of the rule in the client.
+        """
+        return {
+            mode: [
+                {
+                    "type": effective.type,
+                    "billing_type": effective.billing_type,
+                    "measured_unit": effective.measured_unit,
+                    "is_prepaid": effective.is_prepaid,
+                    "limit_period": effective.limit_period,
+                }
+                for effective in billing_mode.ResolvedPlan(
+                    offering, billing_mode.PlanModeStub(mode)
+                ).components.values()
+            ]
             for mode, _label in BillingModes.CHOICES
         }
 
