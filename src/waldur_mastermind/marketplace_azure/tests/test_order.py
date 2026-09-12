@@ -6,7 +6,7 @@ from waldur_azure.tests import fixtures as azure_fixtures
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_azure import SQL_SERVER_TYPE, VIRTUAL_MACHINE_TYPE
+from waldur_mastermind.marketplace_azure import VIRTUAL_MACHINE_TYPE
 
 
 class VirtualMachineCreateTest(test.APITestCase):
@@ -58,61 +58,6 @@ class VirtualMachineCreateTest(test.APITestCase):
 
         offering = marketplace_factories.OfferingFactory(
             type=VIRTUAL_MACHINE_TYPE, scope=service_settings
-        )
-        order = marketplace_factories.OrderFactory(
-            offering=offering,
-            attributes=attributes,
-            project=fixture.project,
-            state=OrderStates.EXECUTING,
-        )
-
-        marketplace_utils.process_order(order, fixture.staff)
-
-        order.refresh_from_db()
-        return order
-
-
-class SQLServerCreateTest(test.APITestCase):
-    def test_sql_server_is_created_when_order_is_processed(self):
-        order = self.trigger_resource_creation()
-        self.assertEqual(order.state, OrderStates.EXECUTING)
-        self.assertTrue(azure_models.SQLServer.objects.exists())
-
-    def test_request_payload_is_validated(self):
-        order = self.trigger_resource_creation(name="Name should not contain spaces")
-        self.assertEqual(order.state, OrderStates.ERRED)
-
-    def test_sql_server_state_is_synchronized(self):
-        order = self.trigger_resource_creation()
-        sql_server = order.resource.scope
-
-        sql_server.begin_creating()
-        sql_server.save()
-
-        sql_server.set_ok()
-        sql_server.save()
-
-        order.refresh_from_db()
-        self.assertEqual(order.state, OrderStates.DONE)
-
-        order.resource.refresh_from_db()
-        self.assertEqual(order.resource.state, ResourceStates.OK)
-
-        order.refresh_from_db()
-        self.assertEqual(order.state, OrderStates.DONE)
-
-    def trigger_resource_creation(self, **kwargs):
-        fixture = azure_fixtures.AzureFixture()
-        service_settings = fixture.settings
-
-        attributes = {
-            "name": "database-server",
-            "location": azure_factories.LocationFactory.get_url(),
-        }
-        attributes.update(kwargs)
-
-        offering = marketplace_factories.OfferingFactory(
-            type=SQL_SERVER_TYPE, scope=service_settings
         )
         order = marketplace_factories.OrderFactory(
             offering=offering,

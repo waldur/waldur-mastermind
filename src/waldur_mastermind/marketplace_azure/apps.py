@@ -14,16 +14,12 @@ class MarketplaceAzureConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace.plugins import manager
 
-        from . import SQL_SERVER_TYPE, VIRTUAL_MACHINE_TYPE, handlers, processors
+        from . import VIRTUAL_MACHINE_TYPE, handlers, processors
 
-        resource_models = (
-            azure_models.VirtualMachine,
-            azure_models.SQLServer,
-            azure_models.SQLDatabase,
+        marketplace_handlers.connect_resource_handlers(azure_models.VirtualMachine)
+        marketplace_handlers.connect_resource_metadata_handlers(
+            azure_models.VirtualMachine
         )
-
-        marketplace_handlers.connect_resource_handlers(*resource_models)
-        marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
 
         signals.post_save.connect(
             handlers.synchronize_nic,
@@ -45,13 +41,6 @@ class MarketplaceAzureConfig(AppConfig):
             get_importable_resources_backend_method="get_importable_virtual_machines",
             import_resource_backend_method="import_virtual_machine",
             pull_resource_executor=azure_executors.VirtualMachinePullExecutor,
-        )
-
-        manager.register(
-            offering_type=SQL_SERVER_TYPE,
-            create_resource_processor=processors.SQLServerCreateProcessor,
-            delete_resource_processor=processors.SQLServerDeleteProcessor,
-            service_type=AzureConfig.service_name,
         )
 
         structure_signals.resource_imported.connect(

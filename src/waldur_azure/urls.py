@@ -20,9 +20,3 @@ def register_in(router):
     router.register(
         r"azure-public-ips", views.PublicIPViewSet, basename="azure-public-ip"
     )
-    router.register(
-        r"azure-sql-servers", views.SQLServerViewSet, basename="azure-sql-server"
-    )
-    router.register(
-        r"azure-sql-databases", views.SQLDatabaseViewSet, basename="azure-sql-database"
-    )

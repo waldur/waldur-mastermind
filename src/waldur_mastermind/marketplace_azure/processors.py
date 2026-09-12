@@ -15,17 +15,3 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
 
 class VirtualMachineDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = azure_views.VirtualMachineViewSet
-
-
-class SQLServerCreateProcessor(processors.BaseCreateResourceProcessor):
-    viewset = azure_views.SQLServerViewSet
-
-    fields = (
-        "name",
-        "description",
-        "location",
-    )
-
-
-class SQLServerDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = azure_views.SQLServerViewSet

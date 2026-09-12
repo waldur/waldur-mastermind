@@ -74,20 +74,3 @@ class VirtualMachineFilter(BaseResourceGroupFilter):
 class PublicIPFilter(BaseResourceGroupFilter):
     class Meta(BaseResourceGroupFilter.Meta):
         model = models.PublicIP
-
-
-class SQLServerFilter(BaseResourceGroupFilter):
-    class Meta(BaseResourceGroupFilter.Meta):
-        model = models.SQLServer
-
-
-class SQLDatabaseFilter(BaseResourceGroupFilter):
-    class Meta(BaseResourceGroupFilter.Meta):
-        model = models.SQLDatabase
-
-    server = core_filters.URLFilter(
-        view_name="azure-server-detail", field_name="server__uuid"
-    )
-    server_uuid = core_filters.RelatedUUIDFilter(
-        view_name="azure-sql-server-detail", field_name="server__uuid"
-    )

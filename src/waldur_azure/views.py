@@ -1,4 +1,3 @@
-from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status, viewsets
@@ -100,45 +99,3 @@ class VirtualMachineViewSet(
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
-
-
-class SQLServerViewSet(
-    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
-):
-    queryset = models.SQLServer.objects.all().order_by("name")
-    filterset_class = filters.SQLServerFilter
-    serializer_class = serializers.AzureSqlServerSerializer
-    create_executor = executors.SQLServerCreateExecutor
-    delete_executor = executors.SQLServerDeleteExecutor
-
-    @extend_schema(
-        responses={
-            status.HTTP_202_ACCEPTED: serializers.AzureSqlDatabaseCreateResponseSerializer
-        }
-    )
-    @decorators.action(detail=True, methods=["post"])
-    def create_database(self, request, uuid=None):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        database = serializer.save()
-
-        transaction.on_commit(
-            lambda: executors.SQLDatabaseCreateExecutor().execute(database)
-        )
-
-        payload = {
-            "status": _("SQL database creation was scheduled"),
-            "database_uuid": database.uuid.hex,
-        }
-        return response.Response(payload, status=status.HTTP_202_ACCEPTED)
-
-    create_database_validators = [core_validators.StateValidator(CoreStates.OK)]
-    create_database_serializer_class = serializers.AzureSqlDatabaseCreateSerializer
-
-
-class SQLDatabaseViewSet(structure_views.ResourceViewSet):
-    queryset = models.SQLDatabase.objects.all().order_by("name")
-    filterset_class = filters.SQLDatabaseFilter
-    serializer_class = serializers.AzureSqlDatabaseSerializer
-    create_executor = executors.SQLDatabaseCreateExecutor
-    delete_executor = executors.SQLDatabaseDeleteExecutor
