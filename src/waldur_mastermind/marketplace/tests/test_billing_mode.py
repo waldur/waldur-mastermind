@@ -517,3 +517,57 @@ class BillingPeriodAppliesTest(test.APITestCase):
         self.assertTrue(applies[BillingModes.LIMIT])
         self.assertFalse(applies[BillingModes.USAGE])
         self.assertTrue(applies[BillingModes.INHERIT])
+
+
+class BillingModeComponentsTest(test.APITestCase):
+    """How each component would bill under each plan mode, before a plan exists.
+
+    The plan form prices components in the units the plan will bill, and for a
+    mode no plan of the offering carries yet only the resolver can say what
+    those are: a usage plan bills core-hours, not the offering's cores.
+    """
+
+    def setUp(self):
+        fixture = fixtures.ProjectFixture()
+        self.offering = make_openstack_offering(customer=fixture.customer)
+        self.client.force_authenticate(fixture.staff)
+
+    def get_modes(self):
+        response = self.client.get(factories.OfferingFactory.get_url(self.offering))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return {
+            mode: {component["type"]: component for component in components}
+            for mode, components in response.data["billing_mode_components"].items()
+        }
+
+    def test_usage_mode_bills_component_hours(self):
+        usage = self.get_modes()[BillingModes.USAGE]
+        self.assertEqual(usage["cores"]["billing_type"], BillingTypes.USAGE)
+        self.assertEqual(usage["cores"]["measured_unit"], "core-hours")
+        self.assertEqual(usage["ram"]["measured_unit"], "GB-hours")
+
+    def test_limit_mode_bills_the_quota_unit(self):
+        limit = self.get_modes()[BillingModes.LIMIT]
+        self.assertEqual(limit["cores"]["billing_type"], BillingTypes.LIMIT)
+        self.assertEqual(limit["cores"]["measured_unit"], "cores")
+        self.assertEqual(limit["ram"]["measured_unit"], "GB")
+
+    def test_inherit_follows_the_stored_components(self):
+        self.offering.components.filter(type="cores").update(
+            billing_type=BillingTypes.USAGE, measured_unit="vCPU"
+        )
+        cores = self.get_modes()[BillingModes.INHERIT]["cores"]
+        self.assertEqual(cores["billing_type"], BillingTypes.USAGE)
+        self.assertEqual(cores["measured_unit"], "vCPU")
+
+    def test_a_custom_component_keeps_its_own_billing_under_every_mode(self):
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="support",
+            name="Support",
+            measured_unit="months",
+            billing_type=BillingTypes.FIXED,
+        )
+        for components in self.get_modes().values():
+            self.assertEqual(components["support"]["billing_type"], BillingTypes.FIXED)
+            self.assertEqual(components["support"]["measured_unit"], "months")
