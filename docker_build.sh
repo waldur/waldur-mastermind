@@ -20,6 +20,12 @@ uv sync --frozen --no-dev
 # Install gunicorn separately after uv sync to ensure it's available
 python3 -m pip install gunicorn==22.0.0
 
+# Download ghostty-web, the browser terminal served by `waldur web_shell`,
+# pinned by URL and sha512 in waldur_core/web_shell/assets.py, so containers
+# need no network access to serve it. The Dockerfile points
+# WALDUR_WEB_SHELL_ASSETS_DIR at the same directory.
+WALDUR_WEB_SHELL_ASSETS_DIR=/usr/share/waldur/web-shell python3 -c "from waldur_core.web_shell import assets; assets.fetch()"
+
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 
 # Build static assets

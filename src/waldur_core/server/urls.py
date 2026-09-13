@@ -25,6 +25,7 @@ from waldur_core.structure.views import (
 )
 from waldur_core.user_actions import urls as user_actions_urls
 from waldur_core.users import urls as users_urls
+from waldur_core.web_shell import views as web_shell_views
 from waldur_mastermind.marketplace.views import (
     ServiceProviderComplianceViewSet,
     ServiceProviderCourseAccountsViewSet,
@@ -205,6 +206,7 @@ urlpatterns += [
 
 urlpatterns += [
     re_path(r"^api/configuration/", core_views.configuration_detail),
+    re_path(r"^api/web-shell-ticket/", web_shell_views.web_shell_ticket),
     re_path(r"^api/override-settings/", core_views.override_db_settings),
     re_path(r"^api/version/", core_views.version_detail),
     re_path(r"^api/feature-values/", core_views.feature_values),

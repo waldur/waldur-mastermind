@@ -109,6 +109,10 @@ token_lifetime = env.get("AUTH_TOKEN_LIFETIME", 3600)
 WALDUR_CORE.update(
     {
         "TOKEN_LIFETIME": timedelta(seconds=token_lifetime),
+        # Honoured only together with GLOBAL_DEBUG; see WaldurCore.WEB_SHELL_ENABLED.
+        "WEB_SHELL_ENABLED": env.get("WALDUR_WEB_SHELL_ENABLED", "false").lower()
+        == "true",
+        "WEB_SHELL_URL": env.get("WALDUR_WEB_SHELL_URL", ""),
     }
 )
 
