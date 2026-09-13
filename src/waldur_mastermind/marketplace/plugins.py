@@ -63,6 +63,12 @@ class PluginManager:
         that maps a limit onto an integer quota, so a fractional limit is rejected at
         the API instead of being silently truncated at the backend boundary. Omit it
         where Waldur cannot know — the operator then owns the decision.
+        :key limit_precision_advisory: optional function taking an offering and
+        returning a sentence to show its provider when they raise component limit
+        precision, or None. For a plugin whose offerings do not all share one
+        backend -- the site agent covers roughly fifteen -- the answer is not a
+        property of the offering type and no static cap can express it. This says
+        what is known about *this* offering without refusing the configuration.
         :key: can_update_limits: boolean which indicates whether plugin allows user to set limits on resource.
         :key resource_model: optional Django model class which corresponds to resource.
         :key get_filtered_components: optional function to filter out enabled offering components.
@@ -163,6 +169,19 @@ class PluginManager:
         Returns the cap on component limit precision, or None when uncapped.
         """
         return self.backends.get(offering_type, {}).get("max_limit_decimal_places")
+
+    def get_limit_precision_advisory(self, offering) -> str | None:
+        """Advice for the provider raising this offering's limit precision.
+
+        Unlike the cap above this is per offering, not per type, because the
+        plugin that needs it -- the site agent -- fronts many backends that
+        disagree about whether a limit can hold a fraction. Returns None when
+        the plugin declares no advisory or has nothing to say.
+        """
+        advisory = self.backends.get(offering.type, {}).get("limit_precision_advisory")
+        if advisory is None:
+            return None
+        return advisory(offering)
 
     def get_resource_model(self, offering_type):
         """

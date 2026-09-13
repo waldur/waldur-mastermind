@@ -19,6 +19,7 @@ class MarketplaceSlurmConfig(AppConfig):
             handlers,
             models,
             processor,
+            utils,
         )
 
         manager.register(
@@ -30,6 +31,11 @@ class MarketplaceSlurmConfig(AppConfig):
             enable_remote_support=True,
             pull_resource_executor=executors.AgentResourcePullExecutor,
             supports_order_retry=True,
+            # No max_limit_decimal_places: this one offering type fronts every
+            # site agent, and its backends disagree about whether a limit can
+            # hold a fraction. The advisory says what is known about the
+            # individual offering instead of capping the whole type.
+            limit_precision_advisory=utils.get_limit_precision_advisory,
         )
 
         signals.post_save.connect(

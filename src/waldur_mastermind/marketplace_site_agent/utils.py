@@ -1,5 +1,7 @@
 import logging
 
+from django.utils.translation import gettext_lazy as _
+
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
@@ -9,6 +11,66 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 
 logger = logging.getLogger(__name__)
+
+#: Agent backend types that store a limit as a whole number, so a fractional one
+#: is truncated at the backend boundary. Taken from the enumeration in
+#: waldur/waldur-site-agent#20, which owns this knowledge and where the
+#: truncation itself is being fixed.
+#:
+#: Advisory only: it decides what a provider is *told*, never what they are
+#: allowed to configure, so being incomplete costs a missing warning and nothing
+#: more. A backend absent from this set is not asserted to hold fractions.
+WHOLE_NUMBER_BACKEND_TYPES = frozenset(
+    {
+        "slurm",
+        "moab",
+        "mup",
+        "harbor",
+        "nextcloud",
+        "digitalocean",
+    }
+)
+
+
+def get_limit_precision_advisory(offering) -> str | None:
+    """Warn a provider whose agent cannot hold the precision they are setting.
+
+    One offering type fronts every site agent, and its backends disagree about
+    whether a limit can carry a fraction -- litellm and the Kubernetes backends
+    need one, SLURM and friends cannot express one at all. So the plugin
+    declares no ``max_limit_decimal_places``: a cap covering the type would
+    refuse configurations that are perfectly valid for the backend actually
+    behind the offering.
+
+    What is known per offering is the backend its agent reports. Where that
+    backend stores whole numbers, a fractional limit is ordered, priced and
+    invoiced at full value and then truncated on the far side with nothing
+    logged -- so the provider is told, and left to decide.
+
+    Silent unless an agent has actually reported a backend known to truncate:
+    an offering with no agent yet, or one fronting a backend that holds
+    fractions, gets nothing.
+    """
+    from waldur_mastermind.marketplace_site_agent import models
+
+    reported = set(
+        models.AgentProcessor.objects.filter(
+            service__identity__offering=offering
+        ).values_list("backend_type", flat=True)
+    )
+    truncating = sorted(
+        backend_type
+        for backend_type in reported
+        if backend_type and backend_type.lower() in WHOLE_NUMBER_BACKEND_TYPES
+    )
+    if not truncating:
+        return None
+    return _(
+        "This offering is served by a site agent reporting backend "
+        "%(backends)s, which stores limits as whole numbers. A fractional "
+        "limit would be ordered and invoiced at its full value and then "
+        "truncated by the backend."
+    ) % {"backends": ", ".join(truncating)}
 
 
 def push_resource_update_message(
