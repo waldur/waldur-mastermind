@@ -4,6 +4,7 @@ import datetime
 import json
 from unittest import mock
 
+from django.db import transaction
 from django.test import TestCase
 
 from waldur_core.logging import enums as logging_enums
@@ -161,7 +162,22 @@ class TestUserAttributeUpdateMessage(TestCase):
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_user_attribute_change_fans_out_per_offering(self, mock_publish):
-        """User in 2 offerings with different configs gets different payloads."""
+        """User in 2 offerings with different configs gets different payloads.
+
+        This is also the regression test for send_user_attribute_update_message
+        registering one transaction.on_commit(functools.partial(...)) per
+        offering inside its loop: each callback must publish that offering's
+        own messages, not whichever offering the loop last landed on. partial()
+        binds `messages` at call time, so this can't actually go wrong now --
+        but the only way to prove that (and catch a future regression to a
+        `lambda: ...` closure, which *would* go wrong once callbacks run after
+        the loop has finished) is to run the callbacks after the loop, the way
+        production does. So, unlike the rest of this file, this test overrides
+        transaction.on_commit to genuinely defer and batch the callbacks
+        instead of relying on the suite's autouse _immediate_on_commit
+        fixture, which executes each callback inline, inside its own loop
+        iteration, where a late-binding bug could never surface either way.
+        """
         offering2 = OfferingFactory(customer=self.fixture.customer)
         OfferingUserFactory(
             offering=offering2,
@@ -175,9 +191,18 @@ class TestUserAttributeUpdateMessage(TestCase):
         )
         _setup_event_subscription(self.fixture.staff, offering2)
 
-        self.user.first_name = "Bob"
-        self.user.email = "bob@example.com"
-        self.user.save()
+        callbacks = []
+        with mock.patch.object(transaction, "on_commit", side_effect=callbacks.append):
+            self.user.first_name = "Bob"
+            self.user.email = "bob@example.com"
+            self.user.save()
+
+        # Not published yet — only registered as commit callbacks.
+        mock_publish.assert_not_called()
+        self.assertEqual(len(callbacks), 2)
+
+        for callback in callbacks:
+            callback()
 
         # Should be called twice: once per offering
         self.assertEqual(mock_publish.call_count, 2)

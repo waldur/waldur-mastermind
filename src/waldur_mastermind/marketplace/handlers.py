@@ -1,5 +1,6 @@
 import logging
 from decimal import Decimal
+from functools import partial
 from typing import Any
 
 import httpx
@@ -2681,7 +2682,7 @@ def send_offering_user_created_message(
         ObservableObjectType.OFFERING_USER,
     )
     if messages:
-        logging_tasks.publish_messages.delay(messages)
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
 
 
 def _provider_account_payload(account, action: str) -> dict:
@@ -2709,7 +2710,7 @@ def _publish_provider_account(account, action: str) -> None:
         account, _provider_account_payload(account, action)
     )
     if messages:
-        logging_tasks.publish_messages.delay(messages)
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
 
 
 def send_provider_account_created_message(
@@ -2789,7 +2790,7 @@ def send_offering_user_updated_message(
         ObservableObjectType.OFFERING_USER,
     )
     if messages:
-        logging_tasks.publish_messages.delay(messages)
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
 
 
 def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **kwargs):
@@ -2814,7 +2815,7 @@ def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **
         ObservableObjectType.OFFERING_USER,
     )
     if messages:
-        logging_tasks.publish_messages.delay(messages)
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
 
 
 USER_FIELD_TO_ATTRIBUTE = marketplace_utils.USER_FIELD_TO_ATTRIBUTE
@@ -2889,7 +2890,9 @@ def send_user_attribute_update_message(sender, instance, created=False, **kwargs
             offering, payload, ObservableObjectType.OFFERING_USER
         )
         if messages:
-            logging_tasks.publish_messages.delay(messages)
+            transaction.on_commit(
+                partial(logging_tasks.publish_messages.delay, messages)
+            )
 
 
 def notify_users_about_tos_update_signal(sender, instance, created, **kwargs):
@@ -3402,7 +3405,7 @@ def send_order_state_change_to_message_queue(
         order.offering, payload, ObservableObjectType.ORDER
     )
     if messages:
-        logging_tasks.publish_messages.delay(messages)
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
 
 
 def send_end_date_change_request_to_message_queue(
@@ -3440,7 +3443,7 @@ def send_end_date_change_request_to_message_queue(
         ObservableObjectType.RESOURCE_END_DATE_CHANGE_REQUEST,
     )
     if messages:
-        logging_tasks.publish_messages.delay(messages)
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
 
 
 def send_resource_state_change_to_message_queue(
@@ -3466,4 +3469,4 @@ def send_resource_state_change_to_message_queue(
         resource.offering, payload, ObservableObjectType.RESOURCE
     )
     if messages:
-        logging_tasks.publish_messages.delay(messages)
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
