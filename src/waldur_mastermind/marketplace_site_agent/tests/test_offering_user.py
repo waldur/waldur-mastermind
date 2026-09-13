@@ -242,6 +242,8 @@ class OfferingUserUpdateTest(test.APITestCase):
             self.offering_user.backend_metadata["homeDir"],
         )
 
+        # No pool covers this offering, so the anonymized policy falls back to
+        # the per-offering counter.
         self.offering.plugin_options["username_generation_policy"] = "anonymized"
         self.offering.save(update_fields=["plugin_options"])
 
@@ -249,10 +251,25 @@ class OfferingUserUpdateTest(test.APITestCase):
 
         self.assertEqual(
             self.offering_user.username,
-            "walduruser_00000",
+            "waldur_00000",
         )
         self.assertEqual(
-            "/tmp/walduruser_00000", self.offering_user.backend_metadata["homeDir"]
+            "/tmp/waldur_00000", self.offering_user.backend_metadata["homeDir"]
+        )
+
+    def test_username_derived_from_uid_when_generation_policy_changed(self):
+        add_posix_ranges(self.offering, uid_start=7001, gid_start=8001)
+        self.offering_user.backend_metadata = {}
+        self.offering_user.save()
+
+        self.offering.plugin_options["username_generation_policy"] = "anonymized"
+        self.offering.save(update_fields=["plugin_options"])
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "waldur_7001")
+        self.assertEqual(self.offering_user.backend_metadata["uidnumber"], 7001)
+        self.assertEqual(
+            "/tmp/waldur_7001", self.offering_user.backend_metadata["homeDir"]
         )
 
     def test_username_updated_when_generation_policy_changed_to_service_provider(self):

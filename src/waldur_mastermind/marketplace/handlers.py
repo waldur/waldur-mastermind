@@ -1909,7 +1909,9 @@ def update_offering_user_username_after_offering_settings_change(
     )
 
     for offering_user in offering_users:
-        new_username = utils.generate_username(offering_user.user, offering)
+        new_username = utils.generate_username(
+            offering_user.user, offering, offering_user
+        )
         old_username = offering_user.username
         logger.info(
             "OfferingUser username refresh after offering plugin_options change: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r affected_user_uuid=%s",

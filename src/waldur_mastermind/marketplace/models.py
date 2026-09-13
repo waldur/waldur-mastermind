@@ -176,6 +176,15 @@ class ServiceProvider(
             "decides for itself."
         ),
     )
+    account_username_anonymized_prefix = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text=_(
+            "Provider-level default prefix for anonymized usernames, which are "
+            "the prefix followed by the account's POSIX UID. Blank means each "
+            "offering decides for itself."
+        ),
+    )
 
     class Permissions:
         customer_path = "customer"
@@ -925,6 +934,7 @@ class Offering(
         "username_generation_policy": "account_username_generation_policy",
         "homedir_prefix": "account_homedir_prefix",
         "login_shell": "account_login_shell",
+        "username_anonymized_prefix": "account_username_anonymized_prefix",
     }
 
     def resolve_account_setting(self, name: str, default=None):
@@ -3738,6 +3748,15 @@ class ServiceProviderAccount(BaseAccount):
             Index(
                 fields=["service_provider", "user"],
                 name="mp_spaccount_provider_user_idx",
+            ),
+        ]
+        constraints = [
+            # One name per directory: two people at the same provider must never
+            # share a username. Unnamed accounts (still awaiting one) are exempt.
+            UniqueConstraint(
+                fields=["service_provider", "username"],
+                condition=Q(username__isnull=False) & ~Q(username=""),
+                name="marketplace_spaccount_unique_username",
             ),
         ]
 
