@@ -192,9 +192,12 @@ def synchronize_directly_connected_ips(
 
 def synchronize_ports(sender, instance: Port, created=False, **kwargs):
     port = instance
+    # backend_id is watched too: a port requested with a fixed IP already
+    # carries that address, so Neutron echoes it back and fixed_ips never changes.
     if not created and not set(port.tracker.changed()) & {
         "fixed_ips",
         "instance_id",
+        "backend_id",
     }:
         return
 
@@ -334,8 +337,24 @@ def create_marketplace_resource_for_imported_resources(
 def import_resource_metadata_when_resource_is_created(
     sender, instance: marketplace_models.Resource, created=False, **kwargs
 ):
-    """Import OpenStack resource metadata when marketplace resource is created."""
-    if not created:
+    """Import OpenStack resource metadata when marketplace resource is created
+    or linked to its OpenStack scope.
+
+    Order processing creates the resource first and links the instance later,
+    so importing only on creation left internal_ips empty for ports whose
+    requested fixed IP never changes afterwards.
+    """
+    update_fields = kwargs.get("update_fields")
+    scope_fields = {"content_type", "content_type_id", "object_id"}
+    # The metadata import saves the resource again with update_fields that
+    # never include the scope, which keeps this handler from recursing.
+    scope_just_set = (
+        update_fields is None or bool(scope_fields & set(update_fields))
+    ) and (
+        instance.tracker.has_changed("content_type_id")
+        or instance.tracker.has_changed("object_id")
+    )
+    if not created and not scope_just_set:
         return
 
     #  If the resource has just been created and the save_base method has not yet completed,
