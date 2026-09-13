@@ -355,6 +355,8 @@ The related `resource_slug_template` option (e.g. `{project_slug}-{counter}`) ge
 | `homedir_prefix` | string | `"/home/"` | Prefix for home directory paths |
 | `username_anonymized_prefix` | string | `"waldur_"` | Prefix for anonymized usernames; the name is the prefix followed by the account's POSIX UID (a per-offering counter when no UID resolves). Inherits from the provider's `account_username_anonymized_prefix` when unset |
 
+The `anonymized` policy names an account `<prefix><posix uid>` -- for example `hpc_9001` for a prefix of `hpc_` and uid 9001. The uid is the one the account holds (or is allocated) from the POSIX ID pool that resolves for the offering, or the user's `uid_number` when `uid_source` is `user_attribute`. Because a pool allocates one uid per person across every offering that resolves to it, the same person gets the same username on every offering sharing that pool, and regenerating the name (`refresh_offering_usernames`, a policy change) is a no-op. When no uid resolves -- no pool covers the offering, or POSIX accounts are disabled -- the name falls back to a per-offering counter (`<prefix>00000`, `<prefix>00001`, ...) and a warning is logged. The prefix, like `username_generation_policy`, `homedir_prefix` and `login_shell`, is resolved most-specific-first: the offering's plugin option, else the provider's `account_*` field, else the default.
+
 ## Plugin-Specific Options
 
 ### OpenStack

@@ -2127,32 +2127,37 @@ def request_provider_account_deletion_for_user(user) -> None:
     other one depends on. Only when nothing live still reads through it does the
     account itself move to DELETION_REQUESTED.
     """
-    live_states = [
-        OfferingUserStates.OK,
-        OfferingUserStates.CREATION_REQUESTED,
-        OfferingUserStates.CREATING,
-        OfferingUserStates.PENDING_ACCOUNT_LINKING,
-        OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
-        OfferingUserStates.ERROR_CREATING,
+    live_states = list(OfferingUserStates.LIVE_STATES)
+    pending_states = [
+        OfferingUserStates.DELETION_REQUESTED,
+        OfferingUserStates.DELETING,
+        OfferingUserStates.ERROR_DELETING,
     ]
     accounts = models.ServiceProviderAccount.objects.filter(
         user=user,
-        state__in=live_states,
+        state__in=live_states + pending_states,
     ).annotate(
         has_live_offering_users=Exists(
             models.OfferingUser.objects.filter(
                 service_provider_account=OuterRef("pk"),
                 state__in=live_states,
             )
-        )
+        ),
+        has_pending_offering_users=Exists(
+            models.OfferingUser.objects.filter(
+                service_provider_account=OuterRef("pk"),
+                state__in=pending_states,
+            )
+        ),
     )
     for account in accounts.filter(has_live_offering_users=False):
-        # An account still waiting for a username was never provisioned anywhere,
-        # so there is nothing for a provider to tear down: it goes straight to
-        # DELETED. CREATION_REQUESTED is not a legal source for request_deletion,
-        # so calling it here would raise rather than clean up. Mirrors what
-        # request_offering_user_deletion_for_user does for unprovisioned accounts.
+        old_state = account.state
         if account.state == OfferingUserStates.CREATION_REQUESTED:
+            # An account still waiting for a username was never provisioned
+            # anywhere, so there is nothing for a provider to tear down: it goes
+            # straight to DELETED. CREATION_REQUESTED is not a legal source for
+            # request_deletion, so calling it here would raise rather than clean
+            # up. Mirrors request_offering_user_deletion_for_user.
             logger.info(
                 "Provider account %s of user %s was never provisioned and no "
                 "offering account reads through it any more, marking it deleted.",
@@ -2160,7 +2165,26 @@ def request_provider_account_deletion_for_user(user) -> None:
                 user,
             )
             account.set_deleted()
-        else:
+        elif not account.has_pending_offering_users:
+            # Every reader is gone for good. The provider tore the directory
+            # entry down (or parked it) when it acknowledged the last offering
+            # account, and nothing exposes provider-account state actions to it,
+            # so the account is a projection to complete here rather than a
+            # request to leave open indefinitely.
+            logger.info(
+                "Every offering account of user %s reading through provider account "
+                "%s is deleted, completing its deletion.",
+                user,
+                account,
+            )
+            if account.state in live_states:
+                account.request_deletion()
+            if account.state != OfferingUserStates.DELETING:
+                account.set_deleting()
+            account.set_deleted()
+        elif account.state in live_states:
+            # Some offering account is still being torn down: request, and let
+            # the last acknowledgement complete it.
             logger.info(
                 "No offering account of user %s reads through provider account %s any "
                 "more, requesting its deletion.",
@@ -2168,11 +2192,19 @@ def request_provider_account_deletion_for_user(user) -> None:
                 account,
             )
             account.request_deletion()
-        account.save(update_fields=["state"])
+        if account.state != old_state:
+            account.save(update_fields=["state"])
 
 
 def _get_eligible_offerings_for_project(project):
-    """Return offerings in a project that support offering user creation."""
+    """Offerings with a live resource in the project whose type has offering users.
+
+    Whether an account may be *minted* for them is decided per offering by
+    ``service_provider_can_create_offering_user`` in
+    :func:`_create_or_restore_offering_user`; an account that already exists is
+    restored regardless of that flag, because the flag gates creation, not the
+    return of a member whose account was parked on departure.
+    """
     from waldur_mastermind.marketplace.handlers import (
         OFFERING_USER_ALLOWED_OFFERING_TYPES,
     )
@@ -2195,13 +2227,7 @@ def _get_eligible_offerings_for_project(project):
         .distinct()
     )
     offering_ids = set(resources.values_list("offering_id", flat=True))
-    offerings = models.Offering.objects.filter(id__in=offering_ids)
-
-    return [
-        o
-        for o in offerings
-        if o.plugin_options.get("service_provider_can_create_offering_user")
-    ]
+    return list(models.Offering.objects.filter(id__in=offering_ids))
 
 
 def _create_or_restore_offering_user(user, offering):
@@ -2212,52 +2238,12 @@ def _create_or_restore_offering_user(user, offering):
     ).first()
 
     if offering_user:
-        # Restore offering user if it's in deletion flow
-        if offering_user.state in [
-            OfferingUserStates.DELETION_REQUESTED,
-            OfferingUserStates.DELETING,
-            OfferingUserStates.ERROR_DELETING,
-        ]:
-            old_state = offering_user.get_state_display()
-            if offering_user.username:
-                # Account exists on service provider - restore to OK
-                offering_user.set_ok()
-                offering_user.save(update_fields=["state"])
-                event_logger.emit(
-                    f"Account for user {offering_user.user.username} in offering {offering_user.offering.name} has been restored from {old_state} to OK because user regained project access.",
-                    event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
-                    event_context={"offering_user": offering_user},
-                    scopes=[
-                        offering_user.offering,
-                        offering_user.offering.customer,
-                    ],
-                )
-            else:
-                offering_user.state = OfferingUserStates.CREATION_REQUESTED
-                offering_user.save(update_fields=["state"])
-                event_logger.emit(
-                    f"Account creation for user {offering_user.user.username} in offering {offering_user.offering.name} has been requested (was in {old_state}) because user regained project access.",
-                    event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
-                    event_context={"offering_user": offering_user},
-                    scopes=[
-                        offering_user.offering,
-                        offering_user.offering.customer,
-                    ],
-                )
-        elif offering_user.state == OfferingUserStates.DELETED:
-            # DELETED state - request new account creation
-            offering_user.state = OfferingUserStates.CREATION_REQUESTED
-            offering_user.save(update_fields=["state"])
-            event_logger.emit(
-                f"New account creation for user {offering_user.user.username} in offering {offering_user.offering.name} has been requested because user regained project access after offering user was deleted.",
-                event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
-                event_context={"offering_user": offering_user},
-                scopes=[offering_user.offering, offering_user.offering.customer],
-            )
-        else:
+        if not utils.restore_offering_user(offering_user):
             logger.info("An offering user for %s in %s already exists", user, offering)
         return
 
+    if not offering.plugin_options.get("service_provider_can_create_offering_user"):
+        return
     utils.create_offering_user(user, offering)
 
 

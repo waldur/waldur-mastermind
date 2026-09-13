@@ -3824,6 +3824,85 @@ def create_offering_user(user, offering, username=None, state=None):
     return offering_user, created
 
 
+def restore_provider_account(account) -> bool:
+    """Bring a provider account that was on its way out back to OK.
+
+    Returns whether anything changed. The username and POSIX identity are kept:
+    a provider that parks departing entries re-enables them by name and uid, so
+    minting new ones here would leave it a stranger to re-enable.
+    """
+    if account.state not in OfferingUserStates.DELETION_FLOW_STATES:
+        return False
+    old_state = account.get_state_display()
+    account.restore()
+    account.save(update_fields=["state"])
+    logger.info(
+        "The provider account %s has been restored from %s because the user "
+        "regained access to one of the provider's offerings.",
+        account,
+        old_state,
+    )
+    return True
+
+
+def restore_offering_user(offering_user) -> bool:
+    """Bring a departed member's account back when they regain access.
+
+    Returns whether anything changed; an account that is not in the deletion
+    flow is left alone.
+
+    The account comes back under the name it already has. Waldur-named policies
+    (anonymized, waldur_username, ...) go straight to OK -- the name is a stable
+    function of the person, and a provider that parked the directory entry on
+    departure re-enables it when it sees the account live again. The same holds
+    for an account whose deletion was only requested or begun under the
+    service_provider policy. Only a service_provider-named account that was
+    fully deleted, or one that never got a name, goes back to the provider as a
+    creation request, since nothing is left to re-enable.
+
+    A provider-backed row reads through its ServiceProviderAccount, so that is
+    restored first and the row re-pulls its identity from it.
+    """
+    if offering_user.state not in OfferingUserStates.DELETION_FLOW_STATES:
+        return False
+    old_state = offering_user.get_state_display()
+    offering = offering_user.offering
+
+    if offering_user.is_provider_backed:
+        restore_provider_account(offering_user.service_provider_account)
+        offering_user.pull_from_provider_account()
+
+    policy = offering.resolve_account_setting(
+        "username_generation_policy", UsernameGenerationPolicy.SERVICE_PROVIDER.value
+    )
+    waldur_named = policy != UsernameGenerationPolicy.SERVICE_PROVIDER.value
+    if waldur_named and not offering_user.username:
+        offering_user.username = generate_username(
+            offering_user.user, offering, offering_user
+        )
+
+    if offering_user.username and (
+        waldur_named or offering_user.state != OfferingUserStates.DELETED
+    ):
+        offering_user.restore()
+        what = "restored"
+    else:
+        offering_user.state = OfferingUserStates.CREATION_REQUESTED
+        what = "requested again"
+    # No update_fields: a username filled in above has to land too, and a full
+    # save is what fires the state-change event the directory writers act on.
+    offering_user.save()
+    event_logger.emit(
+        f"Account for user {offering_user.user.username} in offering "
+        f"{offering.name} has been {what} (was {old_state}, now "
+        f"{offering_user.get_state_display()}) because the user regained project access.",
+        event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+        event_context={"offering_user": offering_user},
+        scopes=[offering, offering.customer],
+    )
+    return True
+
+
 def provider_username_conflicts(service_provider) -> list[dict]:
     """Users whose offering accounts at this provider disagree about the username.
 
@@ -4060,19 +4139,11 @@ def user_offerings_mapping(offerings):
             # create_offering_user generates the username and sets the state
             # to OK when one is known at creation time.
             offering_user, _ = create_offering_user(user, offering)
-        elif offering_user.state == OfferingUserStates.DELETION_REQUESTED:
-            # Only restore from DELETION_REQUESTED — no backend action taken yet.
-            # DELETING/ERROR_DELETING/DELETED are left untouched since
-            # the service provider/site agent may have already started backend actions.
-            if offering_user.username:
-                offering_user.set_ok()
-            else:
-                offering_user.state = OfferingUserStates.CREATION_REQUESTED
-            offering_user.save(update_fields=["state"])
-            logger.info(
-                "Offering user %s has been restored from deletion request.",
-                offering_user,
-            )
+        else:
+            # The member still holds a live resource here, so an account on its
+            # way out -- however far along -- is brought back rather than left to
+            # finish deleting.
+            restore_offering_user(offering_user)
 
 
 def order_should_not_be_reviewed_by_provider(order: models.Order):

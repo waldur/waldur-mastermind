@@ -93,12 +93,27 @@ class ProviderAccountLifecycleTest(test.APITestCase):
         account.refresh_from_db()
         self.assertEqual(account.state, OfferingUserStates.OK)
 
-    def test_losing_the_last_offering_releases_the_account(self):
+    def test_losing_the_last_offering_completes_the_account(self):
+        """Every reader is gone for good, so the projection completes on its own."""
         account = self._provisioned()
         for offering in (self.offering_a, self.offering_b):
             offering_user = self._back(offering, account)
             offering_user.state = OfferingUserStates.DELETED
             offering_user.save(update_fields=["state"])
+
+        tasks.request_provider_account_deletion_for_user(self.user)
+
+        account.refresh_from_db()
+        self.assertEqual(account.state, OfferingUserStates.DELETED)
+
+    def test_a_reader_still_being_deleted_holds_the_account_at_requested(self):
+        account = self._provisioned()
+        gone = self._back(self.offering_a, account)
+        gone.state = OfferingUserStates.DELETED
+        gone.save(update_fields=["state"])
+        going = self._back(self.offering_b, account)
+        going.state = OfferingUserStates.DELETING
+        going.save(update_fields=["state"])
 
         tasks.request_provider_account_deletion_for_user(self.user)
 
@@ -127,7 +142,7 @@ class ProviderAccountLifecycleTest(test.APITestCase):
 
         account.refresh_from_db()
         other_account.refresh_from_db()
-        self.assertEqual(account.state, OfferingUserStates.DELETION_REQUESTED)
+        self.assertEqual(account.state, OfferingUserStates.DELETED)
         self.assertEqual(other_account.state, OfferingUserStates.OK)
 
     def test_the_fk_refuses_to_orphan_a_backed_offering_account(self):

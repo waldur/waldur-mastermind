@@ -265,6 +265,19 @@ class OfferingUserStates:
 
     VALUES = [val for (_, val) in CHOICES]
 
+    # States in which the account is (or is about to be) present at the provider.
+    LIVE_STATES = (
+        CREATION_REQUESTED,
+        CREATING,
+        PENDING_ACCOUNT_LINKING,
+        PENDING_ADDITIONAL_VALIDATION,
+        OK,
+        ERROR_CREATING,
+    )
+    # States an account passes through on its way out; a returning member is
+    # restored from any of them.
+    DELETION_FLOW_STATES = (DELETION_REQUESTED, DELETING, ERROR_DELETING, DELETED)
+
 
 OfferingUserStatesType = Literal[
     "Requested",

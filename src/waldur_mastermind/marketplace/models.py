@@ -3647,6 +3647,22 @@ class BaseAccount(
 
     @transition(
         field=state,
+        source=list(OfferingUserStates.DELETION_FLOW_STATES),
+        target=OfferingUserStates.OK,
+    )
+    def restore(self):
+        """A departed member is back: the account is live again under its old name.
+
+        Distinct from ``set_ok`` in accepting DELETED as a source. A provider that
+        parks a departing account (disables the directory entry, keeps uid and
+        username) re-enables it when the account is presented live again, so the
+        record must be able to come back from DELETED rather than asking for a
+        brand-new account under a new name.
+        """
+        pass
+
+    @transition(
+        field=state,
         source=[
             OfferingUserStates.CREATION_REQUESTED,
             OfferingUserStates.CREATING,
