@@ -3198,6 +3198,7 @@ name = "waldur-mastermind"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "apache-libcloud" },
     { name = "atlassian-python-api" },
     { name = "beautifulsoup4" },
@@ -3290,6 +3291,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14" },
     { name = "apache-libcloud", specifier = "==3.7.0" },
     { name = "atlassian-python-api", specifier = ">=4.0.7" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },

@@ -1,0 +1,81 @@
+:root {
+  color-scheme: dark;
+  --bg: #101216;
+  --line: #262a33;
+  --fg: #d8dee9;
+  --muted: #8b93a1;
+  --accent: #e5a50a;
+  --ok: #57c785;
+  --error: #f0716b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #1a1300;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.environment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.environment-label {
+  margin-right: 0.35rem;
+  color: var(--muted);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+#status {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+#status[data-kind='ok'] {
+  color: var(--ok);
+}
+
+#status[data-kind='error'] {
+  color: var(--error);
+}
+
+#terminal {
+  flex: 1;
+  min-height: 0;
+  padding: 0.25rem 0.5rem;
+  overflow: hidden;
+}

@@ -288,6 +288,16 @@ class WaldurCore(BaseModel):
         ],
         description="List of IP ranges that are blocked for the SDK client.",
     )
+    WEB_SHELL_ENABLED: bool = Field(
+        False,
+        description="Let staff open `waldur shell` in the browser, served by the "
+        "separate `waldur web_shell` process. Takes effect only when DEBUG is on.",
+    )
+    WEB_SHELL_URL: str = Field(
+        "",
+        description="Public URL of the page served by `waldur web_shell`, "
+        "e.g. http://localhost:18090/webshell/.",
+    )
 
     class Meta:
         public_settings: list[str] = [

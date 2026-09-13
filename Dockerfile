@@ -5,6 +5,9 @@ FROM ${DOCKER_REGISTRY}python:3.13-slim
 
 ENV LANG=C.UTF-8
 
+# ghostty-web for `waldur web_shell`, downloaded by docker_build.sh.
+ENV WALDUR_WEB_SHELL_ASSETS_DIR=/usr/share/waldur/web-shell
+
 # Use jemalloc instead of the default glibc allocator to curb memory
 # fragmentation in long-running gunicorn/celery prefork workers. The bare soname
 # resolves via the linker search path on both amd64 and arm64. Set LD_PRELOAD to
