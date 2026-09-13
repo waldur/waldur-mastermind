@@ -1,6 +1,7 @@
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_mastermind.marketplace_openstack.utils import import_instance_metadata
+from waldur_openstack import models as openstack_models
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import (
     fixtures as openstack_fixtures,
@@ -132,6 +133,22 @@ class NetworkMetadataTest(BaseOpenStackTest):
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.backend_metadata["internal_ips"], [])
 
+    def test_port_address_is_updated_when_port_is_created_in_backend(self):
+        # A requested fixed IP is stored on the port before provisioning, so
+        # Neutron echoes it back unchanged and only backend_id changes on save.
+        port = self.fixture.port
+        fixed_ips = [{"ip_address": "10.0.0.5", "subnet_id": port.subnet.backend_id}]
+        openstack_models.Port.objects.filter(id=port.id).update(
+            fixed_ips=fixed_ips, backend_id=""
+        )
+        port.refresh_from_db()
+
+        port.backend_id = "created-in-neutron"
+        port.save()
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.backend_metadata["internal_ips"], ["10.0.0.5"])
+
     def test_floating_ip_address_is_synchronized(self):
         port = self.fixture.port
         floating_ip = self.fixture.floating_ip
@@ -154,6 +171,29 @@ class NetworkMetadataTest(BaseOpenStackTest):
         floating_ip.delete()
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.backend_metadata["external_ips"], [])
+
+
+class InstanceScopeLinkMetadataTest(BaseOpenStackTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+        port = self.fixture.port
+        port.fixed_ips = [
+            {"ip_address": "10.0.0.5", "subnet_id": port.subnet.backend_id}
+        ]
+        port.save()
+
+    def test_internal_ips_are_imported_when_scope_is_linked(self):
+        # Order processing creates the instance and its ports first and links
+        # them to the already existing marketplace resource afterwards.
+        resource = marketplace_factories.ResourceFactory()
+
+        resource.scope = self.instance
+        resource.save()
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.backend_metadata["internal_ips"], ["10.0.0.5"])
 
 
 class InstanceFlavorImageMetadataTest(BaseOpenStackTest):
