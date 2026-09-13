@@ -746,22 +746,6 @@ positional arguments:
 
 ```
 
-## import_azure_image
-
-Import Azure image
-
-```bash
-
-usage: waldur import_azure_image [--sku SKU] [--publisher PUBLISHER]
-                                 [--offer OFFER]
-
-options:
-  --sku SKU
-  --publisher PUBLISHER
-  --offer OFFER
-
-```
-
 ## import_marketplace_orders
 
 Create marketplace order for each resource if it does not yet exist.
@@ -1663,5 +1647,22 @@ options:
                         UUID of OpenStack offering to test against (creates
                         temporary tenant)
   --quiet               Suppress SSL warnings and other verbose output
+
+```
+
+## web_shell
+
+Serve `waldur shell` to staff in the browser. Development only: needs DEBUG, WALDUR_CORE['WEB_SHELL_ENABLED'] and WALDUR_CORE['WEB_SHELL_URL'].
+
+```bash
+
+usage: waldur web_shell [--host HOST] [--port PORT] [--fetch-assets]
+                        [--mint USERNAME]
+
+options:
+  --host HOST
+  --port PORT      Port to listen on. Defaults to the port of WEB_SHELL_URL.
+  --fetch-assets   Download ghostty-web 0.4.0-waldur.2 and exit.
+  --mint USERNAME  Print a single-use link for a staff user and exit.
 
 ```

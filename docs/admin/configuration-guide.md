@@ -390,7 +390,9 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
                                      'phone_number',
                                      'organization'],
  'USE_ATOMIC_TRANSACTION': True,
- 'VALIDATE_INVITATION_EMAIL': False}
+ 'VALIDATE_INVITATION_EMAIL': False,
+ 'WEB_SHELL_ENABLED': False,
+ 'WEB_SHELL_URL': ''}
 ```
 
 #### ATTACHMENT_LINK_MAX_AGE
@@ -764,6 +766,18 @@ Wrap action views in atomic transaction.
 **Type:** bool
 
 Ensure that invitation and user emails match.
+
+#### WEB_SHELL_ENABLED
+
+**Type:** bool
+
+Let staff open `waldur shell` in the browser, served by the separate `waldur web_shell` process. Takes effect only when DEBUG is on.
+
+#### WEB_SHELL_URL
+
+**Type:** str
+
+Public URL of the page served by `waldur web_shell`, e.g. http://localhost:18090/webshell/.
 
 ### WALDUR_HPC plugin
 
