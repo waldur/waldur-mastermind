@@ -4162,6 +4162,7 @@ class ProviderOfferingDetailsSerializer(
     can_update_integration = serializers.SerializerMethodField()
     can_update_options = serializers.SerializerMethodField()
     components = OfferingComponentSerializer(required=False, many=True)
+    limit_precision_advisory = serializers.SerializerMethodField()
     order_count = serializers.SerializerMethodField()
     billing_period_applies = serializers.SerializerMethodField()
     billing_mode_components = serializers.SerializerMethodField()
@@ -4260,6 +4261,7 @@ class ProviderOfferingDetailsSerializer(
             "options",
             "resource_options",
             "components",
+            "limit_precision_advisory",
             "plugin_options",
             "secret_options",
             "service_attributes",
@@ -4511,6 +4513,34 @@ class ProviderOfferingDetailsSerializer(
         except AttributeError:
             return []
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_limit_precision_advisory(self, offering: models.Offering) -> str | None:
+        """What to tell the provider before they raise a component's precision.
+
+        Plugins that know their backend cannot hold a fraction refuse it
+        outright through ``max_limit_decimal_places``. This is for the one that
+        cannot know: the site agent fronts many backends, so the answer belongs
+        to the individual offering rather than to the type, and it advises
+        rather than refuses. Null when there is nothing to say.
+
+        Answered only for a single offering, or when a list request names the
+        field -- the same rule ProviderOfferingViewSet applies to its expensive
+        annotations, and for the same reason: the plugin answers it with a
+        query, so on a list it would cost one per row. A list of offerings
+        carries no precision field to advise about, and the component editor
+        reads the offering one at a time.
+        """
+        view = self.context.get("view")
+        if view is not None and not getattr(view, "detail", False):
+            request = getattr(view, "request", None)
+            asked_for = request is not None and "limit_precision_advisory" in (
+                request.query_params.getlist("field")
+            )
+            if not asked_for:
+                return None
+        advisory = plugins.manager.get_limit_precision_advisory(offering)
+        return str(advisory) if advisory else None
+
     def get_order_count(self, offering: models.Offering) -> int:
         try:
             return offering.get_quota_usage("order_count")
@@ -4683,10 +4713,14 @@ set_override(
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = "marketplace-public-offering-detail"
+        # limit_precision_advisory names the provider's own backend and exists
+        # for the component editor. A consumer browsing the marketplace has
+        # nothing to configure with it and no business knowing the provider
+        # runs SLURM.
         fields = tuple(
             f
             for f in ProviderOfferingDetailsSerializer.Meta.fields
-            if f != "backend_id_rules"
+            if f not in ("backend_id_rules", "limit_precision_advisory")
         ) + (
             "user_has_consent",
             "user_has_offering_user",
