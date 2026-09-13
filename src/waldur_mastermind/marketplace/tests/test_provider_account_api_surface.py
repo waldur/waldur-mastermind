@@ -133,6 +133,33 @@ class ServiceProviderAccountWritePermissionTest(test.APITestCase):
         self.account.refresh_from_db()
         self.assertEqual(self.account.username, "renamed")
 
+    def test_a_rename_onto_another_accounts_name_is_refused(self):
+        """The unique constraint has to surface as a 400, not a 500.
+
+        DRF derives no validator from it because service_provider is read-only
+        on the serializer, so the serializer checks it explicitly.
+        """
+        factories.ServiceProviderAccountFactory(
+            service_provider=self.provider, username="hpc_9002"
+        )
+        for taken in ("hpc_9002", "HPC_9002"):
+            response = self._patch_username(self.fixture.staff, taken)
+            self.assertEqual(
+                response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+            )
+            self.assertIn("username", response.data)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.username, "jsmith")
+
+    def test_renaming_to_the_current_name_is_not_a_collision(self):
+        response = self._patch_username(self.fixture.staff, "jsmith")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_the_same_name_at_another_provider_is_fine(self):
+        factories.ServiceProviderAccountFactory(username="elsewhere")
+        response = self._patch_username(self.fixture.staff, "elsewhere")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_the_account_cannot_be_reparented(self):
         """The identity fields are read-only, so a PATCH cannot hand the
         account -- with its username and POSIX identity -- to another person or

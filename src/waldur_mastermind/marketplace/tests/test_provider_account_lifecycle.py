@@ -5,6 +5,7 @@ individual offering associations: losing one offering while still holding anothe
 must not delete the entry the other one depends on.
 """
 
+from django.db import IntegrityError
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -174,3 +175,32 @@ class ProviderAccountLifecycleTest(test.APITestCase):
 
         account.refresh_from_db()
         self.assertEqual(account.state, OfferingUserStates.DELETED)
+
+
+class ProviderAccountUsernameUniquenessTest(test.APITestCase):
+    """One name per directory; accounts still awaiting a name are exempt."""
+
+    def setUp(self):
+        self.provider = factories.ServiceProviderFactory()
+
+    def test_two_accounts_at_one_provider_cannot_share_a_username(self):
+        factories.ServiceProviderAccountFactory(
+            service_provider=self.provider, username="hpc_9001"
+        )
+        with self.assertRaises(IntegrityError):
+            factories.ServiceProviderAccountFactory(
+                service_provider=self.provider, username="hpc_9001"
+            )
+
+    def test_the_same_username_is_fine_at_another_provider(self):
+        factories.ServiceProviderAccountFactory(
+            service_provider=self.provider, username="hpc_9001"
+        )
+        factories.ServiceProviderAccountFactory(username="hpc_9001")
+
+    def test_unnamed_accounts_do_not_collide(self):
+        for username in ("", "", None, None):
+            factories.ServiceProviderAccountFactory(
+                service_provider=self.provider, username=username
+            )
+        self.assertEqual(self.provider.provider_accounts.count(), 4)

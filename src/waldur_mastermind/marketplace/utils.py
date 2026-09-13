@@ -110,6 +110,10 @@ from .enums import OrderTypes
 logger = logging.getLogger(__name__)
 USERNAME_ANONYMIZED_POSTFIX_LENGTH = 5
 
+# One default for the anonymized prefix, shared by the plugin-options serializer
+# and the generator, so an offering saved through the API and one that never
+# set the key produce the same names.
+DEFAULT_ANONYMIZED_PREFIX = "waldur_"
 
 USERNAME_POSTFIX_LENGTH = 2
 
@@ -118,8 +122,10 @@ class UsernameGenerationPolicy(Enum):
     SERVICE_PROVIDER = (
         "service_provider"  # SP should manually submit username for the offering users
     )
-    ANONYMIZED = "anonymized"  # Usernames are generated with <prefix>_<number>, e.g. "anonym_00001".
-    # The prefix must be specified in offering.plugin_options as "username_anonymized_prefix"
+    # Usernames are <prefix><posix uid>, e.g. "anonym_9001", or a per-offering
+    # counter ("anonym_00001") when no POSIX UID resolves. The prefix comes from
+    # the "username_anonymized_prefix" account setting (offering, else provider).
+    ANONYMIZED = "anonymized"
     FULL_NAME = "full_name"  # Usernames are constructed using first and last name of users with numerical suffix, e.g. "john_doe_01"
     WALDUR_USERNAME = "waldur_username"  # Using username field of User model
     FREEIPA = "freeipa"  # Using username field of waldur_freeipa.Profile model
@@ -3563,8 +3569,36 @@ def sanitize_name(name):
     return name
 
 
-def create_anonymized_username(offering):
-    prefix = offering.plugin_options.get("username_anonymized_prefix", "walduruser_")
+def resolve_posix_uid(user, offering, account=None) -> int | None:
+    """The POSIX UID ``user`` holds (or is now given) on ``offering``, if any.
+
+    Mirrors the UID half of :func:`setup_linux_related_data`: a value already
+    recorded on ``account`` (including an operator's override) wins, then the
+    user attribute when the offering sources UIDs from it, else the pool.
+    ``posix_ids.allocate`` is idempotent and keyed on the Waldur user, so calling
+    this before the account row exists hands out the same number the row later
+    receives. Returns ``None`` when nothing resolves: POSIX accounts are off,
+    no pool covers the offering, or the user carries no ``uid_number``.
+    """
+    if account is not None and (account.backend_metadata or {}).get("uidnumber"):
+        return account.backend_metadata["uidnumber"]
+    plugin_options = offering.plugin_options or {}
+    if not plugin_options.get("enable_posix_account", True):
+        return None
+    if plugin_options.get("uid_source", "pool") == "user_attribute":
+        return user.uid_number
+    # The allocator only needs the principal behind the consumer, which for a
+    # user account is the Waldur user -- so an unsaved row is enough to ask with.
+    consumer = (
+        account
+        if account is not None
+        else models.OfferingUser(offering=offering, user=user)
+    )
+    return posix_ids.allocate(offering, posix_ids.UID, consumer)
+
+
+def _next_counter_username(offering, prefix):
+    """Historical per-offering counter: the highest ``<prefix>NNNNN`` plus one."""
     previous_users = models.OfferingUser.objects.filter(
         offering=offering, username__istartswith=prefix
     ).order_by("username")
@@ -3577,6 +3611,33 @@ def create_anonymized_username(offering):
         number = "0".zfill(USERNAME_ANONYMIZED_POSTFIX_LENGTH)
 
     return f"{prefix}{number}"
+
+
+def create_anonymized_username(user, offering, account=None):
+    """``<prefix><uid>``: the name is a pure function of the user's POSIX identity.
+
+    A counter scoped to one offering and a UID scoped to the provider disagree as
+    soon as two offerings share a directory -- the same person gets two names for
+    one UID, and two people can get one name. Deriving the name from the UID makes
+    it unique wherever the UID is, stable for the person, and identical on every
+    offering that draws from the same pool, so regenerating it is a no-op.
+
+    Without a resolvable UID the per-offering counter is kept as a fallback, and
+    the gap is logged rather than hidden.
+    """
+    prefix = offering.resolve_account_setting(
+        "username_anonymized_prefix", DEFAULT_ANONYMIZED_PREFIX
+    )
+    uid = resolve_posix_uid(user, offering, account)
+    if uid is not None:
+        return f"{prefix}{uid}"
+    logger.warning(
+        "No POSIX UID resolves for user %s on offering %s; falling back to the "
+        "per-offering counter for the anonymized username.",
+        user,
+        offering,
+    )
+    return _next_counter_username(offering, prefix)
 
 
 def create_username_from_full_name(user, offering):
@@ -3607,7 +3668,13 @@ def create_username_from_freeipa_profile(user):
         return profiles.first().username
 
 
-def generate_username(user, offering):
+def generate_username(user, offering, account=None):
+    """The username ``user`` gets on ``offering`` under its generation policy.
+
+    ``account`` is the row being named (an OfferingUser or the
+    ServiceProviderAccount backing it) when one exists; the anonymized policy
+    reads the POSIX identity already recorded on it.
+    """
     username_generation_policy = offering.resolve_account_setting(
         "username_generation_policy", UsernameGenerationPolicy.SERVICE_PROVIDER.value
     )
@@ -3616,7 +3683,7 @@ def generate_username(user, offering):
         return ""
 
     if username_generation_policy == UsernameGenerationPolicy.ANONYMIZED.value:
-        return create_anonymized_username(offering)
+        return create_anonymized_username(user, offering, account)
 
     if username_generation_policy == UsernameGenerationPolicy.FULL_NAME.value:
         return create_username_from_full_name(user, offering)
@@ -3660,7 +3727,7 @@ def get_or_create_provider_account(user, offering):
         service_provider=provider, user=user
     )
     if not account.username:
-        username = generate_username(user, offering)
+        username = generate_username(user, offering, account)
         if username:
             account.username = username
             account.state = OfferingUserStates.OK
@@ -3735,7 +3802,12 @@ def create_offering_user(user, offering, username=None, state=None):
         return offering_user, created
 
     if username is None:
-        username = generate_username(user, offering)
+        # The row does not exist yet; the generator only needs the principal
+        # behind it, and a UID it allocates now is the one the saved row reads
+        # back in setup_linux_related_data.
+        username = generate_username(
+            user, offering, models.OfferingUser(offering=offering, user=user)
+        )
     if state is None:
         state = (
             OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
@@ -3985,16 +4057,9 @@ def user_offerings_mapping(offerings):
             user=user, offering=offering
         ).first()
         if offering_user is None:
-            username = generate_username(user, offering)
-            # Set state to OK when username is known at creation time
-            state = (
-                OfferingUserStates.OK
-                if username
-                else OfferingUserStates.CREATION_REQUESTED
-            )
-            offering_user, _ = create_offering_user(
-                user, offering, username=username, state=state
-            )
+            # create_offering_user generates the username and sets the state
+            # to OK when one is known at creation time.
+            offering_user, _ = create_offering_user(user, offering)
         elif offering_user.state == OfferingUserStates.DELETION_REQUESTED:
             # Only restore from DELETION_REQUESTED — no backend action taken yet.
             # DELETING/ERROR_DELETING/DELETED are left untouched since

@@ -353,7 +353,7 @@ The related `resource_slug_template` option (e.g. `{project_slug}-{counter}`) ge
 | `initial_primarygroup_number` | integer | `5000` | Starting GID for primary groups |
 | `initial_usergroup_number` | integer | `6000` | Starting GID for user groups |
 | `homedir_prefix` | string | `"/home/"` | Prefix for home directory paths |
-| `username_anonymized_prefix` | string | `"walduruser_"` | Prefix for anonymized usernames |
+| `username_anonymized_prefix` | string | `"waldur_"` | Prefix for anonymized usernames; the name is the prefix followed by the account's POSIX UID (a per-offering counter when no UID resolves). Inherits from the provider's `account_username_anonymized_prefix` when unset |
 
 ## Plugin-Specific Options
 

@@ -118,6 +118,7 @@ from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
+    DEFAULT_ANONYMIZED_PREFIX,
     UsernameGenerationPolicy,
     check_pending_order_exists,
     get_service_provider_resources,
@@ -714,8 +715,11 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
     )
     username_anonymized_prefix = serializers.CharField(
         required=False,
-        default="waldur_",
-        help_text="GLAuth prefix for anonymized usernames",
+        default=DEFAULT_ANONYMIZED_PREFIX,
+        help_text=(
+            "Prefix for anonymized usernames; the name is the prefix followed by "
+            "the account's POSIX UID"
+        ),
     )
     username_generation_policy = serializers.ChoiceField(
         required=False,
@@ -1339,6 +1343,7 @@ class ServiceProviderSerializer(
             "account_username_generation_policy",
             "account_homedir_prefix",
             "account_login_shell",
+            "account_username_anonymized_prefix",
         )
         related_paths = {
             "customer": ("uuid", "name", "native_name", "abbreviation", "slug")
@@ -10327,6 +10332,32 @@ class ServiceProviderAccountSerializer(
                 "view_name": "marketplace-service-provider-account-detail",
             },
         )
+
+    def validate_username(self, username):
+        """One name per provider directory.
+
+        The model carries a partial unique constraint on (service_provider,
+        username), but DRF only derives a validator from it when every field of
+        the constraint is writable here -- and service_provider is deliberately
+        read-only. Without this check a duplicate name would reach the database
+        and surface as a 500 instead of a 400. Case-insensitive because the
+        directories these names land in (LDAP, POSIX) treat them so.
+        """
+        if not username or self.instance is None:
+            return username
+        taken = (
+            models.ServiceProviderAccount.objects.filter(
+                service_provider=self.instance.service_provider,
+                username__iexact=username,
+            )
+            .exclude(pk=self.instance.pk)
+            .exists()
+        )
+        if taken:
+            raise serializers.ValidationError(
+                _("Another account at this service provider already has this username.")
+            )
+        return username
 
     @extend_schema_field(serializers.ChoiceField(choices=OfferingUserStates.VALUES))
     def get_state(self, account) -> str:

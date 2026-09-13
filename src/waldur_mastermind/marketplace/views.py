@@ -4599,7 +4599,7 @@ class ProviderOfferingViewSet(
 
         for offering_user in offering_users:
             new_username = utils.generate_username(
-                offering_user.user, offering_user.offering
+                offering_user.user, offering_user.offering, offering_user
             )
             if new_username != offering_user.username:
                 logger.info("Updating %s username to %s", offering_user, new_username)
