@@ -331,7 +331,7 @@ except ValidationError:
 
 The function checks:
 
-- **Email patterns**: User email must match at least one pattern (e.g., `*@example.com`)
+- **Email patterns**: User email must match at least one pattern. A pattern is a regular expression matched against the whole address, ignoring case (e.g., `.*@example\.com` matches `alice@example.com`, not `alice@example.com.attacker.net`). An invalid pattern never matches
 - **Affiliations**: User must have at least one matching affiliation
 - **Identity sources**: User must have a matching identity source
 

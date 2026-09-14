@@ -337,7 +337,7 @@ Both Customer and Project models support the following restriction fields:
 
 ```python
 # Available on Customer, Project, and GroupInvitation models
-user_email_patterns: JSONField      # Regex patterns for allowed emails
+user_email_patterns: JSONField      # Regexes for allowed emails, matched against the whole address
 user_affiliations: JSONField        # List of allowed affiliations
 user_identity_sources: JSONField    # List of allowed identity providers
 
@@ -354,6 +354,8 @@ Restrictions use **OR logic within a field** and **AND logic across fields and l
 - **Within a field**: User matches if ANY email pattern OR ANY affiliation OR ANY identity source matches
 - **Across fields**: User must pass ALL fields that have restrictions set (e.g., if both email patterns and affiliations are set, user must match at least one of each)
 - **Across levels**: User must pass ALL levels that have restrictions set (Customer → Project → GroupInvitation)
+
+**Email patterns** are regular expressions matched against the **whole** address, ignoring case. `.*@university\.edu` accepts `john@university.edu` and `John@University.EDU`, but not `john@university.edu.attacker.net`. A trailing `$` is allowed but not needed. Escape the dots, since an unescaped `.` matches any character. A pattern that is not a valid regex, or that could cause catastrophic backtracking, never matches. Shell wildcards such as `*@university.edu` are rejected when saved, and the error suggests the equivalent regex.
 
 **Special AAI validation rules:**
 
@@ -402,7 +404,7 @@ flowchart TD
 
 ```python
 # Only users from specific domains can join this customer
-customer.user_email_patterns = [".*@university.edu", ".*@research.org"]
+customer.user_email_patterns = [r".*@university\.edu", r".*@research\.org"]
 customer.save()
 
 # User with email "john@university.edu" can be added - matches pattern
@@ -474,7 +476,7 @@ project.save()
 
 ```python
 # Customer requires university email
-customer.user_email_patterns = [".*@university.edu"]
+customer.user_email_patterns = [r".*@university\.edu"]
 customer.save()
 
 # Project within customer requires staff affiliation
@@ -675,7 +677,7 @@ Group invitations can automatically create projects instead of granting customer
 # Configuration
 auto_create_project = True
 project_role = ProjectRole.MANAGER
-project_name_template = "{user.full_name} Project"
+project_name_template = "{full_name} Project"  # placeholders: {username}, {email}, {full_name}
 
 # On approval, creates:
 # 1. New project with resolved name (excludes soft-deleted projects)
@@ -688,8 +690,8 @@ project_name_template = "{user.full_name} Project"
 Group invitations support sophisticated user matching:
 
 ```python
-# Email patterns (regex)
-user_email_patterns = [".*@company.com", ".*@university.edu"]
+# Email patterns (regex, matched against the whole address, ignoring case)
+user_email_patterns = [r".*@company\.com", r".*@university\.edu"]
 
 # Affiliation patterns (exact match)
 user_affiliations = ["staff", "student", "faculty"]
@@ -847,8 +849,8 @@ group_invitation = GroupInvitation.objects.create(
     role=CustomerRole.OWNER,
     auto_create_project=True,
     project_role=ProjectRole.MANAGER,
-    project_name_template="{user.full_name}'s Research Project",
-    user_email_patterns=["*@university.edu"],
+    project_name_template="{full_name}'s Research Project",
+    user_email_patterns=[r".*@university\.edu"],
     created_by=admin_user
 )
 
@@ -865,8 +867,8 @@ public_invitation = GroupInvitation.objects.create(
     is_public=True,            # Makes it visible to unauthenticated users
     auto_create_project=True,  # Required for public invitations
     project_role=ProjectRole.MANAGER,
-    project_name_template="{user.full_name} Research Project",
-    user_email_patterns=["*@university.edu", "*@research.org"],
+    project_name_template="{full_name} Research Project",
+    user_email_patterns=[r".*@university\.edu", r".*@research\.org"],
     created_by=staff_user      # Must be staff user
 )
 
