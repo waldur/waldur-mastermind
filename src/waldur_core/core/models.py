@@ -1491,6 +1491,27 @@ class UserDetailsMatchMixin(models.Model):
             return False
 
     @staticmethod
+    def _suggest_regex_for_wildcard(pattern) -> str | None:
+        """The regex equivalent of a wildcard pattern, or None if it isn't one.
+
+        A pattern counts as a wildcard when it has a ``*`` and no other regex
+        metacharacter apart from ``.``. A broken regex such as ``(.*@x`` is
+        left alone, because escaping it would produce a misleading suggestion.
+
+        Each ``*`` becomes ``.*`` and everything else is escaped. The result
+        ends with ``$`` unless the wildcard ended with ``*``, so
+        ``*@example.org`` becomes ``.*@example\\.org$``. The anchor matters:
+        ``_is_pattern_match`` matches by prefix, and without it the suggestion
+        would also match ``alice@example.org.attacker.net``.
+        """
+        if not isinstance(pattern, str) or "*" not in pattern:
+            return None
+        if re.search(r"[\\^$+?()\[\]{}|]", pattern):
+            return None
+        regex = ".*".join(re.escape(part) for part in pattern.split("*"))
+        return regex if pattern.endswith("*") else regex + "$"
+
+    @staticmethod
     def validate_user_email_patterns(patterns: list) -> None:
         invalid_patterns = []
         dangerous_patterns = []
@@ -1512,6 +1533,17 @@ class UserDetailsMatchMixin(models.Model):
         errors = []
         if invalid_patterns:
             errors.append(f"Invalid regex patterns: {invalid_patterns}")
+            # The usual mistake is a shell-style wildcard such as
+            # "*@example.org", which is not a valid regex. Suggest the regex
+            # that means the same thing, rather than leaving the administrator
+            # to work out why an obvious pattern is rejected.
+            for pattern in invalid_patterns:
+                suggestion = UserDetailsMatchMixin._suggest_regex_for_wildcard(pattern)
+                if suggestion:
+                    errors.append(
+                        "Patterns are regular expressions, not wildcards: "
+                        f"use '{suggestion}' instead of '{pattern}'."
+                    )
         if dangerous_patterns:
             errors.append(
                 f"Potentially dangerous patterns (nested quantifiers or too long): {dangerous_patterns}"

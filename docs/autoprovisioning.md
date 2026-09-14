@@ -35,7 +35,7 @@ The `Rule` model (`src/waldur_autoprovisioning/models.py:11`) defines auto-provi
 
 Rules use the `UserDetailsMatchMixin` for pattern matching:
 
-- **user_email_patterns**: Regex patterns for email matching (e.g., `[".+@example.com"]`)
+- **user_email_patterns**: Regex patterns for email matching (e.g., `[".+@example\\.com$"]`). A pattern is matched from the **start** of the address, not against all of it, so end it with `$`: without it, `.+@example\.com` also matches `alice@example.com.attacker.net`. Patterns are regular expressions, not shell wildcards. `*@example.com` is rejected, and the error suggests the equivalent regex
 - **user_affiliations**: Organization affiliations for matching (e.g., `["staff", "faculty"]`)
 - **user_identity_sources**: Identity provider matching (e.g., `["eduGAIN", "SAML"]`)
 
@@ -209,7 +209,7 @@ The serializer enforces these validation constraints:
 - A rule with `create_project=false` must specify a `customer_role`, since it has nothing else to grant
 - `project_role` / `customer_role` may each be given as a URL or by name (`*_role_name`), but not both
 - Roles must be valid for their scope (project role on projects, organization role on organizations)
-- Email patterns must be valid regex expressions
+- Email patterns must be valid regex expressions. A wildcard such as `*@example.org` is rejected with the equivalent anchored regex (`.*@example\.org$`) in the error message
 - A claim must have a non-empty name and at least one accepted value; a bare `*` is rejected
 - `project_name_template` may use only `{username}`, `{email}` and `{full_name}`. Positional (`{0}`, `{}`) and attribute (`{username.upper}`) fields are rejected
 

@@ -1,6 +1,7 @@
 from django.test import RequestFactory, TestCase
 
 from waldur_autoprovisioning.serializers import RuleSerializer
+from waldur_core.core.models import UserDetailsMatchMixin
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.tests import factories as permission_factories
 from waldur_core.structure.tests import factories as structure_factories
@@ -36,6 +37,42 @@ class RuleSerializerTest(TestCase):
         self.assertIn(
             "Invalid regex patterns", str(serializer.errors["user_email_patterns"])
         )
+
+    def test_wildcard_pattern_gets_a_regex_suggestion(self):
+        data = {**self.valid_data, "user_email_patterns": ["*@example.org"]}
+
+        serializer = RuleSerializer(data=data)
+
+        self.assertFalse(serializer.is_valid())
+        errors = str(serializer.errors["user_email_patterns"])
+        self.assertIn("not wildcards", errors)
+        self.assertIn(".*@example\\\\.org$", errors)
+
+    def test_suggested_regex_is_valid_and_rejects_lookalike_domains(self):
+        suggestion = UserDetailsMatchMixin._suggest_regex_for_wildcard("*@example.org")
+
+        UserDetailsMatchMixin.validate_user_email_patterns([suggestion])
+        self.assertTrue(
+            UserDetailsMatchMixin._is_pattern_match(suggestion, "alice@example.org")
+        )
+        self.assertFalse(
+            UserDetailsMatchMixin._is_pattern_match(
+                suggestion, "alice@example.org.attacker.net"
+            )
+        )
+
+    def test_trailing_wildcard_is_not_anchored(self):
+        self.assertEqual(
+            UserDetailsMatchMixin._suggest_regex_for_wildcard("alice@*"), "alice@.*"
+        )
+
+    def test_invalid_pattern_without_a_wildcard_gets_no_suggestion(self):
+        data = {**self.valid_data, "user_email_patterns": ["(unclosed@example.org"]}
+
+        serializer = RuleSerializer(data=data)
+
+        self.assertFalse(serializer.is_valid())
+        self.assertNotIn("not wildcards", str(serializer.errors["user_email_patterns"]))
 
     def test_empty_patterns_accepted(self):
         empty_data = self.valid_data.copy()
