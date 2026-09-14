@@ -1114,6 +1114,23 @@ class InvitationEmailRestrictionTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_invitation_blocked_for_lookalike_domain(self):
+        # Deliberately without "$": the pattern must still cover the whole address.
+        self.customer.user_email_patterns = [r".*@example\.com"]
+        self.customer.save()
+
+        self.client.force_authenticate(user=self.staff)
+        payload = {
+            "email": "user@example.com.attacker.net",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
     def test_invitation_blocked_by_parent_customer_pattern_for_project_scope(self):
         self.customer.user_email_patterns = [r".*@example\.com$"]
         self.customer.save()

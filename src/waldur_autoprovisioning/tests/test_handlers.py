@@ -146,6 +146,38 @@ class InvalidRegexPatternsTest(TestCase):
         )
         self.assertTrue(models.Rule._is_pattern_match("test.*", "test@example.com"))
 
+    def test_is_pattern_match_requires_the_whole_address(self):
+        # Matching only at the start let a lookalike domain through.
+        self.assertFalse(
+            models.Rule._is_pattern_match(
+                r".*@example\.com", "alice@example.com.attacker.net"
+            )
+        )
+        self.assertTrue(
+            models.Rule._is_pattern_match(r".*@example\.com", "alice@example.com")
+        )
+
+    def test_is_pattern_match_ignores_case(self):
+        self.assertTrue(
+            models.Rule._is_pattern_match(r".*@example\.com", "Alice@Example.COM")
+        )
+
+    def test_rule_does_not_provision_a_lookalike_domain(self):
+        rule = autoprovisioning_factories.RuleFactory(
+            plan=None, user_email_patterns=[r".*@example\.com"]
+        )
+
+        user = User.objects.create(
+            username="lookalike", email="alice@example.com.attacker.net"
+        )
+
+        self.assertFalse(models.Rule.evaluate_for_user(rule, user).matched)
+        self.assertFalse(
+            structure_models.Project.available_objects.filter(
+                customer=rule.customer
+            ).exists()
+        )
+
     @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
     def test_get_rules_handles_invalid_regex_patterns(self, mock_process_order):
         rule = autoprovisioning_factories.RuleFactory()
