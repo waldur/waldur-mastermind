@@ -204,6 +204,52 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         for question in response.data["questions"]:
             self.assertIsNone(question["existing_answer"])
 
+    def test_step_checklist_visibility_follows_requesting_users_answer(self):
+        # Visibility follows the reviewer's own answers, like existing_answer does:
+        # a peer's newer answer must not reveal or hide questions for them.
+        follow_up = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Needs follow-up?",
+            question_type=checklist_enums.QuestionTypes.BOOLEAN,
+            order=2,
+        )
+        details = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Follow-up details",
+            question_type=checklist_enums.QuestionTypes.TEXT_AREA,
+            order=3,
+        )
+        checklist_factories.QuestionDependencyFactory(
+            question=details,
+            depends_on_question=follow_up,
+            required_answer_value=True,
+            operator="equals",
+        )
+        self._link_offering_to_proposal()
+        manager = self.fixture.offering_fixture.offering_manager
+        checklist_factories.AnswerFactory(
+            completion=self.completion,
+            question=follow_up,
+            user=manager,
+            answer_data=False,
+        )
+        checklist_factories.AnswerFactory(
+            completion=self.completion,
+            question=follow_up,
+            user=self.reviewer_a,
+            answer_data=True,
+        )
+
+        self.client.force_authenticate(manager)
+        response = self.client.get(
+            self._step_checklist_url(), {"step": "technical_assessment"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        descriptions = [q["description"] for q in response.data["questions"]]
+        self.assertIn("Needs follow-up?", descriptions)
+        self.assertNotIn("Follow-up details", descriptions)
+
     def test_blind_review_hides_peers_from_offering_manager(self):
         # MED-HIGH-2: under blind_review a peer offering manager can't see the
         # thread; the call manager (oversight) still can.

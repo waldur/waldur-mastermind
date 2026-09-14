@@ -290,23 +290,47 @@ def apply_operator(user_answer: any, required_value: any, operator: str) -> bool
     return False
 
 
+def latest_answers_by_question(answers) -> dict:
+    """Map question id to its latest answer: newest ``modified``, then the higher id.
+
+    Answers are per-user rows, so one question can have several; the latest one
+    stands for the question. Accepts any iterable of answers, including an already
+    prefetched ``completion.answers.all()``, so it adds no queries of its own.
+    """
+    latest = {}
+    for answer in answers:
+        current = latest.get(answer.question_id)
+        if current is None or (answer.modified, answer.id) > (
+            current.modified,
+            current.id,
+        ):
+            latest[answer.question_id] = answer
+    return latest
+
+
 def serialize_completion_answers(completion) -> list[dict]:
     """Render a checklist completion's answers as a list of read-only dicts.
 
-    Each entry is ``{question_uuid, question, question_type, answer}`` ordered by
-    question order. ``answer`` is the human-readable value: for select-type questions
-    the stored option UUIDs are resolved to labels via ``Question.get_answer_display``.
+    Each entry is ``{question_uuid, question, question_type, answer, modified}``,
+    one per answered question and ordered by question order. Answers are per-user
+    rows; the latest one stands for the question. ``answer`` is the human-readable
+    value: for select-type questions the stored option UUIDs are resolved to labels
+    via ``Question.get_answer_display``. ``modified`` is the answer's last save time.
 
     Pass a completion whose ``answers__question__question_options`` are prefetched to
     avoid N+1 queries.
     """
-    answers = sorted(completion.answers.all(), key=lambda answer: answer.question.order)
+    answers = sorted(
+        latest_answers_by_question(completion.answers.all()).values(),
+        key=lambda answer: (answer.question.order, answer.question_id),
+    )
     return [
         {
             "question_uuid": answer.question.uuid.hex,
             "question": answer.question.description,
             "question_type": answer.question.question_type,
             "answer": answer.question.get_answer_display(answer.answer_data),
+            "modified": answer.modified,
         }
         for answer in answers
     ]

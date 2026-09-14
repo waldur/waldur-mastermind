@@ -523,6 +523,7 @@ class ProjectMetadataAnswerSerializer(serializers.Serializer):
             "to their labels."
         ),
     )
+    modified = serializers.DateTimeField(help_text="When this answer was last saved.")
 
 
 def fetch_project_metadata_completions(project_ids):
@@ -554,7 +555,10 @@ class ProjectSerializer(
         help_text="Number of active resources in this project"
     )
     project_metadata = serializers.SerializerMethodField(
-        help_text="Answers to the customer's project-metadata checklist (read-only)."
+        help_text=(
+            "Answers to the customer's project-metadata checklist (read-only): "
+            "the latest answer per question."
+        )
     )
     oecd_fos_2007_label = serializers.CharField(
         read_only=True,
@@ -3833,7 +3837,8 @@ class ProjectAnswerSerializer(serializers.ModelSerializer):
         """Get count of answers."""
         completion = self._get_completion_data(project)
         if completion:
-            return completion.answers.count()
+            # Answered questions, not per-user answer rows
+            return completion.answers.values("question_id").distinct().count()
         return 0
 
     def get_unanswered_required_count(self, project) -> int:
@@ -3846,9 +3851,12 @@ class ProjectAnswerSerializer(serializers.ModelSerializer):
         total_required = checklist.questions.filter(required=True).count()
 
         if completion:
-            answered_required = completion.answers.filter(
-                question__required=True
-            ).count()
+            answered_required = (
+                completion.answers.filter(question__required=True)
+                .values("question_id")
+                .distinct()
+                .count()
+            )
             return max(0, total_required - answered_required)
         else:
             return total_required
@@ -3941,13 +3949,18 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
         project_ct = ContentType.objects.get_for_model(models.Project)
 
         # Get answers for this question across all projects
-        answers = Answer.objects.filter(
-            question=question,
-            completion__scope_content_type=project_ct,
-            completion__scope_object_id__in=[p.id for p in projects],
-        ).select_related("user", "completion")
+        answers = (
+            Answer.objects.filter(
+                question=question,
+                completion__scope_content_type=project_ct,
+                completion__scope_object_id__in=[p.id for p in projects],
+            )
+            .select_related("user", "completion")
+            .order_by("modified", "id")
+        )
 
-        # Create mapping of project_id -> answer
+        # Create mapping of project_id -> answer. Answers are per-user rows; later
+        # rows overwrite earlier ones, so each project keeps its latest answer.
         answers_by_project = {
             answer.completion.scope_object_id: answer for answer in answers
         }

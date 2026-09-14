@@ -1,5 +1,7 @@
 from django.test import TestCase
 
+from waldur_core.checklist.models import ChecklistCompletion
+from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposals_researcher.guide_proposal import (
     GuideProposalTool,
@@ -259,6 +261,28 @@ class ProposalOverviewToolExecuteTest(TestCase):
     def test_unknown_proposal_returns_error(self):
         result = self.tool.execute(self.fixture.staff, {"slug": "no-such-slug"})
         self.assertEqual(result["type"], "error")
+
+    def test_compliance_counts_answered_questions_not_answer_rows(self):
+        # Answers are per-user rows; a question answered by two users is one
+        # answered question.
+        completion = ChecklistCompletion.objects.create(
+            checklist=checklist_factories.ChecklistFactory(), scope=self.proposal
+        )
+        answered = checklist_factories.QuestionFactory(checklist=completion.checklist)
+        checklist_factories.QuestionFactory(checklist=completion.checklist)
+        for user in (self.fixture.staff, self.proposal.created_by):
+            checklist_factories.AnswerFactory(
+                completion=completion, question=answered, user=user
+            )
+
+        result = self.tool.execute(
+            self.fixture.staff, {"uuid": str(self.proposal.uuid)}
+        )
+
+        self.assertEqual(result["type"], "success")
+        compliance = result["data"]["compliance"]
+        self.assertEqual(compliance["total_questions"], 2)
+        self.assertEqual(compliance["answered"], 1)
 
 
 class CallInsightsToolExecuteTest(TestCase):

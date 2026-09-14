@@ -37,15 +37,26 @@ class Checklist(
         help_text=_("Type of compliance this checklist addresses"),
     )
 
-    def get_visible_questions(self, completion) -> list["Question"]:
-        """Get list of questions that should be visible given current answers in completion context"""
-        visible_questions = []
+    def get_questions(self):
+        """Questions in display order, with what visibility and serializers read prefetched."""
+        return self.questions.order_by("order").prefetch_related(
+            "question_options", "dependencies__depends_on_question"
+        )
 
-        for question in self.questions.all().order_by("order"):
-            if question.is_visible_for_completion(completion):
-                visible_questions.append(question)
+    def get_visible_questions(self, completion, answers=None) -> list["Question"]:
+        """Get list of questions that should be visible given current answers in completion context.
 
-        return visible_questions
+        ``answers`` maps question id to the answer that stands for it. It defaults to
+        the latest answer per question; multi-writer callers pass one user's answers.
+        """
+        if answers is None:
+            answers = completion.get_latest_answers() if completion.pk else {}
+
+        return [
+            question
+            for question in self.get_questions()
+            if question.is_visible_for_completion(completion, answers)
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.get_checklist_type_display()})"
@@ -238,17 +249,16 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
     class Meta:
         ordering = ["checklist", "order", "id"]
 
-    def is_dependant(self):
-        return self.dependencies.exists()
-
-    def is_visible_for_completion(self, completion):
+    def is_visible_for_completion(self, completion, answers=None):
         """Check if question is visible in the given completion context"""
-        if not self.is_dependant():
+        # all() rather than exists(): it is served from a prefetch.
+        dependencies = self.dependencies.all()
+        if not dependencies:
             return True
 
         dependencies_results = [
-            dependency.question_is_visible(completion)
-            for dependency in self.dependencies.all()
+            dependency.question_is_visible(completion, answers)
+            for dependency in dependencies
         ]
 
         if self.dependency_logic_operator == enums.DependencyLogicOperators.OR:
@@ -633,14 +643,18 @@ class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
 
         return False
 
-    def question_is_visible(self, completion):
-        """Check if dependency condition is satisfied in the completion context"""
+    def question_is_visible(self, completion, answers=None):
+        """Check if dependency condition is satisfied in the completion context.
+
+        ``answers`` maps question id to the answer that stands for it; it defaults
+        to the completion's latest answer per question.
+        """
         if not completion.pk:
             return False
 
-        answer_to_base_question = completion.answers.filter(
-            question=self.depends_on_question
-        ).first()
+        if answers is None:
+            answers = completion.get_latest_answers()
+        answer_to_base_question = answers.get(self.depends_on_question_id)
 
         if not answer_to_base_question:
             return False
@@ -707,17 +721,33 @@ class ChecklistCompletion(
     def __str__(self):
         return f"{self.scope} - {self.checklist.name}"
 
+    def get_latest_answers(self, user=None) -> dict[int, "Answer"]:
+        """Map question id to the answer that stands for it: its latest row.
+
+        Answers are per-user rows, so a question answered by several users has
+        several. Pass ``user`` to consider only that user's own answers.
+        """
+        answers = self.answers.select_related("question", "user")
+        if user is not None:
+            answers = answers.filter(user=user)
+        return utils.latest_answers_by_question(answers)
+
     def update_completion_status(self):
-        """Update completion and review status based on answers."""
+        """Update completion and review status from the latest answer per question."""
+        latest_answers = self.get_latest_answers().values()
+
         # Check if all required questions are answered
-        required_questions = self.checklist.questions.filter(required=True)
-        answered_question_ids = self.answers.values_list("question_id", flat=True)
+        answered_question_ids = {answer.question_id for answer in latest_answers}
+        required_question_ids = self.checklist.questions.filter(
+            required=True
+        ).values_list("id", flat=True)
         self.is_completed = all(
-            q.id in answered_question_ids for q in required_questions
+            question_id in answered_question_ids
+            for question_id in required_question_ids
         )
 
-        # Check if any answers require review
-        self.requires_review = self.answers.filter(requires_review=True).exists()
+        # A superseded answer no longer triggers review
+        self.requires_review = any(answer.requires_review for answer in latest_answers)
 
         self.save()
 
@@ -727,15 +757,22 @@ class ChecklistCompletion(
         if total_questions == 0:
             return 100
 
-        answered_questions = self.answers.count()
+        # Answered questions, not per-user answer rows
+        answered_questions = self.answers.values("question_id").distinct().count()
         return round((answered_questions / total_questions) * 100, 1)
 
-    def get_review_trigger_summary(self):
-        """Get summary of answers that triggered review."""
-        review_answers = self.answers.filter(requires_review=True).select_related(
-            "question"
+    def _latest_review_answers(self):
+        return sorted(
+            (
+                answer
+                for answer in self.get_latest_answers().values()
+                if answer.requires_review
+            ),
+            key=lambda answer: (answer.question.order, answer.question_id),
         )
 
+    def get_review_trigger_summary(self):
+        """Get summary of the latest answers that triggered review."""
         return [
             {
                 "question": answer.question.description,
@@ -743,7 +780,7 @@ class ChecklistCompletion(
                 "trigger_value": answer.question.review_answer_value,
                 "operator": answer.question.operator,
             }
-            for answer in review_answers
+            for answer in self._latest_review_answers()
         ]
 
     def get_unanswered_required_questions(self):
@@ -755,10 +792,8 @@ class ChecklistCompletion(
         )
 
     def get_questions_requiring_review(self):
-        """Get list of questions whose answers triggered review requirements."""
-        return self.answers.filter(requires_review=True).values_list(
-            "question", flat=True
-        )
+        """Get ids of questions whose latest answer triggered review requirements."""
+        return [answer.question_id for answer in self._latest_review_answers()]
 
 
 class Answer(core_models.UuidMixin, TimeStampedModel):
@@ -816,8 +851,12 @@ class Answer(core_models.UuidMixin, TimeStampedModel):
         if self.question.question_type in ["file", "multiple_files"]:
             self.answer_data = self.question.process_file_answer(self.answer_data)
 
-        if not self.pk:
-            self.requires_review = self.question.should_trigger_review(self.answer_data)
+        # Re-evaluated on every save: an edited answer may start or stop triggering review.
+        self.requires_review = self.question.should_trigger_review(self.answer_data)
+        # update_or_create() saves only its ``defaults`` fields; persist the flag with them.
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "answer_data" in update_fields:
+            kwargs["update_fields"] = {*update_fields, "requires_review"}
 
         super().save(*args, **kwargs)
 

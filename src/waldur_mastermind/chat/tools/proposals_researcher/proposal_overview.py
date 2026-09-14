@@ -154,7 +154,13 @@ class ProposalOverviewTool(BaseTool):
             ).first()
             if completion:
                 total_questions = completion.checklist.questions.count()
-                answered = Answer.objects.filter(completion=completion).count()
+                # Answered questions, not per-user answer rows
+                answered = (
+                    Answer.objects.filter(completion=completion)
+                    .values("question_id")
+                    .distinct()
+                    .count()
+                )
                 compliance_status = {
                     "total_questions": total_questions,
                     "answered": answered,
