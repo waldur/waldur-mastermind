@@ -1790,7 +1790,7 @@ CONSTANCE_CONFIG = {
     ),
     "MATRIX_LIVEKIT_KEY": (
         "",
-        "LiveKit API key for the Element Call SFU (Calls observability tab).",
+        "LiveKit API key for the call SFU (Calls observability tab).",
     ),
     "MATRIX_LIVEKIT_SECRET": (
         "",

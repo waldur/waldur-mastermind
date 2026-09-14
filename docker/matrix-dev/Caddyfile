@@ -1,8 +1,7 @@
 {
     admin off
-    # Bind both IPv4 and IPv6 — Go's federation dialer (used by
-    # lk-jwt-service inside the shared network namespace) prefers
-    # IPv6 [::1] and otherwise gets ECONNREFUSED.
+    # Bind both IPv4 and IPv6 so lk-jwt-service, inside the shared network
+    # namespace, reaches the proxy on whichever loopback address it dials.
     default_bind 0.0.0.0 ::
 }
 
