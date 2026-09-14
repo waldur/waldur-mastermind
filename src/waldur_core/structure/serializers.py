@@ -1103,6 +1103,22 @@ class CustomerListSerializer(serializers.ListSerializer):
         if not customer_ids:
             return super().to_representation(data)
 
+        # Rows reached only through a service provider role are narrowed to
+        # identity fields, so skip the aggregations for them entirely.
+        service_provider_manager_only_ids = (
+            managers.get_service_provider_manager_only_customer_ids(
+                request.user, customer_ids
+            )
+            if request
+            else set()
+        )
+        self.context["service_provider_manager_only_ids"] = (
+            service_provider_manager_only_ids
+        )
+        customer_ids = [
+            cid for cid in customer_ids if cid not in service_provider_manager_only_ids
+        ]
+
         # 2. Build the bulk context dictionary
         bulk_context = {
             "visibility": self._get_visibility_context(request, customer_ids),
@@ -1334,6 +1350,12 @@ class CustomerSerializer(
     users_count = serializers.SerializerMethodField(
         help_text="Number of users with access to this organization"
     )
+    is_service_provider_manager_only = serializers.SerializerMethodField(
+        help_text=(
+            "True when the requesting user's only link to this organization is a "
+            "role on its service provider. Such a row carries only identity fields."
+        )
+    )
     project_metadata_checklist = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=Checklist.objects.filter(
@@ -1386,6 +1408,7 @@ class CustomerSerializer(
             "user_affiliations",
             "user_identity_sources",
             "default_affiliations",
+            "is_service_provider_manager_only",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             "access_subnets",
@@ -1408,6 +1431,55 @@ class CustomerSerializer(
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
         }
+
+    # What a service provider manager without any role on the organization
+    # itself may read: the identity marketplace-service-providers already
+    # publishes, plus the provider link the portal needs to open its workspace.
+    SERVICE_PROVIDER_MANAGER_FIELDS = frozenset(
+        (
+            "url",
+            "uuid",
+            "name",
+            "native_name",
+            "display_name",
+            "abbreviation",
+            "slug",
+            "image",
+            "country",
+            "country_name",
+            "is_service_provider",
+            "service_provider",
+            "service_provider_uuid",
+            "is_service_provider_manager_only",
+        )
+    )
+
+    # Filters and ordering on CustomerViewSet (query over registration code and
+    # agreement number, ordering by contact_details) still act on these rows,
+    # so a manager could infer hidden values of their own provider's
+    # organization by probing. Accepted: it is their own organization, and the
+    # narrowing is about not presenting internal details, not secrecy.
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.id in self._get_service_provider_manager_only_ids(instance):
+            return {
+                key: value
+                for key, value in data.items()
+                if key in self.SERVICE_PROVIDER_MANAGER_FIELDS
+            }
+        return data
+
+    def _get_service_provider_manager_only_ids(self, instance) -> set:
+        # A list computes these once per page in CustomerListSerializer.
+        ids = self.context.get("service_provider_manager_only_ids")
+        if ids is not None:
+            return ids
+        request = self.context.get("request")
+        if not request:
+            return set()
+        return managers.get_service_provider_manager_only_customer_ids(
+            request.user, [instance.id]
+        )
 
     def get_fields(self):
         fields = super().get_fields()
@@ -1529,6 +1601,11 @@ class CustomerSerializer(
 
     def get_display_name(self, customer) -> str:
         return customer.get_display_name()
+
+    def get_is_service_provider_manager_only(self, customer) -> bool:
+        # The portal reads this instead of re-deriving it from user permissions,
+        # which cannot see every rule that makes an organization visible.
+        return customer.id in self._get_service_provider_manager_only_ids(customer)
 
     def get_projects_count(self, customer) -> int:
         # Use annotated value if available (from ViewSet.get_queryset)

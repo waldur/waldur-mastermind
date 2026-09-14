@@ -364,6 +364,17 @@ def get_user_resource_descended_customer_ids(user):
     )
 
 
+def get_user_managed_service_provider_customer_ids(user):
+    """Lazy QuerySet of Customer IDs whose ServiceProvider the user holds any
+    active role on. The role sits on the provider, not on its customer, so
+    ``get_connected_customers`` never sees it; it lets the user find the
+    organization in the portal, nothing more. Uses the same notion of a
+    provider-side role as ``OfferingQuerySet.filter_for_user``."""
+    return models.ServiceProvider.objects.filter(
+        id__in=get_connected_serviceproviders(user)
+    ).values_list("customer_id", flat=True)
+
+
 class ResourceManager(MixinManager):
     def get_queryset(self):
         return ResourceQuerySet(self.model, using=self._db)
