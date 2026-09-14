@@ -213,6 +213,57 @@ class RuleTestMatchEndpointTest(test.APITestCase):
             response.data["resolved_project_name"], f"{target.username}_workspace"
         )
 
+    def test_project_action_reports_a_project_to_create(self, _):
+        # The account predates the rule, so nothing was provisioned for it yet.
+        target = _user(email="hit@example.com")
+        rule = autoprovisioning_factories.RuleFactory(
+            plan=None, user_email_patterns=[r".+@example\.com"]
+        )
+        self.client.force_authenticate(self.staff)
+        response = self._post(rule, target.uuid)
+        self.assertTrue(response.data["would_provision"])
+        self.assertEqual(response.data["project_action"], "create")
+
+    def test_project_action_reports_an_existing_project(self, _):
+        rule = autoprovisioning_factories.RuleFactory(
+            plan=None, user_email_patterns=[r".+@example\.com"]
+        )
+        # Provisioned on account creation.
+        target = _user(email="hit@example.com")
+        self.client.force_authenticate(self.staff)
+        response = self._post(rule, target.uuid)
+        self.assertTrue(response.data["would_provision"])
+        self.assertEqual(response.data["project_action"], "existing")
+
+    def test_deleted_project_blocks_a_rule_that_only_grants_a_project_role(self, _):
+        rule = autoprovisioning_factories.RuleFactory(
+            plan=None, user_email_patterns=[r".+@example\.com"]
+        )
+        target = _user(email="hit@example.com")
+        structure_models.Project.available_objects.get(
+            customer=rule.customer, name=target.username
+        ).delete()
+        self.client.force_authenticate(self.staff)
+        response = self._post(rule, target.uuid)
+        self.assertFalse(response.data["would_provision"])
+        self.assertEqual(response.data["project_action"], "not_recreated")
+        self.assertIn("not recreated", response.data["block_reason"])
+
+    def test_project_action_is_null_for_an_organization_only_rule(self, _):
+        from waldur_core.permissions.fixtures import CustomerRole
+
+        rule = autoprovisioning_factories.RuleFactory(
+            plan=None,
+            create_project=False,
+            customer_role=CustomerRole.OWNER,
+            user_email_patterns=[r".+@example\.com"],
+        )
+        target = _user(email="hit@example.com")
+        self.client.force_authenticate(self.staff)
+        response = self._post(rule, target.uuid)
+        self.assertTrue(response.data["would_provision"])
+        self.assertIsNone(response.data["project_action"])
+
 
 @patch("waldur_autoprovisioning.handlers.process_order_on_commit")
 class UnconfiguredClaimsTest(test.APITestCase):

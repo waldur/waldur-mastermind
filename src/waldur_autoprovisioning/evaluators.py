@@ -2,8 +2,17 @@ from dataclasses import asdict
 from typing import Any
 
 from waldur_autoprovisioning.models import Rule
-from waldur_autoprovisioning.reconciliation import resolve_customer
+from waldur_autoprovisioning.reconciliation import (
+    has_provisioned_project,
+    resolve_customer,
+)
 from waldur_core.core.models import _CLAIM_FALLBACK_USER_FIELDS, User
+from waldur_core.structure.models import Customer, Project
+
+PROJECT_CREATE = "create"
+PROJECT_EXISTING = "existing"
+PROJECT_NOT_RECREATED = "not_recreated"
+PROJECT_ACTIONS = (PROJECT_CREATE, PROJECT_EXISTING, PROJECT_NOT_RECREATED)
 
 
 def compute_test_match(rule: Rule, user: User) -> dict[str, Any]:
@@ -30,6 +39,18 @@ def compute_test_match(rule: Rule, user: User) -> dict[str, Any]:
             would_provision = False
             block_reason = resolution.block_reason
 
+    project_action = None
+    if would_provision and rule.create_project:
+        project_action = _get_project_action(rule, user, resolution.customer)
+        if project_action == PROJECT_NOT_RECREATED and not rule.customer_role_id:
+            # The project role is the only thing this rule grants, and there is
+            # no project left to grant it on.
+            would_provision = False
+            block_reason = (
+                "This rule already provisioned a project for the user, and that "
+                "project has since been deleted. It is not recreated."
+            )
+
     return {
         "would_provision": would_provision,
         "block_reason": block_reason,
@@ -54,7 +75,24 @@ def compute_test_match(rule: Rule, user: User) -> dict[str, Any]:
             if would_provision and rule.create_project
             else None
         ),
+        "project_action": project_action,
     }
+
+
+def _get_project_action(rule: Rule, user: User, customer: Customer) -> str:
+    """What provisioning will do with the rule's project for this user.
+
+    Mirrors ``handlers.provision_for_user``: an existing project is reused, and
+    a missing one is created, unless this rule has provisioned it before. In
+    that case the project was deleted, and it stays deleted.
+    """
+    if Project.available_objects.filter(
+        customer=customer, name=rule.resolve_project_name(user)
+    ).exists():
+        return PROJECT_EXISTING
+    if has_provisioned_project(rule, user, customer):
+        return PROJECT_NOT_RECREATED
+    return PROJECT_CREATE
 
 
 def _get_unconfigured_claims(rule: Rule) -> list[str]:

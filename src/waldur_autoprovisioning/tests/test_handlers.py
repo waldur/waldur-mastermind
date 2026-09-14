@@ -5,11 +5,13 @@ from django.test import TestCase
 
 from waldur_autoprovisioning import handlers, models
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
+from waldur_core.core import signals as core_signals
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BASIC_OFFERING as MARKETPLACE_BASIC
 from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
@@ -347,3 +349,121 @@ class GetOrCreateProjectPolicyTest(TestCase):
         )
         self.assertFalse(project.has_user(user, ProjectRole.ADMIN))
         self.assertFalse(UserRole.objects.filter(user=user, is_active=True).exists())
+
+
+@patch("waldur_autoprovisioning.handlers.process_order_on_commit")
+class ExistingUserProvisioningTest(TestCase):
+    """A rule created after an account exists provisions it on the next sync.
+
+    Projects used to be created only when an account was created, and
+    reconciliation only grants roles on projects that already exist. A user
+    who predated a project rule therefore got nothing at login, while the
+    dry-run said the rule would provision.
+    """
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        # Created before any rule exists, so account creation provisions nothing.
+        self.user = User.objects.create(
+            username="existing",
+            email="existing@example.org",
+            details={"schac_home_organization": "example.org"},
+        )
+
+    def _rule(self, **kwargs):
+        kwargs.setdefault("customer", self.customer)
+        kwargs.setdefault("plan", None)
+        kwargs.setdefault("project_role", ProjectRole.MANAGER)
+        kwargs.setdefault("user_claims", {"schac_home_organization": ["example.org"]})
+        return autoprovisioning_factories.RuleFactory(**kwargs)
+
+    def _sync(self):
+        core_signals.user_identity_synced.send(
+            sender=User, user=self.user, source="keycloak", created=False
+        )
+
+    def _projects(self):
+        return structure_models.Project.available_objects.filter(
+            customer=self.customer, name=self.user.username
+        )
+
+    def test_project_is_created_on_next_sync(self, _):
+        rule = self._rule()
+        self.assertFalse(self._projects().exists())
+
+        self._sync()
+
+        project = self._projects().get()
+        self.assertTrue(project.has_user(self.user, ProjectRole.MANAGER))
+        grant = UserRole.objects.get(user=self.user, is_active=True)
+        self.assertEqual(grant.source, rule.grant_source)
+
+    def test_repeated_sync_orders_the_resource_once(self, mock_process_order):
+        plan = marketplace_factories.PlanFactory()
+        plan.offering.type = MARKETPLACE_BASIC
+        plan.offering.save()
+        self._rule(plan=plan)
+
+        self._sync()
+        self._sync()
+
+        self.assertEqual(
+            marketplace_models.Order.objects.filter(created_by=self.user).count(), 1
+        )
+        self.assertEqual(mock_process_order.call_count, 1)
+
+    def test_deleted_project_is_not_recreated(self, _):
+        self._rule()
+        self._sync()
+        self._projects().get().delete()
+        self.assertFalse(UserRole.objects.filter(user=self.user, is_active=True))
+
+        self._sync()
+
+        self.assertFalse(self._projects().exists())
+        self.assertFalse(UserRole.objects.filter(user=self.user, is_active=True))
+
+    def test_project_from_before_provenance_is_not_recreated(self, _):
+        """Grants made before ``UserRole.source`` existed are empty. Such a user
+        must not get back a project they deleted."""
+        project = structure_models.Project.available_objects.create(
+            customer=self.customer, name=self.user.username
+        )
+        project.add_user(self.user, ProjectRole.MANAGER)
+        project.delete()
+
+        self._rule()
+        self._sync()
+
+        self.assertFalse(self._projects().exists())
+
+    def test_unrelated_soft_deleted_project_does_not_block_creation(self, _):
+        """A soft-deleted project with the same name that the user never
+        belonged to is not theirs, so it does not count as provisioned."""
+        structure_models.Project.available_objects.create(
+            customer=self.customer, name=self.user.username
+        ).delete()
+
+        self._rule()
+        self._sync()
+
+        project = self._projects().get()
+        self.assertTrue(project.has_user(self.user, ProjectRole.MANAGER))
+
+    def test_sync_revokes_once_no_rule_matches(self, _):
+        """Reconciliation must still run when nothing matches: that is when a
+        rule that stopped matching revokes its grant."""
+        self._rule(
+            create_project=False,
+            project_role=None,
+            customer_role=CustomerRole.OWNER,
+            revoke_when_unmatched=True,
+        )
+        self._sync()
+        self.assertTrue(self.customer.has_user(self.user, CustomerRole.OWNER))
+
+        self.user.details = {}
+        self.user.save()
+        self._sync()
+
+        self.assertFalse(self.customer.has_user(self.user, CustomerRole.OWNER))

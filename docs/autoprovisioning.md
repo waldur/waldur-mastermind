@@ -12,7 +12,7 @@ A rule matches users on their profile attributes and identity provider claims. F
 4. Optionally provisions a marketplace resource and processes the order asynchronously
 5. Withdraws roles it previously granted once the user stops matching, when the rule opts into revocation
 
-Provisioning (steps 1–4) happens once, when the account first appears. Role reconciliation (steps 3 and 5) re-runs every time identity data is refreshed, which is what keeps a grant in step with a claim that comes and goes.
+Provisioning (steps 1–4) happens once per rule and account. For a new account that is at sign-up; for an account that already existed when the rule was created, it is at the account's next login or SCIM pull. A project the rule provisioned and someone later deleted is not recreated. Role reconciliation (steps 3 and 5) runs every time identity data is refreshed, which keeps a grant in step with a claim that comes and goes.
 
 ## Core Components
 
@@ -29,7 +29,7 @@ The `Rule` model (`src/waldur_autoprovisioning/models.py:11`) defines auto-provi
 - **create_project**: Whether to create/join a project at all (default `true`)
 - **revoke_when_unmatched**: Withdraw this rule's grants once a user stops matching (default `false`)
 - **use_user_organization_as_customer_name**: Map user's organization claim to existing customer
-- **project_name_template**: Template for project naming (e.g., `"{username}_workspace"`)
+- **project_name_template**: Template for project naming (e.g., `"{username}_workspace"`). Available placeholders are `{username}`, `{email}` and `{full_name}`. Empty means the project is named after the username, which for OIDC accounts is often an opaque id
 
 ### User Matching
 
@@ -161,6 +161,7 @@ server log.
     "user_claims": {"roles": ["acme-owner"]},
     "customer": "customer-uuid",
     "create_project": true,
+    "project_name_template": "{username}_workspace",
     "revoke_when_unmatched": false,
     "customer_role": "role-uuid",
     "customer_role_display_name": "Owner",
@@ -190,6 +191,15 @@ identity provider lists in its `extra_fields`. That distinguishes "the provider
 sent a different value" from "the provider never sends this claim", which look
 identical in the raw filter breakdown.
 
+For a rule that creates projects, `resolved_project_name` is the name the
+project gets, and `project_action` says what provisioning does with it:
+
+- `create`: no such project exists, and one is created at the user's next login
+- `existing`: the project exists, and the user is added to it
+- `not_recreated`: this rule provisioned the project before and it has since
+  been deleted, so it is not created again. If a project role is all the rule
+  grants, `would_provision` is `false` and `block_reason` says why.
+
 ### Validation Rules
 
 The serializer enforces these validation constraints:
@@ -201,6 +211,7 @@ The serializer enforces these validation constraints:
 - Roles must be valid for their scope (project role on projects, organization role on organizations)
 - Email patterns must be valid regex expressions
 - A claim must have a non-empty name and at least one accepted value; a bare `*` is rejected
+- `project_name_template` may use only `{username}`, `{email}` and `{full_name}`. Positional (`{0}`, `{}`) and attribute (`{username.upper}`) fields are rejected
 
 ## Processing Flow
 
@@ -208,7 +219,7 @@ The serializer enforces these validation constraints:
 
 Two triggers, deliberately separate.
 
-**Provisioning** (projects and orders) runs once, when the account first appears:
+**Account creation** runs the full pass (projects, orders, then roles):
 
 ```python
 signals.post_save.connect(
@@ -219,10 +230,10 @@ signals.post_save.connect(
 ```
 
 The handler returns early unless `created`, so an ordinary profile edit never
-materialises projects.
+creates projects.
 
-**Role reconciliation** runs whenever identity data is refreshed — after an OIDC
-login and after a SCIM pull — via `waldur_core.core.signals.user_identity_synced`:
+**Identity refresh** (after an OIDC login and after a SCIM pull) runs through
+`waldur_core.core.signals.user_identity_synced`:
 
 ```python
 core_signals.user_identity_synced.connect(
@@ -231,12 +242,28 @@ core_signals.user_identity_synced.connect(
 )
 ```
 
-That is the moment a claim may have been added or withdrawn, which `post_save`
-cannot distinguish.
+That is when a claim may have been added or withdrawn, which `post_save`
+cannot tell. For an existing account, the handler provisions the project of
+each matching rule that hasn't provisioned one for this user yet, then runs
+role reconciliation, even when no rule matches.
+
+Without the project step, a rule created after an account existed could never
+give that account a project. Reconciliation only grants roles on projects that
+already exist.
+
+"Already provisioned" (`has_provisioned_project`) means the user holds, or
+once held, a project role carrying the rule's source, or any role on a project
+with the resolved name in the rule's organization. Revoked roles count, and
+so do soft-deleted projects: deleting a project revokes its roles but keeps
+the rows. So a repeat login orders no second resource, and a deleted project
+stays deleted. That includes projects granted before `UserRole.source`
+existed.
 
 ### Auto-Provisioning Workflow
 
-1. **User Creation**: New user triggers `handle_new_user` handler
+1. **Trigger**: a new account (`handle_new_user`), or an identity refresh of an
+   existing one (`handle_identity_synced`). The latter skips rules that already
+   provisioned their project for the user.
 2. **Rule Matching**: System finds applicable rules using `Rule.get_objects_by_user_patterns()`
 3. **Customer Resolution**: `resolve_customer()` — either the configured customer or the one
    resolved from the organization claim
@@ -296,6 +323,10 @@ waldur reconcile_autoprovisioned_roles --all --rate 20
 
 `--username` and `--all` are mutually exclusive and one of them is required.
 `--dry-run` reports what would change and writes nothing.
+
+The command reconciles roles only: it does not create projects or orders. An
+existing account that matches a new project rule gets its project at its next
+login or SCIM pull.
 
 ## Configuration Examples
 
@@ -451,7 +482,7 @@ Auto-provisioning integrates with Waldur's marketplace:
 
 ### User Management Integration
 
-- Hooks into user creation process
+- Hooks into user creation and into identity refresh (OIDC login, SCIM pull)
 - Respects user protection settings
 - Leverages organization claims from identity providers
 - Integrates with role-based access control

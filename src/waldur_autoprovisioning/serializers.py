@@ -1,13 +1,19 @@
+from string import Formatter
+
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_autoprovisioning import models
+from waldur_autoprovisioning.evaluators import PROJECT_ACTIONS
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions.models import Role
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.fields import PublicPlanField
+
+# The variables ProjectNameTemplateMixin.resolve_project_name substitutes.
+PROJECT_NAME_PLACEHOLDERS = {"username", "email", "full_name"}
 
 
 class RuleSerializer(
@@ -143,6 +149,7 @@ class RuleSerializer(
             "customer_uuid",
             "use_user_organization_as_customer_name",
             "create_project",
+            "project_name_template",
             "revoke_when_unmatched",
             "project_role",
             "project_role_name",  # used for accepting role name to set
@@ -224,6 +231,28 @@ class RuleSerializer(
             )
 
         return role
+
+    def validate_project_name_template(self, value):
+        # resolve_project_name falls back to the username when a template does
+        # not format. Reject a bad template here, where the administrator
+        # typing it will see the error, instead of at login. The field names
+        # are checked, not just whether formatting succeeds: "{username.upper}"
+        # formats without error and names the project after a method repr.
+        if not value:
+            return value
+        error = serializers.ValidationError(
+            "Invalid project name template. Available placeholders: "
+            "{username}, {email}, {full_name}."
+        )
+        try:
+            fields = [
+                name for _, name, _, _ in Formatter().parse(value) if name is not None
+            ]
+        except ValueError:
+            raise error
+        if any(name not in PROJECT_NAME_PLACEHOLDERS for name in fields):
+            raise error
+        return value
 
     def validate_user_claims(self, value):
         for claim, accepted in (value or {}).items():
@@ -350,3 +379,11 @@ class RuleTestMatchResponseSerializer(serializers.Serializer):
     customer_candidates = CustomerCandidateSerializer(many=True)
     customer_lookup_ambiguous = serializers.BooleanField()
     resolved_project_name = serializers.CharField(allow_blank=True, allow_null=True)
+    project_action = serializers.ChoiceField(
+        choices=PROJECT_ACTIONS,
+        allow_null=True,
+        help_text="What provisioning does with the rule's project for this user: "
+        "'create' a new one, reuse an 'existing' one, or leave it deleted "
+        "('not_recreated') because this rule provisioned it before. Null when "
+        "the rule creates no project or would not provision.",
+    )
