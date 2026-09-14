@@ -18506,6 +18506,14 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
                 _("Requested limits are identical to the current resource limits.")
             )
 
+        # Re-checked here rather than trusted from creation time: the offering
+        # may have stopped accepting these while the request waited. Reject and
+        # cancel stay open so such requests can still be closed out.
+        if not utils.offering_allows_limit_change_requests(resource.offering):
+            raise ValidationError(
+                _("This offering no longer accepts limit change requests.")
+            )
+
         utils.validate_limits(requested_limits, resource.offering, resource)
 
         with transaction.atomic():

@@ -42,6 +42,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace_remote import models
 from waldur_mastermind.marketplace_remote.constants import (
+    LOCAL_PLUGIN_OPTIONS,
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
     PLAN_FIELDS,
@@ -121,6 +122,24 @@ def pull_fields(fields: Iterable[str], local_object, remote_dict):
     if changed_fields:
         local_object.save(update_fields=changed_fields)
     return changed_fields
+
+
+def keep_local_plugin_options(local_offering, remote_dict: dict) -> dict:
+    """Return ``remote_dict`` with the local value of consumer-side plugin options.
+
+    ``plugin_options`` is pulled as a whole, which would otherwise overwrite
+    switches this Waldur sets for its own users on every pull.
+    """
+    remote_options = remote_dict.get("plugin_options")
+    if not isinstance(remote_options, dict):
+        return remote_dict
+    local_options = local_offering.plugin_options or {}
+    kept = {
+        key: local_options[key] for key in LOCAL_PLUGIN_OPTIONS if key in local_options
+    }
+    if not kept:
+        return remote_dict
+    return {**remote_dict, "plugin_options": {**remote_options, **kept}}
 
 
 def _remote_offering_user_runtime_metadata(

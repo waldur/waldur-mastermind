@@ -359,6 +359,13 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         "decide instead. Not applicable to prepaid offerings, which extend "
         "through renewal instead.",
     )
+    enable_resource_limit_change_requests = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, users who cannot change resource limits "
+        "directly (RESOURCE.SET_LIMITS together with ORDER.CREATE) can request "
+        "a limit change, and holders of RESOURCE.SET_LIMITS approve or reject. "
+        "Approval submits an update order for the requested limits.",
+    )
     enable_resource_projects = serializers.BooleanField(
         required=False,
         help_text="Enable sub-project management within resources.",
@@ -8016,6 +8023,20 @@ class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
                     "instead of creating a request."
                 )
             )
+        # Checked first, so nothing below reveals anything about a resource the
+        # user cannot see.
+        accessible = filter_queryset_for_user(
+            models.Resource.objects.filter(pk=resource.pk),
+            user,
+        )
+        if not accessible.exists():
+            raise serializers.ValidationError(
+                _("You don't have access to this resource.")
+            )
+        if not utils.offering_allows_limit_change_requests(resource.offering):
+            raise serializers.ValidationError(
+                _("This offering does not accept limit change requests.")
+            )
         # Changing limits directly also submits an order, so a user is only
         # redirected to that route when they can do both. Holding the limits
         # permission alone leaves the request flow as their way forward,
@@ -8099,6 +8120,16 @@ class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
                     "instead of creating a request."
                 )
             )
+        # Checked first, so nothing below reveals anything about a resource the
+        # user cannot see.
+        accessible = filter_queryset_for_user(
+            models.Resource.objects.filter(pk=resource.pk),
+            user,
+        )
+        if not accessible.exists():
+            raise serializers.ValidationError(
+                _("You don't have access to this resource.")
+            )
         if not utils.offering_allows_end_date_change_requests(resource.offering):
             raise serializers.ValidationError(
                 _("This offering does not accept end date change requests.")
@@ -8115,14 +8146,6 @@ class ResourceEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
                     "You have permission to change the resource end date directly. "
                     "Use set end date instead of creating a request."
                 )
-            )
-        accessible = filter_queryset_for_user(
-            models.Resource.objects.filter(pk=resource.pk),
-            user,
-        )
-        if not accessible.exists():
-            raise serializers.ValidationError(
-                _("You don't have access to this resource.")
             )
         return resource
 

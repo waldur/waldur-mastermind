@@ -4484,7 +4484,35 @@ def offering_allows_end_date_change_requests(offering: models.Offering) -> bool:
     """
     if offering.components.filter(is_prepaid=True).exists():
         return False
-    return bool(offering.plugin_options.get("enable_resource_end_date_change_requests"))
+    return bool(
+        _displayed_plugin_options(offering).get(
+            "enable_resource_end_date_change_requests"
+        )
+    )
+
+
+def _displayed_plugin_options(offering: models.Offering) -> dict:
+    """The plugin options the API shows for this offering.
+
+    A child offering is rendered with its parent's plugin options (see
+    ``ProviderOfferingDetailsSerializer.get_fields``), so a consumer-facing
+    switch read from the child's own options would disagree with what the UI
+    shows and would not be editable where the UI edits it.
+    """
+    source = offering.parent if offering.parent_id else offering
+    return source.plugin_options or {}
+
+
+def offering_allows_limit_change_requests(offering: models.Offering) -> bool:
+    """Whether this offering accepts resource limit change requests.
+
+    Off unless the offering opts in. When enabled, users who may not change the
+    limits themselves can ask for new ones, and holders of the limits
+    permission decide; approval submits an update order.
+    """
+    return bool(
+        _displayed_plugin_options(offering).get("enable_resource_limit_change_requests")
+    )
 
 
 def validate_end_date_for_resource(resource: models.Resource, end_date):
