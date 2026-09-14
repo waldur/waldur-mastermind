@@ -11172,6 +11172,30 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_owner]
 
 
+def refuse_deletion_ack_on_live_account(offering_user):
+    """A deletion acknowledgement for an account that has since come back is a 409.
+
+    The member may regain access while the provider is still tearing the
+    account down: the row is restored to a live state, and the provider's
+    ``set_deleting`` / ``set_deleted`` then arrives for a deletion that no
+    longer stands. Accepting it would end a live account deleted; a 400 would
+    read as a malformed request. A conflict tells the provider to re-read the
+    account and re-enable rather than remove it.
+
+    Only OK counts -- the state a restored account lands in. An acknowledgement
+    against a creation-phase state (including a provider-named account that a
+    restore asked for again) is refused as an ordinary invalid transition (400).
+    """
+    if offering_user.state == OfferingUserStates.OK:
+        raise IncorrectStateException(
+            _(
+                "The account was restored after its deletion was requested and is "
+                "live again; the deletion no longer stands. Re-read the account "
+                "and keep it enabled."
+            )
+        )
+
+
 def validate_offering_user_state_transition(valid_states, target_state_name):
     """Create a validator for offering user state transitions that returns HTTP 400."""
 
@@ -11857,10 +11881,11 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_error_deleting_validators = [
+        refuse_deletion_ack_on_live_account,
         validate_offering_user_state_transition(
             [OfferingUserStates.DELETION_REQUESTED, OfferingUserStates.DELETING],
             "ERROR_DELETING",
-        )
+        ),
     ]
 
     @extend_schema(
@@ -11894,9 +11919,10 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_deleted_validators = [
+        refuse_deletion_ack_on_live_account,
         validate_offering_user_state_transition(
             [OfferingUserStates.DELETING], "DELETED"
-        )
+        ),
     ]
 
     set_deleted_permissions = [
@@ -11973,13 +11999,14 @@ class OfferingUsersViewSet(
         return Response(status=status.HTTP_200_OK)
 
     set_deleting_validators = [
+        refuse_deletion_ack_on_live_account,
         validate_offering_user_state_transition(
             [
                 OfferingUserStates.DELETION_REQUESTED,
                 OfferingUserStates.ERROR_DELETING,
             ],
             "DELETING",
-        )
+        ),
     ]
 
     set_deleting_permissions = [

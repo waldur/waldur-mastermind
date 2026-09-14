@@ -22,6 +22,8 @@ OfferingUser has the following lifecycle states:
 | `ERROR_CREATING` | An error occurred during account creation |
 | `ERROR_DELETING` | An error occurred during account deletion |
 
+The deletion-flow states (`DELETION_REQUESTED`, `DELETING`, `ERROR_DELETING`, `DELETED`) are not terminal for the person: a member who regains project access while their account is in any of them gets it back through the `restore()` transition. Under a Waldur-named username policy (`waldur_username`, `anonymized`, `full_name`, `freeipa`, `identity_claim`) the account returns straight to `OK` under its existing username, because the name is a stable function of the person and the provider keeps (or parks) the entry behind it. Under the `service_provider` policy a `DELETED` account is asked for again as `CREATION_REQUESTED`, since the provider chose the name and has torn the account down; one whose deletion was only requested or begun returns to `OK`. See [Departure and return](#departure-and-return).
+
 ## State Transitions
 
 ```mermaid
@@ -64,6 +66,15 @@ stateDiagram-v2
 
     ERROR_DELETING --> DELETING : set_deleting()
     ERROR_DELETING --> OK : set_ok()
+
+    %% Return of a departed member (Waldur-named username policies)
+    DELETION_REQUESTED --> OK : restore()
+    DELETING --> OK : restore()
+    ERROR_DELETING --> OK : restore()
+    DELETED --> OK : restore()
+
+    %% Return of a departed member (service_provider username policy)
+    DELETED --> CREATION_REQUESTED : account requested again
 
     %% Legacy error transitions (backward compatibility)
     CREATION_REQUESTED --> ERROR_CREATING : set_error() [legacy]
@@ -141,6 +152,8 @@ POST /api/marketplace-offering-users/{uuid}/set_error_deleting/
 
 Sets the user account to error state during the deletion process. Used when deletion operations fail.
 
+**409 Conflict:** returned when the account is `OK` again because the member regained access after the deletion was requested (see [Departure and return](#departure-and-return)). The deletion no longer stands; re-read the account and keep it enabled.
+
 #### Begin Creating
 
 ```http
@@ -171,6 +184,8 @@ POST /api/marketplace-offering-users/{uuid}/set_deleting/
 
 Begins the account deletion process. Can be used to retry deletion after an error.
 
+**409 Conflict:** returned when the account is `OK` again because the member regained access after the deletion was requested (see [Departure and return](#departure-and-return)). The deletion no longer stands; re-read the account and keep it enabled.
+
 #### Set Deleted
 
 ```http
@@ -179,7 +194,9 @@ POST /api/marketplace-offering-users/{uuid}/set_deleted/
 
 **Valid transitions from:** `DELETING`
 
-Marks the user account as successfully deleted. This is the final state for successful account deletion.
+Marks the user account as successfully deleted. This is the final state for successful account deletion. When the account reads through a provider-level account (`account_scope: provider`) and this was the last offering account still reading through it, the provider account completes its own deletion in the same request (see [Departure and return](#departure-and-return)).
+
+**409 Conflict:** returned when the account is `OK` again because the member regained access after the deletion was requested. The deletion no longer stands; re-read the account and keep it enabled.
 
 ### Service Provider Comment Management
 
@@ -353,6 +370,17 @@ POST /api/marketplace-offering-users/abc123/set_error_deleting/
 # Then retry deletion process
 POST /api/marketplace-offering-users/abc123/set_deleting/
 ```
+
+## Departure and return
+
+A member who leaves a project and later comes back gets the same account back: same username, same POSIX uid. The flow, end to end:
+
+1. **Last project role revoked.** For offerings with `offering_user_auto_deletion` enabled, every account of the user in an offering where they no longer hold a live resource moves `OK` → `DELETION_REQUESTED` (`request_deletion`). An account that was never provisioned (`CREATION_REQUESTED`) goes straight to `DELETED`.
+2. **Provider tears down (or parks) the entry.** The service provider or site agent claims the request with `set_deleting` and acknowledges it with `set_deleted`. A provider that runs a shared directory may park the entry instead of removing it -- disable it while keeping its uid and username -- so that it can be re-enabled on return; the site agent's `on_departure` setting controls this (see *Waldur-authoritative accounts in OpenLDAP* in the user guide).
+3. **Provider account completes.** Under `account_scope: provider` the offering accounts read through one `ServiceProviderAccount`. When the last account still reading through it leaves the live states, the provider account moves to `DELETION_REQUESTED`; once every account reading through it is `DELETED`, the provider account completes to `DELETED` on its own, in the request that acknowledged the last one. There is no separate acknowledgement for the provider account: it is a projection of its offering accounts and has no backend of its own. The `PosixIdentity` behind it is **not** released, so a parked entry keeps its uid.
+4. **Return.** When the user is granted a project role again (or a new resource brings the project back into the offering), every existing account of theirs in an offering with a live resource in that project is restored, whether or not the offering allows minting new accounts (`service_provider_can_create_offering_user` gates creation only). The provider account, if any, returns to `OK` first; the offering account then comes back under its existing username -- or, for a Waldur-named policy, a name derived on the way back if it never had one -- and lands in `OK`. Under the `service_provider` policy a `DELETED` account is asked for again as `CREATION_REQUESTED` instead. An `OFFERING_USER` event with `action: update` is published, so a directory writer subscribed to it re-enables the parked entry.
+
+A provider that still holds a pending deletion when the member returns may acknowledge it late. `set_deleting`, `set_deleted` and `set_error_deleting` refuse such an acknowledgement with **409 Conflict** when the account is already `OK` again, so the account ends live rather than deleted; the provider should re-read the account and keep the entry enabled.
 
 ## Permissions
 
