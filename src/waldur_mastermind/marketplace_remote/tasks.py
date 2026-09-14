@@ -66,6 +66,7 @@ from waldur_mastermind.marketplace_remote.constants import (
 from waldur_mastermind.marketplace_remote.exceptions import RemoteWaldurError
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
+    keep_local_plugin_options,
     pull_fields,
     pull_offering_user_runtime_state_fields,
     sync_project_permission,
@@ -116,7 +117,11 @@ class OfferingPullTask(BackgroundPullTask):
             remote_offering = marketplace_public_offerings_retrieve.sync(
                 client=client, uuid=local_offering.backend_id
             )
-            pull_fields(OFFERING_FIELDS, local_offering, remote_offering.to_dict())
+            pull_fields(
+                OFFERING_FIELDS,
+                local_offering,
+                keep_local_plugin_options(local_offering, remote_offering.to_dict()),
+            )
             utils.import_offering_thumbnail(local_offering, remote_offering.thumbnail)
             self.sync_offering_components(local_offering, remote_offering.components)
             self.sync_plans(local_offering, remote_offering.plans)
