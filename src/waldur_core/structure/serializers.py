@@ -3870,7 +3870,11 @@ class ProjectAnswerDetailSerializer(serializers.Serializer):
     answer_uuid = serializers.UUIDField(read_only=True, allow_null=True)
     answer_data = serializers.JSONField(read_only=True, allow_null=True)
     answered_by = serializers.CharField(read_only=True, allow_null=True)
-    answered_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    answered_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+        help_text="When the shown answer was last saved.",
+    )
     requires_review = serializers.BooleanField(read_only=True)
 
 
@@ -3982,6 +3986,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
         data = self._get_projects_and_answers_data(question)
         return data["answered_projects_count"]
 
+    @extend_schema_field(ProjectAnswerDetailSerializer(many=True))
     def get_project_answers(self, question) -> list[dict]:
         """Get all project answers for this question."""
         data = self._get_projects_and_answers_data(question)
@@ -4003,7 +4008,8 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
                             question, answer.answer_data
                         ),
                         "answered_by": answer.user.full_name if answer.user else None,
-                        "answered_at": answer.created,
+                        # The shown answer's last save, not when its row was created
+                        "answered_at": answer.modified,
                         "requires_review": answer.requires_review,
                     }
                 )

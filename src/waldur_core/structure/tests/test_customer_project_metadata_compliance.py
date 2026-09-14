@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils.dateparse import parse_datetime
 from rest_framework import status, test
 
 from waldur_core.checklist.enums import ChecklistTypes
@@ -1348,7 +1349,7 @@ class CustomerProjectMetadataLatestAnswerTest(test.APITestCase):
             scope_content_type=ContentType.objects.get_for_model(self.project),
             scope_object_id=self.project.id,
         )
-        owner_answer = checklist_factories.AnswerFactory(
+        self.owner_answer = checklist_factories.AnswerFactory(
             completion=self.completion,
             question=self.question1,
             user=self.fixture.owner,
@@ -1362,9 +1363,10 @@ class CustomerProjectMetadataLatestAnswerTest(test.APITestCase):
         )
         # The owner's row is created first but modified last, so neither id nor
         # creation order can pick the latest answer by accident.
-        Answer.objects.filter(pk=owner_answer.pk).update(
+        Answer.objects.filter(pk=self.owner_answer.pk).update(
             modified=manager_answer.modified + timedelta(hours=1)
         )
+        self.owner_answer.refresh_from_db()
         self.completion.update_completion_status()
 
         self.client.force_authenticate(user=self.fixture.staff)
@@ -1420,6 +1422,28 @@ class CustomerProjectMetadataLatestAnswerTest(test.APITestCase):
             if self._is_project(a["project_uuid"])
         )
         self.assertEqual(project_answer["answer_data"], "Owner purpose")
+
+    def test_question_answers_report_when_the_latest_answer_was_saved(self):
+        """answered_at is the shown answer's last save time, not its creation time."""
+        response = self.client.get(
+            f"/api/customers/{self.customer.uuid.hex}/project-metadata-question-answers/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        question = next(
+            q
+            for q in response.json()
+            if q["question_description"] == "What is the project purpose?"
+        )
+        project_answer = next(
+            a
+            for a in question["project_answers"]
+            if self._is_project(a["project_uuid"])
+        )
+        self.assertNotEqual(self.owner_answer.modified, self.owner_answer.created)
+        self.assertEqual(
+            parse_datetime(project_answer["answered_at"]), self.owner_answer.modified
+        )
 
 
 class NumberValidationFieldsTest(test.APITestCase):
