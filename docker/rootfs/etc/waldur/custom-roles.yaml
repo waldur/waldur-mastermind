@@ -1,5 +1,14 @@
 # Operator-defined roles, loaded by `import_roles` on every deployment.
-# Same schema as permissions.yaml; keep built-in Waldur roles out of this file.
+# Same schema as permissions.yaml. Usually this is a brand-new role name, but
+# reusing a built-in one (e.g. CUSTOMER.OWNER) is also valid and intentional:
+# `import_roles` matches by name, so the "permissions" list here fully
+# replaces that role's permission set rather than layering a delta on top
+# (contrast with permissions-override.yaml's add_permissions/drop_permissions,
+# which only ever adds/removes from whatever the role currently has). Do that
+# and you own the role's whole permission set from then on — permissions.yaml
+# loads first, so any permission mastermind adds to that role in a later
+# release is applied and then immediately overwritten by this file on every
+# deployment, until you add it here yourself.
 #
 # Note: a role listed here is created as a *system* role — it cannot be deleted
 # or renamed through the UI/API afterwards, and removing it from this file does
