@@ -177,6 +177,20 @@ class CallEligibilityAPITest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["is_eligible"])
 
+    def test_email_pattern_restriction_rejects_lookalike_domain(self):
+        """A pattern without "$" must still cover the whole address."""
+        self.user.email = "researcher@university.edu.attacker.net"
+        self.user.save()
+
+        self.call.user_email_patterns = [r".*@university\.edu"]
+        self.call.save()
+
+        self.client.force_authenticate(self.user)
+        url = factories.CallFactory.get_public_url(self.call) + "check_eligibility/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_eligible"])
+
     def test_affiliation_restriction_allows_matching_user(self):
         """User with matching affiliation can submit."""
         self.user.affiliations = ["member", "faculty"]

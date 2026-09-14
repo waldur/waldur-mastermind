@@ -34,6 +34,18 @@ class CustomerUserRestrictionsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("restrictions", str(response.data))
 
+    def test_user_with_lookalike_domain_cannot_be_added_to_customer(self):
+        # Deliberately without "$": the pattern must still cover the whole address.
+        self.customer.user_email_patterns = [r".*@example\.com"]
+        self.customer.save()
+
+        target_user = factories.UserFactory(email="user@example.com.attacker.net")
+        response = client_add_user(
+            self.client, self.staff, target_user, self.customer, CustomerRole.OWNER
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("restrictions", str(response.data))
+
     def test_user_with_matching_affiliation_can_be_added_to_customer(self):
         self.customer.user_affiliations = ["staff", "student"]
         self.customer.save()

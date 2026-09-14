@@ -32,6 +32,7 @@ from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
     is_potentially_dangerous_regex,
+    matches_access_email_pattern,
     normalize_network_acl,
     validate_gender,
     validate_iso_3166_alpha2,
@@ -1468,27 +1469,16 @@ class UserDetailsMatchMixin(models.Model):
 
     @staticmethod
     def _is_pattern_match(pattern, email):
-        """Safely check if email matches pattern, handling invalid regex patterns."""
-        if not pattern or not isinstance(pattern, str):
-            return False
-        if not email or not isinstance(email, str):
-            return False
+        """Whether ``email`` matches ``pattern``, with access-control semantics.
 
-        # Check for potentially dangerous patterns
-        if UserDetailsMatchMixin._is_potentially_dangerous_pattern(pattern):
-            logger.warning(
-                "Potentially dangerous regex pattern rejected: '%s'", pattern[:50]
-            )
-            return False
-
-        try:
-            # Use re.match with a compiled pattern for better performance
-            # re.match only matches at the beginning, limiting backtracking
-            compiled = re.compile(pattern)
-            return bool(compiled.match(email))
-        except re.error as e:
-            logger.warning("Invalid regex pattern '%s': %s", pattern, e)
-            return False
+        Every caller decides access. Auto-provisioning rules grant roles, and
+        membership restrictions, invitations and call eligibility decide who may
+        join. So this delegates to :func:`matches_access_email_pattern`: the whole
+        address must match, case-insensitively, and an invalid or potentially
+        dangerous pattern never matches. Matching only at the start would let
+        ``.*@example\\.com`` admit ``alice@example.com.attacker.net``.
+        """
+        return matches_access_email_pattern([pattern], email)
 
     @staticmethod
     def _suggest_regex_for_wildcard(pattern) -> str | None:
@@ -1500,9 +1490,10 @@ class UserDetailsMatchMixin(models.Model):
 
         Each ``*`` becomes ``.*`` and everything else is escaped. The result
         ends with ``$`` unless the wildcard ended with ``*``, so
-        ``*@example.org`` becomes ``.*@example\\.org$``. The anchor matters:
-        ``_is_pattern_match`` matches by prefix, and without it the suggestion
-        would also match ``alice@example.org.attacker.net``.
+        ``*@example.org`` becomes ``.*@example\\.org$``. ``_is_pattern_match``
+        already matches the whole address, so the ``$`` is redundant here. It is
+        kept because the suggestion is meant to be copied, and it stays correct
+        wherever the regex ends up.
         """
         if not isinstance(pattern, str) or "*" not in pattern:
             return None

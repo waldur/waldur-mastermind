@@ -62,13 +62,13 @@ RULE_MATCH_USER_FIELDS = (
 def has_pending_invitation(email: str) -> bool:
     """Whether the email was invited, either directly or via a group invitation.
 
-    Group invitation patterns are matched with the strict matcher rather than
-    :meth:`UserDetailsMatchMixin._is_pattern_match`. The mixin matches by prefix,
-    which is fine for a convenience filter but not for an authorization decision:
-    an invitation for ``.*@example\\.com`` would otherwise also admit
-    ``attacker@example.com.evil.net`` past the uninvited-user block. This mirrors
-    what :func:`matches_allowed_email_patterns` and
-    :func:`matches_autoprovisioning_rule` already do.
+    Group invitation patterns are matched with
+    :func:`~waldur_core.core.validators.matches_access_email_pattern`, against
+    the whole address and case-insensitively. So an invitation for
+    ``.*@example\\.com`` does not admit ``attacker@example.com.evil.net`` past
+    the uninvited-user block. :func:`matches_allowed_email_patterns`,
+    :func:`matches_autoprovisioning_rule` and
+    :meth:`UserDetailsMatchMixin._is_pattern_match` all use the same matcher.
 
     A direct invitation needs no such care - it is matched by whole address.
     """

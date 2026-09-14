@@ -35,7 +35,7 @@ The `Rule` model (`src/waldur_autoprovisioning/models.py:11`) defines auto-provi
 
 Rules use the `UserDetailsMatchMixin` for pattern matching:
 
-- **user_email_patterns**: Regex patterns for email matching (e.g., `[".+@example\\.com$"]`). A pattern is matched from the **start** of the address, not against all of it, so end it with `$`: without it, `.+@example\.com` also matches `alice@example.com.attacker.net`. Patterns are regular expressions, not shell wildcards. `*@example.com` is rejected, and the error suggests the equivalent regex
+- **user_email_patterns**: Regex patterns for email matching (e.g., `[".+@example\\.com"]`). A pattern must match the **whole** address, case-insensitively, so `.+@example\.com` does not match `alice@example.com.attacker.net`. A trailing `$` is allowed but not needed. An invalid or potentially dangerous pattern never matches. The same rules apply to membership restrictions on organizations, projects and calls, and to invitations. Patterns are regular expressions, not shell wildcards. `*@example.com` is rejected, and the error suggests the equivalent regex
 - **user_affiliations**: Organization affiliations for matching (e.g., `["staff", "faculty"]`)
 - **user_identity_sources**: Identity provider matching (e.g., `["eduGAIN", "SAML"]`)
 
