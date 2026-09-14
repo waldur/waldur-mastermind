@@ -661,3 +661,20 @@ class MatrixWriteGuardTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get("/api/matrix/rooms/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@override_config(**MATRIX_ENABLED_CONFIG)
+class MatrixReprovisionTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MatrixChatFixture()
+        self.room = self.fixture.matrix_room
+        self.fixture.matrix_user_profile
+
+    def test_staff_reprovision_reports_what_was_reset(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post("/api/admin/matrix/reprovision/")
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data, {"rooms_reprovisioned": 1, "users_reset": 1})
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.state, models.RoomStates.CREATING)

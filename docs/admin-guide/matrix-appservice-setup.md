@@ -136,6 +136,10 @@ Checks performed (the `checks` array in the response):
 
 Resets all active rooms to `creating` state and re-queues them for provisioning on the homeserver. Also resets all user provisioning status. Use this when migrating to a new homeserver. Staff only.
 
+Do not run it against the homeserver the rooms already live on. Old rooms are not
+deleted, so each one stays behind with its history while Waldur replaces it with
+an empty room.
+
 **Example response (202):**
 
 ```json
@@ -144,6 +148,28 @@ Resets all active rooms to `creating` state and re-queues them for provisioning 
   "users_reset": 42
 }
 ```
+
+#### From the command line
+
+The same operation is available as a management command, for deployments where
+opening a shell is easier than authenticating to the API as staff:
+
+```bash
+waldur reprovision_matrix_rooms --dry-run   # report the counts, change nothing
+waldur reprovision_matrix_rooms             # prompts before writing
+waldur reprovision_matrix_rooms -y          # no prompt, for scripts
+```
+
+It prompts by default because it discards every stored room id, room alias and
+user access token, and only a working homeserver can issue replacements. With no
+terminal attached, as in a Kubernetes Job or a cron run, it refuses and tells you
+to pass `-y`. It refuses to run when Matrix chat is disabled or the homeserver is
+unconfigured: the room-creation tasks it queues would have nothing to talk to,
+leaving every room stuck in `creating`. `--dry-run` works either way, so the
+counts can be checked before the new homeserver is switched on.
+
+Room creation happens in the background, so the command returns before the
+rooms exist. Watch the room states to confirm they leave `creating`.
 
 ### Token rotation
 
