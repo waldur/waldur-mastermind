@@ -439,23 +439,31 @@ def create_offering_component_for_volume_type(
 
     content_type = ContentType.objects.get_for_model(volume_type)
 
-    # It is assumed that article code and product code are filled manually via UI
+    # Fields that mirror the volume type, refreshed on every sync.
+    synced = dict(
+        offering=offering,
+        name="Storage (%s)" % volume_type.name,
+        # It is expected that internal name of offering component related to volume type
+        # matches storage quota name generated in OpenStack
+        type=volume_type_name_to_quota_name(volume_type.name),
+        description=volume_type.description,
+        # Created by the volume type sync, not by the provider, so it
+        # follows the plan like the other builtin components.
+        billed_per_plan=True,
+    )
+    # It is assumed that article code and product code are filled manually via UI.
+    # Accounting is the provider's to change as well, so it is set only when the
+    # component is created: every sync re-saves each volume type, and writing it
+    # here on update would revert whatever the provider chose.
     marketplace_models.OfferingComponent.objects.update_or_create(
         object_id=volume_type.id,
         content_type=content_type,
-        defaults=dict(
-            offering=offering,
-            name="Storage (%s)" % volume_type.name,
-            # It is expected that internal name of offering component related to volume type
-            # matches storage quota name generated in OpenStack
-            type=volume_type_name_to_quota_name(volume_type.name),
+        defaults=synced,
+        create_defaults=dict(
+            synced,
             measured_unit="GB",
-            description=volume_type.description,
             billing_type=BillingTypes.LIMIT,
             limit_period=LimitPeriods.MONTH,
-            # Created by the volume type sync, not by the provider, so it
-            # follows the plan like the other builtin components.
-            billed_per_plan=True,
         ),
     )
 
