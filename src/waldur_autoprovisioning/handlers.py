@@ -5,6 +5,7 @@ from django.db import transaction
 
 from waldur_autoprovisioning.models import Rule
 from waldur_autoprovisioning.reconciliation import (
+    has_provisioned_project,
     reconcile_autoprovisioned_roles,
     resolve_customer,
 )
@@ -128,23 +129,31 @@ def handle_new_user(sender, instance: User, created=False, **kwargs):
 
 
 def handle_identity_synced(sender, user: User, created=False, **kwargs):
-    """Reconcile rule-issued roles after identity data is refreshed.
+    """Apply the rules to an existing account after identity data is refreshed.
 
     Skipped for a freshly created account: ``handle_new_user`` has already run
     the full provisioning pass, reconciliation included.
+
+    An existing account gets the project of each matching rule the first time
+    it matches that rule. Reconciliation alone only grants roles on projects
+    that already exist, so a rule created after the account could never give
+    it a project.
     """
     if created:
         return
 
-    reconcile_autoprovisioned_roles(user)
+    provision_for_user(user, skip_provisioned=True)
 
 
-def provision_for_user(user: User):
-    """Run every matching rule for a user: projects, orders, then role grants."""
+def provision_for_user(user: User, skip_provisioned: bool = False):
+    """Run every matching rule for a user: projects, orders, then role grants.
+
+    With ``skip_provisioned``, rules that have already provisioned their project
+    for the user are skipped (see ``has_provisioned_project``). A repeat login
+    then orders no second resource, and a project someone deleted is not
+    recreated.
+    """
     rules = cast(list[Rule], Rule.get_objects_by_user_patterns(user))
-
-    if not rules:
-        return
 
     for rule in rules:
         resolution = resolve_customer(rule, user)
@@ -163,6 +172,11 @@ def provision_for_user(user: User):
         if not rule.create_project:
             # Organization-level rule: the customer role is granted by the
             # reconciliation pass below.
+            continue
+
+        if skip_provisioned and has_provisioned_project(
+            rule, user, resolution.customer
+        ):
             continue
 
         project = get_or_create_project(rule, user, resolution.customer)
@@ -188,5 +202,7 @@ def provision_for_user(user: User):
             process_order_on_commit(order, user)
 
     # Grants happen last and in one place, so every rule-issued role carries the
-    # rule's provenance and any project created above is already visible.
+    # rule's provenance and any project created above is already visible. This
+    # runs even when no rule matches: on login that is exactly when a rule that
+    # stopped matching has to revoke.
     reconcile_autoprovisioned_roles(user)

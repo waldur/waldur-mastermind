@@ -294,6 +294,49 @@ class RuleSerializerProjectRoleTest(TestCase):
         self.assertIn("does not exist", str(serializer.errors["non_field_errors"]))
 
 
+class RuleSerializerProjectNameTemplateTest(TestCase):
+    def setUp(self):
+        self.request = RequestFactory().get("/")
+        # Touch the classproperty so the system role exists (see above).
+        self.project_admin_role = ProjectRole.ADMIN
+        self.data = {
+            "name": "test_rule",
+            "customer": structure_factories.CustomerFactory.get_url(),
+            "user_email_patterns": [".*@example.com"],
+            "project_role_name": "PROJECT.ADMIN",
+        }
+
+    def _serializer(self, template):
+        return RuleSerializer(
+            data={**self.data, "project_name_template": template},
+            context={"request": self.request},
+        )
+
+    def test_template_is_accepted(self):
+        serializer = self._serializer("{full_name} workspace")
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(
+            serializer.validated_data["project_name_template"],
+            "{full_name} workspace",
+        )
+
+    def test_empty_template_is_accepted(self):
+        serializer = self._serializer("")
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_unknown_placeholder_is_rejected(self):
+        serializer = self._serializer("{login}")
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("project_name_template", serializer.errors)
+
+    def test_malformed_template_is_rejected(self):
+        for template in ("{username", "{0}", "{}", "{username.upper}"):
+            with self.subTest(template=template):
+                serializer = self._serializer(template)
+                self.assertFalse(serializer.is_valid())
+                self.assertIn("project_name_template", serializer.errors)
+
+
 class RuleSerializerPlanFieldTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()

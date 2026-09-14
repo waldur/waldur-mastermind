@@ -107,6 +107,32 @@ def resolve_customer(rule: Rule, user: User) -> CustomerResolution:
     )
 
 
+def has_provisioned_project(rule: Rule, user: User, customer: Customer) -> bool:
+    """Has ``rule`` already provisioned its project for ``user``?
+
+    A rule creates its project once per user. Either of these counts as proof,
+    whether the role is still active or has been revoked:
+
+    - a project role granted under the rule's own ``grant_source``. This still
+      holds after the project is renamed or deleted, because deleting a project
+      revokes its role rows rather than removing them;
+    - any role the user has held on a project with the name the rule resolves
+      in ``customer``, deleted projects included. Grants made before ``source``
+      existed are empty, so without this check those users would get a
+      deleted project back on their next login.
+    """
+    held = UserRole.objects.filter(
+        user=user, content_type=ContentType.objects.get_for_model(Project)
+    )
+    if held.filter(source=rule.grant_source).exists():
+        return True
+    # objects, not available_objects: a soft-deleted project still counts.
+    project_ids = Project.objects.filter(
+        customer=customer, name=rule.resolve_project_name(user)
+    ).values("id")
+    return held.filter(object_id__in=project_ids).exists()
+
+
 def _scope_key(scope, role_id: int) -> tuple[int, int, int]:
     content_type = ContentType.objects.get_for_model(type(scope))
     return (content_type.id, scope.id, role_id)
