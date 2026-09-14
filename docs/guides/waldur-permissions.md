@@ -86,19 +86,31 @@ If the permission is for managing team members (creating/updating/deleting roles
 
 This file is loaded by the `import_roles` management command, which runs on deployment. The command creates roles and syncs their permissions from the YAML definition.
 
-**Operator-defined custom roles** (a deployment's own role, not a built-in one shipped with
-Waldur) go through a separate file, `docker/rootfs/etc/waldur/custom-roles.yaml`, mounted at
+**Operator-defined custom roles** (a deployment's own role, not one shipped with Waldur) go
+through a separate file, `docker/rootfs/etc/waldur/custom-roles.yaml`, mounted at
 `/etc/waldur/custom-roles.yaml` — same schema, also loaded by `import_roles` on every
 deployment, but empty (`[]`) by default. The `waldur-helm` chart exposes it as
 `waldur.customRoles`. Don't add operator-specific roles to `permissions.yaml` — that file ships
 with the image and is the same for every deployment.
 
-Two caveats. A role loaded from this file is created as a **system role**, so it can no longer
-be renamed or deleted through the API; if a role of that name was created by hand in the UI, it
-is converted to a system role and its permission set is replaced by the file's. And there is no
-counterpart to `drop_stale_permissions` for roles — removing a role from the file does **not**
-remove it from the database, it only stops being managed. Deactivate roles you no longer want
-via `permissions-override.yaml` (`is_active: false`) rather than by deleting the entry.
+**Reusing a built-in role's name here is also valid**, and is how an operator fully replaces
+that role's permission set rather than adding/dropping individual permissions.
+`import_roles` matches by name, so an entry for e.g. `CUSTOMER.OWNER` in `custom-roles.yaml`
+overwrites its permissions with exactly the list given — the built-in `permissions.yaml` loads
+first (in `initdb`), so this always wins. This is a deliberate, one-way handover: from then on
+the operator owns that role's full permission set, and any permission mastermind adds to it in
+a later release is loaded and then immediately overwritten again on every deployment until the
+operator adds it to their own list too. Use `permissions-override.yaml`
+(`add_permissions`/`drop_permissions`, below) instead when the goal is to adjust a role while
+still tracking future upstream changes to it.
+
+Two more caveats, regardless of which name is used. A role loaded from this file is created as
+a **system role**, so it can no longer be renamed or deleted through the API; if a role of that
+name was created by hand in the UI, it is converted to a system role and its permission set is
+replaced by the file's. And there is no counterpart to `drop_stale_permissions` for roles —
+removing a role from the file does **not** remove it from the database, it only stops being
+managed. Deactivate roles you no longer want via `permissions-override.yaml`
+(`is_active: false`) rather than by deleting the entry.
 
 ### 3. Use in ViewSets
 
