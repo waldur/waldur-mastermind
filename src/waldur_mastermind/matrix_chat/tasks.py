@@ -10,7 +10,9 @@ from celery import shared_task
 from constance import config
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.utils import timezone
+from django_fsm import TransitionNotAllowed
 
 from waldur_core.permissions.models import UserRole
 
@@ -925,3 +927,42 @@ def cleanup_old_appservice_transactions():
     old.delete()
     logger.info("Pruned %d MatrixAppserviceTransaction rows", count)
     return {"status": "success", "deleted_count": count}
+
+
+def reprovision_rooms():
+    """Reset every active room and provisioned profile so the homeserver rebuilds them.
+
+    Shared by the admin endpoint and the reprovision_matrix_rooms command rather
+    than written twice: the ordering here is easy to get subtly wrong. Rows are
+    locked before the state check so a concurrent disable or retry cannot race
+    the write-back, and creation is queued on commit so a worker cannot pick up
+    a room whose reset has not landed yet.
+
+    Returns (rooms_reprovisioned, users_reset).
+    """
+    room_count = 0
+    with transaction.atomic():
+        locked_rooms = list(
+            models.MatrixRoom.objects.select_for_update().filter(
+                state=models.RoomStates.ACTIVE
+            )
+        )
+        for room in locked_rooms:
+            try:
+                room.begin_reprovisioning()
+            except TransitionNotAllowed:
+                continue
+            room.room_id = None
+            room.room_alias = ""
+            room.save(update_fields=["state", "error_message", "room_id", "room_alias"])
+            room_uuid = str(room.uuid)
+            transaction.on_commit(lambda uuid=room_uuid: create_room.delay(uuid))
+            room_count += 1
+
+        user_count = models.MatrixUserProfile.objects.filter(provisioned=True).update(
+            provisioned=False,
+            access_token="",
+            provisioned_at=None,
+        )
+
+    return room_count, user_count

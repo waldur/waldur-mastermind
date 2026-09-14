@@ -1069,40 +1069,8 @@ class MatrixReprovisionView(views.APIView):
         # all rooms in a state that never resolves.
         if not matrix_client.is_enabled():
             raise ValidationError("Matrix chat is disabled.")
-        room_count = 0
-        with transaction.atomic():
-            # Lock the rows up front so concurrent disable/retry calls can't
-            # race the reprovisioning write-back. The active state filter is
-            # re-checked under the lock; rows that have transitioned out are
-            # silently skipped.
-            locked_rooms = list(
-                models.MatrixRoom.objects.select_for_update().filter(
-                    state=models.RoomStates.ACTIVE
-                )
-            )
-            for room in locked_rooms:
-                try:
-                    room.begin_reprovisioning()
-                except TransitionNotAllowed:
-                    continue
-                room.room_id = None
-                room.room_alias = ""
-                room.save(
-                    update_fields=["state", "error_message", "room_id", "room_alias"]
-                )
-                room_uuid = str(room.uuid)
-                transaction.on_commit(
-                    lambda uuid=room_uuid: tasks.create_room.delay(uuid)
-                )
-                room_count += 1
 
-            user_count = models.MatrixUserProfile.objects.filter(
-                provisioned=True
-            ).update(
-                provisioned=False,
-                access_token="",
-                provisioned_at=None,
-            )
+        room_count, user_count = tasks.reprovision_rooms()
 
         return Response(
             {
