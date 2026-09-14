@@ -16,8 +16,8 @@ from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import order_approval
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
     AllocationTimes,
@@ -305,18 +305,6 @@ def _requested_end_date(
         return None
 
 
-def _purchase_order_requirement_met(order: marketplace_models.Order) -> bool:
-    """Whether the offering's own purchase order requirement is satisfied.
-
-    Mirrors the marketplace gate (``order_should_not_be_reviewed_by_consumer``
-    and ``approve_by_consumer``), which accepts the document only — a bare
-    reference satisfies the proposal but not the provider.
-    """
-    if not order.offering.plugin_options.get("require_purchase_order_upload", False):
-        return True
-    return bool(order.attachment)
-
-
 def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     # Idempotency guard: a proposal is provisioned exactly once. Without this a
     # second allocation (e.g. re-driving the workflow, or a stale caller) would
@@ -433,48 +421,26 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             requested_resource.resource = resource
             requested_resource.save()
 
-            # The call review already authorised this spend, so the consumer
-            # approval step has nothing left to decide. Left in
-            # PENDING_CONSUMER the order parks the allocated resource in
-            # CREATING until somebody clicks approve, and — when the offering
-            # demands a purchase order — asks the applicant for the document
-            # the proposal already collected, because the marketplace gate
-            # looks at order.attachment while the proposal accepts a bare
-            # reference as well.
+            # No consumer approval here: order.save() above has already fired
+            # notify_approvers_when_order_is_created, and that handler owns it.
+            # The robot is staff, so the marketplace gate clears the consumer
+            # step and routes the order to provider review, PENDING_PROJECT or
+            # EXECUTING. The call review already authorised the spend, so that
+            # is the intended outcome. Approving a second time here raised
+            # TransitionNotAllowed on orders the handler had taken to
+            # EXECUTING, and queued a duplicate provider notification for the
+            # rest.
             #
-            # Only the consumer step is skipped: the transition below still
-            # routes to provider review, and to PENDING_PROJECT for a
-            # future-dated project. PENDING_START_DATE is not reachable from
-            # here — it needs an order start date, and these orders are built
-            # without one. No select_for_update is taken because the row was
-            # created in this transaction and is not yet visible to anyone else.
-            #
-            # The provider's own requirement is not skipped. Its flag lives on
-            # the offering and gates order approval; the call setting only
-            # decides what the proposal collects, and the two can diverge — the
-            # call entry snapshots the flag when the offering is added, so an
-            # offering that starts requiring a purchase order later leaves
-            # existing calls collecting nothing. Auto-approving there would
-            # walk the order straight past a control the provider still holds,
-            # so leave it pending and let the usual gate ask for the document.
-            if not _purchase_order_requirement_met(order):
-                logger.info(
-                    "Order %s allocated from proposal %s awaits a purchase "
-                    "order, so consumer approval is left to a human.",
-                    order.uuid,
-                    proposal.uuid,
-                )
-                continue
-
-            order.review_by_consumer(robot)
-            outcome = order_approval.transition_order_from_consumer_approval(
-                order, robot
-            )
+            # The gate still leaves the order PENDING_CONSUMER when the
+            # offering requires a purchase order document and none was copied
+            # above. The call snapshots that flag when the offering is added,
+            # so a requirement introduced later reaches existing calls
+            # uncollected, and the provider's control must still hold.
             logger.info(
-                "Order %s allocated from proposal %s moved to %s.",
+                "Order %s allocated from proposal %s is %s.",
                 order.uuid,
                 proposal.uuid,
-                outcome,
+                dict(OrderStates.CHOICES).get(order.state, order.state),
             )
 
 
