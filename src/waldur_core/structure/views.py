@@ -128,11 +128,21 @@ PROJECT_UUID_PARAMETER = OpenApiParameter(
 @extend_schema_view(
     list=extend_schema(
         summary="List customers",
-        description="Retrieve a list of customers. The list is filtered based on the user's permissions.",
+        description=(
+            "Retrieve a list of customers. The list is filtered based on the user's permissions. "
+            "A user whose only link to an organization is a role on its service provider sees it "
+            "with a restricted field set: url, uuid, name, native_name, display_name, abbreviation, "
+            "slug, image, country, country_name, is_service_provider, service_provider and "
+            "service_provider_uuid. All other fields are omitted for that row."
+        ),
     ),
     retrieve=extend_schema(
         summary="Retrieve customer details",
-        description="Fetch the details of a specific customer by its UUID.",
+        description=(
+            "Fetch the details of a specific customer by its UUID. "
+            "A user whose only link to the organization is a role on its service provider "
+            "receives the restricted field set described on the list operation."
+        ),
     ),
     create=extend_schema(
         summary="Create a new customer",
@@ -174,8 +184,8 @@ class CustomerViewSet(
     serializer_class = serializers.CustomerSerializer
     lookup_field = "uuid"
     filter_backends = (
-        filters.GenericUserFilter,
-        filters.GenericRoleFilter,
+        filters.CustomerUserFilter,
+        filters.CustomerRoleFilter,
         DjangoFilterBackend,
         rf_filters.OrderingFilter,
         filters.AccountingStartDateFilter,
@@ -223,6 +233,21 @@ class CustomerViewSet(
             queryset = queryset.prefetch_related(prefetch_projects)
 
         return queryset
+
+    def get_object(self):
+        customer = super().get_object()
+        # A service provider manager may read the provider's organization, but
+        # every other action on it stays out of reach, exactly as before it
+        # became visible to them.
+        if (
+            self.action != "retrieve"
+            and customer.id
+            in managers.get_service_provider_manager_only_customer_ids(
+                self.request.user, [customer.id]
+            )
+        ):
+            raise Http404
+        return customer
 
     def _get_project_prefetch(self, user):
         """Returns a Prefetch object restricted by user permissions"""

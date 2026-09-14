@@ -38,6 +38,7 @@ from waldur_core.structure.managers import (
     get_customer_users,
     get_nested_customer_users,
     get_project_users,
+    get_service_provider_manager_customer_ids_qs,
     get_visible_users,
 )
 from waldur_core.structure.registry import SupportedServices
@@ -195,6 +196,32 @@ class GenericRoleFilter(BaseFilterBackend):
             return queryset.none()
 
 
+def _with_service_provider_organizations(queryset, visible, user):
+    managed_customer_ids = get_service_provider_manager_customer_ids_qs(user)
+    if managed_customer_ids is None:
+        return visible
+    return queryset.filter(
+        Q(id__in=visible.values("id")) | Q(id__in=managed_customer_ids)
+    )
+
+
+class CustomerRoleFilter(GenericRoleFilter):
+    """GenericRoleFilter plus the organizations of service providers the user
+    has a role on.
+
+    Wired only to CustomerViewSet, whose serializer narrows those rows to
+    public identity fields. Other Customer-queryset views (e.g.
+    financial-reports) keep using GenericRoleFilter and must not see them.
+    """
+
+    def filter_queryset(self, request, queryset, view):
+        visible = super().filter_queryset(request, queryset, view)
+        user = request.user
+        if not user.is_authenticated or user.is_staff or user.is_support:
+            return visible
+        return _with_service_provider_organizations(queryset, visible, user)
+
+
 class GenericUserFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user_uuid = request.query_params.get("user_uuid")
@@ -209,6 +236,9 @@ class GenericUserFilter(BaseFilterBackend):
         except core_models.User.DoesNotExist:
             return queryset.none()
 
+        return self.filter_for_user(queryset, user)
+
+    def filter_for_user(self, queryset, user):
         return filter_queryset_for_user(queryset, user)
 
     def get_schema_operation_parameters(self, view):
@@ -1549,3 +1579,11 @@ class ExternalLinkFilter(django_filters.FilterSet):
                 | Q(description__icontains=value)
             ).distinct()
         return queryset
+
+
+class CustomerUserFilter(GenericUserFilter):
+    """``user_uuid`` filter kept in step with CustomerRoleFilter."""
+
+    def filter_for_user(self, queryset, user):
+        visible = super().filter_for_user(queryset, user)
+        return _with_service_provider_organizations(queryset, visible, user)

@@ -137,6 +137,48 @@ def _get_resource_role_customer_ids_qs(user):
     return get_user_resource_descended_customer_ids(user)
 
 
+def get_service_provider_manager_customer_ids_qs(user):
+    """Lazy QuerySet of Customer IDs whose ServiceProvider the user has a role on.
+
+    Unlike resource roles, this is deliberately kept out of
+    ``filter_queryset_for_user``: it only makes the organization listable and
+    readable through ``/api/customers/``, never visible to the many other
+    callers (invoices, credits, chat tools) that scope by customer.
+
+    Returns ``None`` when the marketplace module is not installed.
+    """
+    try:
+        from waldur_mastermind.marketplace.managers import (
+            get_user_managed_service_provider_customer_ids,
+        )
+    except ImportError:
+        return None
+    return get_user_managed_service_provider_customer_ids(user)
+
+
+def get_service_provider_manager_only_customer_ids(user, customer_ids) -> set:
+    """Subset of ``customer_ids`` the user reaches solely through a service
+    provider role, i.e. not visible via ``filter_queryset_for_user``.
+
+    This is the single definition of "manager only". Note that an offering
+    role on one of the provider's offerings does not confer customer
+    visibility in ``filter_queryset_for_user``, so such a user is still
+    "manager only" here; clients must not infer otherwise from the
+    ``customer_uuid`` on offering permissions."""
+    if not user.is_authenticated or user.is_staff or user.is_support:
+        return set()
+    managed_qs = get_service_provider_manager_customer_ids_qs(user)
+    if managed_qs is None:
+        return set()
+    managed_ids = set(managed_qs.filter(customer_id__in=customer_ids))
+    if not managed_ids:
+        return set()
+    otherwise_visible = filter_queryset_for_user(
+        structure_models.Customer.objects.filter(id__in=managed_ids), user
+    ).values_list("id", flat=True)
+    return managed_ids - set(otherwise_visible)
+
+
 def filter_customer_by_ip_address(ip_address):
     """Customers the given address may act on behalf of.
 
