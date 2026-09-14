@@ -261,6 +261,12 @@ With this configuration:
 | `supports_downscaling` | boolean | `false` | Allow reducing resource limits |
 | `supports_pausing` | boolean | `false` | Allow pausing/resuming resources |
 | `restrict_deletion_with_active_resources` | boolean | `false` | Prevent offering deletion while it has non-terminated resources (applies to all users including staff) |
+| `enable_resource_end_date_change_requests` | boolean | `false` | Let users without the end date permission request an end date change; not available on prepaid offerings |
+| `enable_resource_limit_change_requests` | boolean | `false` | Let users who cannot change limits directly request a limit change; approval submits an update order |
+
+A child offering follows its parent's value for both request switches, and an
+offering imported from another Waldur keeps its local value when it is
+synchronized.
 
 **Example:**
 
