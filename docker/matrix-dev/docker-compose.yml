@@ -10,18 +10,18 @@ services:
       - ./tuwunel.toml:/etc/tuwunel.toml:ro
     environment:
       TUWUNEL_CONFIG: /etc/tuwunel.toml
-    # Disable IPv6 inside the shared network namespace. lk-jwt-service uses
-    # Go's net.Dial which honours RFC 6724 address sorting and prefers
-    # [::1]:8448; Docker's default network has IPv6 off, so the connect
-    # would refuse. Forcing IPv4 makes the Go dialer return 127.0.0.1.
+    # Disable IPv6 inside the shared network namespace so lk-jwt-service's
+    # federation lookups of "localhost" go to 127.0.0.1:8448 (the Caddy TLS
+    # proxy below) rather than [::1]:8448; Docker's default network has IPv6
+    # off, so an IPv6 connect would be refused.
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
 
   # TLS reverse proxy for Matrix federation on port 8448.
-  # lk-jwt-service uses the Go federation client which requires HTTPS.
+  # lk-jwt-service's federation lookup requires HTTPS.
   # Caddy terminates TLS with a self-signed cert and proxies to Tuwunel.
-  # `--from :8448` (no host) binds both IPv4 and IPv6 — Go's federation
-  # dialer prefers IPv6 [::1] inside the shared network namespace.
+  # The Caddyfile binds both IPv4 and IPv6, so the proxy answers on whichever
+  # loopback address lk-jwt-service dials inside the shared network namespace.
   federation-tls:
     image: caddy:alpine
     network_mode: "service:tuwunel"
@@ -31,7 +31,7 @@ services:
       - tuwunel
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.13.7
     restart: unless-stopped
     ports:
       - "7880:7880/tcp"
@@ -53,7 +53,7 @@ services:
   # Tuwunel. Federation discovery falls back to https://localhost:8448
   # which hits the Caddy TLS proxy above.
   lk-jwt-service:
-    image: ghcr.io/element-hq/lk-jwt-service:latest
+    image: ghcr.io/element-hq/lk-jwt-service:0.7.0
     restart: unless-stopped
     network_mode: "service:tuwunel"
     depends_on:
