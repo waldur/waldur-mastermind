@@ -27,7 +27,7 @@ td:nth-child(4) {
 
 | Handler Name | Signal Type | Sender | Description |
 |--------------|-------------|--------|-------------|
-| `handle_identity_synced` | `Custom Signal (user_identity_synced)` | `—` | Reconcile rule-issued roles after identity data is refreshed. |
+| `handle_identity_synced` | `Custom Signal (user_identity_synced)` | `—` | Apply the rules to an existing account after identity data is refreshed. |
 | `handle_new_user` | `Django Signal (post_save)` | `core.User` | Provision projects and orders when an account first appears. |
 
 ## Application: `waldur_core`

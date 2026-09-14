@@ -1420,6 +1420,20 @@ options:
 
 Remove Django event log records with stale content types.
 
+## reprovision_matrix_rooms
+
+Reset every active Matrix room and provisioned user profile so the homeserver rebuilds them. Use after moving to a new homeserver, whose room ids and user tokens are different from the old one's. Do not run it against the homeserver the rooms already live on: old rooms are not deleted, so each one keeps its history while Waldur replaces it with an empty room. Equivalent to POST /api/admin/matrix/reprovision/, for deployments where reaching the API as staff is harder than reaching a shell.
+
+```bash
+
+usage: waldur reprovision_matrix_rooms [--dry-run] [-y]
+
+options:
+  --dry-run  Report what would be reset without writing anything
+  -y, --yes  Do not prompt for confirmation
+
+```
+
 ## resource_access_subnets
 
 Dumps consumer access subnets for consumption by external firewalls, merging adjacent or overlapping networks. Subnets are defined per (customer, offering) pair and apply to all of that customer's resources of the offering. Only offerings that opt in via the enable_resource_access_subnets plugin option have subnets.
