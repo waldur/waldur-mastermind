@@ -123,7 +123,7 @@ class UserChecklistMixin(BaseChecklistMixin):
 
         if include_all:
             # Return ALL questions - frontend handles visibility dynamically
-            questions = checklist.questions.all().order_by("order")
+            questions = checklist.get_questions()
         else:
             # Return only visible questions based on saved answers (default)
             questions = checklist.get_visible_questions(completion)

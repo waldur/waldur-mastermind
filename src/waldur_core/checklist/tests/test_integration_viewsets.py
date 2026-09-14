@@ -7,7 +7,11 @@ Tests the user-facing checklist functionality via ViewSet mixins including:
 - Integration with actual Django model relationships
 """
 
+from datetime import timedelta
+
 from ddt import data, ddt
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import permissions as rf_permissions
 from rest_framework import status, test
 from rest_framework.exceptions import PermissionDenied
@@ -162,6 +166,67 @@ class UserChecklistMixinIntegrationTest(test.APITestCase):
         self.assertNotIn(
             "always_requires_review", text_q
         )  # Should be hidden from users
+
+    def test_existing_answer_is_latest_modified(self):
+        """Answers are per-user rows; the most recently modified one is exposed."""
+        admin_answer = models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.text_question,
+            user=self.admin,
+            answer_data="admin's answer",
+        )
+        user_answer = models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.text_question,
+            user=self.user,
+            answer_data="user's answer",
+        )
+
+        def existing_answer():
+            response = self.viewset.checklist(self.request, uuid=self.project_uuid)
+            text_q = next(
+                q
+                for q in response.data["questions"]
+                if q["description"] == "Describe your security measures:"
+            )
+            return text_q["existing_answer"]["answer_data"]
+
+        self.assertEqual(existing_answer(), "user's answer")
+        # auto_now overwrites ``modified`` on save(), so bump it via update().
+        models.Answer.objects.filter(pk=admin_answer.pk).update(
+            modified=user_answer.modified + timedelta(hours=1)
+        )
+        self.assertEqual(existing_answer(), "admin's answer")
+
+    def test_user_guidance_follows_displayed_answer(self):
+        """Guidance is derived from the same answer existing_answer shows."""
+        # The requester's own answer is older and does not show guidance;
+        # the latest answer, by another user, does.
+        models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.boolean_question,
+            user=self.staff,
+            answer_data=False,
+        )
+        models.Answer.objects.create(
+            completion=self.mock_completion,
+            question=self.boolean_question,
+            user=self.admin,
+            answer_data=True,
+        )
+
+        response = self.viewset.checklist(self.request, uuid=self.project_uuid)
+
+        boolean_q = next(
+            q
+            for q in response.data["questions"]
+            if q["description"] == "Is this project compliant?"
+        )
+        self.assertTrue(boolean_q["existing_answer"]["answer_data"])
+        self.assertEqual(
+            boolean_q["user_guidance"],
+            "Please ensure all compliance requirements are met.",
+        )
 
     def test_checklist_endpoint_without_completion_returns_error(self):
         """Test checklist endpoint returns error when no completion exists."""
@@ -740,6 +805,75 @@ class MixinSecurityBoundariesTest(test.APITestCase):
 
 
 @ddt
+class ChecklistQueryCountTest(test.APITestCase):
+    """The checklist endpoint must not query once per question or per answer."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.checklist = factories.ChecklistFactory()
+        self.completion = models.ChecklistCompletion.objects.create(
+            checklist=self.checklist, scope=self.fixture.project
+        )
+
+        self.project_uuid = self.fixture.project.uuid.hex
+        self.viewset = MockUserChecklistViewSet()
+        self.viewset._test_objects[self.project_uuid] = self.fixture.project
+        self.viewset._checklist_completions[self.fixture.project.uuid] = self.completion
+        self.viewset.kwargs = {"uuid": self.project_uuid}
+
+    def _add_dependent_pair(self):
+        """A parent question, a select question shown when it is True, and answers."""
+        parent = factories.QuestionFactory(
+            checklist=self.checklist, question_type=enums.QuestionTypes.BOOLEAN
+        )
+        child = factories.QuestionFactory(
+            checklist=self.checklist, question_type=enums.QuestionTypes.SINGLE_SELECT
+        )
+        option = factories.QuestionOptionFactory(question=child)
+        factories.QuestionDependencyFactory(
+            question=child,
+            depends_on_question=parent,
+            required_answer_value=True,
+            operator="equals",
+        )
+        for user in (self.fixture.owner, self.fixture.manager):
+            factories.AnswerFactory(
+                completion=self.completion,
+                question=parent,
+                user=user,
+                answer_data=True,
+            )
+        factories.AnswerFactory(
+            completion=self.completion,
+            question=child,
+            user=self.fixture.owner,
+            answer_data=[str(option.uuid)],
+        )
+
+    def _count_queries(self, include_all):
+        params = {"include_all": "true"} if include_all else {}
+        request = test.APIRequestFactory().get("/", params)
+        request.user = self.fixture.staff
+        with CaptureQueriesContext(connection) as queries:
+            response = self.viewset.checklist(request, uuid=self.project_uuid)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            len(response.data["questions"]), self.checklist.questions.count()
+        )
+        return len(queries)
+
+    @data(False, True)
+    def test_query_count_does_not_grow_with_questions(self, include_all):
+        self._add_dependent_pair()
+        baseline = self._count_queries(include_all)
+
+        for _ in range(3):
+            self._add_dependent_pair()
+
+        self.assertEqual(self._count_queries(include_all), baseline)
+
+
+@ddt
 class MixinQuestionVisibilityIntegrationTest(test.APITestCase):
     """Test question visibility logic integration with ViewSet mixins."""
 
@@ -771,6 +905,58 @@ class MixinQuestionVisibilityIntegrationTest(test.APITestCase):
             depends_on_question=self.parent_question,
             required_answer_value=True,
             operator="equals",
+        )
+
+    def test_visibility_follows_latest_modified_answer(self):
+        """Answers are per-user rows; visibility follows the most recently modified one."""
+        completion = models.ChecklistCompletion.objects.create(
+            checklist=self.checklist, scope=self.fixture.project
+        )
+        admin_answer = models.Answer.objects.create(
+            completion=completion,
+            question=self.parent_question,
+            user=self.fixture.admin,
+            answer_data=True,
+        )
+        user_answer = models.Answer.objects.create(
+            completion=completion,
+            question=self.parent_question,
+            user=self.fixture.user,
+            answer_data=False,
+        )
+        self.assertFalse(self.dependency.question_is_visible(completion))
+
+        # auto_now overwrites ``modified`` on save(), so bump it via update().
+        models.Answer.objects.filter(pk=admin_answer.pk).update(
+            modified=user_answer.modified + timedelta(hours=1)
+        )
+        self.assertTrue(self.dependency.question_is_visible(completion))
+
+    def test_visible_questions_follow_given_answers(self):
+        """A caller-supplied answer map (e.g. one user's answers) drives visibility."""
+        completion = models.ChecklistCompletion.objects.create(
+            checklist=self.checklist, scope=self.fixture.project
+        )
+        models.Answer.objects.create(
+            completion=completion,
+            question=self.parent_question,
+            user=self.fixture.admin,
+            answer_data=True,
+        )
+        models.Answer.objects.create(
+            completion=completion,
+            question=self.parent_question,
+            user=self.fixture.user,
+            answer_data=False,
+        )
+        self.assertNotIn(
+            self.dependent_question, self.checklist.get_visible_questions(completion)
+        )
+
+        admin_answers = completion.get_latest_answers(user=self.fixture.admin)
+        self.assertIn(
+            self.dependent_question,
+            self.checklist.get_visible_questions(completion, answers=admin_answers),
         )
 
     def test_question_visibility_with_dependencies_via_mixin(self):
@@ -1127,16 +1313,14 @@ class AnswerRemovalIntegrationTest(test.APITestCase):
             operator="in",
         )
 
-        # Create an answer that triggers review
-        answer_requiring_review = models.Answer.objects.create(
+        # Create an answer that triggers review; single-select answers are
+        # stored as a list, and save() derives the review flag from them.
+        models.Answer.objects.create(
             completion=self.mock_completion,
             question=review_question,
             user=self.staff,
-            answer_data="high",  # Should trigger review
+            answer_data=["high"],  # Should trigger review
         )
-        # Manually set review flag to simulate auto-detection
-        answer_requiring_review.requires_review = True
-        answer_requiring_review.save()
 
         # Update completion status to reflect review requirement
         self.mock_completion.update_completion_status()

@@ -37,6 +37,7 @@ from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.checklist import mixins as checklist_mixins
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.models import Answer, ChecklistCompletion, Question
+from waldur_core.checklist.utils import latest_answers_by_question
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -3407,7 +3408,9 @@ class CustomerProjectMetadataComplianceDetailsViewSet(
                 answers = []
                 answered_question_ids = set()
 
-                for answer in completion.answers.all():
+                # Answers are per-user rows; list each question once, by its latest.
+                latest_answers = latest_answers_by_question(completion.answers.all())
+                for answer in latest_answers.values():
                     question_id = answer.question_id
                     answered_question_ids.add(question_id)
 
@@ -3721,13 +3724,18 @@ class CustomerProjectMetadataQuestionAnswersViewSet(
 
         # Bulk query for all answers for questions on this page
         question_ids = [q.id for q in questions]
-        answers = Answer.objects.filter(
-            question_id__in=question_ids,
-            completion__scope_content_type=project_ct,
-            completion__scope_object_id__in=project_ids,
-        ).select_related("user", "completion")
+        answers = (
+            Answer.objects.filter(
+                question_id__in=question_ids,
+                completion__scope_content_type=project_ct,
+                completion__scope_object_id__in=project_ids,
+            )
+            .select_related("user", "completion")
+            .order_by("modified", "id")
+        )
 
-        # Group answers by question_id
+        # Group answers by question_id. Answers are per-user rows; later rows
+        # overwrite earlier ones, so each project keeps its latest answer.
         answers_by_question = {}
         for answer in answers:
             question_id = answer.question_id

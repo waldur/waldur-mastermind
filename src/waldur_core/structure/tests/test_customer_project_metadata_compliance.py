@@ -1,10 +1,12 @@
 """Tests for CustomerProjectMetadataComplianceViewSet."""
 
+from datetime import timedelta
+
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
 from waldur_core.checklist.enums import ChecklistTypes
-from waldur_core.checklist.models import ChecklistCompletion
+from waldur_core.checklist.models import Answer, ChecklistCompletion
 from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -1311,6 +1313,113 @@ class CustomerProjectMetadataComplianceQueryOptimizationTest(test.APITestCase):
                     if project_answer["answer_data"] is not None:
                         self.assertIn("answer_labels", project_answer)
                         self.assertIsNotNone(project_answer["answer_labels"])
+
+
+class CustomerProjectMetadataLatestAnswerTest(test.APITestCase):
+    """Answers are per-user rows; compliance views count and show the latest one."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.project = self.fixture.project
+
+        self.checklist = checklist_factories.ChecklistFactory(
+            checklist_type=ChecklistTypes.PROJECT_METADATA,
+        )
+        self.question1 = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="What is the project purpose?",
+            question_type="text_area",
+            required=True,
+            order=1,
+        )
+        self.question2 = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Will this project handle sensitive data?",
+            question_type="boolean",
+            required=True,
+            order=2,
+        )
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+
+        self.completion, _ = ChecklistCompletion.objects.get_or_create(
+            checklist=self.checklist,
+            scope_content_type=ContentType.objects.get_for_model(self.project),
+            scope_object_id=self.project.id,
+        )
+        owner_answer = checklist_factories.AnswerFactory(
+            completion=self.completion,
+            question=self.question1,
+            user=self.fixture.owner,
+            answer_data="Owner purpose",
+        )
+        manager_answer = checklist_factories.AnswerFactory(
+            completion=self.completion,
+            question=self.question1,
+            user=self.fixture.manager,
+            answer_data="Manager purpose",
+        )
+        # The owner's row is created first but modified last, so neither id nor
+        # creation order can pick the latest answer by accident.
+        Answer.objects.filter(pk=owner_answer.pk).update(
+            modified=manager_answer.modified + timedelta(hours=1)
+        )
+        self.completion.update_completion_status()
+
+        self.client.force_authenticate(user=self.fixture.staff)
+
+    def _is_project(self, value):
+        return str(value).replace("-", "") == self.project.uuid.hex
+
+    def test_projects_endpoint_counts_questions_not_rows(self):
+        response = self.client.get(
+            f"/api/customers/{self.customer.uuid.hex}/project-metadata-compliance-projects/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(p for p in response.data if self._is_project(p["project_uuid"]))
+        self.assertEqual(row["answers_count"], 1)
+        self.assertEqual(row["unanswered_required_count"], 1)
+        self.assertEqual(row["completion_percentage"], 50.0)
+
+    def test_compliance_details_list_each_question_once_with_latest_answer(self):
+        response = self.client.get(
+            f"/api/customers/{self.customer.uuid.hex}/project-metadata-compliance-details/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        detail = next(
+            p
+            for p in response.data["project_details"]
+            if self._is_project(p["project_uuid"])
+        )
+        answers = [
+            a
+            for a in detail["answers"]
+            if a["question_uuid"] == str(self.question1.uuid)
+        ]
+        self.assertEqual(len(answers), 1)
+        self.assertEqual(answers[0]["answer_data"], "Owner purpose")
+
+    def test_question_answers_show_latest_answer_per_project(self):
+        response = self.client.get(
+            f"/api/customers/{self.customer.uuid.hex}/project-metadata-question-answers/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        question = next(
+            q
+            for q in response.data
+            if q["question_description"] == "What is the project purpose?"
+        )
+        self.assertEqual(question["answered_projects_count"], 1)
+        project_answer = next(
+            a
+            for a in question["project_answers"]
+            if self._is_project(a["project_uuid"])
+        )
+        self.assertEqual(project_answer["answer_data"], "Owner purpose")
 
 
 class NumberValidationFieldsTest(test.APITestCase):

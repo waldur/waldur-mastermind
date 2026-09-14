@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
+from django.utils.dateparse import parse_datetime
 from rest_framework import status, test
 
 from waldur_core.checklist import models as checklist_models
@@ -70,6 +73,53 @@ class ProjectMetadataExposureTest(test.APITestCase):
         call_id = metadata[0]
         self.assertEqual(call_id["question_uuid"], self.text_question.uuid.hex)
         self.assertEqual(call_id["answer"], "EXT-2026-042")
+
+    def test_entries_carry_modified_timestamp(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Asserted on the rendered JSON: each entry carries the exact save time
+        # as an ISO 8601 string.
+        answers = self.completion.answers.order_by("question__order")
+        self.assertEqual(
+            [
+                parse_datetime(m["modified"])
+                for m in response.json()["project_metadata"]
+            ],
+            [answer.modified for answer in answers],
+        )
+
+    def test_latest_answer_per_question_is_served(self):
+        """Answers are per-user rows; each question is served once, by its latest row."""
+        owner_answer = self.completion.answers.get(
+            question=self.text_question, user=self.fixture.owner
+        )
+        manager_answer = checklist_factories.AnswerFactory(
+            completion=self.completion,
+            question=self.text_question,
+            answer_data="EXT-2026-777",
+            user=self.fixture.manager,
+        )
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        def call_id_entries():
+            metadata = self.client.get(self.url).json()["project_metadata"]
+            return [
+                m for m in metadata if m["question_uuid"] == self.text_question.uuid.hex
+            ]
+
+        entries = call_id_entries()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["answer"], "EXT-2026-777")
+
+        # auto_now overwrites ``modified`` on save(), so bump it via update().
+        checklist_models.Answer.objects.filter(pk=owner_answer.pk).update(
+            modified=manager_answer.modified + timedelta(hours=1)
+        )
+        entries = call_id_entries()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["answer"], "EXT-2026-042")
 
     def test_select_answer_is_human_readable(self):
         self.client.force_authenticate(user=self.fixture.owner)

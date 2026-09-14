@@ -593,6 +593,34 @@ class OfferingUserChecklistCompletionsViewSetTest(test.APITestCase):
         )
         self.assertEqual(result["unanswered_required_questions"], 0)
 
+    def test_question_answered_by_two_users_counts_once(self):
+        """Answers are per-user rows; a question answered twice is one answered question."""
+        answered = checklist_factories.QuestionFactory(
+            checklist=self.checklist1, description="Answered Q", required=True
+        )
+        checklist_factories.QuestionFactory(
+            checklist=self.checklist1, description="Unanswered Q", required=True
+        )
+        for user in (self.user, self.fixture.owner):
+            checklist_factories.AnswerFactory(
+                user=user,
+                question=answered,
+                completion=self.completion1,
+                answer_data=["yes"],
+            )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result = next(
+            r
+            for r in response.data
+            if r["offering_user_uuid"] == str(self.offering_user1.uuid)
+        )
+        self.assertEqual(result["unanswered_required_questions"], 1)
+        self.assertEqual(result["completion_percentage"], 50.0)
+
     def test_list_query_count_does_not_scale_per_completion(self):
         """List endpoint must bulk-fetch OfferingUsers; query count is bounded."""
         # Add several more completions to amplify any N+1.

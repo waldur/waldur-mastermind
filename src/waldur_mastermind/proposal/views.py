@@ -3585,9 +3585,13 @@ class ProposalViewSet(
         query_params = getattr(request, "query_params", request.GET)
         include_all = query_params.get("include_all", "false").lower() == "true"
         if include_all:
-            questions = checklist.questions.all().order_by("order")
+            questions = checklist.get_questions()
         else:
-            questions = checklist.get_visible_questions(completion)
+            # Visibility follows the requesting user's own answers, as
+            # existing_answer does below.
+            questions = checklist.get_visible_questions(
+                completion, answers=completion.get_latest_answers(user=request.user)
+            )
         response_serializer = checklist_serializers.ChecklistResponseSerializer(
             {"checklist": checklist, "completion": completion, "questions": questions},
             context={

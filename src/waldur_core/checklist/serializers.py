@@ -307,6 +307,24 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "dependencies_info",
         )
 
+    def _answers_by_question(self):
+        """The answer that stands for each question, loaded once per response.
+
+        The context dict is shared by every child of a ``many=True`` serializer, so
+        the map is cached there. It holds the latest answer per question (answers
+        are per-user rows). For multi-writer completions (e.g. a workflow step
+        answered by several reviewers) callers pass ``answer_user`` so each user
+        only sees/edits their OWN answer rather than an arbitrary peer's.
+        """
+        completion = self.context["completion"]
+        answer_user = self.context.get("answer_user")
+        key = ("_answers_by_question", completion.pk, getattr(answer_user, "pk", None))
+        if key not in self.context:
+            self.context[key] = (
+                completion.get_latest_answers(user=answer_user) if completion.pk else {}
+            )
+        return self.context[key]
+
     @extend_schema_field(AnswerSerializer(allow_null=True))
     def get_existing_answer(self, obj):
         """Get existing answer for this question in the current completion context."""
@@ -316,32 +334,19 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
         if not request or not completion:
             return None
 
-        try:
-            # If user has permission to view the completion, they should see all answers
-            # The permission check is done at the viewset level, so if we're here, user is authorized.
-            # For multi-writer completions (e.g. a workflow step answered by several
-            # reviewers) callers pass ``answer_user`` so each user only sees/edits
-            # their OWN answer rather than an arbitrary peer's.
-            answer_user = self.context.get("answer_user")
-            if answer_user is not None:
-                answer = completion.answers.filter(
-                    question=obj, user=answer_user
-                ).first()
-            else:
-                answer = completion.answers.filter(question=obj).first()
-
-            if not answer:
-                return None
-
-            # For basic view, hide review flag from answer
-            answer_data = AnswerSerializer(answer, context=self.context).data
-            if hasattr(self, "_hide_review_flags") or not isinstance(
-                self, QuestionWithAnswerReviewerSerializer
-            ):
-                answer_data.pop("requires_review", None)
-            return answer_data
-        except models.Answer.DoesNotExist:
+        # If user has permission to view the completion, they should see all answers
+        # The permission check is done at the viewset level, so if we're here, user is authorized.
+        answer = self._answers_by_question().get(obj.id)
+        if not answer:
             return None
+
+        # For basic view, hide review flag from answer
+        answer_data = AnswerSerializer(answer, context=self.context).data
+        if hasattr(self, "_hide_review_flags") or not isinstance(
+            self, QuestionWithAnswerReviewerSerializer
+        ):
+            answer_data.pop("requires_review", None)
+        return answer_data
 
     @extend_schema_field(serializers.ListField(allow_null=True))
     def get_question_options(self, obj):
@@ -353,7 +358,8 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
                     "label": option.label,
                     "order": option.order,
                 }
-                for option in obj.question_options.all().order_by("order")
+                # QuestionOption.Meta orders by order; all() keeps a prefetch usable.
+                for option in obj.question_options.all()
             ]
         return []
 
@@ -369,28 +375,26 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
                 return obj.user_guidance if obj.user_guidance.strip() else None
             return None
 
-        try:
-            answer = completion.answers.get(question=obj, user=request.user)
-            answer_data = answer.answer_data
-
-            # Check if guidance should be shown for this answer
-            if obj.should_show_guidance(answer_data):
-                return obj.user_guidance if obj.user_guidance.strip() else None
-            return None
-
-        except models.Answer.DoesNotExist:
+        # Guidance follows the same answer existing_answer shows.
+        answer = self._answers_by_question().get(obj.id)
+        if answer is None:
             # No answer yet, show guidance only if always_show_guidance is True
             if obj.always_show_guidance:
                 return obj.user_guidance if obj.user_guidance.strip() else None
             return None
 
+        # Check if guidance should be shown for this answer
+        if obj.should_show_guidance(answer.answer_data):
+            return obj.user_guidance if obj.user_guidance.strip() else None
+        return None
+
     @extend_schema_field(QuestionDependencyInfoSerializer(allow_null=True))
     def get_dependencies_info(self, obj):
         """Return dependency information for conditional questions."""
-        if not obj.is_dependant():
+        # all() rather than exists(): it is served from a prefetch.
+        dependencies = obj.dependencies.all()
+        if not dependencies:
             return None
-
-        dependencies = obj.dependencies.select_related("depends_on_question").all()
 
         return {
             "logic": obj.dependency_logic_operator,

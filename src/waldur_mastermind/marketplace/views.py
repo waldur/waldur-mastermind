@@ -12353,14 +12353,20 @@ class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet)
                 # in the checklist, not Answer rows (which only exist for
                 # questions the user has touched).
                 total_questions=SubqueryCount(questions_qs),
+                # Answered questions, not Answer rows: answers are per-user
+                # rows, so a question answered by two users has two.
                 answered_answers=SubqueryCount(
                     answers_qs.filter(answer_data__isnull=False)
+                    .values("question_id")
+                    .distinct()
                 ),
                 total_required_questions=SubqueryCount(required_questions_qs),
                 total_required_answers=SubqueryCount(
                     answers_qs.filter(
                         question__required=True, answer_data__isnull=False
                     )
+                    .values("question_id")
+                    .distinct()
                 ),
             )
             .annotate(

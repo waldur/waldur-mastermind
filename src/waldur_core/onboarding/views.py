@@ -156,7 +156,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
         include_all = request.query_params.get("include_all", "false").lower() == "true"
 
         if include_all:
-            questions = checklist.questions.all().order_by("order")
+            questions = checklist.get_questions()
         else:
             questions = checklist.get_visible_questions(completion)
 
@@ -406,7 +406,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
                 ).data
 
                 # Get questions for this checklist
-                questions = checklist.questions.all().order_by("order")
+                questions = checklist.get_questions()
                 questions_data = checklist_serializers.QuestionWithAnswerSerializer(
                     questions, many=True, context={"request": request}
                 ).data
