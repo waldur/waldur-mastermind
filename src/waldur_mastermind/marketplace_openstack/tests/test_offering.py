@@ -251,6 +251,46 @@ class OfferingComponentForVolumeTypeTest(test.APITestCase):
         )
         self.assertEqual(component.name, "Storage (%s)" % self.volume_type.name)
 
+    def _resync_volume_type(self):
+        # The same write the backend pull makes for every volume type on each sync.
+        openstack_models.VolumeType.objects.update_or_create(
+            settings=self.volume_type.settings,
+            backend_id=self.volume_type.backend_id,
+            defaults={
+                "name": self.volume_type.name,
+                "description": self.volume_type.description,
+                "disabled": self.volume_type.disabled,
+            },
+        )
+
+    def test_provider_accounting_survives_volume_type_resync(self):
+        component = marketplace_models.OfferingComponent.objects.get(
+            scope=self.volume_type
+        )
+        component.billing_type = BillingTypes.USAGE
+        component.measured_unit = "GB-hours"
+        component.save()
+
+        self._resync_volume_type()
+
+        component.refresh_from_db()
+        self.assertEqual(component.billing_type, BillingTypes.USAGE)
+        self.assertEqual(component.measured_unit, "GB-hours")
+
+    def test_prepaid_component_survives_volume_type_resync(self):
+        component = marketplace_models.OfferingComponent.objects.get(
+            scope=self.volume_type
+        )
+        component.billing_type = BillingTypes.ONE_TIME
+        component.is_prepaid = True
+        component.save()
+
+        self._resync_volume_type()
+
+        component.refresh_from_db()
+        self.assertEqual(component.billing_type, BillingTypes.ONE_TIME)
+        self.assertTrue(component.is_prepaid)
+
     def test_offering_component_is_deleted(self):
         self.volume_type.delete()
         self.assertRaises(
