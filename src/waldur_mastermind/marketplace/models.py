@@ -45,7 +45,7 @@ from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import FileTypeValidator, ImageValidator
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.mixins import PermissionMixin
-from waldur_core.permissions.utils import get_permissions, get_users
+from waldur_core.permissions.utils import get_permissions, get_scope_ids, get_users
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
@@ -5459,6 +5459,27 @@ class IntegrationStatus(core_models.UuidMixin):
         self.last_request_timestamp = timezone.now()
 
 
+def filter_by_backend_resource_permission(user):
+    """Rows whose offering the user may manage backend resources for.
+
+    Mirrors the detail check, permission_factory(MANAGE_OFFERING_BACKEND_RESOURCES,
+    ["offering", "offering.customer"]): roles are matched on the permission itself,
+    as has_permission does. Staff and global support never reach this query, since
+    filter_queryset_for_user returns every row to them. Support can therefore list
+    rows whose detail check refuses them, as on any model scoped by GenericRoleFilter.
+    """
+    permission = PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES
+    customer_ids = get_scope_ids(
+        user,
+        ContentType.objects.get_for_model(structure_models.Customer),
+        permission=permission,
+    )
+    offering_ids = get_scope_ids(
+        user, ContentType.objects.get_for_model(Offering), permission=permission
+    )
+    return Q(offering__customer__in=customer_ids) | Q(offering__in=offering_ids)
+
+
 class BackendResource(
     core_models.UuidMixin,
     core_models.NameMixin,
@@ -5478,6 +5499,9 @@ class BackendResource(
 
     offering = models.ForeignKey(to=Offering, on_delete=models.CASCADE)
     project = models.ForeignKey(to=structure_models.Project, on_delete=models.CASCADE)
+
+    class Permissions:
+        build_query = filter_by_backend_resource_permission
 
 
 class BackendResourceRequest(
@@ -5525,6 +5549,9 @@ class BackendResourceRequest(
     @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         self.finished = timezone.now()
+
+    class Permissions:
+        build_query = filter_by_backend_resource_permission
 
 
 class ResourceApiKey(

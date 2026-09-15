@@ -11,6 +11,7 @@ from waldur_core.permissions.fixtures import (
     OfferingRole,
     ServiceProviderRole,
 )
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -97,6 +98,98 @@ class BackendResourcePermissionsTest(test.APITestCase):
 
         response = self.client.get(url)
 
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @data("staff", "offering_owner", "offering_manager", "service_manager")
+    def test_user_can_list_backend_resources(self, role):
+        user = getattr(self.fixture, role)
+        self.client.force_login(user)
+        backend_resource = factories.BackendResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["uuid"] for item in response.data], [backend_resource.uuid.hex]
+        )
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_list_backend_resources(self, role):
+        user = getattr(self.fixture, role)
+        self.client.force_login(user)
+        factories.BackendResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_roles_on_other_offering_do_not_list_backend_resources(self):
+        other_offering = factories.OfferingFactory()
+        offering_manager = structure_factories.UserFactory()
+        other_offering.add_user(offering_manager, OfferingRole.MANAGER)
+        customer_owner = structure_factories.UserFactory()
+        other_offering.customer.add_user(customer_owner, CustomerRole.OWNER)
+        factories.BackendResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+        )
+        own = factories.BackendResourceFactory(
+            project=self.fixture.project, offering=other_offering
+        )
+
+        for user in (offering_manager, customer_owner):
+            self.client.force_login(user)
+            response = self.client.get(self.url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual([item["uuid"] for item in response.data], [own.uuid.hex])
+
+    def test_site_agent_lookup_by_backend_id(self):
+        # The query the site agent sends before submitting a backend resource.
+        self.client.force_login(self.fixture.offering_manager)
+        backend_resource = factories.BackendResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "backend_id": backend_resource.backend_id,
+                "project_uuid": self.fixture.project.uuid.hex,
+                "offering_uuid": self.fixture.offering.uuid.hex,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["uuid"] for item in response.data], [backend_resource.uuid.hex]
+        )
+
+    def test_global_support_lists_backend_resources_it_cannot_open(self):
+        # GenericRoleFilter returns every row to support, while the detail
+        # check lets only staff through.
+        self.client.force_login(self.fixture.global_support)
+        backend_resource = factories.BackendResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+        )
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["uuid"] for item in response.data], [backend_resource.uuid.hex]
+        )
+
+        response = self.client.get(
+            factories.BackendResourceFactory.get_url(backend_resource)
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
@@ -250,7 +343,7 @@ class BackendResourceRequestTest(test.APITestCase):
 
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data("staff", "offering_owner", "offering_manager", "service_manager")
     def test_user_can_set_done_backend_resource_request(self, role):
@@ -283,7 +376,7 @@ class BackendResourceRequestTest(test.APITestCase):
 
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data("staff", "offering_owner", "offering_manager", "service_manager")
     def test_user_can_set_erred_backend_resource_request(self, role):
@@ -313,12 +406,13 @@ class BackendResourceRequestTest(test.APITestCase):
         self.client.force_login(user)
 
         url = factories.BackendResourceRequestFactory.get_url(
-            self.resource_request, "set_done"
+            self.resource_request, "set_erred"
         )
 
-        response = self.client.post(url)
+        payload = {"error_message": "test error", "error_traceback": "test traceback"}
+        response = self.client.post(url, data=payload)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @mock.patch("waldur_core.logging.tasks.publish_messages")
     def test_create_backend_resource_request(self, mock_publish_messages):
@@ -348,3 +442,50 @@ class BackendResourceRequestTest(test.APITestCase):
             response.data["state"], models.BackendResourceRequest.States.SENT
         )
         mock_publish_messages.delay.assert_called_once()
+
+    @data("staff", "offering_owner", "offering_manager", "service_manager")
+    def test_user_can_list_backend_resource_requests(self, role):
+        self.client.force_login(getattr(self.fixture, role))
+
+        response = self.client.get(
+            factories.BackendResourceRequestFactory.get_list_url()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["uuid"] for item in response.data],
+            [self.resource_request.uuid.hex],
+        )
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_list_backend_resource_requests(self, role):
+        # Requests carry the agent's error_traceback; apart from staff and
+        # global support, only the offering's backend-resource managers see them.
+        self.client.force_login(getattr(self.fixture, role))
+
+        response = self.client.get(
+            factories.BackendResourceRequestFactory.get_list_url()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_global_support_can_read_backend_resource_requests(self):
+        # The request viewset has no retrieve check, so support reads the
+        # detail too, error_traceback included.
+        self.client.force_login(self.fixture.global_support)
+
+        response = self.client.get(
+            factories.BackendResourceRequestFactory.get_list_url()
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["uuid"] for item in response.data],
+            [self.resource_request.uuid.hex],
+        )
+
+        response = self.client.get(
+            factories.BackendResourceRequestFactory.get_url(self.resource_request)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("error_traceback", response.data)

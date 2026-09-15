@@ -16458,9 +16458,8 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
 
     create_permissions = [check_create_permissions]
 
-    list_permissions = retrieve_permissions = destroy_permissions = (
-        update_permissions
-    ) = partial_update_permissions = [
+    # The list is scoped by GenericRoleFilter via BackendResource.Permissions.
+    retrieve_permissions = destroy_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES,
             ["offering", "offering.customer"],
@@ -16605,7 +16604,7 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
 
     lookup_field = "uuid"
     queryset = models.BackendResourceRequest.objects.all().order_by("-created")
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.BackendResourceRequestFilter
     serializer_class = serializers.BackendResourceReqSerializer
     disabled_actions = ["update", "partial_update", "destroy"]
