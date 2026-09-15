@@ -1289,6 +1289,42 @@ class OfferingCreateTest(test.APITestCase):
             "2026-02-28",
         )
 
+    def test_update_offering_plugin_options_heappe_cluster_id_allows_blank(self):
+        """Clearing heappe_cluster_id must accept empty string."""
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            plugin_options={"heappe_cluster_id": "1"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        response = self.client.post(
+            url,
+            {"plugin_options": {"heappe_cluster_id": ""}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertEqual(offering.plugin_options["heappe_cluster_id"], "")
+
+    def test_update_offering_plugin_options_heappe_cluster_id_allows_null(self):
+        """Clearing heappe_cluster_id must accept null."""
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            plugin_options={"heappe_cluster_id": "1"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        response = self.client.post(
+            url,
+            {"plugin_options": {"heappe_cluster_id": None}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertIsNone(offering.plugin_options["heappe_cluster_id"])
+
     def test_update_offering_plugin_options_required_team_role_allows_blank(self):
         """Clearing required_team_role_for_provisioning must accept empty string."""
         offering = factories.OfferingFactory(

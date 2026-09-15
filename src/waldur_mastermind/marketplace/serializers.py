@@ -650,29 +650,52 @@ def validate_posix_path(value, field):
 
 class HeappePluginOptionsSerializer(serializers.Serializer):
     heappe_cluster_id = serializers.CharField(
-        required=False, help_text="HEAppE cluster id"
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE cluster id",
     )
     heappe_local_base_path = serializers.CharField(
-        required=False, help_text="HEAppE local base path"
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE local base path",
+    )
+    heappe_url = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE url",
+    )
+    heappe_username = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE username",
     )
     heappe_identifier = serializers.CharField(
         required=False,
         # Homeport submits an empty string when the field is cleared.
         allow_blank=True,
+        allow_null=True,
         help_text="Identifier of the HEAppE instance this offering targets, "
         "e.g. 'it4i-heappe-prod'. Lets providers with multiple HEAppE "
         "deployments disambiguate which one a given offering uses.",
     )
-    heappe_url = serializers.CharField(required=False, help_text="HEAppE url")
-    heappe_username = serializers.CharField(required=False, help_text="HEAppE username")
     homedir_prefix = serializers.CharField(
         required=False, help_text="GLAuth homedir prefix", default="/home/"
     )
     scratch_project_directory = serializers.CharField(
-        required=False, help_text="HEAppE scratch project directory"
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE scratch project directory",
     )
     project_permanent_directory = serializers.CharField(
-        required=False, help_text="HEAppE project permanent directory"
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE project permanent directory",
     )
 
     def validate_homedir_prefix(self, value):
@@ -988,9 +1011,17 @@ class MergedPluginOptionsSerializer(
 
 class HeappeSecretOptionsSerializer(serializers.Serializer):
     heappe_cluster_password = serializers.CharField(
-        required=False, help_text="HEAppE cluster password"
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE cluster password",
     )
-    heappe_password = serializers.CharField(required=False, help_text="HEAppE password")
+    heappe_password = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="HEAppE password",
+    )
 
 
 class IPMappingSerializer(serializers.Serializer):
