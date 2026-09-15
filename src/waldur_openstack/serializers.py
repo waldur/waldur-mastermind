@@ -1316,6 +1316,43 @@ def validate_private_subnet_cidr(value):
     return validate_private_cidr(value, 24)
 
 
+def parse_subnet_cidr(value):
+    """The network a subnet CIDR names, in either family.
+
+    Neutron requires the prefix length to be written out, so an address without
+    one -- which ``ip_network`` would read as a /32 or /128 -- is refused here
+    instead of by Neutron after the subnet was already created. Host bits are
+    tolerated, as Neutron tolerates them.
+    """
+    message = _(
+        "Enter a network address in CIDR format with a prefix length, "
+        "e.g. 192.168.42.0/24 or 2001:db8::/64."
+    )
+    if not isinstance(value, str) or "/" not in value:
+        raise serializers.ValidationError(message)
+    try:
+        return ip_network(value, strict=False)
+    except ValueError:
+        raise serializers.ValidationError(message)
+
+
+def validate_default_subnet_cidr(value):
+    """The CIDR of the subnet a new tenant gets by default.
+
+    An order cannot carry IPv6 address modes, so an IPv6 default subnet uses
+    SLAAC, which Neutron only allows on a /64.
+    """
+    network = parse_subnet_cidr(value)
+    if network.version == 6 and network.prefixlen != 64:
+        raise serializers.ValidationError(
+            _(
+                "An IPv6 default subnet uses SLAAC, which needs a /64 prefix, "
+                "because instances build their address from it."
+            )
+        )
+    return value
+
+
 class OpenStackTenantSecurityGroupSerializer(serializers.Serializer):
     name = serializers.CharField()
     description = serializers.CharField(required=False, allow_blank=True)
@@ -1411,6 +1448,12 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
                     del fields[field]
 
         return fields
+
+    def validate_subnet_cidr(self, value):
+        # A marketplace order is validated by this serializer too, so a CIDR
+        # Neutron would refuse is rejected when the order is placed instead
+        # of leaving an ERRED order and a half-created tenant behind.
+        return validate_default_subnet_cidr(value)
 
     def validate_security_groups_configuration(self, attrs):
         security_groups = attrs.get("security_groups")
@@ -1569,6 +1612,8 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
                     project=tenant.project,
                     mtu=mtu,
                 )
+                ip_version = ip_network(subnet_cidr, strict=False).version
+                ipv6_mode = models.SubNet.Ipv6Modes.SLAAC if ip_version == 6 else None
                 models.SubNet.objects.create(
                     name=slugified_name + "-sub-net",
                     description=_("SubNet for tenant %s internal network")
@@ -1578,7 +1623,18 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
                     service_settings=tenant.service_settings,
                     project=tenant.project,
                     cidr=subnet_cidr,
-                    dns_nameservers=service_settings.options.get("dns_nameservers", []),
+                    ip_version=ip_version,
+                    ipv6_ra_mode=ipv6_mode,
+                    ipv6_address_mode=ipv6_mode,
+                    # Neutron rejects a nameserver of the other family, and the
+                    # defaults are usually IPv4 resolvers.
+                    dns_nameservers=[
+                        nameserver
+                        for nameserver in service_settings.options.get(
+                            "dns_nameservers", []
+                        )
+                        if _ip_version_of(nameserver) == ip_version
+                    ],
                 )
             self.create_default_security_groups(tenant, security_groups_data)
 
@@ -2686,12 +2742,10 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
 
         cidr = attrs["cidr"]
         try:
-            subnet_network = ip_network(cidr, strict=False)
-        except ValueError:
+            subnet_network = parse_subnet_cidr(cidr)
+        except serializers.ValidationError as error:
             if self.instance is None:
-                raise serializers.ValidationError(
-                    {"cidr": _("Enter a network address in CIDR format.")}
-                )
+                raise serializers.ValidationError({"cidr": error.detail})
             # A stored CIDR Waldur cannot parse came from the backend; do not
             # make every later rename of that subnet fail on it.
             subnet_network = None

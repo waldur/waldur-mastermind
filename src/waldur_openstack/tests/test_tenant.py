@@ -462,6 +462,56 @@ class TenantCreateTest(BaseTenantActionsTest):
         subnet = models.SubNet.objects.get(tenant=tenant)
         self.assertFalse(subnet.allocation_pools)
 
+    def _set_default_nameservers(self, nameservers):
+        self.fixture.settings.options["dns_nameservers"] = nameservers
+        self.fixture.settings.save()
+
+    def test_an_ipv6_subnet_cidr_creates_an_ipv6_slaac_default_subnet(self):
+        self._set_default_nameservers(["8.8.8.8", "2001:4860:4860::8888"])
+        payload = {**self.valid_data, "subnet_cidr": "2001:db8:b1::/64"}
+
+        response = self.create_tenant_request(self.fixture.staff, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        subnet = models.SubNet.objects.get(tenant__uuid=response.data["uuid"])
+        self.assertEqual(subnet.cidr, "2001:db8:b1::/64")
+        self.assertEqual(subnet.ip_version, 6)
+        self.assertEqual(subnet.ipv6_ra_mode, "slaac")
+        self.assertEqual(subnet.ipv6_address_mode, "slaac")
+        self.assertEqual(subnet.dns_nameservers, ["2001:4860:4860::8888"])
+
+    def test_the_default_ipv4_subnet_is_unchanged(self):
+        self._set_default_nameservers(["8.8.8.8", "2001:4860:4860::8888"])
+
+        response = self.create_tenant_request(self.fixture.staff, self.valid_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        subnet = models.SubNet.objects.get(tenant__uuid=response.data["uuid"])
+        self.assertEqual(subnet.cidr, "192.168.42.0/24")
+        self.assertEqual(subnet.ip_version, 4)
+        self.assertIsNone(subnet.ipv6_ra_mode)
+        self.assertIsNone(subnet.ipv6_address_mode)
+        self.assertEqual(subnet.dns_nameservers, ["8.8.8.8"])
+
+    @data(
+        "2001:db8:b1::/56",
+        "2001:db8:b1::/80",
+        "2001:db8:b1::",
+        "192.168.42.0",
+        "not-a-network",
+        "192.168.42.0/33",
+    )
+    def test_a_subnet_cidr_neutron_would_refuse_is_rejected(self, subnet_cidr):
+        payload = {**self.valid_data, "subnet_cidr": subnet_cidr}
+
+        response = self.create_tenant_request(self.fixture.staff, payload)
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("subnet_cidr", response.data)
+        self.assertFalse(models.Tenant.objects.filter(name=payload["name"]).exists())
+
 
 @ddt
 class TenantUpdateTest(BaseTenantActionsTest):
