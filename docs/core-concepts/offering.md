@@ -378,6 +378,7 @@ The `anonymized` policy names an account `<prefix><posix uid>` -- for example `h
 | `heappe_username` | string | Service account username |
 | `heappe_password` | string | Service account password |
 | `heappe_cluster_id` | integer | Target cluster ID |
+| `heappe_identifier` | string | Human-readable identifier of the HEAppE instance this offering targets, e.g. `it4i-heappe-prod`; disambiguates between multiple HEAppE deployments a provider may run |
 | `project_permanent_directory` | string | Persistent project directory path |
 | `scratch_project_directory` | string | Temporary scratch directory path |
 

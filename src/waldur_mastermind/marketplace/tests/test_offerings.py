@@ -1235,6 +1235,21 @@ class OfferingCreateTest(test.APITestCase):
         )
         self.assertEqual(offering.plugin_options["heappe_username"], "test_user")
 
+    def test_heappe_identifier_can_be_cleared(self):
+        """Clearing the field in Homeport submits an empty string."""
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            plugin_options={"heappe_identifier": "example-cluster"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        response = self.client.post(url, {"plugin_options": {"heappe_identifier": ""}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertEqual(offering.plugin_options["heappe_identifier"], "")
+
     def test_update_offering_plugin_options_with_openstack_max_security_groups(self):
         """Test that offering plugin options can be updated with max_security_groups"""
         offering = factories.OfferingFactory(customer=self.customer)

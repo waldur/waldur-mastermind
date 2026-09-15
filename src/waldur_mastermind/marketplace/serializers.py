@@ -655,6 +655,14 @@ class HeappePluginOptionsSerializer(serializers.Serializer):
     heappe_local_base_path = serializers.CharField(
         required=False, help_text="HEAppE local base path"
     )
+    heappe_identifier = serializers.CharField(
+        required=False,
+        # Homeport submits an empty string when the field is cleared.
+        allow_blank=True,
+        help_text="Identifier of the HEAppE instance this offering targets, "
+        "e.g. 'it4i-heappe-prod'. Lets providers with multiple HEAppE "
+        "deployments disambiguate which one a given offering uses.",
+    )
     heappe_url = serializers.CharField(required=False, help_text="HEAppE url")
     heappe_username = serializers.CharField(required=False, help_text="HEAppE username")
     homedir_prefix = serializers.CharField(
