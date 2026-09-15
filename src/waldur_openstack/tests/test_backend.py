@@ -2659,3 +2659,73 @@ class PushInstancePortsTest(BaseBackendTest):
         diagnosis = "\n".join(logs.output)
         self.assertIn("Could not reclaim", diagnosis)
         self.assertIn("compute:nova", diagnosis)
+
+
+class DetachFloatingIpFromPortTest(BaseBackendTest):
+    """Detaching only clears the floating IP's port: Neutron keeps it allocated
+    to the tenant with its address, and answers the update with that address."""
+
+    FLOATING_ADDRESS = "203.0.113.10"
+
+    def setUp(self):
+        super().setUp()
+        self.port = PortFactory(
+            tenant=self.tenant,
+            network=self.fixture.network,
+            subnet=self.fixture.subnet,
+            backend_id="attached-port-backend-id",
+        )
+        self.floating_ip = FloatingIPFactory(
+            tenant=self.tenant,
+            service_settings=self.openstack_settings,
+            project=self.tenant.project,
+            address=self.FLOATING_ADDRESS,
+            backend_network_id="external-network-id",
+            runtime_state="ACTIVE",
+            port=self.port,
+        )
+        self.backend_floating_ip = {
+            "id": self.floating_ip.backend_id,
+            "description": "",
+            "floating_ip_address": self.FLOATING_ADDRESS,
+            "floating_network_id": "external-network-id",
+            "fixed_ip_address": None,
+            "port_id": None,
+            "status": "DOWN",
+        }
+        self.mocked_neutron.update_floatingip.return_value = {
+            "floatingip": self.backend_floating_ip
+        }
+
+    def _detach(self):
+        self.backend.detach_floating_ip_from_port(self.floating_ip)
+        self.floating_ip.refresh_from_db()
+
+    def test_address_is_kept(self):
+        self._detach()
+
+        self.assertEqual(self.floating_ip.address, self.FLOATING_ADDRESS)
+        self.assertIsNone(self.floating_ip.port)
+        self.assertEqual(self.floating_ip.runtime_state, "DOWN")
+        self.mocked_neutron.update_floatingip.assert_called_once_with(
+            self.floating_ip.backend_id, {"floatingip": {"port_id": None}}
+        )
+
+    def test_detach_records_what_a_pull_of_the_same_floating_ip_would(self):
+        self._detach()
+
+        pulled = self.backend._backend_floating_ip_to_floating_ip(
+            self.backend_floating_ip, self.tenant
+        )
+        for field in ("address", "port", "runtime_state"):
+            self.assertEqual(
+                getattr(self.floating_ip, field), getattr(pulled, field), field
+            )
+
+    def test_a_blank_address_is_restored_from_neutron(self):
+        models.FloatingIP.objects.filter(pk=self.floating_ip.pk).update(address=None)
+        self.floating_ip.refresh_from_db()
+
+        self._detach()
+
+        self.assertEqual(self.floating_ip.address, self.FLOATING_ADDRESS)
