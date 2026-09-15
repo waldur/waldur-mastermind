@@ -35,7 +35,7 @@ flowchart LR
 |------|---------|
 | **Referred customer** | The organization whose invoices generate fees (`CustomerAffiliate.customer`). |
 | **Affiliate** | The organization that earns the fees (`CustomerAffiliate.affiliate`). |
-| **Affiliate link** | A staff-configured `CustomerAffiliate` row binding the two, plus the fee terms. One link per `(customer, affiliate)` pair. |
+| **Affiliate link** | A staff-configured `CustomerAffiliate` row binding the two, plus the fee terms. One link per `(customer, affiliate)` pair, and at most one active link per customer. |
 | **Fee accrual** | An `AffiliateFeeAccrual` — one fee earned from one finalized invoice. Idempotent per invoice. |
 | **Credit ledger** | `CreditTransaction` rows recording every change to a `CustomerCredit.value`. |
 | **Withdrawable balance** | The part of the affiliate's credit that was *earned* (not granted) and may leave the platform. |
@@ -279,21 +279,41 @@ inactive).
 Setting `is_active = False` suspends accrual immediately, independent of the
 dates, while keeping the link and its history.
 
-### E. Multiple affiliates for one customer
+### E. One active affiliate per customer
 
-A customer may be referred by several affiliates at once (links are unique per
-`(customer, affiliate)` pair). Each link accrues independently from the same
-invoice.
+A customer has at most one active affiliate link. The partial unique constraint
+`invoices_one_active_affiliate_per_customer` (unique `customer` where
+`is_active` is true) enforces it, and the API rejects creating or re-activating
+a second active link with `400`, naming the current affiliate. Inactive links
+are not restricted and keep their accrual history.
 
-`AcmeLabs` net invoice of 1,200.00, referred by two affiliates:
+The constraint follows `is_active`, not the date window: a link whose end date
+has passed still counts until it is deactivated.
 
-| Affiliate | Terms | Fee |
-|-----------|-------|----:|
-| `ResellerCo` | `fee_percent = 10` | 120.00 |
-| `ConsultingX` | `fee_percent = 5` | 60.00 |
+To move `AcmeLabs` from `ResellerCo` to `ConsultingX`:
 
-Both fees are accrued; the referred customer's invoice is unaffected (affiliate
-fees are paid by the operator, not added to the customer's bill).
+1. Create the `ConsultingX` link with `is_active = False` and the start date
+   of its first month.
+2. Once the invoices for `ResellerCo`'s last month are finalized, deactivate
+   the `ResellerCo` link. Deactivating stops accrual at once, even for a month
+   that has not been invoiced yet.
+3. Activate the `ConsultingX` link before the invoices for its first month are
+   finalized; otherwise it earns nothing for that month.
+
+A handover cannot be scheduled to happen by itself: both switches are manual.
+
+Do not delete the old link instead. That deletes its accrual records and its
+total earned; fees already credited stay in the affiliate's credit balance and
+ledger, but no longer trace back to the link.
+
+Links also stay unique per `(customer, affiliate)` pair, so moving `AcmeLabs`
+back to `ResellerCo` later means deactivating `ConsultingX` and re-activating
+the old link, not creating a new one.
+
+!!! warning "Upgrading a deployment with several active links"
+    Migration `invoices.0032` stops with the names of any customers that
+    have more than one active link. Deactivate all but one link for each
+    of them, then run the migration again.
 
 ## API
 
@@ -306,7 +326,7 @@ All endpoints live under `/api/customer-affiliates/` and return `404` while
 | `POST /api/customer-affiliates/` | **staff only** | Create a link. |
 | `GET /api/customer-affiliates/{uuid}/` | staff, affiliate owner | Retrieve a link. |
 | `PATCH/PUT /api/customer-affiliates/{uuid}/` | **staff only** | Update fee terms. |
-| `DELETE /api/customer-affiliates/{uuid}/` | **staff only** | Remove a link. |
+| `DELETE /api/customer-affiliates/{uuid}/` | **staff only** | Remove a link and its accruals. |
 | `GET /api/customer-affiliates/{uuid}/accruals/` | staff, affiliate owner | Per-invoice fees (amount + period only). |
 | `GET /api/customer-affiliates/{uuid}/earnings/` | staff, affiliate owner | Lifetime total, per-month series, withdrawable balance. |
 
@@ -315,6 +335,9 @@ Validation on create/update:
 - An organization cannot be its own affiliate.
 - `fee_percent` must be between 0 and 100.
 - `end_date` must be after `start_date`.
+- A customer can have only one active link. Creating an active link, or
+  setting `is_active` to true, while another link is active returns `400`
+  naming the current affiliate.
 
 ### Example: create a link (staff)
 
