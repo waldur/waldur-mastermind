@@ -6,11 +6,56 @@ from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
+from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils
 from waldur_core.core.enums import CoreStates
-from waldur_core.structure import tasks
+from waldur_core.structure import models, tasks
 from waldur_core.structure.tests import factories
 from waldur_core.structure.tests import models as test_models
+
+
+class StateTransitionTaskTest(TestCase):
+    def test_transition_keeps_a_column_written_after_the_instance_was_loaded(self):
+        # A task loads the settings, then a request stores a credential, then the
+        # task's error path records the failure. The credential must survive.
+        settings = factories.ServiceSettingsFactory(state=CoreStates.ERRED)
+        loaded = models.ServiceSettings.objects.get(pk=settings.pk)
+
+        concurrent = models.ServiceSettings.objects.get(pk=settings.pk)
+        concurrent.password = "secret"
+        concurrent.save(update_fields=["password"])
+
+        core_tasks.StateTransitionTask().state_transition(
+            loaded, "set_erred", action="", action_details={}
+        )
+
+        settings.refresh_from_db()
+        self.assertEqual(settings.state, CoreStates.ERRED)
+        self.assertEqual(settings.password, "secret")
+
+    def test_transition_saves_the_new_state(self):
+        instance = factories.TestNewInstanceFactory(state=CoreStates.UPDATE_SCHEDULED)
+        loaded = test_models.TestNewInstance.objects.get(pk=instance.pk)
+        test_models.TestNewInstance.objects.filter(pk=instance.pk).update(
+            name="renamed"
+        )
+
+        core_tasks.StateTransitionTask().state_transition(loaded, "begin_updating")
+
+        instance.refresh_from_db()
+        self.assertEqual(instance.state, CoreStates.UPDATING)
+        self.assertEqual(instance.name, "renamed")
+
+    def test_transition_into_the_current_state_still_touches_modified(self):
+        # SetErredStuckResources reads `modified` as the time of the last transition.
+        with freeze_time(timezone.now() - timedelta(hours=1)):
+            instance = factories.TestNewInstanceFactory(state=CoreStates.ERRED)
+        modified = instance.modified
+
+        core_tasks.StateTransitionTask().state_transition(instance, "set_erred")
+
+        instance.refresh_from_db()
+        self.assertGreater(instance.modified, modified)
 
 
 @ddt
