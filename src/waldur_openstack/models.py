@@ -915,8 +915,7 @@ class LoadBalancer(structure_models.BaseResource):
     vip_address = models.GenericIPAddressField(
         null=True,
         blank=True,
-        protocol="IPv4",
-        help_text=_("Virtual IP address of the load balancer"),
+        help_text=_("Virtual IP address of the load balancer, IPv4 or IPv6"),
     )
     vip_subnet = models.ForeignKey(
         on_delete=models.SET_NULL,

@@ -68,11 +68,16 @@ class OctaviaClient:
             return False
 
     def create_load_balancer(self, load_balancer: models.LoadBalancer):
-        backend_load_balancer = self.connection.create_load_balancer(
+        create_kwargs = dict(
             name=load_balancer.name,
             vip_subnet_id=load_balancer.vip_subnet.backend_id,
             provider=load_balancer.provider or "ovn",
         )
+        # Send the VIP only when one was requested; otherwise Octavia allocates
+        # it from vip_subnet, in whichever family that subnet is.
+        if load_balancer.vip_address:
+            create_kwargs["vip_address"] = load_balancer.vip_address
+        backend_load_balancer = self.connection.create_load_balancer(**create_kwargs)
         backend_load_balancer = self.connection.wait_for_load_balancer(
             backend_load_balancer.id
         )

@@ -1,4 +1,5 @@
 import logging
+from ipaddress import ip_address
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
@@ -1796,6 +1797,26 @@ class LoadBalancerViewSet(
         if floating_ip.tenant != load_balancer.tenant:
             raise exceptions.ValidationError(
                 _("Floating IP must belong to the same tenant as the load balancer.")
+            )
+        # Floating IPs are IPv4, and Neutron associates one only with a port
+        # that has an IPv4 address; for an IPv6-only VIP the attach would fail
+        # after the request was accepted.
+        vip_addresses = [
+            fixed_ip.get("ip_address")
+            for fixed_ip in load_balancer.vip_port.fixed_ips or []
+        ] or [load_balancer.vip_address]
+        vip_versions = set()
+        for vip_address in filter(None, vip_addresses):
+            try:
+                vip_versions.add(ip_address(vip_address).version)
+            except ValueError:
+                pass
+        if vip_versions and 4 not in vip_versions:
+            raise exceptions.ValidationError(
+                _(
+                    "A floating IP is IPv4 and cannot be attached to a load "
+                    "balancer whose VIP has no IPv4 address."
+                )
             )
         executors.LoadBalancerAttachFloatingIPExecutor().execute(
             load_balancer,
