@@ -620,14 +620,25 @@ class WaldurOpenstack(BaseModel):
     DEFAULT_SECURITY_GROUPS: tuple[
         dict[str, str | tuple[dict[str, str | int], ...]], ...
     ] = Field(
+        # Every rule has an IPv6 twin so that the groups also work in IPv6-only
+        # and dual-stack tenants. ICMPv6 is a separate IP protocol (IANA 58),
+        # so "icmp" with an IPv6 ethertype would not match ping over IPv6.
         (
             {
                 "name": "ssh",
                 "description": "Security group for secure shell access",
                 "rules": (
                     {
+                        "ethertype": "IPv4",
                         "protocol": "tcp",
                         "cidr": "0.0.0.0/0",
+                        "from_port": 22,
+                        "to_port": 22,
+                    },
+                    {
+                        "ethertype": "IPv6",
+                        "protocol": "tcp",
+                        "cidr": "::/0",
                         "from_port": 22,
                         "to_port": 22,
                     },
@@ -638,10 +649,18 @@ class WaldurOpenstack(BaseModel):
                 "description": "Security group for ping",
                 "rules": (
                     {
+                        "ethertype": "IPv4",
                         "protocol": "icmp",
                         "cidr": "0.0.0.0/0",
                         "icmp_type": -1,
                         "icmp_code": -1,
+                    },
+                    {
+                        "ethertype": "IPv6",
+                        "protocol": "58",
+                        "cidr": "::/0",
+                        "from_port": -1,
+                        "to_port": -1,
                     },
                 ),
             },
@@ -650,8 +669,16 @@ class WaldurOpenstack(BaseModel):
                 "description": "Security group for remote desktop access",
                 "rules": (
                     {
+                        "ethertype": "IPv4",
                         "protocol": "tcp",
                         "cidr": "0.0.0.0/0",
+                        "from_port": 3389,
+                        "to_port": 3389,
+                    },
+                    {
+                        "ethertype": "IPv6",
+                        "protocol": "tcp",
+                        "cidr": "::/0",
                         "from_port": 3389,
                         "to_port": 3389,
                     },
@@ -662,14 +689,30 @@ class WaldurOpenstack(BaseModel):
                 "description": "Security group for http and https access",
                 "rules": (
                     {
+                        "ethertype": "IPv4",
                         "protocol": "tcp",
                         "cidr": "0.0.0.0/0",
                         "from_port": 80,
                         "to_port": 80,
                     },
                     {
+                        "ethertype": "IPv6",
+                        "protocol": "tcp",
+                        "cidr": "::/0",
+                        "from_port": 80,
+                        "to_port": 80,
+                    },
+                    {
+                        "ethertype": "IPv4",
                         "protocol": "tcp",
                         "cidr": "0.0.0.0/0",
+                        "from_port": 443,
+                        "to_port": 443,
+                    },
+                    {
+                        "ethertype": "IPv6",
+                        "protocol": "tcp",
+                        "cidr": "::/0",
                         "from_port": 443,
                         "to_port": 443,
                     },

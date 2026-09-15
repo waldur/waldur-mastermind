@@ -14,7 +14,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace_openstack import views as marketplace_views
-from waldur_openstack import executors, models, tasks
+from waldur_openstack import executors, models, serializers, tasks
 from waldur_openstack.tests.helpers import override_openstack_settings
 
 from . import factories, fixtures
@@ -341,6 +341,48 @@ class TenantCreateTest(BaseTenantActionsTest):
         response = self.create_tenant_request(self.fixture.staff, self.valid_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_default_security_groups_allow_same_traffic_over_ipv4_and_ipv6(self):
+        response = self.create_tenant_request(self.fixture.staff, self.valid_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        tenant = models.Tenant.objects.get(name=self.valid_data["name"])
+        # ICMPv6 is its own IP protocol; every other protocol is shared.
+        ipv6_protocol_for = {"icmp": "58"}
+        for name in ("ssh", "ping", "rdp", "web"):
+            rules = list(tenant.security_groups.get(name=name).rules.all())
+            ipv4 = {
+                (rule.protocol, rule.from_port, rule.to_port)
+                for rule in rules
+                if rule.ethertype == models.SecurityGroupRule.IPv4
+                and rule.cidr == "0.0.0.0/0"
+            }
+            ipv6 = {
+                (rule.protocol, rule.from_port, rule.to_port)
+                for rule in rules
+                if rule.ethertype == models.SecurityGroupRule.IPv6
+                and rule.cidr == "::/0"
+            }
+            self.assertTrue(ipv4, name)
+            self.assertEqual(len(ipv4) + len(ipv6), len(rules), name)
+            self.assertEqual(
+                {
+                    (ipv6_protocol_for.get(protocol, protocol), from_port, to_port)
+                    for protocol, from_port, to_port in ipv4
+                },
+                ipv6,
+                name,
+            )
+            for rule in rules:
+                serializers.validate_security_group_rule(
+                    {
+                        "ethertype": rule.ethertype,
+                        "protocol": rule.protocol,
+                        "from_port": rule.from_port,
+                        "to_port": rule.to_port,
+                        "cidr": rule.cidr,
+                    }
+                )
 
     def test_tenant_is_created_with_custom_security_groups(self):
         payload = self.valid_data.copy()
