@@ -1,14 +1,20 @@
 from unittest import mock
 
 import pytest
+import responses
+from constance import config
+from constance.test.unittest import override_config
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support.backend import SupportBackendType
+from waldur_mastermind.support.backend.atlassian import ClientCredentialsAuth
 from waldur_mastermind.support.backend.atlassian_discovery import (
     AtlassianDiscoveryService,
     TemporaryCredentials,
 )
+
+GATEWAY_URL = "https://api.atlassian.com/ex/jira/cloud-1"
 
 
 class TestAtlassianDiscoveryService:
@@ -66,6 +72,53 @@ class TestAtlassianDiscoveryService:
             call_kwargs = mock_sd.call_args[1]
             assert call_kwargs["username"] == "admin"
             assert call_kwargs["password"] == "secret"
+
+    @responses.activate
+    def test_oauth2_client_uses_gateway_and_client_credentials(self):
+        responses.get(
+            "https://test.atlassian.net/_edge/tenant_info", json={"cloudId": "cloud-1"}
+        )
+        creds = TemporaryCredentials(
+            api_url="https://test.atlassian.net",
+            auth_method="oauth2_client_credentials",
+            client_id="client-id",
+            client_secret="client-secret",
+        )
+        service = AtlassianDiscoveryService(creds)
+
+        with mock.patch(
+            "waldur_mastermind.support.backend.atlassian_discovery.ServiceDesk"
+        ) as mock_sd:
+            _ = service.client
+
+        assert service.api_url == GATEWAY_URL
+        assert mock_sd.call_args[1]["url"] == GATEWAY_URL + "/"
+        auth = mock_sd.return_value._session.auth
+        assert isinstance(auth, ClientCredentialsAuth)
+        assert (auth.client_id, auth.client_secret) == ("client-id", "client-secret")
+
+    def test_oauth2_gateway_url_is_used_as_given(self):
+        creds = TemporaryCredentials(
+            api_url=GATEWAY_URL + "/",
+            auth_method="oauth2_client_credentials",
+            client_id="client-id",
+            client_secret="client-secret",
+        )
+
+        assert AtlassianDiscoveryService(creds).api_url == GATEWAY_URL
+
+    def test_oauth2_is_refused_for_a_non_cloud_site(self):
+        creds = TemporaryCredentials(
+            api_url="https://jira.example.com",
+            auth_method="oauth2_client_credentials",
+            client_id="client-id",
+            client_secret="client-secret",
+        )
+
+        result = AtlassianDiscoveryService(creds).validate_credentials()
+
+        assert result["valid"] is False
+        assert "Atlassian Cloud" in result["error"]
 
     def test_validate_credentials_success(self):
         creds = TemporaryCredentials(
@@ -476,6 +529,114 @@ class TestAtlassianSettingsDiscoveryViewSet(test.APITestCase):
         assert config.ATLASSIAN_EMAIL == "test@example.com"
         assert config.ATLASSIAN_TOKEN == "test-token"
         assert config.ATLASSIAN_PROJECT_ID == "SD"
+
+    OAUTH2_CREDENTIALS = {
+        "api_url": "https://test.atlassian.net",
+        "auth_method": "oauth2_client_credentials",
+        "client_id": "client-id",
+        "client_secret": "client-secret",
+    }
+
+    def _post_with_valid_credentials(self, url, data):
+        self.client.force_authenticate(self.staff_user)
+        with (
+            mock.patch(
+                "waldur_mastermind.support.backend.atlassian_discovery.AtlassianDiscoveryService.validate_credentials",
+                return_value={"valid": True},
+            ),
+            mock.patch(
+                "waldur_mastermind.support.backend.atlassian_discovery.get_cloud_gateway_url",
+                return_value=GATEWAY_URL,
+            ),
+        ):
+            return self.client.post(url, data)
+
+    def test_validate_credentials_requires_client_secret_for_oauth2(self):
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            self.get_validate_credentials_url(),
+            {**self.OAUTH2_CREDENTIALS, "client_secret": ""},
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "client_secret" in response.data
+
+    def test_preview_settings_shows_gateway_url_for_oauth2(self):
+        response = self._post_with_valid_credentials(
+            self.get_preview_settings_url(),
+            {**self.OAUTH2_CREDENTIALS, "project_id": "10"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        preview = response.data["preview"]
+        assert preview["ATLASSIAN_API_URL"] == GATEWAY_URL
+        assert preview["ATLASSIAN_OAUTH2_CLIENT_ID"] == "client-id"
+        assert preview["ATLASSIAN_OAUTH2_CLIENT_SECRET"] == "***HIDDEN***"
+
+    def test_save_oauth2_stores_gateway_url_and_clears_other_credentials(self):
+        config.ATLASSIAN_EMAIL = "old@example.com"
+        config.ATLASSIAN_TOKEN = "old-token"
+        config.ATLASSIAN_OAUTH2_ACCESS_TOKEN = "old-access-token"
+
+        response = self._post_with_valid_credentials(
+            self.get_save_settings_url(),
+            {**self.OAUTH2_CREDENTIALS, "project_id": "10", "confirm_save": True},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert config.ATLASSIAN_API_URL == GATEWAY_URL
+        assert config.ATLASSIAN_OAUTH2_CLIENT_ID == "client-id"
+        assert config.ATLASSIAN_OAUTH2_CLIENT_SECRET == "client-secret"
+        assert config.ATLASSIAN_EMAIL == ""
+        assert config.ATLASSIAN_TOKEN == ""
+        assert config.ATLASSIAN_OAUTH2_ACCESS_TOKEN == ""
+
+    def test_save_api_token_clears_oauth2_credentials(self):
+        # OAuth 2.0 takes precedence in the backend, so leftovers would win.
+        config.ATLASSIAN_OAUTH2_CLIENT_ID = "client-id"
+        config.ATLASSIAN_OAUTH2_CLIENT_SECRET = "client-secret"
+
+        response = self._post_with_valid_credentials(
+            self.get_save_settings_url(),
+            {
+                "api_url": "https://test.atlassian.net",
+                "auth_method": "api_token",
+                "email": "test@example.com",
+                "token": "test-token",
+                "project_id": "SD",
+                "confirm_save": True,
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert config.ATLASSIAN_OAUTH2_CLIENT_ID == ""
+        assert config.ATLASSIAN_OAUTH2_CLIENT_SECRET == ""
+
+    @override_config(
+        ATLASSIAN_API_URL="https://example.com/",
+        ATLASSIAN_USERNAME="USERNAME",
+        ATLASSIAN_PASSWORD="PASSWORD",
+        ATLASSIAN_TOKEN="",
+        ATLASSIAN_PERSONAL_ACCESS_TOKEN="",
+        ATLASSIAN_OAUTH2_CLIENT_ID="",
+        ATLASSIAN_OAUTH2_CLIENT_SECRET="",
+    )
+    def test_current_settings_ignores_placeholder_defaults(self):
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.get(self.get_current_settings_url())
+        assert response.data["ATLASSIAN_API_URL"] == ""
+        assert response.data["ATLASSIAN_USERNAME"] == ""
+        assert response.data["auth_method"] is None
+        assert response.data["auth_configured"] is False
+
+    @override_config(
+        ATLASSIAN_OAUTH2_CLIENT_ID="client-id",
+        ATLASSIAN_OAUTH2_CLIENT_SECRET="client-secret",
+    )
+    def test_current_settings_detects_oauth2_client_credentials(self):
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.get(self.get_current_settings_url())
+        assert response.data["auth_method"] == "oauth2_client_credentials"
+        assert response.data["ATLASSIAN_OAUTH2_CLIENT_ID"] == "client-id"
+        assert "ATLASSIAN_OAUTH2_CLIENT_SECRET" not in response.data
 
 
 @pytest.mark.django_db

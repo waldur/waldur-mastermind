@@ -1,12 +1,21 @@
+import base64
+import json
+from io import BytesIO
 from unittest import mock, skip
 
+import responses
 from constance.test.unittest import override_config
+from django.core.cache import cache
 from django.test import TestCase
+from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models
-from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.backend.atlassian import (
+    ATLASSIAN_OAUTH2_TOKEN_URL,
+    ServiceDeskBackend,
+)
 from waldur_mastermind.support.tests import factories, fixtures
 
 
@@ -464,3 +473,265 @@ class PullRequestTypesTest(BaseBackendTest):
         self.mocked_jira.get_request_types.assert_not_called()
         # The direct API fallback SHOULD be called
         self.mock_fallback.assert_called_once()
+
+
+def _basic(username, password):
+    token = base64.b64encode(f"{username}:{password}".encode()).decode()
+    return f"Basic {token}"
+
+
+class DirectRestAuthTest(TestCase):
+    """Direct REST calls must carry the credentials of the configured auth mode.
+
+    Uses a real ServiceDesk client and stubs HTTP at the transport level, so the
+    assertions see the Authorization header that is actually sent.
+    """
+
+    BASE_URL = "https://jira.example.com"
+    # The settings wizard blanks every credential except the selected one.
+    NO_CREDENTIALS = {
+        "ATLASSIAN_USERNAME": "",
+        "ATLASSIAN_PASSWORD": "",
+        "ATLASSIAN_EMAIL": "",
+        "ATLASSIAN_TOKEN": "",
+        "ATLASSIAN_PERSONAL_ACCESS_TOKEN": "",
+        "ATLASSIAN_OAUTH2_CLIENT_ID": "",
+        "ATLASSIAN_OAUTH2_CLIENT_SECRET": "",
+        "ATLASSIAN_OAUTH2_ACCESS_TOKEN": "",
+    }
+    AUTH_MODES = {
+        "personal_access_token": (
+            {"ATLASSIAN_PERSONAL_ACCESS_TOKEN": "pat-secret"},
+            "Bearer pat-secret",
+        ),
+        "oauth2": (
+            {
+                "ATLASSIAN_OAUTH2_CLIENT_ID": "client-id",
+                "ATLASSIAN_OAUTH2_ACCESS_TOKEN": "oauth-secret",
+                "ATLASSIAN_OAUTH2_TOKEN_TYPE": "Bearer",
+            },
+            "Bearer oauth-secret",
+        ),
+        "api_token": (
+            {"ATLASSIAN_EMAIL": "bot@example.com", "ATLASSIAN_TOKEN": "api-secret"},
+            _basic("bot@example.com", "api-secret"),
+        ),
+        "basic": (
+            {"ATLASSIAN_USERNAME": "bot", "ATLASSIAN_PASSWORD": "secret"},
+            _basic("bot", "secret"),
+        ),
+    }
+
+    def _config(self, credentials, **extra):
+        return {
+            "ATLASSIAN_API_URL": self.BASE_URL,
+            "ATLASSIAN_PROJECT_ID": "10",
+            **self.NO_CREDENTIALS,
+            **credentials,
+            **extra,
+        }
+
+    def test_pull_request_types_uses_configured_credentials(self):
+        url = f"{self.BASE_URL}/rest/servicedeskapi/servicedesk/10/requesttype"
+        for mode, (credentials, expected_auth) in self.AUTH_MODES.items():
+            with (
+                self.subTest(mode=mode),
+                override_config(**self._config(credentials)),
+                responses.RequestsMock() as rsps,
+            ):
+                rsps.get(url, json={"values": [{"id": "125", "name": "Get IT help"}]})
+
+                ServiceDeskBackend().pull_request_types()
+
+                self.assertEqual(
+                    rsps.calls[0].request.headers["Authorization"], expected_auth
+                )
+                self.assertTrue(
+                    models.RequestType.objects.filter(
+                        backend_id="125", name="Get IT help"
+                    ).exists()
+                )
+
+    def test_upload_file_uses_configured_credentials(self):
+        url = f"{self.BASE_URL}/rest/api/2/issue/TST-1/attachments"
+        issue = mock.Mock(key="TST-1")
+        for mode, (credentials, expected_auth) in self.AUTH_MODES.items():
+            with (
+                self.subTest(mode=mode),
+                override_config(**self._config(credentials)),
+                responses.RequestsMock() as rsps,
+            ):
+                rsps.post(url, json=[{"id": "1"}])
+
+                ServiceDeskBackend()._upload_file(issue, BytesIO(b"data"), "a.txt")
+
+                headers = rsps.calls[0].request.headers
+                self.assertEqual(headers["Authorization"], expected_auth)
+                self.assertEqual(headers["X-Atlassian-Token"], "no-check")
+                self.assertTrue(headers["Content-Type"].startswith("multipart/"))
+
+    def test_service_account_gateway_url(self):
+        gateway = "https://api.atlassian.com/ex/jira/cloud-id"
+        credentials, expected_auth = self.AUTH_MODES["personal_access_token"]
+        with (
+            override_config(**self._config(credentials, ATLASSIAN_API_URL=gateway)),
+            responses.RequestsMock() as rsps,
+        ):
+            rsps.get(
+                f"{gateway}/rest/servicedeskapi/servicedesk/10/requesttype",
+                json={"values": []},
+            )
+
+            ServiceDeskBackend().pull_request_types()
+
+            self.assertEqual(
+                rsps.calls[0].request.headers["Authorization"], expected_auth
+            )
+
+    def test_ssl_verification_setting_is_honoured(self):
+        credentials, _ = self.AUTH_MODES["personal_access_token"]
+        with (
+            override_config(**self._config(credentials, ATLASSIAN_VERIFY_SSL=False)),
+            responses.RequestsMock() as rsps,
+        ):
+            rsps.get(
+                f"{self.BASE_URL}/rest/servicedeskapi/servicedesk/10/requesttype",
+                json={"values": []},
+            )
+            rsps.post(f"{self.BASE_URL}/rest/api/2/issue/TST-1/attachments", json=[])
+            backend = ServiceDeskBackend()
+
+            backend.pull_request_types()
+            backend._upload_file(mock.Mock(key="TST-1"), BytesIO(b"data"), "a.txt")
+
+            for call in rsps.calls:
+                self.assertIs(call.request.req_kwargs["verify"], False)
+
+    def test_non_dict_error_body_raises_service_backend_error(self):
+        """A list-shaped JSON error body must not surface as TypeError (CSCS-PY)."""
+        credentials, _ = self.AUTH_MODES["personal_access_token"]
+        with (
+            override_config(**self._config(credentials)),
+            responses.RequestsMock() as rsps,
+        ):
+            rsps.get(
+                f"{self.BASE_URL}/rest/servicedeskapi/servicedesk/10/requesttype",
+                json=["Forbidden"],
+                status=403,
+            )
+
+            with self.assertRaises(ServiceBackendError):
+                ServiceDeskBackend().pull_request_types()
+
+
+class ClientCredentialsTokenTest(TestCase):
+    """With a client ID and secret, Waldur obtains its own tokens and renews them."""
+
+    BASE_URL = "https://api.atlassian.com/ex/jira/cloud-id"
+    REQUEST_TYPES_URL = f"{BASE_URL}/rest/servicedeskapi/servicedesk/10/requesttype"
+    CONFIG = {
+        **DirectRestAuthTest.NO_CREDENTIALS,
+        "ATLASSIAN_API_URL": BASE_URL,
+        "ATLASSIAN_PROJECT_ID": "10",
+        "ATLASSIAN_OAUTH2_CLIENT_ID": "client-id",
+        "ATLASSIAN_OAUTH2_CLIENT_SECRET": "client-secret",
+    }
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+
+    def _add_tokens(self, rsps, *tokens):
+        # Registered responses for one URL are served in order.
+        for token in tokens:
+            rsps.post(
+                ATLASSIAN_OAUTH2_TOKEN_URL,
+                json={
+                    "access_token": token,
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                },
+            )
+
+    def _token_requests(self, rsps):
+        return [c for c in rsps.calls if c.request.url == ATLASSIAN_OAUTH2_TOKEN_URL]
+
+    def _api_authorizations(self, rsps):
+        return [
+            c.request.headers["Authorization"]
+            for c in rsps.calls
+            if c.request.url.startswith(self.BASE_URL)
+        ]
+
+    def test_token_is_requested_with_client_credentials(self):
+        with override_config(**self.CONFIG), responses.RequestsMock() as rsps:
+            self._add_tokens(rsps, "token-1")
+            rsps.get(self.REQUEST_TYPES_URL, json={"values": []})
+
+            backend = ServiceDeskBackend()
+            backend.pull_request_types()
+
+            self.assertEqual(backend.get_authentication_method(), "OAuth 2.0")
+            self.assertTrue(backend.validate_authentication_config())
+            self.assertEqual(
+                json.loads(self._token_requests(rsps)[0].request.body),
+                {
+                    "grant_type": "client_credentials",
+                    "client_id": "client-id",
+                    "client_secret": "client-secret",
+                },
+            )
+            self.assertEqual(self._api_authorizations(rsps), ["Bearer token-1"])
+
+    def test_token_is_shared_and_renewed_before_it_expires(self):
+        with (
+            freeze_time("2026-09-15 10:00:00") as frozen,
+            override_config(**self.CONFIG),
+            responses.RequestsMock() as rsps,
+        ):
+            self._add_tokens(rsps, "token-1", "token-2")
+            rsps.get(self.REQUEST_TYPES_URL, json={"values": []})
+            backend = ServiceDeskBackend()
+
+            backend.pull_request_types()
+            # Another backend instance (another process in production) reuses it.
+            ServiceDeskBackend().pull_request_types()
+            # Just outside the renewal margin the cached token is still used.
+            frozen.tick(3600 - 61)
+            backend.pull_request_types()
+            # Inside the margin the same client object obtains a new token.
+            frozen.tick(2)
+            backend.pull_request_types()
+
+            self.assertEqual(len(self._token_requests(rsps)), 2)
+            self.assertEqual(
+                self._api_authorizations(rsps),
+                ["Bearer token-1"] * 3 + ["Bearer token-2"],
+            )
+
+    def test_rotated_secret_does_not_reuse_the_cached_token(self):
+        with responses.RequestsMock() as rsps:
+            self._add_tokens(rsps, "token-1", "token-2")
+            rsps.get(self.REQUEST_TYPES_URL, json={"values": []})
+
+            with override_config(**self.CONFIG):
+                ServiceDeskBackend().pull_request_types()
+            with override_config(
+                **{**self.CONFIG, "ATLASSIAN_OAUTH2_CLIENT_SECRET": "rotated"}
+            ):
+                ServiceDeskBackend().pull_request_types()
+
+            self.assertEqual(
+                self._api_authorizations(rsps), ["Bearer token-1", "Bearer token-2"]
+            )
+
+    def test_token_request_failure_raises_service_backend_error(self):
+        with override_config(**self.CONFIG), responses.RequestsMock() as rsps:
+            rsps.post(
+                ATLASSIAN_OAUTH2_TOKEN_URL,
+                json={"error": "invalid_client"},
+                status=401,
+            )
+
+            with self.assertRaises(ServiceBackendError):
+                ServiceDeskBackend().pull_request_types()

@@ -14,6 +14,8 @@ from atlassian.errors import ApiError, ApiNotFoundError, ApiPermissionError
 
 from waldur_core.structure.exceptions import ServiceBackendError
 
+from .atlassian import ClientCredentialsAuth, get_cloud_gateway_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,12 +30,15 @@ class TemporaryCredentials:
     """Container for temporary Atlassian credentials."""
 
     api_url: str
-    auth_method: str  # 'api_token', 'personal_access_token', 'basic'
+    # 'api_token', 'personal_access_token', 'basic', 'oauth2_client_credentials'
+    auth_method: str
     email: str | None = None
     token: str | None = None
     personal_access_token: str | None = None
     username: str | None = None
     password: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
     verify_ssl: bool = True
 
 
@@ -48,6 +53,7 @@ class AtlassianDiscoveryService:
     def __init__(self, credentials: TemporaryCredentials):
         self.credentials = credentials
         self._client = None
+        self._api_url = None
 
     @property
     def client(self) -> ServiceDesk:
@@ -56,9 +62,25 @@ class AtlassianDiscoveryService:
             self._client = self._create_client()
         return self._client
 
+    @property
+    def api_url(self) -> str:
+        """URL of the Jira API.
+
+        OAuth 2.0 credentials only work at the API gateway, so a Cloud site URL
+        is resolved to the gateway URL for that method.
+        """
+        if self._api_url is None:
+            if self.credentials.auth_method == "oauth2_client_credentials":
+                self._api_url = get_cloud_gateway_url(
+                    self.credentials.api_url, self.credentials.verify_ssl
+                )
+            else:
+                self._api_url = self.credentials.api_url
+        return self._api_url
+
     def _create_client(self) -> ServiceDesk:
         """Create ServiceDesk client based on auth method."""
-        url = self.credentials.api_url
+        url = self.api_url
         if not url.endswith("/"):
             url += "/"
 
@@ -67,7 +89,16 @@ class AtlassianDiscoveryService:
             "verify_ssl": self.credentials.verify_ssl,
         }
 
-        if self.credentials.auth_method == "personal_access_token":
+        if self.credentials.auth_method == "oauth2_client_credentials":
+            logger.info("Creating discovery client with OAuth 2.0 client credentials")
+            client = ServiceDesk(cloud=True, **base_kwargs)
+            client._session.auth = ClientCredentialsAuth(
+                self.credentials.client_id,
+                self.credentials.client_secret,
+                self.credentials.verify_ssl,
+            )
+            return client
+        elif self.credentials.auth_method == "personal_access_token":
             logger.info(
                 "Creating discovery client with Personal Access Token authentication"
             )
@@ -104,6 +135,7 @@ class AtlassianDiscoveryService:
             return {
                 "valid": True,
                 "message": "Credentials validated successfully",
+                "api_url": self.api_url,
                 "server_info": {
                     "version": info.get("version", "unknown"),
                     "deployment_type": info.get("deploymentType", "unknown"),
@@ -114,6 +146,8 @@ class AtlassianDiscoveryService:
             ApiPermissionError,
             ApiNotFoundError,
             requests.exceptions.RequestException,
+            # Cloud ID lookup and OAuth 2.0 token request failures
+            ServiceBackendError,
         ) as e:
             logger.warning(f"Atlassian credential validation failed: {e}")
             return {
