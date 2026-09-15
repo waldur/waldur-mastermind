@@ -156,6 +156,10 @@ Show the staff diagnostics page listing tenants with duplicate per-tenant OpenSt
 
 Render POSIX ID pool management UI for service providers.
 
+## marketplace.show_provider_accounts
+
+Render service provider account management UI: provider accounts, username conflicts, the shared GLAuth directory and provider account settings.
+
 ## marketplace.show_resource_end_date
 
 Show resource end date as a non optional column in resources list.

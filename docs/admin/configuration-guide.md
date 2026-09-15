@@ -1914,6 +1914,12 @@ Personal Access Token for user
 
 OAuth 2.0 Client ID
 
+#### ATLASSIAN_OAUTH2_CLIENT_SECRET
+
+**Type:** secret_field
+
+OAuth 2.0 Client Secret. With the client ID set, Waldur obtains and renews access tokens itself (client credentials grant).
+
 #### ATLASSIAN_OAUTH2_ACCESS_TOKEN
 
 **Type:** secret_field
@@ -1946,7 +1952,7 @@ Issue type used for request-based item processing.
 
 **Type:** str
 
-Comma-separated list of file extenstions not allowed for attachment.
+Comma-separated list of file extensions not allowed for attachment.
 
 #### ATLASSIAN_AFFECTED_RESOURCE_FIELD
 
