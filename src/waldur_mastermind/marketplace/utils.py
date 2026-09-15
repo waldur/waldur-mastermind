@@ -4009,6 +4009,60 @@ def adopt_provider_accounts(
         return _adopt_provider_accounts_locked(service_provider, resolutions, offerings)
 
 
+def _validate_adoption(service_provider, by_user, resolutions, offerings) -> None:
+    """Refuse an adoption whose surviving usernames are not valid choices.
+
+    A resolution must be one of the usernames reported for that user, and no
+    two people may end up with one name at the provider -- neither two adopted
+    now nor one of them and an existing provider account. Checked before
+    anything is written, so a bad choice is a 400 that changes nothing instead
+    of a unique-constraint failure half way through.
+    """
+    candidates = {
+        conflict["user_uuid"]: {c["username"] for c in conflict["candidates"]}
+        for conflict in provider_username_conflicts(service_provider, offerings)
+    }
+    invalid = {
+        user_uuid: [
+            _("%(username)s is not one of this user's usernames at the provider.")
+            % {"username": username}
+        ]
+        for user_uuid, username in resolutions.items()
+        if user_uuid in candidates and username not in candidates[user_uuid]
+    }
+    if invalid:
+        raise serializers.ValidationError({"resolutions": invalid})
+
+    planned = defaultdict(set)
+    for accounts in by_user.values():
+        user = accounts[0].user
+        chosen = resolutions.get(user.uuid.hex) or next(
+            (a.username for a in accounts if a.username), ""
+        )
+        if chosen:
+            planned[chosen.lower()].add(user.id)
+    clashes = {name for name, user_ids in planned.items() if len(user_ids) > 1}
+    for name, user_ids in planned.items():
+        if (
+            models.ServiceProviderAccount.objects.filter(
+                service_provider=service_provider, username__iexact=name
+            )
+            .exclude(user_id__in=user_ids)
+            .exists()
+        ):
+            clashes.add(name)
+    if clashes:
+        raise serializers.ValidationError(
+            {
+                "usernames": sorted(clashes),
+                "detail": _(
+                    "Adopting would give these usernames to more than one person "
+                    "at this provider. Rename one of the accounts first."
+                ),
+            }
+        )
+
+
 def _adopt_provider_accounts_locked(
     service_provider, resolutions: dict, offerings=None
 ) -> dict:
@@ -4044,6 +4098,8 @@ def _adopt_provider_accounts_locked(
     by_user: dict[int, list] = defaultdict(list)
     for offering_user in offering_users:
         by_user[offering_user.user_id].append(offering_user)
+
+    _validate_adoption(service_provider, by_user, resolutions, offerings)
 
     for accounts in by_user.values():
         user = accounts[0].user

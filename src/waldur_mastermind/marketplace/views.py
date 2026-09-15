@@ -153,7 +153,7 @@ from waldur_core.users.utils import get_invitation_duplicates
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
-from waldur_mastermind.marketplace import billing_mode, callbacks
+from waldur_mastermind.marketplace import billing_mode, callbacks, provider_accounts
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.catalog_loaders import (
     detect_eessi_version,
@@ -360,6 +360,28 @@ def _glauth_users_for_toml(user_records):
     return prepared
 
 
+def _glauth_toml(groups, users) -> str:
+    """GLAuth TOML for ``groups`` and ``users`` records.
+
+    Groups are rendered as ``[[groups]]`` array-of-tables blocks rather than
+    letting tomli_w emit a top-level ``groups = [ {..}, .. ]`` inline array.
+    GLAuth's config backend (and the glauth image, which *concatenates* this
+    output onto a base config that already declares its service-account
+    ``[[groups]]``) requires array-of-tables so the groups accumulate into one
+    list. A bare ``groups = [...]`` key collides with the pre-existing
+    ``[[groups]]`` and is dropped, so none of the Waldur project/role groups
+    reach LDAP. Emitting ``[[groups]]`` parses to the identical structure while
+    merging cleanly.
+    """
+    group_blocks = "".join(
+        "[[groups]]\n"
+        + tomli_w.dumps({"name": group["name"], "gidnumber": int(group["gidnumber"])})
+        for group in groups
+    )
+    users_toml = tomli_w.dumps({"users": _glauth_users_for_toml(users)})
+    return group_blocks + users_toml
+
+
 def _render_glauth_toml(offering, *, resource_filter=None) -> str:
     """Render the glauth TOML config for an offering or single resource.
 
@@ -394,23 +416,7 @@ def _render_glauth_toml(offering, *, resource_filter=None) -> str:
             }
         )
 
-    # Render groups as ``[[groups]]`` array-of-tables blocks rather than letting
-    # tomli_w emit a top-level ``groups = [ {..}, .. ]`` inline array. GLAuth's
-    # config backend (and the glauth image, which *concatenates* this output onto
-    # a base config that already declares its service-account ``[[groups]]``)
-    # requires array-of-tables so the groups accumulate into one list. A bare
-    # ``groups = [...]`` key collides with the pre-existing ``[[groups]]`` and is
-    # dropped, so none of the Waldur project/role groups reach LDAP. Emitting
-    # ``[[groups]]`` parses to the identical structure while merging cleanly.
-    group_blocks = "".join(
-        "[[groups]]\n"
-        + tomli_w.dumps({"name": group["name"], "gidnumber": int(group["gidnumber"])})
-        for group in groups
-    )
-    users_toml = tomli_w.dumps(
-        {"users": _glauth_users_for_toml(user_data["users"] + robot_data["users"])}
-    )
-    return group_blocks + users_toml
+    return _glauth_toml(groups, user_data["users"] + robot_data["users"])
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -732,6 +738,79 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     adopt_provider_accounts_serializer_class = (
         serializers.AdoptProviderAccountsSerializer
     )
+
+    @extend_schema(
+        summary="Preview a change of the provider's account options",
+        description=(
+            "Shows what a change of the provider's account options would do, "
+            "without saving it: each offering's account settings before and after, "
+            "the offering accounts that would be renamed, the provider accounts "
+            "that keep their names, and what a new person would get. The options "
+            "are merged into the current ones key by key, as the provider update "
+            "does; a blank value removes a setting."
+        ),
+        request=serializers.AccountOptionsChangeSerializer,
+        responses={status.HTTP_200_OK: serializers.AccountOptionsPreviewSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def account_options_preview(self, request, uuid=None):
+        provider: models.ServiceProvider = self.get_object()
+        serializer = serializers.AccountOptionsChangeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        proposed = serializers.merge_account_options(
+            provider.account_options, serializer.validated_data["account_options"]
+        )
+        preview = provider_accounts.preview_account_options(provider, proposed)
+        return Response(preview, status=status.HTTP_200_OK)
+
+    account_options_preview_permissions = [structure_permissions.is_owner]
+    account_options_preview_serializer_class = (
+        serializers.AccountOptionsChangeSerializer
+    )
+
+    @extend_schema(
+        summary="Get the GLAuth configuration of the provider's shared accounts",
+        description=(
+            "One GLAuth config for the offerings of this provider that use "
+            "provider accounts, as a directory shared by them serves it: each "
+            "person once, with the groups of all those offerings. Disagreements "
+            "between the offerings are listed as comments at the top."
+        ),
+        request=None,
+        responses=str,
+        parameters=[],
+    )
+    @action(detail=True, methods=["GET"], renderer_classes=[PlainTextRenderer])
+    def glauth_users_config(self, request, uuid=None):
+        provider: models.ServiceProvider = self.get_object()
+        directory = provider_accounts.build_provider_glauth(provider)
+        header = "".join(f"# {warning}\n" for warning in directory["warnings"])
+        return Response(
+            header + _glauth_toml(directory["_toml_groups"], directory["_toml_users"])
+        )
+
+    glauth_users_config_permissions = [structure_permissions.is_service_manager]
+
+    @extend_schema(
+        summary="Get the structured GLAuth tree of the provider's shared accounts",
+        description=(
+            "The same directory as the provider's `glauth_users_config`, as a "
+            "structured JSON tree."
+        ),
+        request=None,
+        responses={status.HTTP_200_OK: serializers.ProviderGlauthTreeSerializer},
+        parameters=[],
+    )
+    @action(detail=True, methods=["GET"])
+    def glauth_tree(self, request, uuid=None):
+        provider: models.ServiceProvider = self.get_object()
+        directory = provider_accounts.build_provider_glauth(provider)
+        serializer = serializers.ProviderGlauthTreeSerializer(
+            _strip_internal(directory)
+        )
+        return Response(serializer.data)
+
+    glauth_tree_permissions = [structure_permissions.is_service_manager]
 
     stat_permissions = [
         permission_factory(
@@ -12215,6 +12294,9 @@ class ServiceProviderAccountViewSet(core_views.ActionsViewSet):
     queryset = (
         models.ServiceProviderAccount.objects.all()
         .select_related("user", "service_provider__customer")
+        # The offerings each account backs decide which of its person's
+        # attributes the serializer shows.
+        .prefetch_related("offering_users__offering__user_attribute_config")
         # Read by the serializer instead of a COUNT per row.
         .annotate(offering_count=Count("offering_users"))
         # The annotation groups, and QuerySet.ordered is False for a grouped

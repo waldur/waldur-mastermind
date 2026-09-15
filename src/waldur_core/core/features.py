@@ -184,6 +184,12 @@ class MarketplaceSection(FeatureSection):
         "Render POSIX ID pool management UI for service providers."
     )
 
+    show_provider_accounts = Feature(
+        "Render service provider account management UI: provider accounts, "
+        "username conflicts, the shared GLAuth directory and provider account "
+        "settings."
+    )
+
     allow_display_of_images_in_markdown = Feature(
         "Allow display of images in markdown format."
     )
