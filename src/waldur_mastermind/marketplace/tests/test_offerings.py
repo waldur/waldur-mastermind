@@ -1484,8 +1484,6 @@ class OfferingCreateTest(test.APITestCase):
             "require_effective_id_for_highlighted_display": False,
             "show_ssh_key_loss_warning": False,
             "enable_posix_account": True,
-            "homedir_prefix": "/home/",
-            "login_shell": "/bin/bash",
             "uid_source": "pool",
             "gid_source": "pool",
             "emit_display_name": False,
@@ -1499,8 +1497,6 @@ class OfferingCreateTest(test.APITestCase):
             "resource_role_group_template": "${resource_slug}_${role_name}",
             "resource_role_map": {},
             "slurm_periodic_policy_enabled": False,
-            "username_anonymized_prefix": "waldur_",
-            "username_generation_policy": "service_provider",
         }
         self.assertEqual(offering.plugin_options, default_plugin_options)
 

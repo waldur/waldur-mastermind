@@ -347,13 +347,87 @@ The related `resource_slug_template` option (e.g. `{project_slug}-{counter}`) ge
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `service_provider_can_create_offering_user` | boolean | `false` | Allow provider to create offering-specific user accounts |
-| `username_generation_policy` | string | `"waldur_username"` | How usernames are generated: `waldur_username`, `anonymized`, `service_provider`, `full_name`, `freeipa`, `eduteams` |
+| `username_generation_policy` | string | `"service_provider"` | How usernames are generated: `waldur_username`, `anonymized`, `service_provider`, `full_name`, `freeipa`, `eduteams`. Inherits from the provider's `account_username_generation_policy` when unset |
 | `account_name_generation_policy` | string | none | Site-agent backend ID (e.g. SLURM account name) generation. Unset = use the resource slug as-is; `project_slug` = derive from the project slug with an incrementing counter. Do not combine with `resource_slug_template` (see [Resource Naming](#resource-naming)) |
 | `initial_uidnumber` | integer | `5000` | Starting UID for generated users |
 | `initial_primarygroup_number` | integer | `5000` | Starting GID for primary groups |
 | `initial_usergroup_number` | integer | `6000` | Starting GID for user groups |
-| `homedir_prefix` | string | `"/home/"` | Prefix for home directory paths |
+| `homedir_prefix` | string | `"/home/"` | Prefix for home directory paths. Inherits from the provider's `account_homedir_prefix` when unset |
+| `login_shell` | string | `"/bin/bash"` | Login shell assigned to new accounts. Inherits from the provider's `account_login_shell` when unset |
 | `username_anonymized_prefix` | string | `"waldur_"` | Prefix for anonymized usernames; the name is the prefix followed by the account's POSIX UID (a per-offering counter when no UID resolves). Inherits from the provider's `account_username_anonymized_prefix` when unset |
+| `account_scope` | string | `"offering"` | `offering` keeps one account per offering; `provider` shares one account per user across the provider's offerings. Inherits from the provider's `account_scope` when unset |
+
+#### Inheriting account settings from the service provider
+
+The account settings `account_scope`, `username_generation_policy`,
+`username_anonymized_prefix`, `homedir_prefix` and `login_shell` can be set on
+an offering, in its plugin options, and on its service provider, in the
+provider's `account_options`. Both use the same keys and the same validation.
+They resolve most specific first:
+
+1. the offering's own plugin option, when set;
+2. otherwise the service provider's `account_options` value of the same key;
+3. otherwise the built-in default shown in the table above.
+
+Leave an option out of the offering's plugin options to inherit it. Saving an
+offering does not fill in the defaults, so a provider-level value applies to
+every offering that does not set its own.
+
+Both are updated key by key: omitting a key keeps its current value, and an
+empty string removes the setting so it is inherited again. For example, to
+set a login shell for all of a provider's offerings and clear its home
+directory prefix:
+
+```http
+PATCH /api/marketplace-service-providers/{uuid}/
+{"account_options": {"login_shell": "/bin/zsh", "homedir_prefix": ""}}
+```
+
+Changing the username generation policy or the anonymized prefix, on the
+offering or on the provider, regenerates the usernames of the offering users
+it affects. A provider change reaches only the offerings that inherit the
+setting. Accounts held at the provider (`account_scope: provider`) are not
+regenerated this way; their usernames belong to the provider account.
+
+Moving accounts into provider scope is refused while a person holds different
+usernames on the offerings that would share them. This applies to the
+provider's `account_scope` and to a single offering's `account_scope` alike.
+The provider's `username_conflicts` action lists the people concerned, and
+`adopt_provider_accounts` resolves them. A clean switch backs the existing
+accounts with provider accounts straight away.
+
+The provider-offering and public-offering APIs expose the effective values as
+the read-only `account_settings` field, and resources expose them for their
+offering as `offering_account_settings`:
+
+```json
+{
+  "account_scope": {
+    "value": "offering", "source": "default",
+    "inherited": {"value": "offering", "source": "default"}
+  },
+  "username_generation_policy": {
+    "value": "anonymized", "source": "provider",
+    "inherited": {"value": "anonymized", "source": "provider"}
+  },
+  "login_shell": {
+    "value": "/bin/sh", "source": "offering",
+    "inherited": {"value": "/bin/zsh", "source": "provider"}
+  }
+}
+```
+
+`source` is `offering`, `provider` or `default`. `inherited` is what the
+setting resolves to without the offering's own value: what removing the
+offering's override leads to.
+
+Offerings saved before this behaviour stored the defaults (`service_provider`,
+`waldur_`, `/home/`, `/bin/bash`) in their plugin options, which hides any
+provider value. A migration removes such a stored default when the offering's
+service provider sets that setting. Values that differ from a default are
+kept, and so is a stored username setting whose removal would rename existing
+accounts. The migration logs those offerings; send the key as an empty string
+to apply the provider setting and regenerate the usernames.
 
 The `anonymized` policy names an account `<prefix><posix uid>` -- for example `hpc_9001` for a prefix of `hpc_` and uid 9001. The uid is the one the account holds (or is allocated) from the POSIX ID pool that resolves for the offering, or the user's `uid_number` when `uid_source` is `user_attribute`. Because a pool allocates one uid per person across every offering that resolves to it, the same person gets the same username on every offering sharing that pool, and regenerating the name (`refresh_offering_usernames`, a policy change) is a no-op. When no uid resolves -- no pool covers the offering, or POSIX accounts are disabled -- the name falls back to a per-offering counter (`<prefix>00000`, `<prefix>00001`, ...) and a warning is logged. The prefix, like `username_generation_policy`, `homedir_prefix` and `login_shell`, is resolved most-specific-first: the offering's plugin option, else the provider's `account_*` field, else the default.
 

@@ -4,7 +4,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa.tests import factories as freeipa_factories
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import serializers, utils
+from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -121,7 +121,7 @@ class UsernameGenerationTest(TestCase):
 
     def test_anonymized_prefix_is_inherited_from_the_provider(self):
         provider = self.fixture.service_provider
-        provider.account_username_anonymized_prefix = "hpc_"
+        provider.account_options["username_anonymized_prefix"] = "hpc_"
         provider.save()
         self.offering.plugin_options = {"username_generation_policy": "anonymized"}
         self.offering.save()
@@ -131,11 +131,13 @@ class UsernameGenerationTest(TestCase):
 
         self.assertEqual(utils.generate_username(self.user, self.offering), "hpc_9001")
 
-    def test_serializer_and_generator_share_one_default_prefix(self):
-        field = serializers.MergedPluginOptionsSerializer().fields[
-            "username_anonymized_prefix"
-        ]
-        self.assertEqual(field.default, utils.DEFAULT_ANONYMIZED_PREFIX)
+    def test_resolver_and_generator_share_one_default_prefix(self):
+        self.assertEqual(
+            marketplace_models.Offering.ACCOUNT_SETTING_DEFAULTS[
+                "username_anonymized_prefix"
+            ],
+            utils.DEFAULT_ANONYMIZED_PREFIX,
+        )
         self.offering.plugin_options = {"username_generation_policy": "anonymized"}
         self.offering.save()
         factories.PosixIdPoolFactory(offering=self.offering, next_uid=100001)
@@ -196,8 +198,8 @@ class AnonymizedUsernameAcrossOfferingsTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.provider = self.fixture.service_provider
-        self.provider.account_username_anonymized_prefix = "hpc_"
-        self.provider.account_username_generation_policy = "anonymized"
+        self.provider.account_options["username_anonymized_prefix"] = "hpc_"
+        self.provider.account_options["username_generation_policy"] = "anonymized"
         self.provider.save()
         self.pool = factories.PosixIdPoolFactory(
             service_provider=self.provider,
@@ -217,7 +219,7 @@ class AnonymizedUsernameAcrossOfferingsTest(test.APITestCase):
         self.user = structure_factories.UserFactory()
 
     def _set_scope(self, scope):
-        self.provider.account_scope = scope
+        self.provider.account_options["account_scope"] = scope
         self.provider.save()
 
     def test_provider_scope_names_one_account_after_the_uid(self):

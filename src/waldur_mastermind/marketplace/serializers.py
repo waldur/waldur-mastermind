@@ -91,6 +91,7 @@ from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     SWAPPABLE_OFFERING_TYPES,
     AccountScopes,
+    AccountSettingSources,
     BillingModes,
     BillingTypes,
     CourseAccountState,
@@ -118,7 +119,6 @@ from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
-    DEFAULT_ANONYMIZED_PREFIX,
     UsernameGenerationPolicy,
     check_pending_order_exists,
     get_service_provider_resources,
@@ -648,6 +648,21 @@ def validate_posix_path(value, field):
     return value
 
 
+def merge_account_options(current: dict | None, changes: dict) -> dict:
+    """Apply account-setting changes key by key.
+
+    As an offering's plugin options are updated: an omitted key is kept, and a
+    blank value removes the setting so that it is inherited again.
+    """
+    options = dict(current or {})
+    for key, value in changes.items():
+        if value == "":
+            options.pop(key, None)
+        else:
+            options[key] = value
+    return options
+
+
 class HeappePluginOptionsSerializer(serializers.Serializer):
     heappe_cluster_id = serializers.CharField(
         required=False,
@@ -682,9 +697,6 @@ class HeappePluginOptionsSerializer(serializers.Serializer):
         "e.g. 'it4i-heappe-prod'. Lets providers with multiple HEAppE "
         "deployments disambiguate which one a given offering uses.",
     )
-    homedir_prefix = serializers.CharField(
-        required=False, help_text="GLAuth homedir prefix", default="/home/"
-    )
     scratch_project_directory = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -697,11 +709,6 @@ class HeappePluginOptionsSerializer(serializers.Serializer):
         allow_null=True,
         help_text="HEAppE project permanent directory",
     )
-
-    def validate_homedir_prefix(self, value):
-        # Concatenated with the username into each account's homeDir and synced
-        # to GLAuth/LDAP, so it must be a safe absolute path (no traversal).
-        return validate_posix_path(value, "Home directory prefix")
 
 
 class GLAuthPluginOptionsSerializer(serializers.Serializer):
@@ -751,25 +758,6 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
             "to the variables available for resource-scope templates."
         ),
     )
-    username_anonymized_prefix = serializers.CharField(
-        required=False,
-        default=DEFAULT_ANONYMIZED_PREFIX,
-        help_text=(
-            "Prefix for anonymized usernames; the name is the prefix followed by "
-            "the account's POSIX UID"
-        ),
-    )
-    username_generation_policy = serializers.ChoiceField(
-        required=False,
-        choices=[option.value for option in UsernameGenerationPolicy],
-        help_text="GLAuth username generation policy",
-        default=UsernameGenerationPolicy.SERVICE_PROVIDER.value,
-    )
-    login_shell = serializers.CharField(
-        required=False,
-        default="/bin/bash",
-        help_text="Default login shell assigned to GLAuth/LDAP accounts.",
-    )
     uid_source = serializers.ChoiceField(
         required=False,
         default="pool",
@@ -806,11 +794,6 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
             "attribute, alongside the generated POSIX login name."
         ),
     )
-
-    def validate_login_shell(self, value):
-        # Assigned as each account's loginShell and synced to GLAuth/LDAP, so it
-        # must be a safe absolute path (same rule as the per-user override).
-        return validate_posix_path(value, "Login shell")
 
 
 class RancherPluginOptionsSerializer(serializers.Serializer):
@@ -977,25 +960,100 @@ class ScriptPluginOptionsSerializer(serializers.Serializer):
     )
 
 
-class AccountPluginOptionsSerializer(serializers.Serializer):
+class AccountOptionsSerializer(serializers.Serializer):
+    """Account settings, set on an offering or on its service provider.
+
+    Offerings carry them in ``plugin_options`` and service providers in
+    ``account_options``, under the same keys; this one serializer validates
+    both, so a setting is declared once and means the same on either. An
+    offering's value wins, then its provider's, then the built-in default, and
+    ``Offering.account_settings`` reports what each resolves to.
+
+    No field has a default: an absent key means "inherit", and a declared
+    default would be written into every record saved through the API,
+    shadowing the value it is meant to fall back to. A blank value removes the
+    record's own setting.
+    """
+
     account_scope = serializers.ChoiceField(
         required=False,
+        allow_blank=True,
         choices=AccountScopes.CHOICES,
-        # Deliberately no default: an absent key means "inherit from the
-        # provider", and a declared default would be written into every
-        # offering saved through the API, permanently shadowing the provider
-        # setting it is meant to fall back to.
         help_text=(
-            "Where this offering's accounts are held, overriding the service "
-            "provider's own account_scope. 'offering' keeps one account per "
-            "offering (the historical behaviour); 'provider' shares one account "
-            "per user across the provider's offerings. Omit to inherit."
+            "Where accounts are held: 'offering' keeps one account per offering "
+            "(the historical behaviour); 'provider' shares one account per user "
+            "across the provider's offerings."
+        ),
+    )
+    username_generation_policy = serializers.ChoiceField(
+        required=False,
+        allow_blank=True,
+        choices=[option.value for option in UsernameGenerationPolicy],
+        help_text="How the usernames of offering users are generated.",
+    )
+    username_anonymized_prefix = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text=(
+            "Prefix for anonymized usernames; the name is the prefix followed by "
+            "the account's POSIX UID."
+        ),
+    )
+    homedir_prefix = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Prefix of each account's home directory; the username follows.",
+    )
+    login_shell = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Login shell assigned to GLAuth/LDAP accounts.",
+    )
+
+    def validate_homedir_prefix(self, value):
+        # Concatenated with the username into each account's homeDir and synced
+        # to GLAuth/LDAP, so it must be a safe absolute path (no traversal).
+        return validate_posix_path(value, "Home directory prefix")
+
+    def validate_login_shell(self, value):
+        # Assigned as each account's loginShell and synced to GLAuth/LDAP, so it
+        # must be a safe absolute path (same rule as the per-user override).
+        return validate_posix_path(value, "Login shell")
+
+
+class InheritedAccountSettingSerializer(serializers.Serializer):
+    value = serializers.CharField(help_text="The value the setting resolves to.")
+    source = serializers.ChoiceField(
+        choices=AccountSettingSources.CHOICES,
+        help_text=(
+            "Where the value comes from: the offering's own plugin option, the "
+            "service provider's account options, or the built-in default."
         ),
     )
 
 
+class AccountSettingSerializer(InheritedAccountSettingSerializer):
+    inherited = InheritedAccountSettingSerializer(
+        help_text=(
+            "What the setting resolves to without the offering's own value: the "
+            "service provider's, else the built-in default. Removing the "
+            "offering's override leads to it."
+        )
+    )
+
+
+class OfferingAccountSettingsSerializer(serializers.Serializer):
+    """Effective account settings of an offering, each with its source."""
+
+    account_scope = AccountSettingSerializer()
+    username_generation_policy = AccountSettingSerializer()
+    username_anonymized_prefix = AccountSettingSerializer()
+    homedir_prefix = AccountSettingSerializer()
+    login_shell = AccountSettingSerializer()
+
+
 class MergedPluginOptionsSerializer(
-    AccountPluginOptionsSerializer,
+    AccountOptionsSerializer,
     LifecyclePluginOptionsSerializer,
     OpenStackPluginOptionsSerializer,
     HeappePluginOptionsSerializer,
@@ -1321,7 +1379,7 @@ class ServiceProviderSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    def validate_account_scope(self, value):
+    def validate_account_options(self, value):
         """Refuse provider scope while any user's usernames still disagree.
 
         Turning the scope on is what makes offering accounts read through a single
@@ -1330,7 +1388,7 @@ class ServiceProviderSerializer(
         ``username_conflicts`` action and resolved by ``adopt_provider_accounts``.
         """
         if (
-            value == AccountScopes.PROVIDER
+            value.get("account_scope") == AccountScopes.PROVIDER
             and self.instance is not None
             and self.instance.account_scope != AccountScopes.PROVIDER
         ):
@@ -1358,7 +1416,13 @@ class ServiceProviderSerializer(
         adoption cannot pick a username arbitrarily.
         """
         was_provider_scope = instance.account_scope == AccountScopes.PROVIDER
+        changes = validated_data.pop("account_options", None)
         instance = super().update(instance, validated_data)
+        if changes is not None:
+            instance.account_options = merge_account_options(
+                instance.account_options, changes
+            )
+            instance.save(update_fields=["account_options"])
         if not was_provider_scope and instance.account_scope == AccountScopes.PROVIDER:
             adopted = utils.adopt_provider_accounts(instance)
             logger.info("Provider scope enabled for %s; adopted %s", instance, adopted)
@@ -1385,11 +1449,7 @@ class ServiceProviderSerializer(
             "description",
             "offering_count",
             "allowed_domains",
-            "account_scope",
-            "account_username_generation_policy",
-            "account_homedir_prefix",
-            "account_login_shell",
-            "account_username_anonymized_prefix",
+            "account_options",
         )
         related_paths = {
             "customer": ("uuid", "name", "native_name", "abbreviation", "slug")
@@ -1408,6 +1468,24 @@ class ServiceProviderSerializer(
     organization_groups = structure_serializers.OrganizationGroupSerializer(
         many=True, read_only=True
     )
+    account_options = AccountOptionsSerializer(
+        required=False,
+        help_text=(
+            "Account settings for this provider's offerings, under the same keys "
+            "as an offering's plugin options. Each applies to every offering that "
+            "does not set its own. Updated key by key: an omitted key is kept, "
+            "and a blank value removes it."
+        ),
+    )
+
+    def create(self, validated_data):
+        options = validated_data.pop("account_options", None)
+        instance = super().create(validated_data)
+        if options:
+            instance.account_options = merge_account_options({}, options)
+            instance.save(update_fields=["account_options"])
+        return instance
+
     # Declared explicitly so the schema renders an array; a bare JSONField is
     # mapped to a free-form object by JSONFieldExtension.
     allowed_domains = serializers.ListField(
@@ -4205,6 +4283,7 @@ class ProviderOfferingDetailsSerializer(
     options = OfferingOptionsField(read_only=True)
     resource_options = OfferingOptionsField(read_only=True)
     plugin_options = MergedPluginOptionsField(read_only=True)
+    account_settings = serializers.SerializerMethodField()
     secret_options = MergedSecretOptionsField(read_only=True)
     service_attributes = serializers.SerializerMethodField()
     # What the caller may change on the offering-update page. The provider-only
@@ -4314,6 +4393,7 @@ class ProviderOfferingDetailsSerializer(
             "components",
             "limit_precision_advisory",
             "plugin_options",
+            "account_settings",
             "secret_options",
             "service_attributes",
             "can_update_integration",
@@ -4441,6 +4521,10 @@ class ProviderOfferingDetailsSerializer(
                 )
 
         return fields
+
+    @extend_schema_field(OfferingAccountSettingsSerializer)
+    def get_account_settings(self, offering: models.Offering):
+        return offering.account_settings
 
     #: Rendered only for a caller entitled to this particular offering.
     PROVIDER_ONLY_FIELDS = ("secret_options", "service_attributes")
@@ -5333,7 +5417,61 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         validate_disable_grace_period_is_staff_only(
             user, self.instance, attrs.get("plugin_options", {})
         )
+        self._joining_offerings = self._validate_account_scope_switch(
+            attrs.get("plugin_options", {})
+        )
         return attrs
+
+    def _validate_account_scope_switch(self, plugin_options) -> list | None:
+        """Refuse moving this offering into provider scope while usernames disagree.
+
+        Joining the provider's shared accounts backs each account of this
+        offering with the person's provider account, so it is refused -- as the
+        provider-level switch is -- while anyone holds a different username here
+        than on the offerings already sharing accounts. Returns the offerings
+        sharing accounts once this one joins, or None when it does not join.
+        """
+        offering = self.instance
+        if "account_scope" not in plugin_options or offering.uses_provider_accounts:
+            return None
+        provider = offering.service_provider
+        if provider is None:
+            return None
+        new_options = dict(offering.plugin_options or {})
+        if plugin_options["account_scope"] == "":
+            new_options.pop("account_scope", None)
+        else:
+            new_options["account_scope"] = plugin_options["account_scope"]
+        scope = offering.resolve_account_setting_with_source(
+            "account_scope", plugin_options=new_options
+        )[0]
+        if scope != AccountScopes.PROVIDER:
+            return None
+        offerings = [
+            other
+            for other in models.Offering.objects.filter(
+                customer_id=offering.customer_id
+            ).select_related("customer__serviceprovider")
+            if other.pk != offering.pk and other.uses_provider_accounts
+        ] + [offering]
+        conflicts = utils.provider_username_conflicts(provider, offerings=offerings)
+        if conflicts:
+            raise rf_exceptions.ValidationError(
+                {
+                    "plugin_options": {
+                        "account_scope": [
+                            _(
+                                "%(count)d user(s) hold a different username on "
+                                "this offering than on the offerings of this "
+                                "provider that share accounts. Resolve them with "
+                                "the adopt_provider_accounts action first."
+                            )
+                            % {"count": len(conflicts)}
+                        ]
+                    }
+                }
+            )
+        return offerings
 
     def get_fields(self):
         fields = super().get_fields()
@@ -5367,6 +5505,12 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
     def _update_plugin_options(self, instance, validated_data):
         plugin_options = validated_data.pop("plugin_options", {})
         for key, value in plugin_options.items():
+            if value == "" and key in models.Offering.ACCOUNT_SETTING_DEFAULTS:
+                # Options are merged key by key, so leaving a key out keeps it;
+                # a blank account setting is how its override is removed and
+                # the provider value inherited again.
+                instance.plugin_options.pop(key, None)
+                continue
             if isinstance(value, datetime.date | datetime.datetime):
                 value = value.isoformat()
             instance.plugin_options[key] = value
@@ -5378,6 +5522,19 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         self._update_secret_options(instance, validated_data)
         self._update_plugin_options(instance, validated_data)
         offering = super().update(instance, validated_data)
+        joining = getattr(self, "_joining_offerings", None)
+        if joining:
+            # Validation refused an ambiguous switch; a clean one still has to
+            # back the offering's existing accounts, or they would stay
+            # per-offering while only new ones share the provider account.
+            adopted = utils.adopt_provider_accounts(
+                offering.service_provider, offerings=joining
+            )
+            logger.info(
+                "Offering %s joined its provider's accounts; adopted %s",
+                offering,
+                adopted,
+            )
         return offering
 
 
@@ -7077,6 +7234,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         help_text="Whether the resource owns any API keys, so the portal can offer "
         "key management without knowing which backend serves the resource."
     )
+    offering_account_settings = serializers.SerializerMethodField()
     # Declared explicitly (rather than auto-derived from the model CharField) so
     # the blank state — "" when no restriction is active — is surfaced in the
     # OpenAPI schema as a BlankEnum member. Without allow_blank the generated
@@ -7160,6 +7318,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "offering_state",
             "offering_components",
             "has_api_keys",
+            "offering_account_settings",
         )
         read_only_fields = (
             "backend_metadata",
@@ -7354,6 +7513,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     @extend_schema_field(BackendMetadataSerializer)
     def get_backend_metadata(self, resource: models.Resource):
         return resource.backend_metadata
+
+    @extend_schema_field(OfferingAccountSettingsSerializer)
+    def get_offering_account_settings(self, resource: models.Resource):
+        return resource.offering.account_settings
 
     def get_has_api_keys(self, resource: models.Resource) -> bool:
         # ConsumerResourceViewSet annotates this, so listing resources costs one

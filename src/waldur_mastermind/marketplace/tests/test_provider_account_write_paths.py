@@ -24,7 +24,7 @@ class ProviderScopedFixture(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.provider = self.fixture.service_provider
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
         self.offering = self.fixture.offering
         self.user = structure_factories.UserFactory()
@@ -112,6 +112,13 @@ class BulkPathsSkipBackedAccountsTest(ProviderScopedFixture):
 
     def test_refresh_offering_usernames_leaves_a_backed_account_alone(self):
         account, offering_user = self.backed()
+        # The refresh is refused under the service_provider policy, which is
+        # what an offering resolves to when nothing sets a policy.
+        self.offering.plugin_options = {
+            **(self.offering.plugin_options or {}),
+            "username_generation_policy": "waldur_username",
+        }
+        self.offering.save()
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.post(
@@ -152,7 +159,7 @@ class SetOfferingsUsernameTest(ProviderScopedFixture):
         self.assertEqual(account.username, "jsmith")
 
     def test_it_still_sets_the_username_on_an_unbacked_account(self):
-        self.provider.account_scope = AccountScopes.OFFERING
+        self.provider.account_options["account_scope"] = AccountScopes.OFFERING
         self.provider.save()
         self.client.force_login(self.fixture.offering_owner)
 
@@ -189,7 +196,7 @@ class ProviderAwareCreatorTest(ProviderScopedFixture):
         self.assertNotEqual(offering_user.username, "from-the-caller")
 
     def test_a_caller_supplied_username_is_kept_outside_provider_scope(self):
-        self.provider.account_scope = AccountScopes.OFFERING
+        self.provider.account_options["account_scope"] = AccountScopes.OFFERING
         self.provider.save()
 
         offering_user, _ = utils.create_offering_user(
@@ -286,7 +293,7 @@ class ProviderScopeAdoptionTest(ProviderScopedFixture):
         """Validation only refused an ambiguous flip; nothing acted on a clean
         one, so existing accounts stayed per-offering while new ones were
         backed -- the mixed state the setting exists to remove."""
-        self.provider.account_scope = AccountScopes.OFFERING
+        self.provider.account_options["account_scope"] = AccountScopes.OFFERING
         self.provider.save()
         existing = models.OfferingUser.objects.create(
             offering=self.offering, user=self.user, username="jsmith"
@@ -295,7 +302,7 @@ class ProviderScopeAdoptionTest(ProviderScopedFixture):
 
         response = self.client.patch(
             factories.ServiceProviderFactory.get_url(self.provider),
-            {"account_scope": AccountScopes.PROVIDER},
+            {"account_options": {"account_scope": AccountScopes.PROVIDER}},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)

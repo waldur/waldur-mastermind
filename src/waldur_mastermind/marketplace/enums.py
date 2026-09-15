@@ -235,6 +235,20 @@ class AccountScopes:
     VALUES = (OFFERING, PROVIDER)
 
 
+class AccountSettingSources:
+    """Where an offering's effective account setting comes from."""
+
+    OFFERING = "offering"
+    PROVIDER = "provider"
+    DEFAULT = "default"
+
+    CHOICES = (
+        (OFFERING, "Set on the offering"),
+        (PROVIDER, "Inherited from the service provider"),
+        (DEFAULT, "Built-in default"),
+    )
+
+
 class OfferingUserStates:
     # creation flow
     CREATION_REQUESTED = 1

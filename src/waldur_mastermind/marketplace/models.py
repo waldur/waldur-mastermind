@@ -53,6 +53,7 @@ from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
     MAX_LIMIT_DECIMAL_PLACES,
     AccountScopes,
+    AccountSettingSources,
     BillingModes,
     BillingTypes,
     CategoryColumnWidget,
@@ -135,56 +136,33 @@ class ServiceProvider(
             "Only staff can modify this field. "
         ),
     )
-    # Account scope and its provider-level defaults. Each is overridable by the
-    # offering plugin_option of the same name and resolved most-specific-first,
-    # exactly as PosixIdPool.resolve() picks a pool -- one mental model for
-    # operators, who configure both on the same provider.
-    account_scope = models.CharField(
-        max_length=20,
-        default=AccountScopes.OFFERING,
-        choices=AccountScopes.CHOICES,
-        help_text=_(
-            "Default for this provider's offerings: hold user accounts per "
-            "offering (the historical behaviour) or once per provider. Choose "
-            "'provider' when one directory fronts several offerings. Any single "
-            "offering can override this with an 'account_scope' plugin option, so "
-            "a provider can run both -- for example a cluster with its own "
-            "separate directory alongside offerings that share the main one."
-        ),
-    )
-    account_username_generation_policy = models.CharField(
-        max_length=50,
+    # Account settings for the provider's offerings, under the same keys and
+    # validated by the same serializer (AccountOptionsSerializer) as an
+    # offering's plugin options. An offering's own value wins, then the value
+    # here, then the built-in default -- exactly as PosixIdPool.resolve() picks a
+    # pool, one mental model for operators who configure both on the same
+    # provider. An absent key means the provider does not set it.
+    account_options = models.JSONField(
+        default=dict,
         blank=True,
         help_text=_(
-            "Provider-level default for the offering plugin option of the same name. "
-            "Blank means each offering decides for itself."
+            "Account settings for this provider's offerings: account_scope, "
+            "username_generation_policy, username_anonymized_prefix, "
+            "homedir_prefix and login_shell. Each applies to every offering "
+            "that does not set the plugin option of the same name."
         ),
     )
-    account_homedir_prefix = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text=_(
-            "Provider-level default home directory prefix. Blank means each "
-            "offering decides for itself."
-        ),
-    )
-    account_login_shell = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text=_(
-            "Provider-level default login shell. Blank means each offering "
-            "decides for itself."
-        ),
-    )
-    account_username_anonymized_prefix = models.CharField(
-        max_length=100,
-        blank=True,
-        help_text=_(
-            "Provider-level default prefix for anonymized usernames, which are "
-            "the prefix followed by the account's POSIX UID. Blank means each "
-            "offering decides for itself."
-        ),
-    )
+
+    # A change to the username settings regenerates the usernames of the
+    # offerings that inherit them.
+    tracker = cast(FieldInstanceTracker, FieldTracker(fields=["account_options"]))
+
+    @property
+    def account_scope(self) -> str:
+        """The provider's own account scope; per offering when it sets none."""
+        return (self.account_options or {}).get(
+            "account_scope"
+        ) or AccountScopes.OFFERING
 
     class Permissions:
         customer_path = "customer"
@@ -924,37 +902,81 @@ class Offering(
         except ServiceProvider.DoesNotExist:
             return None
 
-    #: Offering plugin_option name -> the ServiceProvider field holding its
-    #: provider-wide default. The two differ because the plugin options are
-    #: long-standing public configuration that cannot be renamed, while the
-    #: provider fields carry an ``account_`` prefix to group them. Resolving
-    #: by a single name would silently stop finding the provider default.
-    ACCOUNT_SETTING_FIELDS = {
-        "account_scope": "account_scope",
-        "username_generation_policy": "account_username_generation_policy",
-        "homedir_prefix": "account_homedir_prefix",
-        "login_shell": "account_login_shell",
-        "username_anonymized_prefix": "account_username_anonymized_prefix",
+    #: The account settings and what each resolves to when neither the offering
+    #: nor its provider sets it -- the behaviour every offering had before
+    #: either could. Each is keyed by the same name in the offering's
+    #: ``plugin_options`` and the provider's ``account_options``; both are
+    #: validated by ``AccountOptionsSerializer``.
+    ACCOUNT_SETTING_DEFAULTS = {
+        "account_scope": AccountScopes.OFFERING,
+        "username_generation_policy": "service_provider",
+        "homedir_prefix": "/home/",
+        "login_shell": "/bin/bash",
+        "username_anonymized_prefix": "waldur_",
     }
 
-    def resolve_account_setting(self, name: str, default=None):
-        """Most specific value for an account setting: the offering's, else the provider's.
+    def resolve_account_setting_with_source(
+        self, name: str, default=None, plugin_options=None
+    ) -> tuple[Any, str]:
+        """An account setting's value and where it came from.
 
-        Mirrors :meth:`PosixIdPool.resolve` so operators meet one rule for every
-        account-related setting rather than one per field. ``name`` is the
-        offering plugin_option key; the provider field it maps to is given by
-        :attr:`ACCOUNT_SETTING_FIELDS`.
+        The offering's value wins, else the provider's, else ``default`` --
+        which falls back to :attr:`ACCOUNT_SETTING_DEFAULTS`. The source is one
+        of :class:`AccountSettingSources`. Mirrors :meth:`PosixIdPool.resolve`
+        so operators meet one rule for every account-related setting rather
+        than one per field.
+
+        ``plugin_options`` resolves against options other than the stored ones,
+        such as the offering's options before a change.
         """
-        value = (self.plugin_options or {}).get(name)
+        if plugin_options is None:
+            plugin_options = self.plugin_options
+        value = (plugin_options or {}).get(name)
         if value:
-            return value
+            return value, AccountSettingSources.OFFERING
+        return self.resolve_inherited_account_setting(name, default)
+
+    def resolve_inherited_account_setting(
+        self, name: str, default=None
+    ) -> tuple[Any, str]:
+        """What an account setting resolves to without the offering's own value.
+
+        The provider's value, else ``default`` -- which falls back to
+        :attr:`ACCOUNT_SETTING_DEFAULTS`. It is what removing the offering's
+        override leads to.
+        """
         provider = self.service_provider
         if provider is not None:
-            field = self.ACCOUNT_SETTING_FIELDS.get(name, name)
-            provider_value = getattr(provider, field, None)
+            provider_value = (provider.account_options or {}).get(name)
             if provider_value:
-                return provider_value
-        return default
+                return provider_value, AccountSettingSources.PROVIDER
+        if default is None:
+            default = self.ACCOUNT_SETTING_DEFAULTS.get(name)
+        return default, AccountSettingSources.DEFAULT
+
+    def resolve_account_setting(self, name: str, default=None):
+        """Most specific value for an account setting: the offering's, else the provider's."""
+        return self.resolve_account_setting_with_source(name, default)[0]
+
+    @property
+    def account_settings(self) -> dict[str, dict]:
+        """Every account setting with its source and what it would inherit.
+
+        ``{name: {"value": ..., "source": ..., "inherited": {"value": ...,
+        "source": ...}}}``.
+        """
+        settings = {}
+        for name in self.ACCOUNT_SETTING_DEFAULTS:
+            value, source = self.resolve_account_setting_with_source(name)
+            inherited_value, inherited_source = self.resolve_inherited_account_setting(
+                name
+            )
+            settings[name] = {
+                "value": value,
+                "source": source,
+                "inherited": {"value": inherited_value, "source": inherited_source},
+            }
+        return settings
 
     def resolve_account_scope(self) -> str:
         """Whether this offering's accounts are held per offering or per provider."""

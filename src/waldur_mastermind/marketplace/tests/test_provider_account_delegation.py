@@ -13,7 +13,7 @@ class ProviderBackedOfferingUserTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.provider = self.fixture.service_provider
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
         self.offering_a = self.fixture.offering
         self.offering_b = factories.OfferingFactory(customer=self.provider.customer)
@@ -129,12 +129,12 @@ class ProviderScopeResolutionTest(test.APITestCase):
         self.assertFalse(self.offering.uses_provider_accounts)
 
     def test_the_provider_setting_applies_to_its_offerings(self):
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
         self.assertTrue(self.offering.uses_provider_accounts)
 
     def test_an_offering_can_opt_out_of_its_providers_scope(self):
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
         self.offering.plugin_options = {"account_scope": "offering"}
         self.offering.save()

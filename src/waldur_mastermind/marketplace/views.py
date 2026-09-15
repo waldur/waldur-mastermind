@@ -2571,7 +2571,8 @@ class ProviderOfferingViewSet(
             )
             queryset = utils.annotate_scope_resource(queryset)
 
-        return queryset
+        # account_settings falls back to the offering's service provider.
+        return queryset.select_related("customer__serviceprovider")
 
     destroy_permissions = [
         marketplace_permissions.can_manage_offering_lifecycle,
@@ -6287,9 +6288,9 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
         queryset = proposal_managers.annotate_offerings_open_for_proposals(
             self.queryset.filter_by_ordering_availability_for_user(user).select_related(
                 # get_filtered_plans reads offering.parent; the details serializer
-                # walks customer and category.
+                # walks customer and category, and account_settings the provider.
                 "parent",
-                "customer",
+                "customer__serviceprovider",
                 "category",
             )
         )
@@ -9189,7 +9190,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         queryset = queryset.select_related(
             "offering",
             "offering__category",
-            "offering__customer",
+            "offering__customer__serviceprovider",
             "offering__parent",
             "project",
             "project__customer",
@@ -9793,7 +9794,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         ).select_related(
             "offering",
             "offering__category",
-            "offering__customer",
+            "offering__customer__serviceprovider",
             "offering__parent",
             "project",
             "project__customer",
@@ -12274,7 +12275,9 @@ class ServiceProviderAccountViewSet(core_views.ActionsViewSet):
             # Home directory is derived from the username, so re-derive it unless
             # an operator pinned an explicit one. Same rule as OfferingUsersViewSet.
             backend_metadata = instance.backend_metadata or {}
-            prefix = instance.service_provider.account_homedir_prefix or "/home/"
+            prefix = (instance.service_provider.account_options or {}).get(
+                "homedir_prefix"
+            ) or models.Offering.ACCOUNT_SETTING_DEFAULTS["homedir_prefix"]
             current_home = backend_metadata.get("homeDir")
             if new_username and current_home in (None, f"{prefix}{old_username}"):
                 backend_metadata["homeDir"] = f"{prefix}{new_username}"

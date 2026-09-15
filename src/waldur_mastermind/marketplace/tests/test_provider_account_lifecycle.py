@@ -19,8 +19,8 @@ class ProviderAccountLifecycleTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.provider = self.fixture.service_provider
-        self.provider.account_scope = AccountScopes.PROVIDER
-        self.provider.account_homedir_prefix = "/home/"
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
+        self.provider.account_options["homedir_prefix"] = "/home/"
         self.provider.save()
         self.offering_a = self.fixture.offering
         self.offering_b = factories.OfferingFactory(customer=self.provider.customer)

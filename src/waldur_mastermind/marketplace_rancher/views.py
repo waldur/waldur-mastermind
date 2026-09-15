@@ -28,9 +28,10 @@ from waldur_rancher.models import Cluster
 
 
 class ManagedRancherViewSet(ReadOnlyActionsViewSet):
+    # offering_account_settings reads the offering's service provider.
     queryset = marketplace_models.Resource.objects.filter(
         offering__type=RANCHER_OFFERING,
-    )
+    ).select_related("offering__customer__serviceprovider")
     lookup_field = "uuid"
     serializer_class = ResourceSerializer
 

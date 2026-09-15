@@ -17,6 +17,7 @@ from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.attribute_types import ATTRIBUTE_TYPES
 from waldur_mastermind.marketplace.enums import (
     AccountScopes,
+    AccountSettingSources,
     BillingModes,
     OfferingStates,
     OfferingUserStates,
@@ -115,6 +116,9 @@ SPECTACULAR_SETTINGS = {
         # SubNet.ipv6_ra_mode and ipv6_address_mode take the same three
         # Neutron modes; name the set once.
         "Ipv6Mode": Ipv6Modes.CHOICES,
+        # A field named "source" appears on several serializers; give the
+        # account-setting one a stable name of its own.
+        "AccountSettingSource": AccountSettingSources.CHOICES,
         "OnboardingVerificationStatus": VerificationStatus.VALUES,
         "AgentServiceState": AgentServiceState.VALUES,
         # Rename Rancher role enum to avoid conflict with permissions RoleEnum
