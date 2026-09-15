@@ -1,4 +1,5 @@
 import textwrap
+import uuid
 from unittest import mock
 
 from ddt import data, ddt
@@ -777,3 +778,94 @@ class IdentityManagerAgentIdentityTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["name"], "My Agent")
+
+
+@ddt
+class AgentIdentityOfferingTypeTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+
+    def _create_identity(
+        self, offering_uuid, name="Agent Test", user_role="offering_manager"
+    ):
+        self.client.force_login(getattr(self.fixture, user_role))
+        return self.client.post(
+            factories.AgentIdentityFactory.get_list_url(),
+            {"name": name, "offering": offering_uuid},
+        )
+
+    @data(*sorted(enums.SITE_AGENT_COMPATIBLE_OFFERING_TYPES))
+    def test_compatible_offering_type_is_accepted(self, offering_type):
+        self.offering.type = offering_type
+        self.offering.save()
+
+        response = self._create_identity(self.offering.uuid.hex)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
+        self.assertTrue(
+            models.AgentIdentity.objects.filter(offering=self.offering).exists()
+        )
+
+    def test_service_desk_agent_can_register_service_and_processor(self):
+        self.offering.type = enums.SUPPORT_OFFERING
+        self.offering.save()
+
+        response = self._create_identity(self.offering.uuid.hex)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
+        agent_identity = models.AgentIdentity.objects.get(offering=self.offering)
+
+        response = self.client.post(
+            factories.AgentIdentityFactory.get_url(
+                agent_identity, action="register_service"
+            ),
+            {"name": "order_processing", "mode": "event_processing"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
+        service = models.AgentService.objects.get(identity=agent_identity)
+
+        response = self.client.post(
+            factories.AgentServiceFactory.get_url(service, action="register_processor"),
+            {
+                "name": "order_processor",
+                "backend_type": "service_desk",
+                "backend_version": "1.0.0",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
+        self.assertEqual(service.agentprocessor_set.count(), 1)
+
+    def test_unsupported_offering_type_is_reported_as_such(self):
+        self.offering.type = enums.BOOKING_OFFERING
+        self.offering.save()
+
+        response = self._create_identity(self.offering.uuid.hex)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(enums.BOOKING_OFFERING, str(response.json()["offering"]))
+        self.assertFalse(models.AgentIdentity.objects.exists())
+
+    def test_unknown_offering_uuid_is_reported_as_missing(self):
+        response = self._create_identity(uuid.uuid4().hex)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("does not exist", str(response.json()["offering"]))
+        self.assertFalse(models.AgentIdentity.objects.exists())
+
+    @data("admin", "manager", "global_support")
+    def test_offering_type_is_not_disclosed_to_unprivileged_user(self, user_role):
+        # The type check must not answer before the permission check does,
+        # otherwise a UUID alone tells an outsider that the offering exists.
+        self.offering.type = enums.BOOKING_OFFERING
+        self.offering.save()
+
+        response = self._create_identity(self.offering.uuid.hex, user_role=user_role)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertNotIn(enums.BOOKING_OFFERING, str(response.json()))
+        self.assertFalse(models.AgentIdentity.objects.exists())

@@ -34,8 +34,10 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace_site_agent import filters, models, serializers
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.marketplace_site_agent.utils import (
+    can_manage_offering_agent,
     push_resource_user_role_sync_message,
     push_user_role_sync_message,
+    resolve_offering_agent_authorization,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,45 +78,6 @@ CONSUMER_INFO_FIELDS = (
     "authorized_via",
     "delivery_blocked_reason",
 )
-
-
-def resolve_offering_agent_authorization(request, offering, agent_identity=None):
-    """Which permission branch lets this user manage the offering's agent, if any.
-
-    Returns the :class:`ConsumerAuthorization` member for the branch that
-    passed, or None when none does. The branch is recorded on the EventConsumer
-    at registration, so an operator can tell a queue authorised by a staff
-    account from one authorised by an offering-scoped role.
-
-    Allowed for:
-    1. Staff
-    2. Customer-level permission (owner, service provider manager)
-    3. Offering managers (offering-scoped role)
-    4. Identity managers with managed_isds — can create for non-archived/draft
-       offerings and manage only their own agent identities
-    """
-    user = request.user
-    if user.is_staff:
-        return logging_enums.ConsumerAuthorization.STAFF
-    if has_permission(request, PermissionEnum.CREATE_OFFERING, offering.customer):
-        return logging_enums.ConsumerAuthorization.CUSTOMER_OWNER
-    if has_permission(request, PermissionEnum.UPDATE_OFFERING, offering):
-        return logging_enums.ConsumerAuthorization.OFFERING_MANAGER
-    if user.is_identity_manager and user.managed_isds:
-        if offering.state not in marketplace_enums.OfferingStates.ISD_ALLOWED_STATES:
-            return None
-        if agent_identity is not None and agent_identity.created_by != user:
-            return None
-        return logging_enums.ConsumerAuthorization.IDENTITY_MANAGER
-    return None
-
-
-def _can_manage_offering_agent(request, offering, agent_identity=None):
-    """Check if user can manage agent identities/services for the given offering."""
-    return (
-        resolve_offering_agent_authorization(request, offering, agent_identity)
-        is not None
-    )
 
 
 class ProjectSyncUserRolesView(generics.GenericAPIView):
@@ -267,7 +230,7 @@ class AgentIdentityViewSet(ActionsViewSet):
         offering = serializer.validated_data.get("offering")
         if not offering:
             raise PermissionDenied()
-        if not _can_manage_offering_agent(request, offering):
+        if not can_manage_offering_agent(request, offering):
             raise PermissionDenied()
 
     create_permissions = [check_create_permissions]
@@ -295,7 +258,7 @@ class AgentIdentityViewSet(ActionsViewSet):
     # `update` (PUT) is included: without it, ActionsPermission finds no
     # `update_permissions`, falls back to an empty `unsafe_methods_permissions`,
     # and PUT is gated only by IsAuthenticated + get_queryset — weaker than the
-    # `_can_manage_offering_agent` check the sibling actions enforce. The
+    # `can_manage_offering_agent` check the sibling actions enforce. The
     # serializer additionally pins `offering` on update (see validate_offering).
     partial_update_permissions = update_permissions = destroy_permissions = (
         register_event_subscription_permissions
@@ -731,7 +694,7 @@ class AgentServiceViewSet(ActionsViewSet):
             if not request.user.is_authenticated:
                 raise PermissionDenied("Authentication required")
             return
-        if not _can_manage_offering_agent(
+        if not can_manage_offering_agent(
             request, obj.identity.offering, agent_identity=obj.identity
         ):
             raise PermissionDenied()
@@ -888,7 +851,7 @@ class AgentProcessorViewSet(ActionsViewSet):
             if not request.user.is_authenticated:
                 raise PermissionDenied("Authentication required")
             return
-        if not _can_manage_offering_agent(
+        if not can_manage_offering_agent(
             request,
             obj.service.identity.offering,
             agent_identity=obj.service.identity,
@@ -1317,12 +1280,7 @@ class SiteAgentLogViewSet(ActionsViewSet):
     def get_queryset(self):
         qs = super().get_queryset().select_related("agent_identity__offering")
         offerings = marketplace_models.Offering.objects.filter(
-            type__in=[
-                marketplace_enums.SITE_AGENT_OFFERING,
-                marketplace_enums.SCRIPT_OFFERING,
-                marketplace_enums.OPENSTACK_TENANT_OFFERING,
-                marketplace_enums.BASIC_OFFERING,
-            ]
+            type__in=marketplace_enums.SITE_AGENT_COMPATIBLE_OFFERING_TYPES
         ).filter_for_user(self.request.user)
         return qs.filter(agent_identity__offering__in=offerings)
 

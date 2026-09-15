@@ -577,6 +577,18 @@ SITE_AGENT_OFFERING = "Marketplace.Slurm"
 # waldur-site-agent), so the persisted data shape is interchangeable.
 SWAPPABLE_OFFERING_TYPES = frozenset({BASIC_OFFERING, SITE_AGENT_OFFERING})
 
+# Offering types a site agent may be attached to: it registers an identity and
+# ships logs against one of these. Keep this list in one place.
+SITE_AGENT_COMPATIBLE_OFFERING_TYPES = frozenset(
+    {
+        SITE_AGENT_OFFERING,
+        SCRIPT_OFFERING,
+        OPENSTACK_TENANT_OFFERING,
+        BASIC_OFFERING,
+        SUPPORT_OFFERING,
+    }
+)
+
 
 class ResourceAction:
     TERMINATE = "terminate"

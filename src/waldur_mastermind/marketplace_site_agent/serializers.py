@@ -8,12 +8,10 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
-    BASIC_OFFERING,
-    OPENSTACK_TENANT_OFFERING,
-    SCRIPT_OFFERING,
-    SITE_AGENT_OFFERING,
+    SITE_AGENT_COMPATIBLE_OFFERING_TYPES,
 )
 from waldur_mastermind.marketplace_site_agent import enums, models
+from waldur_mastermind.marketplace_site_agent.utils import can_manage_offering_agent
 
 
 class AgentProcessorSerializer(serializers.HyperlinkedModelSerializer):
@@ -153,14 +151,10 @@ class AgentDependencySerializer(serializers.Serializer):
 class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     offering = serializers.SlugRelatedField(
         slug_field="uuid",
-        queryset=marketplace_models.Offering.objects.filter(
-            type__in=[
-                SITE_AGENT_OFFERING,
-                SCRIPT_OFFERING,
-                OPENSTACK_TENANT_OFFERING,
-                BASIC_OFFERING,
-            ]
-        ),
+        # The queryset is deliberately unfiltered: a type whitelist here would
+        # make an existing offering of an unsupported type report as "does not
+        # exist". The type is checked in validate_offering instead.
+        queryset=marketplace_models.Offering.objects.all(),
         help_text="UUID of an offering with a site-agent compatible type.",
     )
     created_by = serializers.SlugRelatedField(
@@ -174,6 +168,17 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     dependencies = AgentDependencySerializer(many=True, required=False)
 
     def validate_offering(self, value):
+        # Rights first, type second: the field queryset spans every offering, so
+        # reporting an unsupported type to a caller who cannot manage the
+        # offering would tell them it exists and what type it is — for offerings
+        # they cannot otherwise see, drafts and private ones included.
+        request = self.context.get("request")
+        if request is not None and not can_manage_offering_agent(request, value):
+            raise PermissionDenied()
+        if value.type not in SITE_AGENT_COMPATIBLE_OFFERING_TYPES:
+            raise serializers.ValidationError(
+                f"Offering type {value.type} is not supported by site agents."
+            )
         # An agent identity's offering is fixed at creation. The field's queryset
         # is not scoped to the caller, and update (PUT) only gates on managing
         # the CURRENT offering — so allowing a change would let an offering
@@ -624,12 +629,7 @@ class SiteAgentLogCreateSerializer(serializers.Serializer):
     agent_identity_uuid = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.AgentIdentity.objects.filter(
-            offering__type__in=[
-                SITE_AGENT_OFFERING,
-                SCRIPT_OFFERING,
-                OPENSTACK_TENANT_OFFERING,
-                BASIC_OFFERING,
-            ]
+            offering__type__in=SITE_AGENT_COMPATIBLE_OFFERING_TYPES
         ),
     )
     timestamp = serializers.FloatField()
