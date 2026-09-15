@@ -621,8 +621,11 @@ class WaldurOpenstack(BaseModel):
         dict[str, str | tuple[dict[str, str | int], ...]], ...
     ] = Field(
         # Every rule has an IPv6 twin so that the groups also work in IPv6-only
-        # and dual-stack tenants. ICMPv6 is a separate IP protocol (IANA 58),
-        # so "icmp" with an IPv6 ethertype would not match ping over IPv6.
+        # and dual-stack tenants. The twins are created only in a tenant with
+        # IPv6 (an IPv6 subnet of its own, or an IPv6 subnet on the external
+        # network it uses), so an IPv4-only cloud does not get IPv6 opened by
+        # default. ICMPv6 is a separate IP protocol (IANA 58), so "icmp" with
+        # an IPv6 ethertype would not match ping over IPv6.
         (
             {
                 "name": "ssh",
@@ -719,7 +722,12 @@ class WaldurOpenstack(BaseModel):
                 ),
             },
         ),
-        description="Default security groups and rules created in each of the provisioned OpenStack tenants",
+        description=(
+            "Default security groups and rules created in each of the provisioned "
+            "OpenStack tenants. Rules with the IPv6 ethertype are created only in "
+            "tenants with IPv6: an IPv6 subnet of their own, or an IPv6 subnet on "
+            "the external network they use."
+        ),
     )
 
     SUBNET: dict[str, str] = Field(

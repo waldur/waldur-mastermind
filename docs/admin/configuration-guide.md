@@ -983,7 +983,7 @@ Usernames that cannot be created by Waldur in OpenStack
 
 **Type:** `Tuple[dict[str, str | tuple[dict[str, str | int], ...]], ...]`
 
-Default security groups and rules created in each of the provisioned OpenStack tenants
+Default security groups and rules created in each of the provisioned OpenStack tenants. Rules with the IPv6 ethertype are created only in tenants with IPv6: an IPv6 subnet of their own, or an IPv6 subnet on the external network they use.
 
 #### MAX_CONCURRENT_PROVISION
 

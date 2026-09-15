@@ -1316,7 +1316,7 @@ These settings are configured in `waldur_core.server.settings` or `local_setting
 |---------|------|---------|-------------|
 | `ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS` | bool | `True` | Allow customer users to access the OpenStack VNC console |
 | `ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION` | bool | `False` | Allow connecting instances directly to external networks (bypassing internal network + router) |
-| `DEFAULT_SECURITY_GROUPS` | list[dict] | SSH (22), ping (ICMP and ICMPv6), RDP (3389), web (80, 443), each open to IPv4 (`0.0.0.0/0`) and IPv6 (`::/0`) | Default security groups and rules created in each provisioned tenant |
+| `DEFAULT_SECURITY_GROUPS` | list[dict] | SSH (22), ping (ICMP and ICMPv6), RDP (3389), web (80, 443), each open to IPv4 (`0.0.0.0/0`) and IPv6 (`::/0`) | Default security groups and rules created in each provisioned tenant. The IPv6 rules are created only in a tenant with IPv6: an IPv6 subnet of its own, or an IPv6 subnet on the external network it uses |
 | `DEFAULT_BLACKLISTED_USERNAMES` | list[str] | `["admin", "service"]` | Usernames that cannot be created by Waldur in OpenStack |
 | `MAX_CONCURRENT_PROVISION` | dict | `{"OpenStack.Instance": 4, "OpenStack.Volume": 4, "OpenStack.Snapshot": 4}` | Maximum parallel provisioning operations per resource type |
 | `REQUIRE_AVAILABILITY_ZONE` | bool | `False` | Make availability zone selection mandatory during provisioning |
