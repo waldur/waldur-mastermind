@@ -374,13 +374,15 @@ The `anonymized` policy names an account `<prefix><posix uid>` -- for example `h
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `heappe_url` | URL | HEAppE server endpoint |
-| `heappe_username` | string | Service account username |
-| `heappe_password` | string | Service account password |
-| `heappe_cluster_id` | integer | Target cluster ID |
-| `heappe_identifier` | string | Human-readable identifier of the HEAppE instance this offering targets, e.g. `it4i-heappe-prod`; disambiguates between multiple HEAppE deployments a provider may run |
+| `heappe_url` | URL | HEAppE server endpoint. Required |
+| `heappe_username` | string | Service account username. Required |
+| `heappe_cluster_id` | string | ID of the target cluster in HEAppE. Required |
+| `heappe_local_base_path` | string | Root directory on the cluster under which project directories are created. Required |
+| `heappe_identifier` | string | Human-readable identifier of the HEAppE instance this offering targets, e.g. `it4i-heappe-prod`; disambiguates between multiple HEAppE deployments a provider may run. Distinct from `heappe_cluster_id` |
 | `project_permanent_directory` | string | Persistent project directory path |
 | `scratch_project_directory` | string | Temporary scratch directory path |
+
+The service account password `heappe_password` (required) and `heappe_cluster_password` are secret options: they go in `secret_options`, not `plugin_options`, and are only returned to users who can manage the offering's integration.
 
 ### GLAuth (LDAP)
 
