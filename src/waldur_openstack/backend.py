@@ -7465,20 +7465,27 @@ class OpenStackBackend(ServiceBackend):
 
     @reraise_exceptions
     def update_port_ip(self, port, subnet_backend_id, ip_address):
+        """Set the port's address in one subnet and return its new fixed IPs.
+
+        Neutron replaces the whole list, so every address left out of it is
+        released: on a dual-stack port, sending only the changed entry would
+        drop the address of the other family. The current list is read from
+        Neutron rather than the database, which may be behind.
+        """
         neutron = get_neutron_client(self.admin_session)
-        neutron.update_port(
-            port.backend_id,
-            {
-                "port": {
-                    "fixed_ips": [
-                        {
-                            "subnet_id": subnet_backend_id,
-                            "ip_address": ip_address,
-                        }
-                    ]
-                }
-            },
-        )
+        current = neutron.show_port(port.backend_id)["port"]["fixed_ips"]
+        new_entry = {"subnet_id": subnet_backend_id, "ip_address": ip_address}
+        fixed_ips = []
+        for entry in current:
+            if entry["subnet_id"] != subnet_backend_id:
+                fixed_ips.append(entry)
+            elif new_entry not in fixed_ips:
+                fixed_ips.append(new_entry)
+        if new_entry not in fixed_ips:
+            fixed_ips.append(new_entry)
+        updated = neutron.update_port(
+            port.backend_id, {"port": {"fixed_ips": fixed_ips}}
+        )["port"]
         logger.info(
             "Port %s (backend_id: %s) IP changed to %s in subnet %s.",
             port.name or port.uuid.hex,
@@ -7486,6 +7493,7 @@ class OpenStackBackend(ServiceBackend):
             ip_address,
             subnet_backend_id,
         )
+        return updated["fixed_ips"]
 
     def add_router_interface(self, router: models.Router, subnet=None, port=None):
         """

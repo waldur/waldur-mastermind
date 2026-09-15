@@ -2328,8 +2328,11 @@ class PortViewSet(structure_views.ResourceViewSet):
         subnet = serializer.validated_data["subnet"]
         ip_address = serializer.validated_data["ip_address"]
         backend = port.get_backend()
-        backend.update_port_ip(port, subnet.backend_id, ip_address)
-        port.fixed_ips = [{"subnet_id": subnet.backend_id, "ip_address": ip_address}]
+        try:
+            fixed_ips = backend.update_port_ip(port, subnet.backend_id, ip_address)
+        except OpenStackBackendError as e:
+            raise exceptions.ValidationError(str(e))
+        port.fixed_ips = fixed_ips
         port.save(update_fields=["fixed_ips"])
         return response.Response(status=status.HTTP_200_OK)
 
