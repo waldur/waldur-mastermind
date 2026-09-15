@@ -6207,8 +6207,48 @@ class OpenStackPortIPUpdateSerializer(serializers.Serializer):
                 {"subnet": "Subnet does not belong to the same network as the port."}
             )
 
+        # Neutron refuses a fixed address on such a subnet, so this would only
+        # come back from the backend as an error.
+        from_prefix = models.SubNet.Ipv6Modes.FROM_PREFIX
+        if (
+            subnet.ipv6_ra_mode in from_prefix
+            or subnet.ipv6_address_mode in from_prefix
+        ):
+            raise serializers.ValidationError(
+                {
+                    "subnet": _(
+                        "Addresses on a SLAAC or stateless DHCPv6 subnet are "
+                        "derived from the prefix, so a fixed address cannot be "
+                        "assigned there."
+                    )
+                }
+            )
+
+        ip_addr = ip_address(ip)
+        try:
+            subnet_network = ip_network(subnet.cidr, strict=False)
+        except ValueError:
+            subnet_network = None
+        version = subnet_network.version if subnet_network else subnet.ip_version
+        if ip_addr.version != version:
+            raise serializers.ValidationError(
+                {
+                    "ip_address": _(
+                        "The address must be an IPv%(version)s address, like the "
+                        "subnet."
+                    )
+                    % {"version": version}
+                }
+            )
+        if subnet_network and ip_addr not in subnet_network:
+            raise serializers.ValidationError(
+                {
+                    "ip_address": _("The address is outside of the subnet %(cidr)s.")
+                    % {"cidr": subnet.cidr}
+                }
+            )
+
         if subnet.allocation_pools:
-            ip_addr = ip_address(ip)
             in_pool = False
             for pool in subnet.allocation_pools:
                 start_ip = ip_address(pool["start"])

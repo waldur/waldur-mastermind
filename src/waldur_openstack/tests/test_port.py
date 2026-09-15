@@ -1,8 +1,13 @@
 from unittest import mock
 
+from ddt import data, ddt
+from neutronclient.client import exceptions as neutron_exceptions
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
+from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.enums import Ipv6Modes
+from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import NetworkRBACPolicy, Port
 from waldur_openstack.serializers import (
     OpenStackPortIPUpdateSerializer,
@@ -411,6 +416,162 @@ class PortIPUpdateValidationTest(BasePortTest):
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn("subnet", serializer.errors)
+
+
+@ddt
+class PortIPUpdateTest(BasePortTest):
+    """``POST /api/openstack-ports/{uuid}/update_port_ip/`` on IPv6 and
+    dual-stack ports."""
+
+    V4_SUBNET_ID = "subnet-v4"
+    V6_SUBNET_ID = "subnet-v6"
+
+    def setUp(self):
+        super().setUp()
+        self.port = self.fixture.port
+        self.v4_subnet = self.fixture.subnet
+        self.v4_subnet.backend_id = self.V4_SUBNET_ID
+        self.v4_subnet.cidr = "192.168.42.0/24"
+        self.v4_subnet.save()
+        self.v6_subnet = factories.SubNetFactory(
+            network=self.fixture.network,
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            state=CoreStates.OK,
+            backend_id=self.V6_SUBNET_ID,
+            cidr="2001:db8:1::/64",
+            ip_version=6,
+            ipv6_ra_mode=Ipv6Modes.DHCPV6_STATEFUL,
+            ipv6_address_mode=Ipv6Modes.DHCPV6_STATEFUL,
+        )
+        self.url = factories.PortFactory.get_url(self.port, "update_port_ip")
+        patcher = mock.patch("waldur_openstack.backend.OpenStackBackend.update_port_ip")
+        self.backend_mock = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _post(self, subnet, ip):
+        return self.client.post(
+            self.url,
+            {"subnet": factories.SubNetFactory.get_url(subnet), "ip_address": ip},
+        )
+
+    @data(
+        (Ipv6Modes.SLAAC, Ipv6Modes.SLAAC),
+        (Ipv6Modes.DHCPV6_STATELESS, Ipv6Modes.DHCPV6_STATELESS),
+        # Router advertisements from outside OpenStack leave ra_mode unset.
+        (None, Ipv6Modes.SLAAC),
+    )
+    def test_address_from_prefix_subnet_is_refused(self, modes):
+        self.v6_subnet.ipv6_ra_mode, self.v6_subnet.ipv6_address_mode = modes
+        self.v6_subnet.save()
+
+        response = self._post(self.v6_subnet, "2001:db8:1::10")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("prefix", str(response.data["subnet"]))
+        self.backend_mock.assert_not_called()
+
+    def test_stateful_ipv6_subnet_accepts_an_address_in_its_prefix(self):
+        kept = {"subnet_id": self.V4_SUBNET_ID, "ip_address": "192.168.42.5"}
+        changed = {"subnet_id": self.V6_SUBNET_ID, "ip_address": "2001:db8:1::10"}
+        self.backend_mock.return_value = [kept, changed]
+
+        response = self._post(self.v6_subnet, "2001:db8:1::10")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.backend_mock.assert_called_once_with(
+            self.port, self.V6_SUBNET_ID, "2001:db8:1::10"
+        )
+        self.port.refresh_from_db()
+        self.assertEqual(self.port.fixed_ips, [kept, changed])
+
+    def test_address_of_the_other_family_is_refused(self):
+        response = self._post(self.v6_subnet, "192.168.42.10")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ip_address", response.data)
+        self.backend_mock.assert_not_called()
+
+    def test_address_outside_the_subnet_is_refused(self):
+        response = self._post(self.v6_subnet, "2001:db8:2::10")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ip_address", response.data)
+        self.backend_mock.assert_not_called()
+
+    def test_address_outside_an_ipv4_subnet_is_refused(self):
+        response = self._post(self.v4_subnet, "10.0.0.10")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ip_address", response.data)
+        self.backend_mock.assert_not_called()
+
+    def test_backend_error_is_a_bad_request(self):
+        self.backend_mock.side_effect = OpenStackBackendError(
+            "IP address 192.168.42.10 already allocated in subnet"
+        )
+
+        response = self._post(self.v4_subnet, "192.168.42.10")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already allocated", str(response.data))
+
+
+class PortIPUpdateBackendTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.port = self.fixture.port
+        self.backend = OpenStackBackend(self.fixture.settings)
+        self.v4 = {"subnet_id": "subnet-v4", "ip_address": "192.168.42.5"}
+        self.v6 = {"subnet_id": "subnet-v6", "ip_address": "2001:db8:1::5"}
+
+        patcher = mock.patch(
+            "waldur_openstack.backend.OpenStackBackend.admin_session",
+            new_callable=mock.PropertyMock,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = mock.patch("waldur_openstack.backend.get_neutron_client")
+        self.client_mock = patcher.start().return_value
+        self.addCleanup(patcher.stop)
+        self.client_mock.show_port.return_value = {
+            "port": {"fixed_ips": [self.v4, self.v6]}
+        }
+        self.client_mock.update_port.side_effect = lambda port_id, body: {
+            "port": {"fixed_ips": body["port"]["fixed_ips"]}
+        }
+
+    def _sent_fixed_ips(self):
+        return self.client_mock.update_port.call_args[0][1]["port"]["fixed_ips"]
+
+    def test_changing_one_family_keeps_the_other(self):
+        new_v6 = {"subnet_id": "subnet-v6", "ip_address": "2001:db8:1::10"}
+
+        fixed_ips = self.backend.update_port_ip(
+            self.port, "subnet-v6", "2001:db8:1::10"
+        )
+
+        self.assertEqual(self._sent_fixed_ips(), [self.v4, new_v6])
+        self.assertEqual(fixed_ips, [self.v4, new_v6])
+
+    def test_a_subnet_the_port_is_not_on_yet_is_added(self):
+        self.client_mock.show_port.return_value = {"port": {"fixed_ips": [self.v4]}}
+
+        self.backend.update_port_ip(self.port, "subnet-v6", "2001:db8:1::10")
+
+        self.assertEqual(
+            self._sent_fixed_ips(),
+            [self.v4, {"subnet_id": "subnet-v6", "ip_address": "2001:db8:1::10"}],
+        )
+
+    def test_neutron_refusal_is_a_backend_error(self):
+        self.client_mock.update_port.side_effect = neutron_exceptions.BadRequest(
+            "IPv6 address cannot be directly assigned to a port on subnet"
+        )
+
+        with self.assertRaises(OpenStackBackendError):
+            self.backend.update_port_ip(self.port, "subnet-v6", "2001:db8:1::10")
 
 
 class PortSharedNetworkTest(test.APITestCase):
