@@ -2367,7 +2367,9 @@ class PortViewSet(structure_views.ResourceViewSet):
     @decorators.action(detail=True, methods=["post"])
     def set_allowed_address_pairs(self, request, uuid=None):
         port: models.Port = self.get_object()
-        serializer = serializers.SetAllowedAddressPairsSerializer(data=request.data)
+        serializer = serializers.SetAllowedAddressPairsSerializer(
+            data=request.data, context={"port": port}
+        )
         serializer.is_valid(raise_exception=True)
         new_pairs = list(serializer.validated_data["allowed_address_pairs"])
         old_pairs = list(port.allowed_address_pairs or [])

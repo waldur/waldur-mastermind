@@ -1998,14 +1998,19 @@ _AAP_MAX_ENTRIES = 64
 
 
 class AllowedAddressPairEntrySerializer(serializers.Serializer):
-    """One {ip_address, mac_address?} entry. Used by the set action.
+    """One {ip_address, mac_address?} entry, for both the port action and the
+    instance action.
 
     Reuses ``validate_private_cidr`` to enforce that the spoofable range
-    is bounded to RFC1918 — accepting ``0.0.0.0/0``, the port's subnet
-    gateway, link-local, multicast, or public IPs would let a port
-    impersonate the upstream router, metadata service, or other
-    tenants' fixed IPs (the textbook AAP-escalation attack the
-    instance-level path explicitly guards against).
+    is bounded to RFC1918 — accepting ``0.0.0.0/0``, link-local, multicast,
+    or public IPs would let a port impersonate the upstream router, the
+    metadata service, or other tenants' fixed IPs, the textbook
+    allowed-address-pairs escalation. Neutron leaves this to the caller: its
+    default policy lets any member who owns the network set any range, and it
+    only documents that ``0.0.0.0/0`` bypasses source-restricted security
+    group rules for every port sharing the group (Neutron bug 1793029).
+    The subnet gateway needs the port, so ``reject_pairs_covering_gateway``
+    checks it at the serializer level.
     """
 
     ip_address = serializers.CharField()
@@ -2024,29 +2029,89 @@ class AllowedAddressPairEntrySerializer(serializers.Serializer):
         return value.lower()
 
 
+def validate_address_pair_list(pairs):
+    """List-level rules for validated entries, shared by the port action and
+    the instance action. Returns plain dicts without a blank MAC, which Neutron
+    would reject; an omitted MAC means the port's own."""
+    if len(pairs) > _AAP_MAX_ENTRIES:
+        raise serializers.ValidationError(
+            _("At most {limit} address pairs are supported per port.").format(
+                limit=_AAP_MAX_ENTRIES
+            )
+        )
+    cleaned = []
+    seen = set()
+    for entry in pairs:
+        entry = {key: value for key, value in dict(entry).items() if value != ""}
+        key = (entry.get("ip_address"), entry.get("mac_address") or "")
+        if key in seen:
+            raise serializers.ValidationError(
+                _("Duplicate address pair entries are not allowed.")
+            )
+        seen.add(key)
+        cleaned.append(entry)
+    return cleaned
+
+
+def _port_gateways(port: models.Port):
+    """Gateways of every subnet the port has an address on."""
+    subnet_ids = {
+        fixed_ip.get("subnet_id")
+        for fixed_ip in port.fixed_ips or []
+        if isinstance(fixed_ip, dict) and fixed_ip.get("subnet_id")
+    }
+    subnets = list(
+        models.SubNet.objects.filter(
+            network_id=port.network_id, backend_id__in=subnet_ids
+        )
+    )
+    if port.subnet_id:
+        subnets.append(port.subnet)
+    gateways = set()
+    for subnet in subnets:
+        if subnet.gateway_ip:
+            try:
+                gateways.add(ip_address(subnet.gateway_ip))
+            except ValueError:
+                continue
+    return gateways
+
+
+def reject_pairs_covering_gateway(pairs, port: models.Port):
+    """A pair that contains the subnet gateway lets the port answer for the
+    router, so every instance on the subnet could be intercepted."""
+    gateways = _port_gateways(port)
+    for pair in pairs:
+        network = ip_network(pair["ip_address"], strict=False)
+        for gateway in gateways:
+            if gateway.version == network.version and gateway in network:
+                raise serializers.ValidationError(
+                    {
+                        "allowed_address_pairs": _(
+                            "%(pair)s contains the subnet gateway %(gateway)s."
+                        )
+                        % {"pair": pair["ip_address"], "gateway": gateway}
+                    }
+                )
+
+
 class SetAllowedAddressPairsSerializer(serializers.Serializer):
-    """Body shape for ``POST .../ports/{uuid}/set_allowed_address_pairs/``."""
+    """Body shape for ``POST .../ports/{uuid}/set_allowed_address_pairs/``.
+
+    Expects the port in the serializer context, for the gateway check."""
 
     allowed_address_pairs = AllowedAddressPairEntrySerializer(
         many=True, allow_empty=True
     )
 
     def validate_allowed_address_pairs(self, value):
-        if len(value) > _AAP_MAX_ENTRIES:
-            raise serializers.ValidationError(
-                _("At most {limit} address pairs are supported per port.").format(
-                    limit=_AAP_MAX_ENTRIES
-                )
-            )
-        seen = set()
-        for entry in value:
-            key = (entry.get("ip_address"), entry.get("mac_address") or "")
-            if key in seen:
-                raise serializers.ValidationError(
-                    _("Duplicate address pair entries are not allowed.")
-                )
-            seen.add(key)
-        return value
+        return validate_address_pair_list(value)
+
+    def validate(self, attrs):
+        port = self.context.get("port")
+        if port is not None:
+            reject_pairs_covering_gateway(attrs["allowed_address_pairs"], port)
+        return attrs
 
 
 @extend_schema_field(OpenStackAllowedAddressPairSerializer(many=True))
@@ -5595,6 +5660,24 @@ class OpenStackInstanceAllowedAddressPairsUpdateSerializer(serializers.Serialize
             "List of allowed address pairs to set on the port. Each pair should contain 'ip_address' and optional 'mac_address'."
         )
     )
+
+    def validate_allowed_address_pairs(self, value):
+        # The same per-entry and list rules as the port action; the field stays
+        # a JSON field so the schema, and every generated client, is unchanged.
+        entries = AllowedAddressPairEntrySerializer(
+            data=value, many=True, allow_empty=True
+        )
+        if not entries.is_valid():
+            raise serializers.ValidationError(entries.errors)
+        return validate_address_pair_list(entries.validated_data)
+
+    def validate(self, attrs):
+        port = models.Port.objects.filter(
+            instance=self.instance, subnet=attrs["subnet"]
+        ).first()
+        if port is not None:
+            reject_pairs_covering_gateway(attrs["allowed_address_pairs"], port)
+        return attrs
 
     @transaction.atomic
     def update(self, instance, validated_data):

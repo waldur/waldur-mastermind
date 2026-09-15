@@ -143,7 +143,9 @@ class AllowedAddressPairsAuditTest(test.APITestCase):
         self.assertEqual(ctx["added_count"], 1)
         self.assertEqual(ctx["removed_count"], 0)
         self.assertEqual(ctx["modified_count"], 1)
-        self.assertEqual(ctx["added_pairs"][0]["ip_address"], "10.0.0.7")
+        # The instance action now validates and normalises pairs like the port
+        # action does, so the address is recorded as applied: in prefix form.
+        self.assertEqual(ctx["added_pairs"][0]["ip_address"], "10.0.0.7/32")
         modified = ctx["modified_pairs"][0]
         self.assertEqual(modified["new"]["mac_address"], "aa:bb:cc:dd:ee:99")
         self.assertEqual(modified["old"]["mac_address"], "aa:bb:cc:dd:ee:02")
