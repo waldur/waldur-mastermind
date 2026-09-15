@@ -48,7 +48,7 @@ User attribute writes converge on the same `update_user_attributes_from_source()
 ## Setup
 
 1. **Add `scim2-models`** — already included in `pyproject.toml`. No extra installation step needed beyond `uv sync`.
-2. **Create a staff service-account user** for the IdP to authenticate as. The service account must have `is_staff=True` and `is_active=True`.
+2. **Create a staff service-account user** for the IdP to authenticate as. The service account must have `is_staff=True` and `is_active=True`, and its token must not expire: new users get the default `token_lifetime` (1 hour), and an IdP only calls when something changes, so after a quiet hour every SCIM request would be rejected with 401 `Token has expired.` Clear `token_lifetime` after creating the account — it can't be passed to `create()`, because the default is applied when the user is created.
 3. **Issue an auth token** for that user. The token's `key` is what the IdP sends as `Authorization: Bearer <key>`.
 
     ```python
@@ -59,6 +59,7 @@ User attribute writes converge on the same `update_user_attributes_from_source()
         username="scim-okta-svc", is_staff=True, is_active=True
     )
     svc.set_unusable_password()
+    svc.token_lifetime = None  # SCIM tokens must not expire
     svc.save()
     token, _ = Token.objects.get_or_create(user=svc)
     print(token.key)  # paste into the IdP
@@ -69,9 +70,11 @@ User attribute writes converge on the same `update_user_attributes_from_source()
     - Optionally narrow `SCIM_INBOUND_ALLOWED_ATTRIBUTES` (default `first_name, last_name, email, organization, affiliations`).
     - Optionally rename the source label (`SCIM_INBOUND_SOURCE_NAME`, default `scim:default`) — useful when you have multiple IdPs and want to distinguish them in `attribute_sources`.
 
-5. **Point the IdP at `/scim/v2/`** using the token. The IdP's SCIM connector tester should see `GET /scim/v2/ServiceProviderConfig` succeed.
+5. **Make `/scim/v2/` reachable through the reverse proxy.** The endpoint sits outside `/api/`, so the proxy in front of Waldur must forward it to the API. The Helm chart (API `Ingress` and Gateway API `HTTPRoute`) and the docker-compose Caddy config route `/scim` to mastermind; older chart and compose releases do not, and a SCIM request then reaches the homeport SPA instead. With a custom proxy, add the route yourself. In Helm, `ingress.whitelistSourceRange` covers `/scim` too — use it to accept provisioning only from the IdP's addresses (Ingress only; Gateway API has no standard equivalent).
 
-6. **Smoke test from the shell** before pointing real users at it:
+6. **Point the IdP at `/scim/v2/`** using the token. The IdP's SCIM connector tester should see `GET /scim/v2/ServiceProviderConfig` succeed.
+
+7. **Smoke test from the shell** before pointing real users at it:
 
     ```bash
     curl -H "Authorization: Bearer <token>" \
@@ -391,7 +394,9 @@ sequenceDiagram
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `/scim/v2/...` returns an HTML page, or a 404 from the proxy | The reverse proxy doesn't forward `/scim/` to the API, so the request reaches homeport or no backend. | Upgrade to a Helm chart / docker-compose release that routes `/scim`, or add the route to your proxy (see Setup step 5). |
 | `GET /scim/v2/ServiceProviderConfig` returns 403 with `detail: SCIM_INBOUND_ENABLED` | Feature flag is off. | Set `SCIM_INBOUND_ENABLED=True` in Constance. |
+| SCIM requests start returning 401 `Token has expired.` after a quiet period | The service account still has a `token_lifetime`, and the IdP made no request within it. | Clear it: `User.objects.filter(username=...).update(token_lifetime=None)`. The IdP's existing key works again — expired tokens are rejected, not rotated. |
 | All SCIM requests return 401 | Bearer scheme not used, or token doesn't match a `core.AuthToken`. | Verify the IdP sends `Authorization: Bearer <token>` exactly; check `Token.objects.filter(key=...).exists()`. |
 | All SCIM requests return 403 (with token) | Token user is not `is_staff`. | Promote the service account: `User.objects.filter(username=...).update(is_staff=True)`. |
 | `POST /Groups` returns 400 `invalidValue` | `displayName` doesn't match the `waldur:` convention (see Group naming convention section above). | Build the displayName from the URLs in the Waldur admin (Customer/Project UUID + role name). |
@@ -403,7 +408,7 @@ sequenceDiagram
 ## Security notes
 
 - The endpoint is gated on `is_staff` — equivalent in authority to existing staff role-management APIs. Treat the service-account token like any other staff credential.
-- Bearer tokens leak silently in proxy logs and error trackers. Consider configuring `User.token_lifetime` on the SCIM service account if your operational model assumes rotating credentials. (Note: the current `ScimBearerAuthentication` does not enforce `token_lifetime`-based expiry — see the security review section of the original MR.)
+- Bearer tokens leak silently in proxy logs and error trackers. SCIM tokens are validated exactly like `/api/` tokens: once `token_lifetime` passes without a request, the token is rejected with 401 and left in place, never rotated. Because IdPs call only when something changes, leave `token_lifetime` unset on the service account (see Setup) and rotate the credential deliberately instead — delete the service account's `Token`, issue a new one, and update the IdP.
 - `/scim/v2/` is outside the `/api/` prefix and excluded from the public OpenAPI schema.
 - All writable attributes are gated by both `SCIM_INBOUND_ALLOWED_ATTRIBUTES` and `WRITABLE_USER_FIELDS`; privilege flags like `is_staff` / `is_superuser` / `is_active` (directly) / `token_lifetime` cannot be set via SCIM payloads.
 - The SCIM filter parser only emits Django `Q` objects against a hard-coded attribute whitelist; values are parameterised by Django ORM.

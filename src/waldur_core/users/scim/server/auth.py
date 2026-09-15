@@ -4,16 +4,20 @@ A SCIM client (Okta, Entra ID, ...) authenticates with a long-lived bearer token
 tied to a staff service-account User. We accept both ``Authorization: Bearer ...``
 (SCIM standard) and ``Authorization: Token ...`` (Waldur convention) so a single
 ``core.AuthToken`` can be reused.
+
+Tokens are validated exactly as for ``/api/``: an expired token is rejected and
+left in place, never rotated — rotating would silently invalidate the key the IdP
+is configured with.
 """
 
 from constance import config
-from django.utils.translation import gettext_lazy as _
-from rest_framework import exceptions
-from rest_framework.authentication import BaseAuthentication, get_authorization_header
-from rest_framework.authtoken.models import Token
+from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import BasePermission
 
-from waldur_core.core.authentication import refresh_token, set_user_context
+from waldur_core.core.authentication import (
+    ImpersonationAuthentication,
+    parse_token_from_request,
+)
 
 
 class ScimBearerAuthentication(BaseAuthentication):
@@ -22,37 +26,13 @@ class ScimBearerAuthentication(BaseAuthentication):
     keyword_aliases = (b"bearer", b"token")
 
     def authenticate(self, request):
-        auth = get_authorization_header(request).split()
-        if not auth or auth[0].lower() not in self.keyword_aliases:
-            return None
-        if len(auth) == 1:
-            raise exceptions.AuthenticationFailed(
-                _("Invalid token. No credentials provided.")
-            )
-        if len(auth) > 2:
-            raise exceptions.AuthenticationFailed(
-                _("Invalid token. Token string should not contain spaces.")
-            )
-        try:
-            key = auth[1].decode()
-        except UnicodeError:
-            raise exceptions.AuthenticationFailed(
-                _(
-                    "Invalid token header. Token string should not contain invalid characters."
-                )
-            )
-
-        try:
-            token = Token.objects.select_related("user").get(key=key)
-        except Token.DoesNotExist:
-            raise exceptions.AuthenticationFailed(_("Invalid token."))
-
-        if not token.user.is_active:
-            raise exceptions.AuthenticationFailed(_("User inactive or deleted."))
-
-        set_user_context(token.user)
-        refresh_token(token.user)
-        return token.user, token
+        for keyword in self.keyword_aliases:
+            key = parse_token_from_request(request, keyword)
+            if key:
+                # Same inactive-user and token_lifetime checks as /api/, and the
+                # same refresh of an active token. SCIM never impersonates.
+                return ImpersonationAuthentication().authenticate_credentials(key)
+        return None
 
     def authenticate_header(self, request):
         return 'Bearer realm="scim"'
