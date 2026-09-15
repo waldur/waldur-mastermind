@@ -123,6 +123,23 @@ CertificateValidator = FileTypeValidator(
 )
 
 
+# Document uploads, matching the file types homeport's upload dialogs offer.
+# Deliberately excludes SVG, an image format that can carry script.
+DocumentValidator = FileTypeValidator(
+    allowed_types=[
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        # libmagic reports some .doc files by their OLE container type.
+        "application/x-ole-storage",
+        "application/vnd.oasis.opendocument.text",
+    ],
+    allowed_extensions=[".pdf", ".jpg", ".jpeg", ".png", ".docx", ".doc", ".odt"],
+)
+
+
 def validate_notification_emails(value):
     if not value:
         return value

@@ -2,8 +2,9 @@ import datetime
 from unittest import mock
 
 from constance.test.unittest import override_config
-from ddt import data, ddt
+from ddt import data, ddt, unpack
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
@@ -11,13 +12,16 @@ from rest_framework import status, test
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION
-from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks, utils
 from waldur_mastermind.proposal.enums import AllocationTimes, CallStates, ProposalStates
 from waldur_mastermind.proposal.tests import factories, fixtures
+
+SVG_WITH_SCRIPT = (
+    b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'
+)
 
 
 @ddt
@@ -228,9 +232,11 @@ class UpdateProposalProjectDetailsTest(test.APITestCase):
         response = self.update_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def _upload_proposal_document(self):
+    def _upload_proposal_document(self, file=None):
         url = factories.ProposalFactory.get_url(self.proposal, action="attach_document")
-        payload = {"file": dummy_image()}
+        if file is None:
+            file = SimpleUploadedFile("proposal.pdf", b"%PDF-1.4\n%%EOF\n")
+        payload = {"file": file}
         return self.client.post(url, payload, format="multipart")
 
     @data("staff", "call_manager")
@@ -241,6 +247,19 @@ class UpdateProposalProjectDetailsTest(test.APITestCase):
         proposal = models.Proposal.objects.get(uuid=self.proposal.uuid)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(proposal.proposaldocumentation_set.count(), 1)
+
+    @data(
+        ("diagram.svg", SVG_WITH_SCRIPT),
+        # The type is sniffed from the content, so renaming the file is no help.
+        ("diagram.png", SVG_WITH_SCRIPT),
+        ("animation.gif", b"GIF89a\x01\x00\x01\x00\x80\x00\x00"),
+    )
+    @unpack
+    def test_non_document_upload_is_rejected(self, name, content):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self._upload_proposal_document(SimpleUploadedFile(name, content))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(self.proposal.proposaldocumentation_set.exists())
 
     def _detach_proposal_document(self, doc_uuids):
         url = factories.ProposalFactory.get_url(
