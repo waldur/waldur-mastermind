@@ -1039,3 +1039,297 @@ class OctaviaAvailabilityGuardTest(test.APITestCase):
             mock_create_session.return_value,
         )
         self.assertIs(connection, mock_connection.return_value)
+
+
+class LoadBalancerVipAddressFamilyTest(BaseLoadBalancerTest):
+    def setUp(self):
+        super().setUp()
+        self.ipv4_subnet = self.fixture.subnet
+        self.ipv4_subnet.cidr = "192.168.42.0/24"
+        self.ipv4_subnet.ip_version = 4
+        self.ipv4_subnet.save()
+        self.ipv6_subnet = factories.SubNetFactory(
+            network=self.fixture.network,
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            state=CoreStates.OK,
+            backend_id="ipv6_subnet_backend_id",
+            cidr="2001:db8:42::/64",
+            ip_version=6,
+        )
+
+    @mock.patch("waldur_openstack.executors.LoadBalancerCreateExecutor.execute")
+    def _create(self, subnet, vip_address, mock_execute):
+        payload = {
+            "name": "Test LB",
+            "tenant": factories.TenantFactory.get_url(self.fixture.tenant),
+            "vip_subnet": factories.SubNetFactory.get_url(subnet),
+        }
+        if vip_address is not None:
+            payload["vip_address"] = vip_address
+        return self.client.post(factories.LoadBalancerFactory.get_list_url(), payload)
+
+    def test_ipv6_vip_on_ipv6_subnet_is_accepted_and_stored(self):
+        response = self._create(self.ipv6_subnet, "2001:db8:42::10")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        lb = models.LoadBalancer.objects.get(name="Test LB")
+        self.assertEqual(lb.vip_address, "2001:db8:42::10")
+
+    def test_ipv4_vip_on_ipv4_subnet_is_accepted_and_stored(self):
+        response = self._create(self.ipv4_subnet, "192.168.42.10")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        lb = models.LoadBalancer.objects.get(name="Test LB")
+        self.assertEqual(lb.vip_address, "192.168.42.10")
+
+    def test_vip_address_is_optional_on_ipv6_subnet(self):
+        response = self._create(self.ipv6_subnet, None)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        lb = models.LoadBalancer.objects.get(name="Test LB")
+        self.assertIsNone(lb.vip_address)
+
+    def test_ipv4_vip_on_ipv6_subnet_is_refused(self):
+        response = self._create(self.ipv6_subnet, "192.168.42.10")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("vip_address", response.data)
+
+    def test_ipv6_vip_on_ipv4_subnet_is_refused(self):
+        response = self._create(self.ipv4_subnet, "2001:db8:42::10")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("vip_address", response.data)
+
+    def test_ipv6_vip_outside_subnet_is_refused(self):
+        response = self._create(self.ipv6_subnet, "2001:db8:99::10")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("vip_address", response.data)
+
+    def test_ipv4_vip_outside_subnet_is_refused(self):
+        response = self._create(self.ipv4_subnet, "10.0.0.10")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("vip_address", response.data)
+
+    def test_model_accepts_ipv6_vip_address(self):
+        lb = factories.LoadBalancerFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+        field = models.LoadBalancer._meta.get_field("vip_address")
+        self.assertEqual(field.clean("2001:db8:42::10", lb), "2001:db8:42::10")
+        self.assertEqual(field.clean("192.168.42.10", lb), "192.168.42.10")
+
+
+class OctaviaLoadBalancerVipAddressTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.subnet = factories.SubNetFactory(
+            network=self.fixture.network,
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            backend_id="ipv6_subnet_backend_id",
+            cidr="2001:db8:42::/64",
+            ip_version=6,
+        )
+        self.lb = factories.LoadBalancerFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            vip_subnet=self.subnet,
+        )
+        self.backend_lb = mock.Mock(
+            id=self.lb.backend_id,
+            vip_address="2001:db8:42::10",
+            vip_port_id=None,
+            provisioning_status="ACTIVE",
+            operating_status="ONLINE",
+            provider="ovn",
+        )
+        patcher = mock.patch.object(
+            OctaviaClient, "connection", new_callable=mock.PropertyMock
+        )
+        self.connection = patcher.start().return_value
+        self.addCleanup(patcher.stop)
+        self.connection.create_load_balancer.return_value = self.backend_lb
+        self.connection.wait_for_load_balancer.return_value = self.backend_lb
+        self.connection.get_load_balancer.return_value = self.backend_lb
+
+    def test_requested_vip_address_is_sent_to_octavia(self):
+        self.lb.vip_address = "2001:db8:42::10"
+        self.lb.save()
+
+        OctaviaClient(self.fixture.tenant).create_load_balancer(self.lb)
+
+        kwargs = self.connection.create_load_balancer.call_args.kwargs
+        self.assertEqual(kwargs["vip_address"], "2001:db8:42::10")
+        self.assertEqual(kwargs["vip_subnet_id"], "ipv6_subnet_backend_id")
+
+    def test_vip_address_is_left_to_octavia_when_not_requested(self):
+        OctaviaClient(self.fixture.tenant).create_load_balancer(self.lb)
+
+        kwargs = self.connection.create_load_balancer.call_args.kwargs
+        self.assertNotIn("vip_address", kwargs)
+        self.lb.refresh_from_db()
+        self.assertEqual(self.lb.vip_address, "2001:db8:42::10")
+
+    def test_pull_stores_ipv6_vip_address(self):
+        OctaviaClient(self.fixture.tenant).pull_load_balancer(self.lb)
+
+        self.lb.refresh_from_db()
+        self.assertEqual(self.lb.vip_address, "2001:db8:42::10")
+        self.assertEqual(self.lb.provisioning_status, "ACTIVE")
+
+
+class LoadBalancerAttachFloatingIPAddressFamilyTest(BaseLoadBalancerTest):
+    """Floating IPs are IPv4; Neutron can only associate one with a port that
+    has an IPv4 address."""
+
+    def setUp(self):
+        super().setUp()
+        self.vip_port = factories.PortFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="vip_port_123",
+            fixed_ips=[{"ip_address": "2001:db8:42::10", "subnet_id": "v6"}],
+        )
+        self.lb = factories.LoadBalancerFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            vip_port=self.vip_port,
+            vip_address="2001:db8:42::10",
+            state=CoreStates.OK,
+        )
+        self.fip = factories.FloatingIPFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+
+    @mock.patch(
+        "waldur_openstack.executors.LoadBalancerAttachFloatingIPExecutor.execute"
+    )
+    def _attach(self, mock_execute):
+        response = self.client.post(
+            factories.LoadBalancerFactory.get_url(self.lb, "attach_floating_ip"),
+            {"floating_ip": factories.FloatingIPFactory.get_url(self.fip)},
+        )
+        return response, mock_execute
+
+    def test_ipv6_only_vip_is_refused(self):
+        response, mock_execute = self._attach()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("no IPv4 address", str(response.data))
+        mock_execute.assert_not_called()
+
+    def test_vip_port_with_an_ipv4_address_is_accepted(self):
+        self.vip_port.fixed_ips = [
+            {"ip_address": "192.168.42.10", "subnet_id": "v4"},
+            {"ip_address": "2001:db8:42::10", "subnet_id": "v6"},
+        ]
+        self.vip_port.save()
+
+        response, mock_execute = self._attach()
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_vip_address_decides_when_the_port_has_no_fixed_ips(self):
+        self.vip_port.fixed_ips = []
+        self.vip_port.save()
+
+        response, mock_execute = self._attach()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_execute.assert_not_called()
+
+
+class PoolMemberAddressTest(BasePoolMemberTest):
+    def setUp(self):
+        super().setUp()
+        self.ipv4_subnet = self.fixture.subnet
+        self.ipv4_subnet.cidr = "192.168.1.0/24"
+        self.ipv4_subnet.save()
+        self.ipv6_subnet = factories.SubNetFactory(
+            network=self.fixture.network,
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            state=CoreStates.OK,
+            backend_id="ipv6_subnet_backend_id",
+            cidr="2001:db8:42::/64",
+            ip_version=6,
+        )
+
+    @mock.patch("waldur_openstack.executors.PoolMemberCreateExecutor.execute")
+    def _create(self, address, subnet, mock_execute):
+        return self.client.post(
+            factories.PoolMemberFactory.get_list_url(),
+            {
+                "pool": factories.PoolFactory.get_url(self.pool),
+                "address": address,
+                "protocol_port": 80,
+                "subnet": factories.SubNetFactory.get_url(subnet),
+            },
+        )
+
+    def test_ipv4_member_inside_its_subnet_is_accepted(self):
+        response = self._create("192.168.1.10", self.ipv4_subnet)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_ipv6_member_inside_its_subnet_is_accepted(self):
+        response = self._create("2001:db8:42::10", self.ipv6_subnet)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_member_outside_its_subnet_is_refused(self):
+        response = self._create("10.0.0.10", self.ipv4_subnet)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("address", response.data)
+
+    def test_ipv6_member_on_an_ipv4_subnet_is_refused(self):
+        response = self._create("2001:db8:42::10", self.ipv4_subnet)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("address", response.data)
+
+    def test_ipv4_member_on_an_ipv6_subnet_is_refused(self):
+        response = self._create("192.168.1.10", self.ipv6_subnet)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("address", response.data)
+
+    def test_member_on_a_subnet_without_a_known_cidr_is_not_checked(self):
+        self.ipv4_subnet.cidr = ""
+        self.ipv4_subnet.save()
+
+        response = self._create("10.0.0.10", self.ipv4_subnet)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def _set_vip(self, vip_address, provider="ovn"):
+        load_balancer = self.pool.load_balancer
+        load_balancer.vip_address = vip_address
+        load_balancer.provider = provider
+        load_balancer.save()
+
+    def test_ovn_member_of_the_other_family_than_the_vip_is_refused(self):
+        self._set_vip("192.168.1.5")
+
+        response = self._create("2001:db8:42::10", self.ipv6_subnet)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("mixing IP versions", str(response.data["address"]))
+
+    def test_ovn_member_of_the_vip_family_is_accepted(self):
+        self._set_vip("2001:db8:42::5")
+
+        response = self._create("2001:db8:42::10", self.ipv6_subnet)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_other_providers_may_mix_ip_versions(self):
+        self._set_vip("192.168.1.5", provider="amphora")
+
+        response = self._create("2001:db8:42::10", self.ipv6_subnet)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

@@ -3326,11 +3326,21 @@ class CreateLoadBalancerSerializer(LoadBalancerWritableSerializer):
         queryset=models.SubNet.objects.all(),
         required=True,
     )
+    vip_address = serializers.IPAddressField(
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "Virtual IP address to request, IPv4 or IPv6. It must be of the same "
+            "family as vip_subnet and lie inside it. Octavia allocates one "
+            "from vip_subnet when omitted."
+        ),
+    )
 
     class Meta(LoadBalancerWritableSerializer.Meta):
         fields = LoadBalancerWritableSerializer.Meta.fields + (
             "tenant",
             "vip_subnet",
+            "vip_address",
         )
         extra_kwargs = dict(
             tenant={"lookup_field": "uuid", "view_name": "openstack-tenant-detail"},
@@ -3371,9 +3381,48 @@ class CreateLoadBalancerSerializer(LoadBalancerWritableSerializer):
                     )
                 }
             )
+        if attrs.get("vip_address"):
+            validate_address_in_subnet(attrs["vip_address"], subnet, "vip_address")
         attrs["project"] = tenant.project
         attrs["service_settings"] = tenant.service_settings
         return attrs
+
+
+def validate_address_in_subnet(address_text, subnet, field_name):
+    """Refuse an address that cannot live on the subnet.
+
+    Octavia accepts such an address and only fails asynchronously, leaving an
+    erred load balancer or member behind, so it is refused up front.
+    """
+    try:
+        subnet_network = ip_network(subnet.cidr, strict=False)
+    except ValueError:
+        raise serializers.ValidationError(
+            {
+                field_name: _(
+                    "The address cannot be checked because the CIDR of the "
+                    "subnet is unknown."
+                )
+            }
+        )
+    address = ip_address(address_text)
+    if address.version != subnet_network.version:
+        raise serializers.ValidationError(
+            {
+                field_name: _(
+                    "An IPv%(address)s address cannot be placed on an "
+                    "IPv%(subnet)s subnet."
+                )
+                % {"address": address.version, "subnet": subnet_network.version}
+            }
+        )
+    if address not in subnet_network:
+        raise serializers.ValidationError(
+            {
+                field_name: _("Address %(ip)s is not inside subnet %(cidr)s.")
+                % {"ip": address_text, "cidr": subnet.cidr}
+            }
+        )
 
 
 class OpenStackPoolSerializer(structure_serializers.BaseResourceSerializer):
@@ -3768,6 +3817,28 @@ class CreatePoolMemberSerializer(PoolMemberWritingSerializer):
                     )
                 }
             )
+        # Only checked when the CIDR is known, so that a member can still be
+        # added on a subnet whose CIDR was never recorded.
+        if subnet.cidr:
+            validate_address_in_subnet(attrs["address"], subnet, "address")
+        load_balancer = pool.load_balancer
+        # The OVN provider does not support mixing IPv4 and IPv6 between a load
+        # balancer and its members; Octavia accepts such a member and the
+        # provider fails it afterwards.
+        if (load_balancer.provider or "ovn") == "ovn" and load_balancer.vip_address:
+            vip_version = ip_address(load_balancer.vip_address).version
+            member_version = ip_address(attrs["address"]).version
+            if vip_version != member_version:
+                raise serializers.ValidationError(
+                    {
+                        "address": _(
+                            "The OVN load balancer provider does not support "
+                            "mixing IP versions: the VIP of this load balancer "
+                            "is IPv%(vip)s, the member address is IPv%(member)s."
+                        )
+                        % {"vip": vip_version, "member": member_version}
+                    }
+                )
         attrs["project"] = pool.project
         attrs["service_settings"] = pool.service_settings
         return attrs
