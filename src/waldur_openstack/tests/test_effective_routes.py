@@ -105,6 +105,144 @@ class EffectiveRoutesTest(test.APITestCase):
         self.assertIsNone(d["nexthop"])
         self.assertFalse(response.data["snat"])
 
+    def _set_gateway(self, ext_net, fixed_ips):
+        self.router.external_network_ref = ext_net
+        self.router.external_network_id = ext_net.backend_id
+        self.router.external_fixed_ips = fixed_ips
+        self.router.enable_snat = True
+        self.router.save()
+
+    def _defaults(self):
+        response = self._get()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [r for r in response.data["routes"] if r["source"] == "default"]
+
+    def test_ipv6_only_gateway_reports_ipv6_default_route(self):
+        ext_net = factories.ExternalNetworkFactory(
+            settings=self.tenant.service_settings
+        )
+        ext_subnet = factories.ExternalSubnetFactory(
+            network=ext_net,
+            backend_id="ext-sub-v6",
+            cidr="2001:db8:100::/64",
+            gateway_ip="2001:db8:100::1",
+            ip_version=6,
+        )
+        self._set_gateway(
+            ext_net,
+            [{"subnet_id": ext_subnet.backend_id, "ip_address": "2001:db8:100::a"}],
+        )
+
+        defaults = self._defaults()
+        self.assertEqual([d["destination"] for d in defaults], ["::/0"])
+        self.assertEqual(defaults[0]["nexthop"], "2001:db8:100::1")
+        self.assertEqual(defaults[0]["gateway_ip_on_router"], "2001:db8:100::a")
+        self.assertEqual(defaults[0]["subnet_uuid"], str(ext_subnet.uuid))
+
+    def test_ipv4_only_gateway_reports_ipv4_default_route(self):
+        ext_net = factories.ExternalNetworkFactory(
+            settings=self.tenant.service_settings
+        )
+        ext_subnet = factories.ExternalSubnetFactory(
+            network=ext_net,
+            backend_id="ext-sub-v4",
+            cidr="192.0.2.0/24",
+            gateway_ip="192.0.2.1",
+            ip_version=4,
+        )
+        self._set_gateway(
+            ext_net,
+            [{"subnet_id": ext_subnet.backend_id, "ip_address": "192.0.2.10"}],
+        )
+
+        defaults = self._defaults()
+        self.assertEqual([d["destination"] for d in defaults], ["0.0.0.0/0"])
+        self.assertEqual(defaults[0]["nexthop"], "192.0.2.1")
+
+    def test_dual_stack_gateway_reports_one_default_route_per_family(self):
+        ext_net = factories.ExternalNetworkFactory(
+            settings=self.tenant.service_settings
+        )
+        v4_subnet = factories.ExternalSubnetFactory(
+            network=ext_net,
+            backend_id="ext-sub-v4",
+            cidr="192.0.2.0/24",
+            gateway_ip="192.0.2.1",
+            ip_version=4,
+        )
+        v6_subnet = factories.ExternalSubnetFactory(
+            network=ext_net,
+            backend_id="ext-sub-v6",
+            cidr="2001:db8:100::/64",
+            gateway_ip="2001:db8:100::1",
+            ip_version=6,
+        )
+        self._set_gateway(
+            ext_net,
+            [
+                {"subnet_id": v4_subnet.backend_id, "ip_address": "192.0.2.10"},
+                {"subnet_id": v6_subnet.backend_id, "ip_address": "2001:db8:100::a"},
+            ],
+        )
+
+        defaults = self._defaults()
+        by_destination = {d["destination"]: d for d in defaults}
+        self.assertEqual(set(by_destination), {"0.0.0.0/0", "::/0"})
+        self.assertEqual(len(defaults), 2)
+        self.assertEqual(by_destination["0.0.0.0/0"]["nexthop"], "192.0.2.1")
+        self.assertEqual(by_destination["::/0"]["nexthop"], "2001:db8:100::1")
+
+    def test_ipv6_default_route_when_gateway_subnet_not_yet_synced(self):
+        # Without the subnet row the family comes from the gateway address.
+        ext_net = factories.ExternalNetworkFactory(
+            settings=self.tenant.service_settings
+        )
+        self._set_gateway(
+            ext_net, [{"subnet_id": "missing-subnet", "ip_address": "2001:db8::5"}]
+        )
+
+        defaults = self._defaults()
+        self.assertEqual([d["destination"] for d in defaults], ["::/0"])
+        self.assertIsNone(defaults[0]["nexthop"])
+
+    def test_ipv6_default_route_when_fixed_ips_not_yet_synced(self):
+        # Without fixed IPs the family comes from the external network's subnets.
+        ext_net = factories.ExternalNetworkFactory(
+            settings=self.tenant.service_settings
+        )
+        factories.ExternalSubnetFactory(
+            network=ext_net,
+            cidr="2001:db8:100::/64",
+            gateway_ip="2001:db8:100::1",
+            ip_version=6,
+        )
+        self._set_gateway(ext_net, [])
+
+        defaults = self._defaults()
+        self.assertEqual([d["destination"] for d in defaults], ["::/0"])
+        self.assertIsNone(defaults[0]["nexthop"])
+
+    def test_gateway_address_decides_the_family_over_a_stale_subnet(self):
+        # A tenant subnet shared as external, created by Waldur and not yet
+        # pulled, still has the default ip_version of 4.
+        shared_subnet = self.fixture.subnet
+        shared_subnet.backend_id = "shared-v6"
+        shared_subnet.cidr = "2001:db8:200::/64"
+        shared_subnet.gateway_ip = "2001:db8:200::1"
+        shared_subnet.ip_version = 4
+        shared_subnet.save()
+        ext_net = factories.ExternalNetworkFactory(
+            settings=self.tenant.service_settings
+        )
+        self._set_gateway(
+            ext_net, [{"subnet_id": "shared-v6", "ip_address": "2001:db8:200::a"}]
+        )
+
+        defaults = self._defaults()
+        self.assertEqual([d["destination"] for d in defaults], ["::/0"])
+        self.assertEqual(defaults[0]["nexthop"], "2001:db8:200::1")
+        self.assertEqual(defaults[0]["subnet_uuid"], str(shared_subnet.uuid))
+
     def test_project_member_can_view_routes(self):
         self.client.force_authenticate(user=self.fixture.admin)
         response = self.client.get(self.url)

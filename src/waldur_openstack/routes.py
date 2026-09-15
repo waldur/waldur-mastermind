@@ -3,8 +3,9 @@
 The effective routes are the union of three sources:
 
 - **default**: derived from the router's external gateway. When the router
-  has an external gateway port, the default route is `0.0.0.0/0` via the
-  gateway subnet's `gateway_ip`.
+  has an external gateway port, there is one default route per address family
+  the gateway has an address in -- `0.0.0.0/0` for IPv4, `::/0` for IPv6 --
+  via that family's gateway subnet `gateway_ip`.
 - **connected**: one route per attached interface — the subnet's CIDR is
   on-link via the interface port.
 - **static**: each row in `router.routes` (user-set).
@@ -12,7 +13,19 @@ The effective routes are the union of three sources:
 No Neutron calls are made; all inputs are populated by `pull_tenant_routers`.
 """
 
+import ipaddress
+
 from waldur_openstack import models
+
+DEFAULT_DESTINATIONS = {4: "0.0.0.0/0", 6: "::/0"}
+
+
+def _ip_version(address) -> int | None:
+    """4 or 6 for an IP address, None for anything that is not one."""
+    try:
+        return ipaddress.ip_address(address).version
+    except ValueError:
+        return None
 
 
 def _gateway_subnet(router: models.Router, subnet_backend_id: str | None):
@@ -36,39 +49,17 @@ def _gateway_subnet(router: models.Router, subnet_backend_id: str | None):
     return None, None
 
 
-def _default_route(router: models.Router) -> dict | None:
-    if not router.has_external_gateway:
-        return None
-    fixed_ips = router.external_fixed_ips or []
-    if not fixed_ips:
-        # Gateway is set but Waldur hasn't synced fixed IPs yet — emit a
-        # best-effort row so the UI still tells the user the default route
-        # exists, even if the next-hop is unknown.
-        return {
-            "destination": "0.0.0.0/0",
-            "nexthop": None,
-            "source": "default",
-            "subnet_uuid": None,
-            "subnet_name": "",
-            "subnet_cidr": "",
-            "gateway_ip_on_router": None,
-            "external_network_uuid": str(router.external_network_ref.uuid)
-            if router.external_network_ref_id
-            else None,
-            "external_network_name": router.external_network_ref.name
-            if router.external_network_ref_id
-            else "",
-        }
-    first = fixed_ips[0]
-    _, subnet = _gateway_subnet(router, first.get("subnet_id"))
+def _default_route_row(
+    router: models.Router, version: int, subnet=None, ip_on_router=None
+) -> dict:
     return {
-        "destination": "0.0.0.0/0",
+        "destination": DEFAULT_DESTINATIONS[version],
         "nexthop": getattr(subnet, "gateway_ip", None) if subnet else None,
         "source": "default",
         "subnet_uuid": str(subnet.uuid) if subnet is not None else None,
         "subnet_name": getattr(subnet, "name", "") if subnet else "",
         "subnet_cidr": getattr(subnet, "cidr", "") if subnet else "",
-        "gateway_ip_on_router": first.get("ip_address"),
+        "gateway_ip_on_router": ip_on_router,
         "external_network_uuid": str(router.external_network_ref.uuid)
         if router.external_network_ref_id
         else None,
@@ -76,6 +67,45 @@ def _default_route(router: models.Router) -> dict | None:
         if router.external_network_ref_id
         else "",
     }
+
+
+def _default_routes(router: models.Router) -> list[dict]:
+    if not router.has_external_gateway:
+        return []
+
+    # The gateway port holds one fixed IP per family it routes; the first
+    # address of each family decides that family's default route. The address
+    # itself decides the family: a subnet created by Waldur keeps the default
+    # ip_version of 4 until it is pulled, so the subnet only fills in when the
+    # address is missing.
+    rows: list[dict] = []
+    for fixed_ip in router.external_fixed_ips or []:
+        _, subnet = _gateway_subnet(router, fixed_ip.get("subnet_id"))
+        ip_on_router = fixed_ip.get("ip_address")
+        version = _ip_version(ip_on_router) or (
+            subnet.ip_version if subnet is not None else None
+        )
+        if version not in DEFAULT_DESTINATIONS:
+            continue
+        if any(row["destination"] == DEFAULT_DESTINATIONS[version] for row in rows):
+            continue
+        rows.append(_default_route_row(router, version, subnet, ip_on_router))
+    if rows:
+        return rows
+
+    # Gateway is set but Waldur hasn't synced fixed IPs yet — emit best-effort
+    # rows so the UI still tells the user the default route exists, even if
+    # the next-hop is unknown. The families are taken from the external
+    # network's subnets, and IPv4 is assumed only when nothing is known.
+    versions: list[int] = []
+    if router.external_network_ref_id:
+        versions = sorted(
+            set(
+                router.external_network_ref.subnets.values_list("ip_version", flat=True)
+            )
+            & set(DEFAULT_DESTINATIONS)
+        )
+    return [_default_route_row(router, version) for version in versions or [4]]
 
 
 def _connected_routes(router: models.Router) -> list[dict]:
@@ -122,9 +152,7 @@ def _static_routes(router: models.Router) -> list[dict]:
 def compute_effective_routes(router: models.Router) -> dict:
     """Compose the router's effective routing table."""
     routes: list[dict] = []
-    default = _default_route(router)
-    if default is not None:
-        routes.append(default)
+    routes.extend(_default_routes(router))
     routes.extend(_connected_routes(router))
     routes.extend(_static_routes(router))
     return {
