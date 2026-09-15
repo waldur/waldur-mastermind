@@ -1,6 +1,9 @@
 """Integration tests for the inbound SCIM ``/Users`` endpoint."""
 
+from datetime import timedelta
+
 from constance.test.unittest import override_config
+from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
@@ -343,6 +346,46 @@ class UsersEndpointAuthTest(test.APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.key}")
         response = self.client.get("/scim/v2/Users")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def _use_aged_staff_token(self, *, lifetime, age):
+        token_key, user = make_staff_token()
+        user.token_lifetime = lifetime
+        user.save(update_fields=["token_lifetime"])
+        Token.objects.filter(key=token_key).update(created=timezone.now() - age)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token_key}")
+        return token_key
+
+    def test_expired_token_returns_401(self):
+        self._use_aged_staff_token(lifetime=3600, age=timedelta(hours=2))
+        response = self.client.get("/scim/v2/Users")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_expired_token_is_not_rotated(self):
+        # Rotating would silently invalidate the key configured in the IdP.
+        token_key = self._use_aged_staff_token(lifetime=3600, age=timedelta(hours=2))
+        self.client.get("/scim/v2/Users")
+        self.assertTrue(Token.objects.filter(key=token_key).exists())
+
+    def test_expired_key_stays_rejected_on_next_request(self):
+        # An IdP that was idle past the lifetime retries with the same key.
+        token_key = self._use_aged_staff_token(lifetime=3600, age=timedelta(hours=2))
+        first = self.client.get("/scim/v2/Users")
+        second = self.client.get("/scim/v2/Users")
+        self.assertEqual(first.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(second.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertTrue(Token.objects.filter(key=token_key).exists())
+
+    def test_token_without_lifetime_does_not_expire(self):
+        self._use_aged_staff_token(lifetime=None, age=timedelta(days=30))
+        response = self.client.get("/scim/v2/Users")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_active_token_is_refreshed(self):
+        token_key = self._use_aged_staff_token(lifetime=3600, age=timedelta(minutes=40))
+        response = self.client.get("/scim/v2/Users")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        token = Token.objects.get(key=token_key)
+        self.assertGreater(token.created, timezone.now() - timedelta(minutes=1))
 
 
 class UsersEndpointFeatureFlagTest(test.APITestCase):

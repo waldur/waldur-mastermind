@@ -1,8 +1,12 @@
 """Integration tests for the inbound SCIM ``/Groups`` endpoint."""
 
+from datetime import timedelta
+
 from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 from rest_framework import status, test
+from rest_framework.authtoken.models import Token
 
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import CustomerRoleConcealment, UserRole
@@ -10,6 +14,21 @@ from waldur_core.permissions.utils import add_user
 from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.tests.scim.conftest import make_staff_token
+
+
+@override_config(SCIM_INBOUND_ENABLED=True)
+class GroupsEndpointAuthTest(test.APITestCase):
+    def test_expired_token_returns_401(self):
+        token_key, user = make_staff_token()
+        user.token_lifetime = 3600
+        user.save(update_fields=["token_lifetime"])
+        Token.objects.filter(key=token_key).update(
+            created=timezone.now() - timedelta(hours=2)
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token_key}")
+        response = self.client.get("/scim/v2/Groups")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertTrue(Token.objects.filter(key=token_key).exists())
 
 
 @override_config(SCIM_INBOUND_ENABLED=True)
