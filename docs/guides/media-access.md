@@ -13,6 +13,24 @@ file is its storage path, so **access rules are keyed by the `upload_to`
 prefix**, and they are **deny by default**: a file whose prefix has no
 registered rule is served to nobody, staff included.
 
+## How files are served
+
+Uploads are untrusted content served from the portal's own origin, where
+homeport keeps the API token in `localStorage`. So that a file opened directly
+can never run as a page, every response carries:
+
+- `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`
+- `X-Content-Type-Options: nosniff`
+
+Raster images are served `inline`; SVG and everything else as `attachment`.
+`<img src>` ignores `Content-Disposition`, so an SVG logo still renders where
+it is embedded.
+
+The type is sniffed from the content at upload time (`File.mime_type`), not
+taken from the file name. Restrict what a field accepts with a
+`FileTypeValidator` on its serializer: `ImageValidator` for images,
+`DocumentValidator` for documents.
+
 ## Adding a file field
 
 Whenever you add a `FileField` or `ImageField`, you must also declare who may

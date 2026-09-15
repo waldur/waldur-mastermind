@@ -22,6 +22,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.validators import get_project_name_regex_error
+from waldur_core.media.validators import DocumentValidator
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
@@ -1861,6 +1862,7 @@ class ProposalDocumentationSerializer(serializers.ModelSerializer):
         model = models.ProposalDocumentation
         fields = ["uuid", "file", "file_name", "file_size", "created"]
         read_only_fields = ["uuid"]
+        extra_kwargs = {"file": {"validators": [DocumentValidator]}}
 
 
 class ProposalDetachDocumentsSerializer(serializers.Serializer):
