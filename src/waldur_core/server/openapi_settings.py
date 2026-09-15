@@ -44,6 +44,7 @@ from waldur_mastermind.proposal.enums import (
     RoundStatuses,
 )
 from waldur_mastermind.support.enums import ISSUE_STATUS_TYPE_CHOICES
+from waldur_openstack.enums import Ipv6Modes
 from waldur_rancher.enums import (
     RANCHER_TEMPLATE_QUESTION_TYPE,
     ROLE_CHOICES,
@@ -111,6 +112,9 @@ SPECTACULAR_SETTINGS = {
         # name the set once instead of letting the collision resolver mint a
         # hash-suffixed name that moves whenever anything else shifts.
         "AccountScope": AccountScopes.CHOICES,
+        # SubNet.ipv6_ra_mode and ipv6_address_mode take the same three
+        # Neutron modes; name the set once.
+        "Ipv6Mode": Ipv6Modes.CHOICES,
         "OnboardingVerificationStatus": VerificationStatus.VALUES,
         "AgentServiceState": AgentServiceState.VALUES,
         # Rename Rancher role enum to avoid conflict with permissions RoleEnum

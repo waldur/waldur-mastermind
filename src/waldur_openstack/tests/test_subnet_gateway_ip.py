@@ -1,12 +1,11 @@
 """One protocol, one message for a subnet's gateway IP.
 
-`SubNet.gateway_ip` is a `GenericIPAddressField(protocol="IPv4")`, and the
-serializer used to let ModelSerializer derive the field: DRF then built an
-`IPAddressField` with its own default protocol ("both") *and* copied the model's
-IPv4 validator, so a bad address came back with two messages that disagree --
-"Enter a valid IPv4 address." from the model and "Enter a valid IPv4 or IPv6
-address." from the field. An IPv6 literal passed the field and was rejected by
-the model, which is the same contradiction seen from the other side.
+The serializer used to let ModelSerializer derive the field from an IPv4-only
+model field: DRF then built an `IPAddressField` with its own default protocol
+("both") *and* copied the model's IPv4 validator, so a bad address came back
+with two messages that disagree. Now that subnets can be IPv6, both the model
+and the declared field accept either family, and whether the gateway matches
+the subnet's family is checked once, against the CIDR.
 """
 
 from rest_framework import status, test
@@ -31,14 +30,14 @@ class SubnetGatewayIpValidationTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
             [str(message) for message in response.data["gateway_ip"]],
-            ["Enter a valid IPv4 address."],
+            ["Enter a valid IPv4 or IPv6 address."],
         )
 
-    def test_an_ipv6_address_is_rejected_by_the_field_itself(self):
+    def test_an_ipv6_address_is_rejected_on_an_ipv4_subnet(self):
         response = self._post(gateway_ip="2001:db8::1")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("gateway_ip", response.data)
+        self.assertEqual(len(response.data["gateway_ip"]), 1)
 
     def test_a_valid_address_is_still_accepted(self):
         from unittest import mock
