@@ -543,7 +543,10 @@ class CallWorkflowStep(
             )
             for dep in step_def.dependencies:
                 if dep not in enabled_steps:
-                    dep_name = enums.WORKFLOW_STEPS_MAP.get(dep, dep)
+                    # The map holds definitions, not labels -- interpolating one
+                    # whole puts its dataclass repr in front of the call manager.
+                    dep_def = enums.WORKFLOW_STEPS_MAP.get(dep)
+                    dep_name = dep_def.name if dep_def else dep
                     raise DjangoValidationError(
                         f"Step '{step_def.name}' requires '{dep_name}' to be enabled."
                     )
