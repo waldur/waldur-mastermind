@@ -183,7 +183,15 @@ class Tenant(
 
         if settings.backend_url:
             parsed = urlparse(settings.backend_url)
-            return f"{parsed.scheme}://{parsed.hostname}/dashboard"
+            # Horizon runs on the host's default port, not on Keystone's own
+            # (a classic deployment has Keystone on :5000), so the port is
+            # left out. hostname also drops the brackets an IPv6 literal needs
+            # in a URL, so they are put back. hostname never includes
+            # credentials, so none can end up in this user-facing link.
+            host = parsed.hostname
+            if host and ":" in host:
+                host = f"[{host}]"
+            return f"{parsed.scheme}://{host}/dashboard"
 
     def format_quota(self, name, limit):
         if name == self.Quotas.vcpu.name:

@@ -208,7 +208,9 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         source="options.console_domain_override",
         label=_("Console domain override"),
         help_text=_(
-            "Override of the console URL domain. Supports hostname (e.g. lb.example.com) or hostname:port (e.g. lb.example.com:443)."
+            "Override of the console URL domain. Supports hostname (e.g. lb.example.com), hostname:port (e.g. lb.example.com:443), "
+            "an IPv6 address (e.g. 2001:db8::20 or [2001:db8::20]) or a bracketed IPv6 address with port (e.g. [2001:db8::20]:443). "
+            "Without a port, the console's own port is kept."
         ),
         required=False,
     )
