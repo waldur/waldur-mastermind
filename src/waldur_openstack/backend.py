@@ -4370,7 +4370,10 @@ class OpenStackBackend(ServiceBackend):
         else:
             port = floating_ip.port
             floating_ip.runtime_state = response_floating_ip["status"]
-            floating_ip.address = None
+            # A detached floating IP stays allocated to the tenant with the same
+            # address; only its port goes. Taking the address from Neutron's
+            # answer leaves the record as a pull would.
+            floating_ip.address = response_floating_ip["floating_ip_address"]
             floating_ip.port = None
             floating_ip.save(update_fields=["address", "runtime_state", "port"])
 
