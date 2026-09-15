@@ -916,7 +916,7 @@ class Offering(
     }
 
     def resolve_account_setting_with_source(
-        self, name: str, default=None, plugin_options=None
+        self, name: str, default=None, plugin_options=None, provider_options=None
     ) -> tuple[Any, str]:
         """An account setting's value and where it came from.
 
@@ -927,17 +927,19 @@ class Offering(
         than one per field.
 
         ``plugin_options`` resolves against options other than the stored ones,
-        such as the offering's options before a change.
+        such as the offering's options before a change; ``provider_options``
+        against provider options other than the stored ones, such as those a
+        preview proposes.
         """
         if plugin_options is None:
             plugin_options = self.plugin_options
         value = (plugin_options or {}).get(name)
         if value:
             return value, AccountSettingSources.OFFERING
-        return self.resolve_inherited_account_setting(name, default)
+        return self.resolve_inherited_account_setting(name, default, provider_options)
 
     def resolve_inherited_account_setting(
-        self, name: str, default=None
+        self, name: str, default=None, provider_options=None
     ) -> tuple[Any, str]:
         """What an account setting resolves to without the offering's own value.
 
@@ -945,9 +947,13 @@ class Offering(
         :attr:`ACCOUNT_SETTING_DEFAULTS`. It is what removing the offering's
         override leads to.
         """
-        provider = self.service_provider
-        if provider is not None:
-            provider_value = (provider.account_options or {}).get(name)
+        if provider_options is None:
+            provider = self.service_provider
+            provider_options = (
+                (provider.account_options or {}) if provider is not None else None
+            )
+        if provider_options is not None:
+            provider_value = provider_options.get(name)
             if provider_value:
                 return provider_value, AccountSettingSources.PROVIDER
         if default is None:

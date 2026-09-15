@@ -186,12 +186,13 @@ def _get_or_create_active_identity(consumer, pool, offering):
     return identity
 
 
-def _next_value(pool: models.PosixIdPool, namespace: str) -> int | None:
-    """Lowest value to hand out for ``namespace`` in a locked pool, or ``None``.
+def _candidate_value(pool: models.PosixIdPool, namespace: str) -> tuple:
+    """``(value, from_counter)`` for the next ``namespace`` value, taking nothing.
 
     Released values in bounds are recycled first (auto-recycle policy), lowest
     first; otherwise the high-water mark ``next_*`` is used, skipping any value
-    held by an in-range manual override. ``None`` means the pool is exhausted.
+    held by an in-range manual override. ``value`` is ``None`` when the pool is
+    exhausted; ``from_counter`` says whether taking it advances the mark.
 
     A released row flagged ``recyclable=False`` is skipped: the retrofit and the
     re-point action free values that are still stamped on files on the provider's
@@ -220,7 +221,7 @@ def _next_value(pool: models.PosixIdPool, namespace: str) -> int | None:
         .first()
     )
     if recycled is not None:
-        return recycled
+        return recycled, False
 
     # 2) High-water mark, skipping any value already held by an in-range override
     #    (an override does not advance the counter, so it leaves a hole below it).
@@ -236,10 +237,32 @@ def _next_value(pool: models.PosixIdPool, namespace: str) -> int | None:
     while value in taken:
         value += 1
     if value > max_v:
-        return None
-    setattr(pool, f"next_{namespace}", value + 1)
-    pool.save(update_fields=[f"next_{namespace}"])
+        return None, False
+    return value, True
+
+
+def _next_value(pool: models.PosixIdPool, namespace: str) -> int | None:
+    """Lowest value to hand out for ``namespace`` in a locked pool, or ``None``.
+
+    See :func:`_candidate_value`; a value from the high-water mark advances it.
+    """
+    value, from_counter = _candidate_value(pool, namespace)
+    if from_counter:
+        setattr(pool, f"next_{namespace}", value + 1)
+        pool.save(update_fields=[f"next_{namespace}"])
     return value
+
+
+def peek_next_value(pool: models.PosixIdPool | None, namespace: str) -> int | None:
+    """The value the pool would hand out next for ``namespace``, taking nothing.
+
+    For previews only: nothing is locked, so a concurrent allocation may take
+    the value first. ``None`` when there is no pool, it does not manage the
+    namespace, or it is exhausted.
+    """
+    if pool is None or not pool.manages(namespace):
+        return None
+    return _candidate_value(pool, namespace)[0]
 
 
 def allocate(offering: models.Offering, namespace: str, consumer) -> int | None:

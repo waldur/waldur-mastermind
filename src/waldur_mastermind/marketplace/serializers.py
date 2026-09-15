@@ -1052,6 +1052,88 @@ class OfferingAccountSettingsSerializer(serializers.Serializer):
     login_shell = AccountSettingSerializer()
 
 
+class AccountOptionsChangeSerializer(serializers.Serializer):
+    account_options = AccountOptionsSerializer(
+        help_text=(
+            "Changes to the provider's account options, merged into the current "
+            "ones key by key; a blank value removes a setting."
+        )
+    )
+
+
+class AccountSettingChangeSerializer(serializers.Serializer):
+    before = InheritedAccountSettingSerializer()
+    after = InheritedAccountSettingSerializer()
+
+
+class AccountSettingChangesSerializer(serializers.Serializer):
+    account_scope = AccountSettingChangeSerializer()
+    username_generation_policy = AccountSettingChangeSerializer()
+    username_anonymized_prefix = AccountSettingChangeSerializer()
+    homedir_prefix = AccountSettingChangeSerializer()
+    login_shell = AccountSettingChangeSerializer()
+
+
+class AccountExampleSerializer(serializers.Serializer):
+    username = serializers.CharField(
+        allow_blank=True,
+        help_text=(
+            "The username a person new to the offering would get; placeholders "
+            "in angle brackets stand for the person's own values."
+        ),
+    )
+    home_directory = serializers.CharField(allow_blank=True)
+    login_shell = serializers.CharField(allow_blank=True)
+
+
+class AccountRenameSerializer(serializers.Serializer):
+    username = serializers.CharField(allow_blank=True)
+    new_username = serializers.CharField(
+        allow_blank=True,
+        allow_null=True,
+        help_text="Null when the rename would first allocate a POSIX UID.",
+    )
+    home_directory = serializers.CharField(allow_blank=True)
+    new_home_directory = serializers.CharField(allow_blank=True)
+
+
+class OfferingAccountPreviewSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    name = serializers.CharField()
+    settings = AccountSettingChangesSerializer()
+    changed = serializers.ListField(child=serializers.CharField())
+    example = AccountExampleSerializer()
+    renames = AccountRenameSerializer(many=True)
+    provider_accounts_kept = serializers.IntegerField(
+        help_text="Provider accounts that keep their username and POSIX values."
+    )
+    accounts_keeping_home_or_shell = serializers.IntegerField(
+        help_text=(
+            "Existing accounts that keep their home directory and login shell; "
+            "the change applies to accounts created afterwards."
+        )
+    )
+
+
+class AccountOptionsVersionsSerializer(serializers.Serializer):
+    current = AccountOptionsSerializer()
+    proposed = AccountOptionsSerializer()
+
+
+class AccountOptionsPreviewSerializer(serializers.Serializer):
+    account_options = AccountOptionsVersionsSerializer()
+    offerings = OfferingAccountPreviewSerializer(many=True)
+    renamed = serializers.IntegerField()
+    provider_accounts_kept = serializers.IntegerField()
+    accounts_keeping_home_or_shell = serializers.IntegerField()
+    username_conflicts = serializers.IntegerField(
+        help_text=(
+            "People whose usernames disagree across offerings. Non-zero blocks "
+            "switching to per service provider accounts."
+        )
+    )
+
+
 class MergedPluginOptionsSerializer(
     AccountOptionsSerializer,
     LifecyclePluginOptionsSerializer,
@@ -10512,9 +10594,17 @@ class ServiceProviderAccountSerializer(
         lookup_field="uuid",
     )
     user_uuid = serializers.ReadOnlyField(source="user.uuid")
-    user_username = serializers.ReadOnlyField(source="user.username")
-    user_full_name = serializers.ReadOnlyField(source="user.full_name")
-    user_email = serializers.ReadOnlyField(source="user.email")
+    # Null unless every offering the account backs exposes the attribute to
+    # the provider; see to_representation.
+    user_username = serializers.CharField(
+        source="user.username", read_only=True, allow_null=True
+    )
+    user_full_name = serializers.CharField(
+        source="user.full_name", read_only=True, allow_null=True
+    )
+    user_email = serializers.CharField(
+        source="user.email", read_only=True, allow_null=True
+    )
     state = serializers.SerializerMethodField()
     uidnumber = serializers.SerializerMethodField()
     primarygroup = serializers.SerializerMethodField()
@@ -10561,6 +10651,44 @@ class ServiceProviderAccountSerializer(
                 "view_name": "marketplace-service-provider-account-detail",
             },
         )
+
+    #: Attributes of the person behind the account, keyed by the exposure
+    #: setting that governs each.
+    USER_ATTRIBUTE_FIELDS = {
+        "username": "user_username",
+        "full_name": "user_full_name",
+        "email": "user_email",
+    }
+
+    def _exposed_attributes(self, account) -> set:
+        """What every offering the account backs exposes to the provider.
+
+        The account is shared, so an attribute one of its offerings keeps from
+        the provider is kept here too. An account backing no offering exposes
+        nothing. Resolved once per offering per request.
+        """
+        cache = self.context.setdefault("_offering_exposure", {})
+        exposed = None
+        for offering_user in account.offering_users.all():
+            offering = offering_user.offering
+            if offering.pk not in cache:
+                cache[offering.pk] = set(
+                    models.OfferingUserAttributeConfig.get_exposed_fields_for_scope(
+                        offering
+                    )
+                )
+            exposed = (
+                cache[offering.pk] if exposed is None else exposed & cache[offering.pk]
+            )
+        return exposed or set()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        exposed = self._exposed_attributes(instance)
+        for attribute, field in self.USER_ATTRIBUTE_FIELDS.items():
+            if field in data and attribute not in exposed:
+                data[field] = None
+        return data
 
     def validate_username(self, username):
         """One name per provider directory.
@@ -16206,3 +16334,16 @@ class GlauthTreeSerializer(serializers.Serializer):
     groups = GlauthTreeGroupSerializer(many=True)
     users = GlauthTreeUserSerializer(many=True)
     robot_accounts = GlauthTreeRobotAccountSerializer(many=True)
+
+
+class ProviderGlauthTreeSerializer(serializers.Serializer):
+    """One GLAuth directory across the offerings of a provider that share accounts."""
+
+    offerings = GlauthTreeOfferingSerializer(many=True)
+    groups = GlauthTreeGroupSerializer(many=True)
+    users = GlauthTreeUserSerializer(many=True)
+    robot_accounts = GlauthTreeRobotAccountSerializer(many=True)
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Disagreements between the offerings that could not be merged.",
+    )
