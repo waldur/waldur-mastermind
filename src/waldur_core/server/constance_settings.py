@@ -763,6 +763,12 @@ CONSTANCE_CONFIG = {
         "secret_field",
     ),
     "ATLASSIAN_OAUTH2_CLIENT_ID": ("", "OAuth 2.0 Client ID", "secret_field"),
+    "ATLASSIAN_OAUTH2_CLIENT_SECRET": (
+        "",
+        "OAuth 2.0 Client Secret. With the client ID set, Waldur obtains and renews "
+        "access tokens itself (client credentials grant).",
+        "secret_field",
+    ),
     "ATLASSIAN_OAUTH2_ACCESS_TOKEN": ("", "OAuth 2.0 Access Token", "secret_field"),
     "ATLASSIAN_OAUTH2_TOKEN_TYPE": ("Bearer", "OAuth 2.0 Token Type"),
     "ATLASSIAN_VERIFY_SSL": (
@@ -784,7 +790,7 @@ CONSTANCE_CONFIG = {
     ),
     "ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES": (
         "",
-        "Comma-separated list of file extenstions not allowed for attachment.",
+        "Comma-separated list of file extensions not allowed for attachment.",
     ),
     "ATLASSIAN_DESCRIPTION_TEMPLATE": ("", "Template for issue description"),
     "ATLASSIAN_SUMMARY_TEMPLATE": ("", "Template for issue summary"),
@@ -1966,6 +1972,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ATLASSIAN_TOKEN",
         "ATLASSIAN_PERSONAL_ACCESS_TOKEN",
         "ATLASSIAN_OAUTH2_CLIENT_ID",
+        "ATLASSIAN_OAUTH2_CLIENT_SECRET",
         "ATLASSIAN_OAUTH2_ACCESS_TOKEN",
         "ATLASSIAN_OAUTH2_TOKEN_TYPE",
         "ATLASSIAN_PROJECT_ID",

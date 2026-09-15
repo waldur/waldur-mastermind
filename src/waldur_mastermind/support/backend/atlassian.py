@@ -1,22 +1,25 @@
 import collections
 import functools
+import hashlib
 import logging
 import os
 import re
 import unicodedata
 from io import BytesIO
+from urllib.parse import urlparse
 
 import dateutil.parser
 import requests
 from atlassian import ServiceDesk
 from atlassian.errors import ApiError, ApiNotFoundError, ApiPermissionError
 from constance import config
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.functional import cached_property
-from requests.auth import HTTPBasicAuth
+from requests.auth import AuthBase
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
@@ -40,10 +43,114 @@ Settings = collections.namedtuple(
         "token",
         "personal_access_token",
         "oauth2_client_id",
+        "oauth2_client_secret",
         "oauth2_access_token",
         "oauth2_token_type",
     ],
 )
+
+ATLASSIAN_OAUTH2_TOKEN_URL = "https://auth.atlassian.com/oauth/token"
+ATLASSIAN_CLOUD_API_GATEWAY = "https://api.atlassian.com/ex/jira/"
+# A token is renewed this many seconds before it expires, so no request goes
+# out with a token that lapses on the way.
+OAUTH2_TOKEN_RENEWAL_MARGIN = 60
+
+
+def get_client_credentials_token(client_id, client_secret, verify=True):
+    """Return an access token for an OAuth 2.0 client ID and secret.
+
+    Atlassian issues these tokens for an hour and without a refresh token;
+    a new one is requested with the secret. Tokens are kept in the shared
+    cache, so API and Celery processes do not request one per call, and are
+    renewed shortly before they expire.
+    """
+    # The secret is part of the key so that rotating it takes effect at once.
+    cache_key = (
+        "atlassian_oauth2_token:"
+        + hashlib.sha256(f"{client_id}:{client_secret}".encode()).hexdigest()
+    )
+    token = cache.get(cache_key)
+    if token:
+        return token
+
+    try:
+        response = requests.post(
+            ATLASSIAN_OAUTH2_TOKEN_URL,
+            json={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            verify=verify,
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except (requests.exceptions.RequestException, ValueError) as e:
+        raise ServiceBackendError(f"Atlassian OAuth 2.0 token request failed: {e}")
+
+    if not data.get("access_token"):
+        raise ServiceBackendError(
+            "Atlassian OAuth 2.0 token response has no access token"
+        )
+    token = {
+        "access_token": data["access_token"],
+        "token_type": data.get("token_type") or "Bearer",
+    }
+    lifetime = int(data.get("expires_in", 3600)) - OAUTH2_TOKEN_RENEWAL_MARGIN
+    if lifetime > 0:
+        cache.set(cache_key, token, lifetime)
+    return token
+
+
+class ClientCredentialsAuth(AuthBase):
+    """Bearer auth that looks up a current token on every request.
+
+    Client credentials tokens expire, so a client that outlives one must not
+    keep the token it was created with.
+    """
+
+    def __init__(self, client_id, client_secret, verify=True):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.verify = verify
+
+    def __call__(self, request):
+        token = get_client_credentials_token(
+            self.client_id, self.client_secret, self.verify
+        )
+        request.headers["Authorization"] = (
+            f"{token['token_type']} {token['access_token']}"
+        )
+        return request
+
+
+def get_cloud_gateway_url(site_url, verify=True):
+    """Return the API gateway URL for an Atlassian Cloud site.
+
+    OAuth 2.0 and service-account credentials are accepted only at the API
+    gateway, which addresses a site by its cloud ID; the site publishes that ID
+    at /_edge/tenant_info. A URL that already points at the gateway is
+    returned unchanged.
+    """
+    host = (urlparse(site_url).hostname or "").lower()
+    if host == "api.atlassian.com":
+        return site_url.rstrip("/")
+    if not host.endswith(".atlassian.net"):
+        raise ServiceBackendError(
+            "OAuth 2.0 client credentials are supported for Atlassian Cloud sites "
+            "(https://<site>.atlassian.net) only."
+        )
+    try:
+        response = requests.get(
+            f"https://{host}/_edge/tenant_info", verify=verify, timeout=30
+        )
+        response.raise_for_status()
+        cloud_id = response.json()["cloudId"]
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+        raise ServiceBackendError(f"Unable to look up the cloud ID of {host}: {e}")
+    return ATLASSIAN_CLOUD_API_GATEWAY + cloud_id
+
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +284,7 @@ class AttachmentSynchronizer:
         :raises: requests.RequestException
         """
         session = self.backend.manager._session
-        response = session.get(url)
+        response = session.get(url, verify=self.backend.verify)
         response.raise_for_status()
         return BytesIO(response.content)
 
@@ -317,6 +424,7 @@ class ServiceDeskBackend(SupportBackend):
             token=self._get_config("ATLASSIAN_TOKEN"),
             personal_access_token=self._get_config("ATLASSIAN_PERSONAL_ACCESS_TOKEN"),
             oauth2_client_id=self._get_config("ATLASSIAN_OAUTH2_CLIENT_ID"),
+            oauth2_client_secret=self._get_config("ATLASSIAN_OAUTH2_CLIENT_SECRET", ""),
             oauth2_access_token=self._get_config("ATLASSIAN_OAUTH2_ACCESS_TOKEN"),
             oauth2_token_type=self._get_config("ATLASSIAN_OAUTH2_TOKEN_TYPE"),
         )
@@ -360,10 +468,26 @@ class ServiceDeskBackend(SupportBackend):
 
     def _has_oauth2_config(self):
         """Check if OAuth 2.0 configuration is available."""
-        return self.settings.oauth2_client_id and self.settings.oauth2_access_token
+        return self.settings.oauth2_client_id and (
+            self.settings.oauth2_client_secret or self.settings.oauth2_access_token
+        )
 
     def _create_oauth2_client(self, base_kwargs):
-        """Create ServiceDesk client with OAuth 2.0 authentication."""
+        """Create ServiceDesk client with OAuth 2.0 authentication.
+
+        With a client secret Waldur obtains and renews tokens itself (client
+        credentials grant); otherwise it uses the configured access token as is.
+        """
+        if self.settings.oauth2_client_secret:
+            logger.info("Using OAuth 2.0 client credentials for Atlassian ServiceDesk")
+            client = ServiceDesk(**base_kwargs)
+            client._session.auth = ClientCredentialsAuth(
+                self.settings.oauth2_client_id,
+                self.settings.oauth2_client_secret,
+                self.verify,
+            )
+            return client
+
         oauth2_dict = {
             "client_id": self.settings.oauth2_client_id,
             "token": {
@@ -373,6 +497,14 @@ class ServiceDeskBackend(SupportBackend):
         }
         logger.info("Using OAuth 2.0 authentication for Atlassian ServiceDesk")
         return ServiceDesk(oauth2=oauth2_dict, **base_kwargs)
+
+    def _get_oauth2_client_credentials_token(self):
+        """Return the current access token for the configured client credentials."""
+        return get_client_credentials_token(
+            self.settings.oauth2_client_id,
+            self.settings.oauth2_client_secret,
+            self.verify,
+        )
 
     def _create_pat_client(self, base_kwargs):
         """Create ServiceDesk client with Personal Access Token."""
@@ -431,11 +563,8 @@ class ServiceDeskBackend(SupportBackend):
                     "Consider using API Tokens for better security."
                 )
         elif auth_method == "OAuth 2.0":
-            if not all(
-                [
-                    self.settings.oauth2_client_id,
-                    self.settings.oauth2_access_token,
-                ]
+            if not self.settings.oauth2_client_id or not (
+                self.settings.oauth2_client_secret or self.settings.oauth2_access_token
             ):
                 logger.error("Incomplete OAuth 2.0 configuration detected")
                 return False
@@ -449,34 +578,27 @@ class ServiceDeskBackend(SupportBackend):
         kwargs["headers"] = headers
         return self.manager.get(path, **kwargs)
 
-    def _get_jira_auth(self):
-        """Get authentication for direct Jira REST API calls"""
-        if self.settings.email and self.settings.token:
-            return HTTPBasicAuth(self.settings.email, self.settings.token)
-        elif self.settings.username and self.settings.password:
-            return HTTPBasicAuth(self.settings.username, self.settings.password)
-        else:
-            raise ServiceBackendError(
-                "No valid authentication credentials for Jira REST API"
-            )
-
     def _get_jira_headers(self):
         """Get headers for Jira REST API calls"""
         return {"Accept": "application/json", "Content-Type": "application/json"}
 
     def _make_jira_request(self, endpoint, method="GET", **kwargs):
-        """Make a direct Jira REST API request as fallback"""
+        """Make a direct Jira REST API request as fallback.
+
+        The request goes through the ServiceDesk client's session so it carries
+        whichever credentials _create_service_desk_client() selected: a Personal
+        Access Token lives in the session headers, OAuth 2.0 and Basic in its auth.
+        Errors are handled here rather than by the library's raise_for_status,
+        which fails on non-dict JSON error bodies.
+        """
         base_url = self.settings.backend_url.rstrip("/")
         url = f"{base_url}{endpoint}"
-        auth = self._get_jira_auth()
-        headers = self._get_jira_headers()
 
         try:
-            response = requests.request(
+            response = self.manager._session.request(
                 method=method,
                 url=url,
-                auth=auth,
-                headers=headers,
+                headers=self._get_jira_headers(),
                 verify=self.verify,
                 timeout=30,
                 **kwargs,
@@ -976,14 +1098,15 @@ class ServiceDeskBackend(SupportBackend):
         headers = {
             "X-Atlassian-Token": "no-check",
         }
-        req = requests.Request(
-            "POST", url, headers=headers, files=files, auth=self.manager._session.auth
-        )
-        prepped = req.prepare()
+        session = self.manager._session
+        req = requests.Request("POST", url, headers=headers, files=files)
+        # prepare_request merges the session's credentials; Request.prepare()
+        # would drop a Personal Access Token, which lives in the session headers.
+        prepped = session.prepare_request(req)
         prepped.body = re.sub(
             b"filename=.*", b'filename="%s"\r' % filename.encode("utf-8"), prepped.body
         )
-        r = self.manager._session.send(prepped)
+        r = session.send(prepped, verify=self.verify)
 
         return r.json()
 

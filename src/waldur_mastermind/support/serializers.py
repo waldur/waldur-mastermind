@@ -1663,13 +1663,19 @@ class AtlassianCredentialsSerializer(serializers.Serializer):
 
     api_url = serializers.URLField(
         required=True,
-        help_text="Atlassian API URL (e.g., https://your-domain.atlassian.net)",
+        help_text="Atlassian site or API URL (e.g., https://your-domain.atlassian.net). "
+        "With OAuth 2.0 client credentials a Cloud site URL is resolved to the "
+        "API gateway URL.",
     )
     auth_method = serializers.ChoiceField(
         choices=[
             ("api_token", "API Token (Cloud)"),
             ("personal_access_token", "Personal Access Token (Server)"),
             ("basic", "Basic Authentication"),
+            (
+                "oauth2_client_credentials",
+                "OAuth 2.0 client credentials (Cloud service account)",
+            ),
         ],
         required=True,
         help_text="Authentication method to use",
@@ -1687,6 +1693,12 @@ class AtlassianCredentialsSerializer(serializers.Serializer):
     # Basic authentication
     username = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    # OAuth 2.0 client credentials (Cloud service account)
+    client_id = serializers.CharField(required=False, allow_blank=True)
+    client_secret = serializers.CharField(
+        required=False, allow_blank=True, write_only=True
+    )
 
     # Optional SSL verification toggle
     verify_ssl = serializers.BooleanField(default=True)
@@ -1713,6 +1725,14 @@ class AtlassianCredentialsSerializer(serializers.Serializer):
                     {
                         "username": "Username is required for Basic authentication",
                         "password": "Password is required for Basic authentication",
+                    }
+                )
+        elif auth_method == "oauth2_client_credentials":
+            if not attrs.get("client_id") or not attrs.get("client_secret"):
+                raise serializers.ValidationError(
+                    {
+                        "client_id": "Client ID is required for OAuth 2.0 client credentials",
+                        "client_secret": "Client secret is required for OAuth 2.0 client credentials",
                     }
                 )
 
@@ -1793,27 +1813,11 @@ class AtlassianPriorityResponseSerializer(serializers.Serializer):
 # Preview and Save serializers
 
 
-class AtlassianSettingsPreviewSerializer(serializers.Serializer):
-    """Request serializer for previewing settings to be saved."""
+class AtlassianSettingsPreviewSerializer(AtlassianCredentialsSerializer):
+    """Request serializer for previewing settings to be saved.
 
-    # Credentials (inline, not nested for easier API usage)
-    api_url = serializers.URLField(required=True)
-    auth_method = serializers.ChoiceField(
-        choices=[
-            ("api_token", "API Token (Cloud)"),
-            ("personal_access_token", "Personal Access Token (Server)"),
-            ("basic", "Basic Authentication"),
-        ],
-        required=True,
-    )
-    email = serializers.EmailField(required=False, allow_blank=True)
-    token = serializers.CharField(required=False, allow_blank=True, write_only=True)
-    personal_access_token = serializers.CharField(
-        required=False, allow_blank=True, write_only=True
-    )
-    username = serializers.CharField(required=False, allow_blank=True)
-    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
-    verify_ssl = serializers.BooleanField(default=True)
+    Credentials are inline (not nested) for easier API usage.
+    """
 
     # Selected configuration
     project_id = serializers.CharField(required=True)
@@ -1848,33 +1852,6 @@ class AtlassianSettingsPreviewSerializer(serializers.Serializer):
     # Options
     use_old_api = serializers.BooleanField(default=False)
     custom_field_mapping_enabled = serializers.BooleanField(default=True)
-
-    def validate(self, attrs):
-        auth_method = attrs.get("auth_method")
-
-        if auth_method == "api_token":
-            if not attrs.get("email") or not attrs.get("token"):
-                raise serializers.ValidationError(
-                    {
-                        "email": "Email is required for API Token authentication",
-                        "token": "Token is required for API Token authentication",
-                    }
-                )
-        elif auth_method == "personal_access_token":
-            if not attrs.get("personal_access_token"):
-                raise serializers.ValidationError(
-                    {"personal_access_token": "Personal Access Token is required"}
-                )
-        elif auth_method == "basic":
-            if not attrs.get("username") or not attrs.get("password"):
-                raise serializers.ValidationError(
-                    {
-                        "username": "Username is required for Basic authentication",
-                        "password": "Password is required for Basic authentication",
-                    }
-                )
-
-        return attrs
 
 
 class AtlassianSettingsSaveSerializer(AtlassianSettingsPreviewSerializer):
