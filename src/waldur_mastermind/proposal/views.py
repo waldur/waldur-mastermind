@@ -99,6 +99,7 @@ from waldur_mastermind.proposal.enums import (
     TransitionModes,
     WorkflowStepInstanceStatuses,
 )
+from waldur_mastermind.proposal.permissions import CALL_PERMISSION_SOURCES
 
 from .managers import get_connected_call_organizers, get_connected_calls
 from .models import Proposal
@@ -599,6 +600,26 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     update_validators = partial_update_validators = [
         core_validators.StateValidator(CallStates.DRAFT, CallStates.ACTIVE)
     ]
+    # Every write to a call -- core fields, state transitions, rounds, offerings,
+    # documents, workflow steps -- requires UPDATE_CALL. "*" covers the call
+    # manager's role on the call itself; "manager" reaches the
+    # CallManagingOrganisation where an organizer's CUSTOMER.CALL_ORGANIZER role
+    # is bound. Actions declaring their own <action>_permissions override this.
+    unsafe_methods_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+    ]
+    # POST to the list route has no object to check against; creation is gated
+    # by CREATE_CALL on the managing organisation in the serializer.
+    create_permissions = []
+    # Team management carries its own permission set -- CALL.CREATE_PERMISSION /
+    # UPDATE_PERMISSION / DELETE_PERMISSION, enforced against the call or its
+    # customer in UserRoleMutateSerializer.validate. It is deliberately separate
+    # from UPDATE_CALL: the shipped CUSTOMER.OWNER role holds the former and not
+    # the latter, so letting the blanket gate cover these inherited UserRoleMixin
+    # actions would take call-team management away from owners.
+    add_user_permissions = []
+    update_user_permissions = []
+    delete_user_permissions = []
 
     queryset = models.Call.objects.all()
 
@@ -931,7 +952,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_201_CREATED,
         )
 
-    rounds_bulk_set_permissions = [permission_factory(PermissionEnum.UPDATE_CALL)]
+    rounds_bulk_set_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+    ]
     rounds_bulk_set_serializer_class = serializers.BulkRoundCreateRequestSerializer
 
     @extend_schema(responses={status.HTTP_200_OK: serializers.ProtectedRoundSerializer})
@@ -966,10 +989,6 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         except models.Round.DoesNotExist:
             return response.Response(status=status.HTTP_404_NOT_FOUND)
 
-        permissions_utils.permission_factory(PermissionEnum.CLOSE_ROUNDS, ["*"])(
-            request, self, call
-        )
-
         if call_round.call.state != CallStates.ACTIVE:
             raise exceptions.ValidationError(_("Call is not active."))
 
@@ -985,6 +1004,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             "Round has been closed.",
             status=status.HTTP_200_OK,
         )
+
+    # CLOSE_ROUNDS, not UPDATE_CALL. Declared so the blanket unsafe-method gate
+    # does not also demand UPDATE_CALL here.
+    close_round_permissions = [
+        permission_factory(PermissionEnum.CLOSE_ROUNDS, CALL_PERMISSION_SOURCES)
+    ]
 
     @extend_schema(
         request=serializers.CallAttachDocumentsSerializer,
@@ -1193,7 +1218,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     step_checklists_permissions = []
 
     # Call Manager Compliance Endpoints
-    compliance_overview_permissions = [permission_factory(PermissionEnum.UPDATE_CALL)]
+    compliance_overview_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+    ]
 
     @extend_schema(
         description="Get compliance overview for call manager showing all proposals and their compliance status.",
@@ -1221,7 +1248,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         return response.Response(overview_data)
 
     review_proposal_compliance_permissions = [
-        permission_factory(PermissionEnum.UPDATE_CALL)
+        permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
     ]
 
     @extend_schema(
@@ -1274,7 +1301,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             )
 
     proposal_compliance_answers_permissions = [
-        permission_factory(PermissionEnum.UPDATE_CALL)
+        permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
     ]
 
     @extend_schema(
@@ -4234,6 +4261,25 @@ class ProposalProjectRoleMappingViewSet(ActionsViewSet):
         validate_call_not_archived
     ]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return queryset
+        # A mapping is visible exactly when its call is. Writes stay gated on
+        # UPDATE_CALL.
+        return queryset.filter(
+            call__in=filter_queryset_for_user(models.Call.objects.all(), user)
+        )
+
+    def get_permissions(self):
+        # CanUpdateCallPermission implements only has_object_permission, which
+        # DRF never calls for a list route -- without this the collection was
+        # readable anonymously. Reads are scoped by get_queryset instead.
+        if self.action in ("list", "retrieve"):
+            return [rf_permissions.IsAuthenticated()]
+        return super().get_permissions()
+
 
 class CallWorkflowStepNotificationRuleViewSet(ActionsViewSet):
     """Call-level notification rules attached to workflow steps.
@@ -4877,7 +4923,11 @@ class ConflictOfInterestViewSet(ActionsViewSet):
                 item.save(update_fields=["status", "has_coi"])
                 item.coi_records.remove(coi)
 
-    dismiss_permissions = waive_permissions = recuse_permissions = [
+    # The update route is included: it was ungated, so the reviewer a conflict
+    # is about could PATCH their own record.
+    dismiss_permissions = waive_permissions = recuse_permissions = (
+        update_permissions
+    ) = partial_update_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
             ["call", "call.manager"],
@@ -6152,6 +6202,19 @@ class AssignmentBatchViewSet(ActionsViewSet):
             ["call", "call.manager"],
         )
     ]
+    # Batches come from the call's generate_assignments / create_manual_assignment;
+    # POSTing here only ever raised an IntegrityError. create_permissions is
+    # emptied because the gate below needs an object and a list route has none.
+    disabled_actions = ["create"]
+    create_permissions = []
+    # Editing or deleting a batch is call-management work. Deleting was ungated,
+    # so a reviewer could erase an assignment instead of declining it.
+    unsafe_methods_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["call", "call.manager"],
+        )
+    ]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -6315,6 +6378,22 @@ class AssignmentItemViewSet(ActionsViewSet):
 
     # Permissions for manager-only actions
     suggest_alternatives_permissions = reassign_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["batch.call", "batch.call.manager"],
+        )
+    ]
+    # Responding is the reviewer's own consent; managers intervene through
+    # reassign / force_accept.
+    accept_permissions = decline_permissions = [
+        proposal_permissions.user_is_assignment_reviewer
+    ]
+    # Items come from the call's assignment generation, same as their batch.
+    disabled_actions = ["create"]
+    create_permissions = []
+    # Every other write is call-management work; accept/decline above override
+    # this for the reviewer's own response.
+    unsafe_methods_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
             ["batch.call", "batch.call.manager"],
