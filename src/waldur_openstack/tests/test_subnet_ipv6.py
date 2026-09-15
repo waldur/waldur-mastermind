@@ -175,6 +175,13 @@ class RejectInvalidIpv6SubnetTest(test.APITestCase):
     def test_a_cidr_that_is_not_one(self, executor):
         self._assert_rejected("cidr", cidr="not-a-network")
 
+    def test_a_cidr_without_a_prefix_length(self, executor):
+        # Parsed leniently this would be a /128 or /32, but Neutron requires
+        # the prefix length to be written out and would leave the subnet ERRED.
+        for cidr in ("2001:db8:1::", "192.168.50.0"):
+            self._assert_rejected("cidr", cidr=cidr)
+        executor.assert_not_called()
+
     def test_an_unknown_mode(self, executor):
         self._assert_rejected("ipv6_ra_mode", cidr=IPV6_CIDR, ipv6_ra_mode="dhcpv6-pd")
 

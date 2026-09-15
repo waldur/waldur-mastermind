@@ -100,6 +100,27 @@ class TenantCreateTest(BaseOpenStackTest):
         response = self.create_order(user=user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    def test_an_ipv6_subnet_cidr_is_accepted_at_order_time(self):
+        response = self.create_order(dict(subnet_cidr="2001:db8:b1::/64"))
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @data("2001:db8:b1::/56", "2001:db8:b1::", "not-a-network")
+    def test_a_subnet_cidr_neutron_would_refuse_is_rejected_at_order_time(
+        self, subnet_cidr
+    ):
+        # Refusing it here, rather than when the order is processed, keeps the
+        # order from ending ERRED with the Keystone project already created.
+        response = self.create_order(dict(subnet_cidr=subnet_cidr))
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("subnet_cidr", response.data)
+        self.assertFalse(
+            marketplace_models.Order.objects.filter(offering=self.offering).exists()
+        )
+
     @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)
     def test_mandatory_attributes_are_checked(self):
         response = self.create_order(dict(user_username=None))
