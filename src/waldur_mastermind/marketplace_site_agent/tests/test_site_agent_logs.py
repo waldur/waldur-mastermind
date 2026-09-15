@@ -74,6 +74,22 @@ class SiteAgentLogCreateTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_create_for_service_desk_offering(self):
+        self.offering.type = marketplace_enums.SUPPORT_OFFERING
+        self.offering.save()
+        self.client.force_login(self.fixture.offering_manager)
+
+        response = self.client.post(
+            self.url, _make_payload(self.agent_identity), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.json())
+        self.assertTrue(
+            models.SiteAgentLog.objects.filter(
+                agent_identity=self.agent_identity
+            ).exists()
+        )
+
     def test_create_batch_stores_all_entries(self):
         self.client.force_login(self.fixture.staff)
         entries = [

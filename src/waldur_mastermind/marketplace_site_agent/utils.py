@@ -5,7 +5,10 @@ from django.utils.translation import gettext_lazy as _
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
@@ -220,3 +223,42 @@ def push_user_role_sync_message(project: structure_models.Project) -> None:
         )
     else:
         logger.debug("No messages to send for project %s", project)
+
+
+def resolve_offering_agent_authorization(request, offering, agent_identity=None):
+    """Which permission branch lets this user manage the offering's agent, if any.
+
+    Returns the :class:`ConsumerAuthorization` member for the branch that
+    passed, or None when none does. The branch is recorded on the EventConsumer
+    at registration, so an operator can tell a queue authorised by a staff
+    account from one authorised by an offering-scoped role.
+
+    Allowed for:
+    1. Staff
+    2. Customer-level permission (owner, service provider manager)
+    3. Offering managers (offering-scoped role)
+    4. Identity managers with managed_isds — can create for non-archived/draft
+       offerings and manage only their own agent identities
+    """
+    user = request.user
+    if user.is_staff:
+        return logging_enums.ConsumerAuthorization.STAFF
+    if has_permission(request, PermissionEnum.CREATE_OFFERING, offering.customer):
+        return logging_enums.ConsumerAuthorization.CUSTOMER_OWNER
+    if has_permission(request, PermissionEnum.UPDATE_OFFERING, offering):
+        return logging_enums.ConsumerAuthorization.OFFERING_MANAGER
+    if user.is_identity_manager and user.managed_isds:
+        if offering.state not in marketplace_enums.OfferingStates.ISD_ALLOWED_STATES:
+            return None
+        if agent_identity is not None and agent_identity.created_by != user:
+            return None
+        return logging_enums.ConsumerAuthorization.IDENTITY_MANAGER
+    return None
+
+
+def can_manage_offering_agent(request, offering, agent_identity=None):
+    """Check if user can manage agent identities/services for the given offering."""
+    return (
+        resolve_offering_agent_authorization(request, offering, agent_identity)
+        is not None
+    )
