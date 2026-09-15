@@ -5,6 +5,8 @@ columns. They intentionally avoid Django model instances in the output so the
 payload is safe for serialization, queue transport, and SIEM ingestion.
 """
 
+from ipaddress import ip_network
+
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_openstack import models
@@ -53,10 +55,20 @@ def snapshot_security_group_rules(security_group: models.SecurityGroup) -> list[
 ALLOWED_ADDRESS_PAIR_COMPARE_FIELDS = ["ip_address", "mac_address"]
 
 
+def _canonical_ip_address(value):
+    """``10.0.0.5`` and ``10.0.0.5/32`` are the same pair. Validated pairs are
+    stored in prefix form, older ones may not be, so compare the canonical form
+    or a resubmitted pair reads as removed and re-added."""
+    try:
+        return ip_network(value, strict=False).with_prefixlen
+    except (TypeError, ValueError):
+        return value
+
+
 def serialize_allowed_address_pair(pair: dict) -> dict:
     """Normalize a pair to {ip_address, mac_address}; mac is optional in input."""
     return {
-        "ip_address": pair.get("ip_address"),
+        "ip_address": _canonical_ip_address(pair.get("ip_address")),
         "mac_address": pair.get("mac_address"),
     }
 
