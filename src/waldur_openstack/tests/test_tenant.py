@@ -342,11 +342,107 @@ class TenantCreateTest(BaseTenantActionsTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_default_security_groups_allow_same_traffic_over_ipv4_and_ipv6(self):
-        response = self.create_tenant_request(self.fixture.staff, self.valid_data)
+    def create_tenant_with_default_security_groups(self, **extra):
+        response = self.create_tenant_request(
+            self.fixture.staff, {**self.valid_data, **extra}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        return models.Tenant.objects.get(name=self.valid_data["name"])
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        tenant = models.Tenant.objects.get(name=self.valid_data["name"])
+    def create_external_subnet(self, cidr, ip_version, network=None):
+        if network is None:
+            network = factories.ExternalNetworkFactory(settings=self.fixture.settings)
+        return factories.ExternalSubnetFactory(
+            network=network, cidr=cidr, gateway_ip=None, ip_version=ip_version
+        )
+
+    def use_external_network(self, network):
+        self.fixture.settings.options["external_network_id"] = network.backend_id
+        self.fixture.settings.save()
+
+    def assert_default_security_groups_are_ipv4_only(self, tenant):
+        for name in ("ssh", "ping", "rdp", "web"):
+            rules = tenant.security_groups.get(name=name).rules.all()
+            self.assertTrue(rules.exists(), name)
+            self.assertEqual(
+                {(rule.ethertype, rule.cidr) for rule in rules},
+                {(models.SecurityGroupRule.IPv4, "0.0.0.0/0")},
+                name,
+            )
+
+    def test_default_security_groups_are_ipv4_only_in_ipv4_only_cloud(self):
+        self.create_external_subnet("203.0.113.0/24", 4)
+
+        tenant = self.create_tenant_with_default_security_groups()
+
+        self.assert_default_security_groups_are_ipv4_only(tenant)
+
+    def test_default_security_groups_are_ipv4_only_if_external_subnets_are_unknown(
+        self,
+    ):
+        tenant = self.create_tenant_with_default_security_groups()
+
+        self.assert_default_security_groups_are_ipv4_only(tenant)
+
+    def test_ipv6_on_another_external_network_does_not_open_ipv6(self):
+        used = self.create_external_subnet("203.0.113.0/24", 4).network
+        self.create_external_subnet("2001:db8::/64", 6)
+        self.use_external_network(used)
+
+        tenant = self.create_tenant_with_default_security_groups()
+
+        self.assert_default_security_groups_are_ipv4_only(tenant)
+
+    def test_default_security_groups_have_ipv6_twins_if_external_network_has_ipv6(
+        self,
+    ):
+        network = self.create_external_subnet("203.0.113.0/24", 4).network
+        self.create_external_subnet("2001:db8::/64", 6, network=network)
+        self.use_external_network(network)
+
+        tenant = self.create_tenant_with_default_security_groups()
+
+        self.assert_default_security_groups_have_ipv6_twins(tenant)
+
+    def test_default_security_groups_have_ipv6_twins_if_tenant_subnet_is_ipv6(self):
+        self.create_external_subnet("203.0.113.0/24", 4)
+
+        tenant = self.create_tenant_with_default_security_groups(
+            subnet_cidr="fd00:42::/64"
+        )
+
+        self.assert_default_security_groups_have_ipv6_twins(tenant)
+
+    def test_explicit_security_groups_are_created_as_requested_in_ipv4_only_cloud(
+        self,
+    ):
+        self.create_external_subnet("203.0.113.0/24", 4)
+        ssh = {"protocol": "tcp", "from_port": 22, "to_port": 22}
+
+        tenant = self.create_tenant_with_default_security_groups(
+            security_groups=[
+                {
+                    "name": "ssh",
+                    "rules": [
+                        {**ssh, "ethertype": "IPv4", "cidr": "0.0.0.0/0"},
+                        {**ssh, "ethertype": "IPv6", "cidr": "::/0"},
+                    ],
+                }
+            ]
+        )
+
+        self.assertEqual(
+            {
+                (rule.ethertype, rule.cidr)
+                for rule in tenant.security_groups.get(name="ssh").rules.all()
+            },
+            {
+                (models.SecurityGroupRule.IPv4, "0.0.0.0/0"),
+                (models.SecurityGroupRule.IPv6, "::/0"),
+            },
+        )
+
+    def assert_default_security_groups_have_ipv6_twins(self, tenant):
         # ICMPv6 is its own IP protocol; every other protocol is shared.
         ipv6_protocol_for = {"icmp": "58"}
         for name in ("ssh", "ping", "rdp", "web"):

@@ -1,3 +1,5 @@
+from ipaddress import ip_network
+
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import exceptions as core_exceptions
@@ -6,11 +8,13 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_openstack.models import (
     CustomerOpenStack,
     ExternalNetwork,
+    ExternalSubnet,
     Flavor,
     Image,
     Instance,
     SecurityGroup,
     SecurityGroupRule,
+    SubNet,
     Tenant,
     VolumeType,
 )
@@ -162,6 +166,46 @@ def get_external_network_without_ipv4(tenant: Tenant) -> ExternalNetwork | None:
     if not ip_versions or 4 in ip_versions:
         return None
     return network
+
+
+def _is_ipv6(ip_version: int, cidr: str) -> bool:
+    # A subnet created by Waldur keeps the default ip_version of 4 until it is
+    # pulled from Neutron, so the CIDR decides as well.
+    if ip_version == 6:
+        return True
+    try:
+        return ip_network(cidr, strict=False).version == 6
+    except ValueError:
+        return False
+
+
+def tenant_has_ipv6(tenant: Tenant) -> bool:
+    """
+    Whether the tenant has IPv6: one of its subnets has an IPv6 CIDR, or the
+    external network it uses has an IPv6 subnet. When no external network is
+    resolved for the tenant, any external network of its service settings
+    counts. A tenant whose external subnets were never pulled counts as
+    IPv4-only.
+    """
+    subnets = SubNet.objects.filter(tenant=tenant)
+    if any(
+        _is_ipv6(ip_version, cidr)
+        for ip_version, cidr in subnets.values_list("ip_version", "cidr")
+    ):
+        return True
+
+    external_subnets = ExternalSubnet.objects.filter(
+        network__settings=tenant.service_settings
+    )
+    external_network_id = get_external_network_id(tenant)
+    if external_network_id:
+        external_subnets = external_subnets.filter(
+            network__backend_id=external_network_id
+        )
+    return any(
+        _is_ipv6(ip_version, cidr)
+        for ip_version, cidr in external_subnets.values_list("ip_version", "cidr")
+    )
 
 
 def check_volume_resize_enabled(volume):

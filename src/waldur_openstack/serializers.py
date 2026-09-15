@@ -52,6 +52,7 @@ from waldur_openstack.utils import (
     is_openstack_service_provider,
     is_valid_volume_type_name,
     is_volume_type_valid_for_tenant,
+    tenant_has_ipv6,
     volume_type_name_to_quota_name,
 )
 
@@ -1605,6 +1606,9 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         config_groups = copy.deepcopy(
             plugin_settings.get("DEFAULT_SECURITY_GROUPS", [])
         )
+        # IPv6 is not opened by default in a tenant that has no IPv6 network.
+        # Groups sent in the request are created as given, above.
+        has_ipv6 = tenant_has_ipv6(tenant)
 
         for group in config_groups:
             sg_name = group.get("name")
@@ -1618,6 +1622,11 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             )[0]
 
             for rule in group.get("rules"):
+                if (
+                    rule.get("ethertype") == models.SecurityGroupRule.IPv6
+                    and not has_ipv6
+                ):
+                    continue
                 if "icmp_type" in rule:
                     rule["from_port"] = rule.pop("icmp_type")
                 if "icmp_code" in rule:
