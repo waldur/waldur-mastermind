@@ -44,6 +44,7 @@ from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.utils import (
+    get_external_network_without_ipv4,
     get_tenant_external_networks,
     get_valid_availability_zones,
     is_flavor_valid_for_tenant,
@@ -713,6 +714,8 @@ class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSeri
                             )
                         }
                     )
+
+        _validate_floating_ip_can_be_allocated(tenant)
 
         return super().validate(attrs)
 
@@ -4755,6 +4758,23 @@ def _validate_instance_server_group(server_group, tenant):
         raise serializers.ValidationError({"server_group": error % server_group.name})
 
 
+def _validate_floating_ip_can_be_allocated(tenant: models.Tenant, field=None):
+    """Refuse up front an allocation that Neutron is known to reject later.
+
+    Without this, the request is accepted and the floating IP ends up ERRED.
+    """
+    network = get_external_network_without_ipv4(tenant)
+    if network is None:
+        return
+    message = gettext(
+        "External network %s has no IPv4 subnet, so no floating IP can be "
+        "allocated from it. Floating IPs are IPv4 only: IPv6 addresses are "
+        "routed rather than floating, so reach the instance on its own IPv6 "
+        "address instead."
+    ) % (network.name or network.backend_id)
+    raise serializers.ValidationError({field: message} if field else message)
+
+
 def _validate_instance_floating_ips(
     floating_ips_with_subnets: FloatingIPSpec, tenant: models.Tenant, instance_subnets
 ):
@@ -4767,6 +4787,11 @@ def _validate_instance_floating_ips(
                 "Please specify tenant external network to perform floating IP operations."
             )
         )
+
+    # Only a new allocation touches the external network; an existing floating
+    # IP chosen by URL or address is already allocated.
+    if any(floating_ip is None for floating_ip, _subnet in floating_ips_with_subnets):
+        _validate_floating_ip_can_be_allocated(tenant, field="floating_ips")
 
     for floating_ip, subnet in floating_ips_with_subnets:
         if not subnet.is_connected:

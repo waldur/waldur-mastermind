@@ -141,6 +141,29 @@ def get_external_network_id(tenant: Tenant):
     return external_network_id
 
 
+def get_external_network_without_ipv4(tenant: Tenant) -> ExternalNetwork | None:
+    """Return the tenant's external network if it is known to have no IPv4 subnet.
+
+    Neutron allocates floating IPs from IPv4 subnets only, so on such a network
+    every allocation is accepted by the API and then fails in the backend.
+    Returns None whenever the answer is unknown -- the network, or its subnets,
+    have not been imported -- so that an incomplete catalog never blocks a
+    request which might succeed.
+    """
+    external_network_id = get_external_network_id(tenant)
+    if not external_network_id:
+        return None
+    network = ExternalNetwork.objects.filter(
+        settings=tenant.service_settings, backend_id=external_network_id
+    ).first()
+    if network is None:
+        return None
+    ip_versions = set(network.subnets.values_list("ip_version", flat=True))
+    if not ip_versions or 4 in ip_versions:
+        return None
+    return network
+
+
 def check_volume_resize_enabled(volume):
     if volume.service_settings.options.get("live_resize_of_volumes_enabled", False):
         return

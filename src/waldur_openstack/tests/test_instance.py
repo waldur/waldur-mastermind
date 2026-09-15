@@ -536,6 +536,84 @@ class InstanceCreateTest(test.APITestCase):
         instance = models.Instance.objects.get(uuid=response.data["uuid"])
         self.assertEqual(instance.floating_ips.count(), 1)
 
+    def _import_external_network(self, *ip_versions):
+        network = factories.ExternalNetworkFactory(
+            settings=self.openstack_settings,
+            backend_id=self.openstack_settings.options["external_network_id"],
+        )
+        for ip_version in ip_versions:
+            if ip_version == 6:
+                factories.ExternalSubnetFactory(
+                    network=network,
+                    ip_version=6,
+                    cidr="2001:db8::/64",
+                    gateway_ip="2001:db8::1",
+                )
+            else:
+                factories.ExternalSubnetFactory(network=network, ip_version=4)
+        return network
+
+    def test_floating_ip_allocation_is_refused_when_external_network_has_no_ipv4_subnet(
+        self,
+    ):
+        self._import_external_network(6)
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        data = self.get_valid_data(floating_ips=[{"subnet": subnet_url}])
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("floating_ips", response.data)
+        self.assertIn("IPv6", str(response.data["floating_ips"]))
+        self.assertFalse(models.Instance.objects.filter(name="valid-name").exists())
+
+    @data((4,), (4, 6), ())
+    def test_floating_ip_allocation_is_allowed_unless_external_network_is_ipv6_only(
+        self, ip_versions
+    ):
+        self._import_external_network(*ip_versions)
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        data = self.get_valid_data(floating_ips=[{"subnet": subnet_url}])
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(instance.floating_ips.count(), 1)
+
+    def test_floating_ip_allocation_is_allowed_when_external_network_is_not_imported(
+        self,
+    ):
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        data = self.get_valid_data(floating_ips=[{"subnet": subnet_url}])
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_existing_floating_ip_is_accepted_when_external_network_has_no_ipv4_subnet(
+        self,
+    ):
+        # An address that already exists needs no allocation from the IPv6-only
+        # network, so there is nothing for Neutron to refuse.
+        self._import_external_network(6)
+        floating_ip = factories.FloatingIPFactory(
+            tenant=self.tenant, runtime_state="DOWN", state=CoreStates.OK
+        )
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        data = self.get_valid_data(
+            floating_ips=[
+                {
+                    "subnet": subnet_url,
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                }
+            ],
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
     def test_user_cannot_allocate_floating_ip_if_quota_limit_is_reached(self):
         self.tenant.set_quota_limit(self.tenant.Quotas.floating_ip_count, 0)
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
@@ -1778,6 +1856,28 @@ class InstanceUpdateFloatingIPsTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertIn(self.fixture.floating_ip, self.instance.floating_ips)
+
+    def test_floating_ip_allocation_is_refused_when_external_network_has_no_ipv4_subnet(
+        self,
+    ):
+        settings = self.fixture.tenant.service_settings
+        network = factories.ExternalNetworkFactory(
+            settings=settings,
+            backend_id=settings.options["external_network_id"],
+        )
+        factories.ExternalSubnetFactory(
+            network=network,
+            ip_version=6,
+            cidr="2001:db8::/64",
+            gateway_ip="2001:db8::1",
+        )
+        data = {"floating_ips": [{"subnet": self.subnet_url}]}
+
+        response = self.client.post(self.url, data=data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("floating_ips", response.data)
+        self.assertEqual(self.instance.floating_ips.count(), 0)
 
     def test_user_cannot_use_same_subnet_twice(self):
         data = {

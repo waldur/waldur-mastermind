@@ -817,6 +817,77 @@ class TenantCreateFloatingIPTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         mocked_task.assert_called_once()
 
+    def _use_imported_external_network(self, *ip_versions):
+        network = factories.ExternalNetworkFactory(settings=self.fixture.settings)
+        for ip_version in ip_versions:
+            if ip_version == 6:
+                factories.ExternalSubnetFactory(
+                    network=network,
+                    ip_version=6,
+                    cidr="2001:db8::/64",
+                    gateway_ip="2001:db8::1",
+                )
+            else:
+                factories.ExternalSubnetFactory(network=network, ip_version=4)
+        self.tenant.external_network_id = network.backend_id
+        self.tenant.external_network_ref = network
+        self.tenant.save()
+        return network
+
+    def test_floating_ip_is_refused_when_external_network_has_no_ipv4_subnet(
+        self, mocked_task
+    ):
+        self._use_imported_external_network(6)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("IPv6", str(response.data))
+        self.assertEqual(self.tenant.floating_ips.count(), 0)
+        mocked_task.assert_not_called()
+
+    def test_floating_ip_is_allowed_when_external_network_has_ipv4_subnet(
+        self, mocked_task
+    ):
+        self._use_imported_external_network(4)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        mocked_task.assert_called_once()
+
+    def test_floating_ip_is_allowed_when_external_network_is_dual_stack(
+        self, mocked_task
+    ):
+        self._use_imported_external_network(4, 6)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        mocked_task.assert_called_once()
+
+    def test_floating_ip_is_allowed_when_external_network_subnets_are_unknown(
+        self, mocked_task
+    ):
+        self._use_imported_external_network()
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        mocked_task.assert_called_once()
+
+    def test_floating_ip_is_allowed_when_external_network_is_not_imported(
+        self, mocked_task
+    ):
+        self.tenant.external_network_id = "not-imported-external-network"
+        self.tenant.external_network_ref = None
+        self.tenant.save()
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        mocked_task.assert_called_once()
+
     def test_create_floating_ip_with_router_on_non_shared_external_allowed_for_staff(
         self, mocked_task
     ):
