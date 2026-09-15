@@ -3903,7 +3903,7 @@ def restore_offering_user(offering_user) -> bool:
     return True
 
 
-def provider_username_conflicts(service_provider) -> list[dict]:
+def provider_username_conflicts(service_provider, offerings=None) -> list[dict]:
     """Users whose offering accounts at this provider disagree about the username.
 
     Adopting provider-level accounts collapses each user's offering accounts onto
@@ -3914,6 +3914,9 @@ def provider_username_conflicts(service_provider) -> list[dict]:
     Each candidate is reported with the evidence needed to choose: how many of the
     provider's offerings use it, whether any of those accounts belongs to a user
     with a live resource, and the home directory recorded for it.
+
+    ``offerings`` narrows the check to those offerings of the provider, such as
+    the ones sharing accounts once a single offering joins them.
     """
     offering_users = (
         models.OfferingUser.objects.filter(
@@ -3923,6 +3926,8 @@ def provider_username_conflicts(service_provider) -> list[dict]:
         .exclude(username__isnull=True)
         .select_related("user", "offering")
     )
+    if offerings is not None:
+        offering_users = offering_users.filter(offering__in=offerings)
 
     by_user: dict[int, list] = defaultdict(list)
     for offering_user in offering_users:
@@ -3977,7 +3982,9 @@ def provider_username_conflicts(service_provider) -> list[dict]:
     return sorted(conflicts, key=lambda c: c["user_username"] or "")
 
 
-def adopt_provider_accounts(service_provider, resolutions: dict | None = None) -> dict:
+def adopt_provider_accounts(
+    service_provider, resolutions: dict | None = None, offerings=None
+) -> dict:
     """Back every offering account at this provider with a provider-level account.
 
     ``resolutions`` maps a user uuid hex to the username an operator chose for a
@@ -3987,6 +3994,9 @@ def adopt_provider_accounts(service_provider, resolutions: dict | None = None) -
     Refuses outright while any conflict is unresolved: adopting half a provider
     would leave the rest silently on the old per-offering behaviour, which is
     worse than not starting.
+
+    ``offerings`` narrows the adoption to those offerings of the provider, as
+    when a single offering joins the ones already sharing accounts.
     """
     resolutions = resolutions or {}
     with transaction.atomic():
@@ -3996,14 +4006,16 @@ def adopt_provider_accounts(service_provider, resolutions: dict | None = None) -
         service_provider = models.ServiceProvider.objects.select_for_update().get(
             pk=service_provider.pk
         )
-        return _adopt_provider_accounts_locked(service_provider, resolutions)
+        return _adopt_provider_accounts_locked(service_provider, resolutions, offerings)
 
 
-def _adopt_provider_accounts_locked(service_provider, resolutions: dict) -> dict:
+def _adopt_provider_accounts_locked(
+    service_provider, resolutions: dict, offerings=None
+) -> dict:
     """The body of :func:`adopt_provider_accounts`, run under the provider lock."""
     unresolved = [
         conflict
-        for conflict in provider_username_conflicts(service_provider)
+        for conflict in provider_username_conflicts(service_provider, offerings)
         if conflict["user_uuid"] not in resolutions
     ]
     if unresolved:
@@ -4026,6 +4038,8 @@ def _adopt_provider_accounts_locked(service_provider, resolutions: dict) -> dict
         offering__customer_id=service_provider.customer_id,
         service_provider_account__isnull=True,
     ).select_related("user")
+    if offerings is not None:
+        offering_users = offering_users.filter(offering__in=offerings)
 
     by_user: dict[int, list] = defaultdict(list)
     for offering_user in offering_users:

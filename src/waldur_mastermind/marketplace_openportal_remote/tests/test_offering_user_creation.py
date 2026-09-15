@@ -50,7 +50,7 @@ class OpenPortalRemoteOfferingUserCreationTest(test.APITestCase):
         )
 
     def test_under_provider_scope_the_account_is_backed(self):
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
 
         self.create()

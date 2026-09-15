@@ -510,7 +510,7 @@ class UsernamePolicyResolutionTest(APITestCase):
         )
         if provider_policy:
             provider = factories.ServiceProviderFactory(customer=offering.customer)
-            provider.account_username_generation_policy = provider_policy
+            provider.account_options["username_generation_policy"] = provider_policy
             provider.save()
         offering_user = factories.OfferingUserFactory(
             offering=offering, username="old_username"

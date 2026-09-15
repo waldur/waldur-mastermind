@@ -28,9 +28,9 @@ class RegrantFixture(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.provider = self.fixture.service_provider
-        self.provider.account_scope = AccountScopes.PROVIDER
-        self.provider.account_username_generation_policy = "anonymized"
-        self.provider.account_username_anonymized_prefix = "hpc_"
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
+        self.provider.account_options["username_generation_policy"] = "anonymized"
+        self.provider.account_options["username_anonymized_prefix"] = "hpc_"
         self.provider.save()
         factories.PosixIdPoolFactory(
             service_provider=self.provider,

@@ -47,7 +47,7 @@ class OfferingAccountScopeOptionTest(test.APITestCase):
         self.assertEqual(self.offering.resolve_account_scope(), AccountScopes.PROVIDER)
 
     def test_an_offering_can_opt_out_of_its_providers_scope_over_the_api(self):
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
 
         response = self._update({"account_scope": AccountScopes.OFFERING})
@@ -56,7 +56,7 @@ class OfferingAccountScopeOptionTest(test.APITestCase):
         self.assertEqual(self.offering.resolve_account_scope(), AccountScopes.OFFERING)
 
     def test_omitting_the_option_leaves_the_provider_default_in_charge(self):
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
 
         response = self._update({"enable_resource_access_subnets": True})
@@ -83,7 +83,7 @@ class ServiceProviderAccountWritePermissionTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.provider = self.fixture.service_provider
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
         self.offering = self.fixture.offering
         self.person = structure_factories.UserFactory()
@@ -186,7 +186,7 @@ class ServiceProviderAccountDeletionTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.provider = self.fixture.service_provider
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
         self.person = structure_factories.UserFactory()
         self.account = models.ServiceProviderAccount.objects.create(

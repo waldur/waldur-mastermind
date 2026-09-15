@@ -126,7 +126,7 @@ class ProviderAccountAdoptionTest(test.APITestCase):
 
         response = self.client.patch(
             factories.ServiceProviderFactory.get_url(self.provider),
-            {"account_scope": AccountScopes.PROVIDER},
+            {"account_options": {"account_scope": AccountScopes.PROVIDER}},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.provider.refresh_from_db()
@@ -139,7 +139,7 @@ class ProviderAccountAdoptionTest(test.APITestCase):
 
         response = self.client.patch(
             factories.ServiceProviderFactory.get_url(self.provider),
-            {"account_scope": AccountScopes.PROVIDER},
+            {"account_options": {"account_scope": AccountScopes.PROVIDER}},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.provider.refresh_from_db()

@@ -669,7 +669,7 @@ class OfferingUserPullTest(testcases.TransactionTestCase):
         provider = marketplace_factories.ServiceProviderFactory(
             customer=self.offering.customer
         )
-        provider.account_scope = AccountScopes.PROVIDER
+        provider.account_options["account_scope"] = AccountScopes.PROVIDER
         provider.save()
         account = models.ServiceProviderAccount.objects.create(
             service_provider=provider, user=user, username="owned_by_provider"

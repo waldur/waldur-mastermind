@@ -38,6 +38,7 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    AccountSettingSources,
     BillingTypes,
     MaintenanceState,
     OfferingStates,
@@ -1887,15 +1888,87 @@ def update_offering_user_username_after_offering_settings_change(
     ):
         return
 
+    # Compared as resolved, so dropping an option the provider already sets to
+    # the same value is not a change, and dropping one it sets differently is.
     old_plugin_options = offering.tracker.previous("plugin_options") or {}
-    new_plugin_options = offering.plugin_options or {}
-    default_policy = utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
-    old_policy = old_plugin_options.get("username_generation_policy", default_policy)
-    new_policy = new_plugin_options.get("username_generation_policy", default_policy)
-
-    if old_policy == new_policy:
+    old_settings = _username_settings(offering, plugin_options=old_plugin_options)
+    if old_settings == _username_settings(offering):
         return
 
+    _regenerate_offering_usernames(offering, "offering plugin_options change")
+
+
+#: Account settings a generated username depends on.
+USERNAME_ACCOUNT_SETTINGS = ("username_generation_policy", "username_anonymized_prefix")
+
+
+def update_offering_user_username_after_provider_settings_change(
+    sender, instance: models.ServiceProvider, created=False, **kwargs
+):
+    """Regenerate usernames on the provider's offerings that inherit a changed setting.
+
+    An offering that sets the changed setting itself is unaffected by the
+    provider value, so its usernames are left alone.
+    """
+    if created:
+        return
+
+    provider = instance
+    if not provider.tracker.has_changed("account_options"):
+        return
+    previous_options = provider.tracker.previous("account_options") or {}
+    current_options = provider.account_options or {}
+    changed = {
+        name
+        for name in USERNAME_ACCOUNT_SETTINGS
+        if previous_options.get(name) != current_options.get(name)
+    }
+    if not changed:
+        return
+
+    offerings = models.Offering.objects.filter(
+        customer_id=provider.customer_id,
+        type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
+    ).select_related("customer__serviceprovider")
+    for offering in offerings:
+        old_values = {}
+        for name in USERNAME_ACCOUNT_SETTINGS:
+            value, source = offering.resolve_account_setting_with_source(name)
+            if name in changed and source != AccountSettingSources.OFFERING:
+                value = (
+                    previous_options.get(name)
+                    or models.Offering.ACCOUNT_SETTING_DEFAULTS[name]
+                )
+            old_values[name] = value
+        if _username_settings_from(old_values) == _username_settings(offering):
+            continue
+        _regenerate_offering_usernames(offering, "service provider settings change")
+
+
+def _username_settings_from(values: dict) -> tuple:
+    """The part of ``values`` that changes a generated username.
+
+    The anonymized prefix counts only under the anonymized policy; under any
+    other policy it is not part of the name.
+    """
+    policy = values["username_generation_policy"]
+    if policy == utils.UsernameGenerationPolicy.ANONYMIZED.value:
+        return policy, values["username_anonymized_prefix"]
+    return policy, None
+
+
+def _username_settings(offering: models.Offering, plugin_options=None) -> tuple:
+    return _username_settings_from(
+        {
+            name: offering.resolve_account_setting_with_source(
+                name, plugin_options=plugin_options
+            )[0]
+            for name in USERNAME_ACCOUNT_SETTINGS
+        }
+    )
+
+
+def _regenerate_offering_usernames(offering: models.Offering, trigger: str):
     offering_users = models.OfferingUser.objects.filter(
         offering=offering,
         state__in=[
@@ -1914,7 +1987,8 @@ def update_offering_user_username_after_offering_settings_change(
         )
         old_username = offering_user.username
         logger.info(
-            "OfferingUser username refresh after offering plugin_options change: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r affected_user_uuid=%s",
+            "OfferingUser username refresh after %s: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r affected_user_uuid=%s",
+            trigger,
             offering_user.uuid.hex,
             offering.uuid.hex,
             old_username,
@@ -1952,12 +2026,12 @@ def update_offering_user_username_after_user_change(sender, instance: User, **kw
     # resolve_account_setting is Python-side, so the filter selects a superset
     # -- either names it -- and the loop confirms per row. A plain filter on
     # plugin_options would miss every offering that inherits the policy from
-    # its provider, which is the gap the account_ defaults introduced.
+    # its provider, which is the gap provider account options introduced.
     policy = utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value
     offering_users = models.OfferingUser.objects.filter(
         Q(offering__plugin_options__username_generation_policy=policy)
         | Q(
-            offering__customer__serviceprovider__account_username_generation_policy=policy
+            offering__customer__serviceprovider__account_options__username_generation_policy=policy
         ),
         user=user,
         offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
@@ -2010,12 +2084,12 @@ def update_offering_user_username_after_freeipa_profile_update(
     # resolve_account_setting is Python-side, so the filter selects a superset
     # -- either names it -- and the loop confirms per row. A plain filter on
     # plugin_options would miss every offering that inherits the policy from
-    # its provider, which is the gap the account_ defaults introduced.
+    # its provider, which is the gap provider account options introduced.
     policy = utils.UsernameGenerationPolicy.FREEIPA.value
     offering_users = models.OfferingUser.objects.filter(
         Q(offering__plugin_options__username_generation_policy=policy)
         | Q(
-            offering__customer__serviceprovider__account_username_generation_policy=policy
+            offering__customer__serviceprovider__account_options__username_generation_policy=policy
         ),
         user=profile.user,
         is_restricted=False,

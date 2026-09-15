@@ -40,7 +40,7 @@ class RancherOfferingUserCreationTest(test.APITestCase):
         self.assertFalse(account.is_provider_backed)
 
     def test_under_provider_scope_the_account_is_backed(self):
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
 
         rancher_user = self.create_rancher_user()
@@ -53,7 +53,7 @@ class RancherOfferingUserCreationTest(test.APITestCase):
 
     def test_the_provider_holds_exactly_one_account_for_the_user(self):
         """The point of provider scope: one identity across the provider."""
-        self.provider.account_scope = AccountScopes.PROVIDER
+        self.provider.account_options["account_scope"] = AccountScopes.PROVIDER
         self.provider.save()
 
         rancher_user = self.create_rancher_user()
