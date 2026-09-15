@@ -1162,6 +1162,10 @@ class CustomerAffiliate(core_models.UuidMixin, core_models.TimeStampedModel):
     percentage fee from every finalized invoice of the linked customer. All
     fields are writable by staff only; the affiliate organization sees its
     own links read-only.
+
+    A customer has at most one active affiliate. Inactive links are kept for
+    their fee history, so a customer changes affiliate by deactivating the
+    old link rather than deleting it.
     """
 
     customer = models.ForeignKey(
@@ -1197,6 +1201,13 @@ class CustomerAffiliate(core_models.UuidMixin, core_models.TimeStampedModel):
     class Meta:
         unique_together = ("customer", "affiliate")
         ordering = ["created", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["customer"],
+                condition=models.Q(is_active=True),
+                name="invoices_one_active_affiliate_per_customer",
+            ),
+        ]
 
     @classmethod
     def get_url_name(cls):

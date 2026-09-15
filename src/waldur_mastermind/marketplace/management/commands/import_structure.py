@@ -7365,16 +7365,22 @@ class Command(BaseCommand):
                     )
                     self.stats["customer_affiliates"][key] += 1
                     continue
-                existing = CustomerAffiliate.objects.filter(uuid=uuid).first()
-                if existing:
-                    if self.update_existing:
-                        CustomerAffiliate.objects.filter(uuid=uuid).update(**defaults)
-                        self.stats["customer_affiliates"]["updated"] += 1
+                # A savepoint per link: a constraint violation (e.g. a second
+                # active link for one customer) must not abort the step's
+                # outer transaction and take every other link with it.
+                with transaction.atomic():
+                    existing = CustomerAffiliate.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            CustomerAffiliate.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["customer_affiliates"]["updated"] += 1
+                        else:
+                            self.stats["customer_affiliates"]["skipped"] += 1
                     else:
-                        self.stats["customer_affiliates"]["skipped"] += 1
-                else:
-                    CustomerAffiliate.objects.create(uuid=uuid, **defaults)
-                    self.stats["customer_affiliates"]["created"] += 1
+                        CustomerAffiliate.objects.create(uuid=uuid, **defaults)
+                        self.stats["customer_affiliates"]["created"] += 1
             except Exception as e:
                 self.stdout.write(
                     self.style.WARNING(f"Failed to import affiliate {uuid}: {e}")

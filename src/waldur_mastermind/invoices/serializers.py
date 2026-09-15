@@ -1344,6 +1344,7 @@ class CreateCustomerAffiliateSerializer(CustomerAffiliateSerializer):
         affiliate = self.get_from_attrs_or_instance(attrs, "affiliate")
         start_date = self.get_from_attrs_or_instance(attrs, "start_date")
         end_date = self.get_from_attrs_or_instance(attrs, "end_date")
+        is_active = self.get_from_attrs_or_instance(attrs, "is_active", True)
 
         if customer == affiliate:
             raise exceptions.ValidationError(
@@ -1355,7 +1356,26 @@ class CreateCustomerAffiliateSerializer(CustomerAffiliateSerializer):
                 {"end_date": _("End date must be after the start date.")}
             )
 
+        if is_active:
+            self.validate_single_active_link(customer)
+
         return attrs
+
+    def validate_single_active_link(self, customer):
+        active_links = models.CustomerAffiliate.objects.filter(
+            customer=customer, is_active=True
+        )
+        if self.instance:
+            active_links = active_links.exclude(pk=self.instance.pk)
+        existing = active_links.select_related("affiliate").first()
+        if existing:
+            raise exceptions.ValidationError(
+                _(
+                    "%(customer)s is already referred by %(affiliate)s. "
+                    "Deactivate that link before activating another one."
+                )
+                % {"customer": customer.name, "affiliate": existing.affiliate.name}
+            )
 
 
 class AffiliateFeeAccrualSerializer(serializers.ModelSerializer):

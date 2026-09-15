@@ -4,7 +4,7 @@ import uuid
 from decimal import Decimal
 
 from dateutil.relativedelta import relativedelta
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import F, Q, QuerySet, Sum
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -1287,6 +1287,27 @@ class CustomerAffiliateViewSet(core_views.ActionsViewSet):
     create_serializer_class = update_serializer_class = (
         partial_update_serializer_class
     ) = serializers.CreateCustomerAffiliateSerializer
+
+    def perform_create(self, serializer):
+        self._save_link(serializer)
+
+    def perform_update(self, serializer):
+        self._save_link(serializer)
+
+    def _save_link(self, serializer):
+        # The serializer checks for another active link without a lock, so a
+        # concurrent request can save one first. Report the constraint
+        # violation as a 400 instead of a 500.
+        try:
+            with transaction.atomic():
+                serializer.save()
+        except IntegrityError:
+            raise exceptions.ValidationError(
+                _(
+                    "Another affiliate link for this organization was saved "
+                    "at the same time. Reload the list and try again."
+                )
+            )
 
     @extend_schema(
         description="List fees accrued from this affiliate link. Exposes the "

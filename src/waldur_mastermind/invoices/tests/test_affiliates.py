@@ -1,4 +1,5 @@
 import decimal
+from unittest import mock
 
 from constance.test import override_config
 from ddt import data, ddt
@@ -54,9 +55,11 @@ class AffiliateRetrieveTest(BaseAffiliateTest):
 @ddt
 class AffiliateCreateTest(BaseAffiliateTest):
     def create_link(self, user, **kwargs):
+        # A fresh referred customer: the fixture's customer already has an
+        # active affiliate, which would reject any second active link.
         payload = {
             "customer": structure_factories.CustomerFactory.get_url(
-                self.fixture.customer
+                structure_factories.CustomerFactory()
             ),
             "affiliate": structure_factories.CustomerFactory.get_url(
                 structure_factories.CustomerFactory()
@@ -79,11 +82,11 @@ class AffiliateCreateTest(BaseAffiliateTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_self_affiliation_is_rejected(self):
+        customer_url = structure_factories.CustomerFactory.get_url(
+            structure_factories.CustomerFactory()
+        )
         response = self.create_link(
-            "staff",
-            affiliate=structure_factories.CustomerFactory.get_url(
-                self.fixture.customer
-            ),
+            "staff", customer=customer_url, affiliate=customer_url
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -122,6 +125,95 @@ class AffiliateUpdateTest(BaseAffiliateTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.link.refresh_from_db()
         self.assertEqual(self.link.fee_percent, 10)
+
+
+class AffiliateSingleActiveLinkTest(BaseAffiliateTest):
+    """The fixture's link is the active one for self.fixture.customer."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def create_link(self, **kwargs):
+        payload = {
+            "customer": structure_factories.CustomerFactory.get_url(
+                self.fixture.customer
+            ),
+            "affiliate": structure_factories.CustomerFactory.get_url(
+                structure_factories.CustomerFactory()
+            ),
+            "fee_percent": 5,
+        }
+        payload.update(kwargs)
+        return self.client.post(
+            factories.CustomerAffiliateFactory.get_list_url(), payload
+        )
+
+    def test_second_active_affiliate_is_rejected(self):
+        response = self.create_link()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(self.link.affiliate.name, str(response.data))
+        self.assertEqual(
+            models.CustomerAffiliate.objects.filter(
+                customer=self.fixture.customer
+            ).count(),
+            1,
+        )
+
+    def test_inactive_second_link_is_allowed(self):
+        response = self.create_link(is_active=False)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_new_affiliate_can_be_linked_after_old_link_is_deactivated(self):
+        self.link.is_active = False
+        self.link.save()
+        response = self.create_link()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_reactivating_link_while_another_is_active_is_rejected(self):
+        self.link.is_active = False
+        self.link.save()
+        factories.CustomerAffiliateFactory(customer=self.fixture.customer)
+        response = self.client.patch(
+            factories.CustomerAffiliateFactory.get_url(self.link),
+            {"is_active": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.link.refresh_from_db()
+        self.assertFalse(self.link.is_active)
+
+    def test_active_link_terms_can_still_be_updated(self):
+        response = self.client.patch(
+            factories.CustomerAffiliateFactory.get_url(self.link),
+            {"fee_percent": 20},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_inactive_link_terms_can_be_updated_while_another_is_active(self):
+        inactive = factories.CustomerAffiliateFactory(
+            customer=self.fixture.customer, is_active=False
+        )
+        response = self.client.patch(
+            factories.CustomerAffiliateFactory.get_url(inactive),
+            {"fee_percent": 20},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @mock.patch(
+        "waldur_mastermind.invoices.serializers."
+        "CreateCustomerAffiliateSerializer.validate_single_active_link"
+    )
+    def test_link_saved_concurrently_returns_400_not_500(self, validate):
+        # Simulates a concurrent request creating the active link between
+        # validation and save: only the database constraint catches it.
+        response = self.create_link()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            models.CustomerAffiliate.objects.filter(
+                customer=self.fixture.customer
+            ).count(),
+            1,
+        )
 
 
 class AffiliateFeeAccrualTest(BaseAffiliateTest):
