@@ -24,6 +24,7 @@ from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_openstack import enums
 
 if TYPE_CHECKING:
     from django.db.models.manager import RelatedManager
@@ -1259,6 +1260,8 @@ class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
 class SubNet(structure_models.BaseResource):
     ports: models.Manager["Port"]
 
+    Ipv6Modes = enums.Ipv6Modes
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Tenant,
@@ -1279,12 +1282,14 @@ class SubNet(structure_models.BaseResource):
         help_text=_("List of additional routes for the subnet."),
     )
     cidr = models.CharField(
-        max_length=32,
+        # 43 fits a fully written-out IPv6 prefix: 8 groups of 4, 7 colons, "/128".
+        max_length=43,
         blank=True,
-        help_text=_("IPv4 network address in CIDR format (e.g. 192.168.0.0/24)"),
+        help_text=_(
+            "Network address in CIDR format (e.g. 192.168.0.0/24 or 2001:db8::/64)"
+        ),
     )
     gateway_ip = models.GenericIPAddressField(
-        protocol="IPv4",
         null=True,
         help_text=_("IP address of the gateway for this subnet"),
     )
@@ -1302,6 +1307,28 @@ class SubNet(structure_models.BaseResource):
     )
     ip_version = models.SmallIntegerField(
         default=4, help_text=_("IP protocol version (4 or 6)")
+    )
+    ipv6_ra_mode = models.CharField(
+        max_length=20,
+        choices=Ipv6Modes.CHOICES,
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "How the router advertises an IPv6 subnet. Null for an IPv4 subnet, "
+            "or when router advertisements come from outside OpenStack."
+        ),
+    )
+    ipv6_address_mode = models.CharField(
+        max_length=20,
+        choices=Ipv6Modes.CHOICES,
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "How instances on an IPv6 subnet get their address. Null for an IPv4 "
+            "subnet, or when OpenStack assigns no address itself."
+        ),
     )
     enable_dhcp = models.BooleanField(
         default=True,
@@ -1353,6 +1380,8 @@ class SubNet(structure_models.BaseResource):
             "allocation_pools",
             "cidr",
             "ip_version",
+            "ipv6_ra_mode",
+            "ipv6_address_mode",
             "enable_dhcp",
             "gateway_ip",
             "dns_nameservers",

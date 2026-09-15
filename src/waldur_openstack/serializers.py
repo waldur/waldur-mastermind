@@ -1641,6 +1641,12 @@ class OpenStackSubNetAllocationPoolField(serializers.JSONField):
 
 class OpenStackNestedSubNetSerializer(serializers.ModelSerializer):
     allocation_pools = OpenStackSubNetAllocationPoolField(read_only=True)
+    ipv6_ra_mode = serializers.ChoiceField(
+        choices=models.SubNet.Ipv6Modes.CHOICES, read_only=True, allow_null=True
+    )
+    ipv6_address_mode = serializers.ChoiceField(
+        choices=models.SubNet.Ipv6Modes.CHOICES, read_only=True, allow_null=True
+    )
     # Projected from the parent Network; Neutron owns this flag at the network level.
     port_security_enabled = serializers.BooleanField(
         source="network.port_security_enabled", read_only=True
@@ -1656,6 +1662,8 @@ class OpenStackNestedSubNetSerializer(serializers.ModelSerializer):
             "gateway_ip",
             "allocation_pools",
             "ip_version",
+            "ipv6_ra_mode",
+            "ipv6_address_mode",
             "enable_dhcp",
             "port_security_enabled",
         )
@@ -2432,6 +2440,14 @@ class DnsNameserversField(serializers.JSONField):
     pass
 
 
+def _ip_version_of(value):
+    """4 or 6 for an IP address, None for anything that is not one."""
+    try:
+        return ip_address(value).version
+    except ValueError:
+        return None
+
+
 class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     cidr = serializers.CharField(
         required=False,
@@ -2439,17 +2455,34 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         label="CIDR",
     )
     allocation_pools = OpenStackSubNetAllocationPoolField(required=False)
-    # Declared rather than derived. The model field is
-    # GenericIPAddressField(protocol="IPv4"), and ModelSerializer builds an
-    # IPAddressField with its own default protocol ("both") *and* copies the
-    # model's IPv4 validator -- so a bad address came back with two messages
-    # that disagree: "Enter a valid IPv4 address." and "Enter a valid IPv4 or
-    # IPv6 address.". One field, one protocol, one message.
+    # Declared rather than derived, so a bad address gets one message rather
+    # than one from the field and another from the model's validator. Either
+    # family is accepted here; whether it matches the subnet's is checked
+    # against the CIDR in _validate_address_family.
     gateway_ip = serializers.IPAddressField(
-        protocol="IPv4",
         required=False,
         allow_null=True,
         help_text=_("IP address of the gateway for this subnet"),
+    )
+    # Declared so that "unset" has one spelling, null, rather than also the
+    # empty string the model's blank=True would let through.
+    ipv6_ra_mode = serializers.ChoiceField(
+        choices=models.SubNet.Ipv6Modes.CHOICES,
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "How the router advertises an IPv6 subnet. Set at creation only; "
+            "null for an IPv4 subnet."
+        ),
+    )
+    ipv6_address_mode = serializers.ChoiceField(
+        choices=models.SubNet.Ipv6Modes.CHOICES,
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "How instances on an IPv6 subnet get their address. Set at creation "
+            "only; null for an IPv4 subnet."
+        ),
     )
     network_name = serializers.CharField(source="network.name", read_only=True)
     tenant = serializers.HyperlinkedRelatedField(
@@ -2507,6 +2540,8 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             "disable_gateway",
             "allocation_pools",
             "ip_version",
+            "ipv6_ra_mode",
+            "ipv6_address_mode",
             "enable_dhcp",
             "dns_nameservers",
             "host_routes",
@@ -2537,9 +2572,12 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
     def get_fields(self):
         fields = super().get_fields()
 
-        # Make cidr read-only on update
-        if self.instance and "cidr" in fields:
-            fields["cidr"].read_only = True
+        # The CIDR, and with it the address family, is fixed at creation, and
+        # Neutron does not allow changing the IPv6 modes afterwards either.
+        if self.instance:
+            for name in ("cidr", "ipv6_ra_mode", "ipv6_address_mode"):
+                if name in fields:
+                    fields[name].read_only = True
 
         # Re-targeting an existing subnet is a router-interface operation, not a
         # subnet update: writing the field here would change what the API reports
@@ -2562,13 +2600,36 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             attrs["gateway_ip"] = None
 
         if "cidr" not in attrs:
-            attrs["cidr"] = (
-                "192.168.42.0/24"
-                if not self.instance or not self.instance.cidr
-                else self.instance.cidr
-            )
+            if self.instance and self.instance.cidr:
+                attrs["cidr"] = self.instance.cidr
+            elif attrs.get("ipv6_ra_mode") or attrs.get("ipv6_address_mode"):
+                raise serializers.ValidationError(
+                    {
+                        "cidr": _(
+                            "An IPv6 subnet needs a CIDR: the default is IPv4 "
+                            "(192.168.42.0/24)."
+                        )
+                    }
+                )
+            else:
+                attrs["cidr"] = "192.168.42.0/24"
 
         cidr = attrs["cidr"]
+        try:
+            subnet_network = ip_network(cidr, strict=False)
+        except ValueError:
+            if self.instance is None:
+                raise serializers.ValidationError(
+                    {"cidr": _("Enter a network address in CIDR format.")}
+                )
+            # A stored CIDR Waldur cannot parse came from the backend; do not
+            # make every later rename of that subnet fail on it.
+            subnet_network = None
+        if subnet_network is not None:
+            self._validate_address_family(attrs, subnet_network.version)
+            if self.instance is None:
+                attrs["ip_version"] = subnet_network.version
+                self._validate_ipv6_modes(attrs, subnet_network)
         allocation_pools = attrs.get("allocation_pools")
 
         if allocation_pools:
@@ -2615,7 +2676,17 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             attrs["service_settings"] = network.service_settings
             attrs["project"] = network.project
             options = network.service_settings.options
-            attrs.setdefault("dns_nameservers", options.get("dns_nameservers", []))
+            # The defaults are usually IPv4 resolvers. Neutron rejects a
+            # nameserver of the other family, so an IPv6 subnet created with
+            # them would end up ERRED instead of simply having none.
+            attrs.setdefault(
+                "dns_nameservers",
+                [
+                    nameserver
+                    for nameserver in options.get("dns_nameservers", [])
+                    if _ip_version_of(nameserver) == attrs.get("ip_version", 4)
+                ],
+            )
             if attrs.get("skip_router_connection") and attrs.get("router"):
                 raise serializers.ValidationError(
                     {
@@ -2629,6 +2700,69 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
                 network.tenant, attrs.get("router"), attrs.get("disable_gateway")
             )
         return attrs
+
+    def _validate_address_family(self, attrs, version):
+        """Neutron rejects a gateway or nameserver of the other family; say so
+        here with a 400 rather than leave an ERRED subnet behind."""
+        gateway_ip = attrs.get("gateway_ip")
+        if gateway_ip and _ip_version_of(gateway_ip) != version:
+            raise serializers.ValidationError(
+                {
+                    "gateway_ip": _(
+                        "The gateway must be an IPv%(version)s address, like the "
+                        "subnet's CIDR."
+                    )
+                    % {"version": version}
+                }
+            )
+        nameservers = attrs.get("dns_nameservers")
+        if isinstance(nameservers, list):
+            for nameserver in nameservers:
+                if _ip_version_of(nameserver) != version:
+                    raise serializers.ValidationError(
+                        {
+                            "dns_nameservers": _(
+                                "%(nameserver)s is not an IPv%(version)s address, "
+                                "like the subnet's CIDR."
+                            )
+                            % {"nameserver": nameserver, "version": version}
+                        }
+                    )
+
+    def _validate_ipv6_modes(self, attrs, subnet_network):
+        ra_mode = attrs.get("ipv6_ra_mode")
+        address_mode = attrs.get("ipv6_address_mode")
+        if subnet_network.version == 4:
+            for name, value in (
+                ("ipv6_ra_mode", ra_mode),
+                ("ipv6_address_mode", address_mode),
+            ):
+                if value:
+                    raise serializers.ValidationError(
+                        {name: _("Only an IPv6 subnet has an address mode.")}
+                    )
+            return
+        if ra_mode and address_mode and ra_mode != address_mode:
+            raise serializers.ValidationError(
+                {
+                    "ipv6_address_mode": _(
+                        "When both modes are set, ipv6_ra_mode and "
+                        "ipv6_address_mode must be the same."
+                    )
+                }
+            )
+        from_prefix = models.SubNet.Ipv6Modes.FROM_PREFIX
+        if (
+            ra_mode in from_prefix or address_mode in from_prefix
+        ) and subnet_network.prefixlen != 64:
+            raise serializers.ValidationError(
+                {
+                    "cidr": _(
+                        "SLAAC and stateless DHCPv6 need a /64 prefix, because "
+                        "instances build their address from it."
+                    )
+                }
+            )
 
     def create(self, validated_data):
         # Not a model field: it tells the executor what to do, and the view

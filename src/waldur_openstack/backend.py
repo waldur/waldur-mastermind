@@ -2103,6 +2103,8 @@ class OpenStackBackend(ServiceBackend):
             allocation_pools=backend_subnet.get("allocation_pools"),
             cidr=backend_subnet["cidr"],
             ip_version=backend_subnet["ip_version"],
+            ipv6_ra_mode=backend_subnet.get("ipv6_ra_mode"),
+            ipv6_address_mode=backend_subnet.get("ipv6_address_mode"),
             enable_dhcp=backend_subnet["enable_dhcp"],
             gateway_ip=backend_subnet.get("gateway_ip"),
             dns_nameservers=backend_subnet["dns_nameservers"],
@@ -3392,6 +3394,10 @@ class OpenStackBackend(ServiceBackend):
             "ip_version": subnet.ip_version,
             "enable_dhcp": subnet.enable_dhcp,
         }
+        if subnet.ipv6_ra_mode:
+            data["ipv6_ra_mode"] = subnet.ipv6_ra_mode
+        if subnet.ipv6_address_mode:
+            data["ipv6_address_mode"] = subnet.ipv6_address_mode
         if subnet.allocation_pools:
             data["allocation_pools"] = subnet.allocation_pools
         if subnet.dns_nameservers:
