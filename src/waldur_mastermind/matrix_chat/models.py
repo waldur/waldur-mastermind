@@ -52,6 +52,13 @@ class MatrixUserProfile(core_models.UuidMixin, TimeStampedModel):
         self.save(update_fields=["provisioned", "provisioned_at"])
 
 
+# Localpart prefix for project room aliases. The appservice registration
+# declares a namespace covering it and tasks.create_room generates addresses
+# inside it; both read this so the two cannot drift, which is exactly how the
+# namespace ended up not covering the generated aliases.
+ROOM_ALIAS_PREFIX = "waldur-"
+
+
 class RoomStates:
     CREATING = "creating"
     ACTIVE = "active"

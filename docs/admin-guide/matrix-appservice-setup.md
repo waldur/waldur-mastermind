@@ -171,6 +171,23 @@ counts can be checked before the new homeserver is switched on.
 Room creation happens in the background, so the command returns before the
 rooms exist. Watch the room states to confirm they leave `creating`.
 
+### Room aliases
+
+The registration claims an alias namespace of `#waldur-<project>:<your domain>`,
+which is what the appservice needs in order to give each project room a readable
+address. Without it the homeserver refuses every alias request with `M_EXCLUSIVE`,
+room creation falls back to an alias-less room, and the "Open in Matrix client"
+link never appears because it is only rendered when an alias exists.
+
+If you registered the appservice before this namespace existed, re-run setup and
+register the new YAML on your homeserver. Only rooms created after that get an
+alias, since it is requested at creation time.
+
+To give existing rooms an alias, run `waldur reprovision_matrix_rooms`. This is
+the exception to the warning above, and it is destructive: every active project
+room is replaced by an empty one, and the old room stays behind with its
+history. Check the counts with `--dry-run` first.
+
 ### Token rotation
 
 Every call to the setup endpoint generates new AS and HS tokens, overwriting any

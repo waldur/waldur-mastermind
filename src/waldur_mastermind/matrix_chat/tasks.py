@@ -43,7 +43,7 @@ def create_room(room_uuid):
     try:
         alias_localpart = None
         if room.project:
-            alias_localpart = f"waldur-{room.project.uuid.hex[:8]}"
+            alias_localpart = f"{models.ROOM_ALIAS_PREFIX}{room.project.uuid.hex[:8]}"
 
         room_id, alias_was_set = matrix_client.create_room(
             name=room.room_name,
