@@ -17,6 +17,21 @@ class IsAdminOrReadOnly(BasePermission):
         )
 
 
+def requires_object(check) -> bool:
+    """Whether a permission check is scoped to an object (permission_factory with sources)."""
+    return bool(getattr(check, "sources", None))
+
+
+def has_lookup(view) -> bool:
+    """Whether the request URL names the single object view.get_object() looks up."""
+    if not hasattr(view, "get_object"):
+        return False
+    lookup = getattr(view, "lookup_url_kwarg", None) or getattr(
+        view, "lookup_field", None
+    )
+    return bool(lookup) and lookup in (getattr(view, "kwargs", None) or {})
+
+
 class ActionsPermission(BasePermission):
     """
     Allow to define custom permission checks for all actions together and each action separately.
@@ -76,7 +91,7 @@ class ActionsPermission(BasePermission):
         if hasattr(view, view.action + "_permissions"):
             return getattr(view, view.action + "_permissions")
         # otherwise return view-level permissions + extra view permissions
-        extra_permissions = getattr(view, view.action + "extra_permissions", [])
+        extra_permissions = getattr(view, view.action + "_extra_permissions", [])
         if request.method in SAFE_METHODS:
             return getattr(view, "safe_methods_permissions", []) + extra_permissions
         else:
@@ -85,29 +100,21 @@ class ActionsPermission(BasePermission):
     def has_permission(self, request, view):
         checks = self.get_permission_checks(request, view)
 
-        # For detail actions, we need to get the object and pass it to permission checks
-        # that require object-level context (i.e., have 'sources' attribute)
-        if hasattr(view, "get_object") and getattr(view, "action", None):
-            # Check if any permission function requires object scope
-            needs_object = any(
-                hasattr(check, "sources") and check.sources for check in checks
-            )
+        # Checks with 'sources' need the object. Resolve it only when the URL
+        # names one: that is what get_object() requires, and it also covers
+        # routes wired by hand with as_view(), where DRF leaves view.detail None.
+        if has_lookup(view) and any(requires_object(check) for check in checks):
+            obj = view.get_object()
+            for check in checks:
+                if requires_object(check):
+                    check(request, view, obj)
+                else:
+                    check(request, view)
+            return True
 
-            if needs_object:
-                try:
-                    obj = view.get_object()
-                    # Call checks with object for those that need it
-                    for check in checks:
-                        if hasattr(check, "sources") and check.sources:
-                            check(request, view, obj)
-                        else:
-                            check(request, view)
-                    return True
-                except Exception:
-                    # Permission check failed, re-raise the exception
-                    raise
-
-        # Regular permission check without object
+        # On a collection route an object-scoped check has nothing to test and
+        # passes; such routes must scope their queryset instead.
+        # ActionsPermissionRoutesTest keeps them from being declared at all.
         for check in checks:
             check(request, view)
         return True
