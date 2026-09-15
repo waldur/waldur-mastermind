@@ -3,7 +3,7 @@ from constance import config
 from django.core.management.base import BaseCommand, CommandError
 from rest_framework.exceptions import ValidationError
 
-from waldur_mastermind.matrix_chat import serializers as matrix_serializers
+from waldur_mastermind.matrix_chat import appservice_registration
 
 
 class Command(BaseCommand):
@@ -52,34 +52,15 @@ class Command(BaseCommand):
         if missing:
             raise CommandError("Missing prerequisites: " + "; ".join(missing))
 
-        # Validate the values that will be interpolated into the regex so a
-        # crafted localpart can't claim the entire user namespace.
         try:
-            matrix_serializers.validate_sender_localpart(sender_localpart)
-            matrix_serializers.validate_homeserver_domain(homeserver_domain)
+            registration = appservice_registration.build_registration(
+                url=url,
+                as_token=as_token,
+                hs_token=hs_token,
+                sender_localpart=sender_localpart,
+                homeserver_domain=homeserver_domain,
+            )
         except ValidationError as exc:
             raise CommandError(str(exc.detail))
-
-        registration = {
-            "id": "waldur",
-            "url": url,
-            "as_token": as_token,
-            "hs_token": hs_token,
-            "sender_localpart": sender_localpart,
-            "namespaces": {
-                "users": [
-                    {
-                        "exclusive": True,
-                        "regex": f"@{sender_localpart}:{homeserver_domain}",
-                    },
-                    {
-                        "exclusive": False,
-                        "regex": f"@.*:{homeserver_domain}",
-                    },
-                ],
-                "rooms": [],
-                "aliases": [],
-            },
-        }
 
         self.stdout.write(yaml.dump(registration, default_flow_style=False))

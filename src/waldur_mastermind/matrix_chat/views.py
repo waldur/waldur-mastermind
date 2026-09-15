@@ -27,7 +27,15 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.models import Project
 
-from . import filters, livekit_client, matrix_client, models, serializers, tasks
+from . import (
+    appservice_registration,
+    filters,
+    livekit_client,
+    matrix_client,
+    models,
+    serializers,
+    tasks,
+)
 from .managers import get_accessible_room_ids
 
 logger = logging.getLogger(__name__)
@@ -644,32 +652,13 @@ class MatrixAppserviceSetupView(views.APIView):
             else MATRIX_APPSERVICE_WEBHOOK_PATH
         )
 
-        homeserver_domain = effective["MATRIX_HOMESERVER_DOMAIN"]
-        registration = {
-            "id": "waldur",
-            "url": url,
-            "as_token": as_token,
-            "hs_token": hs_token,
-            "sender_localpart": sender_localpart,
-            "namespaces": {
-                "users": [
-                    # Claim the bot identity exclusively so it cannot be
-                    # registered through normal client signup on the local
-                    # homeserver. The bot always lives on
-                    # MATRIX_HOMESERVER_DOMAIN, so the regex is scoped.
-                    {
-                        "exclusive": True,
-                        "regex": f"@{sender_localpart}:{homeserver_domain}",
-                    },
-                    {
-                        "exclusive": False,
-                        "regex": f"@.*:{homeserver_domain}",
-                    },
-                ],
-                "rooms": [],
-                "aliases": [],
-            },
-        }
+        registration = appservice_registration.build_registration(
+            url=url,
+            as_token=as_token,
+            hs_token=hs_token,
+            sender_localpart=sender_localpart,
+            homeserver_domain=effective["MATRIX_HOMESERVER_DOMAIN"],
+        )
         registration_yaml = yaml.dump(registration, default_flow_style=False)
 
         # Best-effort bot provisioning, outside the DB transaction (this makes

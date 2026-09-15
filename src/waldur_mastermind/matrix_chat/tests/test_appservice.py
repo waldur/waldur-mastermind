@@ -1,6 +1,10 @@
+import io
+import re
 from unittest import mock
 
+import yaml
 from constance.test import override_config
+from django.core.management import call_command
 from rest_framework import status, test
 
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -453,6 +457,44 @@ class AppserviceSetupTest(test.APITestCase):
                 f"Namespace regex ends with bare ':' — domain was empty. Regex: {ns['regex']}",
             )
 
+    def test_alias_namespace_lets_the_bot_create_room_aliases(self, mock_ensure):
+        """Without this the homeserver answers M_EXCLUSIVE to every alias request.
+
+        Room creation asks for `#waldur-<project>:<domain>`, catches the refusal
+        and creates the room without an alias, so the failure is invisible: the
+        alias column is empty forever and the "Open in Matrix client" link, which
+        only renders when an alias exists, never appears.
+        """
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(SETUP_URL, data={}, format="json")
+        parsed = yaml.safe_load(response.data["registration_yaml"])
+
+        alias_namespaces = parsed["namespaces"]["aliases"]
+        self.assertTrue(
+            alias_namespaces,
+            "Alias namespace is empty, so the appservice cannot claim any alias.",
+        )
+        # The alias room creation actually asks for, built the same way as
+        # tasks.create_room does it.
+        wanted = "#waldur-0123abcd:matrix.example.com"
+        self.assertTrue(
+            any(re.fullmatch(ns["regex"], wanted) for ns in alias_namespaces),
+            f"No alias namespace matches {wanted}: {alias_namespaces}",
+        )
+
+    def test_alias_namespace_does_not_let_dots_match_anything(self, mock_ensure):
+        """An unescaped domain makes `matrix.example.com` match `matrixXexample.com`,
+        widening an exclusive claim onto homeservers we do not own."""
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(SETUP_URL, data={}, format="json")
+        parsed = yaml.safe_load(response.data["registration_yaml"])
+
+        for ns in parsed["namespaces"]["aliases"]:
+            self.assertIsNone(
+                re.fullmatch(ns["regex"], "#waldur-0123abcd:matrixXexample.com"),
+                f"Regex {ns['regex']} matches a domain we do not own.",
+            )
+
     def test_bot_namespace_is_exclusive_and_domain_scoped(self, mock_ensure):
         """Bot user namespace must be scoped to the configured domain and claimed exclusively.
 
@@ -492,6 +534,23 @@ class AppserviceSetupTest(test.APITestCase):
             local_user_rules[0]["exclusive"],
             "Wildcard user namespace must NOT be exclusive — would block normal signups.",
         )
+
+    def test_cli_command_claims_the_same_namespaces_as_setup(self, mock_ensure):
+        """Both hand operators a registration to install on the homeserver.
+
+        While each assembled its own, a namespace fix could reach one and not
+        the other: the alias namespace landed in Setup while the command kept
+        declaring none.
+        """
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(SETUP_URL, data={}, format="json")
+        from_setup = yaml.safe_load(response.data["registration_yaml"])
+
+        out = io.StringIO()
+        call_command("generate_appservice_registration", stdout=out)
+        from_command = yaml.safe_load(out.getvalue())
+
+        self.assertEqual(from_command["namespaces"], from_setup["namespaces"])
 
 
 @override_config(
