@@ -505,7 +505,8 @@ class ExternalSubnet(
         related_name="subnets",
     )
     backend_id = models.CharField(max_length=255, db_index=True)
-    cidr = models.CharField(max_length=32, blank=True)
+    # 43 fits a fully written-out IPv6 prefix: 8 groups of 4, 7 colons, "/128".
+    cidr = models.CharField(max_length=43, blank=True)
     gateway_ip = models.GenericIPAddressField(null=True, blank=True)
     ip_version = models.SmallIntegerField(default=4)
     enable_dhcp = models.BooleanField(default=True)
