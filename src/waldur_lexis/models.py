@@ -44,6 +44,8 @@ def get_heappe_config(offering):
             "Offering %s does not include heappe_local_base_path option" % offering
         )
 
+    heappe_identifier = offering.plugin_options.get("heappe_identifier")
+
     heappe_cluster_password = offering.secret_options.get("heappe_cluster_password")
     scratch_project_directory = offering.plugin_options.get("scratch_project_directory")
     project_permanent_directory = offering.plugin_options.get(
@@ -55,6 +57,7 @@ def get_heappe_config(offering):
         heappe_password=heappe_password,
         heappe_cluster_id=heappe_cluster_id,
         heappe_local_base_path=heappe_local_base_path,
+        heappe_identifier=heappe_identifier,
         heappe_cluster_password=heappe_cluster_password,
         scratch_project_directory=scratch_project_directory,
         project_permanent_directory=project_permanent_directory,
