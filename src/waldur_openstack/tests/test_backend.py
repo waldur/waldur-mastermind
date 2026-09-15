@@ -2142,6 +2142,18 @@ class GetConsoleUrlDomainOverrideTest(BaseBackendTest):
         url = self._get_console_url("lb.example.com:443")
         self.assertEqual(url, "http://lb.example.com:443/vnc_auto.html?token=abc123")
 
+    def test_bare_ipv6_override_is_bracketed_and_keeps_original_port(self):
+        url = self._get_console_url("2001:db8::20")
+        self.assertEqual(url, "http://[2001:db8::20]:13080/vnc_auto.html?token=abc123")
+
+    def test_bracketed_ipv6_override_keeps_original_port(self):
+        url = self._get_console_url("[2001:db8::20]")
+        self.assertEqual(url, "http://[2001:db8::20]:13080/vnc_auto.html?token=abc123")
+
+    def test_bracketed_ipv6_and_port_override_replaces_both(self):
+        url = self._get_console_url("[2001:db8::20]:443")
+        self.assertEqual(url, "http://[2001:db8::20]:443/vnc_auto.html?token=abc123")
+
     def test_no_override_returns_original_url(self):
         self.mocked_nova.servers.get_console_url.return_value = {
             "console": {"url": self.original_url}

@@ -7162,15 +7162,30 @@ class OpenStackBackend(ServiceBackend):
         console_domain_override = service_settings.get_option("console_domain_override")
         if console_domain_override:
             parsed_url = urlparse(result_url)
-            if ":" in console_domain_override:
-                # Override includes port (e.g. "lb.example.com:443")
-                parsed_url = parsed_url._replace(netloc=console_domain_override)
+            try:
+                is_bare_ipv6 = (
+                    ipaddress.ip_address(console_domain_override).version == 6
+                )
+            except ValueError:
+                is_bare_ipv6 = False
+            if is_bare_ipv6:
+                # A bare IPv6 literal is full of colons yet carries no port,
+                # and must be bracketed to be used as a URL host.
+                override_host = f"[{console_domain_override}]"
+                override_has_port = False
+            else:
+                override_host = console_domain_override
+                # Only a colon after the closing bracket of "[2001:db8::1]"
+                # separates a port (e.g. "lb.example.com:443").
+                override_has_port = ":" in console_domain_override.rpartition("]")[2]
+            if override_has_port:
+                parsed_url = parsed_url._replace(netloc=override_host)
             elif parsed_url.port:
                 parsed_url = parsed_url._replace(
-                    netloc=f"{console_domain_override}:{parsed_url.port}"
+                    netloc=f"{override_host}:{parsed_url.port}"
                 )
             else:
-                parsed_url = parsed_url._replace(netloc=console_domain_override)
+                parsed_url = parsed_url._replace(netloc=override_host)
             result_url = urlunparse(parsed_url)
         return result_url
 
