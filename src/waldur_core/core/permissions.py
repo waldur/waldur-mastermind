@@ -87,7 +87,11 @@ class ActionsPermission(BasePermission):
 
         # For detail actions, we need to get the object and pass it to permission checks
         # that require object-level context (i.e., have 'sources' attribute)
-        if hasattr(view, "get_object") and getattr(view, "action", None):
+        if (
+            hasattr(view, "get_object")
+            and getattr(view, "action", None)
+            and getattr(view, "detail", False)
+        ):
             # Check if any permission function requires object scope
             needs_object = any(
                 hasattr(check, "sources") and check.sources for check in checks

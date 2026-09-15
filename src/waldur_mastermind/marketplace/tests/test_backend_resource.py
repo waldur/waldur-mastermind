@@ -83,6 +83,35 @@ class BackendResourcePermissionsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["backend_id"], backend_resource.backend_id)
 
+    @data("staff", "offering_owner", "offering_manager", "service_manager")
+    def test_user_can_list_backend_resources(self, role):
+        user = getattr(self.fixture, role)
+        self.client.force_login(user)
+        backend_resource = factories.BackendResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], backend_resource.uuid.hex)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_list_backend_resources(self, role):
+        user = getattr(self.fixture, role)
+        self.client.force_login(user)
+        factories.BackendResourceFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
     @data("owner", "customer_support", "admin", "manager")
     def test_user_cannot_see_backend_resources(self, role):
         user = getattr(self.fixture, role)

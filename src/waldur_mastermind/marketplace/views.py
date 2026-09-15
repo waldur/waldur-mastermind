@@ -117,6 +117,7 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
     add_user,
+    get_scope_ids,
     get_user_ids,
     has_permission,
     has_permission_on_any_source,
@@ -16436,6 +16437,26 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.BackendResourceSerializer
     disabled_actions = ["update", "partial_update"]
     import_resource_serializer_class = serializers.BackendResourceImportSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if self.action != "list" or user.is_staff or user.is_support:
+            return queryset
+        permission = PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES
+        customers = get_scope_ids(
+            user,
+            ContentType.objects.get_for_model(structure_models.Customer),
+            permission=permission,
+        )
+        offerings = get_scope_ids(
+            user,
+            ContentType.objects.get_for_model(models.Offering),
+            permission=permission,
+        )
+        return queryset.filter(
+            Q(offering__customer__in=customers) | Q(offering__in=offerings)
+        ).distinct()
 
     def check_create_permissions(request, view, obj=None):
         serializer = view.get_serializer(data=request.data)
