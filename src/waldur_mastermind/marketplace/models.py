@@ -2824,6 +2824,13 @@ class Order(
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True
     )
+    # Snapshotted by init_cost() at creation time, over the same window as
+    # `cost`. old_cost_estimate reads this back instead of recomputing live,
+    # so the two figures stay comparable no matter how long the order sits
+    # before someone looks at it -- see old_cost_estimate's docstring.
+    old_cost = models.DecimalField(
+        max_digits=22, decimal_places=10, null=True, blank=True
+    )
     project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
     state = FSMIntegerField(
@@ -2969,6 +2976,10 @@ class Order(
                 self.cost += self.plan.non_prepaid_init_price
             elif self.type == OrderTypes.UPDATE:
                 self.cost += self.plan.switch_price
+        # Snapshot now, over the same window as `cost` above, rather than
+        # leaving old_cost_estimate to recompute it on every future read (see
+        # that property's docstring for why that drifted).
+        self.old_cost = self._compute_old_cost_estimate()
         # Pre-flight check for UPDATE / plan-switch orders. CREATE orders are
         # validated at Resource.init_cost; here we cover the case where an
         # existing resource is scaled up or moved to a more expensive plan
@@ -2999,31 +3010,51 @@ class Order(
             return self.plan.fixed_price
         return 0
 
-    @property
-    def old_cost_estimate(self) -> float:
+    def _compute_old_cost_estimate(self) -> float:
+        """Price old_limits over the same window `cost` is priced over.
+
+        Renewals use their own pre-extension duration (old subscription
+        creation date through old_end_date); a plain limit-change order uses
+        today through the resource's real end date, matching _get_cost_dates().
+        """
         if "old_limits" not in self.attributes:
             return 0
         plan = self.old_plan or self.plan
         if not plan:
             return 0
 
-        # For renewals, include the old subscription duration
-        start_date = None
-        end_date = None
         old_end_date_str = self.attributes.get("old_end_date")
         if old_end_date_str:
             try:
                 end_date = datetime.date.fromisoformat(old_end_date_str)
             except (ValueError, TypeError):
-                pass
-        if end_date and self.resource_id and self.resource:
-            start_date = (
-                self.resource.created.date()
-                if hasattr(self.resource.created, "date")
-                else self.resource.created
-            )
+                end_date = None
+            if end_date and self.resource_id and self.resource:
+                start_date = (
+                    self.resource.created.date()
+                    if hasattr(self.resource.created, "date")
+                    else self.resource.created
+                )
+                return plan.get_estimate(
+                    self.attributes["old_limits"], start_date, end_date
+                )
 
+        start_date, end_date = self._get_cost_dates()
         return plan.get_estimate(self.attributes["old_limits"], start_date, end_date)
+
+    @property
+    def old_cost_estimate(self) -> float:
+        """The old-limits estimate, snapshotted by init_cost() at creation.
+
+        Must not recompute live: _compute_old_cost_estimate() prices from
+        "today", which keeps advancing on every read while `cost` stays fixed
+        from creation -- the shown cost change would grow the longer an order
+        sits unread. Orders that predate this field have no snapshot, so they
+        fall back to the live computation rather than a wrong zero.
+        """
+        if self.old_cost is not None:
+            return self.old_cost
+        return self._compute_old_cost_estimate()
 
     @property
     def activation_price(self) -> float:

@@ -5834,6 +5834,7 @@ class BaseOrderSerializer(BaseItemSerializer):
             "resource_uuid",
             "resource_type",
             "resource_name",
+            "resource_end_date",
             "cost",
             "state",
             "output",
@@ -5881,6 +5882,9 @@ class BaseOrderSerializer(BaseItemSerializer):
         read_only=True, source="resource.uuid"
     )
     resource_name = serializers.CharField(read_only=True, source="resource.name")
+    resource_end_date = serializers.DateField(
+        read_only=True, source="resource.end_date", allow_null=True
+    )
     resource_uuid = serializers.UUIDField(
         read_only=True, source="resource.backend_uuid", allow_null=True
     )
