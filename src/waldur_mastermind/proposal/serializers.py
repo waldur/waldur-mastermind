@@ -39,6 +39,9 @@ from waldur_mastermind.marketplace.serializers import (
     UserAttributeConfigBaseSerializer,
     validate_prepaid_duration_against_component,
 )
+from waldur_mastermind.proposal import (
+    permissions as proposal_permissions,
+)
 from waldur_mastermind.proposal.enums import (
     MANDATORY_STEPS,
     PROPOSAL_CONFIGURABLE_FIELDS,
@@ -1569,14 +1572,8 @@ class ProtectedCallSerializer(PublicCallSerializer):
             raise serializers.ValidationError(
                 _("Assign panel members first; the chair is set on an existing call.")
             )
-        # The call PATCH itself is only queryset-scoped, so gate this field
-        # explicitly: choosing the chair is a call-management decision.
-        if not permissions_utils.has_permission(
-            self.context["request"],
-            permissions_enums.PermissionEnum.UPDATE_CALL,
-            self.instance,
-        ):
-            raise PermissionDenied()
+        # The viewset gates every write on UPDATE_CALL held on the call or its
+        # managing organisation, so no field-level check is needed here.
         if user is None:
             return None
         if (
@@ -2373,10 +2370,11 @@ class ProposalProjectRoleMappingSerializer(serializers.HyperlinkedModelSerialize
             call = self.instance.call
         else:
             call = attrs["call"]
-        if not permissions_utils.has_permission(
+        if not permissions_utils.has_permission_on_any_source(
             self.context["request"],
             permissions_enums.PermissionEnum.UPDATE_CALL,
             call,
+            proposal_permissions.CALL_PERMISSION_SOURCES,
         ):
             raise PermissionDenied()
 
@@ -3093,6 +3091,9 @@ class ConflictOfInterestSerializer(
             "detected_at",
             "evidence_description",
             "evidence_data",
+            # Only dismiss/waive/recuse may move the status: they also stamp
+            # reviewed_by/reviewed_at and unblock the held assignment items.
+            "status",
             "reviewed_by",
             "reviewed_at",
             "conflicting_user",
@@ -4953,10 +4954,11 @@ class CallWorkflowStepNotificationRuleSerializer(
             raise serializers.ValidationError(
                 _("A rule cannot be moved to another workflow step.")
             )
-        if not permissions_utils.has_permission(
+        if not permissions_utils.has_permission_on_any_source(
             self.context["request"],
             permissions_enums.PermissionEnum.UPDATE_CALL,
             workflow_step.call,
+            proposal_permissions.CALL_PERMISSION_SOURCES,
         ):
             raise PermissionDenied()
         if workflow_step.call.state == CallStates.ARCHIVED:

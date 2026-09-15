@@ -10,8 +10,9 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.tests.helpers import EXPANDING_DESCRIPTION
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
-from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.fixtures import CallRole, CustomerRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -238,11 +239,30 @@ class CallUpdateTest(test.APITestCase):
         response = self.update_call(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    @data(
+        "reviewer_1",
+        "panel_member",
+    )
+    def test_call_team_member_can_not_update_call(self, user):
+        # A call role grants visibility, not authorship: reviewers and panel
+        # members reach the call through the queryset but hold no UPDATE_CALL.
+        response = self.update_call(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertNotEqual(self.call.description, "new description")
+
+    def test_call_organizer_can_update_call(self):
+        # The organizer's role is bound to the CallManagingOrganisation rather
+        # than to the call, so the gate has to reach it through "manager".
+        response = self.update_call(self.fixture.call_organizer_user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.call.description, "new description")
+
     def update_call(self, user, payload=None, **kwargs):
         if not payload:
             payload = {"description": "new description"}
 
-        user = getattr(self.fixture, user)
+        if isinstance(user, str):
+            user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.CallFactory.get_protected_url(self.call)
         response = self.client.patch(url, payload, **kwargs)
@@ -340,6 +360,45 @@ class CallUpdateTest(test.APITestCase):
         self.assertEqual(len(call.documents.all()), 1)
 
 
+@ddt
+class CallTeamManagementPermissionTest(test.APITestCase):
+    """Managing the call team is gated on CALL.CREATE_PERMISSION /
+    DELETE_PERMISSION (checked in UserRoleMutateSerializer against the call or
+    its customer), not on UPDATE_CALL. The shipped CUSTOMER.OWNER role carries
+    the former and not the latter, so the viewset's blanket UPDATE_CALL gate on
+    unsafe methods must not reach these inherited actions."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        for perm in (
+            permissions_enums.PermissionEnum.CREATE_CALL_PERMISSION,
+            permissions_enums.PermissionEnum.DELETE_CALL_PERMISSION,
+            permissions_enums.PermissionEnum.LIST_CALLS,
+        ):
+            CustomerRole.OWNER.add_permission(perm)
+
+    def add_user(self, user, target):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            factories.CallFactory.get_protected_url(self.call, action="add_user"),
+            {"user": target.uuid.hex, "role": "CALL.REVIEWER"},
+        )
+
+    def test_owner_without_update_call_can_still_add_team_member(self):
+        target = structure_factories.UserFactory()
+        response = self.add_user(self.fixture.owner, target)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(self.call.has_user(target, CallRole.REVIEWER))
+
+    @data("reviewer_1", "panel_member")
+    def test_call_team_member_can_not_add_team_member(self, user):
+        target = structure_factories.UserFactory()
+        response = self.add_user(getattr(self.fixture, user), target)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(self.call.has_user(target, CallRole.REVIEWER))
+
+
 class CallDescriptionLengthTest(test.APITestCase):
     """Oversized call descriptions must be rejected with 400, not blow up in the database."""
 
@@ -413,6 +472,15 @@ class CallDeleteTest(test.APITestCase):
     def test_user_can_not_delete_call(self, user):
         response = self.delete_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(
+            models.Call.objects.filter(uuid=self.draft_call.uuid.hex).exists()
+        )
+
+    @data("REVIEWER", "PANEL_MEMBER")
+    def test_call_team_member_can_not_delete_call(self, role):
+        self.draft_call.add_user(self.fixture.user, getattr(CallRole, role))
+        response = self.delete_call("user", self.draft_call)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(
             models.Call.objects.filter(uuid=self.draft_call.uuid.hex).exists()
         )
@@ -522,6 +590,14 @@ class CallActivateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
         self.assertEqual(self.active_call.state, CallStates.ACTIVE)
 
+    @data("REVIEWER", "PANEL_MEMBER")
+    def test_call_team_member_can_not_activate_call(self, role):
+        factories.RoundFactory(call=self.draft_call)
+        self.draft_call.add_user(self.fixture.user, getattr(CallRole, role))
+        response = self.activate_call("user", self.draft_call)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
+
     def activate_call(self, user, call):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -555,6 +631,13 @@ class CallArchiveTest(test.APITestCase):
     def test_user_can_not_archive_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
+
+    @data("REVIEWER", "PANEL_MEMBER")
+    def test_call_team_member_can_not_archive_call(self, role):
+        self.draft_call.add_user(self.fixture.user, getattr(CallRole, role))
+        response = self.archive_call("user", self.draft_call)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(self.draft_call.state, CallStates.DRAFT)
 
     def archive_call(self, user, call):

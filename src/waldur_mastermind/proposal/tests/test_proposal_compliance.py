@@ -395,6 +395,18 @@ class CallManagerComplianceTest(ProposalComplianceTestMixin, test.APITestCase):
             round=self.fixture.round, created_by=structure_factories.UserFactory()
         )
 
+    def test_call_organizer_can_get_compliance_overview(self):
+        """An <action>_permissions list gates safe methods too, so the organizer
+        -- whose role sits on the managing organisation -- needs the "manager"
+        source to read this at all."""
+        url = (
+            proposal_factories.CallFactory.get_protected_url(self.fixture.call)
+            + "compliance_overview/"
+        )
+        self.client.force_authenticate(self.fixture.call_organizer_user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_compliance_overview(self):
         """Test call manager can get compliance overview."""
         url = (

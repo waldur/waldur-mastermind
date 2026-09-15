@@ -3,7 +3,11 @@ from rest_framework import exceptions, permissions
 
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import get_users, has_permission, permission_factory
+from waldur_core.permissions.utils import (
+    get_users,
+    has_permission_on_any_source,
+    permission_factory,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
@@ -17,14 +21,22 @@ user_can_accept_requested_offering = permission_factory(
     ["offering.customer"],
 )
 
+# A call's permissions can be held on the call itself, where a CALL.MANAGER role
+# sits, or on its managing organisation, where a CUSTOMER.CALL_ORGANIZER role is
+# bound -- both roles ship carrying CALL.UPDATE. Every gate on a call has to
+# accept either, so the traversal is named once here rather than restated (and
+# forgotten) per call site.
+CALL_PERMISSION_SOURCES = ["*", "manager"]
+
 
 class CanUpdateCallPermission(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         call = obj.call
-        return has_permission(
+        return has_permission_on_any_source(
             request,
             PermissionEnum.UPDATE_CALL,
             call,
+            CALL_PERMISSION_SOURCES,
         )
 
 
@@ -331,3 +343,27 @@ def can_view_step_checklist_responses(request, view, obj=None):
 
 
 can_view_step_checklist_responses.sources = ["*"]
+
+
+def user_is_assignment_reviewer(request, view, obj=None):
+    """ActionsPermission check for the assignment accept / decline actions.
+
+    ``AssignmentItem.accept`` files the Review under the batch's reviewer
+    whoever calls it, so anyone else accepting would enrol that reviewer into a
+    review they never agreed to. Managers intervene through reassign and the
+    pool's force_accept instead.
+    """
+    if obj is None:
+        return
+    user = request.user
+    if user.is_staff:
+        return
+    entry = obj.batch.reviewer_pool_entry
+    if entry.reviewer_id and entry.reviewer.user_id == user.id:
+        return
+    raise exceptions.PermissionDenied(
+        "Only the reviewer this assignment belongs to can respond to it."
+    )
+
+
+user_is_assignment_reviewer.sources = ["*"]

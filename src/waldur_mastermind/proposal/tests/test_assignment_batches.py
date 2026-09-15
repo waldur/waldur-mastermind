@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -389,3 +390,98 @@ class CreateManualAssignmentTest(test.APITestCase):
         self.assertEqual(response.data["items_created"], 1)
         existing_batch.refresh_from_db()
         self.assertEqual(existing_batch.items.count(), 2)
+
+
+class AssignmentResponseConsentTest(test.APITestCase):
+    """Responding to an assignment belongs to the reviewer it was sent to.
+
+    An ungated accept let a call manager create a review in a reviewer's name.
+    """
+
+    def setUp(self):
+        CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
+
+        self.call = factories.CallFactory()
+        self.call_manager = structure_factories.UserFactory()
+        self.call.add_user(self.call_manager, CallRole.MANAGER)
+        self.call.manager.add_user(self.call_manager, CallRole.MANAGER)
+
+        self.reviewer_user = structure_factories.UserFactory()
+        self.reviewer_profile = factories.ReviewerProfileFactory(
+            user=self.reviewer_user
+        )
+        pool_entry = factories.CallReviewerPoolFactory(
+            call=self.call,
+            reviewer=self.reviewer_profile,
+            invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+        )
+        self.round = factories.RoundFactory(call=self.call)
+        self.proposal = factories.ProposalFactory(round=self.round)
+        self.batch = factories.AssignmentBatchFactory(
+            call=self.call,
+            reviewer_pool_entry=pool_entry,
+            status=AssignmentBatchStatuses.SENT,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+        self.item = factories.AssignmentItemFactory(
+            batch=self.batch,
+            proposal=self.proposal,
+            status=AssignmentItemStatuses.PENDING,
+        )
+        self.url = factories.AssignmentItemFactory.get_url(self.item)
+
+    def test_call_manager_cannot_accept_for_the_reviewer(self):
+        self.client.force_authenticate(self.call_manager)
+        response = self.client.post(self.url + "accept/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, AssignmentItemStatuses.PENDING)
+        self.assertFalse(
+            models.Review.objects.filter(proposal=self.proposal).exists(),
+            "no review may be created in the reviewer's name",
+        )
+
+    def test_call_manager_cannot_decline_for_the_reviewer(self):
+        self.client.force_authenticate(self.call_manager)
+        response = self.client.post(self.url + "decline/", {"reason": "too busy"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, AssignmentItemStatuses.PENDING)
+
+    def test_reviewer_can_accept_own_assignment(self):
+        self.client.force_authenticate(self.reviewer_user)
+        response = self.client.post(self.url + "accept/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, AssignmentItemStatuses.ACCEPTED)
+        self.assertEqual(self.item.review.reviewer, self.reviewer_user)
+
+    def test_reviewer_cannot_delete_instead_of_declining(self):
+        self.client.force_authenticate(self.reviewer_user)
+        self.assertEqual(
+            self.client.delete(self.url).status_code, status.HTTP_403_FORBIDDEN
+        )
+        batch_url = factories.AssignmentBatchFactory.get_url(self.batch)
+        self.assertEqual(
+            self.client.delete(batch_url).status_code, status.HTTP_403_FORBIDDEN
+        )
+
+    def test_call_manager_can_delete_an_assignment(self):
+        self.client.force_authenticate(self.call_manager)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_collection_post_is_not_a_route(self):
+        self.client.force_authenticate(self.call_manager)
+        for name in ("assignment-batch-list", "assignment-item-list"):
+            response = self.client.post("http://testserver" + reverse(name), {})
+            self.assertEqual(
+                response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED, name
+            )
+
+    def test_unrelated_reviewer_cannot_accept(self):
+        outsider = structure_factories.UserFactory()
+        factories.ReviewerProfileFactory(user=outsider)
+        self.client.force_authenticate(outsider)
+        response = self.client.post(self.url + "accept/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

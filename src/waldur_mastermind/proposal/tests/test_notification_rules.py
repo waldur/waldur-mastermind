@@ -106,6 +106,12 @@ class NotificationRuleApiTest(test.APITestCase):
         self.assertEqual(response.data["step"], "allocation_decision")
         self.assertEqual(response.data["call_uuid"], self.call.uuid.hex)
 
+    def test_call_organizer_can_create_rule(self):
+        # The serializer gate resolves UPDATE_CALL against the call; the
+        # organizer holds it on the managing organisation.
+        response = self._create(self.fixture.call_organizer_user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
     def test_reviewer_cannot_create_rule(self):
         response = self._create(self.fixture.reviewer_1)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

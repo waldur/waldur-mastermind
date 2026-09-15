@@ -6,6 +6,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
@@ -511,3 +512,57 @@ class COIDetectionTaskTest(TestCase):
         ) as mock:
             run_coi_detection(str(job.uuid))
             mock.assert_not_called()
+
+
+class COIResolutionPermissionTest(test.APITestCase):
+    """Resolving a conflict is call-management work, on every route.
+
+    The ungated update route let the reviewer a conflict was about dismiss it
+    themselves, which the dismiss action refuses them.
+    """
+
+    def setUp(self):
+        self.call = factories.CallFactory()
+        self.round = factories.RoundFactory(call=self.call)
+        self.proposal = factories.ProposalFactory(round=self.round)
+
+        self.manager = structure_factories.UserFactory()
+        self.call.add_user(self.manager, CallRole.MANAGER)
+        CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
+
+        self.reviewer_user = structure_factories.UserFactory()
+        self.profile = factories.ReviewerProfileFactory(user=self.reviewer_user)
+        self.coi = factories.ConflictOfInterestFactory(
+            reviewer=self.profile, proposal=self.proposal, call=self.call
+        )
+        self.url = factories.ConflictOfInterestFactory.get_url(self.coi)
+
+    def test_conflicted_reviewer_cannot_patch_own_conflict(self):
+        self.client.force_authenticate(self.reviewer_user)
+        response = self.client.patch(self.url, {"review_notes": "nothing to see"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_conflicted_reviewer_cannot_dismiss_own_conflict(self):
+        self.client.force_authenticate(self.reviewer_user)
+        response = self.client.post(self.url + "dismiss/", {"status": "dismissed"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.coi.refresh_from_db()
+        self.assertEqual(self.coi.status, COIStatuses.PENDING)
+
+    def test_status_cannot_be_set_through_the_update_route(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.patch(self.url, {"status": COIStatuses.DISMISSED})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.coi.refresh_from_db()
+        self.assertEqual(self.coi.status, COIStatuses.PENDING)
+
+    def test_manager_resolves_through_the_dismiss_action(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            self.url + "dismiss/", {"status": COIStatuses.DISMISSED}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.coi.refresh_from_db()
+        self.assertEqual(self.coi.status, COIStatuses.DISMISSED)
+        self.assertEqual(self.coi.reviewed_by, self.manager)
+        self.assertIsNotNone(self.coi.reviewed_at)

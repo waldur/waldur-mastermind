@@ -2,12 +2,15 @@ import datetime
 
 from dateutil.relativedelta import relativedelta
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.enums import ProposalStates
@@ -260,6 +263,9 @@ class RoundCloseTest(test.APITestCase):
     @data(
         "staff",
         "call_manager",
+        # The organizer's role sits on the CallManagingOrganisation, so the
+        # CLOSE_ROUNDS check has to reach it through "manager".
+        "call_organizer_user",
     )
     def test_user_can_close_round(self, user):
         """Closing a round cancels draft proposals but does not auto-create reviews.
@@ -281,6 +287,27 @@ class RoundCloseTest(test.APITestCase):
     def test_user_can_not_close_round(self, user):
         response = self.close_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_close_rounds_alone_is_enough(self):
+        """The route asks for CLOSE_ROUNDS and nothing else.
+
+        A custom call role carrying CLOSE_ROUNDS without UPDATE_CALL must still
+        close a round -- the blanket unsafe-method gate on this viewset must not
+        silently add UPDATE_CALL to the requirement.
+        """
+        role = Role.objects.create(
+            name="CALL.ROUND_CLOSER",
+            description="Closes rounds",
+            content_type=ContentType.objects.get_for_model(models.Call),
+        )
+        role.add_permission(PermissionEnum.CLOSE_ROUNDS)
+        role.add_permission(PermissionEnum.LIST_CALLS)
+        user = structure_factories.UserFactory()
+        self.fixture.call.add_user(user, role)
+
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def close_round(self, user):
         user = getattr(self.fixture, user)
@@ -946,7 +973,7 @@ class BulkRoundCreateTest(test.APITestCase):
         self.client.force_authenticate(user)
         return self.client.post(self.url, self._payload(**overrides))
 
-    @data("staff", "call_manager")
+    @data("staff", "call_manager", "call_organizer_user")
     def test_user_can_bulk_create_rounds_with_monthly_cadence(self, user):
         response = self._post(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
