@@ -38,6 +38,8 @@ from . import models
 logger = logging.getLogger(__name__)
 
 SOURCE_PREFIX = "sram:"
+# Grants made by SRAM project rules (see rules.py).
+RULE_SOURCE_PREFIX = "sram-rule:"
 _NAME_SEGMENT_RE = re.compile(r"[^A-Za-z0-9_-]+")
 # ensure_unique_role_name appends "-2", "-3", ... on a clash.
 _COLLISION_SUFFIX_RE = re.compile(r"-\d+$")

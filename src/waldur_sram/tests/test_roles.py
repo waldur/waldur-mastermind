@@ -2,13 +2,17 @@ from io import StringIO
 
 from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
+from django.core import mail
 from django.core.management import call_command
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.models import User
+from waldur_core.logging.models import EmailHook, Event
+from waldur_core.logging.tasks import process_event
 from waldur_core.permissions import signals
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import Role, RoleAvailability, UserRole
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.models import Customer
@@ -210,3 +214,35 @@ class PlaceholderTemplateTest(SramScimTest):
         response = self.sbs.provision("Groups", payloads.sram_group())
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertFalse(models.SramGroup.objects.exists())
+
+
+class SramGrantNotificationTest(SramScimTest):
+    def test_sram_grants_are_logged_without_email_and_counted(self):
+        owner = structure_factories.UserFactory()
+        EmailHook.objects.create(
+            user=owner, email=owner.email, event_types=["role_granted", "role_revoked"]
+        )
+        _, roger = self.provision_user(username="roger")
+        body = payloads.sram_group(member_ids=[roger["id"]])
+        self.sbs.provision("Groups", body)
+        group = models.SramGroup.objects.get()
+        customer = group.customer
+        add_user(customer, owner, CustomerRole.OWNER)
+        mail.outbox = []
+
+        body["members"] = []
+        self.sbs.provision("Groups", body)
+        body["members"] = [{"value": roger["id"]}]
+        self.sbs.provision("Groups", body)
+
+        events = Event.objects.filter(
+            event_type__in=["role_granted", "role_revoked"],
+            context__role_source=roles.grant_source(group),
+        )
+        self.assertEqual(events.count(), 3)
+        self.assertTrue(all(e.context["suppress_email"] for e in events))
+        for event in events:
+            process_event(event.id)
+        self.assertEqual(mail.outbox, [])
+        # roger (placeholder) and the owner.
+        self.assertEqual(customer.get_quota_usage("nc_user_count"), 2)

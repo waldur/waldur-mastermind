@@ -646,6 +646,23 @@ def ensure_unique_role_name(name, exclude_id=None):
     return f"{name}-{index}"
 
 
+# Prefixes of ``UserRole.source`` values whose grants and revocations must not
+# email anyone: machine-driven membership syncs that would otherwise notify on
+# every change. The events are still logged. Apps register their prefixes in
+# ``AppConfig.ready``.
+QUIET_GRANT_SOURCE_PREFIXES: set[str] = set()
+
+
+def register_quiet_grant_source(prefix: str) -> None:
+    QUIET_GRANT_SOURCE_PREFIXES.add(prefix)
+
+
+def is_quiet_grant_source(source: str) -> bool:
+    return bool(source) and any(
+        source.startswith(prefix) for prefix in QUIET_GRANT_SOURCE_PREFIXES
+    )
+
+
 def add_user(
     scope,
     user,

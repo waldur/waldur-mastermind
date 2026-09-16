@@ -315,3 +315,7 @@ or permission category is added, both in `permissions/enums.py`:
 `PERMISSION_TARGET_SCOPES` (the scope each permission category acts on). A
 permission is meaningful on its target scope and on every ancestor of it; a
 category missing from the table is skipped rather than guessed at.
+
+## Quiet grant sources
+
+`UserRole.source` records who issued a machine-made grant (`rule:<uuid>`, `sram:<uuid>`, ...). Role events carry it as `role_source`. An app can register a source prefix with `waldur_core.permissions.utils.register_quiet_grant_source(prefix)` in `AppConfig.ready`: grants and revocations with that prefix are still logged, but their events carry `suppress_email: true` and email hooks skip them. The SRAM integration registers `sram:` and `sram-rule:`, since its membership sync would otherwise email on every change.
