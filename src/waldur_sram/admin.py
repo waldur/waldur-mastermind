@@ -25,3 +25,19 @@ class SramGroupAdmin(admin.ModelAdmin):
     search_fields = ("display_name", "urn", "external_id")
     raw_id_fields = ("members", "customer")
     readonly_fields = ("uuid", "payload", "created", "modified")
+
+
+@admin.register(models.SramProjectRule)
+class SramProjectRuleAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "is_active",
+        "source_kind",
+        "project_field",
+        "project_match",
+        "project_pattern",
+        "project_role",
+    )
+    list_filter = ("is_active", "source_kind")
+    search_fields = ("name", "project_pattern")
+    readonly_fields = ("uuid", "created", "modified")

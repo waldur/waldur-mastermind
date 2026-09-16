@@ -47,7 +47,7 @@ from waldur_core.users.scim.server.users_view import (
     update_user,
 )
 
-from . import mapping, models, organizations, roles
+from . import mapping, models, organizations, sync
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +174,7 @@ def _sync_groups_of(user: User) -> None:
     for group in models.SramGroup.objects.filter(members=user).select_related(
         "customer", "role"
     ):
-        roles.sync_members(group)
+        sync.sync_group(group)
 
 
 @extend_schema(exclude=True)
@@ -284,7 +284,7 @@ class UserDetailView(SramBaseView):
             groups = list(models.SramGroup.objects.filter(members=user))
             for group in groups:
                 group.members.remove(user)
-                roles.sync_members(group)
+                sync.sync_group(group)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -340,7 +340,7 @@ def apply_group(group: models.SramGroup, body: dict) -> models.SramGroup:
     group.payload = body
     group.save()
     group.members.set(_resolve_members(body))
-    roles.sync_members(group)
+    sync.sync_group(group)
     return group
 
 
@@ -422,6 +422,5 @@ class GroupDetailView(SramBaseView):
     def delete(self, request, uuid_hex):
         group = _get_group_or_404(uuid_hex)
         with transaction.atomic():
-            roles.delete_role(group)
-            group.delete()
+            sync.delete_group(group)
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -13,6 +13,8 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
+from . import enums
+
 
 class SramUser(TimeStampedModel):
     """Links a Waldur user to the SRAM identity that provisioned it."""
@@ -92,3 +94,58 @@ class SramGroup(TimeStampedModel, core_models.UuidMixin):
     def organisation_short_name(self) -> str:
         parts = self.urn_parts
         return parts[0] if parts else ""
+
+
+class SramProjectRule(TimeStampedModel, core_models.UuidMixin, core_models.NameMixin):
+    """Grants a project role to the holders of SRAM placeholder roles.
+
+    A rule applies to every organization. For each SRAM group it matches, the
+    holders of the group's placeholder role get ``project_role`` on the projects
+    of the group's organization that the selector picks.
+    """
+
+    SourceKind = enums.SourceKind
+    ProjectField = enums.ProjectField
+    MatchType = enums.MatchType
+
+    source_kind = models.CharField(
+        max_length=16, choices=SourceKind.choices, default=SourceKind.COLLABORATION
+    )
+    labels = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="The collaboration must carry one of these labels. A group is "
+        "judged by its collaboration's labels. Empty matches any.",
+    )
+    group_short_name_patterns = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Group short names to match; a trailing '*' matches by prefix. "
+        "Empty matches any. Setting it restricts the rule to groups.",
+    )
+    project_field = models.CharField(
+        max_length=16, choices=ProjectField.choices, default=ProjectField.BACKEND_ID
+    )
+    project_match = models.CharField(
+        max_length=16, choices=MatchType.choices, default=MatchType.PREFIX
+    )
+    project_pattern = models.CharField(
+        max_length=255,
+        default="{co_external_id}_",
+        help_text="Placeholders: {co_external_id}, {co_identifier}, "
+        "{co_short_name}, {org_short_name}, {group_short_name}.",
+    )
+    project_role = models.ForeignKey(
+        "permissions.Role", on_delete=models.CASCADE, related_name="+"
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def grant_source_prefix(self) -> str:
+        return f"sram-rule:{self.uuid.hex}:"
