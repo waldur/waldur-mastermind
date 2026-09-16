@@ -382,10 +382,13 @@ Waldur therefore serves SRAM on a separate base URL, `/scim/v2/sram/`, gated by 
 | SSH keys | `x509Certificates` (base64 OpenSSH keys) are synced as the user's keys when `SCIM_INBOUND_SSH_KEYS_ENABLED` is on. Invalid keys are skipped. |
 | Affiliations | `eduPersonScopedAffiliation` (comma-separated) becomes `affiliations`. |
 | Groups | Stored with SRAM's URN, kind (collaboration or group), description, labels and resolved members. Unknown member ids are skipped. |
+| Placeholder roles | Every collaboration and sub-group gets a customer-scoped role private to its organization, named `CUSTOMER.<org-slug>.SRAM.<co>[.<group>]` and described by the SRAM display name. It copies the permissions of `SRAM_PLACEHOLDER_ROLE_TEMPLATE` (none by default). Active members are granted it with `UserRole.source = sram:<group uuid>`; members that leave, are suspended or are deleted lose SRAM's grant. A grant made by hand is left alone. Deleting the group revokes every grant of the role, including hand-made ones, and deletes the role. The role can also be granted manually. The role hygiene report lists placeholders as `org-role-unmanaged`: their names are maintained by the SRAM sync. |
 | Organizations | The first URN segment is the SRAM organisation short name. It maps to the customer whose `backend_id` equals it. Otherwise a customer with exactly that name and an empty `backend_id` is adopted (its `backend_id` is set and a `customer_update_succeeded` event records it). Otherwise a customer is created. Several candidates → 409. Organizations are never deleted by SRAM. |
 | User delete | Deactivates the user through `remove_user_from_isd` and unlinks it from SRAM. A later push re-links and reactivates it. |
 | PATCH | Not supported (SRAM always sends full resources with PUT). |
 | Responses | Echo SRAM's `displayName`, `x509Certificates` and extension blocks, so SRAM's change detection does not re-send unchanged users. |
+
+SBS (observed with its current `main`) does not push the deletion of a sub-group on its own: the deletion is only propagated by the next sweep. Enable the sweep for the Waldur service once Waldur runs this release.
 
 After an upgrade or a settings change, `waldur sram_resync` re-applies the last payload SRAM pushed for every group; SRAM itself only re-sends groups that changed.
 
@@ -403,6 +406,7 @@ All keys live under the Constance fieldset **SCIM Identity Provider** in the Wal
 | `SCIM_USER_MATCH_WALDUR_ATTRIBUTE` | `username` | Waldur field that links a SCIM user to an existing account. |
 | `SCIM_USER_MATCH_SCIM_ATTRIBUTE` | `userName` | SCIM attribute holding the matched value. |
 | `SRAM_INTEGRATION_ENABLED` | `False` | Serve the SRAM profile at `/scim/v2/sram/`. |
+| `SRAM_PLACEHOLDER_ROLE_TEMPLATE` | `""` | Organization role whose permissions SRAM placeholder roles copy. |
 | `SCIM_PULL_API_URL` | `""` | Base URL of the remote SCIM directory used by the on-demand pull. |
 | `SCIM_PULL_API_KEY` | `""` (secret) | Bearer token for the remote directory. |
 | `SCIM_PULL_SOURCE_NAME` | `scim:pull` | Source label for pulled attributes. |

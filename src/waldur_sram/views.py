@@ -47,7 +47,7 @@ from waldur_core.users.scim.server.users_view import (
     update_user,
 )
 
-from . import mapping, models, organizations
+from . import mapping, models, organizations, roles
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +166,15 @@ def _apply_active(user: User, active: bool | None) -> None:
     user.deactivation_reason = "" if active else "Suspended in SRAM"
     user._change_source = scim_source()
     user.save(update_fields=["is_active", "deactivation_reason"])
+    # SRAM re-sends only the user, so bring the user's group roles in line now.
+    _sync_groups_of(user)
+
+
+def _sync_groups_of(user: User) -> None:
+    for group in models.SramGroup.objects.filter(members=user).select_related(
+        "customer", "role"
+    ):
+        roles.sync_members(group)
 
 
 @extend_schema(exclude=True)
@@ -272,6 +281,10 @@ class UserDetailView(SramBaseView):
         with transaction.atomic():
             remove_user_from_isd(user, source=scim_source())
             models.SramUser.objects.filter(user=user).delete()
+            groups = list(models.SramGroup.objects.filter(members=user))
+            for group in groups:
+                group.members.remove(user)
+                roles.sync_members(group)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -327,6 +340,7 @@ def apply_group(group: models.SramGroup, body: dict) -> models.SramGroup:
     group.payload = body
     group.save()
     group.members.set(_resolve_members(body))
+    roles.sync_members(group)
     return group
 
 
@@ -408,5 +422,6 @@ class GroupDetailView(SramBaseView):
     def delete(self, request, uuid_hex):
         group = _get_group_or_404(uuid_hex)
         with transaction.atomic():
+            roles.delete_role(group)
             group.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
