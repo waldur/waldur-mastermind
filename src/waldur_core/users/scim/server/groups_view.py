@@ -24,7 +24,7 @@ from rest_framework.views import APIView
 
 from waldur_core.core.models import User
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import add_user, delete_user
+from waldur_core.permissions.utils import add_user, delete_user, validate_role_grant
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users.scim.server.auth import (
     IsScimStaff,
@@ -56,14 +56,59 @@ CORE_GROUP_URN = "urn:ietf:params:scim:schemas:core:2.0:Group"
 logger = logging.getLogger(__name__)
 
 
-def _grant_membership(resolved, user, request_user) -> None:
-    """Grant the group's role, respecting the org-scoping policy.
+def _require_grantable_role(resolved: ResolvedGroup) -> None:
+    """Refuse provisioning into a group whose role cannot be granted at all.
 
-    A role that is concealed or not available for the scope's organization is
-    skipped (logged) rather than aborting the whole group sync — one policy
-    rejection must not fail provisioning for every other member.
+    Deactivating a role is how an administrator takes it out of circulation:
+    ``validate_role_grant`` refuses it for REST grants, invitation accept,
+    permission requests and OpenPortal awards, and both the invitation
+    serializers and homeport hide it from their role pickers. Group sync has to
+    agree, or an identity provider keeps assigning a role nobody can assign or
+    review by hand.
+
+    This is checked per request rather than per member because it is a property
+    of the group, not of anyone in it: every member would be rejected for the
+    same reason, and answering 200 with an empty member list would tell the
+    provider it succeeded. Callers invoke it only when an operation actually
+    adds members — reading a group, removing members and deleting it stay
+    available for a deactivated role, since deactivation gates new grants and
+    must never block deprovisioning.
+
+    A request that both adds and removes is refused whole, because a PATCH is
+    all or nothing: the addition cannot be satisfied, so the removal is rolled
+    back with it rather than leaving the provider a partially applied sync it
+    was told had failed. Deprovisioning such a group still works through a
+    remove-only PATCH or a DELETE.
+    """
+    if not resolved.role.is_active:
+        raise ScimError(
+            400,
+            (
+                f"Role {resolved.role.name!r} is not active and cannot be "
+                "assigned; enable the role before provisioning this group."
+            ),
+            scim_type="invalidValue",
+        )
+
+
+def _grant_membership(resolved, user, request_user) -> None:
+    """Grant the group's role, applying the same checks as every other path.
+
+    ``validate_role_grant`` is what the REST grant endpoint, ``Invitation.accept``
+    and ``PermissionRequest.approve`` run; going through it here keeps group sync
+    from being the one way into a role assignment the rest of Waldur refuses.
+    (``add_user`` enforces only the org-scoping policy.)
+
+    A member the policy rejects — a concealed or org-unavailable role, a scope
+    whose email/affiliation restrictions the user does not match, a second role
+    where ``INVITATION_DISABLE_MULTIPLE_ROLES`` forbids one, a second project
+    manager — is skipped and logged rather than aborting the whole group sync:
+    one member's rejection must not fail provisioning for every other member.
+    The group-wide reasons are raised by :func:`_require_grantable_role` before
+    we get here.
     """
     try:
+        validate_role_grant(resolved.scope, user, resolved.role)
         add_user(resolved.scope, user, resolved.role, created_by=request_user)
     except ValidationError as exc:
         logger.warning(
@@ -181,9 +226,12 @@ def _sync_members(resolved: ResolvedGroup, member_ids: list[str], request_user) 
             scim_type="invalidValue",
         )
     existing_ids = set(_members_qs(resolved).values_list("user_id", flat=True))
-    for user in users:
-        if user.id not in existing_ids:
-            _grant_membership(resolved, user, request_user)
+    to_add = [user for user in users if user.id not in existing_ids]
+    if not to_add:
+        return
+    _require_grantable_role(resolved)
+    for user in to_add:
+        _grant_membership(resolved, user, request_user)
 
 
 def _replace_members(
@@ -207,6 +255,17 @@ def _replace_members(
     current = list(_members_qs(resolved))
     current_user_map = {row.user.uuid.hex: row.user for row in current}
 
+    to_add = [
+        user
+        for uuid_hex, user in target_user_objs.items()
+        if uuid_hex not in current_user_map
+    ]
+    # Checked before the first removal, not between the two loops: a replace
+    # that only drops members stays available for a deactivated role, but one
+    # that would also add members must not revoke anyone before failing.
+    if to_add:
+        _require_grantable_role(resolved)
+
     for uuid_hex, user in current_user_map.items():
         if uuid_hex not in target_user_objs:
             delete_user(
@@ -216,9 +275,8 @@ def _replace_members(
                 current_user=request_user,
                 reason="SCIM Group membership replace",
             )
-    for uuid_hex, user in target_user_objs.items():
-        if uuid_hex not in current_user_map:
-            _grant_membership(resolved, user, request_user)
+    for user in to_add:
+        _grant_membership(resolved, user, request_user)
 
 
 def _remove_members(
@@ -339,10 +397,18 @@ class GroupDetailView(_GroupsBaseView):
                 _replace_members(
                     resolved, patch_result.replace_member_ids, request.user
                 )
-            if patch_result.add_member_ids:
-                _sync_members(resolved, patch_result.add_member_ids, request.user)
+            # Removals before additions. A provider sends a handover as one
+            # PATCH that drops the outgoing holder and adds the incoming one,
+            # and `apply_group_patch` collapses the operations into buckets, so
+            # their original order is already gone. Evaluating the additions
+            # first means the grant is validated while the outgoing holder is
+            # still in place — under ONLY_ONE_PROJECT_MANAGER that rejects the
+            # incoming manager, the removal then goes through regardless, and
+            # the project is left with none.
             if patch_result.remove_member_ids:
                 _remove_members(resolved, patch_result.remove_member_ids, request.user)
+            if patch_result.add_member_ids:
+                _sync_members(resolved, patch_result.add_member_ids, request.user)
         return Response(_serialize_group(resolved, request))
 
     def delete(self, request, group_id):
