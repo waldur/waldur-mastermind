@@ -382,9 +382,12 @@ Waldur therefore serves SRAM on a separate base URL, `/scim/v2/sram/`, gated by 
 | SSH keys | `x509Certificates` (base64 OpenSSH keys) are synced as the user's keys when `SCIM_INBOUND_SSH_KEYS_ENABLED` is on. Invalid keys are skipped. |
 | Affiliations | `eduPersonScopedAffiliation` (comma-separated) becomes `affiliations`. |
 | Groups | Stored with SRAM's URN, kind (collaboration or group), description, labels and resolved members. Unknown member ids are skipped. |
+| Organizations | The first URN segment is the SRAM organisation short name. It maps to the customer whose `backend_id` equals it. Otherwise a customer with exactly that name and an empty `backend_id` is adopted (its `backend_id` is set and a `customer_update_succeeded` event records it). Otherwise a customer is created. Several candidates → 409. Organizations are never deleted by SRAM. |
 | User delete | Deactivates the user through `remove_user_from_isd` and unlinks it from SRAM. A later push re-links and reactivates it. |
 | PATCH | Not supported (SRAM always sends full resources with PUT). |
 | Responses | Echo SRAM's `displayName`, `x509Certificates` and extension blocks, so SRAM's change detection does not re-send unchanged users. |
+
+After an upgrade or a settings change, `waldur sram_resync` re-applies the last payload SRAM pushed for every group; SRAM itself only re-sends groups that changed.
 
 Register Waldur as **one** SRAM service. All SRAM services pointing at the same Waldur share one set of SRAM-provisioned objects, so a sweep by one service would delete the objects another service provisioned.
 

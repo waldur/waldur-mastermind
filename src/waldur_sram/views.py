@@ -47,7 +47,7 @@ from waldur_core.users.scim.server.users_view import (
     update_user,
 )
 
-from . import mapping, models
+from . import mapping, models, organizations
 
 logger = logging.getLogger(__name__)
 
@@ -317,12 +317,13 @@ def _valid_hex(values: list[str]) -> list[str]:
     return result
 
 
-def _apply_group(group: models.SramGroup, body: dict) -> models.SramGroup:
+def apply_group(group: models.SramGroup, body: dict) -> models.SramGroup:
     fields = mapping.group_fields(body)
     if not fields["display_name"]:
         raise ScimError(400, "displayName is required.", scim_type="invalidValue")
     for name, value in fields.items():
         setattr(group, name, value)
+    group.customer = organizations.resolve_customer(group.organisation_short_name)
     group.payload = body
     group.save()
     group.members.set(_resolve_members(body))
@@ -359,7 +360,7 @@ class GroupsListView(SramBaseView):
             )
         try:
             with transaction.atomic():
-                group = _apply_group(models.SramGroup(external_id=external_id), body)
+                group = apply_group(models.SramGroup(external_id=external_id), body)
         except IntegrityError:
             raise ScimError(
                 409,
@@ -393,7 +394,7 @@ class GroupDetailView(SramBaseView):
                     scim_type="uniqueness",
                 )
             group.external_id = external_id
-            group = _apply_group(group, body)
+            group = apply_group(group, body)
         return Response(mapping.render_group(group))
 
     def patch(self, request, uuid_hex):
