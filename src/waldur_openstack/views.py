@@ -1331,16 +1331,27 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                 # the operation may fail with an IP address conflict.
                 # To avoid this, we first find a free IP in the subnet, create a port with this IP,
                 # and then pass the port to the router interface addition.
-                free_ip = backend.get_free_ip(subnet)
-                if not free_ip:
-                    return response.Response(
-                        {
-                            "status": _(
-                                f"No available IP addresses in subnet {subnet.backend_id}."
-                            )
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                from_prefix = models.SubNet.Ipv6Modes.FROM_PREFIX
+                if (
+                    subnet.ipv6_ra_mode in from_prefix
+                    or subnet.ipv6_address_mode in from_prefix
+                ):
+                    # Neutron derives addresses on such a subnet from the
+                    # prefix and refuses a fixed one on a port that is not yet
+                    # a router interface, so it has to pick the address itself.
+                    fixed_ip = {"subnet_id": subnet.backend_id}
+                else:
+                    free_ip = backend.get_free_ip(subnet)
+                    if not free_ip:
+                        return response.Response(
+                            {
+                                "status": _(
+                                    f"No available IP addresses in subnet {subnet.backend_id}."
+                                )
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    fixed_ip = {"subnet_id": subnet.backend_id, "ip_address": free_ip}
                 port = models.Port.objects.create(
                     subnet=subnet,
                     network=subnet.network,
@@ -1354,11 +1365,11 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                     tenant=router.tenant,
                     project=router.project,
                     service_settings=subnet.service_settings,
-                    fixed_ips=[{"subnet_id": subnet.backend_id, "ip_address": free_ip}],
+                    fixed_ips=[fixed_ip],
                 )
                 backend.create_port(port)
                 logger.info(
-                    f"Port {port.backend_id} with IP {free_ip} was created for router interface addition."
+                    f"Port {port.backend_id} with fixed IPs {port.fixed_ips} was created for router interface addition."
                 )
             backend.add_router_interface(router, port=port)
         except OpenStackBackendError as e:

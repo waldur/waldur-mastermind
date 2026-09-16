@@ -8303,11 +8303,19 @@ class OpenStackBackend(ServiceBackend):
 
     def get_free_ip(self, subnet: models.SubNet):
         neutron = get_neutron_client(self.admin_session)
-        used_ips = set()
-        ports = neutron.list_ports(fixed_ips=f"subnet_id={subnet.backend_id}")["ports"]
-        for port in ports:
-            for ip in port["fixed_ips"]:
-                used_ips.add(ip["ip_address"])
+        try:
+            ports = neutron.list_ports(fixed_ips=f"subnet_id={subnet.backend_id}")[
+                "ports"
+            ]
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        # Compared as addresses rather than strings: one IPv6 address has many
+        # spellings, and Neutron's need not be the one produced here.
+        used_ips = {
+            ipaddress.ip_address(ip["ip_address"])
+            for port in ports
+            for ip in port["fixed_ips"]
+        }
 
         # A row whose pool was never stored (#390, and anything created before
         # that fix) is not a subnet without addresses: ask the backend, which is
@@ -8325,10 +8333,19 @@ class OpenStackBackend(ServiceBackend):
                 raise OpenStackBackendError(e)
 
         for pool in allocation_pools:
-            start = ipaddress.IPv4Address(pool["start"])
-            end = ipaddress.IPv4Address(pool["end"])
+            try:
+                start = ipaddress.ip_address(pool["start"])
+                end = ipaddress.ip_address(pool["end"])
+            except ValueError as e:
+                raise OpenStackBackendError(
+                    f"Subnet {subnet.backend_id} has an invalid allocation pool: {e}"
+                )
+            # The pool's own family, not ip_address(int), which would read a
+            # small integer as IPv4. The range is lazy, so a /64 pool costs as
+            # many steps as it has addresses in use.
+            address_type = type(start)
             for ip_int in range(int(start), int(end) + 1):
-                ip = str(ipaddress.IPv4Address(ip_int))
+                ip = address_type(ip_int)
                 if ip not in used_ips:
-                    return ip
+                    return str(ip)
         return None

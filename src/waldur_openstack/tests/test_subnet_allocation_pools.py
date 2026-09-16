@@ -11,10 +11,12 @@ tenant is using.
 
 from unittest import mock
 
+from neutronclient.client import exceptions as neutron_exceptions
 from rest_framework import test
 
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.exceptions import OpenStackBackendError
 
 from . import factories, fixtures
 
@@ -228,3 +230,35 @@ class GetFreeIpTest(test.APITestCase):
             client.show_subnet.return_value = {"subnet": {"allocation_pools": []}}
 
             self.assertIsNone(self.backend.get_free_ip(self.subnet))
+
+    def test_an_ipv6_pool_yields_an_ipv6_address(self):
+        """It used to parse every pool as IPv4 and raise on the first IPv6 one."""
+        self.subnet.cidr = "2001:db8:99::/64"
+        self.subnet.ip_version = 6
+        self.subnet.allocation_pools = [
+            {"start": "2001:db8:99::2", "end": "2001:db8:99::ffff:ffff:ffff:ffff"}
+        ]
+        self.subnet.save()
+
+        # Neutron's spelling of an address in use need not be the canonical one.
+        free_ip, _ = self._get_free_ip(used=["2001:db8:99::2", "2001:0db8:0099::3"])
+
+        self.assertEqual(free_ip, "2001:db8:99::4")
+
+    def test_a_neutron_failure_is_a_backend_error(self):
+        self.subnet.allocation_pools = BACKEND_POOLS
+        self.subnet.save()
+
+        with (
+            mock.patch(
+                "waldur_openstack.backend.OpenStackBackend.admin_session",
+                new_callable=mock.PropertyMock,
+            ),
+            mock.patch("waldur_openstack.backend.get_neutron_client") as get_client,
+        ):
+            get_client.return_value.list_ports.side_effect = (
+                neutron_exceptions.NeutronClientException("Neutron is unavailable")
+            )
+
+            with self.assertRaises(OpenStackBackendError):
+                self.backend.get_free_ip(self.subnet)

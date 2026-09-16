@@ -12,6 +12,8 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.enums import Ipv6Modes
+from waldur_openstack.exceptions import OpenStackBackendError
 
 from . import factories, fixtures
 
@@ -59,6 +61,7 @@ class SetRoutesTest(BaseRouterTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+@ddt
 class RouterInterfaceTest(BaseRouterTest):
     def setUp(self):
         super().setUp()
@@ -109,6 +112,99 @@ class RouterInterfaceTest(BaseRouterTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mock_add.assert_called_once()
         mock_pull.assert_called_once()
+
+    def _make_ipv6_subnet(self, mode):
+        self.subnet.cidr = "2001:db8:1::/64"
+        self.subnet.ip_version = 6
+        self.subnet.ipv6_ra_mode = mode
+        self.subnet.ipv6_address_mode = mode
+        self.subnet.is_connected = False
+        self.subnet.save()
+
+    def _created_port_fixed_ips(self):
+        self.mock_create_port.assert_called_once()
+        return self.mock_create_port.call_args[0][0].fixed_ips
+
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
+    def test_ipv4_subnet_gets_a_free_address(self, mock_add, mock_pull):
+        self.mock_get_free_ip.return_value = "192.168.1.10"
+
+        response = self.client.post(
+            self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(
+            self._created_port_fixed_ips(),
+            [{"subnet_id": self.subnet.backend_id, "ip_address": "192.168.1.10"}],
+        )
+        mock_add.assert_called_once()
+
+    @data(Ipv6Modes.SLAAC, Ipv6Modes.DHCPV6_STATELESS)
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
+    def test_address_from_prefix_subnet_lets_neutron_pick_the_address(
+        self, mode, mock_add, mock_pull
+    ):
+        self._make_ipv6_subnet(mode)
+
+        response = self.client.post(
+            self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.mock_get_free_ip.assert_not_called()
+        self.assertEqual(
+            self._created_port_fixed_ips(), [{"subnet_id": self.subnet.backend_id}]
+        )
+        mock_add.assert_called_once()
+        self.subnet.refresh_from_db()
+        self.assertTrue(self.subnet.is_connected)
+
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.pull_tenant_routers")
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
+    def test_stateful_ipv6_subnet_gets_a_free_address(self, mock_add, mock_pull):
+        self._make_ipv6_subnet(Ipv6Modes.DHCPV6_STATEFUL)
+        self.mock_get_free_ip.return_value = "2001:db8:1::2"
+
+        response = self.client.post(
+            self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(
+            self._created_port_fixed_ips(),
+            [{"subnet_id": self.subnet.backend_id, "ip_address": "2001:db8:1::2"}],
+        )
+        mock_add.assert_called_once()
+
+    @mock.patch("waldur_openstack.backend.OpenStackBackend.add_router_interface")
+    def test_port_creation_failure_is_a_bad_request(self, mock_add):
+        self._make_ipv6_subnet(Ipv6Modes.SLAAC)
+        self.mock_create_port.side_effect = OpenStackBackendError(
+            "IPv6 address cannot be directly assigned to a port on subnet"
+        )
+
+        response = self.client.post(
+            self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("cannot be directly assigned", str(response.data))
+        mock_add.assert_not_called()
+
+    def test_free_address_lookup_failure_is_a_bad_request(self):
+        self.mock_get_free_ip.side_effect = OpenStackBackendError(
+            "Subnet has an invalid allocation pool"
+        )
+
+        response = self.client.post(
+            self.url_add, {"subnet": factories.SubNetFactory.get_url(self.subnet)}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("invalid allocation pool", str(response.data))
 
     def test_add_router_interface_missing_params(self):
         response = self.client.post(self.url_add, {})
