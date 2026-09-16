@@ -26,6 +26,7 @@ from rest_framework.views import APIView
 
 from waldur_auth_social.utils import remove_user_from_isd
 from waldur_core.core.models import User
+from waldur_core.users.scim.server import matching
 from waldur_core.users.scim.server.auth import (
     IsScimStaff,
     ScimBearerAuthentication,
@@ -117,13 +118,16 @@ def _get_sram_user_or_404(uuid_hex: str) -> User:
 
 
 def _match_existing_user(body: dict) -> User | None:
-    """An account SRAM may adopt: same username, not privileged, not linked."""
-    user_name = body.get("userName")
-    if not user_name:
-        return None
-    candidate = User.all_objects.filter(username__iexact=user_name).first()
+    """An account SRAM may adopt: it matches, and is neither privileged nor linked.
+
+    Matching follows ``SCIM_USER_MATCH_WALDUR_ATTRIBUTE`` /
+    ``SCIM_USER_MATCH_SCIM_ATTRIBUTE``; the default compares ``userName`` with
+    the username.
+    """
+    candidate = matching.find_matching_user(body)
     if candidate is None:
         return None
+    user_name = candidate.username
     if candidate.is_staff or candidate.is_support:
         raise ScimError(
             409,
@@ -204,7 +208,9 @@ class UsersListView(SramBaseView):
                         user.username,
                         external_id,
                     )
-                    user = update_user(user, scim_body, full_replace=True)
+                    user = update_user(
+                        user, scim_body, full_replace=True, check_username=False
+                    )
                     if active is None:
                         active = True
                 _apply_active(user, active)
@@ -246,7 +252,7 @@ class UserDetailView(SramBaseView):
             )
         scim_body, active = _without_active(mapping.sram_user_to_scim_body(body))
         with transaction.atomic():
-            user = update_user(user, scim_body, full_replace=True)
+            user = update_user(user, scim_body, full_replace=True, check_username=False)
             _apply_active(user, active)
             sram_user.external_id = external_id
             sram_user.payload = body

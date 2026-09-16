@@ -228,6 +228,21 @@ Key consequences:
 - **Deactivation** routes through `remove_user_from_isd` and honours `FEDERATED_IDENTITY_DEACTIVATION_POLICY`: with the default `any_isd_removed` any removal deactivates the user; with `all_isds_removed` a user is only deactivated when no active sources remain.
 - **Deactivated users stay visible to SCIM.** `GET /Users/{id}` returns them with `active: false`, they match `filter=active eq false`, and the IdP can reactivate them with `PATCH {op: replace, path: active, value: true}`.
 
+## Matching SCIM users to existing accounts
+
+A provisioned user must become the same account the person gets at login, or they end up with two. Two settings decide how an incoming SCIM user is matched, for both `/scim/v2/` and `/scim/v2/sram/`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `SCIM_USER_MATCH_WALDUR_ATTRIBUTE` | `username` | Waldur field compared: `username`, `email` or `civil_number`. Anything other than `username` must be enabled in `ENABLED_USER_PROFILE_ATTRIBUTES`. The settings API rejects other values, and SCIM requests answer 503 while the setting is invalid. |
+| `SCIM_USER_MATCH_SCIM_ATTRIBUTE` | `userName` | Where the value is in the SCIM User: a top-level attribute (`userName`, `emails` = primary email), a sub-attribute (`name.givenName`), or an extension path such as `urn:mace:surf.nl:sram:scim:extension:User.eduPersonUniqueId`. |
+
+- The lookup order is `externalId`, then the configured match, then the primary email when `OIDC_MATCHMAKING_BY_EMAIL` is on.
+- More than one matching account is a 409; resolve the duplicate first.
+- With `username`, new accounts are **named after the matched value** (normalised to `[0-9a-z_.@+-]`), so a login that presents the same value as its username (see `OIDC_USER_FIELD`) finds the account. Changing that value later is rejected with `scimType: mutability`.
+- With `email` or `civil_number`, new accounts are named after `userName` and the matched attribute is set on them.
+- For SRAM, pick the attribute your login uses. If users sign in through SRAM's OIDC with `sub` as username, use `urn:mace:surf.nl:sram:scim:extension:User.eduPersonUniqueId`. SRAM-provisioned accounts keep their username if the settings change later.
+
 ## SCIM-to-Waldur attribute mapping
 
 | SCIM attribute | Waldur User field | Direction | Notes |
@@ -363,7 +378,7 @@ Waldur therefore serves SRAM on a separate base URL, `/scim/v2/sram/`, gated by 
 | Listing, lookup, update, delete | Only users and groups SRAM provisioned (`waldur_sram.SramUser` / `SramGroup`). A sweep cannot reach other accounts or groups. |
 | `meta.location` | Relative: `/Users/<uuid>`, `/Groups/<uuid>` |
 | Filters | Users: `externalId`, `userName`, `emails`, `active`. Groups: `externalId`, `displayName`. |
-| User create | `externalId` is required. An existing account with the same `userName` is linked instead of duplicated, unless it is staff or support (409). |
+| User create | `externalId` is required. An existing account that matches (see [Matching](#matching-scim-users-to-existing-accounts)) is linked instead of duplicated, unless it is staff or support (409). Responses echo SRAM's own `userName`. |
 | SSH keys | `x509Certificates` (base64 OpenSSH keys) are synced as the user's keys when `SCIM_INBOUND_SSH_KEYS_ENABLED` is on. Invalid keys are skipped. |
 | Affiliations | `eduPersonScopedAffiliation` (comma-separated) becomes `affiliations`. |
 | Groups | Stored with SRAM's URN, kind (collaboration or group), description, labels and resolved members. Unknown member ids are skipped. |
@@ -382,6 +397,8 @@ All keys live under the Constance fieldset **SCIM Identity Provider** in the Wal
 | `SCIM_INBOUND_ENABLED` | `False` | Master switch for `/scim/v2/`. |
 | `SCIM_INBOUND_SOURCE_NAME` | `scim:default` | Source label written to `attribute_sources` for inbound writes. |
 | `SCIM_INBOUND_ALLOWED_ATTRIBUTES` | `first_name, last_name, email, organization, affiliations` | Subset of writable user attributes that SCIM is allowed to set. |
+| `SCIM_USER_MATCH_WALDUR_ATTRIBUTE` | `username` | Waldur field that links a SCIM user to an existing account. |
+| `SCIM_USER_MATCH_SCIM_ATTRIBUTE` | `userName` | SCIM attribute holding the matched value. |
 | `SRAM_INTEGRATION_ENABLED` | `False` | Serve the SRAM profile at `/scim/v2/sram/`. |
 | `SCIM_PULL_API_URL` | `""` | Base URL of the remote SCIM directory used by the on-demand pull. |
 | `SCIM_PULL_API_KEY` | `""` (secret) | Bearer token for the remote directory. |

@@ -23,6 +23,7 @@ from waldur_auth_social.utils import (
     update_user_attributes_from_source,
 )
 from waldur_core.core.models import User
+from waldur_core.users.scim.server import matching
 from waldur_core.users.scim.server.auth import (
     IsScimStaff,
     ScimBearerAuthentication,
@@ -98,7 +99,10 @@ def _serialize(user: User, request) -> dict:
 
 
 def _find_user(body: dict) -> User | None:
-    """Lookup priority: externalId → userName → primary email.
+    """Lookup priority: externalId → configured match attribute → primary email.
+
+    The match attribute is ``userName`` → ``username`` unless configured
+    otherwise (see ``matching``).
 
     Uses ``all_objects`` — deactivated users must stay addressable so the IdM
     gets a 409 instead of a crash on re-create, and can reactivate them.
@@ -111,11 +115,9 @@ def _find_user(body: dict) -> User | None:
         if candidate:
             return candidate
 
-    user_name = body.get("userName")
-    if user_name:
-        candidate = User.all_objects.filter(username__iexact=user_name).first()
-        if candidate:
-            return candidate
+    candidate = matching.find_matching_user(body)
+    if candidate:
+        return candidate
 
     if getattr(config, "OIDC_MATCHMAKING_BY_EMAIL", False):
         primary_email = _primary_email(body.get("emails"))
@@ -138,27 +140,27 @@ def _primary_email(emails) -> str | None:
 
 
 def _normalize_username(raw: str) -> str:
-    """Waldur usernames must match [0-9a-z_.@+-]+. SCIM userNames may include
-    other characters and uppercase — we lowercase and strip incompatible
-    characters rather than rejecting, so common IdP values still flow through.
-    """
-    import re as _re
-
-    cleaned = "".join(_re.findall(r"[0-9a-z_.@+\-]+", raw.lower()))
-    if not cleaned:
-        raise ScimError(
-            400,
-            f"userName {raw!r} contains no characters valid for a Waldur username.",
-            scim_type="invalidValue",
-        )
-    return cleaned
+    return matching.normalize_username(raw)
 
 
 @transaction.atomic
 def create_user(body: dict, request) -> User:
-    raw_username = body.get("userName")
-    if not raw_username:
-        raise ScimError(400, "userName is required.", scim_type="invalidValue")
+    match_field = matching.waldur_attribute()
+    match_value = matching.match_value(body)
+    if not match_value:
+        raise ScimError(
+            400,
+            f"{matching.scim_attribute()} is required.",
+            scim_type="invalidValue",
+        )
+    if match_field == matching.DEFAULT_WALDUR_ATTRIBUTE:
+        # The account is named after the matched value, so a later login that
+        # presents the same value finds it instead of creating a second one.
+        raw_username = match_value
+    else:
+        raw_username = body.get("userName")
+        if not raw_username:
+            raise ScimError(400, "userName is required.", scim_type="invalidValue")
     username = _normalize_username(raw_username)
 
     if User.all_objects.filter(username=username).exists():
@@ -176,6 +178,9 @@ def create_user(body: dict, request) -> User:
         is_active=True if active is None else bool(active),
     )
     user.set_unusable_password()
+    if match_field != matching.DEFAULT_WALDUR_ATTRIBUTE:
+        setattr(user, match_field, match_value)
+        user.save(update_fields=[match_field])
 
     payload = scim_to_waldur_payload(body)
     update_user_attributes_from_source(
@@ -196,22 +201,35 @@ def create_user(body: dict, request) -> User:
     return user
 
 
-def update_user(user: User, body: dict, *, full_replace: bool) -> User:
+def _check_username_unchanged(user: User, body: dict) -> None:
+    if matching.waldur_attribute() == matching.DEFAULT_WALDUR_ATTRIBUTE:
+        submitted = matching.match_value(body)
+        attribute = matching.scim_attribute()
+    else:
+        submitted = body.get("userName")
+        attribute = "userName"
+    if submitted is not None and _normalize_username(submitted) != user.username:
+        raise ScimError(
+            400,
+            f"Changing '{attribute}' after creation is not supported.",
+            scim_type="mutability",
+        )
+
+
+def update_user(
+    user: User, body: dict, *, full_replace: bool, check_username: bool = True
+) -> User:
     """Apply a PUT-style full replace to an existing user.
 
     Mutability rules:
     - ``userName`` is immutable post-creation; attempting to change it returns 400.
+      Callers that identify the account some other way (the SRAM profile links
+      it by ``externalId``) pass ``check_username=False``: the username then
+      stays what it was, even if the match settings changed since.
     - ``active=false`` triggers ``remove_user_from_isd``.
     """
-    submitted = body.get("userName")
-    if submitted is not None:
-        normalized = _normalize_username(submitted)
-        if normalized != user.username:
-            raise ScimError(
-                400,
-                "Changing 'userName' after creation is not supported.",
-                scim_type="mutability",
-            )
+    if check_username:
+        _check_username_unchanged(user, body)
 
     payload = scim_to_waldur_payload(body)
     update_user_attributes_from_source(

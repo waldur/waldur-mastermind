@@ -184,6 +184,41 @@ class UserProvisioningTest(SramScimTest):
         self.assertEqual(created["id"], local.uuid.hex)
         self.assertTrue(models.SramUser.objects.filter(user=local).exists())
 
+    @override_config(
+        SCIM_USER_MATCH_SCIM_ATTRIBUTE=f"{SRAM_USER_EXTENSION_URN}.eduPersonUniqueId"
+    )
+    def test_link_by_sram_unique_id(self):
+        local = structure_factories.UserFactory(username="roger@test.sram.surf.nl")
+        structure_factories.UserFactory(username="roger")
+        _, created = self.provision_user(username="roger")
+        self.assertEqual(created["id"], local.uuid.hex)
+
+    @override_config(
+        SCIM_USER_MATCH_SCIM_ATTRIBUTE=f"{SRAM_USER_EXTENSION_URN}.eduPersonUniqueId"
+    )
+    def test_new_user_is_named_after_sram_unique_id(self):
+        _, created = self.provision_user(username="roger")
+        user = User.objects.get(uuid=created["id"])
+        self.assertEqual(user.username, "roger@test.sram.surf.nl")
+        # SRAM sees its own userName back, so its sweep finds nothing to update.
+        self.assertEqual(created["userName"], "roger")
+
+        # SBS keeps sending userName=roger; that is not a rename.
+        body, _ = self.provision_user(
+            username="roger", external_id=created["externalId"]
+        )
+        self.assertEqual(User.objects.filter(username__startswith="roger").count(), 1)
+
+    def test_users_survive_a_later_change_of_match_settings(self):
+        body, created = self.provision_user(username="roger")
+        path = f"{SRAM_USER_EXTENSION_URN}.eduPersonUniqueId"
+        with override_config(SCIM_USER_MATCH_SCIM_ATTRIBUTE=path):
+            body["name"]["familyName"] = "Changed"
+            response = self.sbs.provision("Users", body)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        user = User.objects.get(uuid=created["id"])
+        self.assertEqual((user.username, user.last_name), ("roger", "Changed"))
+
     def test_privileged_local_user_is_not_linked(self):
         structure_factories.UserFactory(username="admin", is_staff=True)
         response = self.sbs.provision("Users", payloads.sram_user(username="admin"))
