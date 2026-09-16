@@ -613,3 +613,24 @@ def check_maintenance_announcement_offering_template_create_permissions(
         request, maintenance_template.service_provider
     ):
         raise exceptions.PermissionDenied()
+
+
+def can_view_offering_user_attribute_config(request, view, obj=None):
+    """The owner, as before, or whoever manages the offering's users.
+
+    A site agent runs as OFFERING.MANAGER and reads this config to learn which
+    offering-user fields (e.g. email) it may request, so the read follows
+    OFFERING.UPDATE_USER, held on the offering, its customer or its service
+    provider (the latter covers CUSTOMER.MANAGER, which lives on the
+    ServiceProvider and whose offering-user dialog in homeport fetches this
+    config). Changing the config stays owner-only.
+    """
+    if not obj:
+        return
+    if structure_permissions._has_owner_access(request.user, obj.customer):
+        return
+    if has_permission_on_any_source(
+        request, PermissionEnum.UPDATE_OFFERING_USER, obj, OFFERING_ADMIN_SOURCES
+    ):
+        return
+    raise exceptions.PermissionDenied()

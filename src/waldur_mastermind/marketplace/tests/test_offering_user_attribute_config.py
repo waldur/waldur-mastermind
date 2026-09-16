@@ -6,7 +6,13 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories
@@ -198,6 +204,77 @@ class OfferingUserAttributeConfigAPITest(test.APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def offering_manager(self, offering=None):
+        user = structure_factories.UserFactory()
+        (offering or self.offering).add_user(user, OfferingRole.MANAGER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def test_offering_manager_can_get_config(self):
+        """A site agent runs as OFFERING.MANAGER and reads the config to learn
+        which offering-user fields it may request. See #400."""
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering, expose_email=True
+        )
+        self.offering_manager()
+
+        response = self.client.get(self.get_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("email", response.data["exposed_fields"])
+
+    def test_offering_manager_without_the_permission_can_not_get_config(self):
+        """The grant is what unlocks this — not membership of the offering."""
+        self.offering_manager()
+        OfferingRole.MANAGER.delete_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+        response = self.client.get(self.get_url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_offering_manager_can_not_get_config_of_another_offering(self):
+        self.offering_manager(factories.OfferingFactory())
+
+        response = self.client.get(self.get_url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_customer_manager_can_get_config(self):
+        """CUSTOMER.MANAGER holds OFFERING.UPDATE_USER on the ServiceProvider
+        (not the Customer), and homeport's offering-user details dialog
+        fetches this config."""
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering, expose_email=True
+        )
+        user = structure_factories.UserFactory()
+        service_provider = factories.ServiceProviderFactory(
+            customer=self.offering.customer
+        )
+        service_provider.add_user(user, ServiceProviderRole.MANAGER)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.get_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("email", response.data["exposed_fields"])
+
+    def test_offering_manager_can_not_change_config(self):
+        """Only reading is widened; what is exposed stays the owner's call."""
+        config = models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering, expose_email=False
+        )
+        self.offering_manager()
+
+        update = self.client.post(self.update_url, {"expose_email": True})
+        delete = self.client.delete(self.delete_url)
+
+        self.assertEqual(update.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(delete.status_code, status.HTTP_403_FORBIDDEN)
+        config.refresh_from_db()
+        self.assertFalse(config.expose_email)
 
     def test_config_response_includes_exposed_fields_list(self):
         """Test that config response includes computed exposed_fields list."""

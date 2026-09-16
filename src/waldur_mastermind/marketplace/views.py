@@ -53,6 +53,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
+    OpenApiResponse,
     extend_schema,
     extend_schema_view,
 )
@@ -6285,7 +6286,9 @@ class ProviderOfferingViewSet(
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    user_attribute_config_permissions = [structure_permissions.is_owner]
+    user_attribute_config_permissions = [
+        marketplace_permissions.can_view_offering_user_attribute_config
+    ]
 
     @extend_schema(
         summary="Update user attribute config",
@@ -7744,10 +7747,17 @@ class OrderViewSet(
         ),
     ]
 
+    # A site agent runs as OFFERING.MANAGER (offering-scoped role), and every
+    # order of a site-agent offering waits for provider approval, so accept the
+    # offering scope alongside the owning customer. This applies to every
+    # offering type: OFFERING.MANAGER already carried ORDER.APPROVE, so any
+    # offering manager may review provider orders through the API. Homeport
+    # does not surface this to people yet: filter_can_approve_as_provider and
+    # the provider action buttons still match customer-scoped roles only.
     approve_by_provider_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
     approve_by_provider_serializer_class = serializers.OrderApproveByProviderSerializer
@@ -7755,11 +7765,17 @@ class OrderViewSet(
     @extend_schema(
         summary="Approve an order (provider)",
         description="Approves a pending order from the provider's side. This typically transitions the order to the executing state.",
-        responses=serializers.OrderInfoResponseSerializer,
+        responses={
+            200: serializers.OrderInfoResponseSerializer,
+            409: OpenApiResponse(
+                description="Order is no longer pending provider review."
+            ),
+        },
     )
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def approve_by_provider(self, request, uuid=None):
-        order: models.Order = self.get_object()
+        order = self._lock_order_pending_provider()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         attributes = serializer.validated_data.get("attributes")
@@ -7801,6 +7817,26 @@ class OrderViewSet(
         )
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
+    def _lock_order_pending_provider(self) -> models.Order:
+        """Lock the order row and re-check its state.
+
+        The state validator runs before the row is locked, so a person and a
+        polling site agent reviewing at the same moment could both pass it and
+        approve (or approve and reject) the same order.
+
+        The callers' @transaction.atomic is only a savepoint by default:
+        ActionsViewSet.dispatch already runs in a transaction while
+        WALDUR_CORE.USE_ATOMIC_TRANSACTION is True. It keeps the row lock
+        meaningful when an operator turns that setting off.
+        """
+        order = self.get_object()
+        order = models.Order.objects.select_for_update().get(pk=order.pk)
+        if order.state != OrderStates.PENDING_PROVIDER:
+            raise IncorrectStateException(
+                _("Order is no longer pending provider review.")
+            )
+        return order
+
     def _check_provider_consumer_messaging_enabled(order):
         if not order.offering.plugin_options.get("enable_provider_consumer_messaging"):
             raise IncorrectStateException(
@@ -7815,10 +7851,12 @@ class OrderViewSet(
         _check_provider_consumer_messaging_enabled,
     ]
 
+    # Whoever may approve a pending order may also message the consumer about
+    # it, so follow approve_by_provider's offering scope.
     set_provider_info_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
     set_provider_info_serializer_class = serializers.OrderProviderInfoSerializer
@@ -7963,7 +8001,7 @@ class OrderViewSet(
     reject_by_provider_permissions = [
         permission_factory(
             PermissionEnum.REJECT_ORDER,
-            ["offering.customer"],
+            OFFERING_SCOPED_SOURCES,
         )
     ]
 
@@ -7973,11 +8011,17 @@ class OrderViewSet(
         summary="Reject an order (provider)",
         description="Rejects a pending order from the provider's side. This moves the order to the 'rejected' state.",
         request=serializers.OrderProviderRejectionSerializer,
-        responses={200: None},
+        responses={
+            200: None,
+            409: OpenApiResponse(
+                description="Order is no longer pending provider review."
+            ),
+        },
     )
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def reject_by_provider(self, request, uuid=None):
-        order: models.Order = self.get_object()
+        order = self._lock_order_pending_provider()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         order.provider_rejection_comment = serializer.validated_data.get(
