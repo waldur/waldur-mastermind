@@ -120,6 +120,42 @@ my_action_permissions = [
 ]
 ```
 
+## Team visibility
+
+Listing the members of a scope (`GET .../list_users/`) is gated on a
+permission, not on role membership. Staff and support always pass. Otherwise
+the caller needs an active role that is one of the following:
+
+- on the organization, and grants `CUSTOMER.VIEW_TEAM`
+  (`PermissionEnum.VIEW_CUSTOMER_TEAM`);
+- on any project of the organization, and grants `PROJECT.VIEW_TEAM`
+  (`PermissionEnum.VIEW_PROJECT_TEAM`);
+- on the scope itself, when that scope is not an organization or a project
+  (resource, offering, call, proposal). No permission is needed here.
+
+Provider-side access to a resource's team (`OFFERING.UPDATE` on the offering or
+its organization) is unchanged.
+
+`permissions.yaml` grants `CUSTOMER.VIEW_TEAM` to `CUSTOMER.OWNER`,
+`CUSTOMER.SUPPORT` and `CUSTOMER.READER`. It grants `PROJECT.VIEW_TEAM` to
+`PROJECT.ADMIN`, `PROJECT.MANAGER` and `PROJECT.MEMBER`. A role without it,
+such as a zero-permission placeholder, can no longer see who else is in the
+organization. A role cloned into an organization copies its template's
+permissions when it is created, and later additions to the template do not
+reach it. Migration `permissions.0029_view_team_permissions` therefore adds the
+view-team permission to the six system roles above **and to their existing
+clones**, so organization owners on a cloned role keep the team listing after
+the upgrade. It also covers stacks that never run `import_roles`.
+
+If a deployment replaces a built-in role's permission set in
+`custom-roles.yaml`, it must add the view-team permission to that list itself.
+Otherwise the role loses team visibility on upgrade.
+
+The test suite mirrors the YAML grant: an autouse fixture in the root
+`conftest.py` adds the matching permission to every customer- and
+project-scoped system role that `get_system_role` creates. A test that needs
+the permission absent calls `role.delete_permission(...)`.
+
 ## Permission System Behavior
 
 ### Expiration Handling
