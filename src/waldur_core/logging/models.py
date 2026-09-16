@@ -165,6 +165,13 @@ class EmailHook(BaseHook):
     email = models.EmailField(max_length=320)
 
     def process(self, event):
+        if (event.context or {}).get("suppress_email"):
+            logger.info(
+                "Skipping email hook (PK=%s) for event %s: its source asked for no email",
+                self.pk,
+                event.uuid.hex,
+            )
+            return
         if not self.email:
             logger.info(
                 "Skipping processing of email hook (PK=%s) because email is not defined"

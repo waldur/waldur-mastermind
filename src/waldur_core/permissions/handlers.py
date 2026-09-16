@@ -14,6 +14,7 @@ from waldur_core.permissions.utils import (
     build_org_role_name,
     ensure_unique_role_name,
     get_active_roles,
+    is_quiet_grant_source,
 )
 from waldur_core.structure.permissions import _get_customer
 
@@ -258,6 +259,12 @@ def log(
 
     if reason:
         event_context["reason"] = reason
+
+    source = getattr(instance, "source", "")
+    if source:
+        event_context["role_source"] = source
+        if is_quiet_grant_source(source):
+            event_context["suppress_email"] = True
 
     event_logger.emit(
         message,

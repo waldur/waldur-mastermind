@@ -29,11 +29,11 @@ logger = logging.getLogger(__name__)
 
 
 def change_users_quota(sender, instance: UserRole, **kwargs):
-    """Update the user count quota for a customer when a user's role is changed."""
-    # Skip synchronization of custom roles
-    if not instance.role.is_system_role:
-        return
+    """Update the user count quota for a customer when a user's role is changed.
 
+    Custom roles count too: ``count_customer_users`` includes every role holder,
+    and organization-private roles (clones, SRAM placeholders) are custom.
+    """
     if not isinstance(instance.scope, Customer | Project):
         return
 
