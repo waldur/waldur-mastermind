@@ -217,6 +217,13 @@ USER_ATTRIBUTE_CHOICES = [
     ("primary_gid", "Primary GID"),
 ]
 
+# Keep in sync with waldur_core.users.scim.server.matching.IDENTIFYING_ATTRIBUTES.
+SCIM_USER_MATCH_ATTRIBUTE_CHOICES = [
+    ("username", "Username"),
+    ("email", "Email"),
+    ("civil_number", "Civil number"),
+]
+
 REPORTING_SCREEN_CHOICES = [
     # Resources
     ("resource-usage", "Resources: Usage"),
@@ -337,6 +344,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "FEDERATED_IDENTITY_LOCKED_FIELDS": USER_ATTRIBUTE_CHOICES,
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": DEACTIVATION_POLICY_CHOICES,
     "SCIM_INBOUND_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "SCIM_USER_MATCH_WALDUR_ATTRIBUTE": SCIM_USER_MATCH_ATTRIBUTE_CHOICES,
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
     "SERVICE_ACCESS_MODE": SERVICE_ACCESS_MODE_CHOICES,
     "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
@@ -1056,6 +1064,19 @@ CONSTANCE_CONFIG = {
         "attribute of the Waldur User extension. When enabled, SCIM is authoritative: "
         "a full-replace (PUT / PATCH replace) that omits a key deletes it, including "
         "keys the user added via the UI. Off by default because SSH keys grant access.",
+    ),
+    "SCIM_USER_MATCH_WALDUR_ATTRIBUTE": (
+        "username",
+        "Waldur user attribute that links an inbound SCIM user to an existing "
+        "account. Must be username or an enabled identifying attribute. With "
+        "username, new accounts are named after the matched value.",
+        "choice_field",
+    ),
+    "SCIM_USER_MATCH_SCIM_ATTRIBUTE": (
+        "userName",
+        "SCIM attribute holding the value matched against "
+        "SCIM_USER_MATCH_WALDUR_ATTRIBUTE, e.g. userName, emails, or an extension "
+        "path such as urn:mace:surf.nl:sram:scim:extension:User.eduPersonUniqueId.",
     ),
     "SRAM_INTEGRATION_ENABLED": (
         False,
@@ -2110,6 +2131,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SCIM_INBOUND_SOURCE_NAME",
         "SCIM_INBOUND_ALLOWED_ATTRIBUTES",
         "SCIM_INBOUND_SSH_KEYS_ENABLED",
+        "SCIM_USER_MATCH_WALDUR_ATTRIBUTE",
+        "SCIM_USER_MATCH_SCIM_ATTRIBUTE",
         "SRAM_INTEGRATION_ENABLED",
         "SCIM_PULL_API_URL",
         "SCIM_PULL_API_KEY",

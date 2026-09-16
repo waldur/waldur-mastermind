@@ -117,6 +117,10 @@ def render_user(user, sram_user: models.SramUser) -> dict:
     body["externalId"] = sram_user.external_id
     if SRAM_USER_EXTENSION_URN not in body["schemas"]:
         body["schemas"].append(SRAM_USER_EXTENSION_URN)
+    if payload.get("userName"):
+        # The account may be named after another attribute (see
+        # SCIM_USER_MATCH_SCIM_ATTRIBUTE); SBS compares userName with its own.
+        body["userName"] = payload["userName"]
     if payload.get("displayName"):
         body["displayName"] = payload["displayName"]
     body["x509Certificates"] = list(payload.get("x509Certificates") or [])

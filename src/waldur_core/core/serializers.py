@@ -38,6 +38,7 @@ from waldur_core.core.validators import (
 )
 from waldur_core.permissions.enums import TYPE_KEY_BY_CT, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import get_scope_ancestors, has_any_permission
+from waldur_core.users.scim.server import matching as scim_matching
 from waldur_mastermind.common.serializers import StringListSerializer
 
 from . import fields as core_fields
@@ -770,6 +771,15 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         # The prefix is pasted into every ticket key, so a stray space or a
         # lowercase letter would show up in mail subjects forever.
         issue_key_prefix_validator(value)
+        return value
+
+    def validate_SCIM_USER_MATCH_WALDUR_ATTRIBUTE(self, value):
+        # Matching links SCIM identities to existing accounts, so only an
+        # enabled identifying attribute may be used.
+        try:
+            scim_matching.validate_waldur_attribute(value or "username")
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
         return value
 
     def validate_OIDC_ALLOWED_USER_EMAIL_PATTERNS(self, value):
