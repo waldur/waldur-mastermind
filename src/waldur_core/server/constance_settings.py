@@ -1084,6 +1084,12 @@ CONSTANCE_CONFIG = {
         "/scim/v2/sram/. Also requires SCIM_INBOUND_ENABLED and a staff service-account "
         "token registered as the service's SCIM bearer token in SRAM.",
     ),
+    "SRAM_PLACEHOLDER_ROLE_TEMPLATE": (
+        "",
+        "Name of the organization role whose permissions SRAM placeholder roles "
+        "copy. Empty gives placeholders no permissions. Placeholders are refreshed "
+        "on the next push or by 'waldur sram_resync'.",
+    ),
     "SCIM_PULL_API_URL": (
         "",
         "Base URL for outbound SCIM pull (fetching user attributes from an external IdP).",
@@ -2134,6 +2140,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SCIM_USER_MATCH_WALDUR_ATTRIBUTE",
         "SCIM_USER_MATCH_SCIM_ATTRIBUTE",
         "SRAM_INTEGRATION_ENABLED",
+        "SRAM_PLACEHOLDER_ROLE_TEMPLATE",
         "SCIM_PULL_API_URL",
         "SCIM_PULL_API_KEY",
         "SCIM_PULL_SOURCE_NAME",

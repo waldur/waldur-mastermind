@@ -61,6 +61,14 @@ class SramGroup(TimeStampedModel, core_models.UuidMixin):
     )
     description = models.TextField(blank=True)
     labels = models.JSONField(default=list, blank=True)
+    role = models.OneToOneField(
+        "permissions.Role",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sram_group",
+        help_text="Placeholder organization role held by the group's members.",
+    )
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL, related_name="sram_groups", blank=True
     )
