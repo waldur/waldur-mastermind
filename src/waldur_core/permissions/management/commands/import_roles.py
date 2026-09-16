@@ -75,7 +75,7 @@ class Command(BaseCommand):
                     role.save()
 
                 is_active = row.get("is_active")
-                if is_active and role.is_active != is_active:
+                if is_active is not None and role.is_active != is_active:
                     self.stdout.write(
                         self.style.WARNING(
                             f"Updating is_active status of role {row['role']} from {role.is_active} to {is_active}."

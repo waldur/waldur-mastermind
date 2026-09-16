@@ -302,7 +302,6 @@
     - PROPOSAL.LIST
 
 - role: CUSTOMER.SUPPORT
-  is_active: false
   description: Organization support
   scope: customer
   permissions:
@@ -337,7 +336,6 @@
 - role: PROJECT.MEMBER
   description: Project member
   scope: project
-  is_active: false
   permissions:
     - RESOURCE.LIST
     - PROJECT.LIST
