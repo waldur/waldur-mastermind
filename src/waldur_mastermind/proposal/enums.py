@@ -237,6 +237,28 @@ class RoundStatuses:
     VALUES = [val for (val, _) in CHOICES]
 
 
+class SupportTicketCallers:
+    """Who a call's support tickets are raised on behalf of.
+
+    Allocation places orders as the system robot, which has no email address
+    and so cannot be the caller on a helpdesk ticket. One of these stands in.
+    """
+
+    APPLICANT = "applicant"
+    PROJECT_MANAGER = "project_manager"
+    CALL_MANAGER = "call_manager"
+    SPECIFIC_USER = "specific_user"
+
+    CHOICES = (
+        (APPLICANT, "Proposal applicant"),
+        (PROJECT_MANAGER, "Project manager"),
+        (CALL_MANAGER, "Call manager"),
+        (SPECIFIC_USER, "Named contact"),
+    )
+
+    VALUES = [val for (val, _) in CHOICES]
+
+
 class RequestedOfferingStates:
     REQUESTED = "requested"
     ACCEPTED = "accepted"
