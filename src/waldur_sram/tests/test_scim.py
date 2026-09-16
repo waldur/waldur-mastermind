@@ -1,0 +1,376 @@
+import json
+import urllib.parse
+
+from constance.test.unittest import override_config
+from rest_framework import status, test
+from rest_framework.authtoken.models import Token
+
+from waldur_core.core.models import SshPublicKey, User
+from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.utils import add_user
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_sram import models
+from waldur_sram.mapping import SRAM_GROUP_EXTENSION_URN, SRAM_USER_EXTENSION_URN
+from waldur_sram.tests import payloads
+
+BASE = "/scim/v2/sram"
+
+
+class SbsClient:
+    """Mirrors how SBS (server/scim/scim.py, sweep.py) talks to a service."""
+
+    def __init__(self, client):
+        self.client = client
+
+    def _send(self, method, url, body=None):
+        kwargs = {"HTTP_ACCEPT": "application/scim+json"}
+        if body is not None:
+            kwargs["data"] = json.dumps(body)
+            kwargs["content_type"] = "application/scim+json"
+        return getattr(self.client, method)(url, **kwargs)
+
+    def lookup(self, kind, external_id):
+        query = urllib.parse.quote(f'externalId eq "{external_id}"')
+        response = self._send("get", f"{BASE}/{kind}?filter={query}")
+        if response.status_code > 204:
+            return None
+        data = response.json()
+        return None if data["totalResults"] == 0 else data["Resources"][0]
+
+    def provision(self, kind, body):
+        existing = self.lookup(kind, body["externalId"])
+        if existing:
+            body = {**body, "id": existing["id"]}
+            return self._send("put", f"{BASE}{existing['meta']['location']}", body)
+        return self._send("post", f"{BASE}/{kind}", body)
+
+    def delete(self, resource):
+        return self._send("delete", f"{BASE}{resource['meta']['location']}")
+
+    def list_all(self, kind):
+        resources = []
+        while True:
+            response = self._send(
+                "get", f"{BASE}/{kind}?startIndex={len(resources) + 1}"
+            )
+            assert response.status_code == 200, response.content
+            data = response.json()
+            resources += data["Resources"]
+            if data["totalResults"] == len(resources):
+                return resources
+
+    def sweep_delete(self, known_external_ids):
+        """The destructive half of perform_sweep: drop what SRAM doesn't know."""
+        deleted = []
+        for kind in ("Groups", "Users"):
+            for resource in self.list_all(kind):
+                if resource.get("externalId", "") not in known_external_ids:
+                    response = self.delete(resource)
+                    deleted.append((kind, resource["id"], response.status_code))
+        return deleted
+
+
+@override_config(SCIM_INBOUND_ENABLED=True, SRAM_INTEGRATION_ENABLED=True)
+class SramScimTest(test.APITestCase):
+    def setUp(self):
+        self.service_account = structure_factories.UserFactory(
+            username="scim-sram-svc", is_staff=True
+        )
+        token, _ = Token.objects.get_or_create(user=self.service_account)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.key}")
+        self.sbs = SbsClient(self.client)
+
+    def provision_user(self, **kwargs):
+        body = payloads.sram_user(**kwargs)
+        response = self.sbs.provision("Users", body)
+        self.assertIn(response.status_code, (200, 201), response.content)
+        return body, response.json()
+
+
+class GatingTest(SramScimTest):
+    @override_config(SRAM_INTEGRATION_ENABLED=False)
+    def test_disabled_integration_returns_403(self):
+        response = self.client.get(f"{BASE}/Users")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_non_staff_token_returns_403(self):
+        user = structure_factories.UserFactory()
+        token, _ = Token.objects.get_or_create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token.key}")
+        response = self.client.get(f"{BASE}/Users")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_generic_scim_endpoint_is_still_served(self):
+        response = self.client.get("/scim/v2/ServiceProviderConfig")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.get(f"{BASE}/ServiceProviderConfig")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_unknown_sram_path_is_a_scim_404(self):
+        response = self.client.get(f"{BASE}/Nope")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class UserProvisioningTest(SramScimTest):
+    def test_create_then_update_through_sbs_lookup(self):
+        body, created = self.provision_user(username="roger")
+        self.assertEqual(created["externalId"], body["externalId"])
+        self.assertEqual(created["meta"]["location"], f"/Users/{created['id']}")
+        self.assertEqual(created["displayName"], "Roger Doe")
+
+        body["name"]["givenName"] = "Rogier"
+        response = self.sbs.provision("Users", body)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        user = User.objects.get(username="roger")
+        self.assertEqual(user.first_name, "Rogier")
+        self.assertEqual(User.objects.filter(username="roger").count(), 1)
+
+    def test_echoes_sram_fields_so_sbs_sees_no_change(self):
+        body, created = self.provision_user(ssh_keys=[payloads.KEY1])
+        found = self.sbs.lookup("Users", body["externalId"])
+        self.assertEqual(found["x509Certificates"], body["x509Certificates"])
+        self.assertEqual(found[SRAM_USER_EXTENSION_URN], body[SRAM_USER_EXTENSION_URN])
+        self.assertEqual(found["emails"][0]["value"], body["emails"][0]["value"])
+
+    def test_display_name_fills_missing_names(self):
+        body = payloads.sram_user(username="sarah", given_name="", family_name="")
+        body["displayName"] = "Sarah van der Cross"
+        self.sbs.provision("Users", body)
+        user = User.objects.get(username="sarah")
+        self.assertEqual((user.first_name, user.last_name), ("Sarah", "van der Cross"))
+
+    def test_given_names_win_over_display_name(self):
+        body = payloads.sram_user(username="sarah", given_name="Sara", family_name="")
+        body["displayName"] = "Sarah Cross"
+        self.sbs.provision("Users", body)
+        user = User.objects.get(username="sarah")
+        self.assertEqual(user.first_name, "Sara")
+
+    def test_affiliations_are_stored(self):
+        self.provision_user(affiliation="member@uni.nl, staff@uni.nl")
+        user = User.objects.get(username="roger")
+        self.assertEqual(user.affiliations, ["member@uni.nl", "staff@uni.nl"])
+
+    @override_config(SCIM_INBOUND_SSH_KEYS_ENABLED=True)
+    def test_ssh_keys_follow_x509_certificates(self):
+        body, _ = self.provision_user(ssh_keys=[payloads.KEY1, payloads.KEY2])
+        user = User.objects.get(username="roger")
+        self.assertEqual(SshPublicKey.objects.filter(user=user).count(), 2)
+
+        body["x509Certificates"] = [{"value": payloads.b64(payloads.KEY2)}]
+        self.sbs.provision("Users", body)
+        keys = list(SshPublicKey.objects.filter(user=user))
+        self.assertEqual(len(keys), 1)
+        self.assertTrue(keys[0].public_key.startswith(payloads.KEY2.rsplit(" ", 1)[0]))
+
+    @override_config(SCIM_INBOUND_SSH_KEYS_ENABLED=True)
+    def test_invalid_ssh_key_is_skipped(self):
+        body = payloads.sram_user(ssh_keys=[payloads.KEY1])
+        body["x509Certificates"].append({"value": payloads.b64("not a key")})
+        body["x509Certificates"].append({"value": "%%%not-base64"})
+        response = self.sbs.provision("Users", body)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(username="roger")
+        self.assertEqual(SshPublicKey.objects.filter(user=user).count(), 1)
+
+    def test_ssh_keys_untouched_when_sync_disabled(self):
+        self.provision_user(ssh_keys=[payloads.KEY1])
+        user = User.objects.get(username="roger")
+        self.assertEqual(SshPublicKey.objects.filter(user=user).count(), 0)
+
+    def test_existing_local_user_is_linked(self):
+        local = structure_factories.UserFactory(username="roger")
+        _, created = self.provision_user(username="roger")
+        self.assertEqual(created["id"], local.uuid.hex)
+        self.assertTrue(models.SramUser.objects.filter(user=local).exists())
+
+    def test_privileged_local_user_is_not_linked(self):
+        structure_factories.UserFactory(username="admin", is_staff=True)
+        response = self.sbs.provision("Users", payloads.sram_user(username="admin"))
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(models.SramUser.objects.exists())
+
+    def test_duplicate_external_id_is_a_conflict(self):
+        body, _ = self.provision_user()
+        response = self.client.post(
+            f"{BASE}/Users", data=json.dumps(body), content_type="application/scim+json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_external_id_is_required(self):
+        body = payloads.sram_user()
+        del body["externalId"]
+        response = self.client.post(
+            f"{BASE}/Users", data=json.dumps(body), content_type="application/scim+json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_delete_deactivates_and_unlinks(self):
+        body, created = self.provision_user()
+        response = self.sbs.delete(created)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        user = User.all_objects.get(uuid=created["id"])
+        self.assertFalse(user.is_active)
+        self.assertIsNone(self.sbs.lookup("Users", body["externalId"]))
+
+    def test_reprovisioning_a_deleted_user_reactivates_it(self):
+        body, created = self.provision_user()
+        self.sbs.delete(created)
+        response = self.sbs.provision("Users", body)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.json()["id"], created["id"])
+        self.assertTrue(User.objects.get(uuid=created["id"]).is_active)
+
+    def test_suspended_user_is_deactivated(self):
+        body, created = self.provision_user()
+        body["active"] = False
+        self.sbs.provision("Users", body)
+        user = User.all_objects.get(uuid=created["id"])
+        self.assertFalse(user.is_active)
+        found = self.sbs.lookup("Users", body["externalId"])
+        self.assertFalse(found["active"])
+        # A suspension keeps the attributes, so the next sweep sees no change.
+        self.assertEqual(found["emails"][0]["value"], body["emails"][0]["value"])
+        self.assertEqual(found["name"]["givenName"], "Roger")
+
+        body["active"] = True
+        self.sbs.provision("Users", body)
+        self.assertTrue(User.objects.get(uuid=created["id"]).is_active)
+
+    def test_suspended_user_is_created_inactive(self):
+        _, created = self.provision_user(active=False)
+        self.assertFalse(User.all_objects.get(uuid=created["id"]).is_active)
+
+    def test_patch_is_rejected(self):
+        _, created = self.provision_user()
+        response = self.client.patch(
+            f"{BASE}{created['meta']['location']}",
+            data=json.dumps({"Operations": []}),
+            content_type="application/scim+json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class GroupProvisioningTest(SramScimTest):
+    def test_create_and_update_collaboration(self):
+        _, roger = self.provision_user(username="roger")
+        _, sarah = self.provision_user(username="sarah")
+        body = payloads.sram_group(member_ids=[roger["id"]], labels=["hpc"])
+
+        response = self.sbs.provision("Groups", body)
+        self.assertEqual(
+            response.status_code, status.HTTP_201_CREATED, response.content
+        )
+        created = response.json()
+        self.assertEqual(created["meta"]["location"], f"/Groups/{created['id']}")
+        group = models.SramGroup.objects.get(external_id=body["externalId"])
+        self.assertEqual(group.kind, models.SramGroup.Kind.COLLABORATION)
+        self.assertEqual(group.labels, ["hpc"])
+        self.assertEqual(group.organisation_short_name, "uuc")
+        self.assertEqual([u.uuid.hex for u in group.members.all()], [roger["id"]])
+
+        body = payloads.sram_group(
+            external_id=body["externalId"],
+            member_ids=[sarah["id"]],
+            display_name="Research 2",
+        )
+        response = self.sbs.provision("Groups", body)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        group.refresh_from_db()
+        self.assertEqual(group.display_name, "Research 2")
+        self.assertEqual(group.labels, [])
+        self.assertEqual([u.uuid.hex for u in group.members.all()], [sarah["id"]])
+
+    def test_sub_group_kind(self):
+        response = self.sbs.provision(
+            "Groups",
+            payloads.sram_group(urn="uuc:research:admins", display_name="Admins"),
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            models.SramGroup.objects.get().kind, models.SramGroup.Kind.GROUP
+        )
+
+    def test_echoes_extension_and_members(self):
+        _, roger = self.provision_user()
+        body = payloads.sram_group(member_ids=[roger["id"]], labels=["b", "a"])
+        self.sbs.provision("Groups", body)
+        found = self.sbs.lookup("Groups", body["externalId"])
+        self.assertEqual(
+            found[SRAM_GROUP_EXTENSION_URN], body[SRAM_GROUP_EXTENSION_URN]
+        )
+        self.assertEqual([m["value"] for m in found["members"]], [roger["id"]])
+
+    def test_unknown_members_are_skipped(self):
+        _, roger = self.provision_user()
+        local = structure_factories.UserFactory()
+        body = payloads.sram_group(
+            member_ids=[roger["id"], local.uuid.hex, "not-a-uuid", "f" * 32]
+        )
+        response = self.sbs.provision("Groups", body)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        group = models.SramGroup.objects.get()
+        self.assertEqual([u.uuid.hex for u in group.members.all()], [roger["id"]])
+
+    def test_display_name_is_required(self):
+        body = payloads.sram_group(display_name="")
+        response = self.client.post(
+            f"{BASE}/Groups",
+            data=json.dumps(body),
+            content_type="application/scim+json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_delete(self):
+        body = payloads.sram_group()
+        created = self.sbs.provision("Groups", body).json()
+        response = self.sbs.delete(created)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.SramGroup.objects.exists())
+
+
+class SweepTest(SramScimTest):
+    def test_sweep_only_touches_sram_objects(self):
+        customer = structure_factories.CustomerFactory()
+        owner = structure_factories.UserFactory(username="owner")
+        add_user(customer, owner, CustomerRole.OWNER)
+        local = structure_factories.UserFactory(username="alice")
+
+        kept_user, _ = self.provision_user(username="roger")
+        gone_user, gone = self.provision_user(username="sarah")
+        kept_group = payloads.sram_group()
+        gone_group = payloads.sram_group(urn="uuc:old")
+        self.sbs.provision("Groups", kept_group)
+        gone_group_id = self.sbs.provision("Groups", gone_group).json()["id"]
+
+        users = self.sbs.list_all("Users")
+        self.assertEqual(sorted(u["userName"] for u in users), ["roger", "sarah"])
+
+        deleted = self.sbs.sweep_delete(
+            {kept_user["externalId"], kept_group["externalId"]}
+        )
+        self.assertEqual(
+            sorted(deleted),
+            sorted([("Groups", gone_group_id, 204), ("Users", gone["id"], 204)]),
+        )
+
+        local.refresh_from_db()
+        owner.refresh_from_db()
+        self.assertTrue(local.is_active)
+        self.assertTrue(owner.is_active)
+        self.assertTrue(customer.has_user(owner, CustomerRole.OWNER))
+        self.assertTrue(self.service_account.is_active)
+        self.assertEqual(
+            list(models.SramGroup.objects.values_list("external_id", flat=True)),
+            [kept_group["externalId"]],
+        )
+
+    def test_pagination_matches_sbs_loop(self):
+        for index in range(5):
+            self.provision_user(username=f"user{index}")
+        response = self.client.get(f"{BASE}/Users?startIndex=3&count=2")
+        data = response.json()
+        self.assertEqual(data["totalResults"], 5)
+        self.assertEqual(data["startIndex"], 3)
+        self.assertEqual(len(data["Resources"]), 2)
+        self.assertEqual(len(self.sbs.list_all("Users")), 5)

@@ -347,6 +347,32 @@ Failure modes:
 | Caller not staff | 403 |
 | User not found | 404 |
 
+## SRAM profile (`/scim/v2/sram/`)
+
+[SRAM](https://sram.surf.nl/) (SURF Research Access Management, SURFscz/SBS) provisions services with its own SCIM client, which differs from generic identity providers in ways the generic endpoint cannot accommodate:
+
+- it looks users and groups up with `filter=externalId eq "…"`;
+- it requests `{scim_url}{meta.location}`, so locations must be relative to the base URL;
+- its group names are free text (collaborations and their groups), not `waldur:…` names;
+- its periodic **sweep** lists everything the service returns and DELETEs whatever SRAM does not know.
+
+Waldur therefore serves SRAM on a separate base URL, `/scim/v2/sram/`, gated by `SRAM_INTEGRATION_ENABLED` in addition to `SCIM_INBOUND_ENABLED` and the staff token. Register `https://<waldur>/scim/v2/sram` as the service's SCIM URL in SRAM.
+
+| Behaviour | `/scim/v2/sram/` |
+|---|---|
+| Listing, lookup, update, delete | Only users and groups SRAM provisioned (`waldur_sram.SramUser` / `SramGroup`). A sweep cannot reach other accounts or groups. |
+| `meta.location` | Relative: `/Users/<uuid>`, `/Groups/<uuid>` |
+| Filters | Users: `externalId`, `userName`, `emails`, `active`. Groups: `externalId`, `displayName`. |
+| User create | `externalId` is required. An existing account with the same `userName` is linked instead of duplicated, unless it is staff or support (409). |
+| SSH keys | `x509Certificates` (base64 OpenSSH keys) are synced as the user's keys when `SCIM_INBOUND_SSH_KEYS_ENABLED` is on. Invalid keys are skipped. |
+| Affiliations | `eduPersonScopedAffiliation` (comma-separated) becomes `affiliations`. |
+| Groups | Stored with SRAM's URN, kind (collaboration or group), description, labels and resolved members. Unknown member ids are skipped. |
+| User delete | Deactivates the user through `remove_user_from_isd` and unlinks it from SRAM. A later push re-links and reactivates it. |
+| PATCH | Not supported (SRAM always sends full resources with PUT). |
+| Responses | Echo SRAM's `displayName`, `x509Certificates` and extension blocks, so SRAM's change detection does not re-send unchanged users. |
+
+Register Waldur as **one** SRAM service. All SRAM services pointing at the same Waldur share one set of SRAM-provisioned objects, so a sweep by one service would delete the objects another service provisioned.
+
 ## Configuration reference
 
 All keys live under the Constance fieldset **SCIM Identity Provider** in the Waldur admin.
@@ -356,6 +382,7 @@ All keys live under the Constance fieldset **SCIM Identity Provider** in the Wal
 | `SCIM_INBOUND_ENABLED` | `False` | Master switch for `/scim/v2/`. |
 | `SCIM_INBOUND_SOURCE_NAME` | `scim:default` | Source label written to `attribute_sources` for inbound writes. |
 | `SCIM_INBOUND_ALLOWED_ATTRIBUTES` | `first_name, last_name, email, organization, affiliations` | Subset of writable user attributes that SCIM is allowed to set. |
+| `SRAM_INTEGRATION_ENABLED` | `False` | Serve the SRAM profile at `/scim/v2/sram/`. |
 | `SCIM_PULL_API_URL` | `""` | Base URL of the remote SCIM directory used by the on-demand pull. |
 | `SCIM_PULL_API_KEY` | `""` (secret) | Bearer token for the remote directory. |
 | `SCIM_PULL_SOURCE_NAME` | `scim:pull` | Source label for pulled attributes. |

@@ -1057,6 +1057,12 @@ CONSTANCE_CONFIG = {
         "a full-replace (PUT / PATCH replace) that omits a key deletes it, including "
         "keys the user added via the UI. Off by default because SSH keys grant access.",
     ),
+    "SRAM_INTEGRATION_ENABLED": (
+        False,
+        "Accept SCIM provisioning from SURF Research Access Management (SRAM) at "
+        "/scim/v2/sram/. Also requires SCIM_INBOUND_ENABLED and a staff service-account "
+        "token registered as the service's SCIM bearer token in SRAM.",
+    ),
     "SCIM_PULL_API_URL": (
         "",
         "Base URL for outbound SCIM pull (fetching user attributes from an external IdP).",
@@ -2104,6 +2110,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SCIM_INBOUND_SOURCE_NAME",
         "SCIM_INBOUND_ALLOWED_ATTRIBUTES",
         "SCIM_INBOUND_SSH_KEYS_ENABLED",
+        "SRAM_INTEGRATION_ENABLED",
         "SCIM_PULL_API_URL",
         "SCIM_PULL_API_KEY",
         "SCIM_PULL_SOURCE_NAME",
@@ -2316,6 +2323,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "AI_ASSISTANT_NAME",
     "MATRIX_ENABLED",
     "AFFILIATES_ENABLED",
+    "SRAM_INTEGRATION_ENABLED",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
