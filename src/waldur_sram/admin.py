@@ -13,8 +13,15 @@ class SramUserAdmin(admin.ModelAdmin):
 
 @admin.register(models.SramGroup)
 class SramGroupAdmin(admin.ModelAdmin):
-    list_display = ("display_name", "urn", "kind", "external_id", "modified")
+    list_display = (
+        "display_name",
+        "urn",
+        "kind",
+        "customer",
+        "external_id",
+        "modified",
+    )
     list_filter = ("kind",)
     search_fields = ("display_name", "urn", "external_id")
-    raw_id_fields = ("members",)
+    raw_id_fields = ("members", "customer")
     readonly_fields = ("uuid", "payload", "created", "modified")

@@ -11,6 +11,7 @@ from django.db import models
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.structure import models as structure_models
 
 
 class SramUser(TimeStampedModel):
@@ -50,6 +51,14 @@ class SramGroup(TimeStampedModel, core_models.UuidMixin):
         help_text="SRAM global URN: '<organisation>:<co>' or '<organisation>:<co>:<group>'.",
     )
     kind = models.CharField(max_length=16, choices=Kind.choices)
+    customer = models.ForeignKey(
+        structure_models.Customer,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sram_groups",
+        help_text="Organization mapped from the SRAM organisation in the URN.",
+    )
     description = models.TextField(blank=True)
     labels = models.JSONField(default=list, blank=True)
     members = models.ManyToManyField(
