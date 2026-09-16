@@ -12,6 +12,7 @@ from waldur_core.core.admin import (
 )
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import admin as structure_admin
+from waldur_openstack.utils import get_no_ipv4_external_network_message
 
 from . import executors, models
 
@@ -73,6 +74,12 @@ class TenantAdmin(structure_admin.ResourceAdmin):
                 raise ValidationError(
                     _("Tenant has to have external network to allocate floating IP.")
                 )
+            # Neutron allocates floating IPs from IPv4 subnets only, so on an
+            # IPv6-only external network the allocation would be accepted here
+            # and then end up erred. The API refuses it the same way.
+            message = get_no_ipv4_external_network_message(tenant)
+            if message:
+                raise ValidationError(message)
 
     allocate_floating_ip = AllocateFloatingIP()
 

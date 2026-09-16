@@ -44,7 +44,7 @@ from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.utils import (
-    get_external_network_without_ipv4,
+    get_no_ipv4_external_network_message,
     get_tenant_external_networks,
     get_valid_availability_zones,
     is_flavor_valid_for_tenant,
@@ -4899,15 +4899,9 @@ def _validate_floating_ip_can_be_allocated(tenant: models.Tenant, field=None):
 
     Without this, the request is accepted and the floating IP ends up ERRED.
     """
-    network = get_external_network_without_ipv4(tenant)
-    if network is None:
+    message = get_no_ipv4_external_network_message(tenant)
+    if message is None:
         return
-    message = gettext(
-        "External network %s has no IPv4 subnet, so no floating IP can be "
-        "allocated from it. Floating IPs are IPv4 only: IPv6 addresses are "
-        "routed rather than floating, so reach the instance on its own IPv6 "
-        "address instead."
-    ) % (network.name or network.backend_id)
     raise serializers.ValidationError({field: message} if field else message)
 
 
