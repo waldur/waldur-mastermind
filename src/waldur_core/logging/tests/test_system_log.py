@@ -1,4 +1,8 @@
 import datetime
+import logging
+import os
+import sys
+from unittest import mock
 
 from constance.test.unittest import override_config
 from ddt import data, ddt
@@ -188,3 +192,87 @@ class CleanupSystemLogsTaskTest(test.APITestCase):
 
         remaining = SystemLog.objects.filter(source="api").count()
         self.assertLessEqual(remaining, 5)
+
+
+class DatabaseLogHandlerTest(test.APITestCase):
+    """Drive the handler itself.
+
+    The rest of this module builds rows with SystemLogFactory, which writes any
+    source directly — so the worker and beat paths looked covered while the only
+    code that can populate them was never exercised.
+    """
+
+    def emit(self, argv, message="pulled tenant", buffer_size=1):
+        handler = DatabaseLogHandler(buffer_size=buffer_size)
+        record = logging.LogRecord(
+            name="waldur_openstack.tasks",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg=message,
+            args=(),
+            exc_info=None,
+        )
+        with mock.patch.object(sys, "argv", argv):
+            handler.emit(record)
+        return handler
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_records_from_a_worker_are_stored_as_such(self):
+        from waldur_core.logging.models import SystemLog
+
+        handler = self.emit(["celery", "-A", "waldur_core.server", "worker"])
+
+        log = SystemLog.objects.get()
+        self.assertEqual(log.source, "worker")
+        self.assertEqual(log.instance, handler.instance)
+        self.assertEqual(log.logger_name, "waldur_openstack.tasks")
+        self.assertIn("pulled tenant", log.message)
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_records_from_beat_are_stored_as_such(self):
+        from waldur_core.logging.models import SystemLog
+
+        self.emit(["celery", "-A", "waldur_core.server", "beat"])
+
+        self.assertEqual(SystemLog.objects.get().source, "beat")
+
+    @override_config(SYSTEM_LOG_ENABLED=False)
+    def test_nothing_is_stored_while_the_feature_is_off(self):
+        from waldur_core.logging.models import SystemLog
+
+        self.emit(["celery", "-A", "waldur_core.server", "worker"])
+
+        self.assertFalse(SystemLog.objects.exists())
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_a_forked_child_discards_the_inherited_buffer(self):
+        """A prefork pool child inherits the parent's buffer; it must not write it.
+
+        Parent and child are separate processes with separate memory, so this
+        and the test below each drive their own handler — one instance cannot
+        stand in for both.
+        """
+        from waldur_core.logging.models import SystemLog
+
+        # buffer_size well above one record, so it is still buffered at "fork".
+        handler = self.emit(["celery", "worker"], buffer_size=100)
+        self.assertFalse(SystemLog.objects.exists())
+
+        with mock.patch("os.getpid", return_value=os.getpid() + 1):
+            handler.close()
+
+        self.assertFalse(
+            SystemLog.objects.exists(), "child rewrote the parent's buffer"
+        )
+
+    @override_config(SYSTEM_LOG_ENABLED=True)
+    def test_the_parent_still_flushes_its_own_buffer(self):
+        from waldur_core.logging.models import SystemLog
+
+        handler = self.emit(["celery", "worker"], buffer_size=100)
+        self.assertFalse(SystemLog.objects.exists())
+
+        handler.close()
+
+        self.assertEqual(SystemLog.objects.count(), 1)
