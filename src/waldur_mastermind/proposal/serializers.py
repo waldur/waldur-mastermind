@@ -58,6 +58,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     RoundStatuses,
+    SupportTicketCallers,
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
@@ -1471,6 +1472,38 @@ class ProtectedCallSerializer(PublicCallSerializer):
         source="panel_chair.uuid", read_only=True, format="hex"
     )
     panel_chair_name = serializers.ReadOnlyField(source="panel_chair.full_name")
+    support_ticket_caller = serializers.ChoiceField(
+        choices=SupportTicketCallers.CHOICES,
+        required=False,
+        help_text="Who helpdesk tickets for granted resources are raised for.",
+    )
+    # The queryset is narrowed to the call's own people in get_fields(); what
+    # stands here is only the schema's view of the field.
+    support_ticket_caller_user = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=core_models.User.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text=(
+            "The person tickets go to when the caller is a named contact. "
+            "Must hold a role on this call or on the organisation managing it."
+        ),
+    )
+    # allow_null is load-bearing on a dotted source over a nullable FK: without
+    # it DRF raises SkipField and drops the key from the payload entirely, while
+    # make_readonly_fields_required still marks it required in the generated
+    # SDK. Most calls have no named contact, so that mismatch would be the norm.
+    support_ticket_caller_user_uuid = serializers.UUIDField(
+        source="support_ticket_caller_user.uuid",
+        read_only=True,
+        format="hex",
+        allow_null=True,
+    )
+    support_ticket_caller_user_name = serializers.CharField(
+        source="support_ticket_caller_user.full_name",
+        read_only=True,
+        allow_null=True,
+    )
     compliance_checklist_name = serializers.CharField(
         source="compliance_checklist.name", read_only=True
     )
@@ -1561,9 +1594,75 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "proposal_field_config",
             "proposal_field_metadata",
             "has_proposals",
+            "support_ticket_caller",
+            "support_ticket_caller_user",
+            "support_ticket_caller_user_uuid",
+            "support_ticket_caller_user_name",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        contact = fields.get("support_ticket_caller_user")
+        if contact is not None:
+            contact.queryset = self._ticket_caller_candidates()
+            # Same message whichever way the lookup failed, so the field cannot
+            # be used to tell an unrelated account apart from one that does not
+            # exist. It still says what a usable answer looks like.
+            contact.error_messages["does_not_exist"] = _(
+                "No such user, or they hold no role on this call or on the "
+                "organisation managing it."
+            )
+        return fields
+
+    def _ticket_caller_candidates(self):
+        """Users this call may name as its support contact.
+
+        Whoever is named starts receiving the call's ticket mail -- project
+        name, order description, limits -- and gets an account created for them
+        on the helpdesk. Anyone holding UPDATE_CALL could otherwise point that
+        at an arbitrary account in the deployment, so the choice is kept to
+        people already attached to the call: its own team, the managing
+        organisation, and that organisation's customer.
+
+        Empty when there is no call to read roles from -- during creation, and
+        while drf-spectacular is building the schema.
+        """
+        call = self.instance
+        if not isinstance(call, models.Call):
+            return core_models.User.objects.none()
+        manager = call.manager
+        return (
+            permissions_utils.get_users(call)
+            | permissions_utils.get_users(manager)
+            | permissions_utils.get_users(manager.customer)
+        )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        self._validate_support_ticket_caller(attrs)
+        return attrs
+
+    def _validate_support_ticket_caller(self, attrs):
+        """A named contact, if given, has to be able to receive a ticket.
+
+        A missing contact is deliberately *not* an error. The settings page
+        edits one field per request, so demanding the contact in the same
+        request that selects "specific_user" would leave the manager unable to
+        select it at all -- and the resolver already falls back to the
+        project's roles rather than failing an order over it.
+        """
+        user = attrs.get("support_ticket_caller_user")
+        if user is not None and not user.email:
+            raise serializers.ValidationError(
+                {
+                    "support_ticket_caller_user": _(
+                        "The named contact has no email address, so the "
+                        "helpdesk cannot raise tickets on their behalf."
+                    )
+                }
+            )
 
     def validate_panel_chair(self, user):
         if self.instance is None:

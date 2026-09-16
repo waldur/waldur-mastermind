@@ -7,10 +7,13 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core.utils import format_homeport_link, text2html
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.utils import get_users
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace.utils import format_limits_list, get_order_url
+from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
@@ -97,6 +100,142 @@ def format_create_description(order):
     return description
 
 
+# Roles to fall back through, most accountable first, when the order was placed
+# by something other than a reachable person.
+CALLER_FALLBACK_PROJECT_ROLES = (
+    RoleEnum.PROJECT_MANAGER,
+    RoleEnum.PROJECT_ADMIN,
+    RoleEnum.PROJECT_MEMBER,
+)
+
+
+def _first_reachable_user(scope, role_name):
+    """First user holding ``role_name`` on ``scope`` who has an email.
+
+    Ordered by id so the pick is stable: a project with several managers must
+    not hand consecutive tickets to different people. ``get_users`` queries
+    through ``User.objects``, which already excludes deactivated users -- an
+    inactive caller is refused by the backend anyway.
+    """
+    return get_users(scope, role_name).exclude(email="").order_by("id").first()
+
+
+def _reachable(user):
+    """The user, if they can actually receive a ticket, else None.
+
+    Unlike ``_first_reachable_user`` this checks ``is_active`` itself: the
+    configured callers are plain foreign keys, not queried through the active
+    manager.
+    """
+    if user and user.is_active and user.email:
+        return user
+    return None
+
+
+def _configured_caller(order):
+    """The person the order's call wants its tickets raised on behalf of.
+
+    Reached through ``RequestedResource``, which allocation points at the
+    resource it created. Going via the project instead would be ambiguous: a
+    project can carry more than one proposal, and the lowest-numbered one is
+    not necessarily the one that produced this resource -- or even an accepted
+    one.
+
+    None when the order did not come from a proposal, or when the configured
+    person cannot receive a ticket -- the role chain then decides, rather than
+    failing an order somebody on the project could have answered for.
+    """
+    if not order.resource_id:
+        return None
+
+    requested = (
+        proposal_models.RequestedResource.objects.filter(resource=order.resource)
+        .select_related(
+            "proposal__created_by",
+            "proposal__round__call__support_ticket_caller_user",
+        )
+        .first()
+    )
+    if requested is None:
+        return None
+
+    call = requested.proposal.round.call
+    choice = call.support_ticket_caller
+
+    if choice == call.TicketCaller.APPLICANT:
+        caller = _reachable(requested.proposal.created_by)
+    elif choice == call.TicketCaller.SPECIFIC_USER:
+        caller = _reachable(call.support_ticket_caller_user)
+    elif choice == call.TicketCaller.PROJECT_MANAGER:
+        caller = _first_reachable_user(order.project, RoleEnum.PROJECT_MANAGER)
+    elif choice == call.TicketCaller.CALL_MANAGER:
+        caller = _first_reachable_user(call, RoleEnum.CALL_MANAGER)
+    else:
+        caller = None
+
+    if caller is None:
+        # A call configured to route its tickets somewhere specific and then
+        # quietly not doing so is worth a line: shared mailboxes get closed,
+        # and the fallback below is invisible from the call's settings.
+        logger.warning(
+            "Call %s routes support tickets to '%s', but nobody reachable was "
+            "found. Falling back to the roles held on project %s.",
+            call.uuid.hex,
+            choice,
+            order.project,
+        )
+    return caller
+
+
+def resolve_issue_caller(order):
+    """Return the person the helpdesk request is raised on behalf of.
+
+    The backend opens the request on behalf of the caller's email address, and
+    Waldur addresses its own ticket notifications to them, so it has to be a
+    real, reachable person.
+
+    It does not decide who can read the ticket in the customer portal. These
+    tickets carry a project and a customer, and
+    ``IssueCallerOrRoleFilterBackend`` only lets a caller through on a ticket
+    that has neither -- so a caller holding no role on the project gets the
+    mail but cannot open the link in it.
+
+    ``order.created_by`` is that person whenever someone placed the order
+    themselves. Automated flows place orders as a robot with no email --
+    proposal allocation, the scheduled end-date and cost-policy termination
+    sweeps, openportal's default resources -- and an SSO user provisioned
+    without an email claim is just as unusable. Both fall back to someone on
+    the project who can actually receive the ticket.
+
+    A call configures who stands in for its own allocated resources; anything
+    else falls through the project's roles.
+
+    ``created_by`` is deliberately left alone: it records who placed the order,
+    and the marketplace approval gate reads its ``is_staff``.
+
+    Returns None when nobody reachable can be found, so the caller can fail the
+    order the same way the other backend failures in ``create_issue`` do.
+    """
+    # Same reachability test as everyone else: an order placed by someone who
+    # has since been deactivated is refused by the backend with
+    # SupportUserInactive, which is the failure this resolver exists to avoid.
+    caller = _reachable(order.created_by)
+    if caller:
+        return caller
+
+    caller = _configured_caller(order)
+    if caller:
+        return caller
+
+    project = order.project
+    for role_name in CALLER_FALLBACK_PROJECT_ROLES:
+        caller = _first_reachable_user(project, role_name)
+        if caller:
+            return caller
+
+    return _first_reachable_user(project.customer, RoleEnum.CUSTOMER_OWNER)
+
+
 def create_issue(order, description, summary, confirmation_comment=None):
     order_content_type = ContentType.objects.get_for_model(order)
     active_backend = support_backend.get_active_backend()
@@ -112,9 +251,25 @@ def create_issue(order, description, summary, confirmation_comment=None):
 
     issue_details = active_backend.get_issue_details()
 
+    caller = resolve_issue_caller(order)
+    if caller is None:
+        # Mirrors the two ServiceBackendError branches below: the resource has
+        # to be marked before raising, or create_issue_for_pending_order --
+        # which has no exception handling of its own -- leaves it in CREATING
+        # for good.
+        order.resource.set_state_erred()
+        order.resource.save(update_fields=["state"])
+        raise rf_exceptions.ValidationError(
+            _(
+                "Issue is not created because no user with an email address "
+                "could be found on project %(project)s to raise it on behalf of."
+            )
+            % {"project": order.project.name}
+        )
+
     issue_details.update(
         dict(
-            caller=order.created_by,
+            caller=caller,
             project=order.project,
             customer=order.project.customer,
             description=description,
