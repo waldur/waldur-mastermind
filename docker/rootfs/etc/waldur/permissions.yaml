@@ -2,6 +2,7 @@
   description: Organization owner
   scope: customer
   permissions:
+    - CUSTOMER.VIEW_TEAM
     - OFFERING.CREATE
     - OFFERING.DELETE
     - OFFERING.UPDATE
@@ -195,6 +196,7 @@
   description: Project administrator
   scope: project
   permissions:
+    - PROJECT.VIEW_TEAM
     - PROJECT.LIST
     - INVITATION.LIST
     - ORDER.APPROVE_PRIVATE
@@ -222,6 +224,7 @@
   description: Project manager
   scope: project
   permissions:
+    - PROJECT.VIEW_TEAM
     - PROJECT.LIST
     - INVITATION.LIST
     - ORDER.APPROVE_PRIVATE
@@ -306,6 +309,7 @@
   description: Organization support
   scope: customer
   permissions:
+    - CUSTOMER.VIEW_TEAM
     - CUSTOMER.LIST_USERS
 
 - role: CALL.MANAGER
@@ -338,6 +342,7 @@
   description: Project member
   scope: project
   permissions:
+    - PROJECT.VIEW_TEAM
     - RESOURCE.LIST
     - PROJECT.LIST
     - ORDER.CREATE
@@ -345,7 +350,8 @@
 - role: CUSTOMER.READER
   description: Organization reader
   scope: customer
-  permissions: []
+  permissions:
+    - CUSTOMER.VIEW_TEAM
 
 - role: CUSTOMER.CALL_ORGANIZER
   scope: call_organizer

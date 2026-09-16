@@ -11,6 +11,8 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.tests import factories as structure_factories
@@ -303,6 +305,31 @@ class ResourceProjectInviteeListUsersGateTest(ResourceProjectVisibilityTest):
         url = _project_url(self.project) + "list_users/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_direct_resource_invitee_can_list_resource_users(self):
+        # A role held on the resource itself needs no view-team permission,
+        # even though this one carries no permissions at all.
+        self.client.force_authenticate(self.r_invitee)
+        url = _resource_url(self.resource) + "list_users/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_project_member_can_list_resource_users(self):
+        self.client.force_authenticate(self.fixture.admin)
+        url = _resource_url(self.resource) + "list_users/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_project_member_without_view_team_cannot_list_teams(self):
+        admin = self.fixture.admin
+        ProjectRole.ADMIN.delete_permission(PermissionEnum.VIEW_PROJECT_TEAM)
+        self.client.force_authenticate(admin)
+        for url in (
+            _project_url(self.project) + "list_users/",
+            _resource_url(self.resource) + "list_users/",
+        ):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, url)
 
     def test_customer_owner_can_list_customer_users(self):
         self.client.force_authenticate(self.fixture.owner)

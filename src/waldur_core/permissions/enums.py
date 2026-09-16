@@ -223,6 +223,12 @@ class PermissionEnum(StrEnum):
 
     LIST_CUSTOMER_USERS = "CUSTOMER.LIST_USERS"
 
+    # Team visibility (list_users). A customer-scoped role needs
+    # VIEW_CUSTOMER_TEAM and a project-scoped role needs VIEW_PROJECT_TEAM
+    # before its holder may enumerate the organization's or project's members.
+    VIEW_CUSTOMER_TEAM = "CUSTOMER.VIEW_TEAM"
+    VIEW_PROJECT_TEAM = "PROJECT.VIEW_TEAM"
+
     ACCEPT_REQUESTED_OFFERING = "OFFERING.ACCEPT_CALL_REQUEST"
     APPROVE_AND_REJECT_PROPOSALS = "CALL.APPROVE_AND_REJECT_PROPOSALS"
     CLOSE_ROUNDS = "CALL.CLOSE_ROUNDS"
@@ -308,6 +314,15 @@ DELETE_PERMISSIONS = {
     "service_provider": PermissionEnum.DELETE_CUSTOMER_PERMISSION,
     "resource": PermissionEnum.DELETE_RESOURCE_PERMISSION,
     "resourceproject": PermissionEnum.DELETE_RESOURCE_PROJECT_PERMISSION,
+}
+
+
+# Permission a role must carry for its holder to see the team, keyed by the
+# (app_label, model) of the scope the role is held on. See
+# _user_can_view_scope_team in permissions/views.py.
+TEAM_VIEW_PERMISSIONS: dict[tuple[str, str], PermissionEnum] = {
+    TYPE_MAP["customer"]: PermissionEnum.VIEW_CUSTOMER_TEAM,
+    TYPE_MAP["project"]: PermissionEnum.VIEW_PROJECT_TEAM,
 }
 
 

@@ -1,5 +1,6 @@
 import pytest
 
+from waldur_core.permissions.enums import TEAM_VIEW_PERMISSIONS
 from waldur_core.permissions.models import RoleManager
 
 
@@ -29,6 +30,31 @@ def _clear_role_cache():
     RoleManager.clear_cache()
     yield
     RoleManager.clear_cache()
+
+
+@pytest.fixture(autouse=True)
+def _system_roles_view_team(monkeypatch):
+    # permissions.yaml grants CUSTOMER.VIEW_TEAM / PROJECT.VIEW_TEAM to every
+    # customer- and project-scoped system role, and import_roles applies it on
+    # every deployment. Tests never run import_roles (CI even skips the
+    # migrations), so system roles are created bare by get_system_role and
+    # every team-listing test would otherwise have to grant it by hand. Mirror
+    # the deployment here; a test that needs the permission absent deletes it.
+    original = RoleManager.get_system_role
+
+    def get_system_role(self, name, content_type):
+        cache_key = name.value if hasattr(name, "value") else name
+        cached = cache_key in RoleManager._cache
+        role = original(self, name, content_type)
+        if not cached:
+            permission = TEAM_VIEW_PERMISSIONS.get(
+                (role.content_type.app_label, role.content_type.model)
+            )
+            if permission is not None:
+                role.add_permission(permission)
+        return role
+
+    monkeypatch.setattr(RoleManager, "get_system_role", get_system_role)
 
 
 @pytest.fixture(autouse=True)

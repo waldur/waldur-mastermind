@@ -134,6 +134,14 @@ or through one of its projects). Public/system and offering-scoped roles stay
 visible to everyone, including anonymous requests. Staff and support see all
 roles.
 
+Seeing an organization's or project's **members** is a separate matter.
+`list_users` requires `CUSTOMER.VIEW_TEAM` on an organization role or
+`PROJECT.VIEW_TEAM` on a project role (see
+[Team visibility](waldur-permissions.md#team-visibility)). A clone copies its
+template's permissions, so it can see the team exactly when its template can.
+To give an organization a role that hides the member list, clone a role and
+remove the permission from the clone.
+
 ## Permissions required
 
 | Action | Requirement |
