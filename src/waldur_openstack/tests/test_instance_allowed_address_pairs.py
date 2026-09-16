@@ -163,24 +163,18 @@ class PortAllowedAddressPairsGatewayTest(test.APITestCase):
         self.backend.assert_not_called()
 
 
-class AllowedAddressPairsParityTest(test.APITestCase):
-    """The same entries are accepted or refused by both actions."""
-
-    CASES = (
-        [{"ip_address": "10.0.0.10"}],
-        [{"ip_address": "192.168.42.0/24"}],
-        [{"ip_address": "10.0.0.10", "mac_address": "aa:bb:cc:dd:ee:ff"}],
-        [{"ip_address": "10.0.0.10", "mac_address": "zz"}],
-        [{"ip_address": "10.0.0.10"}, {"ip_address": "10.0.0.10"}],
-        *([{"ip_address": value}] for value in REJECTED),
-    )
-
+class InstanceIpv6AllowedAddressPairsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.subnet = self.fixture.subnet
         self.subnet.cidr = "10.0.0.0/24"
         self.subnet.gateway_ip = "10.0.0.1"
         self.subnet.save()
+        self.stored = [
+            {"ip_address": "fd00::10/128"},
+            {"ip_address": "fd12:3456:789a::/64", "mac_address": "aa:bb:cc:dd:ee:ff"},
+            {"ip_address": "10.0.0.10/32"},
+        ]
         self.port = factories.PortFactory(
             service_settings=self.fixture.settings,
             project=self.fixture.project,
@@ -188,8 +182,106 @@ class AllowedAddressPairsParityTest(test.APITestCase):
             network=self.subnet.network,
             subnet=self.subnet,
             instance=self.fixture.instance,
+            allowed_address_pairs=self.stored,
             state=CoreStates.OK,
         )
+        executor = mock.patch(
+            "waldur_openstack.executors.InstanceAllowedAddressPairsUpdateExecutor.execute"
+        )
+        self.executor = executor.start()
+        self.addCleanup(executor.stop)
+        self.client.force_authenticate(self.fixture.admin)
+        self.url = factories.InstanceFactory.get_url(
+            self.fixture.instance, action="update_allowed_address_pairs"
+        )
+
+    def test_stored_unique_local_pairs_can_be_saved_again(self):
+        # Editing one entry resubmits the whole list, so a port that already
+        # holds unique local IPv6 pairs must not become impossible to edit.
+        response = self.client.post(
+            self.url,
+            {
+                "subnet": factories.SubNetFactory.get_url(self.subnet),
+                "allowed_address_pairs": self.stored,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.port.refresh_from_db()
+        self.assertEqual(self.port.allowed_address_pairs, self.stored)
+
+
+class AllowedAddressPairsParityTest(test.APITestCase):
+    """The same entries are accepted or refused by both actions, for a port on
+    an IPv4 subnet and for one on an IPv6 subnet."""
+
+    CASES = (
+        [{"ip_address": "10.0.0.10"}],
+        [{"ip_address": "192.168.42.0/24"}],
+        [{"ip_address": "10.0.0.10", "mac_address": "aa:bb:cc:dd:ee:ff"}],
+        [{"ip_address": "10.0.0.10", "mac_address": "zz"}],
+        [{"ip_address": "10.0.0.10"}, {"ip_address": "10.0.0.10"}],
+        # A second router interface and a host route next hop.
+        [{"ip_address": "10.0.0.2"}],
+        [{"ip_address": "10.0.0.254"}],
+        [{"ip_address": "fd00::10"}],
+        [{"ip_address": "fd00::10"}, {"ip_address": "10.0.0.10"}],
+        [{"ip_address": "2001:db8:1::50"}],
+        [{"ip_address": "2001:db8:1::1"}],
+        [{"ip_address": "2001:db8:1::2"}],
+        [{"ip_address": "2001:db8:1::/64"}],
+        [{"ip_address": "2001:db8:2::10"}],
+        [{"ip_address": "::ffff:10.0.0.10"}],
+        [{"ip_address": "ff02::1"}],
+        *([{"ip_address": value}] for value in REJECTED),
+    )
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.v4 = self.fixture.subnet
+        self.v4.cidr = "10.0.0.0/24"
+        self.v4.gateway_ip = "10.0.0.1"
+        self.v4.host_routes = [
+            {"destination": "172.16.0.0/16", "nexthop": "10.0.0.254"}
+        ]
+        self.v4.save()
+        v6_network = factories.NetworkFactory(
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+        )
+        self.v6 = factories.SubNetFactory(
+            network=v6_network,
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            cidr="2001:db8:1::/64",
+            gateway_ip="2001:db8:1::1",
+            ip_version=6,
+            backend_id="v6-subnet",
+            state=CoreStates.OK,
+        )
+        self.ports = {}
+        for subnet, router_ip in ((self.v4, "10.0.0.2"), (self.v6, "2001:db8:1::2")):
+            factories.PortFactory(
+                service_settings=self.fixture.settings,
+                project=self.fixture.project,
+                tenant=self.fixture.tenant,
+                network=subnet.network,
+                device_owner="network:router_interface",
+                fixed_ips=[{"subnet_id": subnet.backend_id, "ip_address": router_ip}],
+                state=CoreStates.OK,
+            )
+            self.ports[subnet] = factories.PortFactory(
+                service_settings=self.fixture.settings,
+                project=self.fixture.project,
+                tenant=self.fixture.tenant,
+                network=subnet.network,
+                subnet=subnet,
+                instance=self.fixture.instance,
+                state=CoreStates.OK,
+            )
         for target in (
             "waldur_openstack.executors.InstanceAllowedAddressPairsUpdateExecutor.execute",
             "waldur_openstack.backend.OpenStackBackend.set_port_allowed_address_pairs",
@@ -203,21 +295,47 @@ class AllowedAddressPairsParityTest(test.APITestCase):
         instance_url = factories.InstanceFactory.get_url(
             self.fixture.instance, action="update_allowed_address_pairs"
         )
-        port_url = factories.PortFactory.get_url(self.port, "set_allowed_address_pairs")
-        for pairs in self.CASES:
-            via_instance = self.client.post(
-                instance_url,
-                {
-                    "subnet": factories.SubNetFactory.get_url(self.subnet),
-                    "allowed_address_pairs": pairs,
-                },
+        for subnet, port in self.ports.items():
+            port_url = factories.PortFactory.get_url(port, "set_allowed_address_pairs")
+            for pairs in self.CASES:
+                via_instance = self.client.post(
+                    instance_url,
+                    {
+                        "subnet": factories.SubNetFactory.get_url(subnet),
+                        "allowed_address_pairs": pairs,
+                    },
+                    format="json",
+                ).status_code
+                via_port = self.client.post(
+                    port_url, {"allowed_address_pairs": pairs}, format="json"
+                ).status_code
+                self.assertEqual(
+                    via_instance < 300,
+                    via_port < 300,
+                    f"{subnet.cidr} {pairs}: instance action {via_instance}, "
+                    f"port action {via_port}",
+                )
+
+    def test_the_cases_exercise_both_outcomes(self):
+        # Parity alone would pass if both actions refused everything.
+        port_url = factories.PortFactory.get_url(
+            self.ports[self.v6], "set_allowed_address_pairs"
+        )
+        outcomes = {
+            value: self.client.post(
+                port_url,
+                {"allowed_address_pairs": [{"ip_address": value}]},
                 format="json",
             ).status_code
-            via_port = self.client.post(
-                port_url, {"allowed_address_pairs": pairs}, format="json"
-            ).status_code
-            self.assertEqual(
-                via_instance < 300,
-                via_port < 300,
-                f"{pairs}: instance action {via_instance}, port action {via_port}",
-            )
+            for value in ("2001:db8:1::50", "fd00::10", "2001:db8:1::2", "::/0")
+        }
+
+        self.assertEqual(
+            outcomes,
+            {
+                "2001:db8:1::50": status.HTTP_200_OK,
+                "fd00::10": status.HTTP_200_OK,
+                "2001:db8:1::2": status.HTTP_400_BAD_REQUEST,
+                "::/0": status.HTTP_400_BAD_REQUEST,
+            },
+        )

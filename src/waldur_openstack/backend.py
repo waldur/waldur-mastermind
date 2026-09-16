@@ -45,6 +45,7 @@ from waldur_mastermind.marketplace_openstack import (
     RAM_TYPE,
     STORAGE_TYPE,
 )
+from waldur_openstack.enums import VALID_ROUTER_INTERFACE_OWNERS
 from waldur_openstack.exceptions import (
     OpenStackAuthorizationFailed,
     OpenStackBackendError,
@@ -68,12 +69,6 @@ from waldur_openstack.utils import get_external_network_id, is_valid_volume_type
 from . import audit, models, signals
 
 logger = logging.getLogger(__name__)
-
-VALID_ROUTER_INTERFACE_OWNERS = (
-    "network:router_interface",
-    "network:router_interface_distributed",
-    "network:ha_router_replicated_interface",
-)
 
 
 def parse_comma_separated_list(value):

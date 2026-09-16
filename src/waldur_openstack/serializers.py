@@ -5,6 +5,7 @@ import re
 from ipaddress import (
     AddressValueError,
     IPv4Network,
+    IPv6Network,
     NetmaskValueError,
     ip_address,
     ip_network,
@@ -43,6 +44,7 @@ from waldur_core.quotas.models import SharedQuotaMixin
 from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
+from waldur_openstack.enums import VALID_ROUTER_INTERFACE_OWNERS
 from waldur_openstack.utils import (
     get_no_ipv4_external_network_message,
     get_tenant_external_networks,
@@ -2067,27 +2069,70 @@ _MAC_ADDRESS_RE = re.compile(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$")
 _AAP_MAX_ENTRIES = 64
 
 
+# Unique local addresses, the IPv6 counterpart of the RFC 1918 ranges.
+_IPV6_UNIQUE_LOCAL = IPv6Network("fc00::/7")
+# Ranges no IPv6 pair may overlap, whatever the port's subnets are. A broad
+# prefix such as ::/0 or 8000::/1 overlaps at least one of them.
+_IPV6_PAIR_FORBIDDEN = (
+    (IPv6Network("::/128"), _("the unspecified address")),
+    (IPv6Network("::1/128"), _("the loopback address")),
+    (IPv6Network("::ffff:0:0/96"), _("IPv4-mapped addresses")),
+    (IPv6Network("fe80::/10"), _("link-local addresses")),
+    (IPv6Network("ff00::/8"), _("multicast addresses")),
+)
+
+
+def validate_address_pair_ip(value):
+    """The ``ip_address`` of one allowed address pair, as a normalised CIDR.
+
+    IPv4 is bounded to RFC 1918 by ``validate_private_cidr``. IPv6 has no
+    private range that every cloud uses, so here it only has to stay clear of
+    the special-purpose ranges; whether it is a unique local address or lies in
+    one of the port's own subnets needs the port, and is checked by
+    ``validate_pairs_for_port``.
+    """
+    try:
+        network = ip_network(value, strict=True)
+    except (TypeError, ValueError):
+        raise serializers.ValidationError(
+            _("Enter a valid IPv4 or IPv6 address or network in CIDR format.")
+        )
+    if network.version == 4:
+        return validate_private_cidr(value)
+    for forbidden, description in _IPV6_PAIR_FORBIDDEN:
+        if network.overlaps(forbidden):
+            raise serializers.ValidationError(
+                _("%(pair)s overlaps %(range)s, %(description)s.")
+                % {
+                    "pair": network.with_prefixlen,
+                    "range": forbidden.with_prefixlen,
+                    "description": description,
+                }
+            )
+    return network.with_prefixlen
+
+
 class AllowedAddressPairEntrySerializer(serializers.Serializer):
     """One {ip_address, mac_address?} entry, for both the port action and the
     instance action.
 
-    Reuses ``validate_private_cidr`` to enforce that the spoofable range
-    is bounded to RFC1918 — accepting ``0.0.0.0/0``, link-local, multicast,
-    or public IPs would let a port impersonate the upstream router, the
-    metadata service, or other tenants' fixed IPs, the textbook
-    allowed-address-pairs escalation. Neutron leaves this to the caller: its
-    default policy lets any member who owns the network set any range, and it
-    only documents that ``0.0.0.0/0`` bypasses source-restricted security
-    group rules for every port sharing the group (Neutron bug 1793029).
-    The subnet gateway needs the port, so ``reject_pairs_covering_gateway``
-    checks it at the serializer level.
+    The spoofable range is bounded -- to RFC 1918 for IPv4, to unique local
+    addresses or the tenant's own subnets for IPv6 -- because accepting
+    ``0.0.0.0/0``, ``::/0``, link-local, multicast, or public addresses would
+    let a port impersonate the upstream router, the metadata service, or other
+    tenants' fixed IPs, the textbook allowed-address-pairs escalation. Neutron
+    leaves this to the caller: its default policy lets any member who owns the
+    network set any range, and it only documents that ``0.0.0.0/0`` bypasses
+    source-restricted security group rules for every port sharing the group
+    (Neutron bug 1793029). What needs the port -- the IPv6 scope and the
+    router addresses on its subnets -- is checked by ``validate_pairs_for_port``.
     """
 
     ip_address = serializers.CharField()
     mac_address = serializers.CharField(required=False, allow_blank=True)
 
     def validate_ip_address(self, value):
-        return validate_private_cidr(value)
+        return validate_address_pair_ip(value)
 
     def validate_mac_address(self, value):
         if not value:
@@ -2123,8 +2168,8 @@ def validate_address_pair_list(pairs):
     return cleaned
 
 
-def _port_gateways(port: models.Port):
-    """Gateways of every subnet the port has an address on."""
+def _port_subnets(port: models.Port):
+    """Every subnet the port has an address on."""
     subnet_ids = {
         fixed_ip.get("subnet_id")
         for fixed_ip in port.fixed_ips or []
@@ -2135,32 +2180,128 @@ def _port_gateways(port: models.Port):
             network_id=port.network_id, backend_id__in=subnet_ids
         )
     )
-    if port.subnet_id:
+    if port.subnet_id and all(subnet.pk != port.subnet_id for subnet in subnets):
         subnets.append(port.subnet)
-    gateways = set()
+    return subnets
+
+
+def _router_addresses(port: models.Port, subnets):
+    """Addresses a router answers on next to the port, each with what it is.
+
+    The gateway is only the first router: another one attached with
+    add_router_interface sits on some other address of the subnet, and a host
+    route points instances at its next hop.
+    """
+    addresses = []
+
+    def add(value, description):
+        try:
+            addresses.append((ip_address(value), description))
+        except ValueError:
+            pass
+
     for subnet in subnets:
         if subnet.gateway_ip:
-            try:
-                gateways.add(ip_address(subnet.gateway_ip))
-            except ValueError:
-                continue
-    return gateways
+            add(subnet.gateway_ip, _("the subnet gateway"))
+        for route in subnet.host_routes or []:
+            if isinstance(route, dict) and route.get("nexthop"):
+                add(route["nexthop"], _("the next hop of a host route"))
+    network_ids = {subnet.network_id for subnet in subnets} | {port.network_id}
+    router_ports = models.Port.objects.filter(
+        network_id__in=network_ids - {None},
+        device_owner__in=VALID_ROUTER_INTERFACE_OWNERS,
+    ).exclude(pk=port.pk)
+    for router_port in router_ports:
+        for fixed_ip in router_port.fixed_ips or []:
+            if isinstance(fixed_ip, dict) and fixed_ip.get("ip_address"):
+                add(fixed_ip["ip_address"], _("a router interface"))
+    return addresses
 
 
-def reject_pairs_covering_gateway(pairs, port: models.Port):
-    """A pair that contains the subnet gateway lets the port answer for the
-    router, so every instance on the subnet could be intercepted."""
-    gateways = _port_gateways(port)
+def _tenant_networks(port: models.Port):
+    """Every subnet of the port's tenant, as networks.
+
+    A pair is measured against all of them rather than only the port's own: an
+    address in a neighbouring subnet is what a failover address (keepalived,
+    VRRP) looks like, and Neutron allows it.
+    """
+    networks = []
+    for cidr in models.SubNet.objects.filter(tenant_id=port.tenant_id).values_list(
+        "cidr", flat=True
+    ):
+        try:
+            networks.append(ip_network(cidr, strict=False))
+        except ValueError:
+            continue
+    return networks
+
+
+def validate_pairs_for_port(pairs, port: models.Port | None):
+    """The rules that need the port, shared by the port action and the
+    instance action.
+
+    An IPv6 pair must be a unique local address or lie within one of the
+    tenant's own IPv6 subnets: those are the addresses the tenant already
+    controls. No pair may cover one of the tenant's subnets, which would let
+    the port answer for every instance in it, nor an address a router answers
+    on, which would intercept the traffic routed through it. A wide range that
+    does not overlap those stays allowed: a container network routed through
+    an instance (Magnum sets the whole pod CIDR as a pair) is exactly that.
+    Without a port only unique local addresses can be vouched for.
+    """
+    subnets = _port_subnets(port) if port is not None else []
+    tenant_networks = _tenant_networks(port) if port is not None else []
     for pair in pairs:
         network = ip_network(pair["ip_address"], strict=False)
-        for gateway in gateways:
-            if gateway.version == network.version and gateway in network:
+        if network.version == 6 and not (
+            network.subnet_of(_IPV6_UNIQUE_LOCAL)
+            or any(
+                own.version == 6 and network.subnet_of(own) for own in tenant_networks
+            )
+        ):
+            raise serializers.ValidationError(
+                {
+                    "allowed_address_pairs": _(
+                        "%(pair)s is neither a unique local address (fc00::/7) "
+                        "nor within an IPv6 subnet of the tenant."
+                    )
+                    % {"pair": pair["ip_address"]}
+                }
+            )
+    if port is None:
+        return
+    for pair in pairs:
+        network = ip_network(pair["ip_address"], strict=False)
+        for own in tenant_networks:
+            if own.version == network.version and own.subnet_of(network):
                 raise serializers.ValidationError(
                     {
                         "allowed_address_pairs": _(
-                            "%(pair)s contains the subnet gateway %(gateway)s."
+                            "%(pair)s covers the subnet %(subnet)s of this "
+                            "tenant, so the port could answer for every "
+                            "address in it."
                         )
-                        % {"pair": pair["ip_address"], "gateway": gateway}
+                        % {
+                            "pair": pair["ip_address"],
+                            "subnet": own.with_prefixlen,
+                        }
+                    }
+                )
+    addresses = _router_addresses(port, subnets)
+    for pair in pairs:
+        network = ip_network(pair["ip_address"], strict=False)
+        for address, description in addresses:
+            if address.version == network.version and address in network:
+                raise serializers.ValidationError(
+                    {
+                        "allowed_address_pairs": _(
+                            "%(pair)s contains %(address)s, %(description)s."
+                        )
+                        % {
+                            "pair": pair["ip_address"],
+                            "address": address,
+                            "description": description,
+                        }
                     }
                 )
 
@@ -2168,7 +2309,7 @@ def reject_pairs_covering_gateway(pairs, port: models.Port):
 class SetAllowedAddressPairsSerializer(serializers.Serializer):
     """Body shape for ``POST .../ports/{uuid}/set_allowed_address_pairs/``.
 
-    Expects the port in the serializer context, for the gateway check."""
+    Expects the port in the serializer context, for the rules that need it."""
 
     allowed_address_pairs = AllowedAddressPairEntrySerializer(
         many=True, allow_empty=True
@@ -2178,9 +2319,9 @@ class SetAllowedAddressPairsSerializer(serializers.Serializer):
         return validate_address_pair_list(value)
 
     def validate(self, attrs):
-        port = self.context.get("port")
-        if port is not None:
-            reject_pairs_covering_gateway(attrs["allowed_address_pairs"], port)
+        validate_pairs_for_port(
+            attrs["allowed_address_pairs"], self.context.get("port")
+        )
         return attrs
 
 
@@ -5830,8 +5971,7 @@ class OpenStackInstanceAllowedAddressPairsUpdateSerializer(serializers.Serialize
         port = models.Port.objects.filter(
             instance=self.instance, subnet=attrs["subnet"]
         ).first()
-        if port is not None:
-            reject_pairs_covering_gateway(attrs["allowed_address_pairs"], port)
+        validate_pairs_for_port(attrs["allowed_address_pairs"], port)
         return attrs
 
     @transaction.atomic
