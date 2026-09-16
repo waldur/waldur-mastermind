@@ -53,6 +53,7 @@ from waldur_rancher.enums import (
     KeycloakUserGroupMembershipState,
     RoleScopeType,
 )
+from waldur_sram import enums as sram_enums
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Waldur API",
@@ -84,6 +85,11 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
+        # A rule's "project_field" would otherwise take ProjectFieldEnum, the
+        # name of the projects endpoints' field selector.
+        "SramProjectRuleField": sram_enums.ProjectField.choices,
+        "SramProjectRuleMatch": sram_enums.MatchType.choices,
+        "SramProjectRuleSourceKind": sram_enums.SourceKind.choices,
         "RoleType": TYPE_MAP.keys(),
         "InvitationState": InvitationState.values,
         "BillingUnit": Units.CHOICES,

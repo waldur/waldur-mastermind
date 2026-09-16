@@ -395,6 +395,31 @@ After an upgrade or a settings change, `waldur sram_resync` re-applies the last 
 
 Register Waldur as **one** SRAM service. All SRAM services pointing at the same Waldur share one set of SRAM-provisioned objects, so a sweep by one service would delete the objects another service provisioned.
 
+### SRAM project rules
+
+Staff define rules, for all organizations at once, that give the holders of SRAM placeholder roles a role in matching projects of the same organization: `/api/sram-project-rules/` (staff only; 404 while `SRAM_INTEGRATION_ENABLED` is off). `/api/sram-groups/` lists what SRAM provisioned.
+
+| Field | Meaning |
+|---|---|
+| `source_kind` | `co`, `group` or `any` |
+| `labels` | The collaboration must carry one of them; a group is judged by its collaboration's labels. Empty = any. |
+| `group_short_name_patterns` | Group short names (`admins`, `adm*`). Requires `source_kind` `group` or `any`. |
+| `project_field` / `project_match` / `project_pattern` | Selects projects by `backend_id` or `slug`, `exact`, `prefix` or `regex`. Placeholders: `{co_external_id}`, `{co_identifier}` (external id without `@scope`), `{co_short_name}`, `{org_short_name}`, `{group_short_name}`. Values are regex-escaped for `regex`. Only projects of the group's organization are ever selected. |
+| `project_role` | An active project-scoped role |
+
+Example: workspaces created by an external system with `backend_id = <co external id>_<workspace id>` are matched by `backend_id` + `prefix` + `{co_external_id}_`.
+
+- Everyone holding the placeholder role, whoever granted it, gets the project role with `UserRole.source = sram-rule:<rule uuid>:<group uuid>`. An existing grant of that role is not duplicated, and reconciliation only ever revokes grants carrying its own source.
+- Reconciliation runs when a group is pushed (a collaboration push also covers its groups, whose labels it provides), when a placeholder role is granted or revoked (including by hand), when a rule is created, changed or deleted (retroactive, also from the Django admin), when a project is created or its `backend_id`, slug or organization changes, and on `waldur sram_resync`.
+- A grant that `validate_role_grant` refuses is skipped and logged. Rule grants are quiet: their events are logged without email.
+- `GET /api/sram-project-rules/<uuid>/preview/` lists the matching groups with the projects and users the rule applies to.
+- Regular expressions run in PostgreSQL and are validated there on save. A rule whose projects cannot be selected is skipped and keeps its existing grants.
+- When a grant is revoked, the other rules of that organization are re-checked, so a role two rules assert survives the removal of one of them.
+
+### Switching SRAM off
+
+`SRAM_INTEGRATION_ENABLED` is the backend switch; the homeport feature `sram.integration` only shows or hides the SRAM administration page and the SRAM markers. While the setting is off, SRAM data is **frozen**: `/scim/v2/sram/` and the SRAM APIs refuse requests, and nothing re-applies placeholder roles or project rules, not even when projects or placeholder grants change. Existing grants stay as they are. After switching it back on, run `waldur sram_resync`: it re-applies every group and revokes the grants of rules or groups deleted in the meantime.
+
 ## Configuration reference
 
 All keys live under the Constance fieldset **SCIM Identity Provider** in the Waldur admin.
