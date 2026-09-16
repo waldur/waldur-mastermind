@@ -168,6 +168,22 @@ def get_external_network_without_ipv4(tenant: Tenant) -> ExternalNetwork | None:
     return network
 
 
+def get_no_ipv4_external_network_message(tenant: Tenant):
+    """Why a floating IP cannot be allocated for this tenant, or None when it can.
+
+    Shared so that the API and the admin action refuse in the same words.
+    """
+    network = get_external_network_without_ipv4(tenant)
+    if network is None:
+        return None
+    return _(
+        "External network %s has no IPv4 subnet, so no floating IP can be "
+        "allocated from it. Floating IPs are IPv4 only: IPv6 addresses are "
+        "routed rather than floating, so reach the instance on its own IPv6 "
+        "address instead."
+    ) % (network.name or network.backend_id)
+
+
 def _is_ipv6(ip_version: int, cidr: str) -> bool:
     # A subnet created by Waldur keeps the default ip_version of 4 until it is
     # pulled from Neutron, so the CIDR decides as well.
