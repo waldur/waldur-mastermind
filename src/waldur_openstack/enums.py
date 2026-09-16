@@ -1,3 +1,13 @@
+# Neutron's device_owner values for a port that is a router's interface on a
+# subnet. Kept here so that both the backend and the serializers can name them
+# without one importing the other.
+VALID_ROUTER_INTERFACE_OWNERS = (
+    "network:router_interface",
+    "network:router_interface_distributed",
+    "network:ha_router_replicated_interface",
+)
+
+
 class Ipv6Modes:
     """Neutron's IPv6 address modes, for a subnet's ``ipv6_ra_mode`` and
     ``ipv6_address_mode``.
