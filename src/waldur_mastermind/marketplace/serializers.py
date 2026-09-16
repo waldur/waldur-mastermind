@@ -3122,6 +3122,13 @@ STORAGE_FOLDER_PERMISSIONS = (
 )
 
 
+K8S_LOAD_BALANCER_MODES = (
+    ("required", "Always included"),
+    ("optional", "Customer chooses"),
+    ("disabled", "Not offered"),
+)
+
+
 class CascadeStepSerializer(serializers.Serializer):
     name = serializers.CharField()
     label = serializers.CharField()
@@ -3313,6 +3320,13 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
     )
     default_lb_logs_disk_gb = serializers.IntegerField(
         min_value=1, max_value=2000, required=False
+    )
+    load_balancer_mode = serializers.ChoiceField(
+        choices=K8S_LOAD_BALANCER_MODES,
+        required=False,
+        help_text="Whether clusters get a load balancer: always (required), "
+        "at the customer's choice (optional) or never (disabled). "
+        "Treated as required when omitted.",
     )
 
     # Worker node requirements
