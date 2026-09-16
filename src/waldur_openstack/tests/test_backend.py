@@ -12,6 +12,7 @@ from novaclient import exceptions as nova_exceptions
 from novaclient.v2.flavors import Flavor
 from novaclient.v2.servers import Server
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.models import CoreStates
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
@@ -1335,6 +1336,96 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
 
         fip.refresh_from_db()
         self.assertEqual(ip2, fip.port)
+
+
+class AttachFloatingIpToPortTest(BaseBackendTest):
+    """Neutron answers an association with both sides of the mapping:
+    `floating_ip_address` is the floating IP's own, public address and
+    `fixed_ip_address` the port's internal one. `FloatingIP.address` is the
+    former; the latter lives on the port the floating IP now points at, which
+    is also all a pull records."""
+
+    FLOATING_ADDRESS = "203.0.113.10"
+
+    def setUp(self):
+        super().setUp()
+        self.floating_ip = FloatingIPFactory(
+            tenant=self.tenant,
+            service_settings=self.openstack_settings,
+            project=self.tenant.project,
+            address=self.FLOATING_ADDRESS,
+            backend_network_id="external-network-id",
+            runtime_state="DOWN",
+            port=None,
+        )
+
+    def _attach(self, fixed_ip_address):
+        port = PortFactory(
+            tenant=self.tenant,
+            network=self.fixture.network,
+            subnet=self.fixture.subnet,
+            backend_id="attached-port-backend-id",
+            fixed_ips=[
+                {
+                    "ip_address": fixed_ip_address,
+                    "subnet_id": self.fixture.subnet.backend_id,
+                }
+            ],
+        )
+        backend_floating_ip = {
+            "id": self.floating_ip.backend_id,
+            "description": "",
+            "floating_ip_address": self.FLOATING_ADDRESS,
+            "floating_network_id": "external-network-id",
+            "fixed_ip_address": fixed_ip_address,
+            "port_id": port.backend_id,
+            "status": "ACTIVE",
+        }
+        self.mocked_neutron.update_floatingip.return_value = {
+            "floatingip": backend_floating_ip
+        }
+
+        self.backend.attach_floating_ip_to_port(
+            self.floating_ip, core_utils.serialize_instance(port)
+        )
+
+        self.floating_ip.refresh_from_db()
+        return port, backend_floating_ip
+
+    def test_address_stays_the_floating_address(self):
+        port, _ = self._attach("192.168.42.5")
+
+        self.assertEqual(self.floating_ip.address, self.FLOATING_ADDRESS)
+        self.assertEqual(self.floating_ip.port, port)
+        self.assertEqual(self.floating_ip.runtime_state, "ACTIVE")
+
+    def test_attach_records_what_a_pull_of_the_same_floating_ip_would(self):
+        _, backend_floating_ip = self._attach("192.168.42.5")
+
+        pulled = self.backend._backend_floating_ip_to_floating_ip(
+            backend_floating_ip, self.tenant
+        )
+        for field in ("address", "port", "runtime_state", "backend_network_id"):
+            self.assertEqual(
+                getattr(self.floating_ip, field), getattr(pulled, field), field
+            )
+        self.assertIn(
+            "192.168.42.5",
+            [fixed_ip["ip_address"] for fixed_ip in self.floating_ip.port.fixed_ips],
+        )
+
+    def test_a_port_with_an_ipv6_fixed_address_can_be_attached(self):
+        """FloatingIP.address is an IPv4 field; the port's IPv6 address has
+        no business in it."""
+        port, _ = self._attach("2001:db8:42::5")
+
+        self.assertEqual(self.floating_ip.address, self.FLOATING_ADDRESS)
+        self.assertEqual(self.floating_ip.port, port)
+        # Postgres' inet column takes either family, so only the field's own
+        # validation says whether the stored value belongs there.
+        models.FloatingIP._meta.get_field("address").clean(
+            self.floating_ip.address, self.floating_ip
+        )
 
 
 class PushInstanceFloatingIpsTest(BaseBackendTest):
