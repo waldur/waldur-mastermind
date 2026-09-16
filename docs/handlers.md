@@ -787,6 +787,17 @@ td:nth-child(4) {
 | `set_error_state_for_cluster_if_related_node_deleting_is_failed` | `Django Signal (post_save)` | `waldur_rancher.Node` | Set error state for a Rancher cluster if a related node deletion fails. |
 | `set_error_state_for_node_if_related_instance_deleting_is_failed` | `Django Signal (post_save)` | `openstack.Instance` | Set error state for a Rancher node if its related OpenStack instance deletion fails. |
 
+## Application: `waldur_sram`
+
+| Handler Name | Signal Type | Sender | Description |
+|--------------|-------------|--------|-------------|
+| `reconcile_rule_on_save` | `Django Signal (post_save)` | `waldur_sram.SramProjectRule` | Applies to existing holders too; runs for the API and the admin alike. |
+| `reconcile_rules_on_placeholder_change` | `Custom Signal (role_granted)` | `—` | A hand-made placeholder grant or revocation changes who rules apply to. |
+| `reconcile_rules_on_placeholder_change` | `Custom Signal (role_revoked)` | `—` | A hand-made placeholder grant or revocation changes who rules apply to. |
+| `reconcile_rules_on_project_change` | `Django Signal (post_save)` | `structure.Project` | Rules select projects by backend_id or slug, so a new or changed project |
+| `rename_placeholder_roles_on_slug_change` | `Django Signal (post_save)` | `structure.Customer` | Placeholder role names embed the organization slug; keep them in step. |
+| `revoke_rule_on_delete` | `Django Signal (post_delete)` | `waldur_sram.SramProjectRule` | No description |
+
 ## Application: `waldur_vmware`
 
 | Handler Name | Signal Type | Sender | Description |
@@ -796,7 +807,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 722
+Total unique handlers found: 728
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
@@ -808,4 +819,5 @@ Total unique handlers found: 722
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
 - **waldur_rancher**: 12 handlers
+- **waldur_sram**: 6 handlers
 - **waldur_vmware**: 2 handlers

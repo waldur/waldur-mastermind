@@ -130,6 +130,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SettingsMixin`](#settingsmixin) | `waldur_rancher.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`SyncDestroyMixin`](#syncdestroymixin) | `waldur_rancher.views` | No description available |
 | [`YamlMixin`](#yamlmixin) | `waldur_rancher.views` | No description available |
+| [`SramIntegrationEnabledMixin`](#sramintegrationenabledmixin) | `waldur_sram.rest_views` | No description available |
 | [`VirtualMachineMixin`](#virtualmachinemixin) | `waldur_vmware.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 
 ## Detailed Descriptions
@@ -1775,6 +1776,12 @@ Make subclasses preserve the alters_data attribute on overridden methods.
 ### YamlMixin
 
 **Module:** `waldur_rancher.views`
+
+**Description:** No description available.
+
+### SramIntegrationEnabledMixin
+
+**Module:** `waldur_sram.rest_views`
 
 **Description:** No description available.
 

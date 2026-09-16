@@ -2684,6 +2684,34 @@ User attributes settable via inbound SCIM.
 
 Allow inbound SCIM to manage user SSH public keys via the sshPublicKeys attribute of the Waldur User extension. When enabled, SCIM is authoritative: a full-replace (PUT / PATCH replace) that omits a key deletes it, including keys the user added via the UI. Off by default because SSH keys grant access.
 
+#### SCIM_USER_MATCH_WALDUR_ATTRIBUTE
+
+**Type:** choice_field
+
+**Default value:** username
+
+Waldur user attribute that links an inbound SCIM user to an existing account. Must be username or an enabled identifying attribute. With username, new accounts are named after the matched value.
+
+#### SCIM_USER_MATCH_SCIM_ATTRIBUTE
+
+**Type:** str
+
+**Default value:** userName
+
+SCIM attribute holding the value matched against SCIM_USER_MATCH_WALDUR_ATTRIBUTE, e.g. userName, emails, or an extension path such as urn:mace:surf.nl:sram:scim:extension:User.eduPersonUniqueId.
+
+#### SRAM_INTEGRATION_ENABLED
+
+**Type:** bool
+
+Accept SCIM provisioning from SURF Research Access Management (SRAM) at /scim/v2/sram/. Also requires SCIM_INBOUND_ENABLED and a staff service-account token registered as the service's SCIM bearer token in SRAM.
+
+#### SRAM_PLACEHOLDER_ROLE_TEMPLATE
+
+**Type:** str
+
+Name of the organization role whose permissions SRAM placeholder roles copy. Empty gives placeholders no permissions. Placeholders are refreshed on the next push or by 'waldur sram_resync'.
+
 #### SCIM_PULL_API_URL
 
 **Type:** str

@@ -244,6 +244,10 @@ Show affiliate program menus and pages. Backend enforcement is controlled separa
 
 Enable Arrow integration menu in administration.
 
+## sram.integration
+
+Render the SRAM integration administration page and SRAM markers in team lists. Backend access is gated separately on the SRAM_INTEGRATION_ENABLED Constance setting.
+
 ## support.conceal_change_request
 
 Conceal "Change request" from a selection of issue types for non-staff/non-support users.

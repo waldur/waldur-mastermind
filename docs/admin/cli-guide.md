@@ -1565,6 +1565,10 @@ options:
 
 ```
 
+## sram_resync
+
+Re-apply the last SCIM payload SRAM pushed for every group, e.g. after upgrading or changing SRAM settings. SRAM itself only re-sends changed groups.
+
 ## status
 
 Check status of Waldur MasterMind configured services
