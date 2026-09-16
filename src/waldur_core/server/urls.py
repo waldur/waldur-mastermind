@@ -58,7 +58,6 @@ checklist_urls.register_in(router)
 urlpatterns = [
     re_path(r"^admin/", admin.site.urls),
     re_path(r"^health-check/", include("health_check.urls")),
-    re_path(r"^scim/v2/", include("waldur_core.users.scim.server.urls")),
     # Stats endpoints (consolidated under /api/stats/)
     re_path(r"^api/stats/celery/", core_views.CeleryStatsViewSet.as_view()),
     re_path(r"^api/stats/database/", core_views.DatabaseStatsViewSet.as_view()),
@@ -76,6 +75,13 @@ if settings.WALDUR_CORE.get("EXTENSIONS_AUTOREGISTER"):
         if ext.django_app() in settings.INSTALLED_APPS:
             urlpatterns += ext.django_urls()
             ext.rest_urls()(router)
+
+# Mounted after the extensions: its catch-all answers every unknown /scim/v2/
+# path with a SCIM 404, which would otherwise shadow extension mounts such as
+# /scim/v2/sram/.
+urlpatterns += [
+    re_path(r"^scim/v2/", include("waldur_core.users.scim.server.urls")),
+]
 
 service_provider_router = NestedSimpleRouter(
     router, r"marketplace-service-providers", lookup="service_provider"

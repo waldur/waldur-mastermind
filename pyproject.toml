@@ -133,6 +133,7 @@ waldur_pid = "waldur_pid.extension:PIDExtension"
 waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
 waldur_hpc = "waldur_hpc.extension:HPCExtension"
 waldur_autoprovisioning = "waldur_autoprovisioning.extension:AutoprovisioningExtension"
+waldur_sram = "waldur_sram.extension:SramExtension"
 waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
 waldur_lexis = "waldur_lexis.extension:LexisExtension"
 waldur_marketplace_reppu = "waldur_mastermind.marketplace_reppu.extension:MarketplaceReppuExtension"
@@ -169,6 +170,7 @@ packages = [
   "src/waldur_openstack_tenant",
   "src/waldur_pid",
   "src/waldur_rancher",
+  "src/waldur_sram",
   "src/waldur_vmware",
 ]
 sources = ["src"]

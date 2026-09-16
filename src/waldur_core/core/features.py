@@ -140,6 +140,18 @@ class UserSection(FeatureSection):
     )
 
 
+class SramSection(FeatureSection):
+    class Meta:
+        key = "sram"
+        description = "SRAM integration"
+
+    integration = Feature(
+        "Render the SRAM integration administration page and SRAM markers in team "
+        "lists. Backend access is gated separately on the SRAM_INTEGRATION_ENABLED "
+        "Constance setting."
+    )
+
+
 class MarketplaceSection(FeatureSection):
     class Meta:
         key = "marketplace"
