@@ -12,16 +12,18 @@ from rest_framework import status, test
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
+    OfferingRole,
     ProjectRole,
     ServiceProviderRole,
 )
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace import models, tasks, utils, views
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SCRIPT_OFFERING,
+    SITE_AGENT_OFFERING,
     BillingTypes,
     OrderStates,
     OrderTypes,
@@ -805,3 +807,86 @@ class ScriptOfferingOrderReviewTest(test.APITestCase):
         # Should return False (require approval) even for staff user
         result = utils.order_should_not_be_reviewed_by_provider(order)
         self.assertFalse(result)
+
+
+@ddt
+class ProviderOrderReviewOfferingScopeTest(test.APITestCase):
+    """A site agent runs as OFFERING.MANAGER, and every order of a site-agent
+    offering waits for provider review, so the agent must be able to approve
+    and reject it without a customer-wide role.
+    See waldur/waldur-mastermind#400.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(type=SITE_AGENT_OFFERING)
+        self.order = self.pending_order(self.offering)
+        self.offering_manager = structure_factories.UserFactory()
+        self.offering.add_user(self.offering_manager, OfferingRole.MANAGER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.REJECT_ORDER)
+
+    def pending_order(self, offering):
+        return factories.OrderFactory(
+            project=self.fixture.project,
+            created_by=self.fixture.manager,
+            offering=offering,
+            resource=factories.ResourceFactory(offering=offering),
+            state=OrderStates.PENDING_PROVIDER,
+        )
+
+    def review(self, action, order=None):
+        order = order or self.order
+        self.client.force_authenticate(self.offering_manager)
+        response = self.client.post(factories.OrderFactory.get_url(order, action))
+        order.refresh_from_db()
+        return response
+
+    def test_offering_manager_can_approve_order(self):
+        response = self.review("approve_by_provider")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.order.state, OrderStates.EXECUTING)
+
+    def test_offering_manager_can_reject_order(self):
+        response = self.review("reject_by_provider")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
+
+    @data("approve_by_provider", "reject_by_provider")
+    def test_offering_manager_can_not_review_order_of_another_offering(self, action):
+        other = self.pending_order(factories.OfferingFactory(type=SITE_AGENT_OFFERING))
+
+        response = self.review(action, other)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(other.state, OrderStates.PENDING_PROVIDER)
+
+    @data(
+        ("approve_by_provider", PermissionEnum.APPROVE_ORDER),
+        ("reject_by_provider", PermissionEnum.REJECT_ORDER),
+    )
+    def test_role_without_the_permission_is_still_refused(self, case):
+        """The grant is what unlocks this — not membership of the offering."""
+        action, permission = case
+        OfferingRole.MANAGER.delete_permission(permission)
+
+        response = self.review(action)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.order.state, OrderStates.PENDING_PROVIDER)
+
+    @data("approve_by_provider", "reject_by_provider")
+    def test_order_reviewed_after_validation_is_refused(self, action):
+        """A concurrent review can land between the state validator and the
+        row lock; the re-check under the lock must refuse the second one."""
+        self.order.state = OrderStates.EXECUTING
+        self.order.save(update_fields=["state"])
+
+        with mock.patch.object(views.OrderViewSet, f"{action}_validators", []):
+            response = self.review(action)
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(self.order.state, OrderStates.EXECUTING)

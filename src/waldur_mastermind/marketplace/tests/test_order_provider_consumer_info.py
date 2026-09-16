@@ -4,7 +4,7 @@ from django.test import override_settings
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import tasks
 from waldur_mastermind.marketplace.enums import OrderStates
@@ -80,6 +80,29 @@ class SetProviderInfoTest(BaseProviderConsumerInfoTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order.refresh_from_db()
         self.assertEqual(self.order.provider_message, "Please sign NDA")
+
+    def test_offering_manager_can_set_message(self):
+        """Whoever may approve the order may message the consumer about it,
+        including an offering-scoped manager such as a site agent. See #400."""
+        manager = structure_factories.UserFactory()
+        self.offering.add_user(manager, OfferingRole.MANAGER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+
+        response = self._post(manager, {"provider_message": "Please sign NDA"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.provider_message, "Please sign NDA")
+
+    def test_offering_manager_of_another_offering_can_not_set_message(self):
+        manager = structure_factories.UserFactory()
+        factories.OfferingFactory().add_user(manager, OfferingRole.MANAGER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+
+        response = self._post(manager, {"provider_message": "Please sign NDA"})
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_provider_can_set_url(self):
         response = self._post(
