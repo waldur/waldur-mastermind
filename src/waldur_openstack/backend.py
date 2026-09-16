@@ -4340,7 +4340,10 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
         else:
             floating_ip.runtime_state = response_floating_ip["status"]
-            floating_ip.address = response_floating_ip["fixed_ip_address"]
+            # `fixed_ip_address` is the port's internal address, which the port
+            # row already holds in its fixed_ips; `address` is the floating
+            # IP's own, exactly as a pull records it.
+            floating_ip.address = response_floating_ip["floating_ip_address"]
             floating_ip.port = port
             floating_ip.save(update_fields=["address", "runtime_state", "port"])
 
