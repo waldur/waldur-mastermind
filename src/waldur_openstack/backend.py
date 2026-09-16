@@ -3551,14 +3551,21 @@ class OpenStackBackend(ServiceBackend):
             )
             router = None
         router_backend_id = router.backend_id if router else None
-        resolved_backend_id = self.connect_router(
-            subnet.network.tenant,
-            subnet.network.name,
-            subnet.backend_id,
-            network_id=subnet.network.backend_id,
-            router_backend_id=router_backend_id,
+        tenant = subnet.network.tenant
+        backend_router = self._resolve_router(
+            tenant, subnet.network.name, router_backend_id
         )
-        subnet.is_connected = True
+        # Neutron puts no interface on a subnet without a gateway IP, so the
+        # outcome, not the attempt, decides what is_connected reports.
+        attached = self._connect_network_to_router(
+            tenant,
+            backend_router,
+            external=False,
+            network_id=subnet.network.backend_id,
+            subnet_id=subnet.backend_id,
+        )
+        resolved_backend_id = backend_router["id"]
+        subnet.is_connected = attached
         update_fields = ["is_connected"]
         if router and resolved_backend_id != router.backend_id:
             # The named router was gone from Neutron and connect_router fell back
@@ -3568,6 +3575,14 @@ class OpenStackBackend(ServiceBackend):
             subnet.router = None
             update_fields.append("router")
         subnet.save(update_fields=update_fields)
+        if not attached:
+            logger.info(
+                "Subnet %s was not connected to router %s: it has no gateway IP.",
+                subnet.name,
+                resolved_backend_id,
+            )
+            # No interface was created, so there is none for the caller to import.
+            return None
         router_backend_id = resolved_backend_id
 
         event_logger.emit(
@@ -4040,6 +4055,12 @@ class OpenStackBackend(ServiceBackend):
     def _connect_network_to_router(
         self, tenant: models.Tenant, router, external, network_id=None, subnet_id=None
     ):
+        """Attach an external network as the router's gateway, or an internal
+        subnet as one of its interfaces.
+
+        For an internal subnet, returns whether the router holds an interface
+        on it afterwards.
+        """
         session = get_tenant_session(tenant)
         neutron = get_neutron_client(session)
         try:
@@ -4089,13 +4110,26 @@ class OpenStackBackend(ServiceBackend):
                 subnet = neutron.show_subnet(subnet_id)["subnet"]
                 # Subnet for router interface must have a gateway IP.
                 if not subnet["gateway_ip"]:
-                    return
+                    return False
                 ports = neutron.list_ports(
                     device_id=router["id"],
                     tenant_id=tenant.backend_id,
                     network_id=network_id,
                 )["ports"]
-                if not ports:
+                # The router needs one interface per subnet, and a network can
+                # carry several -- typically IPv6 next to IPv4. A router port on
+                # the network says nothing about this subnet; only a fixed IP in
+                # it does. Neutron may also put a second IPv6 subnet on the
+                # router's existing port, so every fixed IP is looked at.
+                already_attached = any(
+                    port["device_owner"] in VALID_ROUTER_INTERFACE_OWNERS
+                    and any(
+                        fixed_ip["subnet_id"] == subnet_id
+                        for fixed_ip in port.get("fixed_ips") or []
+                    )
+                    for port in ports
+                )
+                if not already_attached:
                     neutron.add_interface_router(router["id"], {"subnet_id": subnet_id})
                     logger.info(
                         "Internal subnet %s was connected to the router %s.",
@@ -4108,8 +4142,25 @@ class OpenStackBackend(ServiceBackend):
                         subnet_id,
                         router["name"],
                     )
+                return True
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
+
+    def _resolve_router(
+        self, tenant: models.Tenant, network_name, router_backend_id=None
+    ):
+        router_name = f"{network_name}-router"
+        router = (
+            self._show_router(tenant, router_backend_id) if router_backend_id else None
+        )
+        if router is None:
+            router = self._get_router(
+                tenant,
+                # The router for this very network, else the one Waldur creates
+                # alongside the tenant.
+                preferred_names=(router_name, self._default_router_name(tenant)),
+            ) or self._create_router(tenant, router_name)
+        return router
 
     def connect_router(
         self,
@@ -4127,17 +4178,7 @@ class OpenStackBackend(ServiceBackend):
             )
             return None
 
-        router_name = f"{network_name}-router"
-        router = (
-            self._show_router(tenant, router_backend_id) if router_backend_id else None
-        )
-        if router is None:
-            router = self._get_router(
-                tenant,
-                # The router for this very network, else the one Waldur creates
-                # alongside the tenant.
-                preferred_names=(router_name, self._default_router_name(tenant)),
-            ) or self._create_router(tenant, router_name)
+        router = self._resolve_router(tenant, network_name, router_backend_id)
         self._connect_network_to_router(tenant, router, external, network_id, subnet_id)
 
         return router["id"]
