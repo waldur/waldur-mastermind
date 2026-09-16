@@ -2,7 +2,6 @@ import logging
 import logging.config
 import os
 
-import structlog
 from celery import Celery, signals
 from celery.signals import setup_logging
 from django_structlog.celery.steps import DjangoStructLogInitStep
@@ -72,51 +71,33 @@ def unbind_event_context(sender=None, **kwargs):
 
 @setup_logging.connect
 def _configure_structlog_for_celery(loglevel, logfile, format, colorize, **kwargs):
-    """Configure structlog when Celery sets up logging for workers."""
+    """Apply Django's LOGGING in Celery workers and beat.
+
+    Celery configures logging itself and would otherwise replace the root
+    handlers that django.setup() installed. Connecting a receiver here
+    pre-empts that — Celery skips its own setup when setup_logging has
+    receivers — so re-applying settings.LOGGING makes a worker log exactly
+    like the API: same levels, same handlers, DatabaseLogHandler included.
+    Without it the handler is dropped and SystemLog rows with source
+    "worker" or "beat" can never be written, leaving those filters in the
+    admin log viewer permanently empty.
+
+    Only the root level is overridden, so a worker started with -l debug
+    still gets one. structlog itself is already configured by base_settings
+    at import, so it is not repeated here.
+    """
     from django.conf import settings
 
     if not getattr(settings, "DJANGO_STRUCTLOG_CELERY_ENABLED", False):
         return
 
-    from waldur_core.server.base_settings import _FOREIGN_PRE_CHAIN
+    config = settings.LOGGING
+    if loglevel is not None:
+        level = (
+            loglevel if isinstance(loglevel, str) else logging.getLevelName(loglevel)
+        )
+        # Shallow copies: settings.LOGGING holds live structlog processor
+        # instances, and must not be mutated for the rest of the process.
+        config = {**config, "root": {**config["root"], "level": level}}
 
-    logging.config.dictConfig(
-        {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "formatters": {
-                "structlog_json": {
-                    "()": structlog.stdlib.ProcessorFormatter,
-                    "processor": structlog.processors.JSONRenderer(),
-                    "foreign_pre_chain": _FOREIGN_PRE_CHAIN,
-                },
-            },
-            "handlers": {
-                "console": {
-                    "class": "logging.StreamHandler",
-                    "formatter": "structlog_json",
-                },
-            },
-            "root": {
-                "level": logging.getLevelName(loglevel) if loglevel else "INFO",
-                "handlers": ["console"],
-            },
-        }
-    )
-
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.stdlib.filter_by_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecoder(),
-            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-        ],
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
+    logging.config.dictConfig(config)

@@ -34,10 +34,16 @@ Additional configuration files can be placed in `/etc/waldur/` (or the directory
 | File | Purpose |
 |------|---------|
 | `override.conf.py` | Override any Django/Waldur settings |
-| `logging.conf.py` | Logging configuration |
+| `logging.conf.py` | Logging configuration (optional; the image ships none) |
 | `saml2.conf.py` | SAML2 authentication configuration |
 
 These files are loaded in order, allowing later files to override earlier settings.
+
+They are `exec`'d after the base settings, so a file that *assigns* a setting
+replaces it wholesale. For dict-valued settings such as `LOGGING`, mutate in
+place — `LOGGING['loggers']['mylogger'] = {...}` — or the rest of the
+configuration is silently discarded. Logger levels that should apply to every
+deployment belong in `waldur_core/server/base_settings.py`, not here.
 
 ### Frontend Features
 

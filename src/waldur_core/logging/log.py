@@ -174,6 +174,7 @@ class DatabaseLogHandler(logging.Handler):
         self._enabled = True
         self._enabled_last_check = 0.0
         self._apps_ready = False
+        self._pid = os.getpid()
 
     @property
     def instance(self):
@@ -237,8 +238,30 @@ class DatabaseLogHandler(logging.Handler):
             cls._SystemLog = SystemLog
         return cls._SystemLog
 
+    def _discard_inherited_state(self):
+        """Drop buffer and lock inherited from a parent process after a fork.
+
+        A prefork pool child inherits the parent's buffer, so records still
+        unflushed at fork time would be written once per child — 11 copies at
+        Celery's default concurrency of 10, and again by the parent. The child
+        also inherits ``_buffer_lock``; unlike ``Handler.lock`` it is not
+        re-created by logging's own at-fork hook, so a lock held at the moment
+        of the fork would deadlock the child on its first record.
+
+        Called before taking the lock, and only ever from a child that has just
+        forked, which is single-threaded at that point.
+        """
+        pid = os.getpid()
+        if pid == self._pid:
+            return
+        self._pid = pid
+        self._buffer_lock = threading.Lock()
+        self._buffer = []
+
     def emit(self, record):
         """Buffer log record for later bulk insert."""
+        self._discard_inherited_state()
+
         if not self._check_apps_ready():
             return
 
@@ -315,6 +338,7 @@ class DatabaseLogHandler(logging.Handler):
 
     def close(self):
         """Flush remaining records on shutdown."""
+        self._discard_inherited_state()
         with self._buffer_lock:
             records = self._buffer[:]
             self._buffer.clear()
