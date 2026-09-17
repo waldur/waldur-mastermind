@@ -80,6 +80,7 @@ from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import (
+    K8S_TOPOLOGY_MODES,
     VISIBLE_IF_FIELD_TYPES,
     get_hidden_options,
     strip_hidden_options,
@@ -3332,6 +3333,15 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
         help_text="Whether clusters get a load balancer: always (required), "
         "at the customer's choice (optional) or never (disabled). "
         "Treated as required when omitted.",
+    )
+    topology_mode = serializers.ChoiceField(
+        choices=K8S_TOPOLOGY_MODES,
+        required=False,
+        help_text="Cluster topology: one site with three controllers "
+        "(1-datacenter), three sites with one controller each (3-datacenter) "
+        "or the customer's pick (customer_choice). When omitted, the option "
+        "type decides: 1-datacenter for single_datacenter_k8s_config, "
+        "3-datacenter for multi_datacenter_k8s_config.",
     )
 
     # Worker node requirements
