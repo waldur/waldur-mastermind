@@ -1,6 +1,7 @@
 import os
 
 import yaml
+from constance.models import Constance
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand
@@ -41,6 +42,37 @@ class Command(BaseCommand):
             "constance_settings_file",
             help="Specifies location of file in YAML format containing new settings",
         )
+        parser.add_argument(
+            "--if-unset",
+            action="store_true",
+            help=(
+                "Seed rather than override: skip any setting that already has a "
+                "stored value, so a change made in the UI survives the next run. "
+                "Use this for settings an administrator is expected to manage."
+            ),
+        )
+
+    def drop_already_set(self, constance_settings):
+        """Keep only the settings that have never been stored.
+
+        django-constance writes a row the first time a setting is given a value,
+        whether by this command or by an administrator in the UI, and falls back
+        to the code default while no row exists. So the presence of a row is
+        what separates "nobody has ever chosen" from "somebody chose this" —
+        and the latter is not ours to overwrite on every container start.
+        """
+        already_set = set(
+            Constance.objects.filter(key__in=constance_settings).values_list(
+                "key", flat=True
+            )
+        )
+        for key in sorted(already_set):
+            self.stdout.write(f"{key} already has a stored value, leaving it as it is.")
+        return {
+            key: value
+            for key, value in constance_settings.items()
+            if key not in already_set
+        }
 
     def handle(self, *args, **options):
         with open(options["constance_settings_file"]) as constance_settings_file:
@@ -52,6 +84,12 @@ class Command(BaseCommand):
         constance_settings = {
             key.upper(): value for key, value in constance_settings.items()
         }
+
+        if options["if_unset"]:
+            constance_settings = self.drop_already_set(constance_settings)
+            if not constance_settings:
+                return
+
         keys_to_delete = []
         for setting_key, setting_value in constance_settings.items():
             if setting_key in WHITELABELING_LOGOS:

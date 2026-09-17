@@ -7,8 +7,12 @@ waldur override_constance_settings /etc/waldur/whitelabeling.yaml
 echo "INFO: Override support settings..."
 waldur override_constance_settings /etc/waldur/support.yaml
 
-echo "INFO: Override language configuration..."
-waldur override_constance_settings /etc/waldur/languages.yaml
+# Seeded, not overridden: the enabled languages are an administrator-facing
+# toggle in the UI, and this job runs on every container start. Overriding it
+# here reverted that choice on each restart, with no file mounted in
+# docker-compose for the operator to change instead.
+echo "INFO: Seed language configuration if unset..."
+waldur override_constance_settings /etc/waldur/languages.yaml --if-unset
 
 echo "INFO: Override marketplace script settings..."
 waldur override_constance_settings /etc/waldur/marketplace-script.yaml
