@@ -443,12 +443,24 @@ def notify_customer_owners(serialized_policy):
 
 @shared_task(name="waldur_mastermind.policy.check_polices")
 def check_polices():
-    """Evaluate all policies across all policy types in the system."""
+    """Evaluate all policies across all policy types in the system.
+
+    Passes ``reconcile_already_fired=True`` so this periodic sweep also
+    re-applies idempotent immediate actions (request_pausing,
+    request_downscaling, restrict_members) for policies that are still
+    triggered but were already fired by an earlier evaluation -- catching
+    resources that became newly eligible since then (an offering's
+    supports_pausing flag turned on, a resource added to scope) instead of
+    leaving them stuck unpaused/undownscaled forever. See
+    ``utils._reconcile_idempotent_actions`` for why this is safe to repeat.
+    The frequent per-event evaluation path (``evaluate_policies_async``)
+    deliberately does not pass this -- only this periodic safety net does.
+    """
     for klass in core_utils.get_all_subclasses(models.Policy):
         if klass._meta.abstract:
             continue
 
-        utils.evaluate_policies(klass.objects.all())
+        utils.evaluate_policies(klass.objects.all(), reconcile_already_fired=True)
 
 
 @shared_task(name="waldur_mastermind.policy.notify_external_user")

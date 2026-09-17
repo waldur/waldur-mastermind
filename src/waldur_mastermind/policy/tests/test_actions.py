@@ -1120,3 +1120,227 @@ class ConcurrentPolicyEvaluationTest(TransactionTestCase):
             f"Resource was paused {len(pause_versions)} times, expected exactly 1. "
             "Double-fire indicates missing atomic CAS on has_fired.",
         )
+
+
+@freeze_time("2024-09-01")
+class AlreadyFiredPolicyReconciliationTest(test.APITestCase):
+    """Regression test for waldur/waldur-mastermind#470.
+
+    A policy that fires while its action's target queryset matches zero
+    resources (e.g. `supports_pausing` was off on the offering, or the
+    resource didn't exist yet) must not stay silently ineffective forever.
+    Because `is_triggered()` keeps returning True, `_evaluate_policies` keeps
+    reaching the "already fired" branch on every later evaluation -- the
+    periodic `check-polices` sweep (`reconcile_already_fired=True`) must
+    reconcile idempotent resource-state actions against current state there,
+    while the frequent per-event path (invoice-item saves, credit changes --
+    `reconcile_already_fired=False`, the default) must keep skipping, exactly
+    as before, so it doesn't repeat an action on every unrelated billing
+    event for a policy that already fired correctly.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project,
+            created_by=self.fixture.user,
+            actions="request_pausing",
+            limit_cost=0,  # any cost triggers it
+            has_fired=True,
+            fired_datetime=timezone.now(),
+        )
+
+    def _evaluate(self, reconcile_already_fired=False):
+        utils.evaluate_policies(
+            type(self.policy).objects.filter(pk=self.policy.pk),
+            reconcile_already_fired=reconcile_already_fired,
+        )
+
+    def test_sweep_pauses_newly_eligible_resource(self):
+        """A resource whose offering didn't support pausing (or didn't exist)
+        when the policy originally fired must still get paused once it
+        becomes eligible, on the next `check-polices`-style sweep -- without
+        has_fired ever flipping back to False."""
+        resource = self.fixture.resource
+        resource.state = ResourceStates.OK
+        resource.paused = False
+        resource.save()
+        # supports_pausing intentionally left unset here, mirroring the
+        # original-fire moment where the action matched nothing.
+
+        self._evaluate(reconcile_already_fired=True)
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+
+        # The flag turns on afterwards (or, equivalently, this resource is
+        # created afterwards) -- the condition that made the original fire
+        # a no-op no longer holds.
+        resource.offering.plugin_options["supports_pausing"] = True
+        resource.offering.save()
+
+        self._evaluate(reconcile_already_fired=True)
+
+        resource.refresh_from_db()
+        self.policy.refresh_from_db()
+        self.assertTrue(resource.paused)
+        self.assertTrue(self.policy.has_fired)
+
+    def test_event_driven_evaluation_does_not_reconcile(self):
+        """The default (per-event) path must NOT pause a newly-eligible
+        resource -- only the explicit `reconcile_already_fired=True` sweep
+        does. This is the scoping that keeps `check-polices` from turning
+        into "re-run every immediate action on every invoice-item save"."""
+        resource = self.fixture.resource
+        resource.state = ResourceStates.OK
+        resource.paused = False
+        resource.save()
+        resource.offering.plugin_options["supports_pausing"] = True
+        resource.offering.save()
+
+        self._evaluate(reconcile_already_fired=False)
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+
+    def test_reconciliation_excludes_one_shot_actions(self):
+        """notify_* must still fire on the original False->True edge, but a
+        later reconciliation sweep of the same (still fired) policy must not
+        repeat it. Exercising both calls -- rather than starting from
+        has_fired=True and only checking the second -- proves the exclusion
+        is genuinely the `reset_method is None` gate in
+        `_reconcile_idempotent_actions`, not just an artifact of the edge
+        never being crossed in this test."""
+        # is_triggered() needs real cost data (unlike the sibling tests
+        # above, which start from has_fired=True and never depend on
+        # is_triggered() being genuinely True). Mirrors the exact sequence
+        # the sibling tests use to get a billable plan cost onto the project.
+        resource = self.fixture.resource
+        resource.state = ResourceStates.OK
+        resource.save()
+        self.policy.has_fired = False
+        self.policy.fired_datetime = None
+        self.policy.actions = "notify_organization_owners"
+        self.policy.save()
+
+        with mock.patch("waldur_mastermind.policy.policy_actions.tasks") as mock_tasks:
+            self._evaluate(reconcile_already_fired=True)
+            self.policy.refresh_from_db()
+            self.assertTrue(self.policy.has_fired)
+            mock_tasks.notify_customer_owners.delay.assert_called_once()
+
+            self._evaluate(reconcile_already_fired=True)
+            mock_tasks.notify_customer_owners.delay.assert_called_once()
+
+    def test_reconciliation_is_a_noop_for_already_handled_resources(self):
+        """A resource the original fire already paused must not generate a
+        second event/revision on a later reconciliation sweep."""
+        resource = self.fixture.resource
+        resource.state = ResourceStates.OK
+        resource.offering.plugin_options["supports_pausing"] = True
+        resource.offering.save()
+        resource.paused = True
+        resource.save()
+
+        self._evaluate(reconcile_already_fired=True)
+
+        self.assertEqual(
+            logging_models.Event.objects.filter(event_type="request_pausing").count(),
+            0,
+        )
+
+
+@override_settings(task_always_eager=True)
+class ConcurrentReconciliationTest(TransactionTestCase):
+    """Regression test for the MR !6355 review comment: the has_fired CAS
+    only guarantees one *fire* runs per policy -- the reconciliation sweep
+    added for waldur/waldur-mastermind#470 re-applies actions to
+    already-fired policies with no equivalent policy-level guard. Without
+    the `select_for_update()` added to `_apply_generic_action`, two
+    overlapping reconciliation sweeps (a slow run colliding with the next
+    tick, two beat instances) could both read a resource as unpaused before
+    either commits, and both save + emit an event for it.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.fixture.project,
+            created_by=self.fixture.user,
+            actions="request_pausing",
+            limit_cost=0,
+            has_fired=True,
+            fired_datetime=timezone.now(),
+        )
+        self.resource = self.fixture.resource
+        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.paused = False
+        self.resource.save()
+
+        self.resource.offering.plugin_options = {"supports_pausing": True}
+        self.resource.offering.save()
+
+        from waldur_mastermind.invoices.models import Invoice
+
+        now = timezone.now()
+        invoice, _ = Invoice.objects.get_or_create(
+            customer=self.fixture.customer,
+            month=now.month,
+            year=now.year,
+            defaults={"tax_percent": 0},
+        )
+        invoices_factories.InvoiceItemFactory(
+            invoice=invoice,
+            resource=self.resource,
+            project=self.fixture.project,
+            unit_price=50,
+            quantity=1,
+        )
+
+    def test_concurrent_reconciliation_pauses_resource_exactly_once(self):
+        """Two concurrent reconciliation sweeps of the same already-fired
+        policy must pause a newly-eligible resource exactly once -- one
+        saved revision, one emitted event -- not once per overlapping
+        worker."""
+        barrier = threading.Barrier(2, timeout=10)
+        errors = []
+
+        def reconcile_after_barrier():
+            try:
+                barrier.wait()
+                from waldur_mastermind.policy.models import (
+                    ProjectEstimatedCostPolicy,
+                )
+
+                policies = ProjectEstimatedCostPolicy.objects.filter(pk=self.policy.pk)
+                utils.evaluate_policies(policies, reconcile_already_fired=True)
+            except Exception as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=reconcile_after_barrier)
+        t2 = threading.Thread(target=reconcile_after_barrier)
+        t1.start()
+        t2.start()
+        t1.join(timeout=15)
+        t2.join(timeout=15)
+
+        self.assertEqual(errors, [], f"Threads raised errors: {errors}")
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+
+        from reversion.models import Version
+
+        versions = Version.objects.get_for_object(self.resource)
+        pause_versions = [
+            v for v in versions if "request_pausing" in (v.revision.comment or "")
+        ]
+        self.assertEqual(
+            len(pause_versions),
+            1,
+            f"Resource was paused {len(pause_versions)} times, expected exactly 1. "
+            "Double-pause indicates missing row lock on reconciliation.",
+        )
+
+        events = logging_models.Event.objects.filter(event_type="request_pausing")
+        self.assertEqual(events.count(), 1)
