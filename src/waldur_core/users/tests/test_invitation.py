@@ -205,7 +205,8 @@ class InvitationDuplicateCheckTest(BaseInvitationTest):
                         "role": CustomerRole.OWNER.uuid.hex,
                         "existing_invitation_uuid": str(invitation.uuid),
                     }
-                ]
+                ],
+                "existing_roles": [],
             },
         )
 
@@ -233,7 +234,7 @@ class InvitationDuplicateCheckTest(BaseInvitationTest):
         response = self.client.post(self.check_duplicates_url, data=payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"duplicates": []})
+        self.assertEqual(response.data, {"duplicates": [], "existing_roles": []})
 
     def test_returns_duplicates_within_request(self):
         payload = {
@@ -256,9 +257,151 @@ class InvitationDuplicateCheckTest(BaseInvitationTest):
                         "role": CustomerRole.OWNER.uuid.hex,
                         "existing_invitation_uuid": None,
                     }
-                ]
+                ],
+                "existing_roles": [],
             },
         )
+
+    def check_project_duplicates(self, email, role):
+        payload = {
+            "scope": structure_factories.ProjectFactory.get_url(self.project),
+            "invitations": [{"email": email, "role": role.uuid.hex}],
+        }
+        response = self.client.post(self.check_duplicates_url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["existing_roles"]
+
+    def test_returns_existing_role_when_user_has_same_role_in_scope(self):
+        existing_roles = self.check_project_duplicates(
+            self.project_admin.email, ProjectRole.ADMIN
+        )
+
+        self.assertEqual(
+            existing_roles,
+            [
+                {
+                    "email": self.project_admin.email,
+                    "role": ProjectRole.ADMIN.uuid.hex,
+                    "existing_role": ProjectRole.ADMIN.uuid.hex,
+                    "existing_role_name": ProjectRole.ADMIN.name,
+                    "existing_role_description": ProjectRole.ADMIN.description,
+                    "is_same_role": True,
+                }
+            ],
+        )
+
+    def test_returns_existing_role_when_user_has_different_role_in_scope(self):
+        existing_roles = self.check_project_duplicates(
+            self.project_admin.email, ProjectRole.MANAGER
+        )
+
+        self.assertEqual(
+            existing_roles,
+            [
+                {
+                    "email": self.project_admin.email,
+                    "role": ProjectRole.MANAGER.uuid.hex,
+                    "existing_role": ProjectRole.ADMIN.uuid.hex,
+                    "existing_role_name": ProjectRole.ADMIN.name,
+                    "existing_role_description": ProjectRole.ADMIN.description,
+                    "is_same_role": False,
+                }
+            ],
+        )
+
+    def test_does_not_return_existing_roles_for_user_without_role_in_scope(self):
+        self.assertEqual(
+            self.check_project_duplicates(self.user.email, ProjectRole.ADMIN), []
+        )
+
+    def test_matches_existing_roles_by_email_case_insensitively(self):
+        existing_roles = self.check_project_duplicates(
+            self.project_admin.email.upper(), ProjectRole.ADMIN
+        )
+
+        self.assertEqual(len(existing_roles), 1)
+        self.assertEqual(existing_roles[0]["email"], self.project_admin.email.upper())
+        self.assertTrue(existing_roles[0]["is_same_role"])
+
+    def test_ignores_revoked_roles(self):
+        self.project.add_user(self.user, ProjectRole.MANAGER)
+        get_permissions(self.project, self.user).update(is_active=False)
+
+        self.assertEqual(
+            self.check_project_duplicates(self.user.email, ProjectRole.ADMIN), []
+        )
+
+    def test_reports_every_user_sharing_the_same_email(self):
+        # User.email carries no unique constraint, so an email may resolve to
+        # several accounts, each with its own role in the scope.
+        namesake = structure_factories.UserFactory(email=self.project_admin.email)
+        self.project.add_user(namesake, ProjectRole.MANAGER)
+
+        existing_roles = self.check_project_duplicates(
+            self.project_admin.email, ProjectRole.ADMIN
+        )
+
+        # Ordered by role name across both accounts, not by whatever order the
+        # database returned the users in.
+        self.assertEqual(
+            [item["existing_role_name"] for item in existing_roles],
+            [ProjectRole.ADMIN.name, ProjectRole.MANAGER.name],
+        )
+
+    def test_reports_each_case_variant_of_the_same_email(self):
+        payload = {
+            "scope": structure_factories.ProjectFactory.get_url(self.project),
+            "invitations": [
+                {
+                    "email": self.project_admin.email.upper(),
+                    "role": ProjectRole.ADMIN.uuid.hex,
+                },
+                {
+                    "email": self.project_admin.email,
+                    "role": ProjectRole.ADMIN.uuid.hex,
+                },
+            ],
+        }
+
+        response = self.client.post(self.check_duplicates_url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Both rows are reported with their own spelling, so a caller matching
+        # entries back to rows by email flags both of them.
+        self.assertEqual(
+            [item["email"] for item in response.data["existing_roles"]],
+            [self.project_admin.email.upper(), self.project_admin.email],
+        )
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_reports_existing_roles_when_multiple_roles_are_disabled(self):
+        self.assertEqual(
+            self.check_project_duplicates(
+                self.project_admin.email, ProjectRole.MANAGER
+            ),
+            self.expected_different_role_entry(),
+        )
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=False)
+    def test_reports_existing_roles_when_multiple_roles_are_allowed(self):
+        self.assertEqual(
+            self.check_project_duplicates(
+                self.project_admin.email, ProjectRole.MANAGER
+            ),
+            self.expected_different_role_entry(),
+        )
+
+    def expected_different_role_entry(self):
+        return [
+            {
+                "email": self.project_admin.email,
+                "role": ProjectRole.MANAGER.uuid.hex,
+                "existing_role": ProjectRole.ADMIN.uuid.hex,
+                "existing_role_name": ProjectRole.ADMIN.name,
+                "existing_role_description": ProjectRole.ADMIN.description,
+                "is_same_role": False,
+            }
+        ]
 
 
 @ddt

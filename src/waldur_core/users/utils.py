@@ -1,3 +1,4 @@
+import collections
 import logging
 from typing import Any
 
@@ -20,6 +21,7 @@ from waldur_core.permissions.utils import (
     build_role_index,
     get_create_permission,
     get_customer,
+    get_permissions,
     get_scope_ancestors,
     get_scope_ids,
     get_users_with_permission,
@@ -453,6 +455,77 @@ def get_invitation_duplicates(scope, invitations):
             added.add(key)
 
     return duplicates
+
+
+def get_invitation_existing_roles(scope, invitations):
+    """Active roles the invitees already hold in ``scope``.
+
+    The invitee is known only by email here, so resolution goes through
+    ``User.email``, which carries no unique constraint: one address may resolve
+    to several accounts, and the roles of all of them are reported. Entries are
+    keyed by (email as written, requested role, held role) and carry no user
+    identity, so two accounts sharing an address and a role collapse into one
+    entry, while two rows differing only in case each keep their own.
+
+    This reports what the scope holds, not what a grant would do — acceptance is
+    decided for the accepting user by ``validate_role_grant``, which also
+    consults INVITATION_DISABLE_MULTIPLE_ROLES and ONLY_ONE_PROJECT_MANAGER. The
+    caller decides how loudly to say it.
+    """
+    if not invitations:
+        return []
+
+    email_conditions = Q()
+    for item in invitations:
+        email_conditions |= Q(email__iexact=item["email"])
+
+    users_by_email = collections.defaultdict(list)
+    for user in core_models.User.objects.filter(email_conditions, is_active=True):
+        users_by_email[user.email.lower()].append(user)
+
+    if not users_by_email:
+        return []
+
+    user_ids = [user.id for users in users_by_email.values() for user in users]
+    roles_by_user_id = collections.defaultdict(list)
+    for permission in get_permissions(scope).filter(user_id__in=user_ids):
+        roles_by_user_id[permission.user_id].append(permission.role)
+
+    existing_roles = []
+    seen = set()
+    for item in invitations:
+        requested_role = item["role"]
+        # Sorted here rather than in the query: ordering the UserRole rows would
+        # only settle the order within one account, leaving the order across
+        # accounts sharing the address up to the database.
+        held_roles = sorted(
+            (
+                role
+                for user in users_by_email.get(item["email"].lower(), [])
+                for role in roles_by_user_id.get(user.id, [])
+            ),
+            key=lambda role: (role.name, role.uuid),
+        )
+        for role in held_roles:
+            # Keyed on the email as written, so a caller matching entries back
+            # to its request rows by email still finds a row that differs from
+            # another only in case.
+            key = (item["email"], requested_role.uuid, role.uuid)
+            if key in seen:
+                continue
+            seen.add(key)
+            existing_roles.append(
+                {
+                    "email": item["email"],
+                    "role": requested_role.uuid,
+                    "existing_role": role.uuid,
+                    "existing_role_name": role.name,
+                    "existing_role_description": role.description or role.name,
+                    "is_same_role": role.pk == requested_role.pk,
+                }
+            )
+
+    return existing_roles
 
 
 def get_users_for_notification_about_request_has_been_submitted(

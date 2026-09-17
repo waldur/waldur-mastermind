@@ -682,8 +682,32 @@ class InvitationDuplicateSerializer(serializers.Serializer):
     existing_invitation_uuid = serializers.UUIDField(allow_null=True, required=False)
 
 
+class InvitationExistingRoleSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    role = serializers.UUIDField(
+        format="hex", help_text="UUID of the role requested for this email"
+    )
+    existing_role = serializers.UUIDField(
+        format="hex", help_text="UUID of the role the user already holds in the scope"
+    )
+    existing_role_name = serializers.CharField(
+        help_text="Name of the role the user already holds in the scope"
+    )
+    existing_role_description = serializers.CharField(
+        help_text="Human-readable description of the role the user already holds, "
+        "for display. Falls back to the role name when the description is blank."
+    )
+    is_same_role = serializers.BooleanField(
+        help_text="Whether the role already held is the one being requested. This "
+        "reports what the scope currently holds, not the outcome of a grant: "
+        "acceptance is decided per accepting user and also depends on the "
+        "INVITATION_DISABLE_MULTIPLE_ROLES and ONLY_ONE_PROJECT_MANAGER settings."
+    )
+
+
 class InvitationDuplicateCheckResponseSerializer(serializers.Serializer):
     duplicates = InvitationDuplicateSerializer(many=True)
+    existing_roles = InvitationExistingRoleSerializer(many=True)
 
 
 class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
