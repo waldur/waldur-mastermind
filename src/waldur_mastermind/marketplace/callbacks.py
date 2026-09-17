@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_mastermind.common.serializers import strip_hidden_options
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 
 from . import billing_mode, log, models, signals, tasks
@@ -230,6 +231,14 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
             if new_options:
                 current_options = locked_resource.options or {}
                 current_options.update(new_options)
+                resource_options = (
+                    locked_resource.offering.resource_options or {}
+                ).get("options")
+                if resource_options:
+                    # Options hidden by the new values lose their stored values.
+                    current_options = strip_hidden_options(
+                        resource_options, current_options
+                    )
                 locked_resource.options = current_options
                 logger.info(
                     "Updated options for resource %s (UUID: %s) from order %s",

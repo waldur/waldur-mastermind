@@ -79,7 +79,12 @@ from waldur_mastermind.billing.serializers import (
 from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
-from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.common.serializers import (
+    VISIBLE_IF_FIELD_TYPES,
+    get_hidden_options,
+    strip_hidden_options,
+    validate_options,
+)
 from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
@@ -3452,6 +3457,33 @@ class OptionValidatorSerializer(serializers.Serializer):
     target_field = serializers.CharField()
 
 
+@extend_schema_field({"oneOf": [{"type": "boolean"}, {"type": "string"}]})
+class OptionVisibleIfValueField(serializers.Field):
+    """A value an option must have for a dependent option to be shown."""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, bool | str):
+            raise serializers.ValidationError(_("Must be a boolean or a string."))
+        return data
+
+    def to_representation(self, value):
+        return value
+
+
+class OptionVisibleIfSerializer(serializers.Serializer):
+    field = serializers.CharField(
+        help_text=_("Key of an earlier option whose value controls visibility.")
+    )
+    values = serializers.ListField(
+        child=OptionVisibleIfValueField(),
+        allow_empty=False,
+        help_text=_(
+            "The option is shown when the referenced option has one of these values. "
+            "For a multi-select option, when any of its selected values is listed."
+        ),
+    )
+
+
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
@@ -3467,6 +3499,10 @@ class OptionFieldSerializer(serializers.Serializer):
     default_configs = K8sDefaultConfigurationSerializer(required=False)
     validators = serializers.ListField(
         child=OptionValidatorSerializer(), required=False
+    )
+    visible_if = OptionVisibleIfSerializer(
+        required=False,
+        help_text=_("Show this option only when another option has a given value."),
     )
 
     def validate(self, attrs):
@@ -3507,6 +3543,7 @@ class OfferingOptionsSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         options = attrs.get("options", {})
+        self._validate_visible_if(options, attrs.get("order") or [])
         for name, option in options.items():
             validators = option.get("validators")
             if not validators:
@@ -3536,6 +3573,62 @@ class OfferingOptionsSerializer(serializers.Serializer):
                             }
                         )
         return attrs
+
+    def _validate_visible_if(self, options, order):
+        positions = {key: index for index, key in enumerate(order)}
+        for name, option in options.items():
+            rule = option.get("visible_if")
+            if not rule:
+                continue
+            field = rule["field"]
+            params = {"field": field, "name": name}
+            if field not in options:
+                raise self._visible_if_error(
+                    _("Option %(field)s referenced by option %(name)s is not found."),
+                    params,
+                )
+            if (
+                field not in positions
+                or name not in positions
+                or positions[field] >= positions[name]
+            ):
+                raise self._visible_if_error(
+                    _(
+                        "Option %(field)s referenced by option %(name)s "
+                        "must appear earlier in order."
+                    ),
+                    params,
+                )
+            parent = options[field]
+            parent_type = parent.get("type")
+            if parent_type not in VISIBLE_IF_FIELD_TYPES:
+                raise self._visible_if_error(
+                    _(
+                        "Option %(field)s referenced by option %(name)s must be "
+                        "a boolean, select_string or select_string_multi option."
+                    ),
+                    params,
+                )
+            values = rule["values"]
+            if parent_type == "boolean":
+                valid = all(isinstance(value, bool) for value in values)
+            else:
+                choices = parent.get("choices") or []
+                valid = all(
+                    isinstance(value, str) and value in choices for value in values
+                )
+            if not valid:
+                raise self._visible_if_error(
+                    _(
+                        "Values of the visibility rule of option %(name)s "
+                        "are not valid for option %(field)s."
+                    ),
+                    params,
+                )
+
+    @staticmethod
+    def _visible_if_error(message, params):
+        return serializers.ValidationError({"options": message % params})
 
 
 class LimitValueField(serializers.FloatField):
@@ -5997,9 +6090,11 @@ class BaseItemSerializer(
             validate_plan(plan)
 
         if offering.options:
-            validate_options(
+            attributes = validate_options(
                 offering.options.get("options", {}), attrs.get("attributes")
             )
+            if "attributes" in attrs:
+                attrs["attributes"] = attributes
 
         limits = attrs.get("limits")
         if limits:
@@ -6189,6 +6284,9 @@ class OrderUpdateSerializer(BaseOrderSerializer):
                 self.instance.resource,
                 plan=self.instance.plan,
             )
+        options = (self.instance.offering.options or {}).get("options")
+        if options and "attributes" in attrs:
+            attrs["attributes"] = strip_hidden_options(options, attrs["attributes"])
         return attrs
 
 
@@ -6206,7 +6304,12 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     _("Metadata for resource options is not defined.")
                 )
-            validate_options(resource_options["options"], new_options, optional=True)
+            options = resource_options["options"]
+            current_options = (order.resource.options if order.resource else None) or {}
+            hidden = get_hidden_options(options, {**current_options, **new_options})
+            attributes["new_options"] = validate_options(
+                options, new_options, optional=True, hidden=hidden
+            )
         return attributes
 
 
@@ -6730,12 +6833,17 @@ class OrderCreateSerializer(
         resource.init_cost()
 
         # Set resource options from offering's resource_options
-        resource.options = {}
-        for resource_option in (
-            validated_data["offering"].resource_options.get("options", {}).keys()
-        ):
-            if resource_option in attributes:
-                resource.options[resource_option] = attributes[resource_option]
+        resource_options = validated_data["offering"].resource_options.get(
+            "options", {}
+        )
+        resource.options = strip_hidden_options(
+            resource_options,
+            {
+                key: attributes[key]
+                for key in resource_options.keys()
+                if key in attributes
+            },
+        )
 
         resource.save()
 
@@ -8847,11 +8955,11 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
                 _("There's a pending order for changing resource options.")
             )
 
-        validate_options(resource_options["options"], attrs, optional=True)
-        if self.instance.options:
-            return {**self.instance.options, **attrs}
-        else:
-            return attrs
+        options = resource_options["options"]
+        merged = {**(self.instance.options or {}), **attrs}
+        hidden = get_hidden_options(options, merged)
+        validate_options(options, attrs, optional=True, hidden=hidden)
+        return strip_hidden_options(options, merged, hidden)
 
 
 class ResourceOfferingSerializer(serializers.ModelSerializer):
