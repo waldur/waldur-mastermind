@@ -1125,12 +1125,18 @@ Override settings stored in django-constance. The example of .yaml file:
 
 ```bash
 
-usage: waldur override_constance_settings constance_settings_file
+usage: waldur override_constance_settings [--if-unset] constance_settings_file
 
 positional arguments:
   constance_settings_file
                         Specifies location of file in YAML format containing
                         new settings
+
+options:
+  --if-unset            Seed rather than override: skip any setting that
+                        already has a stored value, so a change made in the UI
+                        survives the next run. Use this for settings an
+                        administrator is expected to manage.
 
 ```
 

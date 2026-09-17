@@ -116,6 +116,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`InvitationAcceptanceMixin`](#invitationacceptancemixin) | `waldur_mastermind.proposal.views` | Mixin providing common logic for accepting/declining reviewer pool invitations |
 | [`BackendNameMixin`](#backendnamemixin) | `waldur_mastermind.support.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`FileMixin`](#filemixin) | `waldur_mastermind.support.models` | Mixin to provide file-related functionality and properties |
+| [`SettingsFileMixin`](#settingsfilemixin) | `waldur_mastermind.support.tests.test_constance_override` | No description available |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_mastermind.support.views` | Raise exception if extension is disabled |
 | [`UsageMixin`](#usagemixin) | `waldur_openportal.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`ActionDetailsMixin`](#actiondetailsmixin) | `waldur_openstack.admin` | Encapsulate all admin options and functionality for a given model |
@@ -1652,6 +1653,12 @@ Make subclasses preserve the alters_data attribute on overridden methods.
 **Description:**
 
 Mixin to provide file-related functionality and properties.
+
+### SettingsFileMixin
+
+**Module:** `waldur_mastermind.support.tests.test_constance_override`
+
+**Description:** No description available.
 
 ### CheckExtensionMixin
 
