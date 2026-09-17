@@ -44,16 +44,29 @@ def system_actor_event_context():
         logging_middleware.set_event_context(previous)
 
 
-def evaluate_policies(policies):
+def evaluate_policies(policies, reconcile_already_fired=False):
     # Policy actions (and the resource saves they perform) emit events; attribute
     # them to the system robot, not to whoever's request happened to trigger the
     # evaluation. is_triggered() below emits nothing, so wrapping the whole loop
     # is safe.
     with system_actor_event_context():
-        _evaluate_policies(policies)
+        _evaluate_policies(policies, reconcile_already_fired=reconcile_already_fired)
 
 
-def _evaluate_policies(policies):
+def _evaluate_policies(policies, reconcile_already_fired=False):
+    """Evaluate ``policies`` and run/reset their actions as needed.
+
+    ``reconcile_already_fired`` controls what happens when a policy is still
+    triggered but was already fired by an earlier evaluation (see
+    ``_reconcile_idempotent_actions`` for why this matters): the frequent,
+    per-event evaluation paths (invoice-item saves, credit changes — driven
+    through ``evaluate_policies_async``) leave it ``False`` and keep the
+    original "fire exactly once per edge" semantics those callers, and the
+    tests covering them, depend on. Only the periodic ``check-polices`` sweep
+    (`policy/tasks.py::check_polices`) passes ``True`` — reconciliation is a
+    "did the fire actually stick" safety net, not something that should run
+    on every single billing event for a policy that already fired correctly.
+    """
     for policy in policies:
         if policy.is_triggered():
             # Atomic CAS: only fire if has_fired is still False in DB.
@@ -64,7 +77,17 @@ def _evaluate_policies(policies):
                 .update(has_fired=True, fired_datetime=timezone.now())
             )
             if updated == 0:
-                continue  # Already fired by another worker
+                # Already fired by another worker (or by an earlier
+                # evaluation). The CAS above only ever runs actions on the
+                # original False->True edge, so a policy that fires while its
+                # action affects zero resources (e.g. a `supports_pausing`
+                # offering flag was off, or a resource hadn't been created
+                # yet) would otherwise stay silently ineffective forever:
+                # `is_triggered()` keeps returning True, so this branch keeps
+                # being reached, but the CAS never matches again.
+                if reconcile_already_fired:
+                    _reconcile_idempotent_actions(policy)
+                continue
 
             policy.refresh_from_db()
 
@@ -119,3 +142,31 @@ def _evaluate_policies(policies):
                         reset_method.__name__,
                     )
                     reset_method(policy)
+
+
+def _reconcile_idempotent_actions(policy):
+    """Re-apply an already-fired policy's idempotent resource-state actions.
+
+    Only actions with a ``reset_method`` are re-run here — that is exactly
+    the set of "toggle a resource field" actions (``request_pausing``,
+    ``request_downscaling``, ``restrict_members``), whose target querysets in
+    ``policy_actions._apply_generic_action`` filter on live state (e.g. an
+    offering's ``supports_pausing`` flag) and always skip a resource already
+    at the desired value. Re-running them is therefore a no-op for anything
+    the original fire already handled, and the only way resources that
+    became newly eligible since then — a flag turned on, a resource added to
+    the policy's scope — ever get reconciled.
+
+    One-shot actions (``notify_*``, ``terminate_resources``) have no
+    ``reset_method`` and are deliberately skipped: they must fire exactly
+    once per True->False->True cycle, not on every periodic re-evaluation.
+    """
+    for action in policy.get_immediate_actions():
+        if action.reset_method is None:
+            continue
+        action.method(policy)
+        logger.info(
+            "%s action of policy %s has been reconciled.",
+            action.method.__name__,
+            policy.uuid.hex,
+        )
