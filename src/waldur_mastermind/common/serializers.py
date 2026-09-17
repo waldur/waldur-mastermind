@@ -14,12 +14,91 @@ class ConditionalCascadeField(serializers.DictField):
     """Field for conditional cascade selections that stores step-value mappings"""
 
 
-class SingleDatacenterK8sConfigField(serializers.DictField):
+K8S_TOPOLOGY_ONE_DATACENTER = "1-datacenter"
+K8S_TOPOLOGY_THREE_DATACENTERS = "3-datacenter"
+K8S_TOPOLOGY_CUSTOMER_CHOICE = "customer_choice"
+
+K8S_TOPOLOGY_MODES = (
+    (K8S_TOPOLOGY_ONE_DATACENTER, "Single site, 3 controllers"),
+    (K8S_TOPOLOGY_THREE_DATACENTERS, "Three sites, 1 controller each"),
+    (K8S_TOPOLOGY_CUSTOMER_CHOICE, "Customer chooses"),
+)
+
+K8S_TOPOLOGY_DATACENTER_COUNTS = {
+    K8S_TOPOLOGY_ONE_DATACENTER: 1,
+    K8S_TOPOLOGY_THREE_DATACENTERS: 3,
+}
+
+
+class K8sConfigField(serializers.DictField):
+    """
+    Kubernetes cluster configuration chosen in the order form.
+
+    The offering's topology_mode decides which topology the value may carry;
+    when the option does not set it, the option type decides. Values that lack
+    the topology or datacenters keys are left alone, so orders placed before
+    these checks existed still validate.
+    """
+
+    default_topology = None
+
+    def __init__(self, *args, **kwargs):
+        self.topology_mode = kwargs.pop("topology_mode", None) or self.default_topology
+        super().__init__(*args, **kwargs)
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        topology = value.get("topology")
+
+        if topology is not None:
+            if (
+                not isinstance(topology, str)
+                or topology not in K8S_TOPOLOGY_DATACENTER_COUNTS
+            ):
+                raise serializers.ValidationError(
+                    "Cluster topology must be one of: "
+                    + ", ".join(K8S_TOPOLOGY_DATACENTER_COUNTS)
+                    + "."
+                )
+            if self.topology_mode not in (K8S_TOPOLOGY_CUSTOMER_CHOICE, topology):
+                raise serializers.ValidationError(
+                    f'This offering does not allow the "{topology}" cluster topology.'
+                )
+        elif self.topology_mode != K8S_TOPOLOGY_CUSTOMER_CHOICE:
+            topology = self.topology_mode
+
+        datacenters = value.get("datacenters")
+        if not isinstance(datacenters, list):
+            return value
+
+        if topology is None:
+            # The customer's pick was not recorded: any supported site count.
+            if len(datacenters) not in K8S_TOPOLOGY_DATACENTER_COUNTS.values():
+                raise serializers.ValidationError(
+                    "A cluster needs 1 or 3 datacenters, "
+                    f"but {len(datacenters)} were given."
+                )
+            return value
+
+        expected = K8S_TOPOLOGY_DATACENTER_COUNTS[topology]
+        if len(datacenters) != expected:
+            raise serializers.ValidationError(
+                f'The "{topology}" cluster topology requires {expected} '
+                f"datacenter(s), but {len(datacenters)} were given."
+            )
+        return value
+
+
+class SingleDatacenterK8sConfigField(K8sConfigField):
     """Field for single-datacenter Kubernetes cluster configuration"""
 
+    default_topology = K8S_TOPOLOGY_ONE_DATACENTER
 
-class MultiDatacenterK8sConfigField(serializers.DictField):
+
+class MultiDatacenterK8sConfigField(K8sConfigField):
     """Field for multi-datacenter Kubernetes cluster configuration"""
+
+    default_topology = K8S_TOPOLOGY_THREE_DATACENTERS
 
 
 class StorageFolderManagerField(serializers.Serializer):
@@ -168,6 +247,11 @@ def validate_options(options, attributes, optional=False, hidden=None):
                 serializers.MultipleChoiceField,
             ):
                 params["choices"] = option["choices"]
+
+        if issubclass(field_class, K8sConfigField):
+            params["topology_mode"] = (option.get("default_configs") or {}).get(
+                "topology_mode"
+            )
 
         fields[name] = field_class(**params)
 
