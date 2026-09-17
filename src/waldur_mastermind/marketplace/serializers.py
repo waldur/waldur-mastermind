@@ -13456,6 +13456,41 @@ class RemoveSoftwareCatalogSerializer(serializers.Serializer):
     )
 
 
+class RuntimeStatesFilterSerializer(serializers.Serializer):
+    project_uuid = serializers.UUIDField(
+        required=False,
+        help_text="Filter runtime states by resources within a specific project.",
+    )
+    category_uuid = serializers.UUIDField(
+        required=False,
+        help_text="Filter runtime states by resources belonging to a specific category.",
+    )
+    offering_uuid = serializers.UUIDField(
+        required=False,
+        help_text="Filter runtime states by resources of a specific offering.",
+    )
+    customer_uuid = serializers.UUIDField(
+        required=False,
+        help_text="Filter runtime states by resources within a specific customer.",
+    )
+
+    def validate(self, attrs):
+        if not any(
+            attrs.get(field)
+            for field in (
+                "project_uuid",
+                "category_uuid",
+                "offering_uuid",
+                "customer_uuid",
+            )
+        ):
+            raise serializers.ValidationError(
+                "Provide at least one of project_uuid, category_uuid, "
+                "offering_uuid or customer_uuid."
+            )
+        return attrs
+
+
 class RuntimeStatesSerializer(serializers.Serializer):
     value = serializers.CharField(
         read_only=True, help_text="Value of the runtime state"
