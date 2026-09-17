@@ -2,7 +2,7 @@ import yaml
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
-from waldur_core.permissions.enums import TYPE_MAP
+from waldur_core.permissions.enums import TEAM_VIEW_PERMISSIONS, TYPE_MAP
 from waldur_core.permissions.models import Role, RolePermission
 
 
@@ -63,6 +63,19 @@ class Command(BaseCommand):
 
                 for permission in new_permissions - current_permissions:
                     RolePermission.objects.create(role=role, permission=permission)
+
+                team_permission = TEAM_VIEW_PERMISSIONS.get(
+                    (role.content_type.app_label, role.content_type.model)
+                )
+                if team_permission and team_permission not in new_permissions:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Role {row['role']} does not grant {team_permission}: "
+                            "its holders cannot list the team. Add it to the role, "
+                            "or to add_permissions in permissions-override.yaml, "
+                            "if they should."
+                        )
+                    )
 
                 description = row.get("description")
                 if description and role.description != description:

@@ -10,6 +10,10 @@
 # release is applied and then immediately overwritten by this file on every
 # deployment, until you add it here yourself.
 #
+# Organization (customer) and project roles need CUSTOMER.VIEW_TEAM /
+# PROJECT.VIEW_TEAM for their holders to list the team; import_roles warns when
+# such a role lacks it.
+#
 # Note: a role listed here is created as a *system* role — it cannot be deleted
 # or renamed through the UI/API afterwards, and removing it from this file does
 # not remove it from the database.
