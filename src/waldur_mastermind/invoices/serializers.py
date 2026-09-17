@@ -535,6 +535,39 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
         return extra_kwargs
 
 
+def has_single_plan(invoice_item) -> bool:
+    return bool(
+        invoice_item.resource and invoice_item.resource.offering.plans.count() == 1
+    )
+
+
+def name_with_plan(invoice_item) -> str:
+    """The item name with the plan appended, unless the name already has it."""
+    plan_name = invoice_item.details.get("plan_name")
+    # Generated item names read "<resource> (<offering> / <plan>)...", see
+    # marketplace.billing_utils.get_invoice_item_name.
+    if not plan_name or f" / {plan_name})" in invoice_item.name:
+        return invoice_item.name
+    return f"{invoice_item.name} / {plan_name}"
+
+
+def single_plan_component_text(invoice_item) -> str:
+    """
+    "<resource> (<offering>) / <component>" for an item of a single-plan
+    offering. Resource and offering names come from the snapshot taken when the
+    item was created, so re-exporting a past month gives the same text after
+    either is renamed; the live names are only used for items without one.
+    """
+    details = invoice_item.details
+    resource = invoice_item.resource
+    resource_name = details.get("resource_name") or resource.name
+    offering_name = details.get("offering_name") or resource.offering.name
+    text = f"{resource_name} ({offering_name}) / {details['offering_component_name']}"
+    if invoice_item.name.endswith(" (Overage)"):
+        text += " (Overage)"
+    return text
+
+
 class SAPReportSerializer(serializers.Serializer):
     registrikood = serializers.ReadOnlyField(
         source="invoice.customer.registration_code"
@@ -679,17 +712,11 @@ class SAPReportSerializer(serializers.Serializer):
 
     def get_tekst_2_field(self, invoice_item):
         # If a single plan for an offering exists, skip it from display
-        if invoice_item.resource and invoice_item.resource.offering.plans.count() == 1:
+        if has_single_plan(invoice_item):
             if "offering_component_name" in invoice_item.details:
-                return (
-                    f"{invoice_item.resource.name} ({invoice_item.resource.offering.name}) / "
-                    f"{invoice_item.details['offering_component_name']}"
-                )
+                return single_plan_component_text(invoice_item)
             return invoice_item.name
-        if "plan_name" in invoice_item.details.keys():
-            return f"{invoice_item.name} / {invoice_item.details['plan_name']}"
-        else:
-            return invoice_item.name
+        return name_with_plan(invoice_item)
 
     def get_vat(self, invoice_item):
         return settings.WALDUR_INVOICES["INVOICE_REPORTING"]["SAP_PARAMS"]["KM_KOOD"]
@@ -817,13 +844,9 @@ class SAFReportSerializer(serializers.Serializer):
         return ""
 
     def get_artnimi_field(self, invoice_item: models.InvoiceItem) -> str:
-        # If a single plan for an offering exists, skip it from display
-        if invoice_item.resource and invoice_item.resource.offering.plans.count() == 1:
+        if has_single_plan(invoice_item):
             return invoice_item.name
-        if "plan_name" in invoice_item.details.keys():
-            return f"{invoice_item.name} / {invoice_item.details['plan_name']}"
-        else:
-            return invoice_item.name
+        return name_with_plan(invoice_item)
 
     def get_covered_period(self, invoice_item: models.InvoiceItem) -> str:
         first_day = self.get_first_day(invoice_item)
