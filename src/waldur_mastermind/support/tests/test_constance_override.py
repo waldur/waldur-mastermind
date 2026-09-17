@@ -4,18 +4,25 @@ import tempfile
 from io import StringIO
 
 import yaml
+from constance import config
 from django.core.management import call_command
 from django.test import TestCase
 
 from waldur_core.media.utils import dummy_image
 
 
-class OverrideConstanceSettingsTest(TestCase):
+class SettingsFileMixin:
     def setUp(self):
         """
         Create a temporary directory for the tests
         """
         self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """
+        Clean up the temporary directory after the tests.
+        """
+        shutil.rmtree(self.temp_dir)
 
     def create_settings_file(self, settings_dict=None):
         """
@@ -26,6 +33,8 @@ class OverrideConstanceSettingsTest(TestCase):
             yaml.dump(settings_dict, f)
         return settings_file
 
+
+class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
     def test_empty_settings_file(self):
         """
         Test that the command prints a warning when the settings file is empty.
@@ -209,8 +218,53 @@ class OverrideConstanceSettingsTest(TestCase):
             "FREEIPA_BLACKLISTED_USERNAMES has been set to", output.getvalue()
         )
 
-    def tearDown(self):
-        """
-        Clean up the temporary directory after the tests.
-        """
-        shutil.rmtree(self.temp_dir)
+
+class SeedOnlyIfUnsetTest(SettingsFileMixin, TestCase):
+    """`--if-unset` is what the boot-time init jobs use for operator settings.
+
+    Those jobs run on every container start, so an unconditional override
+    silently reverted anything an administrator had changed in the UI.
+    """
+
+    def seed(self, settings):
+        output = StringIO()
+        call_command(
+            "override_constance_settings",
+            self.create_settings_file(settings),
+            "--if-unset",
+            stdout=output,
+        )
+        return output.getvalue()
+
+    def test_an_unset_setting_is_seeded(self):
+        output = self.seed({"LANGUAGE_CHOICES": "en,et"})
+
+        self.assertIn("LANGUAGE_CHOICES has been set to en,et", output)
+        self.assertEqual(config.LANGUAGE_CHOICES, "en,et")
+
+    def test_a_setting_an_administrator_changed_is_left_alone(self):
+        self.seed({"LANGUAGE_CHOICES": "en,et"})
+
+        # The administrator narrows the list in the UI, which stores a row.
+        config.LANGUAGE_CHOICES = "en"
+
+        output = self.seed({"LANGUAGE_CHOICES": "en,et,lt,lv,ru"})
+
+        self.assertIn("LANGUAGE_CHOICES already has a stored value", output)
+        self.assertEqual(config.LANGUAGE_CHOICES, "en")
+
+    def test_without_the_flag_the_stored_value_is_still_overridden(self):
+        config.LANGUAGE_CHOICES = "en"
+        settings_file = self.create_settings_file({"LANGUAGE_CHOICES": "en,et"})
+
+        call_command("override_constance_settings", settings_file, stdout=StringIO())
+
+        self.assertEqual(config.LANGUAGE_CHOICES, "en,et")
+
+    def test_settings_are_considered_one_by_one(self):
+        self.seed({"LANGUAGE_CHOICES": "en,et"})
+
+        output = self.seed({"LANGUAGE_CHOICES": "en,et,lt", "BRAND_COLOR": "#FF0000"})
+
+        self.assertIn("LANGUAGE_CHOICES already has a stored value", output)
+        self.assertIn("BRAND_COLOR has been set to", output)
