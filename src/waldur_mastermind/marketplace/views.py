@@ -10636,17 +10636,73 @@ class ResourceOfferingsViewSet(ListAPIView):
         return models.Offering.objects.filter(pk__in=offerings)
 
 
+def _apply_runtime_state_scope_filters(
+    resources, user, scope, projects, *, explicit_scope_only=False
+):
+    if project_uuid := scope.get("project_uuid"):
+        project = get_object_or_404(projects, uuid=project_uuid)
+        resources = resources.filter(project=project)
+
+    if customer_uuid := scope.get("customer_uuid"):
+        customers = filter_queryset_for_user(
+            structure_models.Customer.objects.all(), user
+        )
+        customer = get_object_or_404(customers, uuid=customer_uuid)
+        resources = resources.filter(
+            project__customer=customer,
+            project__in=projects,
+        )
+    elif not explicit_scope_only and not scope.get("project_uuid"):
+        resources = resources.filter(project__in=projects)
+
+    if category_uuid := scope.get("category_uuid"):
+        resources = resources.filter(offering__category__uuid=category_uuid)
+
+    return resources
+
+
+def _get_runtime_state_scoped_resources(user, scope):
+    projects = filter_queryset_for_user(structure_models.Project.objects.all(), user)
+    resources = models.Resource.objects.exclude(state=ResourceStates.TERMINATED)
+    resources = _apply_runtime_state_scope_filters(resources, user, scope, projects)
+
+    if offering_uuid := scope.get("offering_uuid"):
+        # A service provider rarely holds a role in the consumer projects its
+        # resources live in, so the project-based scope above would hide every
+        # runtime state of its own offering. Add back the resources of this
+        # offering that are visible from the provider side.
+        provider_resources = _apply_runtime_state_scope_filters(
+            models.Resource.objects.filter(offering__uuid=offering_uuid)
+            .filter_for_service_provider(user)
+            .exclude(state=ResourceStates.TERMINATED),
+            user,
+            scope,
+            projects,
+            explicit_scope_only=True,
+        )
+        resources = models.Resource.objects.filter(
+            Q(id__in=resources.filter(offering__uuid=offering_uuid).values("id"))
+            | Q(id__in=provider_resources.values("id"))
+        ).exclude(state=ResourceStates.TERMINATED)
+
+    return resources
+
+
 class RuntimeStatesViewSet(generics.GenericAPIView):
+    queryset = models.Resource.objects.none()
+    serializer_class = serializers.RuntimeStatesSerializer
     filter_backends = []
     pagination_class = None
 
     @extend_schema(
         summary="List available runtime states for resources",
         description="""
-        Returns a unique, sorted list of runtime states for all resources accessible to the current user.
+        Returns a unique, sorted list of runtime states for resources accessible to the current user.
         The runtime state is a backend-specific state of a resource (e.g., 'ACTIVE', 'SHUTOFF' for a VM).
         This endpoint is useful for building dynamic filters in a user interface.
-        The list can be optionally filtered by project or category.
+
+        At least one scope query parameter is required: `project_uuid`, `category_uuid`,
+        `offering_uuid`, or `customer_uuid`.
         """,
         parameters=[
             OpenApiParameter(
@@ -10672,6 +10728,13 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
                     "x-waldur-operation-id": "marketplace_provider_offerings_retrieve"
                 },
             ),
+            OpenApiParameter(
+                name="customer_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter runtime states by resources within a specific customer.",
+                extensions={"x-waldur-operation-id": "customers_retrieve"},
+            ),
         ],
         request=None,
         responses={
@@ -10691,33 +10754,13 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
         ],
     )
     def get(self, request, **kwargs):
-        projects = filter_queryset_for_user(
-            structure_models.Project.objects.all(), request.user
+        filter_serializer = serializers.RuntimeStatesFilterSerializer(
+            data=request.query_params
         )
-        project_uuid = request.query_params.get("project_uuid")
-        if project_uuid and is_uuid_like(project_uuid):
-            project = get_object_or_404(projects, uuid=project_uuid)
-            resources = models.Resource.objects.filter(project=project)
-        else:
-            resources = models.Resource.objects.filter(project__in=projects)
-        category_uuid = request.query_params.get("category_uuid")
-        if category_uuid and is_uuid_like(category_uuid):
-            resources = resources.filter(offering__category__uuid=category_uuid)
-        offering_uuid = request.query_params.get("offering_uuid")
-        if offering_uuid and is_uuid_like(offering_uuid):
-            # A service provider rarely holds a role in the consumer projects its
-            # resources live in, so the project-based scope above would hide every
-            # runtime state of its own offering. Add back the resources of this
-            # offering that are visible from the provider side.
-            provider_resource_ids = (
-                models.Resource.objects.filter(offering__uuid=offering_uuid)
-                .filter_for_service_provider(request.user)
-                .values("id")
-            )
-            resources = models.Resource.objects.filter(
-                Q(id__in=resources.filter(offering__uuid=offering_uuid).values("id"))
-                | Q(id__in=provider_resource_ids)
-            )
+        filter_serializer.is_valid(raise_exception=True)
+        resources = _get_runtime_state_scoped_resources(
+            request.user, filter_serializer.validated_data
+        )
         runtime_states = set(
             resources.values_list(
                 "backend_metadata__runtime_state", flat=True
