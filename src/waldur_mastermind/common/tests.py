@@ -1,6 +1,7 @@
 from django.test import TestCase
+from rest_framework import serializers
 
-from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.common.serializers import get_hidden_options, validate_options
 
 
 class ValidateOptionsTest(TestCase):
@@ -114,3 +115,105 @@ class ValidateOptionsTest(TestCase):
 
         # Should not raise an exception
         validate_options(options, attributes)
+
+
+class OptionVisibilityTest(TestCase):
+    options = {
+        "backups": {"type": "boolean", "label": "Backups"},
+        "account": {
+            "type": "select_string",
+            "label": "Account",
+            "choices": ["own", "new"],
+            "required": True,
+            "visible_if": {"field": "backups", "values": [True]},
+        },
+        "bucket": {
+            "type": "string",
+            "label": "Bucket",
+            "required": True,
+            "visible_if": {"field": "account", "values": ["own"]},
+        },
+        "kinds": {
+            "type": "select_string_multi",
+            "label": "Kinds",
+            "choices": ["a", "b", "c"],
+        },
+        "note": {
+            "type": "string",
+            "label": "Note",
+            "visible_if": {"field": "kinds", "values": ["b", "c"]},
+        },
+    }
+
+    def test_options_without_parent_value_are_hidden(self):
+        self.assertEqual(
+            get_hidden_options(self.options, {}), {"account", "bucket", "note"}
+        )
+
+    def test_hiding_cascades(self):
+        self.assertEqual(
+            get_hidden_options(self.options, {"backups": False, "account": "own"}),
+            {"account", "bucket", "note"},
+        )
+        self.assertEqual(
+            get_hidden_options(self.options, {"backups": True, "account": "own"}),
+            {"note"},
+        )
+        self.assertEqual(
+            get_hidden_options(self.options, {"backups": True, "account": "new"}),
+            {"bucket", "note"},
+        )
+
+    def test_boolean_parent_accepts_string_form(self):
+        self.assertNotIn(
+            "account", get_hidden_options(self.options, {"backups": "true"})
+        )
+        self.assertIn("account", get_hidden_options(self.options, {"backups": 1.5}))
+
+    def test_missing_boolean_parent_counts_as_unchecked(self):
+        options = {
+            "backups": {"type": "boolean", "label": "Backups"},
+            "reason": {
+                "type": "string",
+                "label": "Why no backups?",
+                "visible_if": {"field": "backups", "values": [False]},
+            },
+        }
+        self.assertEqual(get_hidden_options(options, {}), set())
+        self.assertEqual(get_hidden_options(options, {"backups": None}), set())
+        self.assertEqual(get_hidden_options(options, {"backups": True}), {"reason"})
+
+    def test_multi_select_parent_matches_any_value(self):
+        self.assertNotIn(
+            "note", get_hidden_options(self.options, {"kinds": ["a", "c"]})
+        )
+        self.assertIn("note", get_hidden_options(self.options, {"kinds": ["a"]}))
+        self.assertIn("note", get_hidden_options(self.options, {"kinds": 5}))
+
+    def test_unknown_parent_and_cycles_hide_option(self):
+        options = {
+            "x": {"type": "boolean", "visible_if": {"field": "y", "values": [True]}},
+            "y": {"type": "boolean", "visible_if": {"field": "x", "values": [True]}},
+            "z": {"type": "boolean", "visible_if": {"field": "q", "values": [True]}},
+            "legacy": None,
+        }
+        self.assertEqual(
+            get_hidden_options(options, {"x": True, "y": True, "q": True}),
+            {"x", "y", "z"},
+        )
+
+    def test_validate_options_skips_and_drops_hidden_options(self):
+        attributes = {"backups": False, "account": "invalid", "name": "x"}
+        self.assertEqual(
+            validate_options(self.options, attributes),
+            {"backups": False, "name": "x"},
+        )
+
+    def test_validate_options_requires_visible_options(self):
+        with self.assertRaises(serializers.ValidationError):
+            validate_options(self.options, {"backups": True})
+
+    def test_validate_options_without_rules_returns_attributes_unchanged(self):
+        options = {"field1": {"type": "integer", "required": True}}
+        attributes = {"field1": 1, "other": 2}
+        self.assertIs(validate_options(options, attributes), attributes)
