@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SCIM_REQUEST_TIMEOUT = 10
 DEFAULT_SCIM_BATCH_SIZE = 20
+SCIM_ENTITLEMENTS_PLUGIN_OPTION = "enable_scim_entitlements"
 
 
 def get_project_content_type():
@@ -65,6 +66,11 @@ def get_scim_namespace() -> str | None:
     return config.SCIM_URN_NAMESPACE
 
 
+def offering_enables_scim_entitlements(offering) -> bool:
+    """Return True when the offering opted into outbound SCIM entitlements."""
+    return bool(offering.plugin_options.get(SCIM_ENTITLEMENTS_PLUGIN_OPTION))
+
+
 def extract_hostname_from_ssh_url(url: str) -> str | None:
     """Extract hostname from ssh:// URL."""
     parsed = urlparse(url)
@@ -74,8 +80,9 @@ def extract_hostname_from_ssh_url(url: str) -> str | None:
 
 
 def get_user_ssh_login_nodes(user: User):
-    """
-    Get SSH login nodes mapped to offering-specific usernames for a user.
+    """Get SSH login nodes mapped to offering-specific usernames for a user.
+
+    Only offerings with ``plugin_options.enable_scim_entitlements`` are included.
     """
     project_ct = get_project_content_type()
     user_roles = UserRole.objects.filter(
@@ -90,7 +97,8 @@ def get_user_ssh_login_nodes(user: User):
     # terminating, erred): access is revoked only once the resource is gone,
     # and never granted before it has been provisioned.
     resources = marketplace_models.Resource.objects.filter(
-        project_id__in=project_ids
+        project_id__in=project_ids,
+        offering__plugin_options__enable_scim_entitlements=True,
     ).exclude(
         state__in=[
             marketplace_models.Resource.States.CREATING,
@@ -349,6 +357,13 @@ def sync_users_for_offering_endpoint(offering_uuid: str) -> None:
         offering = marketplace_models.Offering.objects.get(uuid=offering_uuid)
     except marketplace_models.Offering.DoesNotExist:
         logger.warning("SCIM: offering %s not found, skipping.", offering_uuid)
+        return
+
+    if not offering_enables_scim_entitlements(offering):
+        logger.info(
+            "SCIM: offering %s does not enable SCIM entitlements, skipping.",
+            offering_uuid,
+        )
         return
 
     offering_users = (

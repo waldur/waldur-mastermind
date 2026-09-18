@@ -3097,6 +3097,9 @@ def trigger_scim_sync_on_offering_endpoint_change(
     if not config.SCIM_MEMBERSHIP_SYNC_ENABLED or not scim_tasks.is_scim_configured():
         return
 
+    if not scim_tasks.offering_enables_scim_entitlements(instance.offering):
+        return
+
     if not instance.url or not instance.url.startswith("ssh://"):
         return
 
@@ -3108,6 +3111,9 @@ def trigger_scim_sync_on_offering_user_ok(
 ):
     """Trigger SCIM entitlements synchronization when OfferingUser transitions to OK with username."""
     if not config.SCIM_MEMBERSHIP_SYNC_ENABLED or not scim_tasks.is_scim_configured():
+        return
+
+    if not scim_tasks.offering_enables_scim_entitlements(instance.offering):
         return
 
     if created or not instance.tracker.has_changed("state"):
@@ -3126,6 +3132,9 @@ def trigger_scim_sync_on_resource_ok(
 ):
     """Trigger SCIM entitlements synchronization when resource transitions to OK."""
     if not config.SCIM_MEMBERSHIP_SYNC_ENABLED or not scim_tasks.is_scim_configured():
+        return
+
+    if not scim_tasks.offering_enables_scim_entitlements(instance.offering):
         return
 
     if created or not instance.tracker.has_changed("state"):
