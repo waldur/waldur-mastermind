@@ -132,6 +132,41 @@ class EmailAuditTest(test.APITestCase):
         self.assertEqual(email_diagnostics.ERROR, diagnostics.status)
         self.assertIn("from_email_invalid", codes(diagnostics))
 
+    @override_settings(
+        **{
+            **WORKING_CONFIG,
+            "DEFAULT_FROM_EMAIL": (
+                "Waldur Federation Service <noreply@waldur.example.net>"
+            ),
+        }
+    )
+    def test_display_name_sender_address_is_accepted(self):
+        diagnostics = email_diagnostics.collect_diagnostics()
+        self.assertEqual(email_diagnostics.OK, diagnostics.status)
+        self.assertNotIn("from_email_invalid", codes(diagnostics))
+
+    @override_settings(
+        **{
+            **WORKING_CONFIG,
+            "DEFAULT_FROM_EMAIL": "Waldur <noreply@example.com>",
+        }
+    )
+    def test_placeholder_sender_address_with_display_name_is_a_warning(self):
+        diagnostics = email_diagnostics.collect_diagnostics()
+        self.assertIn("from_email_is_placeholder", codes(diagnostics))
+        self.assertNotIn("from_email_invalid", codes(diagnostics))
+
+    @override_settings(
+        **{
+            **WORKING_CONFIG,
+            "DEFAULT_REPLY_TO_EMAIL": "Support <support@waldur.example.net>",
+        }
+    )
+    def test_display_name_reply_to_address_is_accepted(self):
+        diagnostics = email_diagnostics.collect_diagnostics()
+        self.assertEqual(email_diagnostics.OK, diagnostics.status)
+        self.assertNotIn("reply_to_invalid", codes(diagnostics))
+
     @override_settings(**WORKING_CONFIG)
     def test_relay_is_fine_but_every_notification_is_disabled(self):
         # The failure the issue reporter hit: nothing is sent and nothing is logged.
