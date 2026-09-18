@@ -18,6 +18,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
+from email.utils import parseaddr
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -138,9 +139,17 @@ def get_email_config() -> EmailConfig:
     )
 
 
+def _email_address(value: str) -> str:
+    _, address = parseaddr(value)
+    return address.strip()
+
+
 def _is_valid_email(value: str) -> bool:
+    address = _email_address(value)
+    if not address:
+        return False
     try:
-        validate_email(value)
+        validate_email(address)
     except ValidationError:
         return False
     return True
@@ -388,7 +397,7 @@ def _check_addresses(config: EmailConfig, findings: list[Finding]) -> None:
                 remediation="Set DEFAULT_FROM_EMAIL to a valid address.",
             )
         )
-    elif from_email in PLACEHOLDER_ADDRESSES:
+    elif _email_address(from_email) in PLACEHOLDER_ADDRESSES:
         findings.append(
             Finding(
                 level=WARNING,
