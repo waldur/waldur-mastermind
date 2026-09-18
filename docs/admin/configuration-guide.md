@@ -2635,8 +2635,6 @@ Optionally disable creation of user groups in FreeIPA matching Waldur structure
 **Type:** bool
 
 Enable SCIM entitlement synchronization to external identity provider.
-This is the deployment-wide master switch. Each offering must also set
-`plugin_options.enable_scim_entitlements` to `true` to be included.
 
 #### SCIM_API_URL
 
