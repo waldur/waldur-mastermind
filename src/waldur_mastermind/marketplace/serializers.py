@@ -384,6 +384,15 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
             "the provider backend, and providers can trigger a resync."
         ),
     )
+    enable_scim_entitlements = serializers.BooleanField(
+        required=False,
+        help_text=(
+            "Include this offering in outbound SCIM user entitlement sync. "
+            "When unset or false, SSH access endpoints on this offering "
+            "are not pushed to the remote SCIM service even if "
+            "SCIM_MEMBERSHIP_SYNC_ENABLED is on."
+        ),
+    )
     enable_resource_access_subnets = serializers.BooleanField(
         required=False,
         help_text="If set to True, an Access subnets tab is shown on resource "

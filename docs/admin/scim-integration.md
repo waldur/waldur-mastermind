@@ -73,7 +73,8 @@ The sync process determines which entitlements a user should have based on:
 2. **Project Roles**: User must have active project roles
 3. **Marketplace Resources**: Resources must be in `OK` state
 4. **Offering Users**: Offering users must be in `OK` state with usernames
-5. **SSH Endpoints**: Offerings must have SSH endpoints (`ssh://` URLs)
+5. **Offering opt-in**: The offering must set `plugin_options.enable_scim_entitlements` to `true`
+6. **SSH Endpoints**: Offerings must have SSH endpoints (`ssh://` URLs)
 
 The sync process:
 1. Fetches current entitlements from SCIM service
@@ -101,11 +102,12 @@ Configure these settings in the Waldur admin panel (Constance):
 | `SCIM_API_KEY` | Secret | API key for `X-API-Key` header authentication |
 | `SCIM_URN_NAMESPACE` | String | URN namespace for entitlements (e.g., `urn:ietf:dev`) |
 
+The Constance flag is deployment-wide. Each offering must also opt in via `plugin_options.enable_scim_entitlements`. An SSH access endpoint alone does not include the offering in entitlement sync. After enabling the option on an existing offering, trigger a full sync (`POST /api/users/scim_sync_all/`) so current users pick up the change.
 
 ### Prerequisites
 
 - Users must exist in SCIM service with usernames matching Waldur `user.username`
-- Marketplace setup: active project roles, resources in `OK` state, offering users in `OK` state with usernames, SSH endpoints (`ssh://` URLs) configured in offerings
+- Marketplace setup: active project roles, resources in `OK` state, offering users in `OK` state with usernames, `enable_scim_entitlements` on the offering, SSH endpoints (`ssh://` URLs) configured in offerings
 
 ## API Reference
 
@@ -271,13 +273,13 @@ curl -X POST \
 
 **Symptom**: Entitlements not updating when roles change
 
-**Check**: `SCIM_MEMBERSHIP_SYNC_ENABLED`, configuration completeness, user has username and active project roles, marketplace resources with SSH endpoints exist.
+**Check**: `SCIM_MEMBERSHIP_SYNC_ENABLED`, configuration completeness, user has username and active project roles, offerings have `enable_scim_entitlements` and SSH endpoints.
 
 #### Entitlements Not Being Added
 
 **Symptom**: User has roles but no entitlements in SCIM
 
-**Check**: Resources in `OK` state, offering users in `OK` state with usernames, SSH endpoints configured, user is active.
+**Check**: Resources in `OK` state, offering users in `OK` state with usernames, offering has `enable_scim_entitlements`, SSH endpoints configured, user is active.
 
 ### Logging
 

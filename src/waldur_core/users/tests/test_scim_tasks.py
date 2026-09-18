@@ -21,8 +21,10 @@ class BaseScimTestCase(TestCase):
     """Base class for SCIM tests with shared helper methods."""
 
     def _create_offering_with_ssh_endpoint(self, login_node="login.example.org"):
-        """Create an offering with SSH endpoint."""
-        offering = marketplace_factories.OfferingFactory()
+        """Create an offering with SSH endpoint and SCIM entitlements enabled."""
+        offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": True}
+        )
         marketplace_models.OfferingAccessEndpoint.objects.create(
             offering=offering,
             name="SSH Access",
@@ -476,6 +478,135 @@ class ScimTasksTest(BaseScimTestCase):
         )
         self.assertIsNone(tasks.extract_hostname_from_ssh_url("http://example.org"))
         self.assertIsNone(tasks.extract_hostname_from_ssh_url("invalid"))
+
+    def test_skip_offering_without_enable_scim_entitlements(self):
+        """SSH endpoints on offerings that did not opt in must not produce entitlements."""
+        self._grant_project_role()
+        offering = marketplace_factories.OfferingFactory()
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=offering,
+            name="SSH Access",
+            url="ssh://login.example.org",
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=marketplace_models.Resource.States.OK,
+        )
+        offering_username = "user-on-offering"
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
+
+        client = self._mock_client()
+        client.get_user.return_value = {"entitlements": []}
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_user_entitlements(self.user.uuid.hex)
+
+        client.add_entitlements.assert_not_called()
+        client.clear_all_entitlements.assert_not_called()
+
+    def test_only_opted_in_offerings_produce_entitlements(self):
+        """When a user has mixed offerings, only opted-in SSH nodes are synced."""
+        self._grant_project_role()
+        _, offering_in = self._create_resource_with_ssh_endpoint(
+            self.project, "login-in.example.org"
+        )
+        offering_out = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": False}
+        )
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=offering_out,
+            name="SSH Access",
+            url="ssh://login-out.example.org",
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering_out,
+            state=marketplace_models.Resource.States.OK,
+        )
+        username_in = "user-on-offering-in"
+        username_out = "user-on-offering-out"
+        self._create_offering_user(
+            user=self.user, offering=offering_in, username=username_in
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering_out, username=username_out
+        )
+
+        client = self._mock_client()
+        client.get_user.return_value = {"entitlements": []}
+        expected = client.build_entitlement(
+            self.urn_namespace, "login-in.example.org", username_in
+        )
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_user_entitlements(self.user.uuid.hex)
+
+        client.add_entitlements.assert_called_once_with(self.user.username, [expected])
+
+    def test_clear_entitlements_when_offering_does_not_enable_scim(self):
+        """Stale remote entitlements are cleared when the offering is not opted in."""
+        self._grant_project_role()
+        offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": False}
+        )
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=offering,
+            name="SSH Access",
+            url="ssh://login.example.org",
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=marketplace_models.Resource.States.OK,
+        )
+        offering_username = "user-on-offering"
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
+
+        client = self._mock_client()
+        entitlement = client.build_entitlement(
+            self.urn_namespace, "login.example.org", offering_username
+        )
+        client.get_user.return_value = {"entitlements": [{"value": entitlement}]}
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_user_entitlements(self.user.uuid.hex)
+
+        client.clear_all_entitlements.assert_called_once_with(self.user.username)
+        client.add_entitlements.assert_not_called()
+
+    def test_get_user_ssh_login_nodes_skips_offering_without_plugin_option(self):
+        """Login-node discovery ignores offerings that did not opt into SCIM."""
+        self._grant_project_role()
+        _, offering_in = self._create_resource_with_ssh_endpoint(
+            self.project, "login-in.example.org"
+        )
+        offering_out = marketplace_factories.OfferingFactory()
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=offering_out,
+            name="SSH Access",
+            url="ssh://login-out.example.org",
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering_out,
+            state=marketplace_models.Resource.States.OK,
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering_in, username="user-in"
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering_out, username="user-out"
+        )
+
+        self.assertEqual(
+            tasks.get_user_ssh_login_nodes(self.user),
+            {"login-in.example.org": "user-in"},
+        )
 
     def test_get_user_ssh_login_nodes(self):
         """Test getting SSH login nodes from user's resources."""
@@ -1024,7 +1155,9 @@ class ScimEndpointChangeTest(BaseScimTestCase):
     """Test that the signal handler dispatches the right task — nothing more."""
 
     def setUp(self):
-        self.offering = marketplace_factories.OfferingFactory()
+        self.offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": True}
+        )
 
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
     def test_ssh_endpoint_creation_triggers_scim_sync(self, mock_task_delay):
@@ -1089,6 +1222,20 @@ class ScimEndpointChangeTest(BaseScimTestCase):
 
         mock_task_delay.assert_not_called()
 
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_endpoint_change_skips_when_offering_does_not_enable_scim(
+        self, mock_task_delay
+    ):
+        """No task is dispatched when the offering has not opted into SCIM entitlements."""
+        offering = marketplace_factories.OfferingFactory()
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=offering,
+            name="SSH Access",
+            url="ssh://login.example.org",
+        )
+
+        mock_task_delay.assert_not_called()
+
 
 @override_config(
     SCIM_MEMBERSHIP_SYNC_ENABLED=True,
@@ -1100,7 +1247,9 @@ class ScimSyncUsersForOfferingTaskTest(BaseScimTestCase):
     """Test sync_users_for_offering_endpoint: user discovery, filtering and batching."""
 
     def setUp(self):
-        self.offering = marketplace_factories.OfferingFactory()
+        self.offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": True}
+        )
         self.user1 = structure_factories.UserFactory(username="user1@example.org")
         self.user2 = structure_factories.UserFactory(username="user2@example.org")
         self._create_offering_user(
@@ -1172,6 +1321,18 @@ class ScimSyncUsersForOfferingTaskTest(BaseScimTestCase):
         mock_batch_delay.assert_not_called()
 
     @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_skips_when_offering_does_not_enable_scim(self, mock_batch_delay):
+        """No batch is dispatched when the offering has not opted into SCIM entitlements."""
+        offering = marketplace_factories.OfferingFactory()
+        self._create_offering_user(
+            user=self.user1, offering=offering, username="user1-on-other"
+        )
+
+        tasks.sync_users_for_offering_endpoint(offering.uuid.hex)
+
+        mock_batch_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
     def test_batches_users_correctly(self, mock_batch_delay):
         """Users are split into batches of DEFAULT_SCIM_BATCH_SIZE (20)."""
         # setUp has 2 users; add 22 more → 24 total → batches of 20 + 4.
@@ -1209,7 +1370,9 @@ class ScimOfferingUserOkTransitionTest(BaseScimTestCase):
 
     def setUp(self):
         self.user = structure_factories.UserFactory(username="user@example.org")
-        self.offering = marketplace_factories.OfferingFactory()
+        self.offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": True}
+        )
 
     @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
     def test_triggers_sync_when_transitioning_to_ok_with_username(
@@ -1346,6 +1509,24 @@ class ScimOfferingUserOkTransitionTest(BaseScimTestCase):
 
         mock_sync_delay.assert_not_called()
 
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_no_sync_when_offering_does_not_enable_scim(self, mock_sync_delay):
+        """No SCIM sync when the offering has not opted into SCIM entitlements."""
+        offering = marketplace_factories.OfferingFactory()
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.user,
+            offering=offering,
+            username="",
+            state=OfferingUserStates.CREATION_REQUESTED,
+        )
+
+        offering_user.state = OfferingUserStates.OK
+        offering_user.username = "posixuser"
+        with self.captureOnCommitCallbacks(execute=True):
+            offering_user.save()
+
+        mock_sync_delay.assert_not_called()
+
 
 @override_config(
     SCIM_MEMBERSHIP_SYNC_ENABLED=True,
@@ -1358,7 +1539,9 @@ class ScimResourceOkTransitionTest(BaseScimTestCase):
 
     def setUp(self):
         self.project = structure_factories.ProjectFactory()
-        self.offering = marketplace_factories.OfferingFactory()
+        self.offering = marketplace_factories.OfferingFactory(
+            plugin_options={"enable_scim_entitlements": True}
+        )
 
     @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
     def test_triggers_sync_when_transitioning_to_ok(self, mock_sync_delay):
@@ -1396,5 +1579,20 @@ class ScimResourceOkTransitionTest(BaseScimTestCase):
             resource.state = ResourceStates.OK
             with self.captureOnCommitCallbacks(execute=True):
                 resource.save()
+
+        mock_sync_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_no_sync_when_offering_does_not_enable_scim(self, mock_sync_delay):
+        offering = marketplace_factories.OfferingFactory()
+        resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=ResourceStates.CREATING,
+        )
+
+        resource.state = ResourceStates.OK
+        with self.captureOnCommitCallbacks(execute=True):
+            resource.save()
 
         mock_sync_delay.assert_not_called()
