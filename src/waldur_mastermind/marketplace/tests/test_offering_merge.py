@@ -1,16 +1,23 @@
+import datetime
 import inspect
 from decimal import Decimal
 from unittest import mock
 
 from dateutil.relativedelta import relativedelta
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.middleware import skip_side_effects
+from waldur_core.permissions import models as permission_models
+from waldur_core.permissions.tests import factories as permission_factories
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices import filters as invoice_filters
+from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.tests import factories as invoice_factories
-from waldur_mastermind.marketplace import models, offering_merge
+from waldur_mastermind.marketplace import billing_utils, models, offering_merge
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     OPENSTACK_TENANT_OFFERING,
@@ -18,6 +25,7 @@ from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
     BillingTypes,
+    LimitPeriods,
     OfferingStates,
     OrderStates,
     ResourceStates,
@@ -263,7 +271,20 @@ class OfferingMergeExecuteTest(TwoSupportOfferingsScenario, TestCase):
             source.refresh_from_db()
             self.assertEqual(source.state, OfferingStates.ARCHIVED)
 
-        self.assertEqual(snapshot([self.invoice_item.__class__]), invoice_items_before)
+        # No invoice item is created, terminated or repriced: only the snapshot
+        # (details, plan_component) of the open month's item is rewritten.
+        invoice_items_after = snapshot([self.invoice_item.__class__])
+        for rows in (invoice_items_before, invoice_items_after):
+            for row in rows["invoices.InvoiceItem"].values():
+                row.pop("details")
+                row.pop("plan_component_id")
+        self.assertEqual(invoice_items_after, invoice_items_before)
+        self.invoice_item.refresh_from_db()
+        self.assertEqual(self.invoice_item.details, {"offering_component_type": "vcpu"})
+        self.assertEqual(
+            self.invoice_item.plan_component.plan, self.target_plans["Tier 1"]
+        )
+        self.assertTrue(merge.verification["passed"], merge.verification)
         self.assertTrue(merge.changes.exists())
         self.assertFalse(
             merge.changes.filter(model="marketplace.ComponentUsageMonthly").exists()
@@ -786,3 +807,397 @@ class ProcessBillingSkipSideEffectsTest(TestCase):
         self.resource.plan = self.plans["large"]
         self.resource.save()
         billing.handle_plan_change.assert_called_once_with(self.resource)
+
+
+def invoice_for(customer, months_ago, state):
+    period = timezone.now() - relativedelta(months=months_ago)
+    invoice, _ = invoice_models.Invoice.objects.get_or_create(
+        customer=customer, year=period.year, month=period.month
+    )
+    invoice_models.Invoice.objects.filter(pk=invoice.pk).update(state=state)
+    invoice.refresh_from_db()
+    return invoice
+
+
+def billed_item(invoice, resource, plan_component, **kwargs):
+    return invoice_factories.InvoiceItemFactory(
+        invoice=invoice,
+        resource=resource,
+        project=resource.project,
+        plan_component=plan_component,
+        unit_price=kwargs.pop("unit_price", Decimal(10)),
+        unit=kwargs.pop("unit", invoice_models.InvoiceItem.Units.QUANTITY),
+        quantity=kwargs.pop("quantity", 1),
+        name=kwargs.pop("name", f"{resource.name} (historical text)"),
+        details=kwargs.pop(
+            "details", billing_utils.get_component_details(resource, plan_component)
+        ),
+        **kwargs,
+    )
+
+
+def item_rows(pks):
+    return {
+        row["id"]: {key: value for key, value in row.items() if key != "modified"}
+        for row in invoice_models.InvoiceItem.objects.filter(pk__in=pks).values()
+    }
+
+
+VERIFICATION_CODES = {
+    "resource_count",
+    "single_open_plan_period",
+    "open_invoice_totals",
+    "no_stale_references",
+    "offering_roles_unchanged",
+    "closed_invoice_items_unchanged",
+}
+
+
+def failed_checks(report):
+    return {check["code"] for check in report["checks"] if not check["passed"]}
+
+
+class OfferingMergeInvoiceSnapshotTest(TwoSupportOfferingsScenario, TestCase):
+    maxDiff = None
+
+    def setUp(self):
+        super().setUp()
+        self.customer = self.resource_a.project.customer
+        self.open_invoice = invoice_for(
+            self.customer, 0, invoice_models.Invoice.States.PENDING
+        )
+        self.closed_invoice = invoice_for(
+            self.customer, 1, invoice_models.Invoice.States.CREATED
+        )
+        self.pc_a = models.PlanComponent.objects.get(plan=self.a_plans["basic"])
+        self.target_pc = models.PlanComponent.objects.get(
+            plan=self.target_plans["Tier 1"], component=self.target_components["vcpu"]
+        )
+        self.open_item = billed_item(self.open_invoice, self.resource_a, self.pc_a)
+        self.closed_item = billed_item(self.closed_invoice, self.resource_a, self.pc_a)
+        # A manual item: no plan component, only the offering in its snapshot.
+        self.manual_item = billed_item(
+            self.open_invoice,
+            self.resource_a,
+            None,
+            details={
+                "offering_uuid": self.source_a.uuid.hex,
+                "offering_name": self.source_a.name,
+                "offering_type": self.source_a.type,
+                "note": "manual",
+            },
+        )
+        # An item that names no source at all.
+        self.foreign_item = billed_item(
+            self.open_invoice,
+            self.resource_a,
+            None,
+            details={"offering_uuid": self.target.uuid.hex, "note": "foreign"},
+        )
+
+    def merge(self, **kwargs):
+        return offering_merge.execute(offering_merge.preview(self.make_merge(**kwargs)))
+
+    def assert_rewritten(self, item, plan_component):
+        item.refresh_from_db()
+        self.assertEqual(item.plan_component, plan_component)
+        self.assertEqual(item.details["offering_uuid"], self.target.uuid.hex)
+        self.assertEqual(item.details["offering_name"], self.target.name)
+        self.assertEqual(item.details["offering_type"], self.target.type)
+        self.assertEqual(
+            item.details["plan_uuid"], self.target_plans["Tier 1"].uuid.hex
+        )
+        self.assertEqual(item.details["plan_name"], "Tier 1")
+        self.assertEqual(item.details["plan_component_id"], plan_component.id)
+        self.assertEqual(item.details["offering_component_type"], "vcpu")
+        self.assertEqual(item.details["offering_component_name"], "vcpu")
+        self.assertEqual(item.details["resource_uuid"], self.resource_a.uuid.hex)
+        self.assertEqual(item.name, f"{self.resource_a.name} (historical text)")
+
+    def test_open_month_rewrites_current_items_and_keeps_closed_ones(self):
+        closed_before = item_rows([self.closed_item.pk])
+        foreign_before = item_rows([self.foreign_item.pk])
+
+        merge = self.merge()
+
+        self.assertEqual(merge.invoice_policy, "open_month")
+        self.assert_rewritten(self.open_item, self.target_pc)
+        self.assertEqual(item_rows([self.closed_item.pk]), closed_before)
+        self.assertEqual(item_rows([self.foreign_item.pk]), foreign_before)
+        self.manual_item.refresh_from_db()
+        self.assertIsNone(self.manual_item.plan_component)
+        self.assertEqual(
+            self.manual_item.details,
+            {
+                "offering_uuid": self.target.uuid.hex,
+                "offering_name": self.target.name,
+                "offering_type": self.target.type,
+                "note": "manual",
+            },
+        )
+        summary = merge.preview["invoice_items"]
+        self.assertEqual(summary["kept_on_closed_invoices"], 1)
+        self.assertEqual(
+            summary["to_rewrite_by_policy"]["all_months"],
+            summary["to_rewrite_by_policy"]["open_month"] + 1,
+        )
+        self.assertEqual(
+            merge.changes.filter(
+                model="invoices.InvoiceItem", object_id=self.closed_item.pk
+            ).count(),
+            0,
+        )
+        closed_check = [
+            check
+            for check in merge.verification["execute"]["checks"]
+            if check["code"] == "closed_invoice_items_unchanged"
+        ][0]
+        self.assertTrue(closed_check["passed"])
+        self.assertTrue(closed_check["details"]["applicable"])
+
+    def test_all_months_rewrites_every_item(self):
+        merge = self.merge(invoice_policy="all_months")
+
+        self.assertEqual(merge.preview["invoice_items"]["kept_on_closed_invoices"], 0)
+        self.assert_rewritten(self.open_item, self.target_pc)
+        self.assert_rewritten(self.closed_item, self.target_pc)
+        self.assertTrue(merge.verification["passed"])
+
+    def test_service_provider_keys_follow_a_new_provider_only(self):
+        merge = self.merge()
+        self.assertNotEqual(self.source_a.customer_id, self.target.customer_id)
+        self.open_item.refresh_from_db()
+        self.assertEqual(
+            self.open_item.details["service_provider_name"], self.target.customer.name
+        )
+        self.assertTrue(merge.verification["passed"])
+
+    def test_undo_restores_details_and_plan_component_exactly(self):
+        for policy in ("open_month", "all_months"):
+            with self.subTest(policy=policy):
+                pks = list(
+                    invoice_models.InvoiceItem.objects.values_list("pk", flat=True)
+                )
+                before = item_rows(pks)
+                merge = self.merge(invoice_policy=policy)
+                self.assertNotEqual(item_rows(pks), before)
+
+                merge = offering_merge.undo(merge)
+
+                self.assertEqual(item_rows(pks), before)
+                report = merge.verification["undo"]
+                self.assertTrue(report["passed"], report)
+                self.assertEqual(report["invoice_items"]["skipped"], [])
+                self.assertTrue(merge.verification["execute"]["passed"])
+                # Unarchive so the scenario can be merged again.
+                models.Offering.objects.filter(
+                    pk__in=[self.source_a.pk, self.source_b.pk]
+                ).update(state=OfferingStates.ACTIVE)
+
+    def test_undo_keeps_billing_changes_to_other_keys(self):
+        merge = self.merge()
+        self.open_item.refresh_from_db()
+        details = dict(self.open_item.details, resource_limit_periods=[{"x": 1}])
+        invoice_models.InvoiceItem.objects.filter(pk=self.open_item.pk).update(
+            details=details
+        )
+
+        offering_merge.undo(merge)
+
+        self.open_item.refresh_from_db()
+        expected = billing_utils.get_component_details(self.resource_a, self.pc_a)
+        expected["resource_limit_periods"] = [{"x": 1}]
+        self.assertEqual(self.open_item.details, expected)
+        self.assertEqual(self.open_item.plan_component, self.pc_a)
+
+    def test_undo_skips_items_whose_invoice_closed_since_the_merge(self):
+        merge = self.merge()
+        invoice_models.Invoice.objects.filter(pk=self.open_invoice.pk).update(
+            state=invoice_models.Invoice.States.CREATED
+        )
+
+        merge = offering_merge.undo(merge)
+
+        self.assert_rewritten(self.open_item, self.target_pc)
+        skipped = merge.verification["undo"]["invoice_items"]["skipped"]
+        self.assertIn({"id": self.open_item.pk, "reason": "invoice_closed"}, skipped)
+        self.assertIn({"id": self.manual_item.pk, "reason": "invoice_closed"}, skipped)
+
+    def test_undo_moves_items_created_since_the_merge_back(self):
+        merge = self.merge()
+        self.resource_a.refresh_from_db()
+        new_item = billed_item(self.open_invoice, self.resource_a, self.target_pc)
+
+        offering_merge.undo(merge)
+
+        new_item.refresh_from_db()
+        self.resource_a.refresh_from_db()
+        self.assertEqual(new_item.plan_component, self.pc_a)
+        self.assertEqual(
+            new_item.details,
+            billing_utils.get_component_details(self.resource_a, self.pc_a),
+        )
+
+    def test_target_offering_filters_find_the_moved_items(self):
+        self.merge()
+        items = invoice_models.InvoiceItem.objects.filter(invoice=self.open_invoice)
+        moved = {self.open_item.pk, self.manual_item.pk}
+
+        live = invoice_filters.InvoiceItemFilter(
+            {"offering_uuid": self.target.uuid.hex}, queryset=items
+        ).qs
+        self.assertTrue(moved <= set(live.values_list("pk", flat=True)))
+
+        snapshot_path = invoice_utils.filter_invoice_items(
+            items, offering_uuid=self.target.uuid.hex
+        )
+        self.assertTrue(moved <= {item.pk for item in snapshot_path})
+        self.assertFalse(
+            invoice_utils.filter_invoice_items(
+                items, offering_uuid=self.source_a.uuid.hex
+            )
+        )
+
+    def test_verification_report_contains_every_check(self):
+        merge = self.merge()
+
+        report = merge.verification["execute"]
+        self.assertEqual(
+            {check["code"] for check in report["checks"]}, VERIFICATION_CODES
+        )
+        for check in report["checks"]:
+            self.assertEqual(set(check), {"code", "passed", "details"})
+        self.assertTrue(report["passed"], failed_checks(report))
+        self.assertTrue(merge.verification["passed"])
+        self.assertEqual(merge.verification["stage"], "execute")
+
+        merge = offering_merge.undo(merge)
+        report = merge.verification["undo"]
+        self.assertEqual(
+            {check["code"] for check in report["checks"]}, VERIFICATION_CODES
+        )
+        self.assertTrue(report["passed"], failed_checks(report))
+        self.assertEqual(merge.verification["stage"], "undo")
+
+    def test_second_open_plan_period_fails_verification_without_rollback(self):
+        factories.ResourcePlanPeriodFactory(
+            resource=self.resource_a,
+            plan=self.a_plans["basic"],
+            start=MONTH_START,
+            end=None,
+        )
+
+        with self.assertLogs(offering_merge.logger, "WARNING"):
+            merge = self.merge()
+
+        self.assertEqual(merge.state, models.OfferingMerge.States.DONE)
+        self.assertFalse(merge.verification["passed"])
+        report = merge.verification["execute"]
+        self.assertEqual(failed_checks(report), {"single_open_plan_period"})
+        check = [
+            check
+            for check in report["checks"]
+            if check["code"] == "single_open_plan_period"
+        ][0]
+        self.assertEqual(check["details"]["resources"], [self.resource_a.uuid.hex])
+        self.resource_a.refresh_from_db()
+        self.assertEqual(self.resource_a.offering, self.target)
+
+    def test_equal_prices_leave_open_invoice_totals_unchanged(self):
+        total_before = self.open_invoice.total
+
+        merge = self.merge()
+
+        self.open_invoice.refresh_from_db()
+        self.assertEqual(self.open_invoice.total, total_before)
+        check = [
+            check
+            for check in merge.verification["execute"]["checks"]
+            if check["code"] == "open_invoice_totals"
+        ][0]
+        self.assertTrue(check["passed"])
+        self.assertEqual(
+            check["details"]["customers"][self.customer.uuid.hex],
+            {"before": str(total_before), "after": str(total_before)},
+        )
+
+    def test_offering_roles_stay_on_the_source(self):
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(models.Offering)
+        )
+        permission_models.UserRole.objects.create(
+            user=structure_factories.UserFactory(),
+            role=role,
+            scope=self.source_a,
+            is_active=True,
+        )
+
+        merge = self.merge()
+
+        check = [
+            check
+            for check in merge.verification["execute"]["checks"]
+            if check["code"] == "offering_roles_unchanged"
+        ][0]
+        self.assertTrue(check["passed"])
+        self.assertEqual(check["details"]["kept_on_sources"], 1)
+
+
+class OfferingMergeLimitAllocationTest(TestCase):
+    def test_monthly_allocation_follows_the_invoice_rewrite(self):
+        target, target_plans, target_components = make_offering(
+            components=(("disk", BillingTypes.LIMIT),)
+        )
+        source, source_plans, source_components = make_offering(
+            components=(("storage", BillingTypes.LIMIT),)
+        )
+        models.OfferingComponent.objects.filter(
+            pk__in=[target_components["disk"].pk, source_components["storage"].pk]
+        ).update(limit_period=LimitPeriods.MONTH)
+        resource = make_resource(source, source_plans["plan"], limits={"storage": 5})
+        last_month = timezone.now() - relativedelta(months=1)
+        invoice = invoice_for(
+            resource.project.customer, 1, invoice_models.Invoice.States.CREATED
+        )
+        billed_item(
+            invoice,
+            resource,
+            models.PlanComponent.objects.get(plan=source_plans["plan"]),
+            quantity=5,
+        )
+        merge = make_merge(
+            target,
+            [source],
+            {source_plans["plan"]: target_plans["plan"]},
+            {source.uuid.hex: {"storage": "disk"}},
+            invoice_policy="all_months",
+        )
+
+        merge = offering_merge.execute(offering_merge.preview(merge))
+
+        period = datetime.date(last_month.year, last_month.month, 1)
+        self.assertEqual(
+            models.ComponentUsageMonthly.objects.get(
+                component=target_components["disk"], billing_period=period
+            ).total_allocated,
+            5,
+        )
+        self.assertFalse(
+            models.ComponentUsageMonthly.objects.filter(
+                component=source_components["storage"], billing_period=period
+            ).exists()
+        )
+
+        offering_merge.undo(merge)
+
+        self.assertEqual(
+            models.ComponentUsageMonthly.objects.get(
+                component=source_components["storage"], billing_period=period
+            ).total_allocated,
+            5,
+        )
+        self.assertFalse(
+            models.ComponentUsageMonthly.objects.filter(
+                component=target_components["disk"], billing_period=period
+            ).exists()
+        )
