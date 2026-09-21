@@ -20,12 +20,38 @@ and archives the sources. It never deletes an offering: ``Resource.offering`` is
 
 ``ComponentUsageMonthly`` is derived, so both directions recompute it for the
 affected components and months instead of journalling it; the offering counter
-quotas the bypassed signals would have maintained are recounted as well.
+quotas the bypassed signals would have maintained are recounted as well. The
+recompute runs after the invoice snapshot rewrite, because the historical
+allocation of LIMIT components is read from ``InvoiceItem.plan_component``.
 
-The invoice snapshot rewrite (``rewrite_snapshot`` entries) is a placeholder
-here: invoice items are left untouched.
+Invoice snapshots (``InvoiceItem.details`` and ``InvoiceItem.plan_component``)
+of the moved resources are rewritten per ``OfferingMerge.invoice_policy``:
+``open_month`` touches only items on invoices that can still change
+(``Invoice.States.MUTABLE_STATES``, the check ``move_resource`` uses), and
+``all_months`` every item. A snapshot key is rewritten only if the document
+already has it and its value names something the merge maps:
+
+* ``offering_uuid``, ``offering_name`` and ``offering_type`` when the snapshot's
+  ``offering_uuid`` is a source; ``service_provider_uuid`` and
+  ``service_provider_name`` as well if the target has another provider;
+* ``plan_uuid`` and ``plan_name`` when ``plan_uuid`` is a mapped source plan;
+* ``plan_component_id``, ``offering_component_type`` and
+  ``offering_component_name`` when the item's plan component (the foreign key,
+  else ``details.plan_component_id``) is mapped; failing that, the component
+  type and name when ``offering_component_type`` is a mapped source type.
+
+``plan_component`` is repointed only when it is mapped. Items without one, or
+with an unmapped one (manual items, credit compensations, items that copy
+another item's ``details``), keep it; their snapshot keys follow the rules
+above, so an item that names no source keeps its ``details`` unchanged. Keys are
+never added, and ``InvoiceItem.name`` is never rewritten.
+
+Both :func:`execute` and :func:`undo` verify their result inside the same
+transaction, after every write, and store the report in
+``OfferingMerge.verification``. A failed check does not roll back.
 """
 
+import hashlib
 import json
 import logging
 import uuid as uuid_lib
@@ -143,6 +169,146 @@ def _rename_answers(value, key_mapping: dict, type_mapping: dict):
     return result
 
 
+# --- Invoice snapshots -------------------------------------------------------
+
+# Snapshot keys written by ``billing_utils.get_component_details``.
+OFFERING_SNAPSHOT_KEYS = ("offering_uuid", "offering_name", "offering_type")
+PROVIDER_SNAPSHOT_KEYS = ("service_provider_uuid", "service_provider_name")
+
+
+def _invoice_models():
+    """Resolved lazily: the invoices app imports marketplace models."""
+    return apps.get_model("invoices", "Invoice"), apps.get_model(
+        "invoices", "InvoiceItem"
+    )
+
+
+def _mutable_invoice_states():
+    return _invoice_models()[0].States.MUTABLE_STATES
+
+
+def _invoice_items_in_scope(resource_ids, policy):
+    """Invoice items of ``resource_ids`` that ``policy`` allows a merge to touch."""
+    items = _invoice_models()[1].objects.filter(resource_id__in=list(resource_ids))
+    if policy != models.OfferingMerge.InvoicePolicies.ALL_MONTHS:
+        items = items.filter(invoice__state__in=_mutable_invoice_states())
+    return items
+
+
+def _offering_snapshot(offering: models.Offering) -> dict:
+    customer = offering.customer
+    provider = getattr(customer, "serviceprovider", None) if customer else None
+    return {
+        "offering_uuid": offering.uuid.hex,
+        "offering_name": offering.name,
+        "offering_type": offering.type,
+        "service_provider_uuid": provider.uuid.hex if provider else "",
+        "service_provider_name": customer.name if customer else "",
+    }
+
+
+@dataclass
+class _SnapshotMap:
+    """How the invoice snapshots of one moved resource are rewritten."""
+
+    # Snapshot offering uuids (hex) whose offering-level keys are rewritten.
+    offering_uuids: frozenset
+    # Offering-level values written instead (see _offering_snapshot).
+    offering: dict
+    # Whether the service provider keys are rewritten too.
+    provider_changes: bool
+    # Old plan component id -> new plan component (plan and component loaded).
+    plan_components: dict
+    # Old plan uuid (hex) -> new plan.
+    plans: dict
+    # Old component type -> new offering component.
+    component_types: dict
+
+
+def _as_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _set_present(document: dict, key: str, value):
+    """Overwrite ``key`` if the document has it, keeping a stringly-typed value a string."""
+    if key not in document:
+        return
+    if isinstance(document[key], str) and not isinstance(value, str):
+        value = str(value)
+    document[key] = value
+
+
+def _rewrite_snapshot(details, plan_component_id, mapping: _SnapshotMap):
+    """(new details, new plan component id) of one invoice item; see the module doc."""
+    new_pc = (
+        mapping.plan_components.get(plan_component_id)
+        if plan_component_id is not None
+        else None
+    )
+    new_pc_id = new_pc.id if new_pc is not None else plan_component_id
+    if not isinstance(details, dict):
+        return details, new_pc_id
+
+    result = dict(details)
+    if _hex(details.get("offering_uuid")) in mapping.offering_uuids:
+        keys = OFFERING_SNAPSHOT_KEYS
+        if mapping.provider_changes:
+            keys += PROVIDER_SNAPSHOT_KEYS
+        for key in keys:
+            _set_present(result, key, mapping.offering[key])
+
+    plan = mapping.plans.get(_hex(details.get("plan_uuid")))
+    if plan is not None:
+        _set_present(result, "plan_uuid", plan.uuid.hex)
+        _set_present(result, "plan_name", plan.name)
+
+    snapshot_pc = new_pc
+    if snapshot_pc is None:
+        snapshot_pc = mapping.plan_components.get(
+            _as_int(details.get("plan_component_id"))
+        )
+    if snapshot_pc is not None:
+        _set_present(result, "plan_component_id", snapshot_pc.id)
+        component = snapshot_pc.component
+    else:
+        component_type = details.get("offering_component_type")
+        component = (
+            mapping.component_types.get(component_type)
+            if isinstance(component_type, str)
+            else None
+        )
+    if component is not None:
+        _set_present(result, "offering_component_type", component.type)
+        _set_present(result, "offering_component_name", component.name)
+    return result, new_pc_id
+
+
+def _restore_keys(current, old, new):
+    """Undo a snapshot rewrite key by key; None if a rewritten key changed since.
+
+    Only the keys the merge changed are put back, so a document that changed
+    elsewhere since (``resource_limit_periods`` grows with limit changes and
+    terminations) keeps those changes.
+    """
+    if not all(isinstance(value, dict) for value in (current, old, new)):
+        return old if current == new else None
+    missing = object()
+    result = dict(current)
+    for key in set(old) | set(new):
+        if old.get(key, missing) == new.get(key, missing):
+            continue
+        if current.get(key, missing) != new.get(key, missing):
+            return None
+        if key in old:
+            result[key] = old[key]
+        else:
+            result.pop(key, None)
+    return result
+
+
 @dataclass
 class _Write:
     """Planned changes to one field: ``rows`` are (pk, old value, new value)."""
@@ -211,11 +377,15 @@ class _MergeContext:
             source_id: {} for source_id in self.source_ids
         }
 
-        self.resource_ids = list(
+        # Moved resource id -> the source offering it leaves.
+        self.resource_offering = dict(
             models.Resource.objects.filter(offering_id__in=self.source_ids)
             .order_by("pk")
-            .values_list("pk", flat=True)
+            .values_list("pk", "offering_id")
         )
+        self.resource_ids = list(self.resource_offering)
+        self.invoice_writes: list[_Write] = []
+        self.invoice_summary: dict = {}
 
         self.summary_scope = _summary_scope(
             self.source_ids, self.target.id, self.resource_ids
@@ -228,6 +398,7 @@ class _MergeContext:
         self._check_pending_orders()
         self._check_creation_issues()
         self._plan_writes()
+        self._plan_invoice_snapshots()
         self._warn_answer_keys()
         self._warn_offering_users()
         self._warn_empty_backend_ids()
@@ -715,6 +886,149 @@ class _MergeContext:
         if write.rows:
             self.writes.append(write)
 
+    # --- Invoice snapshots --------------------------------------------------
+
+    def _snapshot_maps(self) -> dict[int, _SnapshotMap]:
+        """Source offering id -> how its resources' invoice snapshots change."""
+        target_pcs = {
+            pc.id: pc
+            for pc in models.PlanComponent.objects.filter(
+                pk__in=set(self.plan_component_map.values())
+            ).select_related("plan", "component")
+        }
+        plan_components = {
+            source_pc: target_pcs[target_pc]
+            for source_pc, target_pc in self.plan_component_map.items()
+        }
+        target_plans = models.Plan.objects.in_bulk(set(self.plan_map.values()))
+        source_plans = {plan.id: plan for plan in self.source_plans}
+        plans = {
+            source_plans[source_plan].uuid.hex: target_plans[target_plan]
+            for source_plan, target_plan in self.plan_map.items()
+        }
+        target_components = {
+            component.type: component for component in self.target.components.all()
+        }
+        offering = _offering_snapshot(self.target)
+        return {
+            source.id: _SnapshotMap(
+                offering_uuids=frozenset({source.uuid.hex}),
+                offering=offering,
+                provider_changes=source.customer_id != self.target.customer_id,
+                plan_components=plan_components,
+                plans=plans,
+                component_types={
+                    source_type: target_components[target_type]
+                    for source_type, target_type in self.component_type_map[
+                        source.id
+                    ].items()
+                    if target_type in target_components
+                },
+            )
+            for source in self.sources
+        }
+
+    def _plan_invoice_snapshots(self):
+        """Plan the snapshot rewrite of the moved resources' invoice items."""
+        policies = models.OfferingMerge.InvoicePolicies
+        policy = self.merge.invoice_policy
+        if policy not in (policies.OPEN_MONTH, policies.ALL_MONTHS):
+            self.blockers.append(
+                _issue(
+                    "invalid_invoice_policy",
+                    f"Unknown invoice policy {policy}.",
+                    policy=str(policy),
+                )
+            )
+            return
+        _invoice_model, invoice_item_model = _invoice_models()
+        mutable = _mutable_invoice_states()
+        maps = self._snapshot_maps()
+        open_rows, closed_rows = [], []
+        on_closed = 0
+        for pk, resource_id, pc_id, details, state in (
+            invoice_item_model.objects.filter(resource_id__in=self.resource_ids)
+            .order_by("pk")
+            .values_list(
+                "pk", "resource_id", "plan_component_id", "details", "invoice__state"
+            )
+        ):
+            is_open = state in mutable
+            if not is_open:
+                on_closed += 1
+            new_details, new_pc = _rewrite_snapshot(
+                details, pc_id, maps[self.resource_offering[resource_id]]
+            )
+            if new_details == details and new_pc == pc_id:
+                continue
+            (open_rows if is_open else closed_rows).append(
+                (pk, pc_id, new_pc, details, new_details)
+            )
+
+        rows = open_rows
+        if policy == policies.ALL_MONTHS:
+            rows = sorted(open_rows + closed_rows)
+        fk_write = _Write(
+            coverage.MERGE_COVERAGE["invoices.InvoiceItem.plan_component"],
+            invoice_item_model,
+            "plan_component_id",
+            is_json=False,
+        )
+        details_write = _Write(
+            coverage.MERGE_COVERAGE["invoices.InvoiceItem.details"],
+            invoice_item_model,
+            "details",
+            is_json=True,
+        )
+        for pk, old_pc, new_pc, old_details, new_details in rows:
+            if old_pc != new_pc:
+                fk_write.rows.append((pk, old_pc, new_pc))
+            if old_details != new_details:
+                details_write.rows.append((pk, old_details, new_details))
+        self.invoice_writes = [w for w in (fk_write, details_write) if w.rows]
+        self.invoice_summary = {
+            "policy": policy,
+            "to_rewrite": len(rows),
+            "to_rewrite_by_policy": {
+                policies.OPEN_MONTH: len(open_rows),
+                policies.ALL_MONTHS: len(open_rows) + len(closed_rows),
+            },
+            "on_closed_invoices": on_closed,
+            "kept_on_closed_invoices": (
+                on_closed if policy == policies.OPEN_MONTH else 0
+            ),
+        }
+
+    def stale(self) -> "_Stale":
+        """What the moved resources must no longer reference once merged."""
+        target_types = {component.type for component in self.target.components.all()}
+        renamed = {
+            source_id: {
+                source_type
+                for source_type, target_type in mapping.items()
+                if source_type != target_type
+            }
+            - target_types
+            for source_id, mapping in self.component_type_map.items()
+        }
+        allowed = defaultdict(set)
+        for label, pks in self.left_on_source.items():
+            allowed[coverage.MERGE_COVERAGE[label].model_label].update(pks)
+        source_plans = {plan.id: plan for plan in self.source_plans}
+        return _Stale(
+            offering_ids=set(self.source_ids),
+            plan_ids=set(self.plan_map),
+            component_ids=set(self.component_map),
+            plan_component_ids=set(self.plan_component_map),
+            offering_uuids={source.uuid.hex for source in self.sources},
+            plan_uuids={source_plans[pk].uuid.hex for pk in self.plan_map},
+            json_keys={
+                resource_id: renamed[offering_id]
+                for resource_id, offering_id in self.resource_offering.items()
+            },
+            allowed=dict(allowed),
+        )
+
     # --- Warnings -----------------------------------------------------------
 
     def _warn_answer_keys(self):
@@ -829,6 +1143,7 @@ class _MergeContext:
                         for year, month in self.summary_scope[1]
                     ],
                 },
+                "invoice_items": self.invoice_summary,
                 "blockers": self.blockers,
                 "warnings": self.warnings,
             }
@@ -969,12 +1284,352 @@ def _apply(merge: models.OfferingMerge, write: _Write):
 
 
 def rewrite_invoice_snapshots(merge: models.OfferingMerge, context: _MergeContext):
-    """Rewrite invoice item snapshots per ``merge.invoice_policy``.
+    """Rewrite the moved resources' invoice snapshots per ``merge.invoice_policy``.
 
-    Placeholder: a merge leaves every ``InvoiceItem`` untouched for now;
-    ``context.plan_component_map`` carries the source-to-target plan component
-    mapping the policy will need.
+    ``plan_component`` is journalled as a foreign key and ``details`` as the
+    whole previous document; both are written with ``update()``. The rules are
+    in the module docstring.
     """
+    for write in context.invoice_writes:
+        _apply(merge, write)
+
+
+@dataclass
+class _Stale:
+    """References the moved resources must no longer hold after a merge or undo."""
+
+    offering_ids: set
+    plan_ids: set
+    component_ids: set
+    plan_component_ids: set
+    offering_uuids: set
+    plan_uuids: set
+    # Moved resource id -> component-type keys of its limits and usages that
+    # should have been renamed.
+    json_keys: dict
+    # Model label -> pks deliberately left on the old side (dedupe collisions).
+    allowed: dict = field(default_factory=dict)
+    # Invoice items not to check: those the undo skipped, and those that
+    # existed at the merge but were not rewritten (their snapshot may name the
+    # target legitimately).
+    ignored_invoice_items: set = field(default_factory=set)
+
+
+def _check(code: str, passed: bool, **details) -> dict:
+    return {"code": code, "passed": bool(passed), "details": _json_safe(details)}
+
+
+# Rows listed per failing check at most.
+MAX_REPORTED_ROWS = 50
+
+
+class _Verification:
+    """Checks that a merge, or its undo, left resources and billing intact.
+
+    Constructed before the writes, it captures what the checks compare against;
+    :meth:`verify` runs after every write, in the same transaction. ``moves``
+    maps each moved resource id to (offering it leaves, offering it reaches).
+    """
+
+    def __init__(self, merge, moves: dict, offering_ids, policy: str):
+        self.merge = merge
+        self.moves = moves
+        self.resource_ids = sorted(moves)
+        self.offering_ids = sorted(set(offering_ids))
+        self.policy = policy
+        self.offering_uuids = dict(
+            models.Offering.objects.filter(pk__in=self.offering_ids).values_list(
+                "pk", "uuid"
+            )
+        )
+        self.customer_ids = sorted(
+            {
+                customer_id
+                for customer_id in models.Resource.objects.filter(
+                    pk__in=self.resource_ids
+                ).values_list("project__customer_id", flat=True)
+                if customer_id is not None
+            }
+        )
+        self.resource_counts = self._resource_counts()
+        self.invoice_totals = self._invoice_totals()
+        self.closed_items = (
+            self._closed_item_hashes()
+            if policy == models.OfferingMerge.InvoicePolicies.OPEN_MONTH
+            else None
+        )
+        self.roles = self._offering_roles()
+
+    # --- Captures -----------------------------------------------------------
+
+    def _resource_counts(self) -> dict[int, int]:
+        counts = dict.fromkeys(self.offering_ids, 0)
+        counts.update(
+            models.Resource.objects.filter(offering_id__in=self.offering_ids)
+            .values_list("offering_id")
+            .annotate(count=django_models.Count("pk"))
+            .values_list("offering_id", "count")
+        )
+        return counts
+
+    def _invoice_totals(self) -> dict[str, str]:
+        """Total of each affected customer's invoice for the current month."""
+        invoice_model, _ = _invoice_models()
+        now = timezone.now()
+        invoices = (
+            invoice_model.objects.filter(
+                customer_id__in=self.customer_ids,
+                year=now.year,
+                month=now.month,
+                state__in=_mutable_invoice_states(),
+            )
+            .select_related("customer")
+            .prefetch_related("items")
+        )
+        return {invoice.customer.uuid.hex: str(invoice.total) for invoice in invoices}
+
+    def _closed_item_hashes(self) -> dict[int, str]:
+        _, invoice_item_model = _invoice_models()
+        items = (
+            invoice_item_model.objects.filter(resource_id__in=self.resource_ids)
+            .exclude(invoice__state__in=_mutable_invoice_states())
+            .values_list("pk", "details", "plan_component_id")
+        )
+        return {
+            pk: hashlib.sha256(
+                json.dumps([details, pc_id], sort_keys=True, default=str).encode()
+            ).hexdigest()
+            for pk, details, pc_id in items
+        }
+
+    def _offering_roles(self) -> dict[int, int]:
+        user_role_model = apps.get_model("permissions", "UserRole")
+        counts = dict.fromkeys(self.offering_ids, 0)
+        counts.update(
+            user_role_model.objects.filter(
+                content_type=ContentType.objects.get_for_model(models.Offering),
+                object_id__in=self.offering_ids,
+                is_active=True,
+            )
+            .values_list("object_id")
+            .annotate(count=django_models.Count("pk"))
+            .values_list("object_id", "count")
+        )
+        return counts
+
+    # --- Checks -------------------------------------------------------------
+
+    def _check_resource_counts(self) -> dict:
+        expected = dict(self.resource_counts)
+        for leaves, reaches in self.moves.values():
+            expected[leaves] = expected.get(leaves, 0) - 1
+            expected[reaches] = expected.get(reaches, 0) + 1
+        actual = self._resource_counts()
+        return _check(
+            "resource_count",
+            all(expected[pk] == actual.get(pk, 0) for pk in expected),
+            offerings={
+                self.offering_uuids[pk].hex: {
+                    "before": self.resource_counts.get(pk, 0),
+                    "expected": expected[pk],
+                    "actual": actual.get(pk, 0),
+                }
+                for pk in self.offering_ids
+            },
+        )
+
+    def _check_plan_periods(self) -> dict:
+        resource_ids = (
+            models.ResourcePlanPeriod.objects.filter(
+                resource_id__in=self.resource_ids, end=None
+            )
+            .values_list("resource_id")
+            .annotate(count=django_models.Count("pk"))
+            .filter(count__gt=1)
+            .values_list("resource_id", flat=True)
+        )
+        resources = models.Resource.objects.filter(
+            pk__in=list(resource_ids)
+        ).values_list("uuid", flat=True)
+        return _check(
+            "single_open_plan_period",
+            not resources,
+            resources=sorted(resource_uuid.hex for resource_uuid in resources),
+        )
+
+    def _check_invoice_totals(self) -> dict:
+        after = self._invoice_totals()
+        customers = {
+            customer: {
+                "before": self.invoice_totals.get(customer),
+                "after": after.get(customer),
+            }
+            for customer in sorted(set(self.invoice_totals) | set(after))
+        }
+        return _check(
+            "open_invoice_totals",
+            all(value["before"] == value["after"] for value in customers.values()),
+            customers=customers,
+        )
+
+    def _check_references(self, stale: _Stale) -> dict:
+        rows = defaultdict(list)
+        resource_ids = self.resource_ids
+
+        def report(model, qs):
+            label = model._meta.label
+            pks = [
+                pk
+                for pk in qs.order_by("pk").values_list("pk", flat=True)
+                if pk not in stale.allowed.get(label, ())
+            ]
+            if pks:
+                rows[label].extend(pks)
+
+        report(
+            models.Resource,
+            models.Resource.objects.filter(pk__in=resource_ids).filter(
+                django_models.Q(offering_id__in=stale.offering_ids)
+                | django_models.Q(plan_id__in=stale.plan_ids)
+            ),
+        )
+        report(
+            models.ResourcePlanPeriod,
+            models.ResourcePlanPeriod.objects.filter(
+                resource_id__in=resource_ids, plan_id__in=stale.plan_ids
+            ),
+        )
+        report(
+            models.Order,
+            models.Order.objects.filter(resource_id__in=resource_ids).filter(
+                django_models.Q(offering_id__in=stale.offering_ids)
+                | django_models.Q(plan_id__in=stale.plan_ids)
+                | django_models.Q(old_plan_id__in=stale.plan_ids)
+            ),
+        )
+        for model in _USAGE_MODELS:
+            report(
+                model,
+                model._base_manager.filter(
+                    resource_id__in=resource_ids,
+                    component_id__in=stale.component_ids,
+                ),
+            )
+
+        for pk, limits, current_usages in models.Resource.objects.filter(
+            pk__in=resource_ids
+        ).values_list("pk", "limits", "current_usages"):
+            keys = stale.json_keys.get(pk, set())
+            if any(
+                isinstance(value, dict) and keys & set(value)
+                for value in (limits, current_usages)
+            ):
+                rows["marketplace.Resource (JSON keys)"].append(pk)
+
+        _, invoice_item_model = _invoice_models()
+        for pk, pc_id, details in (
+            _invoice_items_in_scope(resource_ids, self.policy)
+            .exclude(pk__in=stale.ignored_invoice_items)
+            .order_by("pk")
+            .values_list("pk", "plan_component_id", "details")
+        ):
+            details = details if isinstance(details, dict) else {}
+            if (
+                pc_id in stale.plan_component_ids
+                or _as_int(details.get("plan_component_id")) in stale.plan_component_ids
+                or _hex(details.get("offering_uuid")) in stale.offering_uuids
+                or _hex(details.get("plan_uuid")) in stale.plan_uuids
+            ):
+                rows[invoice_item_model._meta.label].append(pk)
+
+        return _check(
+            "no_stale_references",
+            not rows,
+            rows={
+                label: pks[:MAX_REPORTED_ROWS] for label, pks in sorted(rows.items())
+            },
+            counts={label: len(pks) for label, pks in sorted(rows.items())},
+        )
+
+    def _check_offering_roles(self) -> dict:
+        """The merge never moves or copies offering-scoped roles.
+
+        The registry keeps them on the sources (``keep_on_source``): copying
+        them would hand the source's managers the target. So the check asserts
+        that no offering's active role count changed, and reports how many
+        active roles stay on the (archived) sources as information.
+        """
+        after = self._offering_roles()
+        source_ids = set(self.merge.sources.values_list("pk", flat=True))
+        return _check(
+            "offering_roles_unchanged",
+            after == self.roles,
+            offerings={
+                self.offering_uuids[pk].hex: {
+                    "before": self.roles.get(pk, 0),
+                    "after": after.get(pk, 0),
+                }
+                for pk in self.offering_ids
+            },
+            kept_on_sources=sum(
+                count for pk, count in after.items() if pk in source_ids
+            ),
+        )
+
+    def _check_closed_items(self) -> dict:
+        if self.closed_items is None:
+            return _check(
+                "closed_invoice_items_unchanged",
+                True,
+                applicable=False,
+                policy=self.policy,
+            )
+        after = self._closed_item_hashes()
+        changed = sorted(
+            pk for pk, digest in self.closed_items.items() if after.get(pk) != digest
+        )
+        return _check(
+            "closed_invoice_items_unchanged",
+            not changed,
+            applicable=True,
+            checked=len(self.closed_items),
+            changed=changed[:MAX_REPORTED_ROWS],
+        )
+
+    def verify(self, stale: _Stale) -> dict:
+        checks = [
+            self._check_resource_counts(),
+            self._check_plan_periods(),
+            self._check_invoice_totals(),
+            self._check_references(stale),
+            self._check_offering_roles(),
+            self._check_closed_items(),
+        ]
+        return {
+            "passed": all(check["passed"] for check in checks),
+            "checked_at": timezone.now().isoformat(),
+            "checks": checks,
+        }
+
+
+def _store_verification(merge: models.OfferingMerge, stage: str, report: dict):
+    """Keep the report of each stage; ``passed`` follows the latest one."""
+    verification = dict(merge.verification or {})
+    verification[stage] = report
+    verification["stage"] = stage
+    verification["passed"] = report["passed"]
+    merge.verification = verification
+    if report["passed"]:
+        logger.info("Offering merge %s %s verification passed.", merge.uuid.hex, stage)
+    else:
+        logger.warning(
+            "Offering merge %s %s verification failed: %s.",
+            merge.uuid.hex,
+            stage,
+            ", ".join(
+                check["code"] for check in report["checks"] if not check["passed"]
+            ),
+        )
 
 
 def _archive_sources(merge: models.OfferingMerge, source_ids: list[int]):
@@ -1021,14 +1676,37 @@ def execute(merge: models.OfferingMerge) -> models.OfferingMerge:
                 raise OfferingMergeError(
                     "The merge has blockers.", details=context.blockers
                 )
+            verification = _Verification(
+                merge,
+                {
+                    resource_id: (offering_id, context.target.id)
+                    for resource_id, offering_id in context.resource_offering.items()
+                },
+                [*context.source_ids, context.target.id],
+                merge.invoice_policy,
+            )
             for write in context.writes:
                 _apply(merge, write)
             rewrite_invoice_snapshots(merge, context)
             _archive_sources(merge, context.source_ids)
+            # After the rewrite: historical LIMIT allocations follow
+            # InvoiceItem.plan_component.
             _recompute_summaries(*context.summary_scope)
             _recalculate_counters([*context.source_ids, context.target.id])
+            report = verification.verify(context.stale())
+            report["invoice_items"] = {
+                **context.invoice_summary,
+                "rewritten": context.invoice_summary.get("to_rewrite", 0),
+                # Undo moves back only items created after this one.
+                "last_item_id": _invoice_models()[1]
+                .objects.order_by("-pk")
+                .values_list("pk", flat=True)
+                .first()
+                or 0,
+            }
+            _store_verification(merge, "execute", report)
             merge.set_done()
-            merge.save(update_fields=["state", "modified"])
+            merge.save(update_fields=["state", "verification", "modified"])
     except Exception as error:
         logger.exception("Offering merge %s failed.", merge.uuid.hex)
         with transaction.atomic():
@@ -1089,10 +1767,13 @@ class _UndoPlan:
         self.journal = defaultdict(dict)  # (label, attname) -> {pk: change}
         for change in changes:
             self.journal[(change.model, change.field)][change.object_id] = change
+        invoice_item_label = _invoice_models()[1]._meta.label
+        # Invoice items are restored by their own rules (_plan_invoice_items).
         self.fk_changes = [
             change
             for change in changes
             if (change.model, change.field) not in json_fields
+            and change.model != invoice_item_label
         ]
 
         resource_label = models.Resource._meta.label
@@ -1115,6 +1796,7 @@ class _UndoPlan:
         }
         self.order_moves = self._plan_order_moves()
         self.json_writes = [self._plan_json(entry) for entry in json_fields.values()]
+        self._plan_invoice_items()
 
     def _build_inverse_mappings(self):
         """Per source offering: target type -> source type, target -> source component."""
@@ -1366,6 +2048,218 @@ class _UndoPlan:
                 write.rows.append((pk, value, new))
         return write
 
+    def _plan_invoice_items(self):
+        """Restore rewritten invoice items; move new items of moved resources back.
+
+        A rewritten item is restored exactly: ``plan_component`` from the
+        journal, ``details`` by putting back the keys the merge rewrote (keys
+        changed by billing since, such as ``resource_limit_periods``, stay).
+        An item is skipped, and listed in the report, if it was deleted, if its
+        invoice was closed since an ``open_month`` merge (restoring it would
+        change an issued invoice), or if a rewritten value changed since.
+
+        Items created for the moved resources since the merge, within the
+        policy's scope, get the inverse rewrite, as usage rows do.
+        """
+        _, invoice_item_model = _invoice_models()
+        label = invoice_item_model._meta.label
+        details_changes = self.journal[(label, "details")]
+        pc_changes = self.journal[(label, "plan_component_id")]
+        journalled = set(details_changes) | set(pc_changes)
+        open_month = (
+            self.merge.invoice_policy != models.OfferingMerge.InvoicePolicies.ALL_MONTHS
+        )
+        mutable = _mutable_invoice_states()
+        current = {
+            pk: rest
+            for pk, *rest in invoice_item_model.objects.filter(
+                pk__in=list(journalled)
+            ).values_list("pk", "plan_component_id", "details", "invoice__state")
+        }
+        self.invoice_restores = []  # (pk, {attname: value})
+        self.invoice_skipped = []
+        for pk in sorted(journalled):
+            if pk not in current:
+                self.invoice_skipped.append({"id": pk, "reason": "deleted"})
+                continue
+            pc_id, details, state = current[pk]
+            if open_month and state not in mutable:
+                self.invoice_skipped.append({"id": pk, "reason": "invoice_closed"})
+                continue
+            update = {}
+            pc_change = pc_changes.get(pk)
+            if pc_change is not None:
+                if pc_id != pc_change.new_value:
+                    self.invoice_skipped.append(
+                        {"id": pk, "reason": "changed_since_merge"}
+                    )
+                    continue
+                update["plan_component_id"] = pc_change.old_value
+            details_change = details_changes.get(pk)
+            if details_change is not None:
+                restored = _restore_keys(
+                    details, details_change.old_value, details_change.new_value
+                )
+                if restored is None:
+                    self.invoice_skipped.append(
+                        {"id": pk, "reason": "changed_since_merge"}
+                    )
+                    continue
+                update["details"] = restored
+            self.invoice_restores.append((pk, update))
+
+        self.invoice_moves = []  # (pk, {attname: value})
+        self.invoice_untouched = set()
+        self._snapshot_maps = {}
+        # Items that already existed at the merge are journalled or were left
+        # alone on purpose; only later ones are moved back.
+        last_item_id = (
+            (self.merge.verification or {})
+            .get("execute", {})
+            .get("invoice_items", {})
+            .get("last_item_id")
+        )
+        in_scope = _invoice_items_in_scope(
+            self.resource_source, self.merge.invoice_policy
+        )
+        if last_item_id is None:
+            self.invoice_untouched = set(
+                in_scope.exclude(pk__in=list(journalled)).values_list("pk", flat=True)
+            )
+            return
+        self.invoice_untouched = set(
+            in_scope.filter(pk__lte=last_item_id)
+            .exclude(pk__in=list(journalled))
+            .values_list("pk", flat=True)
+        )
+        new_items = in_scope.filter(pk__gt=last_item_id)
+        for pk, resource_id, pc_id, details in new_items.order_by("pk").values_list(
+            "pk", "resource_id", "plan_component_id", "details"
+        ):
+            new_details, new_pc = _rewrite_snapshot(
+                details, pc_id, self._inverse_snapshot_map(resource_id)
+            )
+            update = {}
+            if new_pc != pc_id:
+                update["plan_component_id"] = new_pc
+            if new_details != details:
+                update["details"] = new_details
+            if update:
+                self.invoice_moves.append((pk, update))
+
+    def _inverse_snapshot_map(self, resource_id) -> _SnapshotMap:
+        """How a new invoice item of a moved resource goes back to its source."""
+        source_id = self.resource_source[resource_id]
+        source_plan_id, target_plan_id = self.resource_plan.get(
+            resource_id, (None, None)
+        )
+        key = (source_id, source_plan_id, target_plan_id)
+        if key in self._snapshot_maps:
+            return self._snapshot_maps[key]
+        offerings = models.Offering.objects.in_bulk([source_id, self.merge.target_id])
+        source, target = offerings[source_id], offerings[self.merge.target_id]
+        plan_components, plans = {}, {}
+        if source_plan_id and target_plan_id:
+            source_pcs = {
+                pc.component_id: pc
+                for pc in models.PlanComponent.objects.filter(
+                    plan_id=source_plan_id
+                ).select_related("plan", "component")
+            }
+            inverse = self.inverse_components[source_id]
+            for pc_id, component_id in models.PlanComponent.objects.filter(
+                plan_id=target_plan_id
+            ).values_list("pk", "component_id"):
+                source_pc = source_pcs.get(inverse.get(component_id))
+                if source_pc is not None:
+                    plan_components[pc_id] = source_pc
+            plan_objects = models.Plan.objects.in_bulk([source_plan_id, target_plan_id])
+            plans = {
+                plan_objects[target_plan_id].uuid.hex: plan_objects[source_plan_id]
+            }
+        source_components = {
+            component.type: component
+            for component in models.OfferingComponent.objects.filter(
+                offering_id=source_id
+            )
+        }
+        mapping = _SnapshotMap(
+            offering_uuids=frozenset({target.uuid.hex}),
+            offering=_offering_snapshot(source),
+            provider_changes=source.customer_id != target.customer_id,
+            plan_components=plan_components,
+            plans=plans,
+            component_types={
+                target_type: source_components[source_type]
+                for target_type, source_type in self.inverse_types[source_id].items()
+                if source_type in source_components
+            },
+        )
+        self._snapshot_maps[key] = mapping
+        return mapping
+
+    def invoice_report(self) -> dict:
+        return {
+            "policy": self.merge.invoice_policy,
+            "restored": len(self.invoice_restores),
+            "moved_back": len(self.invoice_moves),
+            "skipped": self.invoice_skipped,
+        }
+
+    def stale(self) -> _Stale:
+        """What the moved resources must no longer reference once undone."""
+        target_plan_ids = {
+            target_plan for _source_plan, target_plan in self.resource_plan.values()
+        }
+        target_component_ids = {
+            component_id
+            for mapping in self.inverse_components.values()
+            for component_id in mapping
+        }
+        source_types = defaultdict(set)
+        for offering_id, component_type in models.OfferingComponent.objects.filter(
+            offering_id__in=set(self.resource_source.values())
+        ).values_list("offering_id", "type"):
+            source_types[offering_id].add(component_type)
+        renamed = {
+            source_id: {
+                target_type
+                for target_type, source_type in mapping.items()
+                if target_type != source_type
+            }
+            - source_types[source_id]
+            for source_id, mapping in self.inverse_types.items()
+        }
+        target_uuid = (
+            models.Offering.objects.filter(pk=self.merge.target_id)
+            .values_list("uuid", flat=True)
+            .get()
+        )
+        return _Stale(
+            offering_ids={self.merge.target_id},
+            plan_ids=target_plan_ids,
+            component_ids=target_component_ids,
+            plan_component_ids=set(
+                models.PlanComponent.objects.filter(
+                    plan_id__in=target_plan_ids,
+                    component_id__in=target_component_ids,
+                ).values_list("pk", flat=True)
+            ),
+            offering_uuids={target_uuid.hex},
+            plan_uuids={
+                plan_uuid.hex
+                for plan_uuid in models.Plan.objects.filter(
+                    pk__in=target_plan_ids
+                ).values_list("uuid", flat=True)
+            },
+            json_keys={
+                resource_id: renamed.get(source_id, set())
+                for resource_id, source_id in self.resource_source.items()
+            },
+            ignored_invoice_items={item["id"] for item in self.invoice_skipped}
+            | self.invoice_untouched,
+        )
+
     def apply(self):
         # Foreign keys and offering states, newest first.
         offering_label = models.Offering._meta.label
@@ -1401,6 +2295,10 @@ class _UndoPlan:
             for pk, _old, new in write.rows:
                 write.model._base_manager.filter(pk=pk).update(**{write.attname: new})
 
+        manager = _invoice_models()[1]._base_manager
+        for pk, update in [*self.invoice_restores, *self.invoice_moves]:
+            manager.filter(pk=pk).update(**update)
+
 
 def undo(merge: models.OfferingMerge) -> models.OfferingMerge:
     """Move everything a completed merge moved back to its sources.
@@ -1409,6 +2307,10 @@ def undo(merge: models.OfferingMerge) -> models.OfferingMerge:
     switched plan or offering since, a foreign key the merge wrote holds another
     value, a moved resource has a pending order, or rows created since the
     merge cannot be moved back.
+
+    Rewritten invoice items are restored exactly unless deleted, changed since,
+    or (under ``open_month``) on an invoice closed since; those are skipped and
+    listed in ``verification["undo"]["invoice_items"]["skipped"]``.
     """
     with transaction.atomic():
         merge = models.OfferingMerge.objects.select_for_update().get(pk=merge.pk)
@@ -1425,14 +2327,27 @@ def undo(merge: models.OfferingMerge) -> models.OfferingMerge:
             merge.target_id,
             list(plan.resource_source),
         )
-        plan.apply()
-        _recompute_summaries(*scope)
-        _recalculate_counters(
-            [*merge.sources.values_list("pk", flat=True), merge.target_id]
+        source_ids = list(merge.sources.values_list("pk", flat=True))
+        verification = _Verification(
+            merge,
+            {
+                resource_id: (merge.target_id, source_id)
+                for resource_id, source_id in plan.resource_source.items()
+            },
+            [*source_ids, merge.target_id],
+            merge.invoice_policy,
         )
+        plan.apply()
+        # After the invoice restore: historical LIMIT allocations follow
+        # InvoiceItem.plan_component.
+        _recompute_summaries(*scope)
+        _recalculate_counters([*source_ids, merge.target_id])
+        report = verification.verify(plan.stale())
+        report["invoice_items"] = plan.invoice_report()
+        _store_verification(merge, "undo", report)
         try:
             merge.set_undone()
         except TransitionNotAllowed:
             raise OfferingMergeError(f"Cannot undo a merge in state {merge.state}.")
-        merge.save(update_fields=["state", "modified"])
+        merge.save(update_fields=["state", "verification", "modified"])
     return merge
