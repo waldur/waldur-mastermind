@@ -58,6 +58,7 @@ INSTALLED_APPS = (
     "waldur_core.logging",
     "waldur_core.checklist",
     "waldur_core.user_actions",
+    "waldur_core.changelog",
     "waldur_core.passkeys",
     "rest_framework",
     "rest_framework.authtoken",

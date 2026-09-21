@@ -148,6 +148,12 @@ class AgentDependencySerializer(serializers.Serializer):
     version = serializers.CharField()
 
 
+class AgentCompatibilitySerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["unknown", "incompatible", "compatible"])
+    minimum_required = serializers.CharField(required=False)
+    message = serializers.CharField()
+
+
 class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     offering = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -190,6 +196,8 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
             )
         return value
 
+    compatibility = serializers.SerializerMethodField()
+
     class Meta:
         model = models.AgentIdentity
         fields = (
@@ -206,12 +214,47 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
             "created",
             "modified",
             "services",
+            "compatibility",
         )
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-site-agent-identity-detail",
             },
+        }
+
+    @extend_schema_field(AgentCompatibilitySerializer)
+    def get_compatibility(self, agent):
+        from packaging.version import InvalidVersion, Version
+
+        from waldur_mastermind.marketplace_site_agent.contracts import (
+            MINIMUM_SITE_AGENT_VERSION,
+        )
+
+        if not agent.version:
+            return {"status": "unknown", "message": "Agent version not reported"}
+
+        try:
+            agent_version = Version(agent.version)
+            min_version = Version(MINIMUM_SITE_AGENT_VERSION)
+        except InvalidVersion:
+            return {
+                "status": "unknown",
+                "message": f"Cannot parse version '{agent.version}'",
+            }
+
+        if agent_version < min_version:
+            return {
+                "status": "incompatible",
+                "minimum_required": MINIMUM_SITE_AGENT_VERSION,
+                "message": f"Agent v{agent.version} is below minimum v{MINIMUM_SITE_AGENT_VERSION} "
+                "for current STOMP message contracts. Some messages may fail to process.",
+            }
+
+        return {
+            "status": "compatible",
+            "minimum_required": MINIMUM_SITE_AGENT_VERSION,
+            "message": "Agent is compatible with current message contracts.",
         }
 
 

@@ -4,6 +4,7 @@ from django.conf.urls import include
 from django.contrib import admin
 from django.urls import path, re_path
 
+from waldur_core.changelog import views as changelog_views
 from waldur_core.checklist import urls as checklist_urls
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
@@ -209,6 +210,23 @@ urlpatterns += [
     re_path(r"^api/", include(onboarding_urls)),
 ]
 
+
+urlpatterns += [
+    re_path(r"^api/changelog-entries/$", changelog_views.changelog_entries_list),
+    re_path(r"^api/changelog/pending/$", changelog_views.changelog_pending),
+    re_path(
+        r"^api/changelog/compare/(?P<from_version>[^/]+)/(?P<to_version>[^/]+)/$",
+        changelog_views.changelog_compare,
+    ),
+    re_path(
+        r"^api/changelog/(?P<version>[^/]+)/delta/$",
+        changelog_views.changelog_delta,
+    ),
+    re_path(
+        r"^api/changelog/(?P<version>[^/]+)/$",
+        changelog_views.changelog_detail,
+    ),
+]
 
 urlpatterns += [
     re_path(r"^api/configuration/", core_views.configuration_detail),

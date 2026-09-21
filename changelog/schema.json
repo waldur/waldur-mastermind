@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.waldur.com/latest/changelog/schema/1.0.0/release.json",
+  "title": "Waldur Changelog Release",
+  "description": "Schema for structured changelog release files. Version 1.0.0.",
+  "type": "object",
+  "required": ["schema_version", "version", "date", "type", "summary", "entries"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version for forward compatibility"
+    },
+    "version": {
+      "type": "string",
+      "description": "SemVer version string (e.g., '8.0.7' or '8.0.7-rc.5')"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Release date in ISO 8601 format"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["stable", "rc"],
+      "description": "Release type"
+    },
+    "stable_target": {
+      "type": "string",
+      "description": "For RC releases, the stable version this RC targets"
+    },
+    "previous_version": {
+      "type": "string",
+      "description": "The immediately preceding version (RC or stable)"
+    },
+    "base_stable_version": {
+      "type": "string",
+      "description": "The previous stable release (base for cumulative entries)"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-paragraph release summary"
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" },
+      "description": "Cumulative changelog entries since base_stable_version"
+    },
+    "since_previous": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" },
+      "description": "Incremental entries since previous_version (delta)"
+    },
+    "component_activity": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/component" },
+      "description": "Per-repo commit counts and compare URLs"
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["id", "type", "category", "title", "description", "scope", "component", "impact", "relevant_when"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique entry identifier (e.g., '8.0.7-1')"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["breaking", "security", "deprecation", "feature", "improvement", "fix"],
+          "description": "Entry type"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "marketplace", "auth", "identity", "openstack", "slurm",
+            "invoices", "ai_assistant", "reporting", "policy", "proposal",
+            "support", "ui", "infrastructure", "notifications"
+          ],
+          "description": "Feature area category"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short entry title"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description. Use Previously.../Now... for features; direct style for fixes."
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["core", "plugin", "infra", "dev"],
+          "description": "Deployment scope: core=all, plugin=filtered, infra=helm/docker, dev=testing only"
+        },
+        "component": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["backend", "frontend", "helm", "docker", "site-agent", "sdk"]
+          },
+          "description": "Stack layers affected"
+        },
+        "highlight": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show in 'key changes only' view"
+        },
+        "impact": { "$ref": "#/$defs/impact" },
+        "security": { "$ref": "#/$defs/security" },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" },
+          "default": []
+        },
+        "relevant_when": { "$ref": "#/$defs/relevant_when" },
+        "commits": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Associated commit SHAs"
+        }
+      }
+    },
+    "impact": {
+      "type": "object",
+      "required": ["risk"],
+      "properties": {
+        "risk": {
+          "type": "string",
+          "enum": ["high", "medium", "low", "none"]
+        },
+        "affected_scope": {
+          "type": "string",
+          "enum": ["all_users", "all_resources", "infrastructure", "api_consumers", "none"],
+          "description": "Broad impact scope when a specific model doesn't apply"
+        },
+        "affected_resources": {
+          "type": "object",
+          "properties": {
+            "model": { "type": "string", "description": "Django model path (e.g., 'marketplace.Order'). Checked server-side against an allowlist (ALLOWED_IMPACT_MODELS in changelog/tasks.py) - a non-allowlisted model is skipped, not queried." },
+            "filter": { "type": "object", "description": "Django ORM filter kwargs, exact-match only. Only allowlisted (model, field) pairs are queryable; a non-allowlisted field, or any '__' lookup, is skipped rather than run. Field value types must match the model (e.g. state fields are FSMIntegerField - use the numeric state, not a display string)." },
+            "description": { "type": "string" }
+          }
+        },
+        "affected_users": {
+          "type": "object",
+          "properties": {
+            "filter": { "type": "object", "description": "Django ORM filter kwargs, exact-match only, restricted to ALLOWED_USER_IMPACT_FIELDS in changelog/tasks.py (currently is_staff/is_support/is_active)." },
+            "description": { "type": "string" }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "required": ["urgency", "affected_versions", "exploitability", "mitigation"],
+      "properties": {
+        "urgency": {
+          "type": "string",
+          "enum": ["critical", "high", "moderate", "low"]
+        },
+        "cve": { "type": "string", "description": "CVE identifier" },
+        "ghsa": { "type": "string", "description": "GitHub Security Advisory ID" },
+        "affected_versions": { "type": "string" },
+        "exploitability": { "type": "string" },
+        "mitigation": { "type": "string" },
+        "advisory_url": { "type": "string", "format": "uri" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["migration", "config", "review", "inform_users", "migration_plan"]
+        },
+        "description": { "type": "string" },
+        "automatic": { "type": "boolean", "default": false },
+        "deadline": { "type": "string" }
+      }
+    },
+    "relevant_when": {
+      "type": "object",
+      "properties": {
+        "plugins": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "feature_flags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "settings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "properties": {
+        "commits_since_base": { "type": "integer" },
+        "commits_since_previous": { "type": "integer" },
+        "compare_url_base": { "type": "string", "format": "uri" },
+        "compare_url_previous": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}

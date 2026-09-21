@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Waldur STOMP Message Contracts",
+  "description": "Contracts for mastermind \u2192 site-agent STOMP messages. Auto-generated from contracts.py declarations.",
+  "version": "1.0.0",
+  "messages": {
+    "OrderMessage": {
+      "type": "object",
+      "title": "OrderMessage",
+      "description": "Sent when an order changes state (done, pending-provider, pending-consumer).",
+      "producer": "marketplace_site_agent/handlers.py:send_done_order_to_message_queue",
+      "required": [
+        "order_state",
+        "order_uuid"
+      ],
+      "properties": {
+        "order_uuid": {
+          "type": "string",
+          "description": "UUID of the order"
+        },
+        "order_state": {
+          "type": "string",
+          "description": "Display name of the order state"
+        }
+      }
+    },
+    "PendingOrderMessage": {
+      "type": "object",
+      "title": "PendingOrderMessage",
+      "description": "Periodic resend of pending orders (hourly task).",
+      "producer": "marketplace_site_agent/tasks.py:send_messages_about_pending_orders",
+      "required": [
+        "order_state",
+        "order_uuid",
+        "sequence_number"
+      ],
+      "properties": {
+        "order_uuid": {
+          "type": "string",
+          "description": "UUID of the order"
+        },
+        "order_state": {
+          "type": "string",
+          "description": "Display name of the order state"
+        },
+        "sequence_number": {
+          "type": "integer",
+          "description": "Incremental message sequence number"
+        }
+      }
+    },
+    "ResourceUpdateMessage": {
+      "type": "object",
+      "title": "ResourceUpdateMessage",
+      "description": "Sent when resource downscale, access restriction, or pause state changes.",
+      "producer": "marketplace_site_agent/utils.py:push_resource_update_message",
+      "required": [
+        "downscaled",
+        "paused",
+        "resource_backend_id",
+        "resource_uuid",
+        "restrict_member_access",
+        "sequence_number"
+      ],
+      "properties": {
+        "resource_uuid": {
+          "type": "string",
+          "description": "UUID of the resource"
+        },
+        "resource_backend_id": {
+          "type": "string",
+          "description": "Backend identifier of the resource"
+        },
+        "downscaled": {
+          "type": "boolean",
+          "description": "Whether the resource is downscaled"
+        },
+        "restrict_member_access": {
+          "type": "boolean",
+          "description": "Whether member access is restricted"
+        },
+        "paused": {
+          "type": "boolean",
+          "description": "Whether the resource is paused"
+        },
+        "sequence_number": {
+          "type": "integer",
+          "description": "Incremental message sequence number"
+        }
+      }
+    },
+    "OfferingUserMessage": {
+      "type": "object",
+      "title": "OfferingUserMessage",
+      "description": "Sent when an offering user's username is set or changed.",
+      "producer": "marketplace_site_agent/handlers.py:send_offering_user_username_message",
+      "required": [
+        "action",
+        "offering_user_uuid",
+        "resource_backend_ids",
+        "state",
+        "user_uuid",
+        "username"
+      ],
+      "properties": {
+        "offering_user_uuid": {
+          "type": "string",
+          "description": "UUID of the offering user"
+        },
+        "user_uuid": {
+          "type": "string",
+          "description": "UUID of the Waldur user"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username of the offering user"
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the offering user"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action type: username_set"
+        },
+        "resource_backend_ids": {
+          "type": "array",
+          "description": "Backend IDs of associated resources",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "UserRoleMessage": {
+      "type": "object",
+      "title": "UserRoleMessage",
+      "description": "Sent when a user role is granted or revoked in a project.",
+      "producer": "marketplace_site_agent/handlers.py:process_role_changed",
+      "required": [
+        "granted",
+        "project_name",
+        "project_uuid",
+        "role_name",
+        "user_username",
+        "user_uuid"
+      ],
+      "properties": {
+        "user_uuid": {
+          "type": "string",
+          "description": "UUID of the user"
+        },
+        "user_username": {
+          "type": "string",
+          "description": "Username of the user"
+        },
+        "project_uuid": {
+          "type": "string",
+          "description": "UUID of the project"
+        },
+        "project_name": {
+          "type": "string",
+          "description": "Name of the project"
+        },
+        "role_name": {
+          "type": "string",
+          "description": "Name of the role"
+        },
+        "granted": {
+          "type": "boolean",
+          "description": "True if granted, False if revoked"
+        }
+      }
+    },
+    "UserRoleSyncMessage": {
+      "type": "object",
+      "title": "UserRoleSyncMessage",
+      "description": "Sent to trigger full user-role sync for a project.",
+      "producer": "marketplace_site_agent/utils.py:push_user_role_sync_message",
+      "required": [
+        "project_name",
+        "project_uuid"
+      ],
+      "properties": {
+        "project_uuid": {
+          "type": "string",
+          "description": "UUID of the project"
+        },
+        "project_name": {
+          "type": "string",
+          "description": "Name of the project"
+        }
+      }
+    },
+    "AccountMessage": {
+      "type": "object",
+      "title": "AccountMessage",
+      "description": "Sent when a service or course account is created or deleted.",
+      "producer": "marketplace_site_agent/handlers.py:send_account_message",
+      "required": [
+        "account_username",
+        "account_uuid",
+        "action",
+        "project_name",
+        "project_uuid",
+        "scope_type"
+      ],
+      "properties": {
+        "account_uuid": {
+          "type": "string",
+          "description": "UUID of the account"
+        },
+        "account_username": {
+          "type": "string",
+          "description": "Username of the account"
+        },
+        "scope_type": {
+          "type": "string",
+          "description": "Scope type (always 'project')"
+        },
+        "project_uuid": {
+          "type": "string",
+          "description": "UUID of the project"
+        },
+        "project_name": {
+          "type": "string",
+          "description": "Name of the project"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action: 'create' or 'delete'"
+        }
+      }
+    },
+    "PeriodicLimitsMessage": {
+      "type": "object",
+      "title": "PeriodicLimitsMessage",
+      "description": "Sent when SLURM policy periodic settings need to be applied.",
+      "producer": "policy/models.py:SlurmPolicy._send_settings_to_site_agent",
+      "required": [
+        "action",
+        "backend_id",
+        "offering_uuid",
+        "policy_uuid",
+        "resource_uuid",
+        "settings",
+        "timestamp"
+      ],
+      "properties": {
+        "resource_uuid": {
+          "type": "string",
+          "description": "UUID of the resource"
+        },
+        "backend_id": {
+          "type": "string",
+          "description": "Backend resource identifier"
+        },
+        "offering_uuid": {
+          "type": "string",
+          "description": "UUID of the offering"
+        },
+        "policy_uuid": {
+          "type": "string",
+          "description": "UUID of the policy"
+        },
+        "action": {
+          "type": "string",
+          "description": "Action: 'apply_periodic_settings'"
+        },
+        "settings": {
+          "type": "object",
+          "description": "SLURM settings dict (fairshare, limits, thresholds)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601 timestamp for the current period"
+        }
+      }
+    }
+  }
+}

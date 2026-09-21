@@ -933,6 +933,10 @@ class VersionSerializer(serializers.Serializer):
         ),
         required=False,
     )
+    changelog_summary = serializers.DictField(
+        help_text="Compact changelog summary with version count, risk info, and security alerts.",
+        required=False,
+    )
 
 
 class LogoutSerializer(serializers.Serializer):

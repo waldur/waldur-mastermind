@@ -1,0 +1,367 @@
+from unittest import mock
+
+import requests
+from django.core.cache import cache
+from django.db import connection
+from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
+
+from waldur_core.changelog.utils import (
+    CHANGELOG_INDEX_CACHE_KEY,
+    build_changelog_summary,
+    compare_versions,
+    enrich_entries_with_relevance,
+    fetch_changelog_index,
+    fetch_changelog_release,
+    get_pending_versions,
+    match_relevance,
+    merge_delta_entries,
+    parse_version,
+)
+
+
+class ParseVersionTest(TestCase):
+    def test_stable_version(self):
+        v = parse_version("8.0.7")
+        self.assertIsNotNone(v)
+        self.assertEqual(str(v), "8.0.7")
+
+    def test_rc_version(self):
+        v = parse_version("8.0.7-rc.5")
+        self.assertIsNotNone(v)
+        # PEP 440 normalizes to 8.0.7rc5
+        self.assertEqual(str(v), "8.0.7rc5")
+
+    def test_invalid_version(self):
+        self.assertIsNone(parse_version("latest"))
+        self.assertIsNone(parse_version("develop"))
+
+    def test_rc_sorts_before_stable(self):
+        self.assertLess(parse_version("8.0.7-rc.27"), parse_version("8.0.7"))
+
+    def test_rc_ordering(self):
+        self.assertLess(parse_version("8.0.7-rc.1"), parse_version("8.0.7-rc.2"))
+        self.assertLess(parse_version("8.0.7-rc.9"), parse_version("8.0.7-rc.10"))
+
+    def test_cross_minor_ordering(self):
+        self.assertLess(parse_version("8.0.6"), parse_version("8.0.7-rc.1"))
+        self.assertLess(parse_version("8.0.7"), parse_version("8.0.8-rc.1"))
+
+
+class CompareVersionsTest(TestCase):
+    def test_equal(self):
+        self.assertEqual(compare_versions("8.0.7", "8.0.7"), 0)
+
+    def test_less(self):
+        self.assertLess(compare_versions("8.0.6", "8.0.7"), 0)
+
+    def test_greater(self):
+        self.assertGreater(compare_versions("8.0.8", "8.0.7"), 0)
+
+    def test_rc_less_than_stable(self):
+        self.assertLess(compare_versions("8.0.7-rc.5", "8.0.7"), 0)
+
+
+class GetPendingVersionsTest(TestCase):
+    def test_returns_newer_versions(self):
+        index = {
+            "releases": [
+                {"version": "8.0.5", "type": "stable"},
+                {"version": "8.0.6", "type": "stable"},
+                {"version": "8.0.7", "type": "stable"},
+            ]
+        }
+        pending = get_pending_versions("8.0.5", index)
+        self.assertEqual(len(pending), 2)
+        self.assertEqual(pending[0]["version"], "8.0.6")
+        self.assertEqual(pending[1]["version"], "8.0.7")
+
+    def test_includes_rcs(self):
+        index = {
+            "releases": [
+                {"version": "8.0.7", "type": "stable"},
+                {"version": "8.0.8-rc.1", "type": "rc"},
+                {"version": "8.0.8-rc.2", "type": "rc"},
+            ]
+        }
+        pending = get_pending_versions("8.0.7", index)
+        self.assertEqual(len(pending), 2)
+        self.assertEqual(pending[0]["version"], "8.0.8-rc.1")
+
+    def test_returns_empty_for_latest(self):
+        index = {"releases": [{"version": "8.0.7", "type": "stable"}]}
+        pending = get_pending_versions("8.0.7", index)
+        self.assertEqual(len(pending), 0)
+
+    def test_handles_invalid_current_version(self):
+        index = {"releases": [{"version": "8.0.7", "type": "stable"}]}
+        pending = get_pending_versions("develop", index)
+        self.assertEqual(len(pending), 0)
+
+
+class MatchRelevanceTest(TestCase):
+    def test_core_scope_always_relevant(self):
+        entry = {
+            "scope": "core",
+            "relevant_when": {"plugins": [], "feature_flags": [], "settings": []},
+        }
+        is_relevant, reasons = match_relevance(entry)
+        self.assertTrue(is_relevant)
+
+    def test_dev_scope_not_relevant(self):
+        entry = {
+            "scope": "dev",
+            "relevant_when": {"plugins": [], "feature_flags": [], "settings": []},
+        }
+        is_relevant, reasons = match_relevance(entry)
+        self.assertFalse(is_relevant)
+
+    @override_settings(INSTALLED_APPS=["waldur_core.core", "waldur_openstack"])
+    def test_plugin_relevant_when_installed(self):
+        entry = {
+            "scope": "plugin",
+            "relevant_when": {
+                "plugins": ["waldur_openstack"],
+                "feature_flags": [],
+                "settings": [],
+            },
+        }
+        is_relevant, reasons = match_relevance(entry)
+        self.assertTrue(is_relevant)
+        self.assertIn("Plugin waldur_openstack is active", reasons)
+
+    @override_settings(INSTALLED_APPS=["waldur_core.core"])
+    def test_plugin_not_relevant_when_not_installed(self):
+        entry = {
+            "scope": "plugin",
+            "relevant_when": {
+                "plugins": ["waldur_openstack"],
+                "feature_flags": [],
+                "settings": [],
+            },
+        }
+        is_relevant, reasons = match_relevance(entry)
+        self.assertFalse(is_relevant)
+
+    def test_empty_relevant_when_is_always_relevant(self):
+        entry = {
+            "scope": "plugin",
+            "relevant_when": {"plugins": [], "feature_flags": [], "settings": []},
+        }
+        is_relevant, reasons = match_relevance(entry)
+        self.assertTrue(is_relevant)
+
+
+class BuildChangelogSummaryTest(TestCase):
+    def test_no_pending_returns_none(self):
+        index = {"releases": [{"version": "8.0.7", "type": "stable"}]}
+        result = build_changelog_summary(index, "8.0.7")
+        self.assertIsNone(result)
+
+    def test_summary_with_pending_versions(self):
+        index = {
+            "releases": [
+                {
+                    "version": "8.0.7",
+                    "type": "stable",
+                    "has_breaking": True,
+                    "has_security": False,
+                },
+                {
+                    "version": "8.0.8",
+                    "type": "stable",
+                    "has_breaking": False,
+                    "has_security": True,
+                    "max_security_urgency": "high",
+                },
+            ]
+        }
+        result = build_changelog_summary(index, "8.0.6")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["versions_behind"], 2)
+        self.assertTrue(result["has_breaking_changes"])
+        # Counts releases flagged has_breaking, not high-risk entries - the
+        # index doesn't carry per-entry risk.
+        self.assertEqual(result["breaking_release_count"], 1)
+        self.assertIn("security_alert", result)
+        self.assertEqual(result["security_alert"]["max_urgency"], "high")
+
+    def test_breaking_release_count_counts_releases_not_entries(self):
+        index = {
+            "releases": [
+                {"version": "8.0.7", "type": "stable", "has_breaking": True},
+                {"version": "8.0.8", "type": "stable", "has_breaking": True},
+                {"version": "8.0.9", "type": "stable", "has_breaking": False},
+            ]
+        }
+        result = build_changelog_summary(index, "8.0.6")
+        self.assertEqual(result["breaking_release_count"], 2)
+
+    def test_summary_no_security(self):
+        index = {
+            "releases": [
+                {
+                    "version": "8.0.7",
+                    "type": "stable",
+                    "has_breaking": False,
+                    "has_security": False,
+                },
+            ]
+        }
+        result = build_changelog_summary(index, "8.0.6")
+        self.assertNotIn("security_alert", result)
+
+
+class MergeDeltaEntriesTest(TestCase):
+    def test_merges_entries_in_range(self):
+        releases = [
+            {
+                "version": "8.0.7-rc.1",
+                "since_previous": [{"id": "delta-1", "title": "Feature A"}],
+            },
+            {
+                "version": "8.0.7-rc.2",
+                "since_previous": [{"id": "delta-2", "title": "Fix B"}],
+            },
+            {
+                "version": "8.0.7-rc.3",
+                "since_previous": [{"id": "delta-3", "title": "Feature C"}],
+            },
+        ]
+        merged = merge_delta_entries("8.0.7-rc.1", "8.0.7-rc.3", releases)
+        self.assertEqual(len(merged), 2)  # rc.2 and rc.3, not rc.1
+        ids = [e["id"] for e in merged]
+        self.assertIn("delta-2", ids)
+        self.assertIn("delta-3", ids)
+
+
+def _mock_response(json_data):
+    response = mock.Mock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = json_data
+    return response
+
+
+class FetchChangelogIndexTest(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_caches_successful_fetch(self, mock_get):
+        mock_get.return_value = _mock_response({"releases": []})
+
+        first = fetch_changelog_index()
+        second = fetch_changelog_index()
+
+        self.assertEqual(first, {"releases": []})
+        self.assertEqual(second, {"releases": []})
+        mock_get.assert_called_once()
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_negatively_caches_network_failure(self, mock_get):
+        mock_get.side_effect = requests.ConnectionError("docs.waldur.com unreachable")
+
+        first = fetch_changelog_index()
+        second = fetch_changelog_index()
+
+        self.assertIsNone(first)
+        self.assertIsNone(second)
+        # Only one outbound call: the second request was served from the
+        # negative cache instead of retrying docs.waldur.com.
+        mock_get.assert_called_once()
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_negatively_caches_invalid_json(self, mock_get):
+        response = mock.Mock()
+        response.raise_for_status.return_value = None
+        response.json.side_effect = ValueError("not json")
+        mock_get.return_value = response
+
+        first = fetch_changelog_index()
+        second = fetch_changelog_index()
+
+        self.assertIsNone(first)
+        self.assertIsNone(second)
+        mock_get.assert_called_once()
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_success_after_negative_cache_expires(self, mock_get):
+        mock_get.side_effect = requests.ConnectionError("docs.waldur.com unreachable")
+        self.assertIsNone(fetch_changelog_index())
+        mock_get.assert_called_once()
+
+        # Simulate the negative-cache TTL elapsing.
+        cache.delete(CHANGELOG_INDEX_CACHE_KEY)
+
+        mock_get.side_effect = None
+        mock_get.return_value = _mock_response({"releases": []})
+        self.assertEqual(fetch_changelog_index(), {"releases": []})
+        self.assertEqual(mock_get.call_count, 2)
+
+
+class FetchChangelogReleaseTest(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_caches_successful_fetch(self, mock_get):
+        mock_get.return_value = _mock_response({"version": "8.0.7"})
+
+        first = fetch_changelog_release("8.0.7")
+        second = fetch_changelog_release("8.0.7")
+
+        self.assertEqual(first, {"version": "8.0.7"})
+        self.assertEqual(second, {"version": "8.0.7"})
+        mock_get.assert_called_once()
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_negatively_caches_network_failure(self, mock_get):
+        mock_get.side_effect = requests.ConnectionError("docs.waldur.com unreachable")
+
+        first = fetch_changelog_release("8.0.7")
+        second = fetch_changelog_release("8.0.7")
+
+        self.assertIsNone(first)
+        self.assertIsNone(second)
+        mock_get.assert_called_once()
+
+    @mock.patch("waldur_core.changelog.utils.requests.get")
+    def test_failure_for_one_version_does_not_affect_another(self, mock_get):
+        mock_get.side_effect = requests.ConnectionError("docs.waldur.com unreachable")
+        self.assertIsNone(fetch_changelog_release("8.0.7"))
+        mock_get.assert_called_once()
+
+        mock_get.side_effect = None
+        mock_get.return_value = _mock_response({"version": "8.0.8"})
+        self.assertEqual(fetch_changelog_release("8.0.8"), {"version": "8.0.8"})
+        self.assertEqual(mock_get.call_count, 2)
+
+
+def _relevance_entry(i):
+    return {
+        "id": f"8.0.8-{i}",
+        "scope": "plugin",
+        "relevant_when": {
+            "plugins": ["waldur_openstack"],
+            "feature_flags": ["marketplace.some_flag"],
+            "settings": ["SITE_NAME"],
+        },
+    }
+
+
+class RelevanceQueryCountTest(TestCase):
+    """match_relevance()'s DB-backed context (feature flags, Constance
+    settings) must be built once per batch, not once per entry - see
+    enrich_entries_with_relevance()."""
+
+    def test_query_count_does_not_scale_with_entry_count(self):
+        counts = {}
+        for n in (1, 10):
+            entries = [_relevance_entry(i) for i in range(n)]
+            with CaptureQueriesContext(connection) as ctx:
+                enrich_entries_with_relevance(entries)
+            counts[n] = len(ctx.captured_queries)
+
+        # 10 entries must not cost ~10x what 1 entry costs - the context
+        # (active plugins, feature flags, customized settings) is shared.
+        self.assertLessEqual(counts[10], counts[1] + 2)
