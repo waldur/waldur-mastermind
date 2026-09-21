@@ -544,7 +544,9 @@ MERGE_COVERAGE: dict[str, CoverageEntry] = _entries(
     E(
         "marketplace.Offering.parent",
         NOT_APPLICABLE,
-        "Offerings with a parent or children are refused by the preview.",
+        "Offerings with children are refused by the preview, and offerings with "
+        "a parent merge only with siblings of the same parent and scope; the "
+        "parent link stays on both sides.",
     ),
     E(
         "marketplace_remote.ProjectUpdateRequest.offering",

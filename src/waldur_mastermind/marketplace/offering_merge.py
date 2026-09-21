@@ -343,13 +343,15 @@ class _MergeContext:
     never disagree about what a merge does.
     """
 
-    def __init__(self, merge: models.OfferingMerge):
+    def __init__(self, merge: models.OfferingMerge, source_ids=None):
+        # ``source_ids`` stands in for ``merge.sources`` when the merge record is
+        # not stored (see :func:`preview_selection`).
         self.merge = merge
         self.target = models.Offering.objects.get(pk=merge.target_id)
+        if source_ids is None:
+            source_ids = merge.sources.values_list("pk", flat=True)
         self.sources = list(
-            models.Offering.objects.filter(
-                pk__in=merge.sources.values_list("pk", flat=True)
-            ).order_by("id")
+            models.Offering.objects.filter(pk__in=source_ids).order_by("id")
         )
         self.source_ids = [source.id for source in self.sources]
         self.blockers: list[dict] = []
@@ -427,7 +429,21 @@ class _MergeContext:
                     offering=self.target.uuid.hex,
                 )
             )
-        for offering in [*self.sources, self.target]:
+        offerings = [*self.sources, self.target]
+        # Offerings with a parent may merge only with their siblings: the same
+        # parent and the same scope, as the per-tenant offerings of one tenant
+        # have. The parent link stays as it is on both sides.
+        siblings = (
+            len({offering.parent_id for offering in offerings}) == 1
+            and len(
+                {
+                    (offering.content_type_id, offering.object_id)
+                    for offering in offerings
+                }
+            )
+            == 1
+        )
+        for offering in offerings:
             if offering.type == REMOTE_OFFERING:
                 self.blockers.append(
                     _issue(
@@ -436,7 +452,7 @@ class _MergeContext:
                         offering=offering.uuid.hex,
                     )
                 )
-            if offering.parent_id or offering.children.exists():
+            if (offering.parent_id and not siblings) or offering.children.exists():
                 self.blockers.append(
                     _issue(
                         "offering_hierarchy",
@@ -1155,6 +1171,25 @@ class _MergeContext:
 def build_preview(merge: models.OfferingMerge) -> dict:
     """Compute the preview of ``merge`` without writing anything."""
     return _MergeContext(merge).preview()
+
+
+def preview_selection(
+    sources: list[models.Offering],
+    target: models.Offering,
+    plan_mapping: dict | None = None,
+    component_mapping: dict | None = None,
+) -> dict:
+    """Compute the preview of a merge that is not stored. Reads only.
+
+    Lets a caller report the blockers and warnings of a candidate merge, such
+    as a duplicate group with its suggested mapping, before anyone creates it.
+    """
+    merge = models.OfferingMerge(
+        target=target,
+        plan_mapping=plan_mapping or {},
+        component_mapping=component_mapping or {},
+    )
+    return _MergeContext(merge, [source.pk for source in sources]).preview()
 
 
 def preview(merge: models.OfferingMerge) -> models.OfferingMerge:
