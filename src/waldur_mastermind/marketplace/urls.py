@@ -330,6 +330,11 @@ def register_in(router):
         basename="marketplace-offering-role",
     )
     router.register(
+        r"marketplace-offering-merges",
+        views.OfferingMergeViewSet,
+        basename="marketplace-offering-merge",
+    )
+    router.register(
         r"marketplace-offering-profiles",
         views.OfferingProfileViewSet,
         basename="marketplace-offering-profile",

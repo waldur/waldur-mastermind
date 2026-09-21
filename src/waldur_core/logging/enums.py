@@ -56,6 +56,13 @@ class EventType(StrEnum):
     MARKETPLACE_OFFERING_COMPONENT_DELETED = "marketplace_offering_component_deleted"
     MARKETPLACE_OFFERING_COMPONENT_UPDATED = "marketplace_offering_component_updated"
     MARKETPLACE_OFFERING_CREATED = "marketplace_offering_created"
+    MARKETPLACE_OFFERING_MERGE_CREATED = "marketplace_offering_merge_created"
+    MARKETPLACE_OFFERING_MERGE_EXECUTED = "marketplace_offering_merge_executed"
+    MARKETPLACE_OFFERING_MERGE_FAILED = "marketplace_offering_merge_failed"
+    MARKETPLACE_OFFERING_MERGE_UNDONE = "marketplace_offering_merge_undone"
+    MARKETPLACE_OFFERING_MERGE_VERIFICATION_FAILED = (
+        "marketplace_offering_merge_verification_failed"
+    )
     MARKETPLACE_OFFERING_UPDATED = "marketplace_offering_updated"
     MARKETPLACE_OFFERING_OPTIONS_UPDATED = "marketplace_offering_options_updated"
     MARKETPLACE_OFFERING_RESOURCE_OPTIONS_UPDATED = (
@@ -585,6 +592,11 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_OFFERING_COMPONENT_CREATED,
         EventType.MARKETPLACE_OFFERING_COMPONENT_DELETED,
         EventType.MARKETPLACE_OFFERING_COMPONENT_UPDATED,
+        EventType.MARKETPLACE_OFFERING_MERGE_CREATED,
+        EventType.MARKETPLACE_OFFERING_MERGE_EXECUTED,
+        EventType.MARKETPLACE_OFFERING_MERGE_FAILED,
+        EventType.MARKETPLACE_OFFERING_MERGE_UNDONE,
+        EventType.MARKETPLACE_OFFERING_MERGE_VERIFICATION_FAILED,
         EventType.MARKETPLACE_OFFERING_OPTIONS_UPDATED,
         EventType.MARKETPLACE_OFFERING_RESOURCE_OPTIONS_UPDATED,
         EventType.MARKETPLACE_PLAN_ARCHIVED,

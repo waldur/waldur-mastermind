@@ -206,6 +206,7 @@ from . import (
     filters,
     log,
     models,
+    offering_merge,
     order_approval,
     permissions,
     plugins,
@@ -19088,3 +19089,255 @@ class ProjectOrderAutoApprovalViewSet(core_views.ActionsViewSet):
             PermissionEnum.APPROVE_ORDER, ["project", "project.customer"]
         )
     ]
+
+
+class OfferingMergeViewSet(core_views.ActionsViewSet):
+    """Staff merges of offerings: records, previews, execution and undo.
+
+    Staff and support may read merges, suggest mappings and compute a preview;
+    support's preview is never stored. Every write is staff-only. ``execute``
+    and ``undo`` are queued as Celery tasks and answer 202; the record's state,
+    ``progress`` and ``verification`` report the outcome.
+
+    States: ``draft`` and ``previewed`` records may be edited or deleted (an
+    edit returns a previewed record to draft). ``execute`` moves a previewed
+    record to ``queued``, the task to ``running`` and then ``done`` or
+    ``failed``. ``undo`` checks the engine's preconditions synchronously and
+    answers 400 with the blockers if it would be refused; otherwise it moves a
+    done record to ``undoing``, and the task to ``undone``. Should the engine
+    still refuse in the task, the record returns to ``done`` with the reason
+    in ``error_message``.
+    """
+
+    queryset = models.OfferingMerge.objects.select_related(
+        "target", "created_by"
+    ).prefetch_related("sources")
+    serializer_class = serializers.OfferingMergeSerializer
+    filterset_class = filters.OfferingMergeFilter
+    lookup_field = "uuid"
+    disabled_actions = ["update"]
+
+    safe_methods_permissions = [structure_permissions.is_staff_or_support]
+    unsafe_methods_permissions = [structure_permissions.is_staff]
+
+    def _lock(self, merge):
+        return models.OfferingMerge.objects.select_for_update().get(pk=merge.pk)
+
+    def _merge_response(self, merge, status_code=status.HTTP_200_OK):
+        merge = self.get_queryset().get(pk=merge.pk)
+        return Response(
+            serializers.OfferingMergeSerializer(
+                merge, context=self.get_serializer_context()
+            ).data,
+            status=status_code,
+        )
+
+    def perform_create(self, serializer):
+        merge = serializer.save(created_by=self.request.user)
+        log.log_offering_merge_created(merge)
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+            merge = self._lock(serializer.instance)
+            if merge.state not in models.OfferingMerge.States.EDITABLE:
+                raise IncorrectStateException(
+                    _("Only a draft or previewed merge can be edited.")
+                )
+            if merge.state == models.OfferingMerge.States.PREVIEWED:
+                merge.set_draft()
+                merge.preview = {}
+            serializer.instance = merge
+            serializer.save()
+
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            merge = self._lock(instance)
+            if merge.state not in models.OfferingMerge.States.EDITABLE:
+                raise IncorrectStateException(
+                    _("Only a draft or previewed merge can be deleted.")
+                )
+            merge.delete()
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "sources",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="Source offering UUIDs, comma-separated or repeated.",
+            ),
+            OpenApiParameter(
+                "target",
+                OpenApiTypes.UUID,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="Target offering UUID.",
+                extensions={
+                    "x-waldur-operation-id": "marketplace_provider_offerings_list"
+                },
+            ),
+        ],
+        responses={200: serializers.OfferingMergeSuggestedMappingSerializer},
+    )
+    @core_views.no_count_action
+    @action(detail=False, methods=["get"])
+    def suggest_mapping(self, request):
+        """Suggest plan mappings by name and component mappings by type."""
+        source_uuids = [
+            value.strip()
+            for raw in request.query_params.getlist("sources")
+            for value in raw.split(",")
+            if value.strip()
+        ]
+        target_uuid = request.query_params.get("target", "")
+        errors = {}
+        if not source_uuids or not all(map(core_utils.is_uuid_like, source_uuids)):
+            errors["sources"] = _("Pass one or more source offering UUIDs.")
+        if not core_utils.is_uuid_like(target_uuid):
+            errors["target"] = _("Pass the target offering UUID.")
+        if errors:
+            raise ValidationError(errors)
+        sources = list(models.Offering.objects.filter(uuid__in=source_uuids))
+        target = models.Offering.objects.filter(uuid=target_uuid).first()
+        if len(sources) != len(set(source_uuids)):
+            errors["sources"] = _("A source offering does not exist.")
+        if target is None:
+            errors["target"] = _("The target offering does not exist.")
+        if errors:
+            raise ValidationError(errors)
+        return Response(
+            serializers.OfferingMergeSuggestedMappingSerializer(
+                offering_merge.suggest_mapping(sources, target)
+            ).data
+        )
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: serializers.OfferingMergePreviewSerializer,
+            409: OpenApiResponse(
+                description="The merge is not in a previewable state."
+            ),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def preview(self, request, uuid=None):
+        """Compute the merge preview: counts, blockers and warnings.
+
+        Staff store it on the record, which moves to ``previewed``. Support
+        receive the same preview without it being stored.
+        """
+        merge = self.get_object()
+        if merge.state not in models.OfferingMerge.States.PREVIEWABLE:
+            raise IncorrectStateException(
+                _("A merge in state %s cannot be previewed.") % merge.state
+            )
+        if request.user.is_staff:
+            try:
+                data = offering_merge.preview(merge).preview
+            except offering_merge.OfferingMergeError as error:
+                raise IncorrectStateException(error.message)
+        else:
+            data = offering_merge.build_preview(merge)
+        return Response(serializers.OfferingMergePreviewSerializer(data).data)
+
+    preview_permissions = [structure_permissions.is_staff_or_support]
+
+    @extend_schema(
+        request=serializers.OfferingMergeExecuteSerializer,
+        responses={
+            202: serializers.OfferingMergeSerializer,
+            400: serializers.OfferingMergeRefusalSerializer,
+            409: OpenApiResponse(description="The merge is not previewed."),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def execute(self, request, uuid=None):
+        """Queue a previewed merge for execution.
+
+        Refused with 400 if the stored preview has blockers or a warning code
+        is missing from ``acknowledged_warnings``, and with 409 unless the
+        merge is ``previewed``, which also refuses a second request.
+        """
+        merge = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        acknowledged = set(serializer.validated_data["acknowledged_warnings"])
+        with transaction.atomic():
+            merge = self._lock(merge)
+            if merge.state != models.OfferingMerge.States.PREVIEWED:
+                raise IncorrectStateException(
+                    _("Only a previewed merge can be executed; this one is %s.")
+                    % merge.state
+                )
+            preview = merge.preview or {}
+            if preview.get("blockers"):
+                return Response(
+                    {
+                        "detail": _("The merge has blockers."),
+                        "blockers": preview["blockers"],
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            missing = sorted(
+                {warning["code"] for warning in preview.get("warnings", [])}
+                - acknowledged
+            )
+            if missing:
+                return Response(
+                    {
+                        "detail": _("Acknowledge every warning before executing."),
+                        "missing_acknowledgements": missing,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            merge.set_queued()
+            merge.progress = {}
+            merge.error_message = ""
+            merge.save(update_fields=["state", "progress", "error_message", "modified"])
+            merge_uuid = merge.uuid.hex
+            transaction.on_commit(
+                lambda: tasks.execute_offering_merge.delay(merge_uuid)
+            )
+        return self._merge_response(merge, status.HTTP_202_ACCEPTED)
+
+    execute_serializer_class = serializers.OfferingMergeExecuteSerializer
+
+    @extend_schema(
+        request=None,
+        responses={
+            202: serializers.OfferingMergeSerializer,
+            400: serializers.OfferingMergeRefusalSerializer,
+            409: OpenApiResponse(description="The merge is not done."),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def undo(self, request, uuid=None):
+        """Queue the undo of a completed merge.
+
+        The engine's preconditions are checked first: if the undo would be
+        refused, the answer is 400 with the blockers and nothing is queued.
+        """
+        merge = self.get_object()
+        with transaction.atomic():
+            merge = self._lock(merge)
+            if merge.state != models.OfferingMerge.States.DONE:
+                raise IncorrectStateException(
+                    _("Only a done merge can be undone; this one is %s.") % merge.state
+                )
+            blockers = offering_merge.undo_blockers(merge)
+            if blockers:
+                return Response(
+                    {
+                        "detail": _("The merge cannot be undone."),
+                        "blockers": blockers,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            merge.set_undoing()
+            merge.error_message = ""
+            merge.save(update_fields=["state", "error_message", "modified"])
+            merge_uuid = merge.uuid.hex
+            transaction.on_commit(lambda: tasks.undo_offering_merge.delay(merge_uuid))
+        return self._merge_response(merge, status.HTTP_202_ACCEPTED)
