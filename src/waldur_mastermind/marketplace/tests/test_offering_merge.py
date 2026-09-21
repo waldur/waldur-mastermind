@@ -559,6 +559,20 @@ class OfferingMergePreviewTest(TestCase):
         self.assertEqual(merge.state, models.OfferingMerge.States.PREVIEWED)
         self.assertEqual(snapshot(), before)
 
+    def test_preview_of_an_unstored_merge_matches_a_stored_one(self):
+        merge_count = models.OfferingMerge.objects.count()
+        unstored = offering_merge.preview_selection(
+            [self.source],
+            self.target,
+            plan_mapping={
+                source.uuid.hex: target.uuid.hex
+                for source, target in self.plan_mapping.items()
+            },
+            component_mapping=self.component_mapping,
+        )
+        self.assertEqual(models.OfferingMerge.objects.count(), merge_count)
+        self.assertEqual(unstored, self.preview())
+
     # --- Blockers -----------------------------------------------------------
 
     def test_type_outside_allowed_set_is_blocked(self):
@@ -575,6 +589,27 @@ class OfferingMergePreviewTest(TestCase):
     def test_offering_with_parent_is_blocked(self):
         self.source.parent = factories.OfferingFactory()
         self.source.save()
+        self.assertIn("offering_hierarchy", codes(self.preview()["blockers"]))
+
+    def _make_siblings(self, source_scope, target_scope):
+        parent = factories.OfferingFactory()
+        for offering, scope in (
+            (self.source, source_scope),
+            (self.target, target_scope),
+        ):
+            offering.parent = parent
+            offering.scope = scope
+            offering.save()
+
+    def test_siblings_of_one_parent_and_scope_are_allowed(self):
+        scope = structure_factories.ProjectFactory()
+        self._make_siblings(scope, scope)
+        self.assertNotIn("offering_hierarchy", codes(self.preview()["blockers"]))
+
+    def test_siblings_with_another_scope_are_blocked(self):
+        self._make_siblings(
+            structure_factories.ProjectFactory(), structure_factories.ProjectFactory()
+        )
         self.assertIn("offering_hierarchy", codes(self.preview()["blockers"]))
 
     def test_offering_with_children_is_blocked(self):

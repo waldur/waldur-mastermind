@@ -211,7 +211,10 @@ class DuplicateOfferingGroupSerializer(serializers.Serializer):
 
     Shape produced by ``utils.build_duplicate_offering_report``; surfaces the
     duplicate offerings, the recommended keeper and the count of orphaned
-    resources so a staff user can see the problem without reading logs.
+    resources so a staff user can see the problem without reading logs, and
+    what the offering merge form needs to resolve the group: the keeper as the
+    merge target, the duplicates as its sources, the suggested mapping, and the
+    blockers and warnings of that merge.
     """
 
     tenant_id = serializers.IntegerField()
@@ -221,52 +224,24 @@ class DuplicateOfferingGroupSerializer(serializers.Serializer):
     customer_uuid = serializers.UUIDField(allow_null=True)
     offering_type = serializers.CharField()
     recommended_keeper_id = serializers.IntegerField()
+    keeper_uuid = serializers.UUIDField(
+        help_text="The recommended keeper: the target of the merge that "
+        "resolves the group."
+    )
+    duplicate_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        help_text="Every other offering of the group: the sources of that merge.",
+    )
+    suggested_mapping = marketplace_serializers.OfferingMergeSuggestedMappingSerializer(
+        help_text="Plan and component mappings suggested by name and type."
+    )
+    blockers = marketplace_serializers.OfferingMergeIssueSerializer(
+        many=True,
+        help_text="What would refuse that merge with the suggested mapping.",
+    )
+    warnings = marketplace_serializers.OfferingMergeIssueSerializer(
+        many=True,
+        help_text="What that merge would ask staff to acknowledge.",
+    )
     orphan_count = serializers.IntegerField()
     candidates = DuplicateOfferingCandidateSerializer(many=True)
-
-
-class DuplicateOfferingRemediateSerializer(serializers.Serializer):
-    """Request to collapse one duplicate group onto its keeper.
-
-    The keeper is deliberately not accepted from the client: it is resolved
-    server-side from the same helpers that build the report.
-    """
-
-    tenant_id = serializers.IntegerField()
-    offering_type = serializers.CharField()
-    dry_run = serializers.BooleanField(
-        default=True,
-        help_text="Preview the changes without applying them. Mirrors the "
-        "dry-run-by-default behaviour of the dedupe_tenant_offerings command.",
-    )
-
-
-class DuplicateOfferingMergePlanSerializer(serializers.Serializer):
-    """What resolving a single duplicate would move onto the keeper."""
-
-    duplicate_id = serializers.IntegerField()
-    duplicate_name = serializers.CharField()
-    keeper_id = serializers.IntegerField()
-    keeper_name = serializers.CharField()
-    action = serializers.CharField(
-        help_text="delete (nothing attached), merge, or skip."
-    )
-    is_empty = serializers.BooleanField()
-    resource_count = serializers.IntegerField()
-    order_count = serializers.IntegerField()
-    plan_period_count = serializers.IntegerField()
-    component_usage_count = serializers.IntegerField()
-    component_quota_count = serializers.IntegerField()
-    blockers = serializers.ListField(child=serializers.CharField())
-
-
-class DuplicateOfferingRemediationSerializer(serializers.Serializer):
-    """Result of a remediation, whether previewed or applied."""
-
-    tenant_id = serializers.IntegerField()
-    offering_type = serializers.CharField()
-    keeper_id = serializers.IntegerField()
-    keeper_name = serializers.CharField()
-    dry_run = serializers.BooleanField()
-    duplicates = DuplicateOfferingMergePlanSerializer(many=True)
-    blockers = serializers.ListField(child=serializers.CharField())
