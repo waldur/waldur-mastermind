@@ -1,6 +1,7 @@
 import logging
 import uuid
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q, QuerySet, Value
 from django.db.models.functions import Coalesce, Lower, NullIf
@@ -30,7 +31,8 @@ from waldur_core.core.models import User
 from waldur_core.core.permissions import IsAdminOrReadOnly, IsStaff
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet, count_action
-from waldur_core.permissions import hygiene
+from waldur_core.logging.enums import EventType
+from waldur_core.permissions import handlers, hygiene
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.utils import (
     add_user,
@@ -38,6 +40,7 @@ from waldur_core.permissions.utils import (
     get_create_permission,
     get_delete_permission,
     get_permissions,
+    get_role_customers,
     has_permission,
     update_user,
 )
@@ -51,6 +54,82 @@ from waldur_core.structure.permissions import _get_customer
 from . import enums, filters, models, serializers
 
 logger = logging.getLogger(__name__)
+
+
+def get_role_permission_set(role) -> set[str]:
+    return set(role.permissions.values_list("permission", flat=True))
+
+
+def get_role_descriptions(role) -> dict[str, str | None]:
+    """Snapshot the role's description in every configured language."""
+    descriptions = {"description": role.description}
+    for language in settings.LANGUAGE_CHOICES:
+        field = f"description_{language}"
+        if hasattr(role, field):
+            descriptions[field] = getattr(role, field)
+    return descriptions
+
+
+def get_role_definition_snapshot(role) -> dict:
+    """Everything an update request can change about what the role means."""
+    return {
+        "permissions": get_role_permission_set(role),
+        "name": role.name,
+        "content_type": role.content_type,
+        "is_active": role.is_active,
+        "descriptions": get_role_descriptions(role),
+    }
+
+
+def log_role_activation(role, is_active: bool):
+    """Record a role becoming (un)available for new grants."""
+    if is_active:
+        message = "Role {role_name} has been enabled. Initiated by: {initiated_by}."
+        event_type = EventType.ROLE_ENABLED
+    else:
+        message = "Role {role_name} has been disabled. Initiated by: {initiated_by}."
+        event_type = EventType.ROLE_DISABLED
+    handlers.log_role_definition(role, message, event_type=event_type)
+
+
+def log_role_definition_changed(role, before: dict):
+    """Emit events for whatever the request actually changed.
+
+    A request that resubmits the current definition is not audit-worthy, so the
+    diff decides whether anything is recorded. ``is_active`` and the scope are
+    writable here as well as through the dedicated actions, so they are diffed
+    too — otherwise a role could be disabled or re-scoped through this endpoint
+    with nothing in the audit trail.
+    """
+    after = get_role_definition_snapshot(role)
+
+    if before["is_active"] != after["is_active"]:
+        log_role_activation(role, after["is_active"])
+
+    added = sorted(after["permissions"] - before["permissions"])
+    removed = sorted(before["permissions"] - after["permissions"])
+
+    changes = {}
+    if before["name"] != after["name"]:
+        changes["old_name"] = before["name"]
+    if before["descriptions"] != after["descriptions"]:
+        changes["old_descriptions"] = before["descriptions"]
+        changes["new_descriptions"] = after["descriptions"]
+    if before["content_type"] != after["content_type"]:
+        changes["old_content_type"] = before["content_type"].model
+        changes["new_content_type"] = after["content_type"].model
+
+    if not added and not removed and not changes:
+        return
+
+    handlers.log_role_definition(
+        role,
+        "Role {role_name} has been updated. Initiated by: {initiated_by}.",
+        event_type=EventType.ROLE_DEFINITION_UPDATED,
+        added_permissions=added,
+        removed_permissions=removed,
+        **changes,
+    )
 
 
 def can_destroy_role(role):
@@ -140,6 +219,21 @@ class RoleViewSet(ActionsViewSet):
         ).values_list("role_id", flat=True)
         return qs.exclude(Q(id__in=customer_scoped) & ~Q(id__in=mine)).distinct()
 
+    def perform_destroy(self, instance: models.Role):
+        # The role's organization binding and permission set are read before
+        # the delete cascades them away.
+        customers = get_role_customers(instance)
+        customer = customers[0] if len(customers) == 1 else None
+        permissions = sorted(get_role_permission_set(instance))
+        super().perform_destroy(instance)
+        handlers.log_role_definition(
+            instance,
+            "Role {role_name} has been deleted. Initiated by: {initiated_by}.",
+            event_type=EventType.ROLE_DEFINITION_DELETED,
+            customer=customer,
+            permissions=permissions,
+        )
+
     @extend_schema(
         summary="Create a new role",
         description="Allows staff users to create a new custom role with a specific set of permissions.",
@@ -177,6 +271,13 @@ class RoleViewSet(ActionsViewSet):
         serializer = serializers.RoleModifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         role: models.Role = serializer.save()
+        handlers.log_role_definition(
+            role,
+            "Role {role_name} has been created. Initiated by: {initiated_by}.",
+            event_type=EventType.ROLE_DEFINITION_CREATED,
+            permissions=sorted(get_role_permission_set(role)),
+            is_system_role=role.is_system_role,
+        )
         serializer = serializers.RoleDetailsSerializer(instance=role)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -215,9 +316,11 @@ class RoleViewSet(ActionsViewSet):
     )
     def update(self, request, **kwargs):
         instance: models.Role = self.get_object()
+        before = get_role_definition_snapshot(instance)
         serializer = serializers.RoleModifySerializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         role: models.Role = serializer.save()
+        log_role_definition_changed(role, before)
         serializer = serializers.RoleDetailsSerializer(instance=role)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -239,9 +342,11 @@ class RoleViewSet(ActionsViewSet):
     @action(detail=True, methods=["PUT"])
     def update_descriptions(self, request, uuid=None):
         instance: models.Role = self.get_object()
+        before = get_role_definition_snapshot(instance)
         serializer = serializers.RoleDescriptionSerializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        role: models.Role = serializer.save()
+        log_role_definition_changed(role, before)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -265,6 +370,7 @@ class RoleViewSet(ActionsViewSet):
             role.is_active = True
             role.save()
             logger.info(message)
+            log_role_activation(role, True)
         return Response(
             {"detail": _(message)},
             status=status.HTTP_200_OK,
@@ -291,6 +397,7 @@ class RoleViewSet(ActionsViewSet):
             role.is_active = False
             role.save()
             logger.info(message)
+            log_role_activation(role, False)
         return Response(
             {"detail": _(message)},
             status=status.HTTP_200_OK,
@@ -316,11 +423,22 @@ class RoleViewSet(ActionsViewSet):
             serializer.validated_data.get("description"),
             conceal_template=serializer.validated_data["conceal_template"],
         )
+        customer = serializer.validated_data["customer"]
         logger.info(
             "Role %s cloned into customer %s as %s",
             template.name,
-            serializer.validated_data["customer"].uuid.hex,
+            customer.uuid.hex,
             role.name,
+        )
+        handlers.log_role_definition(
+            role,
+            "Role {template_name} has been cloned into {customer_name} as "
+            "{role_name}. Initiated by: {initiated_by}.",
+            event_type=EventType.ROLE_CLONED,
+            customer=customer,
+            template_name=template.name,
+            template_uuid=template.uuid.hex,
+            conceal_template=serializer.validated_data["conceal_template"],
         )
         return Response(
             serializers.RoleDetailsSerializer(role, context={"request": request}).data,

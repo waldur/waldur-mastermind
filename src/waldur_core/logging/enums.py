@@ -381,7 +381,15 @@ class EventType(StrEnum):
     RESOURCE_UPDATE_SUCCEEDED = "resource_update_succeeded"
     RESTRICT_MEMBERS = "restrict_members"
     REVIEW_CANCELED = "review_canceled"
+    ROLE_CLONED = "role_cloned"
+    ROLE_CONCEALED = "role_concealed"
+    ROLE_DEFINITION_CREATED = "role_definition_created"
+    ROLE_DEFINITION_DELETED = "role_definition_deleted"
+    ROLE_DEFINITION_UPDATED = "role_definition_updated"
+    ROLE_DISABLED = "role_disabled"
+    ROLE_ENABLED = "role_enabled"
     ROLE_GRANTED = "role_granted"
+    ROLE_REVEALED = "role_revealed"
     ROLE_REVOKED = "role_revoked"
     ROLE_UPDATED = "role_updated"
     ROLL_BACK_CUSTOMER_CREDIT = "roll_back_customer_credit"
@@ -611,6 +619,17 @@ EVENT_GROUP_MAPPING = {
         EventType.ROLE_GRANTED,
         EventType.ROLE_REVOKED,
         EventType.ROLE_UPDATED,
+        # Role definition changes. ROLE_UPDATED above means an assignment's
+        # expiry changed, so a definition change gets its own type rather than
+        # silently redefining what existing audit queries match.
+        EventType.ROLE_DEFINITION_CREATED,
+        EventType.ROLE_DEFINITION_UPDATED,
+        EventType.ROLE_DEFINITION_DELETED,
+        EventType.ROLE_ENABLED,
+        EventType.ROLE_DISABLED,
+        EventType.ROLE_CLONED,
+        EventType.ROLE_CONCEALED,
+        EventType.ROLE_REVEALED,
     ],
     EventGroup.PROJECTS: [
         EventType.PROJECT_CREATION_SUCCEEDED,

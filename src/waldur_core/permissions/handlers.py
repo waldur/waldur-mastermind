@@ -3,17 +3,20 @@ import logging
 from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.middleware import get_event_context
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
     build_org_role_name,
     ensure_unique_role_name,
     get_active_roles,
+    get_role_customers,
     is_quiet_grant_source,
 )
 from waldur_core.structure.permissions import _get_customer
@@ -400,4 +403,110 @@ def revoke_user_roles_on_availability_removal(sender, instance, **kwargs):
         return
     transaction.on_commit(
         lambda: permission_tasks.reconcile_user_roles_for_role.delay(role_id)
+    )
+
+
+def get_initiated_by() -> str:
+    """Describe the actor behind the current request, or "System" outside one.
+
+    ``CaptureEventContextMiddleware`` already put the request user into the
+    thread-local event context, so role-definition events do not have to thread
+    ``current_user`` through every view.
+    """
+    context = get_event_context() or {}
+    username = context.get("user_username")
+    if not username:
+        return "System"
+    full_name = context.get("user_full_name")
+    return f"{full_name} ({username})" if full_name else username
+
+
+def log_role_definition(
+    role: Role,
+    message: str,
+    event_type: EventType,
+    customer=None,
+    **extra,
+):
+    """Emit an event describing a change to what a role *means*.
+
+    Distinct from :func:`log`, which records changes to role *assignments* and
+    is keyed on a ``UserRole``. When the role belongs to an organization the
+    event is also filed in that organization's feed; a deployment-wide role has
+    no scope and lands in the global event log only.
+    """
+    if customer is None and role.pk:
+        # A deleted role can no longer be joined against its availability rows,
+        # so the caller resolves the organization before the delete instead.
+        customers = get_role_customers(role)
+        customer = customers[0] if len(customers) == 1 else None
+
+    event_context = {
+        "role_name": role.name,
+        "role_uuid": role.uuid.hex,
+        "role_content_type": role.content_type.model,
+        "initiated_by": get_initiated_by(),
+        **extra,
+    }
+    if customer:
+        event_context["customer"] = customer
+
+    event_logger.emit(
+        message,
+        event_type=event_type,
+        event_context=event_context,
+        scopes=[customer] if customer else [],
+    )
+
+
+def log_role_concealed(sender, instance, created=False, **kwargs):
+    """Log that a role was hidden for an organization.
+
+    Wired to the model rather than the viewset because a concealment is also
+    created by ``clone_role_for_customer`` when the clone supersedes its
+    template.
+    """
+    if not created:
+        return
+    scope = instance.scope
+    if scope is None:
+        # A dangling object_id (the organization was hard-deleted out from
+        # under the row): there is no feed to file the event in, and the
+        # message template needs the organization's name.
+        return
+    log_role_definition(
+        instance.role,
+        "Role {role_name} has been concealed for {customer_name}. Initiated by: {initiated_by}.",
+        event_type=EventType.ROLE_CONCEALED,
+        customer=scope,
+    )
+
+
+def is_direct_delete(origin, instance) -> bool:
+    """True when ``instance`` is what ``.delete()`` was called on.
+
+    ``origin`` is supplied by Django's deletion collector and is the object or
+    the queryset the deletion started from.
+    """
+    if origin is instance:
+        return True
+    return isinstance(origin, QuerySet) and origin.model is type(instance)
+
+
+def log_role_revealed(sender, instance, origin=None, **kwargs):
+    """Log that a concealed role was made available to an organization again."""
+    if not is_direct_delete(origin, instance):
+        # Reached by cascade, so the role itself (or its content type) is being
+        # removed. The organization is not getting the role back.
+        return
+    scope = instance.scope
+    if scope is None:
+        # A dangling object_id: the organization is already gone, so there is
+        # no feed left to file the event in.
+        return
+    log_role_definition(
+        instance.role,
+        "Role {role_name} has been revealed for {customer_name}. Initiated by: {initiated_by}.",
+        event_type=EventType.ROLE_REVEALED,
+        customer=scope,
     )
