@@ -6151,19 +6151,28 @@ class OfferingMerge(core_models.UuidMixin, TimeStampedModel):
     class States:
         DRAFT = "draft"
         PREVIEWED = "previewed"
+        QUEUED = "queued"
         RUNNING = "running"
         DONE = "done"
         FAILED = "failed"
+        UNDOING = "undoing"
         UNDONE = "undone"
 
         CHOICES = (
             (DRAFT, "Draft"),
             (PREVIEWED, "Previewed"),
+            (QUEUED, "Queued"),
             (RUNNING, "Running"),
             (DONE, "Done"),
             (FAILED, "Failed"),
+            (UNDOING, "Undoing"),
             (UNDONE, "Undone"),
         )
+
+        # The record, and its mappings, may still be edited or deleted.
+        EDITABLE = (DRAFT, PREVIEWED)
+        # A preview may be computed and stored.
+        PREVIEWABLE = (DRAFT, PREVIEWED, FAILED)
 
     class InvoicePolicies:
         OPEN_MONTH = "open_month"
@@ -6205,6 +6214,14 @@ class OfferingMerge(core_models.UuidMixin, TimeStampedModel):
     state = FSMField(max_length=20, default=States.DRAFT, choices=States.CHOICES)
     preview = models.JSONField(default=dict, blank=True)
     verification = models.JSONField(default=dict, blank=True)
+    progress = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Execution progress: the current step, steps and rows done and in "
+            "total. Committed outside the merge's transaction while it runs."
+        ),
+    )
     error_message = models.TextField(blank=True)
 
     class Meta:
@@ -6212,6 +6229,10 @@ class OfferingMerge(core_models.UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return f"Offering merge {self.uuid.hex} into {self.target} ({self.state})"
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-offering-merge"
 
     @transition(
         field=state,
@@ -6221,7 +6242,17 @@ class OfferingMerge(core_models.UuidMixin, TimeStampedModel):
     def set_previewed(self):
         pass
 
-    @transition(field=state, source=States.PREVIEWED, target=States.RUNNING)
+    @transition(field=state, source=States.PREVIEWED, target=States.DRAFT)
+    def set_draft(self):
+        """An edit invalidates the stored preview."""
+
+    @transition(field=state, source=States.PREVIEWED, target=States.QUEUED)
+    def set_queued(self):
+        """Execution was requested; a second request is refused from here on."""
+
+    @transition(
+        field=state, source=[States.PREVIEWED, States.QUEUED], target=States.RUNNING
+    )
     def set_running(self):
         pass
 
@@ -6230,12 +6261,22 @@ class OfferingMerge(core_models.UuidMixin, TimeStampedModel):
         pass
 
     @transition(
-        field=state, source=[States.PREVIEWED, States.RUNNING], target=States.FAILED
+        field=state,
+        source=[States.PREVIEWED, States.QUEUED, States.RUNNING],
+        target=States.FAILED,
     )
     def set_failed(self):
         pass
 
-    @transition(field=state, source=States.DONE, target=States.UNDONE)
+    @transition(field=state, source=States.DONE, target=States.UNDOING)
+    def set_undoing(self):
+        """Undo was requested; a second request is refused from here on."""
+
+    @transition(field=state, source=States.UNDOING, target=States.DONE)
+    def set_undo_refused(self):
+        """Undo was refused or failed; the merge is still in effect."""
+
+    @transition(field=state, source=[States.DONE, States.UNDOING], target=States.UNDONE)
     def set_undone(self):
         pass
 

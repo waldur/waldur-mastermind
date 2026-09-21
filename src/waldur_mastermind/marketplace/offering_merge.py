@@ -12,7 +12,8 @@ and archives the sources. It never deletes an offering: ``Resource.offering`` is
   differs from the stored one, then writes every change with
   ``QuerySet.update()`` — no save signal fires, so no plan period is closed or
   opened and no invoice item is terminated or reissued — journalling each one
-  as an ``OfferingMergeChange``.
+  as an ``OfferingMergeChange``. Between registry entries it reports its
+  progress on ``OfferingMerge.progress``, visible while it runs.
 * :func:`undo` restores the foreign keys from the journal, applies the
   inverse key renames to JSON documents as they are now, and moves rows
   created for the moved resources since the merge back with them. It refuses
@@ -57,12 +58,13 @@ import logging
 import uuid as uuid_lib
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
+from django.db import DEFAULT_DB_ALIAS, connections, transaction
 from django.db import models as django_models
-from django.db import transaction
 from django.utils import timezone
 from django_fsm import TransitionNotAllowed
 
@@ -1169,6 +1171,66 @@ def preview(merge: models.OfferingMerge) -> models.OfferingMerge:
     return merge
 
 
+def _normalized_name(name: str) -> str:
+    return " ".join((name or "").split()).casefold()
+
+
+def suggest_mapping(sources: list[models.Offering], target: models.Offering) -> dict:
+    """Suggest plan and component mappings for a merge form to pre-fill.
+
+    A source plan maps to the target plan with the same name (ignoring case
+    and whitespace), preferring one that is not archived. A source component
+    maps to the target component of the same type, else of the same name.
+    Anything without a match is listed as unmatched. Reads only.
+    """
+    target_plans = {}
+    for plan in target.plans.order_by("archived", "id"):
+        target_plans.setdefault(_normalized_name(plan.name), plan)
+    target_components = list(target.components.order_by("id"))
+    by_type = {component.type: component for component in target_components}
+    by_name = {}
+    for component in target_components:
+        by_name.setdefault(_normalized_name(component.name), component)
+
+    plan_mapping, component_mapping = {}, {}
+    unmatched_plans, unmatched_components = [], []
+    for source in sources:
+        for plan in source.plans.order_by("id"):
+            match = target_plans.get(_normalized_name(plan.name))
+            if match is None:
+                unmatched_plans.append(
+                    {
+                        "offering_uuid": source.uuid.hex,
+                        "plan_uuid": plan.uuid.hex,
+                        "name": plan.name,
+                    }
+                )
+            else:
+                plan_mapping[plan.uuid.hex] = match.uuid.hex
+        types = {}
+        for component in source.components.order_by("id"):
+            match = by_type.get(component.type) or by_name.get(
+                _normalized_name(component.name)
+            )
+            if match is None:
+                unmatched_components.append(
+                    {
+                        "offering_uuid": source.uuid.hex,
+                        "type": component.type,
+                        "name": component.name,
+                    }
+                )
+            else:
+                types[component.type] = match.type
+        component_mapping[source.uuid.hex] = types
+    return {
+        "plan_mapping": plan_mapping,
+        "component_mapping": component_mapping,
+        "unmatched_plans": unmatched_plans,
+        "unmatched_components": unmatched_components,
+    }
+
+
 def _summary_scope(source_ids, target_id, resource_ids):
     """Components and months whose ComponentUsageMonthly rows a merge affects.
 
@@ -1648,8 +1710,79 @@ def _archive_sources(merge: models.OfferingMerge, source_ids: list[int]):
         _journal(merge, models.Offering, "state", [(source.pk, previous, source.state)])
 
 
+class _Progress:
+    """Execution progress, stored on ``OfferingMerge.progress`` for polling.
+
+    The merge runs in one transaction, so a progress row written through it
+    would stay invisible until the merge ends. Each report is therefore
+    written through a second database connection in autocommit mode and is
+    visible at once. The row is not locked by the merge's transaction (the
+    journal's foreign keys take only a key-share lock), so the update does not
+    wait. A failed report is logged and never fails the merge. If the merge
+    rolls back, the last report stays: it names the step that failed.
+    """
+
+    def __init__(self, merge: models.OfferingMerge, steps: list[tuple[str, int]]):
+        self.merge = merge
+        self.steps_total = len(steps)
+        self.rows_total = sum(rows for _name, rows in steps)
+        self.steps_done = 0
+        self.rows_done = 0
+        self.step = ""
+        self._connection = None
+
+    def snapshot(self) -> dict:
+        return {
+            "step": self.step,
+            "steps_done": self.steps_done,
+            "steps_total": self.steps_total,
+            "rows_done": self.rows_done,
+            "rows_total": self.rows_total,
+            "updated_at": timezone.now().isoformat(),
+        }
+
+    def start(self, step: str):
+        self.step = step
+        self._report()
+
+    def finish(self, rows: int):
+        self.steps_done += 1
+        self.rows_done += rows
+
+    def close(self):
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+
+    def _report(self):
+        try:
+            if self._connection is None:
+                self._connection = connections.create_connection(DEFAULT_DB_ALIAS)
+            _write_progress(self._connection, self.merge.pk, self.snapshot())
+        except Exception:
+            logger.warning(
+                "Could not report the progress of offering merge %s.",
+                self.merge.uuid.hex,
+                exc_info=True,
+            )
+
+
+def _write_progress(connection, merge_id: int, progress: dict):
+    """Write ``progress`` through ``connection``, committing at once."""
+    table = connection.ops.quote_name(models.OfferingMerge._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"UPDATE {table} SET progress = %s::jsonb WHERE id = %s",  # noqa: S608
+            [json.dumps(progress), merge_id],
+        )
+
+
 def execute(merge: models.OfferingMerge) -> models.OfferingMerge:
-    """Run a previewed merge. Raises ``OfferingMergeError`` if it was refused.
+    """Run a previewed or queued merge. Raises ``OfferingMergeError`` if refused.
+
+    The API queues a merge (``previewed`` to ``queued``) before handing it to
+    a Celery task, so that a second request is refused; this function then
+    moves it to ``running``. A shell caller may pass a ``previewed`` merge.
 
     On any failure the merge's writes are rolled back and the record moves to
     ``failed`` with the error.
@@ -1685,14 +1818,46 @@ def execute(merge: models.OfferingMerge) -> models.OfferingMerge:
                 [*context.source_ids, context.target.id],
                 merge.invoice_policy,
             )
-            for write in context.writes:
-                _apply(merge, write)
-            rewrite_invoice_snapshots(merge, context)
-            _archive_sources(merge, context.source_ids)
-            # After the rewrite: historical LIMIT allocations follow
-            # InvoiceItem.plan_component.
-            _recompute_summaries(*context.summary_scope)
-            _recalculate_counters([*context.source_ids, context.target.id])
+            steps = [
+                (write.entry.label, len(write.rows), partial(_apply, merge, write))
+                for write in context.writes
+            ]
+            steps += [
+                (
+                    "invoice_snapshots",
+                    sum(len(write.rows) for write in context.invoice_writes),
+                    partial(rewrite_invoice_snapshots, merge, context),
+                ),
+                (
+                    "archive_sources",
+                    len(context.source_ids),
+                    partial(_archive_sources, merge, context.source_ids),
+                ),
+                # After the rewrite: historical LIMIT allocations follow
+                # InvoiceItem.plan_component.
+                (
+                    "recompute_summaries",
+                    0,
+                    partial(_recompute_summaries, *context.summary_scope),
+                ),
+                (
+                    "recalculate_counters",
+                    0,
+                    partial(
+                        _recalculate_counters,
+                        [*context.source_ids, context.target.id],
+                    ),
+                ),
+            ]
+            progress = _Progress(merge, [(name, rows) for name, rows, _run in steps])
+            try:
+                for name, rows, run in steps:
+                    progress.start(name)
+                    run()
+                    progress.finish(rows)
+                progress.start("verification")
+            finally:
+                progress.close()
             report = verification.verify(context.stale())
             report["invoice_items"] = {
                 **context.invoice_summary,
@@ -1705,8 +1870,10 @@ def execute(merge: models.OfferingMerge) -> models.OfferingMerge:
                 or 0,
             }
             _store_verification(merge, "execute", report)
+            progress.step = "done"
+            merge.progress = progress.snapshot()
             merge.set_done()
-            merge.save(update_fields=["state", "verification", "modified"])
+            merge.save(update_fields=["state", "verification", "progress", "modified"])
     except Exception as error:
         logger.exception("Offering merge %s failed.", merge.uuid.hex)
         with transaction.atomic():
@@ -2300,21 +2467,63 @@ class _UndoPlan:
             manager.filter(pk=pk).update(**update)
 
 
+def undo_blockers(merge: models.OfferingMerge) -> list[dict]:
+    """Why undoing ``merge`` would be refused right now. Reads only.
+
+    The API calls this before queueing an undo, so that a refusal is answered
+    synchronously; :func:`undo` checks again under lock.
+    """
+    return _json_safe(_UndoPlan(merge, list(merge.changes.order_by("-id"))).blockers)
+
+
+def _refusal_message(error: Exception) -> str:
+    details = getattr(error, "details", None)
+    if isinstance(details, list):
+        codes = sorted(
+            {
+                item["code"]
+                for item in details
+                if isinstance(item, dict) and "code" in item
+            }
+        )
+        if codes:
+            return f"{error} ({', '.join(codes)})"
+    return str(error)
+
+
 def undo(merge: models.OfferingMerge) -> models.OfferingMerge:
     """Move everything a completed merge moved back to its sources.
+
+    Accepts a ``done`` merge, or one the API moved to ``undoing`` before
+    handing it to a Celery task.
 
     Raises ``OfferingMergeError`` without writing anything if a moved resource
     switched plan or offering since, a foreign key the merge wrote holds another
     value, a moved resource has a pending order, or rows created since the
-    merge cannot be moved back.
+    merge cannot be moved back. An ``undoing`` merge then returns to ``done``
+    with the reason in ``error_message``: the merge is still in effect.
 
     Rewritten invoice items are restored exactly unless deleted, changed since,
     or (under ``open_month``) on an invoice closed since; those are skipped and
     listed in ``verification["undo"]["invoice_items"]["skipped"]``.
     """
+    try:
+        return _undo(merge)
+    except Exception as error:
+        with transaction.atomic():
+            current = models.OfferingMerge.objects.select_for_update().get(pk=merge.pk)
+            if current.state == models.OfferingMerge.States.UNDOING:
+                current.set_undo_refused()
+                current.error_message = _refusal_message(error)
+                current.save(update_fields=["state", "error_message", "modified"])
+        raise
+
+
+def _undo(merge: models.OfferingMerge) -> models.OfferingMerge:
+    States = models.OfferingMerge.States
     with transaction.atomic():
         merge = models.OfferingMerge.objects.select_for_update().get(pk=merge.pk)
-        if merge.state != models.OfferingMerge.States.DONE:
+        if merge.state not in (States.DONE, States.UNDOING):
             raise OfferingMergeError(f"Cannot undo a merge in state {merge.state}.")
         _lock_offerings(merge)
         plan = _UndoPlan(merge, list(merge.changes.order_by("-id")))
@@ -2349,5 +2558,6 @@ def undo(merge: models.OfferingMerge) -> models.OfferingMerge:
             merge.set_undone()
         except TransitionNotAllowed:
             raise OfferingMergeError(f"Cannot undo a merge in state {merge.state}.")
-        merge.save(update_fields=["state", "verification", "modified"])
+        merge.error_message = ""
+        merge.save(update_fields=["state", "verification", "error_message", "modified"])
     return merge

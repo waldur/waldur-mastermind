@@ -3,6 +3,7 @@ import ipaddress
 import logging
 import math
 import re
+import uuid as uuid_lib
 from decimal import Decimal
 from typing import Literal, cast
 
@@ -16523,3 +16524,341 @@ class ProviderGlauthTreeSerializer(serializers.Serializer):
         child=serializers.CharField(),
         help_text="Disagreements between the offerings that could not be merged.",
     )
+
+
+# --- Offering merges ---------------------------------------------------------
+#
+# The merge engine stores its preview, verification and progress as JSON on
+# the record. These serializers describe those documents, so the API schema,
+# and the SDK generated from it, type them instead of exposing free-form JSON.
+
+
+class OfferingMergeIssueSerializer(serializers.Serializer):
+    code = serializers.CharField(help_text="Machine-readable reason.")
+    message = serializers.CharField()
+    details = serializers.DictField(
+        help_text="Issue-specific details: offerings, plans, keys or counts."
+    )
+
+
+class OfferingMergeSummariesSerializer(serializers.Serializer):
+    components = serializers.IntegerField(
+        help_text="Components whose monthly usage summaries are recomputed."
+    )
+    periods = serializers.ListField(
+        child=serializers.CharField(), help_text="Months recomputed, as YYYY-MM."
+    )
+
+
+class OfferingMergeInvoicePreviewSerializer(serializers.Serializer):
+    policy = serializers.CharField(help_text="The merge's invoice_policy.")
+    to_rewrite = serializers.IntegerField(
+        help_text="Invoice items whose snapshot the chosen policy rewrites."
+    )
+    to_rewrite_by_policy = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Invoice items each policy would rewrite.",
+    )
+    on_closed_invoices = serializers.IntegerField()
+    kept_on_closed_invoices = serializers.IntegerField()
+
+
+class OfferingMergePreviewSerializer(serializers.Serializer):
+    target = serializers.CharField(help_text="Target offering UUID.")
+    sources = serializers.ListField(
+        child=serializers.CharField(), help_text="Source offering UUIDs."
+    )
+    counts = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Rows per coverage registry entry (model.Field label).",
+    )
+    left_on_source = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Rows that stay on a source because the target has them already.",
+    )
+    summaries_to_recompute = OfferingMergeSummariesSerializer()
+    invoice_items = OfferingMergeInvoicePreviewSerializer()
+    blockers = OfferingMergeIssueSerializer(many=True)
+    warnings = OfferingMergeIssueSerializer(many=True)
+
+
+class OfferingMergeCheckSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    passed = serializers.BooleanField()
+    details = serializers.DictField()
+
+
+class OfferingMergeExecuteInvoiceReportSerializer(
+    OfferingMergeInvoicePreviewSerializer
+):
+    rewritten = serializers.IntegerField()
+    last_item_id = serializers.IntegerField(
+        help_text="The newest invoice item at the merge; undo moves back later ones."
+    )
+
+
+class OfferingMergeSkippedInvoiceItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    reason = serializers.CharField()
+
+
+class OfferingMergeUndoInvoiceReportSerializer(serializers.Serializer):
+    policy = serializers.CharField(help_text="The merge's invoice_policy.")
+    restored = serializers.IntegerField()
+    moved_back = serializers.IntegerField()
+    skipped = OfferingMergeSkippedInvoiceItemSerializer(many=True)
+
+
+class OfferingMergeExecuteReportSerializer(serializers.Serializer):
+    passed = serializers.BooleanField()
+    checked_at = serializers.DateTimeField()
+    checks = OfferingMergeCheckSerializer(many=True)
+    invoice_items = OfferingMergeExecuteInvoiceReportSerializer()
+
+
+class OfferingMergeUndoReportSerializer(serializers.Serializer):
+    passed = serializers.BooleanField()
+    checked_at = serializers.DateTimeField()
+    checks = OfferingMergeCheckSerializer(many=True)
+    invoice_items = OfferingMergeUndoInvoiceReportSerializer()
+
+
+class OfferingMergeVerificationSerializer(serializers.Serializer):
+    stage = serializers.ChoiceField(
+        choices=(("execute", "Execute"), ("undo", "Undo")),
+        help_text="The latest verified stage; passed follows it.",
+    )
+    passed = serializers.BooleanField()
+    execute = OfferingMergeExecuteReportSerializer(required=False)
+    undo = OfferingMergeUndoReportSerializer(required=False)
+
+
+class OfferingMergeProgressSerializer(serializers.Serializer):
+    step = serializers.CharField(
+        help_text="Registry entry label or phase being run, or 'done'."
+    )
+    steps_done = serializers.IntegerField()
+    steps_total = serializers.IntegerField()
+    rows_done = serializers.IntegerField()
+    rows_total = serializers.IntegerField()
+    updated_at = serializers.DateTimeField()
+
+
+class OfferingMergeOfferingSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    state = serializers.CharField(source="get_state_display")
+
+
+class OfferingMergeSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    sources = serializers.SlugRelatedField(
+        slug_field="uuid",
+        many=True,
+        queryset=models.Offering.objects.all(),
+        help_text="Offerings whose resources and history move to the target.",
+    )
+    target = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Offering.objects.all()
+    )
+    source_offerings = OfferingMergeOfferingSerializer(
+        source="sources", many=True, read_only=True
+    )
+    target_offering = OfferingMergeOfferingSerializer(source="target", read_only=True)
+    created_by = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+    created_by_full_name = serializers.CharField(
+        source="created_by.full_name", read_only=True, allow_null=True
+    )
+    plan_mapping = serializers.DictField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="Source plan UUID to target plan UUID.",
+    )
+    component_mapping = serializers.DictField(
+        child=serializers.DictField(child=serializers.CharField()),
+        required=False,
+        help_text="Per source offering UUID: source component type to target "
+        "component type.",
+    )
+    attribute_key_mapping = serializers.DictField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="Order and resource answer key renames: old key to new key.",
+    )
+    preview = serializers.SerializerMethodField()
+    verification = serializers.SerializerMethodField()
+    progress = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.OfferingMerge
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "modified",
+            "state",
+            "sources",
+            "target",
+            "source_offerings",
+            "target_offering",
+            "created_by",
+            "created_by_full_name",
+            "plan_mapping",
+            "component_mapping",
+            "attribute_key_mapping",
+            "invoice_policy",
+            "preview",
+            "verification",
+            "progress",
+            "error_message",
+        )
+        read_only_fields = ("uuid", "created", "modified", "state", "error_message")
+        extra_kwargs = {"url": {"lookup_field": "uuid"}}
+
+    @extend_schema_field(OfferingMergePreviewSerializer(allow_null=True))
+    def get_preview(self, merge):
+        return merge.preview or None
+
+    @extend_schema_field(OfferingMergeVerificationSerializer(allow_null=True))
+    def get_verification(self, merge):
+        return merge.verification or None
+
+    @extend_schema_field(OfferingMergeProgressSerializer(allow_null=True))
+    def get_progress(self, merge):
+        return merge.progress or None
+
+    def validate(self, attrs):
+        instance = self.instance
+        sources = attrs.get("sources")
+        if sources is None:
+            sources = list(instance.sources.all()) if instance else []
+        target = attrs.get("target") or (instance.target if instance else None)
+        if not sources:
+            raise serializers.ValidationError(
+                {"sources": _("Select at least one source offering.")}
+            )
+        if target in sources:
+            raise serializers.ValidationError(
+                {"target": _("The target cannot also be a source.")}
+            )
+
+        def current(name):
+            if name in attrs:
+                return attrs[name]
+            return getattr(instance, name) if instance else {}
+
+        attrs["plan_mapping"] = self._validate_plan_mapping(
+            current("plan_mapping") or {}, sources, target
+        )
+        attrs["component_mapping"] = self._validate_component_mapping(
+            current("component_mapping") or {}, sources, target
+        )
+        return attrs
+
+    def _validate_plan_mapping(self, mapping, sources, target):
+        source_plans = {
+            plan_uuid.hex
+            for plan_uuid in models.Plan.objects.filter(
+                offering__in=sources
+            ).values_list("uuid", flat=True)
+        }
+        target_plans = {
+            plan_uuid.hex for plan_uuid in target.plans.values_list("uuid", flat=True)
+        }
+        normalized, errors = {}, []
+        for key, value in mapping.items():
+            source_uuid, target_uuid = _uuid_hex(key), _uuid_hex(value)
+            if source_uuid not in source_plans:
+                errors.append(_("%s is not a plan of a source offering.") % key)
+            elif target_uuid not in target_plans:
+                errors.append(_("%s is not a plan of the target offering.") % value)
+            else:
+                normalized[source_uuid] = target_uuid
+        if errors:
+            raise serializers.ValidationError({"plan_mapping": errors})
+        return normalized
+
+    def _validate_component_mapping(self, mapping, sources, target):
+        sources_by_uuid = {source.uuid.hex: source for source in sources}
+        target_types = set(target.components.values_list("type", flat=True))
+        normalized, errors = {}, []
+        for key, types in mapping.items():
+            source = sources_by_uuid.get(_uuid_hex(key))
+            if source is None:
+                errors.append(_("%s is not a source offering.") % key)
+                continue
+            source_types = set(source.components.values_list("type", flat=True))
+            for source_type, target_type in types.items():
+                if source_type not in source_types:
+                    errors.append(
+                        _("%(type)s is not a component of %(offering)s.")
+                        % {"type": source_type, "offering": source.name}
+                    )
+                elif target_type not in target_types:
+                    errors.append(
+                        _("%s is not a component of the target offering.") % target_type
+                    )
+            normalized[source.uuid.hex] = dict(types)
+        if errors:
+            raise serializers.ValidationError({"component_mapping": errors})
+        return normalized
+
+
+def _uuid_hex(value) -> str | None:
+    try:
+        return uuid_lib.UUID(str(value)).hex
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+class OfferingMergeExecuteSerializer(serializers.Serializer):
+    acknowledged_warnings = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+        help_text="Codes of every warning in the stored preview.",
+    )
+
+
+class OfferingMergeRefusalSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    missing_acknowledgements = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+    blockers = OfferingMergeIssueSerializer(many=True, required=False)
+
+
+class OfferingMergeSuggestMappingQuerySerializer(serializers.Serializer):
+    sources = serializers.CharField(
+        help_text="Source offering UUIDs, comma-separated or repeated."
+    )
+    target = serializers.UUIDField(help_text="Target offering UUID.")
+
+
+class OfferingMergeUnmatchedPlanSerializer(serializers.Serializer):
+    offering_uuid = serializers.CharField()
+    plan_uuid = serializers.CharField()
+    name = serializers.CharField()
+
+
+class OfferingMergeUnmatchedComponentSerializer(serializers.Serializer):
+    offering_uuid = serializers.CharField()
+    type = serializers.CharField()
+    name = serializers.CharField()
+
+
+class OfferingMergeSuggestedMappingSerializer(serializers.Serializer):
+    plan_mapping = serializers.DictField(
+        child=serializers.CharField(),
+        help_text="Source plan UUID to the target plan with the same name.",
+    )
+    component_mapping = serializers.DictField(
+        child=serializers.DictField(child=serializers.CharField()),
+        help_text="Per source offering UUID: source component type to the target "
+        "component of the same type, else the same name.",
+    )
+    unmatched_plans = OfferingMergeUnmatchedPlanSerializer(many=True)
+    unmatched_components = OfferingMergeUnmatchedComponentSerializer(many=True)

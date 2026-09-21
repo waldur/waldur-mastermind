@@ -3511,3 +3511,39 @@ class ResourceEndDateChangeRequestFilter(django_filters.FilterSet):
     class Meta:
         model = models.ResourceEndDateChangeRequest
         fields = []
+
+
+class OfferingMergeFilter(core_filters.CreatedModifiedFilter):
+    state = django_filters.MultipleChoiceFilter(
+        choices=models.OfferingMerge.States.CHOICES
+    )
+    source_offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="sources__uuid",
+        distinct=True,
+        label="Source offering UUID",
+    )
+    target_offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="target__uuid",
+        label="Target offering UUID",
+    )
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        method="filter_offering_uuid",
+        label="Source or target offering UUID",
+    )
+    created_by_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail",
+        field_name="created_by__uuid",
+        label="Created by UUID",
+    )
+
+    class Meta:
+        model = models.OfferingMerge
+        fields = []
+
+    def filter_offering_uuid(self, queryset, name, value):
+        return queryset.filter(
+            Q(sources__uuid=value) | Q(target__uuid=value)
+        ).distinct()

@@ -42,9 +42,11 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import (
     exceptions,
     models,
+    offering_merge,
     plugins,
     utils,
 )
+from waldur_mastermind.marketplace import log as marketplace_log
 from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
 from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (
@@ -728,6 +730,60 @@ def refresh_component_usage_summary(
         },
     )
     return True
+
+
+def _log_verification(merge: models.OfferingMerge):
+    if merge.verification and not merge.verification.get("passed", True):
+        marketplace_log.log_offering_merge_verification_failed(merge)
+
+
+@shared_task(name="waldur_mastermind.marketplace.execute_offering_merge")
+def execute_offering_merge(merge_uuid: str):
+    """Run a queued offering merge and record the outcome in the event log.
+
+    A refused merge (``OfferingMergeError``) ends as ``failed`` with the reason
+    in ``error_message``; it is an expected outcome, so the task succeeds.
+    Any other error fails the task after the record is marked ``failed``.
+    """
+    merge = models.OfferingMerge.objects.get(uuid=merge_uuid)
+    try:
+        merge = offering_merge.execute(merge)
+    except Exception as error:
+        merge.refresh_from_db()
+        if merge.state == models.OfferingMerge.States.FAILED:
+            marketplace_log.log_offering_merge_failed(merge, "execution")
+        if isinstance(error, offering_merge.OfferingMergeError):
+            logger.warning("Offering merge %s was refused: %s", merge_uuid, error)
+            return
+        raise
+    marketplace_log.log_offering_merge_executed(merge)
+    _log_verification(merge)
+
+
+@shared_task(name="waldur_mastermind.marketplace.undo_offering_merge")
+def undo_offering_merge(merge_uuid: str):
+    """Undo a merge the API moved to ``undoing``.
+
+    If the engine refuses (something changed since the API checked), the merge
+    returns to ``done`` with the reason in ``error_message``: it is still in
+    effect, so ``failed``, which allows a fresh preview and execution, would
+    be wrong.
+    """
+    merge = models.OfferingMerge.objects.get(uuid=merge_uuid)
+    try:
+        merge = offering_merge.undo(merge)
+    except Exception as error:
+        merge.refresh_from_db()
+        if merge.error_message:
+            marketplace_log.log_offering_merge_failed(merge, "undo")
+        if isinstance(error, offering_merge.OfferingMergeError):
+            logger.warning(
+                "Undo of offering merge %s was refused: %s", merge_uuid, error
+            )
+            return
+        raise
+    marketplace_log.log_offering_merge_undone(merge)
+    _log_verification(merge)
 
 
 @shared_task

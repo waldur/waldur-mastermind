@@ -127,6 +127,11 @@
 - marketplace_offering_component_created
 - marketplace_offering_component_deleted
 - marketplace_offering_component_updated
+- marketplace_offering_merge_created
+- marketplace_offering_merge_executed
+- marketplace_offering_merge_failed
+- marketplace_offering_merge_undone
+- marketplace_offering_merge_verification_failed
 - marketplace_offering_options_updated
 - marketplace_offering_resource_options_updated
 - marketplace_plan_archived
