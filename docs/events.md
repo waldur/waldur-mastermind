@@ -281,7 +281,15 @@
 
 ## Permissions
 
+- role_cloned
+- role_concealed
+- role_definition_created
+- role_definition_deleted
+- role_definition_updated
+- role_disabled
+- role_enabled
 - role_granted
+- role_revealed
 - role_revoked
 - role_updated
 

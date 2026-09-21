@@ -279,7 +279,9 @@ td:nth-child(4) {
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_vmware.Port` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_vmware.Disk` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_firecrest.Job` | Log resource import. |
+| `log_role_concealed` | `Django Signal (post_save)` | `permissions.CustomerRoleConcealment` | Log that a role was hidden for an organization. |
 | `log_role_granted` | `Custom Signal (role_granted)` | `—` | Log the event of a user being granted a role. |
+| `log_role_revealed` | `Django Signal (post_delete)` | `permissions.CustomerRoleConcealment` | Log that a concealed role was made available to an organization again. |
 | `log_role_revoked` | `Custom Signal (role_revoked)` | `—` | Log the event of a user having a role revoked. |
 | `log_role_updated` | `Custom Signal (role_updated)` | `—` | Log the event of a user's role being updated. |
 | `log_ssh_key_delete` | `Django Signal (post_delete)` | `core.SshPublicKey` | Log SSH key deletion events. |
@@ -807,11 +809,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 728
+Total unique handlers found: 730
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
-- **waldur_core**: 343 handlers
+- **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 325 handlers

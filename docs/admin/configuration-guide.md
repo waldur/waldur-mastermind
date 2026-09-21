@@ -318,6 +318,7 @@ Default value:
 WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'AUTHENTICATION_METHODS': ['LOCAL_SIGNIN'],
  'BACKEND_FIELDS_EDITABLE': True,
+ 'CHANGELOG_ENABLED': True,
  'COURSE_ACCOUNT_TOKEN_CLIENT_ID': '',
  'COURSE_ACCOUNT_TOKEN_SECRET': '',
  'COURSE_ACCOUNT_TOKEN_URL': '',
@@ -412,6 +413,12 @@ List of enabled authentication methods.
 **Type:** bool
 
 Allows to control /admin writable fields. If this flag is disabled it is impossible to edit any field that corresponds to backend value via /admin. Such restriction allows to save information from corruption.
+
+#### CHANGELOG_ENABLED
+
+**Type:** bool
+
+Enable changelog and version checking against upstream releases. Disable for forks that maintain their own release cycle.
 
 #### COURSE_ACCOUNT_TOKEN_CLIENT_ID
 

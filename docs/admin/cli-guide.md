@@ -56,6 +56,36 @@ options:
 
 ```
 
+## assemble_changelog
+
+Assemble changelog fragments from changelog/next/ into a release file.
+
+```bash
+
+usage: waldur assemble_changelog --release-version RELEASE_VERSION --date DATE
+                                 [--release-type {stable,rc}]
+                                 [--base-stable BASE_STABLE]
+                                 [--previous PREVIOUS]
+                                 [--stable-target STABLE_TARGET]
+                                 [--summary SUMMARY] [--no-clear] [--dry-run]
+
+options:
+  --release-version RELEASE_VERSION
+                        Release version (e.g., 8.0.8 or 8.0.8-rc.1)
+  --date DATE           Release date in ISO 8601 format (e.g., 2026-04-15)
+  --release-type {stable,rc}
+                        Release type (default: stable)
+  --base-stable BASE_STABLE
+                        Previous stable version (for cumulative entries)
+  --previous PREVIOUS   Immediately preceding version (for delta)
+  --stable-target STABLE_TARGET
+                        Target stable version (for RC releases)
+  --summary SUMMARY     Release summary text
+  --no-clear            Do not clear changelog/next/ after assembly
+  --dry-run             Validate and print output without writing files
+
+```
+
 ## audit_broker_config
 
 Audit Celery / RabbitMQ broker configuration for common publisher-reliability misconfigurations.
