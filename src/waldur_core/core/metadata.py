@@ -275,6 +275,12 @@ class WaldurCore(BaseModel):
         description="Enable course kind for projects.",
     )
 
+    CHANGELOG_ENABLED: bool = Field(
+        True,
+        description="Enable changelog and version checking against upstream releases. "
+        "Disable for forks that maintain their own release cycle.",
+    )
+
     SUBNET_BLACKLIST: list[str] = Field(
         [
             "10.0.0.0/8",  # Private networks class A

@@ -40,5 +40,10 @@ scratchpad/
 waldur-typescript-sdk/
 waldur-openapi-schema.yaml
 
+# Transient changelog fragments written by waldur-docs/scripts/release.sh,
+# always cleared and rewritten on each run — assemble_changelog consumes and
+# clears this directory itself.
+changelog/next/
+
 # UI review screenshot artifacts (not for commit)
 .ui-review-shots/

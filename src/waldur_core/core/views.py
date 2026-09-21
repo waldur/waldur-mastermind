@@ -42,6 +42,14 @@ from reversion.models import Version
 
 from waldur_auth_social.models import IdentityProvider
 from waldur_core import __version__
+from waldur_core.changelog.models import ChangelogImpactAnalysis
+from waldur_core.changelog.tasks import compute_changelog_impact
+from waldur_core.changelog.utils import (
+    build_changelog_summary,
+    fetch_changelog_index,
+    get_impact_analysis_target,
+    get_pending_versions,
+)
 from waldur_core.core import WaldurExtension, models, permissions
 from waldur_core.core.authentication import (
     OIDC_AUTHENTICATION_METHODS,
@@ -1910,6 +1918,74 @@ def get_latest_github_tag(timeout=5):
     return latest_tag
 
 
+# How long a PENDING/RUNNING analysis is trusted to still be in flight before
+# it's treated as stuck (worker killed mid-task, status never updated) and
+# re-queued. Also the cooldown before a FAILED analysis is retried - without
+# one, remote data that reliably makes the task fail (e.g. finding 1d before
+# it was fixed) gets it re-queued on every single /api/version/ call.
+IMPACT_ANALYSIS_RETRY_COOLDOWN = timedelta(hours=1)
+IMPACT_ANALYSIS_STALE_AGE = timedelta(hours=24)
+
+
+def _trigger_impact_analysis_if_needed(target):
+    """Schedule compute_changelog_impact when the analysis is missing, stale,
+    failed (past a cooldown), or stuck in PENDING/RUNNING past the timeout."""
+    analysis, created = ChangelogImpactAnalysis.objects.get_or_create(
+        current_version=__version__,
+        target_version=target,
+        defaults={"status": ChangelogImpactAnalysis.Status.PENDING},
+    )
+    if created:
+        compute_changelog_impact.delay(__version__, target)
+        return
+
+    now = timezone.now()
+    Status = ChangelogImpactAnalysis.Status
+
+    if analysis.status in (Status.PENDING, Status.RUNNING):
+        if now - analysis.modified < IMPACT_ANALYSIS_RETRY_COOLDOWN:
+            return  # still plausibly in flight
+    elif analysis.status == Status.FAILED:
+        if now - analysis.modified < IMPACT_ANALYSIS_RETRY_COOLDOWN:
+            return  # retry later, don't hammer a reliably-failing task
+    elif analysis.status == Status.COMPLETED:
+        is_stale = (
+            analysis.computed_at
+            and now - analysis.computed_at > IMPACT_ANALYSIS_STALE_AGE
+        )
+        if not is_stale:
+            return
+
+    analysis.status = ChangelogImpactAnalysis.Status.PENDING
+    analysis.save(update_fields=["status"])
+    compute_changelog_impact.delay(__version__, target)
+
+
+def _populate_changelog_fields(response_data):
+    """Add latest_version/changelog_summary to response_data, falling back to a
+    legacy GitHub tag check when the changelog index is unavailable."""
+    index_data = fetch_changelog_index()
+    if not index_data:
+        latest_version = get_latest_github_tag()
+        if latest_version:
+            response_data["latest_version"] = latest_version
+        return
+
+    latest_stable = index_data.get("latest_stable")
+    if latest_stable:
+        response_data["latest_version"] = latest_stable
+
+    summary = build_changelog_summary(index_data, __version__)
+    if not summary:
+        return
+    response_data["changelog_summary"] = summary
+
+    pending = get_pending_versions(__version__, index_data)
+    target = get_impact_analysis_target(pending)
+    if target:
+        _trigger_impact_analysis_if_needed(target)
+
+
 @extend_schema(
     summary="Get application version",
     description=(
@@ -1929,15 +2005,15 @@ def version_detail(request):
         "version": __version__,
     }
 
-    if (request.user.is_staff or request.user.is_support) and check_pat_support_scope(
-        request
-    ):
-        latest_version = get_latest_github_tag()
-        if latest_version:
-            response_data["latest_version"] = latest_version
+    has_extended_access = (
+        request.user.is_staff or request.user.is_support
+    ) and check_pat_support_scope(request)
+    changelog_enabled = settings.WALDUR_CORE.get("CHANGELOG_ENABLED", True)
 
-    serializer = VersionSerializer(response_data)
-    return Response(serializer.data)
+    if has_extended_access and changelog_enabled:
+        _populate_changelog_fields(response_data)
+
+    return Response(VersionSerializer(response_data).data)
 
 
 class ActionMethodMixin:
