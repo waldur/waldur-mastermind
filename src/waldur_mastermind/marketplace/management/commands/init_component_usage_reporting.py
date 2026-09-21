@@ -1,5 +1,4 @@
 import datetime
-from decimal import Decimal
 
 from dateutil.relativedelta import relativedelta
 from django.core.management.base import BaseCommand
@@ -7,14 +6,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from waldur_mastermind.invoices.models import InvoiceItem
-from waldur_mastermind.marketplace.models import (
-    ComponentUsageMonthly,
-    OfferingComponent,
-)
-from waldur_mastermind.marketplace.tasks import (
-    calculate_allocated_for_month,
-    calculate_consumed_for_month,
-)
+from waldur_mastermind.marketplace.models import OfferingComponent
+from waldur_mastermind.marketplace.tasks import refresh_component_usage_summary
 
 
 class Command(BaseCommand):
@@ -38,9 +31,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
-
-        # The maximum allowed value for max_digits=20, decimal_places=2
-        MAX_DECIMAL = Decimal("999999999999999999.99")
 
         if options["all_time"]:
             # Find the oldest invoice item in the system to determine where to start
@@ -88,33 +78,10 @@ class Command(BaseCommand):
             # Wrap each month in a transaction for performance and safety
             with transaction.atomic():
                 for component in components:
-                    consumed = calculate_consumed_for_month(component, year, month)
-                    allocated = calculate_allocated_for_month(component, year, month)
-
-                    # Optimization: Skip saving rows where absolutely nothing happened
-                    # to keep the reporting table lean and fast.
-                    if consumed == Decimal("0") and allocated == Decimal("0"):
-                        continue
-
-                    usage_percent = None
-                    if allocated > 0:
-                        usage_percent = round((consumed * 100) / allocated, 2)
-
-                    # Safety clamp to prevent DB overflow from corrupted JSONB data
-                    consumed = min(consumed, MAX_DECIMAL)
-                    allocated = min(allocated, MAX_DECIMAL)
-
-                    # Update or Create the reporting snapshot
-                    _, created = ComponentUsageMonthly.objects.update_or_create(
-                        component=component,
-                        billing_period=billing_period,
-                        defaults={
-                            "total_consumed": consumed,
-                            "total_allocated": allocated,
-                            "usage_percent": usage_percent,
-                        },
-                    )
-                    records_created_or_updated += 1
+                    # Rows where absolutely nothing happened are skipped to
+                    # keep the reporting table lean and fast.
+                    if refresh_component_usage_summary(component, year, month):
+                        records_created_or_updated += 1
 
             self.stdout.write(
                 self.style.SUCCESS(

@@ -6134,3 +6134,137 @@ class ResourceEndDateChangeRequest(
         return (
             f"End date change request for {self.resource} ({self.get_state_display()})"
         )
+
+
+class OfferingMerge(core_models.UuidMixin, TimeStampedModel):
+    """A staff request to move everything that belongs to ``sources`` onto ``target``.
+
+    The merge engine in ``offering_merge.py`` drives it through its lifecycle:
+    a preview is computed and stored, the executor re-computes it under lock and
+    refuses if anything changed, then repoints every row the coverage registry
+    lists and archives the sources. Each write is journalled as an
+    :class:`OfferingMergeChange`, which is what undo replays.
+
+    Offerings are never deleted by a merge: ``Resource.offering`` cascades.
+    """
+
+    class States:
+        DRAFT = "draft"
+        PREVIEWED = "previewed"
+        RUNNING = "running"
+        DONE = "done"
+        FAILED = "failed"
+        UNDONE = "undone"
+
+        CHOICES = (
+            (DRAFT, "Draft"),
+            (PREVIEWED, "Previewed"),
+            (RUNNING, "Running"),
+            (DONE, "Done"),
+            (FAILED, "Failed"),
+            (UNDONE, "Undone"),
+        )
+
+    class InvoicePolicies:
+        OPEN_MONTH = "open_month"
+        ALL_MONTHS = "all_months"
+
+        CHOICES = (
+            (OPEN_MONTH, "Current open month only"),
+            (ALL_MONTHS, "All months"),
+        )
+
+    sources = models.ManyToManyField(Offering, related_name="+")
+    target = models.ForeignKey(Offering, on_delete=models.PROTECT, related_name="+")
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    plan_mapping = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Source plan UUID (hex) to target plan UUID (hex)."),
+    )
+    component_mapping = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Per source offering UUID (hex): source component type to target "
+            "component type."
+        ),
+    )
+    attribute_key_mapping = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Order and resource answer key renames: old key to new key."),
+    )
+    invoice_policy = models.CharField(
+        max_length=20,
+        choices=InvoicePolicies.CHOICES,
+        default=InvoicePolicies.OPEN_MONTH,
+    )
+    state = FSMField(max_length=20, default=States.DRAFT, choices=States.CHOICES)
+    preview = models.JSONField(default=dict, blank=True)
+    verification = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created", "id"]
+
+    def __str__(self):
+        return f"Offering merge {self.uuid.hex} into {self.target} ({self.state})"
+
+    @transition(
+        field=state,
+        source=[States.DRAFT, States.PREVIEWED, States.FAILED],
+        target=States.PREVIEWED,
+    )
+    def set_previewed(self):
+        pass
+
+    @transition(field=state, source=States.PREVIEWED, target=States.RUNNING)
+    def set_running(self):
+        pass
+
+    @transition(field=state, source=States.RUNNING, target=States.DONE)
+    def set_done(self):
+        pass
+
+    @transition(
+        field=state, source=[States.PREVIEWED, States.RUNNING], target=States.FAILED
+    )
+    def set_failed(self):
+        pass
+
+    @transition(field=state, source=States.DONE, target=States.UNDONE)
+    def set_undone(self):
+        pass
+
+
+class OfferingMergeChange(models.Model):
+    """One journalled write of an offering merge: which row, which field, before and after.
+
+    ``field`` is the column's attname (``offering_id``, ``limits``, ``state``);
+    values are JSON — ids for foreign keys, whole documents for JSON fields.
+    Undo replays these in reverse order.
+    """
+
+    merge = models.ForeignKey(
+        OfferingMerge, on_delete=models.CASCADE, related_name="changes"
+    )
+    model = models.CharField(
+        max_length=150, help_text=_("Model label, e.g. marketplace.Resource.")
+    )
+    object_id = models.BigIntegerField()
+    field = models.CharField(max_length=150)
+    old_value = models.JSONField(null=True, blank=True)
+    new_value = models.JSONField(null=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        indexes = [
+            models.Index(fields=["merge", "model", "field"]),
+        ]
+
+    def __str__(self):
+        return f"{self.model}#{self.object_id}.{self.field}"
