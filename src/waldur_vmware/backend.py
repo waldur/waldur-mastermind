@@ -3,6 +3,7 @@ import logging
 import ssl
 from urllib.parse import urlencode
 
+from django.db import DataError, transaction
 from django.utils import timezone
 from django.utils.functional import cached_property
 
@@ -755,7 +756,8 @@ class VMwareBackend(ServiceBackend):
             datastore = self._backend_datastore_to_datastore(
                 backend_datastores_map[item_id]
             )
-            datastore.save()
+            with self._skip_unstorable_datastore(datastore.name):
+                datastore.save()
 
         for item_id in common_ids:
             backend_datastore = self._backend_datastore_to_datastore(
@@ -763,22 +765,59 @@ class VMwareBackend(ServiceBackend):
             )
             frontend_datastore = frontend_datastores_map[item_id]
             fields = ("name", "capacity", "free_space")
-            update_pulled_fields(frontend_datastore, backend_datastore, fields)
+            with self._skip_unstorable_datastore(frontend_datastore.name):
+                update_pulled_fields(frontend_datastore, backend_datastore, fields)
 
         models.Datastore.objects.filter(
             settings=self.settings, backend_id__in=stale_ids
         ).delete()
 
-    def _backend_datastore_to_datastore(self, backend_datastore):
-        capacity = backend_datastore.get("summary.capacity")
-        # Convert from bytes to MB
-        if capacity:
-            capacity /= 1024 * 1024
+    @contextlib.contextmanager
+    def _skip_unstorable_datastore(self, name):
+        """
+        Keep one unstorable datastore from aborting the whole property pull.
 
-        free_space = backend_datastore.get("summary.freeSpace")
-        # Convert from bytes to MB
-        if free_space:
-            free_space /= 1024 * 1024
+        `pull_datastores` runs inside `ServiceSettings.sync`, so an exception here
+        pushes the entire service settings to ERRED and stops networks, clusters,
+        templates and folders from syncing too. A value the column cannot hold is
+        worth a loud log line, not a dead VMware integration.
+
+        The savepoint is required: without it the failed statement poisons the
+        surrounding transaction and every later save fails as well.
+        """
+        try:
+            with transaction.atomic():
+                yield
+        except DataError:
+            logger.exception(
+                "Skipping datastore %s of service settings %s: "
+                "vCenter reported a value the database cannot store.",
+                name,
+                self.settings,
+            )
+
+    @staticmethod
+    def _bytes_to_mb(value):
+        """Convert a vCenter byte count into the megabytes the column stores.
+
+        Floor division keeps the value an integer: true division yields a float,
+        which loses precision on large datastores.
+
+        The clamp is what makes the floor safe. vCenter reports a sentinel rather
+        than a size for a datastore it cannot measure, and `-1 // 1024 ** 2` is
+        `-1`, which the column's `>= 0` check rejects with an IntegrityError.
+        That is not a DataError, so `_skip_unstorable_datastore` would let it
+        through and one unmeasurable datastore would take the whole sync down
+        again. Truncating toward zero, which the old true division did by way of
+        `int()`, stored 0 for those; keep that.
+        """
+        if not value:
+            return value
+        return max(value // (1024 * 1024), 0)
+
+    def _backend_datastore_to_datastore(self, backend_datastore):
+        capacity = self._bytes_to_mb(backend_datastore.get("summary.capacity"))
+        free_space = self._bytes_to_mb(backend_datastore.get("summary.freeSpace"))
 
         return models.Datastore(
             settings=self.settings,

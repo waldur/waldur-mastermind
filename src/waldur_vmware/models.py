@@ -247,10 +247,12 @@ class CustomerNetworkPair(models.Model):
 
 class Datastore(structure_models.ServiceProperty):
     type = models.CharField(max_length=255)
-    capacity = models.PositiveIntegerField(
+    # 64-bit: a 32-bit column holding megabytes tops out at ~2 PB per datastore,
+    # which cluster-backed datastores already exceed.
+    capacity = models.PositiveBigIntegerField(
         help_text="Capacity, in MB.", null=True, blank=True
     )
-    free_space = models.PositiveIntegerField(
+    free_space = models.PositiveBigIntegerField(
         help_text="Available space, in MB.", null=True, blank=True
     )
 
