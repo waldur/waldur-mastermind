@@ -207,6 +207,8 @@ from . import (
     log,
     models,
     offering_merge,
+    offering_merge_coverage,
+    offering_merge_rows,
     order_approval,
     permissions,
     plugins,
@@ -19243,6 +19245,54 @@ class OfferingMergeViewSet(core_views.ActionsViewSet):
         return Response(serializers.OfferingMergePreviewSerializer(data).data)
 
     preview_permissions = [structure_permissions.is_staff_or_support]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "entry",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="Coverage registry entry, as reported by the "
+                "preview: marketplace.Resource.offering, "
+                "invoices.InvoiceItem.details, and so on.",
+            ),
+        ],
+        responses={200: serializers.OfferingMergeAffectedRowSerializer(many=True)},
+        # The merge filterset selects merge records, not the rows of one merge;
+        # a detail action resets it at runtime, and this keeps it out of the
+        # schema and the SDK too.
+        filters=False,
+    )
+    @action(detail=True, methods=["get"])
+    def affected(self, request, uuid=None):
+        """List the rows one preview entry changes, newest first.
+
+        Staff and support; nothing is written. A merge that has not run yet
+        recomputes its plan, so the listing is what the executor would do
+        rather than a stored copy of it. A merge that has run, or has been
+        undone, is described from its journal: what was actually written.
+        """
+        merge = self.get_object()
+        label = request.query_params.get("entry", "")
+        entry = offering_merge_coverage.MERGE_COVERAGE.get(label)
+        if entry is None:
+            raise ValidationError(
+                {"entry": _("Unknown coverage registry entry %s.") % label}
+            )
+        if not entry.can_list_rows:
+            raise ValidationError(
+                {"entry": _("The rows of %s cannot be listed one by one.") % label}
+            )
+        rows = offering_merge_rows.affected_rows(merge, entry)
+        page = self.paginate_queryset(rows.items)
+        return self.get_paginated_response(
+            serializers.OfferingMergeAffectedRowSerializer(
+                rows.describe(page), many=True
+            ).data
+        )
+
+    affected_permissions = [structure_permissions.is_staff_or_support]
 
     @extend_schema(
         request=serializers.OfferingMergeExecuteSerializer,

@@ -322,7 +322,7 @@ class _Write:
     rows: list[tuple[int, Any, Any]] = field(default_factory=list)
 
 
-def _resolve_relation(entry: coverage.CoverageEntry):
+def resolve_relation(entry: coverage.CoverageEntry):
     """(model holding the reference, its attname, unique-set attnames, related model)."""
     model = entry.model
     model_field = model._meta.get_field(entry.field_name)
@@ -839,7 +839,7 @@ class _MergeContext:
                 ).count()
 
     def _plan_relation(self, entry: coverage.CoverageEntry):
-        model, attname, unique, related_model = _resolve_relation(entry)
+        model, attname, unique, related_model = resolve_relation(entry)
         manager = model._base_manager
         rows = list(
             manager.filter(**{f"{attname}__in": self._source_ids_for(related_model)})
@@ -1017,6 +1017,80 @@ class _MergeContext:
             ),
         }
 
+    # --- Affected rows ------------------------------------------------------
+
+    def _write_for(self, label: str) -> "_Write | None":
+        for write in (*self.writes, *self.invoice_writes):
+            if write.entry.label == label:
+                return write
+        return None
+
+    def _covered_rows(self, entry: coverage.CoverageEntry) -> list[tuple[int, Any]]:
+        """(pk, current value) of every row of ``entry`` that belongs to a source.
+
+        The same set ``_plan_writes`` counts, so a listing of an entry's rows
+        and its count in the preview can never disagree.
+        """
+        model = entry.model
+        if entry.kind in (coverage.FK, coverage.M2M):
+            model, attname, _unique, related_model = resolve_relation(entry)
+            lookup = {f"{attname}__in": self._source_ids_for(related_model)}
+        elif entry.kind == coverage.SNAPSHOT:
+            attname = model._meta.get_field(entry.field_name).attname
+            lookup = {f"{entry.offering_path}__in": self.source_ids}
+        elif entry.kind == coverage.GENERIC:
+            attname = entry.id_field
+            lookup = {
+                entry.ct_field: ContentType.objects.get_for_model(models.Offering),
+                f"{entry.id_field}__in": self.source_ids,
+            }
+        elif entry.kind == coverage.UUID:
+            attname = entry.field_name
+            lookup = {f"{entry.field_name}__in": [s.uuid for s in self.sources]}
+        else:
+            raise ValueError(f"Unexpected kind {entry.kind} for {entry.label}")
+        return list(
+            model._base_manager.filter(**lookup)
+            .order_by("pk")
+            .values_list("pk", attname)
+        )
+
+    def rows_of(self, entry: coverage.CoverageEntry) -> list[tuple[int, Any, Any]]:
+        """(pk, current value, new value) of the rows ``entry`` covers.
+
+        The new value is ``None`` for a row the merge leaves alone: one that
+        stays on the archived source because the target has it already, an
+        invoice item the policy does not rewrite, and every row of an entry
+        whose strategy is ``keep_on_source``.
+        """
+        if not entry.can_list_rows:
+            return []
+        write = self._write_for(entry.label)
+        changed = {pk: new for pk, _old, new in write.rows} if write else {}
+        if entry.kind == coverage.JSON_KEYS:
+            # Only rows whose document actually changes are planned or counted.
+            return list(write.rows) if write else []
+        return [(pk, old, changed.get(pk)) for pk, old in self._covered_rows(entry)]
+
+    def entries(self) -> list[dict]:
+        """One record per covered entry: what it is, what happens, how many."""
+        result = []
+        for label, count in self.counts.items():
+            entry = coverage.MERGE_COVERAGE[label]
+            result.append(
+                {
+                    "label": label,
+                    "area": entry.area,
+                    "area_title": entry.area_title,
+                    "effect": entry.effect,
+                    "effect_title": entry.effect_title,
+                    "count": count,
+                    "left_on_source": len(self.left_on_source.get(label, [])),
+                    "can_list_rows": entry.can_list_rows,
+                }
+            )
+        return result
+
     def stale(self) -> "_Stale":
         """What the moved resources must no longer reference once merged."""
         target_types = {component.type for component in self.target.components.all()}
@@ -1151,6 +1225,7 @@ class _MergeContext:
                 "target": self.target.uuid.hex,
                 "sources": [source.uuid.hex for source in self.sources],
                 "counts": self.counts,
+                "entries": self.entries(),
                 "left_on_source": {
                     label: len(pks) for label, pks in self.left_on_source.items()
                 },
@@ -1171,6 +1246,18 @@ class _MergeContext:
 def build_preview(merge: models.OfferingMerge) -> dict:
     """Compute the preview of ``merge`` without writing anything."""
     return _MergeContext(merge).preview()
+
+
+def planned_rows(
+    merge: models.OfferingMerge, entry: coverage.CoverageEntry
+) -> list[tuple[int, Any, Any]]:
+    """The rows ``entry`` covers, as the merge would leave them. Reads only.
+
+    Recomputing the whole context for one entry costs what a preview costs and
+    keeps the listing honest: it is the plan the executor would follow, not a
+    copy of it stored on the record.
+    """
+    return _MergeContext(merge).rows_of(entry)
 
 
 def preview_selection(

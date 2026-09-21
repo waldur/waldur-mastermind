@@ -14,6 +14,7 @@ from waldur_core.users.enums import InvitationState
 from waldur_mastermind.chat.enums import FeedbackCategory
 from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
+from waldur_mastermind.marketplace import offering_merge_coverage
 from waldur_mastermind.marketplace.attribute_types import ATTRIBUTE_TYPES
 from waldur_mastermind.marketplace.enums import (
     AccountScopes,
@@ -163,6 +164,11 @@ SPECTACULAR_SETTINGS = {
         # single enum name so drf-spectacular doesn't emit clashing
         # Uid/GidSourceEnum names for the identical choices.
         "PosixIdSourceEnum": ["pool", "user_attribute"],
+        # A merge preview entry's area and effect. "Area" and "Effect" are
+        # words another serializer could easily want; name these two sets after
+        # what they classify so the SDK's names stay put.
+        "OfferingMergeAreaEnum": offering_merge_coverage.AREAS,
+        "OfferingMergeEffectEnum": offering_merge_coverage.EFFECTS,
         "GenderEnum": GENDER_CHOICES,
         "InjectionSeverityEnum": SeverityLevel.choices(),
         "FeedbackCategoryEnum": FeedbackCategory.choices,
