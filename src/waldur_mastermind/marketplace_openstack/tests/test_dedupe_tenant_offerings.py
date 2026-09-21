@@ -1,6 +1,8 @@
+import unittest
 from io import StringIO
 
 from django.core.management import call_command
+from django.utils import timezone
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
@@ -9,6 +11,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_openstack import utils
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
 from .utils import BaseOpenStackTest
@@ -167,3 +170,41 @@ class DedupeTenantOfferingsTest(BaseOpenStackTest):
         output = self._run()
 
         self.assertIn(f"keeping id={in_use.id}", output)
+
+    # merge_duplicate_offering repoints the plan periods to the keeper's plan
+    # *before* saving the resource. The save then fires
+    # switch_resource_plan_period_when_plan_is_updated, which closes the open
+    # period by the previous (duplicate) plan id -- there is none left -- and
+    # opens a second one for the keeper's plan. The fix is to rebuild the dedupe
+    # on the offering merge engine (marketplace/offering_merge.py), whose
+    # signal-free writes keep exactly one open period; remove expectedFailure
+    # when that lands.
+    @unittest.expectedFailure
+    def test_merge_leaves_one_open_plan_period(self):
+        keeper = self._offering()
+        keeper_plan = marketplace_factories.PlanFactory(offering=keeper, name="Default")
+        duplicate = self._offering()
+        duplicate_plan = marketplace_factories.PlanFactory(
+            offering=duplicate, name="Default"
+        )
+        moved = marketplace_factories.ResourceFactory(
+            scope=self.fixture.volume,
+            project=self.fixture.project,
+            offering=duplicate,
+            plan=duplicate_plan,
+            state=ResourceStates.OK,
+        )
+        marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=moved, plan=duplicate_plan, start=timezone.now(), end=None
+        )
+
+        utils.merge_duplicate_offering(duplicate, keeper)
+
+        moved.refresh_from_db()
+        self.assertEqual(moved.plan, keeper_plan)
+        self.assertEqual(
+            marketplace_models.ResourcePlanPeriod.objects.filter(
+                resource=moved, end=None
+            ).count(),
+            1,
+        )

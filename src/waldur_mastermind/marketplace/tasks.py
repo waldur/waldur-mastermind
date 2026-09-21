@@ -686,6 +686,50 @@ def calculate_allocated_for_month(
         return Decimal(str(items_agg["total"] or 0))
 
 
+# The maximum value ComponentUsageMonthly's max_digits=20, decimal_places=2 holds.
+MAX_USAGE_SUMMARY_DECIMAL = Decimal("999999999999999999.99")
+
+
+def refresh_component_usage_summary(
+    component: models.OfferingComponent, year: int, month: int, delete_empty=False
+) -> bool:
+    """Recalculate the ComponentUsageMonthly row of one component and month.
+
+    Returns True if a row was saved. A month with neither consumption nor
+    allocation gets no row; with ``delete_empty`` an existing one is removed,
+    so a component whose usage moved elsewhere does not keep a stale summary.
+    """
+    billing_period = datetime.date(year, month, 1)
+    consumed = calculate_consumed_for_month(component, year, month)
+    allocated = calculate_allocated_for_month(component, year, month)
+
+    if consumed == Decimal("0") and allocated == Decimal("0"):
+        if delete_empty:
+            models.ComponentUsageMonthly.objects.filter(
+                component=component, billing_period=billing_period
+            ).delete()
+        return False
+
+    usage_percent = None
+    if allocated > 0:
+        usage_percent = round((consumed * 100) / allocated, 2)
+
+    # Safety clamp to prevent DB overflow from corrupted JSONB data
+    consumed = min(consumed, MAX_USAGE_SUMMARY_DECIMAL)
+    allocated = min(allocated, MAX_USAGE_SUMMARY_DECIMAL)
+
+    models.ComponentUsageMonthly.objects.update_or_create(
+        component=component,
+        billing_period=billing_period,
+        defaults={
+            "total_consumed": consumed,
+            "total_allocated": allocated,
+            "usage_percent": usage_percent,
+        },
+    )
+    return True
+
+
 @shared_task
 def terminate_resource(serialized_resource, serialized_user):
     """Terminate a resource."""

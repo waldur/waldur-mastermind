@@ -3043,9 +3043,12 @@ def process_billing_on_resource_save(
 ):
     """
     Handle resource state changes and billing events.
+
+    Skipped under ``skip_side_effects()``: bulk imports and the offering merge
+    rewrite resources without meaning to terminate and reissue invoice items.
     """
     resource = instance
-    if created:
+    if created or get_skip_side_effects():
         return
 
     tracker = resource.tracker
