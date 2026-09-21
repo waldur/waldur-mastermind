@@ -329,6 +329,17 @@ def broadcast_mail(
     try:
         notification = Notification.objects.get(key=notification_key)
     except Notification.DoesNotExist:
+        # Both this branch and the disabled one below drop the mail. Say so:
+        # without a log line an operator cannot tell a notification that is
+        # switched off from one that is broken, since either way the only
+        # symptom is that no mail arrives.
+        logger.warning(
+            "Notification '%s' is not registered, so no %s mail was sent to %s "
+            "recipient(s). Run the load_notifications command to register it.",
+            notification_key,
+            event_type,
+            len(recipient_list),
+        )
         return
 
     if notification.enabled:
@@ -372,6 +383,15 @@ def broadcast_mail(
                     )
         finally:
             connection.close()
+    else:
+        logger.info(
+            "Notification '%s' is disabled, so no %s mail was sent to %s "
+            "recipient(s). Enable it under Administration -> Notifications, or "
+            "in the notifications file loaded by the load_notifications command.",
+            notification_key,
+            event_type,
+            len(recipient_list),
+        )
 
 
 def get_ordering(request):
