@@ -20,6 +20,17 @@ def make_backend(**options):
     return backend.VMwareBackend(settings)
 
 
+def backend_datastore(name, capacity, free_space=0):
+    """One entry as `_collect` returns it for vim.Datastore."""
+    return {
+        "moid": name,
+        "name": name,
+        "summary.type": "NFS",
+        "summary.capacity": capacity,
+        "summary.freeSpace": free_space,
+    }
+
+
 class VerifySslOptionTest(test.APITestCase):
     def test_missing_option_defaults_to_off(self):
         self.assertFalse(make_backend().verify_ssl)
@@ -60,6 +71,103 @@ class DatastoreConversionTest(test.APITestCase):
             }
         )
         self.assertEqual(datastore.type, "")
+
+    def test_capacity_beyond_the_32_bit_ceiling_is_stored(self):
+        """A megabyte count wider than 2^31 used to overflow the column.
+
+        `integer out of range` aborted pull_service_properties and pushed the
+        whole service settings to ERRED, stopping every other VMware sync.
+        """
+        # 4 PB, twice the old ceiling.
+        capacity = 4 * 1024**5
+        datastore = make_backend()._backend_datastore_to_datastore(
+            {
+                "moid": "datastore-1",
+                "name": "ds",
+                "summary.type": "NFS",
+                "summary.capacity": capacity,
+                "summary.freeSpace": capacity // 2,
+            }
+        )
+        datastore.save()
+
+        datastore.refresh_from_db()
+        self.assertEqual(datastore.capacity, capacity // 1024**2)
+        self.assertEqual(datastore.free_space, capacity // 2 // 1024**2)
+
+    def test_sizes_are_converted_to_integers(self):
+        """True division made these floats, losing precision on large values."""
+        datastore = make_backend()._backend_datastore_to_datastore(
+            {
+                "moid": "datastore-1",
+                "name": "ds",
+                "summary.capacity": 3 * 1024**2 + 1,
+                "summary.freeSpace": 1024**2,
+            }
+        )
+        self.assertIsInstance(datastore.capacity, int)
+        self.assertIsInstance(datastore.free_space, int)
+        self.assertEqual(datastore.capacity, 3)
+
+    def test_a_sentinel_size_is_clamped_to_zero(self):
+        """vCenter reports -1 rather than a size for what it cannot measure.
+
+        Floor division alone turns that into -1 MB, which the column's `>= 0`
+        check rejects with an IntegrityError -- and that is not a DataError, so
+        it would escape the skip below and ERRED the whole sync.
+        """
+        datastore = make_backend()._backend_datastore_to_datastore(
+            backend_datastore("ds", -1, -1)
+        )
+        self.assertEqual(datastore.capacity, 0)
+        self.assertEqual(datastore.free_space, 0)
+
+
+class DatastorePullTest(test.APITestCase):
+    """One unstorable datastore must not take the rest of the pull with it.
+
+    `pull_datastores` runs inside `ServiceSettings.sync`, so an exception here
+    pushes the whole service settings to ERRED and stops networks, clusters,
+    templates and folders from syncing too.
+    """
+
+    def setUp(self):
+        self.backend = make_backend()
+
+    def pull(self, *datastores):
+        with mock.patch.object(
+            backend.VMwareBackend, "_collect", return_value=list(datastores)
+        ):
+            self.backend.pull_datastores()
+        return set(
+            models.Datastore.objects.filter(settings=self.backend.settings).values_list(
+                "name", flat=True
+            )
+        )
+
+    def stored(self, name):
+        return models.Datastore.objects.get(settings=self.backend.settings, name=name)
+
+    def test_a_value_beyond_the_64_bit_column_is_skipped(self):
+        """Widening buys headroom, it does not remove the ceiling."""
+        pulled = self.pull(
+            backend_datastore("unstorable", 2**64 * 1024**2),
+            backend_datastore("normal", 10 * 1024**2),
+        )
+        self.assertEqual(pulled, {"normal"})
+
+    def test_a_sentinel_size_is_stored_rather_than_skipped(self):
+        pulled = self.pull(
+            backend_datastore("unmeasured", -1),
+            backend_datastore("normal", 10 * 1024**2),
+        )
+        self.assertEqual(pulled, {"unmeasured", "normal"})
+        self.assertEqual(self.stored("unmeasured").capacity, 0)
+
+    def test_an_existing_datastore_is_updated_in_place(self):
+        self.pull(backend_datastore("ds", 10 * 1024**2))
+        self.pull(backend_datastore("ds", 4 * 1024**5))
+        self.assertEqual(self.stored("ds").capacity, 4 * 1024**3)
 
 
 class ToolsInstallTypeTest(test.APITestCase):
