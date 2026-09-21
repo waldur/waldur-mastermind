@@ -91,6 +91,7 @@ from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
+from waldur_mastermind.marketplace import offering_merge_coverage
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
     MAX_LIMIT_DECIMAL_PLACES,
@@ -16563,6 +16564,56 @@ class OfferingMergeInvoicePreviewSerializer(serializers.Serializer):
     kept_on_closed_invoices = serializers.IntegerField()
 
 
+class OfferingMergeEntrySerializer(serializers.Serializer):
+    """One coverage registry entry: what it holds, what happens, how many rows."""
+
+    label = serializers.CharField(
+        help_text="Coverage registry entry, as model.Field label."
+    )
+    area = serializers.ChoiceField(
+        choices=offering_merge_coverage.AREAS,
+        help_text="Part of the service the rows belong to.",
+    )
+    area_title = serializers.CharField(help_text="The area, for a human reader.")
+    effect = serializers.ChoiceField(
+        choices=offering_merge_coverage.EFFECTS,
+        help_text="What the merge does to the rows.",
+    )
+    effect_title = serializers.CharField(help_text="The effect, for a human reader.")
+    count = serializers.IntegerField(help_text="Rows the entry covers.")
+    left_on_source = serializers.IntegerField(
+        help_text="Of those, rows that stay on a source because the target has "
+        "them already."
+    )
+    can_list_rows = serializers.BooleanField(
+        help_text="Whether the affected endpoint can list the rows one by one."
+    )
+
+
+class OfferingMergeAffectedRowSerializer(serializers.Serializer):
+    """One row a merge changes, or deliberately leaves on the archived source."""
+
+    id = serializers.IntegerField(help_text="Primary key of the row.")
+    uuid = serializers.CharField(
+        allow_null=True, help_text="The object's UUID, when it has one."
+    )
+    model = serializers.CharField(help_text="Model label of the row.")
+    field = serializers.CharField(help_text="Column the merge writes.")
+    description = serializers.CharField(
+        help_text="The object described in names rather than primary keys."
+    )
+    old_value = serializers.CharField(
+        allow_null=True, help_text="The current value, resolved to a name."
+    )
+    new_value = serializers.CharField(
+        allow_null=True,
+        help_text="The value after the merge; null when the row does not change.",
+    )
+    kept_on_source = serializers.BooleanField(
+        help_text="Whether the row stays with the archived source instead of moving."
+    )
+
+
 class OfferingMergePreviewSerializer(serializers.Serializer):
     target = serializers.CharField(help_text="Target offering UUID.")
     sources = serializers.ListField(
@@ -16571,6 +16622,10 @@ class OfferingMergePreviewSerializer(serializers.Serializer):
     counts = serializers.DictField(
         child=serializers.IntegerField(),
         help_text="Rows per coverage registry entry (model.Field label).",
+    )
+    entries = OfferingMergeEntrySerializer(
+        many=True,
+        help_text="The same counts, grouped by area and classified by effect.",
     )
     left_on_source = serializers.DictField(
         child=serializers.IntegerField(),
