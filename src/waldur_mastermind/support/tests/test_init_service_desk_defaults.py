@@ -70,6 +70,106 @@ class InitServiceDeskDefaultsTest(TestCase):
         )
         self.assertTrue(models.IssueStatus.check_success_status("done"))
 
+    def test_a_status_named_after_a_missing_type_is_retyped(self):
+        """The shape an upgraded deployment arrives in.
+
+        `name` is unique and `type` defaults to RESOLVED, so statuses imported
+        from a previous service desk can include a row called "Canceled" that is
+        not of the CANCELED type. get_or_create matched that name, created
+        nothing, and the type stayed missing on every later run — leaving
+        Canceled off the dropdown permanently.
+        """
+        models.IssueStatus.objects.create(
+            name="Canceled", type=IssueStatusTypes.RESOLVED
+        )
+
+        output = seed()
+
+        self.assertEqual(
+            set(models.IssueStatus.objects.values_list("name", "type")),
+            {
+                ("Canceled", IssueStatusTypes.CANCELED),
+                ("Resolved", IssueStatusTypes.RESOLVED),
+            },
+        )
+        self.assertIn("Corrected the type", output)
+        self.assertFalse(models.IssueStatus.check_success_status("Canceled"))
+
+    def test_retyping_is_not_repeated_on_the_next_run(self):
+        models.IssueStatus.objects.create(
+            name="Canceled", type=IssueStatusTypes.RESOLVED
+        )
+        seed()
+
+        self.assertIn("already configured", seed())
+        self.assertEqual(models.IssueStatus.objects.count(), 2)
+
+    def test_a_swapped_table_is_corrected(self):
+        """Complete by count, wrong by row.
+
+        Both terminal types are present, so every completeness check passes and
+        nothing is logged — but each label carries the other's type, so
+        `check_success_status` answers the opposite of the truth for every
+        ticket. Retyping is therefore not conditional on the type being absent.
+        """
+        models.IssueStatus.objects.create(
+            name="Resolved", type=IssueStatusTypes.CANCELED
+        )
+        models.IssueStatus.objects.create(
+            name="Canceled", type=IssueStatusTypes.RESOLVED
+        )
+
+        output = seed()
+
+        self.assertEqual(
+            set(models.IssueStatus.objects.values_list("name", "type")),
+            {
+                ("Resolved", IssueStatusTypes.RESOLVED),
+                ("Canceled", IssueStatusTypes.CANCELED),
+            },
+        )
+        self.assertIn("Corrected the type", output)
+        self.assertTrue(models.IssueStatus.check_success_status("Resolved"))
+        self.assertFalse(models.IssueStatus.check_success_status("Canceled"))
+
+    def test_a_mistyped_label_is_corrected_even_when_its_type_exists(self):
+        # The operator's own cancellation status already holds CANCELED, so the
+        # old guard skipped the pass entirely and left "Canceled" meaning
+        # resolved.
+        models.IssueStatus.objects.create(name="done", type=IssueStatusTypes.RESOLVED)
+        models.IssueStatus.objects.create(
+            name="rejected", type=IssueStatusTypes.CANCELED
+        )
+        models.IssueStatus.objects.create(
+            name="Canceled", type=IssueStatusTypes.RESOLVED
+        )
+
+        seed()
+
+        self.assertEqual(
+            models.IssueStatus.objects.get(name="Canceled").type,
+            IssueStatusTypes.CANCELED,
+        )
+        # Nothing else moved, and no row was added to fill a type that was
+        # never missing.
+        self.assertEqual(models.IssueStatus.objects.count(), 3)
+        self.assertEqual(
+            models.IssueStatus.objects.get(name="done").type,
+            IssueStatusTypes.RESOLVED,
+        )
+
+    def test_a_matched_row_is_not_reported_as_created(self):
+        # get_or_create matching an existing name is the no-op this command
+        # grew out of; it must not be announced as a creation.
+        models.IssueStatus.objects.create(
+            name="Resolved", type=IssueStatusTypes.RESOLVED
+        )
+
+        output = seed()
+
+        self.assertNotIn("Created issue statuses: Resolved", output)
+        self.assertIn("Created issue statuses: Canceled", output)
+
     def test_a_status_of_each_type_is_left_alone(self):
         models.IssueStatus.objects.create(name="done", type=IssueStatusTypes.RESOLVED)
         models.IssueStatus.objects.create(
