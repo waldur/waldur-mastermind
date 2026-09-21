@@ -44,3 +44,36 @@ class BroadcastMailTest(TestCase):
         }
         self.assertEqual(len(connections), 1)
         self.assertIsNotNone(connections.pop())
+
+
+@mock.patch("waldur_core.core.utils.render_to_string", return_value="html")
+@mock.patch("waldur_core.core.utils.format_text", return_value="text")
+@mock.patch("waldur_core.core.utils.find_template_from_registry", return_value="path")
+@mock.patch("waldur_core.core.utils.send_mail")
+class DroppedNotificationIsLoggedTest(TestCase):
+    """A dropped mail used to leave no trace at all.
+
+    Notifications ship disabled, so "no mail arrived" is the symptom of a
+    switched-off notification, an unregistered one, and a genuine routing bug
+    alike. Without a log line there is nothing for an operator to go on.
+    """
+
+    recipients = ["first@example.com", "second@example.com"]
+
+    def test_disabled_notification_is_logged(self, mock_send_mail, *mocks):
+        Notification.objects.create(key="app.event", enabled=False)
+
+        with self.assertLogs("waldur_core.core.utils", level="INFO") as logs:
+            utils.broadcast_mail("app", "event", {}, self.recipients)
+
+        mock_send_mail.assert_not_called()
+        self.assertTrue(any("app.event" in line for line in logs.output))
+        self.assertTrue(any("disabled" in line for line in logs.output))
+
+    def test_unregistered_notification_is_logged(self, mock_send_mail, *mocks):
+        with self.assertLogs("waldur_core.core.utils", level="WARNING") as logs:
+            utils.broadcast_mail("app", "event", {}, self.recipients)
+
+        mock_send_mail.assert_not_called()
+        self.assertTrue(any("app.event" in line for line in logs.output))
+        self.assertTrue(any("not registered" in line for line in logs.output))
