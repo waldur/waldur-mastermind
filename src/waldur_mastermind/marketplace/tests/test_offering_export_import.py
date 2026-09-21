@@ -1,3 +1,5 @@
+import textwrap
+
 import yaml
 from ddt import data, ddt
 from django.urls import reverse
@@ -7,7 +9,15 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories, fixtures
+from waldur_mastermind.marketplace.views import (
+    COMPONENT_IMPORT_FIELDS,
+    OFFERING_IMPORT_FIELDS,
+    PLAN_COMPONENT_IMPORT_FIELDS,
+    PLAN_IMPORT_FIELDS,
+    TERMS_OF_SERVICE_IMPORT_FIELDS,
+)
 
 
 @ddt
@@ -951,3 +961,385 @@ class OfferingExportImportTestCase(test.APITestCase):
         )
         self.assertEqual(imported_offering.plugin_options, {"config": "value"})
         self.assertEqual(imported_offering.resource_options, {"resource": "config"})
+
+
+def _replace_blank_with_null(value):
+    """Mirror exporters that write an empty string as a bare YAML key (null)."""
+    if isinstance(value, dict):
+        return {k: _replace_blank_with_null(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_replace_blank_with_null(v) for v in value]
+    return None if value == "" else value
+
+
+@ddt
+class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.customer = self.fixture.customer
+        self.user = self.fixture.owner
+        self.category = factories.CategoryFactory(title="Null Test Category")
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        self.client.force_authenticate(self.user)
+
+    def _import(self, offering_data, **params):
+        if not isinstance(offering_data, str):
+            offering_data = yaml.safe_dump(offering_data)
+        return self.client.post(
+            reverse("marketplace-provider-offering-import-offering"),
+            {
+                "customer": self.customer.uuid.hex,
+                "category": self.category.title,
+                "offering_data": offering_data,
+                **params,
+            },
+        )
+
+    def _full_import_data(self, name, value):
+        """Import data where every imported field of every section is `value`."""
+        return {
+            "offering": {**{f: value for f in OFFERING_IMPORT_FIELDS}, "name": name},
+            "components": [
+                {"type": "cpu", **{f: value for f in COMPONENT_IMPORT_FIELDS}},
+            ],
+            "plans": [
+                {
+                    "name": "Basic",
+                    **{f: value for f in PLAN_IMPORT_FIELDS},
+                    "components": [
+                        {
+                            "component_type": "cpu",
+                            **{f: value for f in PLAN_COMPONENT_IMPORT_FIELDS},
+                        }
+                    ],
+                }
+            ],
+            "endpoints": [{"name": "Portal", "url": value}],
+            "screenshots": [{"name": "Screen", "description": value}],
+            "terms_of_service": [{f: value for f in TERMS_OF_SERVICE_IMPORT_FIELDS}],
+        }
+
+    def test_component_with_bare_measured_unit_key_is_imported(self):
+        offering_data = textwrap.dedent(
+            """
+            offering:
+              name: Bare Key Offering
+            components:
+            - type: max_k8s_node_count
+              name: Maximal number of user K8s nodes
+              measured_unit:
+            """
+        )
+
+        response = self._import(offering_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        component = models.OfferingComponent.objects.get(
+            offering__name="Bare Key Offering", type="max_k8s_node_count"
+        )
+        self.assertEqual(component.measured_unit, "")
+
+    @data(
+        (models.Offering, OFFERING_IMPORT_FIELDS),
+        (models.OfferingComponent, COMPONENT_IMPORT_FIELDS),
+        (models.Plan, PLAN_IMPORT_FIELDS),
+        (models.PlanComponent, PLAN_COMPONENT_IMPORT_FIELDS),
+        (models.OfferingAccessEndpoint, ("url",)),
+        (models.Screenshot, ("description",)),
+        (models.OfferingTermsOfService, TERMS_OF_SERVICE_IMPORT_FIELDS),
+    )
+    def test_null_value_on_create_gives_model_default(self, case):
+        model, field_names = case
+        response = self._import(self._full_import_data("Null Offering", None))
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(name="Null Offering")
+        instance = {
+            models.Offering: offering,
+            models.OfferingComponent: offering.components.get(type="cpu"),
+            models.Plan: offering.plans.get(name="Basic"),
+            models.PlanComponent: models.PlanComponent.objects.get(
+                plan__offering=offering
+            ),
+            models.OfferingAccessEndpoint: offering.endpoints.get(name="Portal"),
+            models.Screenshot: offering.screenshots.get(name="Screen"),
+            models.OfferingTermsOfService: offering.terms_of_service_configs.get(),
+        }[model]
+        for name in field_names:
+            if model is models.Offering and name == "name":
+                continue
+            field = model._meta.get_field(name)
+            with self.subTest(field=name):
+                self.assertEqual(getattr(instance, name), field.get_default())
+                # A text column without a model default becomes an empty string.
+                if (
+                    not field.null
+                    and not field.has_default()
+                    and field.get_internal_type()
+                    in (
+                        "CharField",
+                        "TextField",
+                        "URLField",
+                    )
+                ):
+                    self.assertEqual(getattr(instance, name), "")
+
+    def test_null_value_with_overwrite_existing_keeps_current_value(self):
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            category=self.category,
+            name="Existing Offering",
+            description="Offering description",
+            full_description="Full description",
+            vendor_details="Vendor",
+            getting_started="Getting started",
+            integration_guide="Guide",
+            type="Marketplace.Basic",
+            shared=False,
+            billable=False,
+            country="EE",
+            access_url="https://example.com",
+            paused_reason="Maintenance",
+        )
+        component = factories.OfferingComponentFactory(
+            offering=offering,
+            type="cpu",
+            name="CPU",
+            description="Cores",
+            billing_type=BillingTypes.USAGE,
+            measured_unit="cores",
+            unit_factor=4,
+            limit_period=LimitPeriods.TOTAL,
+            article_code="AC-1",
+            backend_id="cpu-backend",
+        )
+        plan = factories.PlanFactory(
+            offering=offering,
+            name="Basic",
+            description="Plan description",
+            unit_price=7,
+            unit=models.Plan.Units.PER_MONTH,
+            archived=True,
+            article_code="PL-1",
+            backend_id="plan-backend",
+        )
+        plan_component = factories.PlanComponentFactory(
+            plan=plan, component=component, amount=3, price=5
+        )
+        endpoint = models.OfferingAccessEndpoint.objects.create(
+            offering=offering, name="Portal", url="https://portal.example.com"
+        )
+        screenshot = models.Screenshot.objects.create(
+            offering=offering, name="Screen", description="Screen description"
+        )
+        instances = [offering, component, plan, plan_component, endpoint, screenshot]
+        expected = {
+            (type(instance), field.name): getattr(instance, field.attname)
+            for instance in instances
+            for field in instance._meta.concrete_fields
+        }
+
+        import_data = self._full_import_data("Existing Offering", None)
+        del import_data["terms_of_service"]
+        response = self._import(import_data, overwrite_existing=True)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        for instance in instances:
+            instance.refresh_from_db()
+            for field in instance._meta.concrete_fields:
+                if field.null or field.name in ("modified", "state"):
+                    continue
+                with self.subTest(model=type(instance).__name__, field=field.name):
+                    self.assertEqual(
+                        getattr(instance, field.attname),
+                        expected[(type(instance), field.name)],
+                    )
+
+    @data(
+        ({"components": [{"name": "No type"}]}, "components[0].type"),
+        ({"components": [{"type": None}]}, "components[0].type"),
+        (
+            {"components": [{"type": "cpu", "unit_factor": "many"}]},
+            "components[0].unit_factor",
+        ),
+        (
+            {"components": [{"type": "cpu", "billing_type": "sometimes"}]},
+            "components[0].billing_type",
+        ),
+        (
+            {"components": [{"type": "cpu", "measured_unit": "x" * 31}]},
+            "components[0].measured_unit",
+        ),
+        ({"components": "cpu"}, "components"),
+        ({"components": ["cpu"]}, "components[0]"),
+        ({"plans": [{"description": "No name"}]}, "plans[0].name"),
+        ({"plans": [{"name": "Basic", "unit_price": "free"}]}, "plans[0].unit_price"),
+        (
+            {
+                "components": [{"type": "cpu"}],
+                "plans": [
+                    {
+                        "name": "Basic",
+                        "components": [{"component_type": "cpu", "price": "cheap"}],
+                    }
+                ],
+            },
+            "plans[0].components[0].price",
+        ),
+        (
+            {
+                "components": [{"type": "cpu"}],
+                "plans": [
+                    {
+                        "name": "Basic",
+                        "components": [{"component_type": "cpu", "amount": "lots"}],
+                    }
+                ],
+            },
+            "plans[0].components[0].amount",
+        ),
+        (
+            {
+                "components": [{"type": "cpu"}],
+                "plans": [
+                    {
+                        "name": "Basic",
+                        "components": [{"component_type": "cpu", "amount": -1}],
+                    }
+                ],
+            },
+            "plans[0].components[0].amount",
+        ),
+        ({"endpoints": [{"url": "https://example.com"}]}, "endpoints[0].name"),
+        ({"screenshots": [{"description": "No name"}]}, "screenshots[0].name"),
+        ({"files": [{"filename": "no-name.txt"}]}, "files[0].name"),
+        ({"offering": {"name": "Invalid", "shared": "perhaps"}}, "offering.shared"),
+    )
+    def test_invalid_value_returns_400_naming_field_and_imports_nothing(self, case):
+        sections, field_path = case
+        import_data = {"offering": {"name": "Invalid Offering"}, **sections}
+        offering_name = import_data["offering"]["name"]
+
+        response = self._import(import_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(field_path, response.data)
+        self.assertFalse(models.Offering.objects.filter(name=offering_name).exists())
+
+    @data(
+        {},
+        {"offering": None},
+        {"offering": {}},
+        {"offering": {"name": None}},
+        {"offering": {"name": ""}},
+    )
+    def test_offering_without_usable_name_returns_400(self, import_data):
+        offering_count = models.Offering.objects.count()
+
+        response = self._import(import_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering.name", response.data)
+        self.assertEqual(models.Offering.objects.count(), offering_count)
+
+    def test_overwrite_existing_with_null_name_keeps_existing_offering(self):
+        offering = factories.OfferingFactory(
+            customer=self.customer, category=self.category, name="Existing Offering"
+        )
+
+        response = self._import(
+            {"offering": {"name": None, "description": "New description"}},
+            overwrite_existing=True,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering.name", response.data)
+        offering.refresh_from_db()
+        self.assertEqual(offering.name, "Existing Offering")
+        self.assertNotEqual(offering.description, "New description")
+
+    def test_null_section_imports_nothing_from_it(self):
+        response = self._import(
+            {
+                "offering": {"name": "Null Sections"},
+                "components": None,
+                "plans": None,
+                "screenshots": None,
+                "files": None,
+                "endpoints": None,
+                "organization_groups": None,
+                "terms_of_service": None,
+            },
+            import_organization_groups=True,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(name="Null Sections")
+        self.assertEqual(offering.components.count(), 0)
+        self.assertEqual(offering.plans.count(), 0)
+        self.assertEqual(offering.screenshots.count(), 0)
+        self.assertEqual(offering.files.count(), 0)
+        self.assertEqual(offering.endpoints.count(), 0)
+        self.assertEqual(offering.organization_groups.count(), 0)
+        self.assertEqual(offering.terms_of_service_configs.count(), 0)
+
+    def test_organization_group_without_name_returns_400(self):
+        response = self._import(
+            {
+                "offering": {"name": "Group Offering"},
+                "organization_groups": [{"parent_name": "Parent"}],
+            },
+            import_organization_groups=True,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("organization_groups[0].name", response.data)
+        self.assertFalse(models.Offering.objects.filter(name="Group Offering").exists())
+
+    def test_non_mapping_offering_data_returns_400(self):
+        response = self._import("- just\n- a list\n")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering_data", response.data)
+
+    @data(False, True)
+    def test_export_with_empty_measured_unit_imports_back(self, blanks_as_null):
+        offering = self.fixture.offering
+        offering.customer = self.customer
+        offering.category = self.category
+        offering.save()
+        offering.add_user(self.user, OfferingRole.MANAGER)
+        component = factories.OfferingComponentFactory(
+            offering=offering,
+            type="max_k8s_node_count",
+            name="Maximal number of user K8s nodes",
+            measured_unit="",
+        )
+        plan = factories.PlanFactory(offering=offering, name="Roundtrip Plan")
+        factories.PlanComponentFactory(plan=plan, component=component)
+
+        export_response = self.client.post(
+            factories.OfferingFactory.get_url(offering, "export_offering"), {}
+        )
+        self.assertEqual(export_response.status_code, status.HTTP_200_OK)
+        export_data = export_response.data["export_data"]
+        exported_component = next(
+            c for c in export_data["components"] if c["type"] == component.type
+        )
+        self.assertEqual(exported_component["measured_unit"], "")
+        if blanks_as_null:
+            export_data = _replace_blank_with_null(export_data)
+        export_data["offering"]["name"] = "Imported Roundtrip"
+
+        response = self._import(export_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        imported = models.OfferingComponent.objects.get(
+            offering__name="Imported Roundtrip", type=component.type
+        )
+        self.assertEqual(imported.measured_unit, "")
+        self.assertEqual(imported.name, "Maximal number of user K8s nodes")
+        imported_plan = models.Plan.objects.get(
+            offering__name="Imported Roundtrip", name="Roundtrip Plan"
+        )
+        self.assertTrue(imported_plan.components.filter(component=imported).exists())

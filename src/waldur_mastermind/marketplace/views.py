@@ -2493,6 +2493,135 @@ def validate_offering_username_generation_policy(offering):
         )
 
 
+# Model fields that the offering import copies from the imported data.
+OFFERING_IMPORT_FIELDS = (
+    "name",
+    "description",
+    "full_description",
+    "vendor_details",
+    "getting_started",
+    "integration_guide",
+    "type",
+    "shared",
+    "billable",
+    "country",
+    "latitude",
+    "longitude",
+    "access_url",
+    "paused_reason",
+)
+COMPONENT_IMPORT_FIELDS = (
+    "name",
+    "description",
+    "billing_type",
+    "measured_unit",
+    "unit_factor",
+    "limit_period",
+    "limit_amount",
+    "article_code",
+    "backend_id",
+)
+PLAN_IMPORT_FIELDS = (
+    "description",
+    "unit_price",
+    "unit",
+    "archived",
+    "max_amount",
+    "article_code",
+    "backend_id",
+)
+PLAN_COMPONENT_IMPORT_FIELDS = ("amount", "price", "future_price")
+TERMS_OF_SERVICE_IMPORT_FIELDS = (
+    "terms_of_service",
+    "terms_of_service_link",
+    "version",
+    "is_active",
+    "requires_reconsent",
+    "grace_period_days",
+)
+
+
+def _import_error(path, message):
+    return rf_exceptions.ValidationError({path: [message]})
+
+
+def _import_mapping(value, path):
+    """Return an imported mapping; a missing or null one is empty."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise _import_error(path, "Expected a mapping.")
+    return value
+
+
+def _import_list(data, key, path=None):
+    """Return the list of mappings stored under key.
+
+    A null section is treated as an absent one: it imports nothing, the same
+    way a null value is treated as an absent value everywhere else here.
+    """
+    path = path or key
+    items = data.get(key)
+    if items is None:
+        return []
+    if not isinstance(items, list):
+        raise _import_error(path, "Expected a list.")
+    for index, item in enumerate(items):
+        _import_mapping(item, f"{path}[{index}]")
+    return [item or {} for item in items]
+
+
+def _import_value(field, value, path):
+    """Convert one imported value to the Python type of a model field.
+
+    Raises a 400 naming the field instead of letting the database reject it.
+    """
+    if isinstance(value, dict | list):
+        raise _import_error(path, "Expected a single value.")
+    try:
+        value = field.to_python(value)
+        if value not in field.empty_values:
+            if field.choices and value not in {
+                choice for choice, _label in field.flatchoices
+            }:
+                raise DjangoValidationError(
+                    f"'{value}' is not a valid choice.", code="invalid_choice"
+                )
+            field.run_validators(value)
+    except DjangoValidationError as e:
+        raise rf_exceptions.ValidationError({path: e.messages})
+    return value
+
+
+def _import_fields(model, data, field_names, path):
+    """Return the imported values of field_names that should be written.
+
+    A missing key, or null for a column that cannot hold null, is left out, so
+    the object keeps its current value on update and its model default on
+    create. A nullable column takes null as a value.
+    """
+    values = {}
+    for name in field_names:
+        if name not in data:
+            continue
+        field = model._meta.get_field(name)
+        value = data[name]
+        if value is None:
+            if field.null:
+                values[name] = None
+            continue
+        values[name] = _import_value(field, value, f"{path}.{name}")
+    return values
+
+
+def _import_lookup(model, data, key, path):
+    """Return the required, non-empty value that identifies an imported object."""
+    value = data.get(key)
+    if value is None or value == "":
+        raise _import_error(f"{path}.{key}", "This field is required.")
+    return _import_value(model._meta.get_field(key), value, f"{path}.{key}")
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List provider offerings",
@@ -5769,8 +5898,12 @@ class ProviderOfferingViewSet(
         except yaml.YAMLError as e:
             raise rf_exceptions.ValidationError(f"Invalid YAML data: {str(e)}")
 
+        if not isinstance(import_data, dict):
+            raise _import_error("offering_data", "Expected a mapping.")
+
         warnings = []
 
+        # Any validation error below rolls back everything imported so far.
         with transaction.atomic():
             # Create or update offering
             offering, created, offering_warnings = self._import_offering_data(
@@ -5782,38 +5915,37 @@ class ProviderOfferingViewSet(
             imported_components = []
 
             if params.get("import_components", True) and "components" in import_data:
+                components_data = _import_list(import_data, "components")
                 component_warnings = self._import_offering_components(
-                    offering, import_data["components"]
+                    offering, components_data
                 )
                 warnings.extend(component_warnings)
-                imported_components.extend(
-                    [c["type"] for c in import_data["components"]]
-                )
+                imported_components.extend([str(c["type"]) for c in components_data])
 
             if params.get("import_plans", True) and "plans" in import_data:
                 plan_warnings = self._import_offering_plans(
-                    offering, import_data["plans"]
+                    offering, _import_list(import_data, "plans")
                 )
                 warnings.extend(plan_warnings)
                 imported_components.append("plans")
 
             if params.get("import_screenshots", True) and "screenshots" in import_data:
                 screenshot_warnings = self._import_offering_screenshots(
-                    offering, import_data["screenshots"]
+                    offering, _import_list(import_data, "screenshots")
                 )
                 warnings.extend(screenshot_warnings)
                 imported_components.append("screenshots")
 
             if params.get("import_files", True) and "files" in import_data:
                 file_warnings = self._import_offering_files(
-                    offering, import_data["files"]
+                    offering, _import_list(import_data, "files")
                 )
                 warnings.extend(file_warnings)
                 imported_components.append("files")
 
             if params.get("import_endpoints", True) and "endpoints" in import_data:
                 endpoint_warnings = self._import_offering_endpoints(
-                    offering, import_data["endpoints"]
+                    offering, _import_list(import_data, "endpoints")
                 )
                 warnings.extend(endpoint_warnings)
                 imported_components.append("endpoints")
@@ -5823,7 +5955,7 @@ class ProviderOfferingViewSet(
                 and "organization_groups" in import_data
             ):
                 group_warnings = self._import_organization_groups(
-                    offering, import_data["organization_groups"]
+                    offering, _import_list(import_data, "organization_groups")
                 )
                 warnings.extend(group_warnings)
                 imported_components.append("organization_groups")
@@ -5833,7 +5965,7 @@ class ProviderOfferingViewSet(
                 and "terms_of_service" in import_data
             ):
                 terms_warnings = self._import_terms_of_service(
-                    offering, import_data["terms_of_service"]
+                    offering, _import_list(import_data, "terms_of_service")
                 )
                 warnings.extend(terms_warnings)
                 imported_components.append("terms_of_service")
@@ -5853,7 +5985,15 @@ class ProviderOfferingViewSet(
 
     def _import_offering_data(self, import_data, params, user):
         """Import core offering data."""
-        offering_data = import_data.get("offering", {})
+        offering_data = _import_mapping(import_data.get("offering"), "offering")
+        offering_values = _import_fields(
+            models.Offering, offering_data, OFFERING_IMPORT_FIELDS, "offering"
+        )
+        # The name identifies the offering, both for the user and for the
+        # lookup of the offering an overwriting import updates.
+        offering_values["name"] = _import_lookup(
+            models.Offering, offering_data, "name", "offering"
+        )
         warnings = []
         created = False
 
@@ -5900,13 +6040,10 @@ class ProviderOfferingViewSet(
             raise rf_exceptions.ValidationError("No target category specified or found")
 
         # Check if offering exists
-        offering_name = offering_data.get("name")
-        existing_offering = None
-
-        if offering_name:
-            existing_offering = models.Offering.objects.filter(
-                name=offering_name, customer=customer
-            ).first()
+        offering_name = offering_values["name"]
+        existing_offering = models.Offering.objects.filter(
+            name=offering_name, customer=customer
+        ).first()
 
         if existing_offering:
             if not params.get("overwrite_existing", False):
@@ -5919,30 +6056,8 @@ class ProviderOfferingViewSet(
             created = True
 
         # Update offering fields
-        offering.name = offering_data.get("name", offering.name)
-        offering.description = offering_data.get("description", offering.description)
-        offering.full_description = offering_data.get(
-            "full_description", offering.full_description
-        )
-        offering.vendor_details = offering_data.get(
-            "vendor_details", offering.vendor_details
-        )
-        offering.getting_started = offering_data.get(
-            "getting_started", offering.getting_started
-        )
-        offering.integration_guide = offering_data.get(
-            "integration_guide", offering.integration_guide
-        )
-        offering.type = offering_data.get("type", offering.type)
-        offering.shared = offering_data.get("shared", offering.shared)
-        offering.billable = offering_data.get("billable", offering.billable)
-        offering.country = offering_data.get("country", offering.country)
-        offering.latitude = offering_data.get("latitude", offering.latitude)
-        offering.longitude = offering_data.get("longitude", offering.longitude)
-        offering.access_url = offering_data.get("access_url", offering.access_url)
-        offering.paused_reason = offering_data.get(
-            "paused_reason", offering.paused_reason
-        )
+        for name, value in offering_values.items():
+            setattr(offering, name, value)
 
         # Always set imported offerings to DRAFT state for security
         # Users must use proper state transition actions (activate, pause, etc.) after import
@@ -5956,25 +6071,26 @@ class ProviderOfferingViewSet(
         # Update JSON fields based on import parameters
         # Note: plugin_options, secret_options, and resource_options are exported
         # at the import_data level (sibling to "offering"), not inside offering_data
+        # A null JSON section keeps the current value: the columns are not nullable.
         if (
             params.get("import_plugin_options", True)
-            and "plugin_options" in import_data
+            and import_data.get("plugin_options") is not None
         ):
             offering.plugin_options = import_data["plugin_options"]
 
         if (
             params.get("import_secret_options", False)
-            and "secret_options" in import_data
+            and import_data.get("secret_options") is not None
         ):
             offering.secret_options = import_data["secret_options"]
 
-        if "attributes" in offering_data:
+        if offering_data.get("attributes") is not None:
             offering.attributes = offering_data["attributes"]
 
-        if "options" in offering_data:
+        if offering_data.get("options") is not None:
             offering.options = offering_data["options"]
 
-        if "resource_options" in import_data:
+        if import_data.get("resource_options") is not None:
             offering.resource_options = import_data["resource_options"]
 
         offering.save()
@@ -5984,51 +6100,27 @@ class ProviderOfferingViewSet(
         """Import offering components."""
         warnings = []
 
-        for component_data in components_data:
+        for index, component_data in enumerate(components_data):
+            path = f"components[{index}]"
+            component_type = _import_lookup(
+                models.OfferingComponent, component_data, "type", path
+            )
+            values = _import_fields(
+                models.OfferingComponent,
+                component_data,
+                COMPONENT_IMPORT_FIELDS,
+                path,
+            )
             component, created = models.OfferingComponent.objects.get_or_create(
                 offering=offering,
-                type=component_data["type"],
-                defaults={
-                    "name": component_data.get("name", ""),
-                    "description": component_data.get("description", ""),
-                    "billing_type": component_data.get("billing_type", ""),
-                    "measured_unit": component_data.get("measured_unit", ""),
-                    "unit_factor": component_data.get("unit_factor", 1),
-                    "limit_period": component_data.get("limit_period")
-                    or LimitPeriods.MONTH,
-                    "limit_amount": component_data.get("limit_amount"),
-                    "article_code": component_data.get("article_code", ""),
-                    "backend_id": component_data.get("backend_id", ""),
-                },
+                type=component_type,
+                defaults=values,
             )
 
             if not created:
                 # Update existing component
-                component.name = component_data.get("name", component.name)
-                component.description = component_data.get(
-                    "description", component.description
-                )
-                component.billing_type = component_data.get(
-                    "billing_type", component.billing_type
-                )
-                component.measured_unit = component_data.get(
-                    "measured_unit", component.measured_unit
-                )
-                component.unit_factor = component_data.get(
-                    "unit_factor", component.unit_factor
-                )
-                component.limit_period = component_data.get(
-                    "limit_period", component.limit_period
-                )
-                component.limit_amount = component_data.get(
-                    "limit_amount", component.limit_amount
-                )
-                component.article_code = component_data.get(
-                    "article_code", component.article_code
-                )
-                component.backend_id = component_data.get(
-                    "backend_id", component.backend_id
-                )
+                for name, value in values.items():
+                    setattr(component, name, value)
                 component.save()
 
         return warnings
@@ -6037,66 +6129,61 @@ class ProviderOfferingViewSet(
         """Import offering plans."""
         warnings = []
 
-        for plan_data in plans_data:
+        for index, plan_data in enumerate(plans_data):
+            path = f"plans[{index}]"
+            plan_name = _import_lookup(models.Plan, plan_data, "name", path)
+            values = _import_fields(models.Plan, plan_data, PLAN_IMPORT_FIELDS, path)
             plan, created = models.Plan.objects.get_or_create(
                 offering=offering,
-                name=plan_data["name"],
-                defaults={
-                    "description": plan_data.get("description", ""),
-                    "unit_price": plan_data.get("unit_price", 0),
-                    "unit": plan_data.get("unit", ""),
-                    "archived": plan_data.get("archived", False),
-                    "max_amount": plan_data.get("max_amount"),
-                    "article_code": plan_data.get("article_code", ""),
-                    "backend_id": plan_data.get("backend_id", ""),
-                },
+                name=plan_name,
+                defaults=values,
             )
 
             if not created:
                 # Update existing plan
-                plan.description = plan_data.get("description", plan.description)
-                plan.unit_price = plan_data.get("unit_price", plan.unit_price)
-                plan.unit = plan_data.get("unit", plan.unit)
-                plan.archived = plan_data.get("archived", plan.archived)
-                plan.max_amount = plan_data.get("max_amount", plan.max_amount)
-                plan.article_code = plan_data.get("article_code", plan.article_code)
-                plan.backend_id = plan_data.get("backend_id", plan.backend_id)
+                for name, value in values.items():
+                    setattr(plan, name, value)
                 plan.save()
 
             # Import plan components
-            for component_data in plan_data.get("components", []):
+            components_path = f"{path}.components"
+            plan_components_data = _import_list(
+                plan_data, "components", components_path
+            )
+            for component_index, component_data in enumerate(plan_components_data):
+                component_path = f"{components_path}[{component_index}]"
                 component_type = component_data.get("component_type")
-                if component_type:
-                    try:
-                        component = offering.components.get(type=component_type)
-                        plan_component, created = (
-                            models.PlanComponent.objects.get_or_create(
-                                plan=plan,
-                                component=component,
-                                defaults={
-                                    "amount": component_data.get("amount", 0),
-                                    "price": component_data.get("price", 0),
-                                    "future_price": component_data.get("future_price"),
-                                },
-                            )
-                        )
+                if component_type is None or component_type == "":
+                    continue
+                component_type = _import_value(
+                    models.OfferingComponent._meta.get_field("type"),
+                    component_type,
+                    f"{component_path}.component_type",
+                )
+                component_values = _import_fields(
+                    models.PlanComponent,
+                    component_data,
+                    PLAN_COMPONENT_IMPORT_FIELDS,
+                    component_path,
+                )
+                try:
+                    component = offering.components.get(type=component_type)
+                except models.OfferingComponent.DoesNotExist:
+                    warnings.append(
+                        f"Component type '{component_type}' not found for plan '{plan.name}'"
+                    )
+                    continue
 
-                        if not created:
-                            plan_component.amount = component_data.get(
-                                "amount", plan_component.amount
-                            )
-                            plan_component.price = component_data.get(
-                                "price", plan_component.price
-                            )
-                            plan_component.future_price = component_data.get(
-                                "future_price", plan_component.future_price
-                            )
-                            plan_component.save()
+                plan_component, created = models.PlanComponent.objects.get_or_create(
+                    plan=plan,
+                    component=component,
+                    defaults=component_values,
+                )
 
-                    except models.OfferingComponent.DoesNotExist:
-                        warnings.append(
-                            f"Component type '{component_type}' not found for plan '{plan.name}'"
-                        )
+                if not created:
+                    for name, value in component_values.items():
+                        setattr(plan_component, name, value)
+                    plan_component.save()
 
         return warnings
 
@@ -6104,26 +6191,32 @@ class ProviderOfferingViewSet(
         """Import offering screenshots."""
         warnings = []
 
-        for screenshot_data in screenshots_data:
-            screenshot_name = screenshot_data.get("name", "")
+        for index, screenshot_data in enumerate(screenshots_data):
+            path = f"screenshots[{index}]"
+            # The name identifies the screenshot within the offering.
+            screenshot_name = _import_lookup(
+                models.Screenshot, screenshot_data, "name", path
+            )
+            values = _import_fields(
+                models.Screenshot, screenshot_data, ("description",), path
+            )
+            description = values.get("description", "")
 
             # Check if we have base64 content to import
-            if "image_content" in screenshot_data:
+            if screenshot_data.get("image_content"):
                 try:
                     # Decode base64 content
                     image_content = base64.b64decode(screenshot_data["image_content"])
-                    filename = screenshot_data.get(
-                        "image_filename", f"{screenshot_name}.png"
+                    filename = (
+                        screenshot_data.get("image_filename")
+                        or f"{screenshot_name}.png"
                     )
-                    screenshot_data.get("content_type", "image/png")
 
                     # Create screenshot with content
                     screenshot, created = models.Screenshot.objects.get_or_create(
                         offering=offering,
                         name=screenshot_name,
-                        defaults={
-                            "description": screenshot_data.get("description", ""),
-                        },
+                        defaults={"description": description},
                     )
 
                     # Save the image content
@@ -6131,10 +6224,8 @@ class ProviderOfferingViewSet(
                         filename, ContentFile(image_content), save=True
                     )
 
-                    if not created:
-                        screenshot.description = screenshot_data.get(
-                            "description", screenshot.description
-                        )
+                    if not created and "description" in values:
+                        screenshot.description = description
                         screenshot.save()
 
                 except Exception as e:
@@ -6146,14 +6237,10 @@ class ProviderOfferingViewSet(
                 screenshot, created = models.Screenshot.objects.get_or_create(
                     offering=offering,
                     name=screenshot_name,
-                    defaults={
-                        "description": screenshot_data.get("description", ""),
-                    },
+                    defaults={"description": description},
                 )
-                if not created:
-                    screenshot.description = screenshot_data.get(
-                        "description", screenshot.description
-                    )
+                if not created and "description" in values:
+                    screenshot.description = description
                     screenshot.save()
 
                 if "image_url" in screenshot_data:
@@ -6167,16 +6254,18 @@ class ProviderOfferingViewSet(
         """Import offering files."""
         warnings = []
 
-        for file_data in files_data:
-            file_name = file_data.get("name", "")
+        for index, file_data in enumerate(files_data):
+            # The name identifies the file within the offering.
+            file_name = _import_lookup(
+                models.OfferingFile, file_data, "name", f"files[{index}]"
+            )
 
             # Check if we have base64 content to import
-            if "file_content" in file_data:
+            if file_data.get("file_content"):
                 try:
                     # Decode base64 content
                     content = base64.b64decode(file_data["file_content"])
-                    filename = file_data.get("filename", file_name)
-                    file_data.get("content_type", "application/octet-stream")
+                    filename = file_data.get("filename") or file_name
 
                     # Create or update file with content
                     offering_file, created = models.OfferingFile.objects.get_or_create(
@@ -6205,17 +6294,22 @@ class ProviderOfferingViewSet(
         """Import offering access endpoints."""
         warnings = []
 
-        for endpoint_data in endpoints_data:
+        for index, endpoint_data in enumerate(endpoints_data):
+            path = f"endpoints[{index}]"
+            endpoint_name = _import_lookup(
+                models.OfferingAccessEndpoint, endpoint_data, "name", path
+            )
+            values = _import_fields(
+                models.OfferingAccessEndpoint, endpoint_data, ("url",), path
+            )
             endpoint, created = models.OfferingAccessEndpoint.objects.get_or_create(
                 offering=offering,
-                name=endpoint_data["name"],
-                defaults={
-                    "url": endpoint_data.get("url", ""),
-                },
+                name=endpoint_name,
+                defaults=values,
             )
 
-            if not created:
-                endpoint.url = endpoint_data.get("url", endpoint.url)
+            if not created and "url" in values:
+                endpoint.url = values["url"]
                 endpoint.save()
 
         return warnings
@@ -6224,18 +6318,21 @@ class ProviderOfferingViewSet(
         """Import organization groups associations."""
         warnings = []
 
-        for group_data in groups_data:
-            group_name = group_data.get("name")
-            if group_name:
-                try:
-                    group = structure_models.OrganizationGroup.objects.get(
-                        name=group_name
-                    )
-                    offering.organization_groups.add(group)
-                except structure_models.OrganizationGroup.DoesNotExist:
-                    warnings.append(
-                        f"Organization group with name '{group_name}' not found"
-                    )
+        for index, group_data in enumerate(groups_data):
+            # A group is referenced by name, so an entry without one is unusable.
+            group_name = _import_lookup(
+                structure_models.OrganizationGroup,
+                group_data,
+                "name",
+                f"organization_groups[{index}]",
+            )
+            try:
+                group = structure_models.OrganizationGroup.objects.get(name=group_name)
+                offering.organization_groups.add(group)
+            except structure_models.OrganizationGroup.DoesNotExist:
+                warnings.append(
+                    f"Organization group with name '{group_name}' not found"
+                )
 
         return warnings
 
@@ -6243,23 +6340,20 @@ class ProviderOfferingViewSet(
         """Import terms of service configurations."""
         warnings = []
 
-        for terms_config_data in terms_data:
+        for index, terms_config_data in enumerate(terms_data):
+            values = _import_fields(
+                models.OfferingTermsOfService,
+                terms_config_data,
+                TERMS_OF_SERVICE_IMPORT_FIELDS,
+                f"terms_of_service[{index}]",
+            )
             # Deactivate existing active terms if we're importing a new active one
-            if terms_config_data.get("is_active", False):
+            if values.get("is_active", False):
                 offering.terms_of_service_configs.filter(is_active=True).update(
                     is_active=False
                 )
 
-            models.OfferingTermsOfService.objects.create(
-                offering=offering,
-                terms_of_service=terms_config_data.get("terms_of_service", ""),
-                terms_of_service_link=terms_config_data.get("terms_of_service_link", "")
-                or "",
-                version=terms_config_data.get("version", ""),
-                is_active=terms_config_data.get("is_active", False),
-                requires_reconsent=terms_config_data.get("requires_reconsent", False),
-                grace_period_days=terms_config_data.get("grace_period_days", 60),
-            )
+            models.OfferingTermsOfService.objects.create(offering=offering, **values)
 
         return warnings
 
