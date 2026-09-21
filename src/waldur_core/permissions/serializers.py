@@ -151,6 +151,9 @@ class RoleModifySerializer(RoleDetailsSerializer):
 
     @staticmethod
     def _is_org_scoped(role: models.Role) -> bool:
+        # Deliberately an availability EXISTS rather than a lookup of the owning
+        # Customer: a scope row is a generic FK and is not cascaded when the
+        # organization is hard-deleted, and an orphaned clone must stay guarded.
         customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
         return role.availability.filter(content_type=customer_ct).exists()
 

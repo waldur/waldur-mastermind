@@ -1,13 +1,19 @@
 from unittest import mock
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework import test
+from rest_framework import status, test
+from rest_framework.reverse import reverse
 
-from waldur_core.logging.enums import EventType
-from waldur_core.permissions import tasks, utils
+from waldur_core.logging import models as logging_models
+from waldur_core.logging.enums import EVENT_GROUP_MAPPING, EventType
+from waldur_core.permissions import models, tasks, utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.serializers import clone_role_for_customer
+from waldur_core.permissions.tests import factories as permission_factories
+from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -328,3 +334,364 @@ class RoleLogReasonTest(TestCase):
         event_context = call_args[1]["event_context"]
         self.assertEqual(event_context["reason"], "System maintenance")
         self.assertEqual(event_context["initiated_by"], "System")
+
+
+ROLE_ENDPOINT = "/api/roles/"
+
+
+class RoleDefinitionEventTest(test.APITestCase):
+    """Changes to what a role *means* must reach the audit feed.
+
+    These assert on the persisted ``Event`` rows rather than on a mocked
+    ``emit``: the message templates are formatted against the compiled context,
+    so a placeholder that is not in the context only fails once the event is
+    really emitted.
+    """
+
+    def setUp(self):
+        self.staff = factories.UserFactory(is_staff=True)
+        self.customer = factories.CustomerFactory()
+        self.client.force_authenticate(self.staff)
+
+    def get_events(self, event_type):
+        return list(
+            logging_models.Event.objects.filter(event_type=event_type).order_by("id")
+        )
+
+    def get_feed_scopes(self, event):
+        return [feed.scope for feed in logging_models.Feed.objects.filter(event=event)]
+
+    def create_role(self, name="CUSTOMER.AUDITED", permissions=None):
+        response = self.client.post(
+            ROLE_ENDPOINT,
+            {
+                "name": name,
+                "content_type": "customer",
+                "permissions": permissions or [PermissionEnum.UPDATE_OFFERING.value],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        return models.Role.objects.get(uuid=response.data["uuid"])
+
+    def test_role_creation_is_logged(self):
+        role = self.create_role()
+
+        events = self.get_events(EventType.ROLE_DEFINITION_CREATED)
+        self.assertEqual(len(events), 1)
+        self.assertIn(role.name, events[0].message)
+        self.assertEqual(
+            events[0].context["permissions"], [PermissionEnum.UPDATE_OFFERING.value]
+        )
+        self.assertIn(self.staff.username, events[0].context["initiated_by"])
+        self.assertFalse(events[0].context["is_system_role"])
+
+    def test_role_update_records_the_permission_delta(self):
+        role = self.create_role()
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(role),
+            {
+                "name": role.name,
+                "content_type": "customer",
+                "permissions": [PermissionEnum.APPROVE_ORDER.value],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        events = self.get_events(EventType.ROLE_DEFINITION_UPDATED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0].context["added_permissions"],
+            [PermissionEnum.APPROVE_ORDER.value],
+        )
+        self.assertEqual(
+            events[0].context["removed_permissions"],
+            [PermissionEnum.UPDATE_OFFERING.value],
+        )
+
+    def test_rename_is_recorded_with_the_previous_name(self):
+        role = self.create_role()
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(role),
+            {
+                "name": "CUSTOMER.RENAMED",
+                "content_type": "customer",
+                "permissions": [PermissionEnum.UPDATE_OFFERING.value],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        events = self.get_events(EventType.ROLE_DEFINITION_UPDATED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].context["old_name"], "CUSTOMER.AUDITED")
+        self.assertEqual(events[0].context["role_name"], "CUSTOMER.RENAMED")
+
+    def test_resubmitting_the_same_definition_is_not_an_event(self):
+        role = self.create_role()
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(role),
+            {
+                "name": role.name,
+                "content_type": "customer",
+                "permissions": [PermissionEnum.UPDATE_OFFERING.value],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.get_events(EventType.ROLE_DEFINITION_UPDATED), [])
+
+    def test_description_update_is_logged(self):
+        role = self.create_role()
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(role, "update_descriptions"),
+            {"description_en": "Audited role"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        events = self.get_events(EventType.ROLE_DEFINITION_UPDATED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0].context["new_descriptions"]["description_en"], "Audited role"
+        )
+
+    def test_role_deletion_is_logged(self):
+        role = self.create_role()
+        role_name = role.name
+
+        response = self.client.delete(permission_factories.RoleFactory.get_url(role))
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+
+        events = self.get_events(EventType.ROLE_DEFINITION_DELETED)
+        self.assertEqual(len(events), 1)
+        self.assertIn(role_name, events[0].message)
+        self.assertEqual(
+            events[0].context["permissions"], [PermissionEnum.UPDATE_OFFERING.value]
+        )
+
+    def test_disable_and_enable_are_logged_once_each(self):
+        role = self.create_role()
+        disable_url = permission_factories.RoleFactory.get_url(role, "disable")
+        enable_url = permission_factories.RoleFactory.get_url(role, "enable")
+
+        self.client.post(disable_url)
+        # A repeated call is a no-op and must not add a second event.
+        self.client.post(disable_url)
+        self.client.post(enable_url)
+
+        self.assertEqual(len(self.get_events(EventType.ROLE_DISABLED)), 1)
+        self.assertEqual(len(self.get_events(EventType.ROLE_ENABLED)), 1)
+
+    def test_clone_is_filed_in_the_organization_feed(self):
+        response = self.client.post(
+            permission_factories.RoleFactory.get_url(
+                CustomerRole.OWNER, "clone_to_customer"
+            ),
+            {"customer": self.customer.uuid.hex, "conceal_template": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        events = self.get_events(EventType.ROLE_CLONED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].context["template_name"], CustomerRole.OWNER.name)
+        self.assertEqual(self.get_feed_scopes(events[0]), [self.customer])
+
+        # Concealing the template is part of the same request, and it is logged
+        # by the model handler rather than by the viewset.
+        concealed = self.get_events(EventType.ROLE_CONCEALED)
+        self.assertEqual(len(concealed), 1)
+        self.assertEqual(self.get_feed_scopes(concealed[0]), [self.customer])
+
+    def test_conceal_and_reveal_are_logged(self):
+        list_url = reverse("customer-role-concealment-list")
+        response = self.client.post(
+            list_url,
+            {
+                "role": ProjectRole.MEMBER.uuid.hex,
+                "customer": self.customer.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        concealed = self.get_events(EventType.ROLE_CONCEALED)
+        self.assertEqual(len(concealed), 1)
+        self.assertEqual(concealed[0].context["role_name"], ProjectRole.MEMBER.name)
+        self.assertEqual(self.get_feed_scopes(concealed[0]), [self.customer])
+
+        detail_url = reverse(
+            "customer-role-concealment-detail",
+            kwargs={"uuid": response.data["uuid"]},
+        )
+        delete = self.client.delete(detail_url)
+        self.assertEqual(delete.status_code, status.HTTP_204_NO_CONTENT)
+
+        revealed = self.get_events(EventType.ROLE_REVEALED)
+        self.assertEqual(len(revealed), 1)
+        self.assertEqual(self.get_feed_scopes(revealed[0]), [self.customer])
+
+    def test_editing_an_organization_role_reaches_that_organization_feed(self):
+        clone = clone_role_for_customer(
+            CustomerRole.OWNER, self.customer, conceal_template=False
+        )
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(clone),
+            {
+                "name": clone.name,
+                "content_type": "customer",
+                "permissions": [PermissionEnum.APPROVE_ORDER.value],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        events = self.get_events(EventType.ROLE_DEFINITION_UPDATED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(self.get_feed_scopes(events[0]), [self.customer])
+
+    def test_deployment_wide_role_event_has_no_feed(self):
+        role = self.create_role()
+
+        events = self.get_events(EventType.ROLE_DEFINITION_CREATED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(self.get_feed_scopes(events[0]), [])
+        self.assertNotIn("customer_uuid", events[0].context)
+        self.assertEqual(role.name, events[0].context["role_name"])
+
+    def test_scope_change_through_update_is_logged(self):
+        # content_type is writable on the update endpoint, so a role can change
+        # scope without going through any dedicated action.
+        role = self.create_role()
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(role),
+            {
+                "name": role.name,
+                "content_type": "project",
+                "permissions": [PermissionEnum.UPDATE_OFFERING.value],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        events = self.get_events(EventType.ROLE_DEFINITION_UPDATED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].context["old_content_type"], "customer")
+        self.assertEqual(events[0].context["new_content_type"], "project")
+
+    def test_disabling_through_update_is_logged_like_the_action(self):
+        # is_active is writable here too; it must not be a way to disable a role
+        # without the event the disable action emits.
+        role = self.create_role()
+
+        response = self.client.put(
+            permission_factories.RoleFactory.get_url(role),
+            {
+                "name": role.name,
+                "content_type": "customer",
+                "permissions": [PermissionEnum.UPDATE_OFFERING.value],
+                "is_active": False,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        role.refresh_from_db()
+        self.assertFalse(role.is_active)
+
+        events = self.get_events(EventType.ROLE_DISABLED)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].context["role_name"], role.name)
+
+    def test_deleting_a_concealed_role_does_not_claim_it_was_revealed(self):
+        role = self.create_role()
+        models.CustomerRoleConcealment.objects.create(
+            role=role,
+            content_type=ContentType.objects.get_for_model(Customer),
+            object_id=self.customer.id,
+        )
+        self.assertEqual(len(self.get_events(EventType.ROLE_CONCEALED)), 1)
+
+        response = self.client.delete(permission_factories.RoleFactory.get_url(role))
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+
+        # The concealment is cascade-deleted, but the organization is not
+        # getting the role back — it no longer exists.
+        self.assertEqual(self.get_events(EventType.ROLE_REVEALED), [])
+        self.assertEqual(len(self.get_events(EventType.ROLE_DEFINITION_DELETED)), 1)
+
+    def test_deleting_a_role_through_a_queryset_does_not_claim_it_was_revealed(self):
+        # Same cascade as deleting the role instance, but the deletion starts
+        # from a queryset, so the guard has to recognise that origin too.
+        role = self.create_role()
+        models.CustomerRoleConcealment.objects.create(
+            role=role,
+            content_type=ContentType.objects.get_for_model(Customer),
+            object_id=self.customer.id,
+        )
+
+        models.Role.objects.filter(pk=role.pk).delete()
+
+        self.assertEqual(self.get_events(EventType.ROLE_REVEALED), [])
+
+    def test_deleting_a_concealment_through_a_queryset_is_logged(self):
+        # The guard must not over-suppress: a concealment deleted on its own is
+        # a reveal whether the caller holds the instance or a queryset.
+        role = self.create_role()
+        models.CustomerRoleConcealment.objects.create(
+            role=role,
+            content_type=ContentType.objects.get_for_model(Customer),
+            object_id=self.customer.id,
+        )
+
+        models.CustomerRoleConcealment.objects.filter(role=role).delete()
+
+        revealed = self.get_events(EventType.ROLE_REVEALED)
+        self.assertEqual(len(revealed), 1)
+        self.assertEqual(self.get_feed_scopes(revealed[0]), [self.customer])
+
+    def test_concealment_with_a_dangling_scope_is_not_logged(self):
+        # The scope is a generic FK, so hard-deleting the organization leaves
+        # the concealment behind. Such a row has no organization to name in the
+        # message, and neither end of its lifecycle may blow up on that.
+        role = self.create_role()
+        orphan_id = (Customer.objects.order_by("-id").first().id) + 1000
+
+        concealment = models.CustomerRoleConcealment.objects.create(
+            role=role,
+            content_type=ContentType.objects.get_for_model(Customer),
+            object_id=orphan_id,
+        )
+        self.assertEqual(self.get_events(EventType.ROLE_CONCEALED), [])
+
+        concealment.delete()
+        self.assertEqual(self.get_events(EventType.ROLE_REVEALED), [])
+
+    def test_definition_changes_do_not_reuse_the_assignment_event_type(self):
+        # ROLE_UPDATED means "an assignment's expiry changed"; reusing it for a
+        # definition change would silently alter what existing audit queries and
+        # hooks match.
+        role = self.create_role()
+        self.client.put(
+            permission_factories.RoleFactory.get_url(role),
+            {
+                "name": role.name,
+                "content_type": "customer",
+                "permissions": [PermissionEnum.APPROVE_ORDER.value],
+            },
+        )
+        self.client.post(permission_factories.RoleFactory.get_url(role, "disable"))
+
+        self.assertEqual(self.get_events(EventType.ROLE_UPDATED), [])
+
+
+class RoleEventGroupTest(TestCase):
+    def test_every_role_event_belongs_to_the_permissions_group(self):
+        grouped = {event for events in EVENT_GROUP_MAPPING.values() for event in events}
+        orphans = sorted(
+            event.value
+            for event in EventType
+            if event.value.startswith("role_") and event not in grouped
+        )
+        self.assertEqual(orphans, [])

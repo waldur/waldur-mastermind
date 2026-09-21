@@ -785,6 +785,25 @@ def get_customer(scope):
         return scope.customer
 
 
+def get_role_customers(role) -> list:
+    """Organizations the role is bound to through :class:`RoleAvailability`.
+
+    A deployment-wide role has no binding and yields an empty list; an
+    organization-private role (a clone) yields exactly its owning organization.
+    The content type is resolved through ``TYPE_MAP`` so the permissions app
+    stays independent of ``structure``.
+    """
+    customer_ct = ContentType.objects.get_by_natural_key(*enums.TYPE_MAP["customer"])
+    customer_ids = list(
+        models.RoleAvailability.objects.filter(
+            role=role, content_type=customer_ct
+        ).values_list("object_id", flat=True)
+    )
+    if not customer_ids:
+        return []
+    return list(customer_ct.model_class().objects.filter(id__in=customer_ids))
+
+
 def get_valid_content_types():
     return [
         ContentType.objects.get_by_natural_key(*pair)

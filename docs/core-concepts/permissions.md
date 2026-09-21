@@ -490,7 +490,13 @@ class MyViewSet(viewsets.ModelViewSet):
 
 ### 5. Audit Role Changes
 
-Role changes are automatically logged via signals (`role_granted`, `role_updated`, `role_revoked`) with enhanced context including initiator and reason. Always pass `current_user` and optional `reason` for clear audit trails:
+Two different things are audited, with two different families of event types:
+changes to role **assignments** (who holds which role) and changes to a role
+**definition** (what the role means).
+
+#### Role assignments
+
+Assignment changes are automatically logged via signals (`role_granted`, `role_updated`, `role_revoked`) with enhanced context including initiator and reason. Always pass `current_user` and optional `reason` for clear audit trails:
 
 ```python
 # Basic usage - uses default reasons
@@ -524,6 +530,41 @@ The system automatically assigns these reasons when not explicitly provided:
 | Project deletion | `"Project deletion cascade"` |
 | Role expiration detection | `"Automatic expiration"` |
 | System operations without `current_user` | `"System-initiated [operation]"` |
+
+#### Role definitions
+
+Editing what a role means is a separate audit trail, emitted from
+`RoleViewSet` and from the `CustomerRoleConcealment` model handlers:
+
+| Event type | Emitted when |
+|---|---|
+| `role_definition_created` | a role is created |
+| `role_definition_updated` | its permission set, name or description changes |
+| `role_definition_deleted` | a role is deleted |
+| `role_enabled` / `role_disabled` | it is made (un)available for new grants |
+| `role_cloned` | it is copied into an organization |
+| `role_concealed` / `role_revealed` | it is hidden from, or restored to, an organization |
+
+Note that `role_updated` is **not** part of this family: it means an
+assignment's expiration time changed, and a definition change deliberately
+does not reuse it.
+
+`role_definition_updated` carries `added_permissions` and `removed_permissions`,
+plus `old_name`, `old_descriptions` and `old_content_type` / `new_content_type`
+when those changed; a request that resubmits the current definition emits
+nothing.
+
+`is_active` and the scope are writable through the update endpoint as well as
+through the dedicated actions, so they are diffed there too: disabling a role
+with a `PUT` emits `role_disabled` exactly as the `disable` action does.
+
+Events for an organization-private role are filed in that organization's feed.
+A deployment-wide role has no organization binding, so its events land in the
+global event log only.
+
+The actor is read from the request through
+`waldur_core.logging.middleware.get_event_context()`, so no `current_user`
+argument is threaded through these views.
 
 ### 6. Performance and Accuracy Guidelines
 

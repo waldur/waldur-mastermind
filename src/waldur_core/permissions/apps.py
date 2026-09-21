@@ -37,6 +37,18 @@ class PermissionsConfig(AppConfig):
             dispatch_uid="waldur_core.permissions.log_role_updated",
         )
 
+        post_save.connect(
+            handlers.log_role_concealed,
+            sender=models.CustomerRoleConcealment,
+            dispatch_uid="waldur_core.permissions.log_role_concealed",
+        )
+
+        post_delete.connect(
+            handlers.log_role_revealed,
+            sender=models.CustomerRoleConcealment,
+            dispatch_uid="waldur_core.permissions.log_role_revealed",
+        )
+
         post_delete.connect(
             handlers.revoke_user_roles_on_availability_removal,
             sender=models.RoleAvailability,
