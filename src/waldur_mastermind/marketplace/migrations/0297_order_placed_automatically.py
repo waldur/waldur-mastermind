@@ -3,7 +3,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0295_offering_merge_progress"),
+        ("marketplace", "0296_clean_noop_price_logs"),
     ]
 
     operations = [
