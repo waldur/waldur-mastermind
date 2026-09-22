@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import httpx
+from django.core.exceptions import FieldDoesNotExist
 from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.utils import timezone
@@ -30,6 +31,7 @@ from waldur_core.media import utils as media_utils
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.common.utils import price_has_changed
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.enums import (
@@ -98,6 +100,33 @@ def extract_fields(fields: list[str], remote_dict: dict):
     return extracted_fields
 
 
+def as_column_decimal(local_object, field: str, remote_value) -> Decimal:
+    """
+    Read a remote value as the decimal its column would hold.
+
+    The remote API sends decimals as strings, so float() -- what this used to
+    do -- differs from the stored value on every single pull
+    (float("0.0106") != Decimal("0.0106000000")) and carries binary rounding
+    into a column that exists to avoid it.
+
+    Rounding to the column's own precision is what makes the comparison
+    stable. Django stores a decimal by quantizing it exactly this way (see
+    django.db.backends.utils.format_number), so a difference finer than the
+    column is one the database would round away on save -- and the next pull
+    would find it again, writing the row forever.
+
+    Raises for a value the column could never hold, so that the caller can
+    leave the field alone instead of writing something the database rejects.
+    """
+    value = Decimal(str(remote_value))
+    if not value.is_finite():
+        raise ArithmeticError(f'"{remote_value}" is not a finite number')
+    decimal_places = local_object._meta.get_field(field).decimal_places
+    if decimal_places is None:
+        return value
+    return value.quantize(Decimal(1).scaleb(-decimal_places))
+
+
 def pull_fields(fields: Iterable[str], local_object, remote_dict):
     changed_fields = set()
     for field in fields:
@@ -107,7 +136,37 @@ def pull_fields(fields: Iterable[str], local_object, remote_dict):
         remote_value = remote_dict[field]
         local_value = getattr(local_object, field)
 
-        if isinstance(local_value, int | float | Decimal):
+        if remote_value is None and local_value is not None:
+            # The remote cleared the value. Mirror that where the column takes
+            # a null -- the four nullable bounds of an offering component are
+            # the ones that can arrive this way -- and leave it alone where it
+            # does not, since writing a null there only fails on save. Reading
+            # it as a number, below, would just report it as unconvertible and
+            # keep a value the remote no longer has.
+            try:
+                nullable = local_object._meta.get_field(field).null
+            except FieldDoesNotExist:
+                nullable = False
+            if not nullable:
+                logger.warning(
+                    f'Remote value for field "{field}" is null, which the local column does not accept'
+                )
+                continue
+            setattr(local_object, field, None)
+            changed_fields.add(field)
+            continue
+
+        if isinstance(local_value, Decimal):
+            try:
+                remote_value = as_column_decimal(local_object, field, remote_value)
+            except (ArithmeticError, FieldDoesNotExist, TypeError, ValueError):
+                logger.warning(
+                    f'Unable to convert remote value "{remote_value}" to decimal for field "{field}"'
+                )
+                continue
+            if remote_value == local_value:
+                continue
+        elif isinstance(local_value, int | float):
             try:
                 remote_value = float(remote_value)
             except (TypeError, ValueError):
@@ -115,10 +174,13 @@ def pull_fields(fields: Iterable[str], local_object, remote_dict):
                     f'Unable to convert remote value "{remote_value}" to float for field "{field}"'
                 )
                 continue
+            if remote_value == local_value:
+                continue
+        elif remote_value == local_value:
+            continue
 
-        if remote_value != local_value:
-            setattr(local_object, field, remote_value)
-            changed_fields.add(field)
+        setattr(local_object, field, remote_value)
+        changed_fields.add(field)
     if changed_fields:
         local_object.save(update_fields=changed_fields)
     return changed_fields
@@ -690,22 +752,44 @@ def import_plans(
         remote_quotas = remote_plan.quotas.to_dict()
         components = set(remote_prices.keys()) | set(remote_quotas.keys())
         for component_type in components:
+            remote_price = remote_prices[component_type]
+            remote_amount = remote_quotas[component_type]
             plan_component, component_created = (
-                marketplace_models.PlanComponent.objects.update_or_create(
+                marketplace_models.PlanComponent.objects.get_or_create(
                     plan=local_plan,
                     component=local_components_map[component_type],
-                    defaults={
-                        "price": remote_prices[component_type],
-                        "amount": remote_quotas[component_type],
-                    },
+                    defaults={"price": remote_price, "amount": remote_amount},
                 )
             )
+            if component_created:
+                logger.info(
+                    "Plan component %s in offering %s has been created",
+                    plan_component,
+                    local_offering,
+                )
+                continue
 
+            # The remote API hands prices over as strings, so assigning them
+            # unconditionally rewrites the row on every sync -- and logs a
+            # price update -- even when the price has not moved. Compare the
+            # values as numbers and write only what actually differs.
+            update_fields = []
+            if price_has_changed(plan_component.price, remote_price):
+                plan_component.price = remote_price
+                update_fields.append("price")
+            if price_has_changed(plan_component.amount, remote_amount):
+                plan_component.amount = remote_amount
+                update_fields.append("amount")
+
+            if not update_fields:
+                continue
+
+            plan_component.save(update_fields=update_fields)
             logger.info(
-                "Plan component %s in offering %s has been %s",
+                "Plan component %s in offering %s has been updated: %s",
                 plan_component,
                 local_offering,
-                "created" if component_created else "updated",
+                ", ".join(update_fields),
             )
 
 

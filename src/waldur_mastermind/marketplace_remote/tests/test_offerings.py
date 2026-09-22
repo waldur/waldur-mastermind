@@ -800,6 +800,10 @@ class OfferingCreateTest(test.APITestCase):
 
     def tearDown(self):
         self.dns_patcher.stop()
+        # setUp starts three patches on marketplace_remote.utils. Without this
+        # they stay started for the rest of the process, so a later test in the
+        # same worker calls a MagicMock where it meant to call import_plans.
+        mock.patch.stopall()
         super().tearDown()
         respx.stop()
 

@@ -8,7 +8,7 @@ from rest_framework import status, test
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
-from waldur_mastermind.marketplace import handlers
+from waldur_mastermind.marketplace import handlers, models
 from waldur_mastermind.marketplace.models import PlanComponent
 
 from . import factories
@@ -137,6 +137,9 @@ class PlanComponentUpdateLoggerTest(TestCase):
         # Configure tracker.has_changed to be more specific
         self.instance.tracker.has_changed = MagicMock(return_value=False)
 
+        # The value the component held before the update.
+        self.previous_value = Decimal("0.0010000000")
+
         # Original Decimal value
         self.decimal_value = Decimal("0.0020000000")
 
@@ -148,7 +151,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         """Test that a Decimal price value works correctly."""
         # Setup - only price has changed
         self.instance.price = self.decimal_value
-        self.instance.tracker.previous.return_value = self.decimal_value
+        self.instance.tracker.previous.return_value = self.previous_value
         self.instance.tracker.has_changed = lambda field: field == "price"
 
         # Execute
@@ -185,7 +188,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         """Test that a string price value is correctly converted to Decimal."""
         # Setup - only price has changed
         self.instance.price = self.string_value
-        self.instance.tracker.previous.return_value = self.decimal_value
+        self.instance.tracker.previous.return_value = self.previous_value
         self.instance.tracker.has_changed = lambda field: field == "price"
 
         # Execute
@@ -235,7 +238,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         """Test that a string future_price value is correctly converted to Decimal."""
         # Setup - only future_price has changed
         self.instance.future_price = self.string_value
-        self.instance.tracker.previous.return_value = self.decimal_value
+        self.instance.tracker.previous.return_value = self.previous_value
         self.instance.tracker.has_changed = lambda field: field == "future_price"
 
         # Execute
@@ -253,7 +256,7 @@ class PlanComponentUpdateLoggerTest(TestCase):
         """Test that a string amount value is correctly converted to Decimal."""
         # Setup - only amount has changed
         self.instance.amount = self.string_value
-        self.instance.tracker.previous.return_value = self.decimal_value
+        self.instance.tracker.previous.return_value = self.previous_value
         self.instance.tracker.has_changed = lambda field: field == "amount"
 
         # Execute
@@ -265,3 +268,65 @@ class PlanComponentUpdateLoggerTest(TestCase):
         event_context = mock_logger.call_args[1]["event_context"]
         self.assertEqual(event_context["new_value"], self.decimal_value)
         self.assertIsInstance(event_context["new_value"], Decimal)
+
+    @patch("waldur_core.logging.event_logger.emit")
+    def test_no_event_when_only_the_representation_of_the_price_changed(
+        self, mock_logger
+    ):
+        """A price written back as a string is not a change worth logging."""
+        # Setup - the tracker reports a change because "0.0020000000" is not
+        # equal to Decimal("0.0020000000"), yet both mean the same price.
+        self.instance.price = self.string_value
+        self.instance.tracker.previous.return_value = self.decimal_value
+        self.instance.tracker.has_changed = lambda field: field == "price"
+
+        # Execute
+        handlers.plan_component_has_been_updated(PlanComponent, self.instance)
+
+        # Assert
+        mock_logger.assert_not_called()
+
+    @patch("waldur_core.logging.event_logger.emit")
+    def test_no_event_when_only_trailing_zeros_of_the_price_changed(self, mock_logger):
+        """Trailing zeros carry no price difference."""
+        self.instance.price = "0.002"
+        self.instance.tracker.previous.return_value = self.decimal_value
+        self.instance.tracker.has_changed = lambda field: field == "price"
+
+        handlers.plan_component_has_been_updated(PlanComponent, self.instance)
+
+        mock_logger.assert_not_called()
+
+    @patch("waldur_core.logging.event_logger.emit")
+    def test_no_event_when_only_the_representation_of_the_amount_changed(
+        self, mock_logger
+    ):
+        self.instance.amount = "10"
+        self.instance.tracker.previous.return_value = 10
+        self.instance.tracker.has_changed = lambda field: field == "amount"
+
+        handlers.plan_component_has_been_updated(PlanComponent, self.instance)
+
+        mock_logger.assert_not_called()
+
+    def test_resaving_the_same_price_as_a_string_logs_nothing(self):
+        """The shape an offering sync writes back must not produce an event."""
+        offering = factories.OfferingFactory()
+        plan = factories.PlanFactory(offering=offering)
+        component = factories.OfferingComponentFactory(offering=offering)
+        factories.PlanComponentFactory(plan=plan, component=component, price="0.0106")
+        # Reload so that the tracker starts from the stored Decimal, the way
+        # a sync that re-reads the component before writing it back does.
+        plan_component = models.PlanComponent.objects.get(
+            plan=plan, component=component
+        )
+        self.assertEqual(plan_component.price, Decimal("0.0106000000"))
+
+        plan_component.price = "0.0106"
+        plan_component.save(update_fields=["price"])
+
+        self.assertFalse(
+            logging_models.Event.objects.filter(
+                event_type="marketplace_plan_component_current_price_updated"
+            ).exists()
+        )

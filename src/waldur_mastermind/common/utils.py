@@ -94,3 +94,17 @@ def prices_are_equal(
 ) -> bool:
     exp = Decimal(".1") ** common_mixins.PRICE_DECIMAL_PLACES
     return Decimal(x).quantize(exp) == Decimal(y).quantize(exp)
+
+
+def price_has_changed(previous, current) -> bool:
+    """
+    Tell a genuine price change from a mere change of representation.
+
+    A price written back as a string or with a different number of trailing
+    zeros -- which is what an offering sync does on every run -- differs from
+    the stored value as a raw Python object while meaning exactly the same
+    amount. Only a difference the values carry as numbers counts here.
+    """
+    if previous is None or current is None:
+        return previous != current
+    return not prices_are_equal(previous, current)
