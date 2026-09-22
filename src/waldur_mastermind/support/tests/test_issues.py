@@ -262,6 +262,83 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @data("staff", "global_support")
+    def test_staff_or_support_can_report_issue_on_behalf_of_another_user(self, user):
+        factories.SupportUserFactory(user=getattr(self.fixture, user))
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        response = self.client.post(self.url, data=self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        issue = models.Issue.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(issue.caller, self.caller)
+
+    @data("owner", "admin", "manager", "user")
+    def test_other_user_cannot_report_issue_on_behalf_of_another_user(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.Issue.objects.filter(summary=payload["summary"]).exists()
+        )
+
+    def test_other_user_cannot_name_themselves_as_caller(self):
+        """Reporting for oneself goes through is_reported_manually.
+
+        The on-behalf branch is refused even when the caller resolves to the
+        requesting user, so it has one meaning rather than two spellings.
+        """
+        self.client.force_authenticate(self.fixture.user)
+        payload = self._get_valid_payload(
+            caller=structure_factories.UserFactory.get_url(self.fixture.user)
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.Issue.objects.filter(summary=payload["summary"]).exists()
+        )
+
+    def test_other_user_cannot_specify_assignee(self):
+        self.client.force_authenticate(self.fixture.user)
+        payload = self._get_valid_payload(
+            assignee=factories.SupportUserFactory.get_url()
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.Issue.objects.filter(summary=payload["summary"]).exists()
+        )
+
+    def test_assignee_cannot_be_specified_when_issue_is_reported_manually(self):
+        self.client.force_authenticate(self.fixture.user)
+        payload = self._get_valid_payload(
+            is_reported_manually=True,
+            assignee=factories.SupportUserFactory.get_url(),
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("assignee", response.data)
+
+    @data("owner", "admin", "manager", "user")
+    def test_other_user_can_still_report_their_own_issue(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_payload(is_reported_manually=True)
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        issue = models.Issue.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(issue.caller, getattr(self.fixture, user))
+
+    @data("staff", "global_support")
     @override_config(ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS=True)
     def test_staff_or_support_cannot_create_issue_if_he_does_not_have_support_user(
         self, user
