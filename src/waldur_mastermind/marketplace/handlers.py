@@ -34,6 +34,7 @@ from waldur_core.users.enums import InvitationState
 from waldur_core.users.scim import tasks as scim_tasks
 from waldur_core.users.tasks import process_invitation
 from waldur_freeipa.models import Profile
+from waldur_mastermind.common.utils import price_has_changed
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
@@ -1138,7 +1139,9 @@ def plan_component_has_been_updated(
     if created:
         return
 
-    if instance.tracker.has_changed("price"):
+    if instance.tracker.has_changed("price") and price_has_changed(
+        instance.tracker.previous("price"), instance.price
+    ):
         event_logger.emit(
             f"Current price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
             event_type=EventType.MARKETPLACE_PLAN_COMPONENT_CURRENT_PRICE_UPDATED,
@@ -1151,7 +1154,9 @@ def plan_component_has_been_updated(
             },
             scopes=get_plan_component_scopes(instance),
         )
-    if instance.tracker.has_changed("future_price"):
+    if instance.tracker.has_changed("future_price") and price_has_changed(
+        instance.tracker.previous("future_price"), instance.future_price
+    ):
         event_logger.emit(
             f"Future price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
             event_type=EventType.MARKETPLACE_PLAN_COMPONENT_FUTURE_PRICE_UPDATED,
@@ -1164,7 +1169,9 @@ def plan_component_has_been_updated(
             },
             scopes=get_plan_component_scopes(instance),
         )
-    if instance.tracker.has_changed("amount"):
+    if instance.tracker.has_changed("amount") and price_has_changed(
+        instance.tracker.previous("amount"), instance.amount
+    ):
         event_logger.emit(
             f"Quota of component {instance.component.type} in plan {instance.plan.name} has been updated.",
             event_type=EventType.MARKETPLACE_PLAN_COMPONENT_QUOTA_UPDATED,
