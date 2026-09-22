@@ -97,3 +97,21 @@ class ResourceRestoreTest(test.APITestCase):
             "Restoring resource is not supported for this offering type.",
             str(response.data),
         )
+
+    def test_rejected_restore_can_be_requested_again(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ResourceFactory.get_url(self.resource, "restore")
+
+        self.assertEqual(self.client.post(url).status_code, status.HTTP_200_OK)
+        order = models.Order.objects.get(
+            resource=self.resource, type=enums.OrderTypes.RESTORE
+        )
+
+        order.state = enums.OrderStates.REJECTED
+        order.save()
+
+        # A rejected restore leaves the resource terminated, which is what
+        # restore_validators require — so the user can ask again.
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, models.Resource.States.TERMINATED)
+        self.assertEqual(self.client.post(url).status_code, status.HTTP_200_OK)
