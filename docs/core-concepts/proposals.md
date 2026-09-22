@@ -343,61 +343,86 @@ When proposals are accepted:
 3. Users gain appropriate project permissions
 4. Resources become accessible immediately
 
-### Support Ticket Caller
+### Order Author
 
-Allocation places the marketplace orders as the **system robot**, so that the
-call review — which already authorised the spend — is not second-guessed by a
-consumer approval step. The robot has no email address, and for offerings
-fulfilled by raising a helpdesk ticket the caller's address is what the ticket
-is opened on behalf of. It is also who Waldur addresses its ticket
-notifications to, so a real person has to stand in.
+When a call grants resources it places a marketplace order per granted
+resource. Those orders need a name on them. It is not a formality: for an
+offering fulfilled by raising a helpdesk ticket, the order's `created_by` is
+who the request is opened on behalf of and who the service desk replies to,
+and it is who Waldur addresses its own order mail to. A robot has no email
+address and cannot be either.
 
-`Call.support_ticket_caller` decides who:
+`Call.order_author` decides whose name they carry:
 
-| Value | Ticket is raised on behalf of |
-|-------|-------------------------------|
+| Value | Orders are attributed to |
+|-------|--------------------------|
 | `applicant` (default) | The person who submitted the proposal |
 | `project_manager` | The allocated project's manager |
 | `call_manager` | A call manager on this call |
-| `specific_user` | `Call.support_ticket_caller_user` — e.g. a shared grants-office account |
+| `specific_user` | `Call.order_author_user` — e.g. a shared grants-office account |
 
 Only someone holding a role on the call, on the organisation managing it, or on
-that organisation's customer may be named as the contact. Whoever is named
-starts receiving the call's ticket mail — project name, order description,
-limits — and gets an account created for them on the helpdesk, so the choice is
-kept to people already attached to the call.
+that organisation's customer may be named. Whoever is named starts receiving
+the call's order mail — project name, order description, limits — and, for a
+helpdesk-backed offering, gets an account created for them on the service desk,
+so the choice is kept to people already attached to the call.
 
 ```python
-# Route every ticket from this call to the grants office
-call.support_ticket_caller = Call.TicketCaller.SPECIFIC_USER
-call.support_ticket_caller_user = grants_office_user
+# Attribute every order this call places to the grants office
+call.order_author = Call.OrderAuthor.SPECIFIC_USER
+call.order_author_user = grants_office_user
 call.save()
 ```
 
-!!! warning "Being the caller does not grant access to the ticket in Waldur"
-    These tickets are scoped to the allocated project and its organization, and
-    that scope is what decides who can read and answer them in the customer
-    portal. A caller with no role on the project still receives Waldur's ticket
-    emails, but the `support/issue/<uuid>/` link in them will not open for them
-    and they cannot comment in Waldur — only the helpdesk side works. This is
-    worth weighing before pointing `call_manager` or `specific_user` at someone
-    outside the project, such as a grants office.
+If the configured role is held by nobody, allocation falls back to the
+applicant, and then to the system robot, rather than refusing to allocate.
 
-If the chosen person has no email address, the caller falls back through the
-project's manager, administrator and member roles to the organization owner,
-taking the first active user with an address. The same chain handles orders
-with no call behind them at all. Only when nobody on the project can be reached
-does the order fail, naming the project.
+#### Being named does not grant anything
 
-The call's setting is found through the resource the order belongs to, not
-through the project, so it keeps applying after allocation: when the scheduled
-end-date or cost-policy sweep later terminates a granted resource, that
-termination ticket goes to the call's configured caller too. A resource that
-was never granted from a proposal has no call to consult and goes straight to
-the role chain.
+The author is a name on the order, not an authorisation.
 
-The order's `created_by` stays the robot regardless: it records who placed the
-order, and the marketplace approval gate reads its staff flag.
+- **The spend was authorised by the call review.** Accepting the proposal is
+  the consumer-side decision on the order: the granted project belongs to the
+  call's managing organisation, so whoever accepted is deciding on that
+  organisation's behalf, and they are recorded as the order's
+  `consumer_reviewed_by`. An automatic acceptance records the system robot.
+- **The order is carried out with system authority.** Provisioning replays the
+  offering plugin's own API as a user, and the person named may hold no role on
+  the granted project at all — a grants office typically does not. Allocated
+  orders are therefore processed as the system robot, and the order is flagged
+  `placed_automatically` to say so.
+- **Reading a ticket in Waldur still needs a project role.**
+
+!!! warning "Being the order's author does not grant access to its ticket in Waldur"
+    Helpdesk tickets raised for these orders are scoped to the allocated
+    project and its organization, and that scope is what decides who can read
+    and answer them in the customer portal. An author with no role on the
+    project still receives Waldur's ticket emails, but the
+    `support/issue/<uuid>/` link in them will not open for them and they cannot
+    comment in Waldur — only the helpdesk side works. This is worth weighing
+    before pointing `call_manager` or `specific_user` at someone outside the
+    project, such as a grants office.
+
+#### When the author cannot receive a ticket
+
+A helpdesk ticket needs an address. If the order's author has none — an SSO
+account provisioned without an email claim, or one of the automated sweeps that
+still place orders as a robot — the caller falls back through the project's
+manager, administrator and member roles to the organization owner, taking the
+first active user with an address. Only when nobody on the project can be
+reached does the order fail, naming the project.
+
+Because the name is on the order itself, this keeps working after allocation:
+when the scheduled end-date or cost-policy sweep later terminates a granted
+resource, the termination order it places is a fresh one and follows the
+ordinary rules for the person who triggered it.
+
+!!! note "Known gap: termination tickets do not follow the call's author"
+    Neither sweep carries the call's order author onto the termination order it
+    places, so those orders are attributed to the system robot and their
+    helpdesk tickets fall through the project's roles instead of reaching the
+    configured contact. Tracked in
+    [waldur-mastermind#488](https://code.opennodecloud.com/waldur/waldur-mastermind/-/issues/488).
 
 ## Realistic Usage Examples
 

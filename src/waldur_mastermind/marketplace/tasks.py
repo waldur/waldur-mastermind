@@ -1,6 +1,7 @@
 import collections
 import datetime
 import decimal
+import functools
 import hashlib
 import logging
 import uuid as uuid_mod
@@ -1442,6 +1443,11 @@ def process_pending_start_date_orders():
         start_date__lte=today,
     )
 
+    # Resolved once for the sweep: get_system_robot is a get_or_create, and
+    # every order placed automatically would otherwise pay a query for the
+    # same row.
+    system_robot = core_utils.get_system_robot()
+
     for order in orders_to_process:
         logger.info(
             "Processing order %s (%s) as its start date %s has been reached.",
@@ -1452,8 +1458,17 @@ def process_pending_start_date_orders():
         order.set_state_executing()
         order.save(update_fields=["state"])
         # Use transaction.on_commit to ensure the state change is saved
-        # before the processing task is queued.
-        transaction.on_commit(lambda: process_order_on_commit(order, order.created_by))
+        # before the processing task is queued. Bind the arguments now rather
+        # than closing over the loop variable: a lambda would read whatever
+        # `order` holds when the callback runs, so a batch of several orders
+        # would process the last one repeatedly and strand the rest.
+        transaction.on_commit(
+            functools.partial(
+                process_order_on_commit,
+                order,
+                utils.get_order_processing_user(order, system_robot),
+            )
+        )
 
 
 @shared_task(name="waldur_mastermind.marketplace.process_pending_project_orders")
@@ -1465,14 +1480,20 @@ def process_pending_project_orders():
     orders = models.Order.objects.filter(
         state=OrderStates.PENDING_PROJECT, project__in=active_project_ids
     )
+    # Same reason as the start-date sweep above: one get_or_create for the
+    # batch rather than one per order.
+    system_robot = core_utils.get_system_robot()
     for order in orders:
-        continue_order_processing(order)
+        continue_order_processing(order, system_robot)
 
 
-def continue_order_processing(order: models.Order):
+def continue_order_processing(order: models.Order, system_robot=None):
     """
     Advances an order to the next logical state after consumer/project approval.
     Checks for provider review and the order's own start_date.
+
+    ``system_robot`` is an optional pre-resolved robot for callers sweeping a
+    batch; see ``utils.get_order_processing_user``.
     """
     if utils.order_should_not_be_reviewed_by_provider(order):
         if order.start_date and order.start_date > timezone.now().date():
@@ -1482,7 +1503,9 @@ def continue_order_processing(order: models.Order):
             order.set_state_executing()
             order.save(update_fields=["state"])
             transaction.on_commit(
-                lambda: process_order_on_commit(order, order.created_by)
+                lambda: process_order_on_commit(
+                    order, utils.get_order_processing_user(order, system_robot)
+                )
             )
     else:
         order.state = models.OrderStates.PENDING_PROVIDER

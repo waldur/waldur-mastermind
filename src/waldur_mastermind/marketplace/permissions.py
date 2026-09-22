@@ -135,34 +135,63 @@ def user_can_approve_order_as_consumer(user, order: models.Order) -> bool:
     ) or has_permission(user, PermissionEnum.APPROVE_ORDER, order.project.customer)
 
 
-def order_should_not_be_reviewed_by_consumer(order: models.Order):
-    # Check if purchase order upload is required and attachment is missing.
-    # Termination is exempt: a purchase order covers spending, and there is no
-    # way to attach one to a terminate order in the first place.
-    if (
+def order_is_held_for_purchase_order(order: models.Order) -> bool:
+    """The offering wants a purchase order document and this order has none.
+
+    Nothing may clear the consumer step while this holds -- not a staff
+    creator, not a review recorded up front. Termination is exempt: a purchase
+    order covers spending, and there is no way to attach one to a terminate
+    order in the first place.
+
+    Callers that decide the consumer step outside
+    ``order_should_not_be_reviewed_by_consumer`` -- proposal allocation
+    stamping the review up front, and ``order_approval.evaluate_auto_approval``
+    deciding whether a project rule may clear it -- ask this first, so the
+    copies cannot drift apart.
+    """
+    return (
         order.type != OrderTypes.TERMINATE
         and order.offering.plugin_options.get("require_purchase_order_upload", False)
         and not order.attachment
-    ):
+    )
+
+
+def order_autoapprove_is_disabled(order: models.Order) -> bool:
+    """The offering forces manual consumer approval for this order.
+
+    ``disable_autoapprove`` overrides every auto-approve mechanism -- the
+    per-role and per-organisation skips below, the general APPROVE_ORDER
+    fallback that would otherwise let any Owner or Manager self-approve their
+    own order, and the project auto-approval rules in ``order_approval``.
+    See docs/core-concepts/offering.md "Approval Flow".
+
+    TERMINATE is exempt for the same reason ``require_purchase_order_upload``
+    exempts it: the flag gates spend approval, and a termination reduces spend
+    rather than committing it. It also avoids stranding a provider-initiated
+    termination in TERMINATING with no consumer-side owner action possible to
+    clear it.
+    """
+    return order.type != OrderTypes.TERMINATE and order.offering.plugin_options.get(
+        "disable_autoapprove", False
+    )
+
+
+def order_should_not_be_reviewed_by_consumer(order: models.Order):
+    if order_is_held_for_purchase_order(order):
         return False
+
+    # An order placed automatically on someone's behalf carries the review
+    # that authorised it: proposal allocation records the call manager who
+    # accepted the proposal. Asking for the step again would be asking the
+    # same question twice.
+    if order.placed_automatically and order.consumer_reviewed_by_id:
+        return True
 
     user = order.created_by
     if user.is_staff:
         return True
 
-    # disable_autoapprove forces manual approval for all orders, overriding
-    # every auto-approve mechanism below it -- including the general
-    # APPROVE_ORDER permission fallback at the end of this function, which
-    # would otherwise let any Owner/Manager self-approve their own order
-    # regardless of this flag. See docs/core-concepts/offering.md "Approval Flow".
-    # TERMINATE is exempt for the same reason require_purchase_order_upload
-    # exempts it above: the flag gates spend approval, and a termination
-    # reduces spend rather than committing it. Also avoids stranding a
-    # provider-initiated termination in TERMINATING with no consumer-side
-    # owner action possible to clear it.
-    if order.type != OrderTypes.TERMINATE and order.offering.plugin_options.get(
-        "disable_autoapprove", False
-    ):
+    if order_autoapprove_is_disabled(order):
         return False
 
     # Skip approval of private offering for project users

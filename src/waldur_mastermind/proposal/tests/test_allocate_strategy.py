@@ -4,7 +4,6 @@ from unittest import mock
 from django.utils import timezone
 from rest_framework import test
 
-from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.fixtures import ProjectRole, ProposalRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure.models import Project
@@ -89,8 +88,8 @@ class AllocatedOrderApprovalTest(test.APITestCase):
     """The consumer step must be approved exactly once.
 
     Regression for #422: allocate_proposal ran its own consumer approval on top
-    of the one notify_approvers_when_order_is_created already performs for
-    robot-created orders. Every earlier test here used the fixture's Basic
+    of the one notify_approvers_when_order_is_created already performs for the
+    orders it places. Every earlier test here used the fixture's Basic
     offering, the one type whose provider review parks the order short of
     EXECUTING, which is why the crash went unnoticed.
     """
@@ -123,7 +122,9 @@ class AllocatedOrderApprovalTest(test.APITestCase):
 
         order = self._order()
         self.assertEqual(order.state, OrderStates.EXECUTING)
-        self.assertEqual(order.consumer_reviewed_by, get_system_robot())
+        # Whoever accepted the proposal is the consumer-side decision, not the
+        # robot whose staff flag used to stand in for one.
+        self.assertEqual(order.consumer_reviewed_by, self.fixture.staff)
         self.assertIsNotNone(order.consumer_reviewed_at)
 
     @mock.patch("waldur_mastermind.marketplace.tasks.process_order")

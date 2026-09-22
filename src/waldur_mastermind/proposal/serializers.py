@@ -53,12 +53,12 @@ from waldur_mastermind.proposal.enums import (
     COITypes,
     NotificationRuleRecipients,
     NotificationRuleTriggers,
+    OrderAuthors,
     ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     RoundStatuses,
-    SupportTicketCallers,
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
@@ -1472,35 +1472,36 @@ class ProtectedCallSerializer(PublicCallSerializer):
         source="panel_chair.uuid", read_only=True, format="hex"
     )
     panel_chair_name = serializers.ReadOnlyField(source="panel_chair.full_name")
-    support_ticket_caller = serializers.ChoiceField(
-        choices=SupportTicketCallers.CHOICES,
+    order_author = serializers.ChoiceField(
+        choices=OrderAuthors.CHOICES,
         required=False,
-        help_text="Who helpdesk tickets for granted resources are raised for.",
+        help_text="Whose name the orders for resources granted by this call carry.",
     )
     # The queryset is narrowed to the call's own people in get_fields(); what
     # stands here is only the schema's view of the field.
-    support_ticket_caller_user = serializers.SlugRelatedField(
+    order_author_user = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=core_models.User.objects.all(),
         required=False,
         allow_null=True,
         help_text=(
-            "The person tickets go to when the caller is a named contact. "
-            "Must hold a role on this call or on the organisation managing it."
+            "The person orders are attributed to when the author is a named "
+            "contact. Must hold a role on this call or on the organisation "
+            "managing it."
         ),
     )
     # allow_null is load-bearing on a dotted source over a nullable FK: without
     # it DRF raises SkipField and drops the key from the payload entirely, while
     # make_readonly_fields_required still marks it required in the generated
     # SDK. Most calls have no named contact, so that mismatch would be the norm.
-    support_ticket_caller_user_uuid = serializers.UUIDField(
-        source="support_ticket_caller_user.uuid",
+    order_author_user_uuid = serializers.UUIDField(
+        source="order_author_user.uuid",
         read_only=True,
         format="hex",
         allow_null=True,
     )
-    support_ticket_caller_user_name = serializers.CharField(
-        source="support_ticket_caller_user.full_name",
+    order_author_user_name = serializers.CharField(
+        source="order_author_user.full_name",
         read_only=True,
         allow_null=True,
     )
@@ -1594,19 +1595,19 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "proposal_field_config",
             "proposal_field_metadata",
             "has_proposals",
-            "support_ticket_caller",
-            "support_ticket_caller_user",
-            "support_ticket_caller_user_uuid",
-            "support_ticket_caller_user_name",
+            "order_author",
+            "order_author_user",
+            "order_author_user_uuid",
+            "order_author_user_name",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
 
     def get_fields(self):
         fields = super().get_fields()
-        contact = fields.get("support_ticket_caller_user")
+        contact = fields.get("order_author_user")
         if contact is not None:
-            contact.queryset = self._ticket_caller_candidates()
+            contact.queryset = self._order_author_candidates()
             # Same message whichever way the lookup failed, so the field cannot
             # be used to tell an unrelated account apart from one that does not
             # exist. It still says what a usable answer looks like.
@@ -1616,15 +1617,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
             )
         return fields
 
-    def _ticket_caller_candidates(self):
-        """Users this call may name as its support contact.
+    def _order_author_candidates(self):
+        """Users this call may name as the author of its orders.
 
-        Whoever is named starts receiving the call's ticket mail -- project
-        name, order description, limits -- and gets an account created for them
-        on the helpdesk. Anyone holding UPDATE_CALL could otherwise point that
-        at an arbitrary account in the deployment, so the choice is kept to
-        people already attached to the call: its own team, the managing
-        organisation, and that organisation's customer.
+        Whoever is named starts receiving the call's order mail -- project
+        name, order description, limits -- and, for offerings fulfilled by a
+        helpdesk ticket, gets an account created for them on the helpdesk.
+        Anyone holding UPDATE_CALL could otherwise point that at an arbitrary
+        account in the deployment, so the choice is kept to people already
+        attached to the call: its own team, the managing organisation, and
+        that organisation's customer.
 
         Empty when there is no call to read roles from -- during creation, and
         while drf-spectacular is building the schema.
@@ -1641,25 +1643,49 @@ class ProtectedCallSerializer(PublicCallSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        self._validate_support_ticket_caller(attrs)
+        self._validate_order_author(attrs)
         return attrs
 
-    def _validate_support_ticket_caller(self, attrs):
-        """A named contact, if given, has to be able to receive a ticket.
+    def _validate_order_author(self, attrs):
+        """A named contact the call ends up using has to be reachable.
 
         A missing contact is deliberately *not* an error. The settings page
         edits one field per request, so demanding the contact in the same
         request that selects "specific_user" would leave the manager unable to
-        select it at all -- and the resolver already falls back to the
-        project's roles rather than failing an order over it.
+        select it at all -- and allocation already falls back to the applicant
+        rather than refusing to place the order.
+
+        The check is on the state the call would be left in, not on the field
+        that happens to be in this payload: one request names a contact who
+        still has an address, an SSO sync later clears it, and a third request
+        switches the mode to "specific_user" on its own. Validating only the
+        incoming field would wave that last one through.
+
+        Requests touching neither field are left alone, so a call already in
+        that state can still have everything else edited.
         """
-        user = attrs.get("support_ticket_caller_user")
-        if user is not None and not user.email:
+        missing = object()
+        choice = attrs.get("order_author", missing)
+        contact = attrs.get("order_author_user", missing)
+        if choice is missing and contact is missing:
+            return
+
+        if choice is missing:
+            choice = getattr(self.instance, "order_author", None)
+        if contact is missing:
+            contact = getattr(self.instance, "order_author_user", None)
+
+        if (
+            choice == OrderAuthors.SPECIFIC_USER
+            and contact is not None
+            and not contact.email
+        ):
             raise serializers.ValidationError(
                 {
-                    "support_ticket_caller_user": _(
-                        "The named contact has no email address, so the "
-                        "helpdesk cannot raise tickets on their behalf."
+                    "order_author_user": _(
+                        "The named contact has no email address, so they "
+                        "cannot receive mail about the orders placed in "
+                        "their name."
                     )
                 }
             )
