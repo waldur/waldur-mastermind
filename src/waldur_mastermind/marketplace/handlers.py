@@ -445,7 +445,14 @@ def update_resource_state_on_order_rejection_error_or_cancellation(
         return
     resource = order.resource
     if order.state in (OrderStates.REJECTED, OrderStates.CANCELED):
-        if order.type == OrderTypes.CREATE:
+        # CREATE and RESTORE both mean the resource never came up, so a refused
+        # one goes back to TERMINATED — which is also what restore_validators
+        # require, so the user can ask again. RESTORE needs saying explicitly:
+        # the restore view moves the resource TERMINATED -> CREATING before the
+        # order exists, so without this branch a refused restore would fall
+        # through to set_state_ok() and leave a resource that was never
+        # restored looking alive.
+        if order.type in (OrderTypes.CREATE, OrderTypes.RESTORE):
             resource.set_state_terminated()
             resource.save(update_fields=["state"])
 

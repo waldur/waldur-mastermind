@@ -74,3 +74,34 @@ class OrderStateSyncTest(test.APITestCase):
         order.save()
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, ResourceStates.OK)
+
+    def test_resource_returns_to_terminated_on_restore_order_rejection(self):
+        # The restore view leaves the resource in CREATING while the order is
+        # pending, so a rejected restore must not be read as "the resource is
+        # fine again" — it never came back.
+        self.resource.state = ResourceStates.CREATING
+        self.resource.save()
+        order = factories.OrderFactory(
+            project=self.project,
+            state=OrderStates.PENDING_CONSUMER,
+            type=OrderTypes.RESTORE,
+            resource=self.resource,
+        )
+        order.state = OrderStates.REJECTED
+        order.save()
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.TERMINATED)
+
+    def test_resource_returns_to_terminated_on_restore_order_cancellation(self):
+        self.resource.state = ResourceStates.CREATING
+        self.resource.save()
+        order = factories.OrderFactory(
+            project=self.project,
+            state=OrderStates.PENDING_CONSUMER,
+            type=OrderTypes.RESTORE,
+            resource=self.resource,
+        )
+        order.state = OrderStates.CANCELED
+        order.save()
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.TERMINATED)
