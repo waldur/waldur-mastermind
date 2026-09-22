@@ -53,10 +53,18 @@ flowchart TD
 
 ### Restriction Logic
 
-- **Basic restrictions** (email patterns, affiliations, identity sources) use OR logic
-- **AAI restrictions** (nationalities, organization types) use OR logic
-- **Assurance levels** use AND logic - user must have ALL required levels
-- All configured restriction categories must pass (AND between categories)
+The check is `validate_user_restrictions` in `waldur_core/permissions/utils.py`. It reads as two
+stages, not as six independent allow-lists:
+
+1. **One OR group** over email patterns, affiliations and identity sources. If none of the three
+   is configured the group passes; otherwise the user needs a match in *any one* of them.
+2. **Each configured AAI field is a further requirement** on top of that group. Nationalities pass
+   if any of the user's nationalities is listed, organization type if the user's single
+   `organization_type` is listed, and assurance if the user holds *every* listed level.
+
+An empty field is not checked. The reading that trips people up is treating stage 1 as three
+separate requirements: a call that lists both an affiliation and an email pattern admits anyone
+matching either, not only applicants matching both.
 
 ### API Endpoints
 
@@ -92,10 +100,12 @@ Authorization: Bearer {token}
 
 #### Configure Restrictions
 
-Call managers can configure restrictions when creating or updating a call:
+Restrictions are editable in the UI under **Call management → the call → Configuration →
+Applicant eligibility**, which is the path a call manager should normally use. The API below is
+the same write, for scripted setup:
 
 ```http
-PATCH /api/proposal-calls/{uuid}/
+PATCH /api/proposal-protected-calls/{uuid}/
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -145,7 +155,14 @@ Authorization: Bearer {token}
 
 ## Applicant Attribute Exposure Configuration
 
-The `CallApplicantAttributeConfig` model controls which applicant attributes are visible to call managers and reviewers. This supports GDPR compliance and anonymous review workflows.
+The `CallApplicantVisibilityConfig` model controls which applicant attributes are visible to
+reviewers during evaluation. This supports GDPR compliance and anonymous review workflows.
+
+It replaced the older `CallApplicantAttributeConfig`, which was dropped in migration
+`0050_remove_callapplicantattributeconfig`. That migration also retired
+`reviewers_see_applicant_details`: a legacy row with it set to `False` was carried forward with
+every `expose_*` flag forced off, so anonymity is now expressed by the per-attribute toggles
+alone rather than by one master switch.
 
 ### Overview
 
@@ -162,19 +179,18 @@ flowchart LR
     end
 
     subgraph "Call Config"
-        CC[CallApplicantAttributeConfig]
+        CC[CallApplicantVisibilityConfig]
         CC --> |expose_full_name| E1[true]
         CC --> |expose_email| E2[true]
         CC --> |expose_organization| E3[true]
         CC --> |expose_nationality| E4[false]
-        CC --> |reviewers_see_details| RV[false]
     end
 
     subgraph "Visibility"
         MG[Call Managers]
         RW[Reviewers]
-        MG --> |see| V1[name, email, org]
-        RW --> |see| V2[anonymous]
+        MG --> |see| V1[full applicant record]
+        RW --> |see| V2[exposed attributes only]
     end
 
     AP --> CC
@@ -184,11 +200,18 @@ flowchart LR
 
 ### Configuration Fields
 
-| Field | Default | Description |
-|-------|---------|-------------|
+The toggles come from the shared `UserAttributeConfigBase`
+(`waldur_mastermind/marketplace/models.py`), which the offering-user configuration also uses.
+Every personal-data field on that base follows the `expose_<attribute>` convention and is
+available on a call. The ones that matter for proposal review:
+
+| Field | Model default | Description |
+|-------|---------------|-------------|
 | `expose_full_name` | true | Show applicant's full name |
 | `expose_email` | true | Show applicant's email address |
-| `expose_organization` | true | Show applicant's organization |
+| `expose_username` | true | Show applicant's username |
+| `expose_registration_method` | true | Show how the applicant registered |
+| `expose_organization` | false | Show applicant's organization |
 | `expose_affiliations` | false | Show applicant's affiliations list |
 | `expose_organization_type` | false | Show organization type (SCHAC URN) |
 | `expose_organization_country` | false | Show organization's country |
@@ -197,136 +220,158 @@ flowchart LR
 | `expose_country_of_residence` | false | Show country of residence |
 | `expose_eduperson_assurance` | false | Show assurance levels |
 | `expose_identity_source` | false | Show identity provider |
-| `reviewers_see_applicant_details` | false | If false, proposals are anonymized for reviewers |
 
-### API Endpoints
+The base carries further toggles — phone number, job title, civil number, birth date, postal
+address, organization registry and VAT codes, and the POSIX `uid_number`/`primary_gid` — which
+are accepted on a call for completeness. Consult the model rather than this table when you need
+the exhaustive list.
 
-#### Get Attribute Configuration
+The *model* defaults above only apply to a row written field by field. In practice a call with
+no stored row falls back to the Constance setting `DEFAULT_CALL_USER_ATTRIBUTES`
+(`["username", "full_name", "email"]` out of the box) and its serialized config reports
+`"is_default": true`; and the first write to a call seeds every toggle from that same setting
+before applying what was sent, so an unmentioned attribute is not silently exposed by a
+model-level `default=True` (`get_default_exposure_flags`).
+
+### API
+
+There are no dedicated attribute-configuration endpoints. The configuration is a nested object
+on the protected call, read with the call and written with it — in the UI, under **Call
+management → the call → Configuration → Applicant data visibility**.
+
+#### Read
 
 ```http
-GET /api/proposal-calls/{uuid}/applicant_attribute_config/
+GET /api/proposal-protected-calls/{uuid}/
 Authorization: Bearer {token}
 ```
 
-**Response (custom config):**
+The response carries `applicant_visibility_config`:
 
 ```json
 {
-  "uuid": "abc123...",
-  "call_uuid": "def456...",
-  "call_name": "Nordic HPC Call 2025",
-  "expose_full_name": true,
-  "expose_email": true,
-  "expose_organization": true,
-  "expose_affiliations": false,
-  "expose_organization_type": false,
-  "expose_organization_country": false,
-  "expose_nationality": true,
-  "expose_nationalities": false,
-  "expose_country_of_residence": false,
-  "expose_eduperson_assurance": false,
-  "expose_identity_source": false,
-  "reviewers_see_applicant_details": false,
-  "exposed_fields": ["full_name", "email", "organization", "nationality"]
+  "uuid": "def456...",
+  "name": "Nordic HPC Call 2025",
+  "applicant_visibility_config": {
+    "uuid": "abc123...",
+    "created": "2026-01-15T09:12:44Z",
+    "modified": "2026-01-15T09:12:44Z",
+    "expose_full_name": true,
+    "expose_email": true,
+    "expose_username": true,
+    "expose_registration_method": true,
+    "expose_organization": true,
+    "expose_affiliations": false,
+    "expose_organization_type": false,
+    "expose_organization_country": false,
+    "expose_nationality": true,
+    "expose_nationalities": false,
+    "expose_country_of_residence": false,
+    "expose_eduperson_assurance": false,
+    "expose_identity_source": false,
+    "exposed_fields": ["full_name", "email", "username", "registration_method", "organization", "nationality"],
+    "is_default": false
+  }
 }
 ```
 
-**Response (no config - defaults):**
+When the call has no stored configuration, `to_representation` serializes an unsaved instance
+from the Constance defaults instead, marked `"is_default": true`.
 
-```json
-{
-  "is_default": true,
-  "exposed_fields": ["full_name", "email", "organization"]
-}
-```
-
-#### Create/Update Configuration
+#### Update
 
 ```http
-POST /api/proposal-calls/{uuid}/update_applicant_attribute_config/
+PATCH /api/proposal-protected-calls/{uuid}/
 Content-Type: application/json
 Authorization: Bearer {token}
 
 {
-  "expose_full_name": true,
-  "expose_email": true,
-  "expose_organization": true,
-  "expose_nationality": true,
-  "expose_organization_country": true,
-  "reviewers_see_applicant_details": false
+  "applicant_visibility_config": {
+    "expose_full_name": true,
+    "expose_email": true,
+    "expose_organization": true,
+    "expose_nationality": true,
+    "expose_organization_country": true
+  }
 }
 ```
 
-#### Delete Configuration (Revert to Defaults)
-
-```http
-DELETE /api/proposal-calls/{uuid}/delete_applicant_attribute_config/
-Authorization: Bearer {token}
-```
-
-Returns `204 No Content` on success.
+The nested object is a partial update like any other: toggles left out keep their stored value.
+Sending `"applicant_visibility_config": null` is how a call reverts to the installation defaults.
 
 ### Permissions
 
-All attribute configuration endpoints require `UPDATE_CALL` permission on the call.
+Writing either the eligibility restrictions or the visibility configuration requires the
+`UPDATE_CALL` permission on the call, which is what the protected call endpoint enforces.
 
 ## Use Cases
 
+Each example below is the body of a `PATCH /api/proposal-protected-calls/{uuid}/`.
+
 ### Anonymous Peer Review
 
-For double-blind review processes:
+For double-blind review, expose nothing that identifies the applicant:
 
 ```json
 {
-  "expose_full_name": false,
-  "expose_email": false,
-  "expose_organization": false,
-  "reviewers_see_applicant_details": false
+  "applicant_visibility_config": {
+    "expose_full_name": false,
+    "expose_email": false,
+    "expose_username": false,
+    "expose_organization": false
+  }
 }
 ```
 
-Call managers still see full applicant details, but reviewers see anonymized proposals.
+Call managers still see the full applicant record; the configuration governs what reviewers see.
 
 ### Nationality-Based Eligibility Tracking
 
-For calls requiring nationality verification:
+For calls requiring nationality verification, restrict who may apply and expose the attributes a
+reviewer needs to check the claim — two different fields on the same request:
 
 ```json
 {
-  "expose_nationality": true,
-  "expose_nationalities": true,
-  "expose_country_of_residence": true
-}
-```
-
-Combined with eligibility restrictions:
-
-```json
-{
-  "user_nationalities": ["FI", "SE", "NO"]
+  "user_nationalities": ["FI", "SE", "NO"],
+  "applicant_visibility_config": {
+    "expose_nationality": true,
+    "expose_nationalities": true,
+    "expose_country_of_residence": true
+  }
 }
 ```
 
 ### High-Trust Research Calls
 
-For calls requiring strong identity assurance:
+Strong identity assurance, with the evidence visible during evaluation. Every listed assurance
+level is required, so this admits only applicants whose IdP asserts both:
 
 ```json
 {
   "user_assurance_levels": [
-    "https://refeds.org/assurance/IAP/high"
-  ]
+    "https://refeds.org/assurance/IAP/high",
+    "https://refeds.org/assurance/ID/eppn-unique-no-reassign"
+  ],
+  "applicant_visibility_config": {
+    "expose_eduperson_assurance": true,
+    "expose_identity_source": true
+  }
 }
 ```
 
-With attribute exposure for verification:
+## When Eligibility Is Enforced
 
-```json
-{
-  "expose_eduperson_assurance": true,
-  "expose_identity_source": true
-}
-```
+`validate_user_restrictions` runs in `ProposalViewSet.perform_create` — that is, when the
+proposal is created. Two consequences:
+
+- A draft started before a restriction was added is not re-checked when it is submitted. Adding
+  a restriction to a call that already has drafts does not retract them.
+- Eligibility does not govern who may join the awarded project. It gates proposal creation only;
+  project membership is governed by the project's own restrictions and invitations.
+
+`GET /api/proposal-public-calls/{uuid}/check_eligibility/` runs the same validation without
+creating anything, which is what the applicant-facing UI uses to explain a call it cannot apply
+to.
 
 ## Integration with User Profile Attributes
 
