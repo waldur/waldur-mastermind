@@ -475,7 +475,19 @@ class IssueSerializer(
                     }
                 )
         else:
-            # create a request on behalf of an agent
+            # Reporting on behalf of an agent. This branch takes `caller`
+            # verbatim from the payload and lets `assignee` through, and neither
+            # field has a validator of its own the way `priority`, `customer`
+            # and `project` do — so the branch itself is what has to be gated.
+            # Everyone else reports through `is_reported_manually`, which pins
+            # the caller to the requesting user.
+            if not (request_user.is_staff or request_user.is_support):
+                raise serializers.ValidationError(
+                    _(
+                        "Only staff or support can report an issue on behalf of another user. "
+                        "Set is_reported_manually to report an issue of your own."
+                    )
+                )
             if not attrs.get("caller"):
                 raise serializers.ValidationError(
                     {"caller": _("This field is required.")}
