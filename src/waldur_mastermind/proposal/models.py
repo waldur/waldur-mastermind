@@ -50,6 +50,7 @@ from waldur_mastermind.proposal.enums import (
     FinancialInterestRelationshipTypes,
     MatchingAffinityMethods,
     MatchingAlgorithms,
+    OrderAuthors,
     ProposalDisclosureLevels,
     ProposalFieldStates,
     ProposalStates,
@@ -61,7 +62,6 @@ from waldur_mastermind.proposal.enums import (
     ReviewerSuggestionStatuses,
     RoundStatuses,
     SuggestionSourceTypes,
-    SupportTicketCallers,
 )
 
 from . import managers
@@ -143,7 +143,7 @@ class Call(
     class States(CallStates):
         pass
 
-    class TicketCaller(SupportTicketCallers):
+    class OrderAuthor(OrderAuthors):
         pass
 
     manager = models.ForeignKey(CallManagingOrganisation, on_delete=models.PROTECT)
@@ -220,27 +220,30 @@ class Call(
         ),
     )
 
-    support_ticket_caller = models.CharField(
+    order_author = models.CharField(
         max_length=20,
-        choices=TicketCaller.CHOICES,
-        default=TicketCaller.APPLICANT,
+        choices=OrderAuthor.CHOICES,
+        default=OrderAuthor.APPLICANT,
         help_text=(
-            "Who helpdesk tickets for granted resources are raised for. They "
-            "receive the helpdesk's replies; reading the ticket in Waldur "
-            "also needs a role on the project. If that person has no email "
-            "address, the project's roles decide instead."
+            "Whose name the orders placed when this call grants resources "
+            "carry. That person is who a helpdesk ticket is raised for and "
+            "who Waldur's order mail is addressed to; reading the ticket in "
+            "Waldur also needs a role on the project. The call review still "
+            "authorises the spend, and the orders are still carried out with "
+            "system authority."
         ),
     )
-    support_ticket_caller_user = models.ForeignKey(
+    order_author_user = models.ForeignKey(
         core_models.User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="+",
         help_text=(
-            "The person tickets go to when the caller is set to a named "
-            "contact. Useful for routing a whole call to a shared mailbox. "
-            "Must hold a role on this call or on the organisation managing it."
+            "The person orders are attributed to when the author is set to a "
+            "named contact. Useful for routing a whole call to a shared "
+            "mailbox. Must hold a role on this call or on the organisation "
+            "managing it."
         ),
     )
 

@@ -4216,6 +4216,30 @@ def user_offerings_mapping(offerings):
             restore_offering_user(offering_user)
 
 
+def get_order_processing_user(order: models.Order, system_robot=None):
+    """The identity an order is carried out under.
+
+    ``processors.send_request`` replays the plugin's own viewset as this user,
+    so DRF's permission classes and serializer querysets apply to them -- the
+    delete leg in particular enforces ``is_administrator`` on the project.
+    Whoever placed an order themselves necessarily holds a role there.
+
+    An order placed automatically records in ``created_by`` the person it is
+    *for*, which grants them nothing: a call can name its applicant, or a
+    grants office that holds no project role at all. Those are carried out
+    with system authority instead, as they were before the author was
+    recorded -- whoever is named, so that provisioning does not quietly
+    depend on whether that person happens to be staff.
+
+    ``system_robot`` lets a sweep resolve the robot once and hand it in:
+    ``get_system_robot`` is a ``get_or_create``, so a batch of orders would
+    otherwise pay a query each.
+    """
+    if order.placed_automatically:
+        return system_robot or core_utils.get_system_robot()
+    return order.created_by
+
+
 def order_should_not_be_reviewed_by_provider(order: models.Order):
     offering = order.offering
     user = order.consumer_reviewed_by or order.created_by

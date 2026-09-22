@@ -3,6 +3,7 @@ from rest_framework import exceptions as rf_exceptions
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.fixtures import CallRole, CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     SUPPORT_OFFERING,
@@ -13,7 +14,8 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_support import tasks as marketplace_support_tasks
 from waldur_mastermind.marketplace_support.utils import get_order_issue
 from waldur_mastermind.proposal import models
-from waldur_mastermind.proposal.tests import factories as proposal_factories
+from waldur_mastermind.proposal import utils as proposal_utils
+from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests.base import BaseTest
@@ -171,9 +173,9 @@ class IssueCallerTest(BaseTest):
 
         self.assertEqual(len(callers), 1)
 
-    def test_robot_remains_the_recorded_order_creator(self):
-        # Only the ticket caller is substituted: created_by is the audit trail,
-        # and the approval gate reads its is_staff.
+    def test_the_recorded_order_creator_is_left_alone(self):
+        # Only the ticket caller is substituted. created_by is the audit
+        # trail; the sweeps that still place orders as a robot keep saying so.
         manager = structure_factories.UserFactory()
         self.project.add_user(manager, ProjectRole.MANAGER)
 
@@ -188,143 +190,98 @@ class IssueCallerTest(BaseTest):
         self.assertEqual(self.robot.email, "")
 
 
-class CallConfiguredIssueCallerTest(BaseTest):
-    """A call decides who its allocated resources' tickets belong to.
+class AllocatedOrderIssueCallerTest(BaseTest):
+    """A call's order author decides who its tickets are raised for.
 
-    Proposal allocation places orders as the robot, so without this the ticket
-    would land on whichever project role happened to sort first.
+    The call is not consulted here at all any more: allocation puts the
+    configured person in ``created_by`` and the caller follows from that, the
+    same way it does for an order somebody placed themselves. These run
+    through ``allocate_proposal`` rather than building the order by hand, so
+    they would notice if that stopped being true.
     """
 
     def setUp(self):
         super().setUp()
         self.proposal_fixture = proposal_fixtures.ProposalFixture()
         self.call = self.proposal_fixture.call
-        self.project = self.proposal_fixture.proposal_project
         self.proposal = self.proposal_fixture.proposal
         self.applicant = self.proposal.created_by
-        self.offering = marketplace_factories.OfferingFactory(type=SUPPORT_OFFERING)
-        self.robot = core_utils.get_system_robot()
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.project = None
+        self.proposal.save()
 
-        # Someone the generic role fallback would otherwise pick, so each test
-        # shows the call's setting winning rather than coinciding.
-        self.project_manager = structure_factories.UserFactory()
-        self.project.add_user(self.project_manager, ProjectRole.MANAGER)
+        # The fixture's requested resource already hangs off an accepted
+        # requested offering, so allocation picks it up as it stands.
+        offering = self.proposal_fixture.offering
+        offering.type = SUPPORT_OFFERING
+        offering.save(update_fields=["type"])
 
-    def configure(self, caller, user=None):
-        self.call.support_ticket_caller = caller
-        self.call.support_ticket_caller_user = user
+    def configure(self, author, user=None):
+        self.call.order_author = author
+        self.call.order_author_user = user
         self.call.save()
 
-    def process(self, proposal=None):
-        order = marketplace_factories.OrderFactory(
-            offering=self.offering,
-            project=self.project,
-            created_by=self.robot,
-            attributes={"name": "item_name", "description": "Description"},
-            state=OrderStates.EXECUTING,
+    def allocate(self):
+        proposal_utils.allocate_proposal(
+            self.proposal, approved_by=self.proposal_fixture.staff
         )
-        # Allocation records which proposal produced the resource, and the
-        # resolver follows that link rather than guessing from the project.
-        proposal_factories.RequestedResourceFactory(
-            proposal=proposal or self.proposal,
-            resource=order.resource,
-            created_by=self.applicant,
+        self.proposal.refresh_from_db()
+        resource = self.proposal.requestedresource_set.first().resource
+        return marketplace_models.Order.objects.get(resource=resource)
+
+    def process(self, order):
+        # Allocation queues the processing on a celery task that tests do not
+        # run. Drive it with the identity the handler would have passed.
+        marketplace_utils.process_order(
+            order, marketplace_utils.get_order_processing_user(order)
         )
-        marketplace_utils.process_order(order, self.robot)
         order.refresh_from_db()
         return order
 
+    def allocate_and_process(self):
+        return self.process(self.allocate())
+
     def test_applicant_is_the_default(self):
-        self.assertEqual(
-            self.call.support_ticket_caller, models.Call.TicketCaller.APPLICANT
-        )
+        self.assertEqual(self.call.order_author, models.Call.OrderAuthor.APPLICANT)
 
-        self.assertEqual(get_order_issue(self.process()).caller, self.applicant)
+        order = self.allocate_and_process()
 
-    def test_call_can_route_to_the_project_manager(self):
-        self.configure(models.Call.TicketCaller.PROJECT_MANAGER)
-
-        self.assertEqual(get_order_issue(self.process()).caller, self.project_manager)
+        self.assertEqual(order.created_by, self.applicant)
+        self.assertEqual(get_order_issue(order).caller, self.applicant)
 
     def test_call_can_route_to_the_call_manager(self):
         call_manager = structure_factories.UserFactory()
         self.call.add_user(call_manager, CallRole.MANAGER)
-        self.configure(models.Call.TicketCaller.CALL_MANAGER)
+        self.configure(models.Call.OrderAuthor.CALL_MANAGER)
 
-        self.assertEqual(get_order_issue(self.process()).caller, call_manager)
+        order = self.allocate_and_process()
+
+        self.assertEqual(order.created_by, call_manager)
+        self.assertEqual(get_order_issue(order).caller, call_manager)
 
     def test_call_can_route_to_a_named_contact(self):
         grants_office = structure_factories.UserFactory()
-        self.configure(models.Call.TicketCaller.SPECIFIC_USER, grants_office)
+        self.configure(models.Call.OrderAuthor.SPECIFIC_USER, grants_office)
 
-        self.assertEqual(get_order_issue(self.process()).caller, grants_office)
+        order = self.allocate_and_process()
 
-    def test_unreachable_configured_caller_falls_through_to_the_role_chain(self):
-        # A named contact who lost their email address must not fail the order
-        # when somebody on the project can still take the ticket.
-        self.configure(
-            models.Call.TicketCaller.SPECIFIC_USER,
-            structure_factories.UserFactory(email=""),
-        )
-
-        self.assertEqual(get_order_issue(self.process()).caller, self.project_manager)
-
-    def test_specific_user_with_no_contact_named_falls_through(self):
-        # The mode is selectable before the contact is picked, so this state is
-        # reachable through the settings page.
-        self.configure(models.Call.TicketCaller.SPECIFIC_USER, None)
-
-        self.assertEqual(get_order_issue(self.process()).caller, self.project_manager)
+        self.assertEqual(order.created_by, grants_office)
+        self.assertEqual(get_order_issue(order).caller, grants_office)
 
     def test_applicant_without_an_email_falls_through_to_the_role_chain(self):
+        # Allocation keeps an unreachable applicant as the author -- they
+        # wrote the proposal, address or not -- so the ticket is what has to
+        # find somebody else.
         self.applicant.email = ""
-        self.applicant.save()
+        self.applicant.save(update_fields=["email"])
 
-        self.assertEqual(get_order_issue(self.process()).caller, self.project_manager)
+        order = self.allocate()
+        manager = structure_factories.UserFactory()
+        order.project.add_user(manager, ProjectRole.MANAGER)
+        self.process(order)
 
-    def test_the_producing_proposal_decides_not_the_lowest_numbered_one(self):
-        # The fixture hangs a second proposal off the same project. Resolving
-        # by project would pick whichever sorts first; the resource link makes
-        # it unambiguous.
-        other = self.proposal_fixture.proposal_submitted
-        self.assertEqual(other.project, self.project)
-        self.assertNotEqual(other.created_by, self.applicant)
-
-        order = self.process(proposal=other)
-
-        self.assertEqual(get_order_issue(order).caller, other.created_by)
-
-    def test_unreachable_configured_caller_is_logged(self):
-        self.configure(
-            models.Call.TicketCaller.SPECIFIC_USER,
-            structure_factories.UserFactory(email=""),
-        )
-
-        with self.assertLogs(
-            "waldur_mastermind.marketplace_support.utils", level="WARNING"
-        ) as logs:
-            self.process()
-
-        self.assertTrue(
-            any("Falling back to the roles" in line for line in logs.output),
-            logs.output,
-        )
-
-    def test_order_placed_by_a_person_ignores_the_call_setting(self):
-        # The call only decides who stands in for an automated order.
-        self.configure(models.Call.TicketCaller.SPECIFIC_USER)
-        buyer = structure_factories.UserFactory()
-
-        order = marketplace_factories.OrderFactory(
-            offering=self.offering,
-            project=self.project,
-            created_by=buyer,
-            attributes={"name": "item_name", "description": "Description"},
-            state=OrderStates.EXECUTING,
-        )
-        marketplace_utils.process_order(order, buyer)
-
-        self.assertEqual(get_order_issue(order).caller, buyer)
+        self.assertEqual(order.created_by, self.applicant)
+        self.assertEqual(get_order_issue(order).caller, manager)
 
 
 class PendingOrderIssueCallerTest(BaseTest):

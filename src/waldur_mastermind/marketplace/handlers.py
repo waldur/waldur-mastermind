@@ -244,7 +244,13 @@ def notify_approvers_when_order_is_created(
         OrderStates.PENDING_PROVIDER,
     ):
         if order_should_not_be_reviewed_by_consumer(order):
-            order.review_by_consumer(order.created_by)
+            # An order can arrive with its consumer review already recorded --
+            # proposal allocation stamps the call manager who accepted the
+            # proposal. review_by_consumer overwrites both fields and saves
+            # every column, so recording it again would discard that
+            # timestamp and cost one extra UPDATE per granted resource.
+            if order.consumer_reviewed_by_id is None:
+                order.review_by_consumer(order.created_by)
             if order.project.start_date and order.project.start_date > now().date():
                 order.state = OrderStates.PENDING_PROJECT
                 order.save(update_fields=["state"])
@@ -258,7 +264,9 @@ def notify_approvers_when_order_is_created(
                     order.id,
                     order.resource,
                 )
-                tasks.process_order_on_commit(order, order.created_by)
+                tasks.process_order_on_commit(
+                    order, utils.get_order_processing_user(order)
+                )
             else:
                 order.state = OrderStates.PENDING_PROVIDER
                 order.save(update_fields=["state"])
@@ -297,6 +305,13 @@ def notify_recipients_when_order_is_created(
         return
 
     if instance.created_by is None or core_utils.is_robot_user(instance.created_by):
+        return
+
+    # An order placed automatically records the person it is for, not somebody
+    # who placed it. Proposal allocation is the case in point: announcing one
+    # new order per granted resource on allocation day is exactly the bulk
+    # this guard exists to avoid.
+    if instance.placed_automatically:
         return
 
     secret_options = instance.offering.secret_options or {}

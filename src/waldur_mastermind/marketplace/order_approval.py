@@ -9,7 +9,13 @@ from rest_framework import serializers
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
-from waldur_mastermind.marketplace import billing_mode, models, tasks, utils
+from waldur_mastermind.marketplace import (
+    billing_mode,
+    models,
+    permissions,
+    tasks,
+    utils,
+)
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
 
 logger = logging.getLogger(__name__)
@@ -54,15 +60,12 @@ def evaluate_auto_approval(
         return None
     if order.plan is None and order.type != OrderTypes.TERMINATE:
         return None
-    if (
-        order.type != OrderTypes.TERMINATE
-        and order.offering.plugin_options.get("require_purchase_order_upload", False)
-        and not order.attachment
-    ):
+    # Same question the consumer gate asks, asked the same way: an order still
+    # owing a purchase order document is held at PENDING_CONSUMER, and a rule
+    # must not be the thing that waves it through.
+    if permissions.order_is_held_for_purchase_order(order):
         return None
-    if order.type != OrderTypes.TERMINATE and order.offering.plugin_options.get(
-        "disable_autoapprove", False
-    ):
+    if permissions.order_autoapprove_is_disabled(order):
         return None
 
     rule = models.ProjectOrderAutoApproval.objects.filter(

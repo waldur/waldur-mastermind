@@ -237,11 +237,13 @@ class RoundStatuses:
     VALUES = [val for (val, _) in CHOICES]
 
 
-class SupportTicketCallers:
-    """Who a call's support tickets are raised on behalf of.
+class OrderAuthors:
+    """Who the orders a call places when it grants resources are attributed to.
 
-    Allocation places orders as the system robot, which has no email address
-    and so cannot be the caller on a helpdesk ticket. One of these stands in.
+    Allocation authorises the spend through the call review, not through the
+    person named here; this decides whose name the resulting order carries.
+    That is who the service desk talks to when the offering is fulfilled by
+    raising a helpdesk ticket, and who Waldur addresses its order mail to.
     """
 
     APPLICANT = "applicant"

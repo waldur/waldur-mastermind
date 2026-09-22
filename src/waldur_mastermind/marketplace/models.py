@@ -2938,6 +2938,21 @@ class Order(
     consumer_rejection_comment = models.TextField(blank=True, default="")
     provider_rejection_comment = models.TextField(blank=True, default="")
 
+    placed_automatically = models.BooleanField(
+        default=False,
+        editable=False,
+        help_text=(
+            "The order was placed by an automated flow on behalf of the "
+            "person in created_by, rather than by that person. Proposal "
+            "allocation sets this: the call review authorised the spend and "
+            "the accepting call manager is recorded as the consumer "
+            "reviewer, while created_by only names who the order is for. "
+            "Such an order is not announced as a new order, and is carried "
+            "out with system authority, since the person named need hold no "
+            "role on the project."
+        ),
+    )
+
     auto_approved_by_rule = models.ForeignKey(
         "ProjectOrderAutoApproval",
         on_delete=models.SET_NULL,

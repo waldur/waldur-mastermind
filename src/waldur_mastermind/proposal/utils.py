@@ -13,9 +13,11 @@ from rest_framework import serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.utils import get_system_robot
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.proposal import models as proposal_models
@@ -23,6 +25,7 @@ from waldur_mastermind.proposal.enums import (
     AllocationTimes,
     BulkRoundCadence,
     CallStates,
+    OrderAuthors,
     RequestedOfferingStates,
 )
 
@@ -305,6 +308,83 @@ def _requested_end_date(
         return None
 
 
+def resolve_order_author(proposal: proposal_models.Proposal, project):
+    """Whose name the orders for this proposal's granted resources carry.
+
+    The call review authorised the spend; this only decides who the resulting
+    orders are attributed to. That matters because it is who the service desk
+    talks to for an offering fulfilled by raising a helpdesk ticket, and who
+    Waldur addresses its order mail to -- neither of which a robot can be.
+
+    It grants nothing: the orders are still carried out with system authority
+    (``marketplace_utils.get_order_processing_user``), and reading the ticket
+    in Waldur still needs a role on the project.
+
+    A configured choice has to land on somebody who can actually be reached,
+    since being told about the order is the whole point of naming them; an
+    unreachable one is skipped in favour of the applicant, and a proposal
+    with no active applicant leaves the robot. The applicant is taken as they
+    are -- they authored the proposal whether or not they have an address,
+    and ``marketplace_support.resolve_issue_caller`` still finds somebody on
+    the project to raise the ticket for.
+    """
+    call = proposal.round.call
+    choice = call.order_author
+
+    if choice == OrderAuthors.APPLICANT:
+        author = proposal.created_by
+    elif choice == OrderAuthors.SPECIFIC_USER:
+        author = _reachable(call.order_author_user)
+    elif choice == OrderAuthors.PROJECT_MANAGER:
+        author = _first_reachable_holder(project, RoleEnum.PROJECT_MANAGER)
+    elif choice == OrderAuthors.CALL_MANAGER:
+        author = _first_reachable_holder(call, RoleEnum.CALL_MANAGER)
+    else:
+        author = None
+
+    if author is not None and author.is_active:
+        return author
+
+    if choice != OrderAuthors.APPLICANT:
+        # A call configured to attribute its orders somewhere specific and
+        # then quietly not doing so is worth a line: shared mailboxes get
+        # closed, and the fallback is invisible from the settings page.
+        logger.warning(
+            "Call %s attributes its orders to '%s', but nobody reachable "
+            "holds it. Falling back to the applicant for proposal %s.",
+            call.uuid.hex,
+            choice,
+            proposal.uuid.hex,
+        )
+        applicant = proposal.created_by
+        if applicant is not None and applicant.is_active:
+            return applicant
+
+    logger.warning(
+        "Proposal %s has no active applicant to attribute its orders to; "
+        "they are recorded against the system robot.",
+        proposal.uuid.hex,
+    )
+    return get_system_robot()
+
+
+def _reachable(user):
+    """The user, if they can be told about an order in their name, else None."""
+    if user and user.is_active and user.email:
+        return user
+    return None
+
+
+def _first_reachable_holder(scope, role_name):
+    """First active holder of ``role_name`` on ``scope`` with an email, or None.
+
+    Ordered by id so the pick is stable: a project with several managers must
+    not attribute consecutive orders to different people. ``get_users`` reads
+    through ``User.objects``, which already excludes deactivated accounts.
+    """
+    return get_users(scope, role_name).exclude(email="").order_by("id").first()
+
+
 def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     # Idempotency guard: a proposal is provisioned exactly once. Without this a
     # second allocation (e.g. re-driving the workflow, or a stale caller) would
@@ -377,6 +457,15 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             else:
                 continue
 
+    # Resolved once for the whole allocation: every order the call places
+    # carries the same author, and the roles it reads were assigned just above.
+    order_author = resolve_order_author(proposal, project)
+    # Whoever accepted the proposal decided on behalf of the call's managing
+    # organisation, which owns the granted project -- so they are the consumer
+    # reviewer. An automatic acceptance passes the robot, as it does for
+    # Proposal.approved_by.
+    consumer_reviewer = approved_by or get_system_robot()
+
     for requested_resource in requested_resources:
         with transaction.atomic():
             attrs = dict(
@@ -398,11 +487,11 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             resource.init_cost()
             resource.save()
 
-            robot = get_system_robot()
             order = marketplace_models.Order(
                 **attrs,
                 resource=resource,
-                created_by=robot,
+                created_by=order_author,
+                placed_automatically=True,
             )
             # Hand the purchase order to the order, so the approval gate in
             # marketplace.permissions is already satisfied. Without this the
@@ -415,27 +504,34 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
                 order.attachment.name = requested_resource.attachment.name
             if requested_resource.purchase_order_reference:
                 order.request_comment = requested_resource.purchase_order_reference
+            # Record the consumer approval up front rather than leaning on a
+            # staff creator to bypass it. Accepting the proposal *is* the
+            # consumer-side decision: the granted project belongs to the call's
+            # managing organisation, so the person who accepted it is deciding
+            # on that organisation's behalf. The stamp has to be on the
+            # unsaved order -- notify_approvers_when_order_is_created reads it
+            # the moment save() fires and owns the routing from there.
+            #
+            # Not when a purchase order is still owed: that control belongs to
+            # the provider, and the gate must be free to hold the order at
+            # PENDING_CONSUMER. The call snapshots the requirement when the
+            # offering is added, so one introduced later reaches existing
+            # calls uncollected.
+            if not marketplace_permissions.order_is_held_for_purchase_order(order):
+                order.consumer_reviewed_by = consumer_reviewer
+                order.consumer_reviewed_at = timezone.now()
             order.init_cost()
             order.save()
 
             requested_resource.resource = resource
             requested_resource.save()
 
-            # No consumer approval here: order.save() above has already fired
-            # notify_approvers_when_order_is_created, and that handler owns it.
-            # The robot is staff, so the marketplace gate clears the consumer
-            # step and routes the order to provider review, PENDING_PROJECT or
-            # EXECUTING. The call review already authorised the spend, so that
-            # is the intended outcome. Approving a second time here raised
-            # TransitionNotAllowed on orders the handler had taken to
-            # EXECUTING, and queued a duplicate provider notification for the
-            # rest.
-            #
-            # The gate still leaves the order PENDING_CONSUMER when the
-            # offering requires a purchase order document and none was copied
-            # above. The call snapshots that flag when the offering is added,
-            # so a requirement introduced later reaches existing calls
-            # uncollected, and the provider's control must still hold.
+            # No second approval here: order.save() above has already fired
+            # notify_approvers_when_order_is_created, and that handler owns the
+            # routing to provider review, PENDING_PROJECT or EXECUTING.
+            # Approving again raised TransitionNotAllowed on orders the handler
+            # had taken to EXECUTING, and queued a duplicate provider
+            # notification for the rest.
             logger.info(
                 "Order %s allocated from proposal %s is %s.",
                 order.uuid,
