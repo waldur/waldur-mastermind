@@ -1,7 +1,14 @@
-from waldur_core.structure.exceptions import SerializableBackendError
+from waldur_core.structure.exceptions import (
+    SerializableBackendError,
+    ServiceBackendRateLimited,
+)
 
 
 class OpenStackBackendError(SerializableBackendError):
+    pass
+
+
+class OpenStackRateLimited(OpenStackBackendError, ServiceBackendRateLimited):
     pass
 
 

@@ -35,5 +35,17 @@ class SerializableBackendError(ServiceBackendError):
         super().__init__(*args, **kwargs)
 
 
+class ServiceBackendRateLimited(SerializableBackendError):
+    """Backend throttled the request; it is worth repeating after a pause.
+
+    ``retry_after`` is the delay in seconds the backend asked for, or 0 when it
+    did not say.
+    """
+
+    def __init__(self, message, retry_after=0):
+        super().__init__(message, retry_after)
+        self.retry_after = retry_after
+
+
 class ServiceBackendNotImplemented(NotImplementedError):
     pass

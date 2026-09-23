@@ -49,6 +49,7 @@ from waldur_openstack.enums import VALID_ROUTER_INTERFACE_OWNERS
 from waldur_openstack.exceptions import (
     OpenStackAuthorizationFailed,
     OpenStackBackendError,
+    OpenStackRateLimited,
     OpenStackRBACPolicyDuplicate,
     OpenStackSessionExpired,
     OpenStackTenantNotFound,
@@ -7058,6 +7059,8 @@ class OpenStackBackend(ServiceBackend):
             return False
         except nova_exceptions.NotFound:
             return True
+        except nova_exceptions.RateLimit as e:
+            raise OpenStackRateLimited(e, retry_after=e.retry_after)
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 

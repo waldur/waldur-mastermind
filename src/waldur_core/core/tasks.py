@@ -25,6 +25,7 @@ from model_utils.fields import AutoLastModifiedField
 from waldur_core.core import models, utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import RuntimeStateException
+from waldur_core.structure.exceptions import ServiceBackendRateLimited
 
 logger = logging.getLogger(__name__)
 
@@ -661,6 +662,9 @@ class PollStateTask(Task):
 class PollBackendCheckTask(Task):
     max_retries = 600
     default_retry_delay = 5
+    # Upper bound on a backend-requested pause, so a bogus Retry-After
+    # cannot park the poll for hours.
+    max_rate_limit_delay = 300
 
     @classmethod
     def get_description(cls, instance, backend_check_method, *args, **kwargs):
@@ -673,7 +677,24 @@ class PollBackendCheckTask(Task):
         # backend_check_method should return True if object does not exist at backend
         backend = self.get_backend(instance)
         retries = getattr(self.request, "retries", 0) or 0
-        if not getattr(backend, backend_check_method)(instance):
+        try:
+            is_deleted = getattr(backend, backend_check_method)(instance)
+        except ServiceBackendRateLimited as e:
+            # Throttling says nothing about the object itself, so keep polling
+            # instead of failing the whole operation. Each retry still counts
+            # toward max_retries; once exhausted, the rate-limit error is raised.
+            countdown = min(
+                max(e.retry_after, self.default_retry_delay),
+                self.max_rate_limit_delay,
+            )
+            logger.warning(
+                "Backend check `%s` for `%s` was rate limited, retrying in %ds.",
+                backend_check_method,
+                instance,
+                countdown,
+            )
+            raise self.retry(exc=e, countdown=countdown)
+        if not is_deleted:
             if retries == 0:
                 logger.info(
                     "Polling backend check `%s` for `%s` started "
