@@ -1,6 +1,7 @@
 import logging
 
 from waldur_core.core.utils import broadcast_mail
+from waldur_mastermind.support.utils import get_issue_thread_headers
 
 from . import SupportBackend, build_backend_id
 
@@ -38,6 +39,7 @@ class EmailSupportBackend(SupportBackend):
                         "provider_email_new_ticket",
                         context,
                         recipients,
+                        headers=get_issue_thread_headers(issue.uuid),
                     )
                 except Exception:
                     logger.exception(
@@ -68,6 +70,7 @@ class EmailSupportBackend(SupportBackend):
                         "provider_email_comment",
                         context,
                         recipients,
+                        headers=get_issue_thread_headers(comment.issue.uuid),
                     )
                 except Exception:
                     logger.exception(

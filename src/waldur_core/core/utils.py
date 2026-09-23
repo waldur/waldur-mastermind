@@ -240,7 +240,14 @@ def send_mail(
     reply_to: str | None = None,
     fail_silently: bool = False,
     connection=None,
+    headers: dict[str, str] | None = None,
 ) -> int:
+    """Send one message.
+
+    :param headers: extra message headers, e.g. the ``Message-ID`` /
+        ``In-Reply-To`` / ``References`` trio that lets a mail client group
+        several notifications about the same object into one thread.
+    """
     from waldur_core.logging.models import EmailLog
 
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
@@ -253,6 +260,7 @@ def send_mail(
         bcc=bcc,
         reply_to=[reply_to],
         connection=connection,
+        headers=headers,
     )
 
     footer_text = config.COMMON_FOOTER_TEXT
@@ -294,6 +302,7 @@ def broadcast_mail(
     content_type="text/plain",
     bcc=None,
     template_variant=None,
+    headers=None,
 ):
     """
     Shorthand to format email message from template file and sent it to all recipients.
@@ -322,6 +331,7 @@ def broadcast_mail(
         notification, used where a deployment words the same event differently.
         The notification, and therefore the operator's on/off switch, is still
         the one named by ``event_type``.
+    :param headers: extra message headers passed on to every recipient's copy.
     """
     from .models import Notification
 
@@ -376,6 +386,7 @@ def broadcast_mail(
                         content_type=content_type,
                         bcc=bcc,
                         connection=connection,
+                        headers=headers,
                     )
                 except Exception:
                     logger.exception(

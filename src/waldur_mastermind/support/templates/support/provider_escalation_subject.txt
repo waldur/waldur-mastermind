@@ -1,1 +1,1 @@
-[{{ issue.key }}] ESCALATED: {{ issue.summary }}
+[{{ child_issue.key }}] ESCALATED: {{ issue.summary }}

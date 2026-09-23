@@ -1,4 +1,51 @@
+from email.utils import parseaddr
+
+from django.conf import settings
+
 from waldur_core.core.utils import format_homeport_link
+
+
+def get_issue_thread_id(issue_uuid) -> str:
+    """Stable message id standing for the whole mail thread of one ticket.
+
+    Takes the UUID rather than the issue, because a ticket can still have mail
+    to send once its row is gone: a child issue withdrawn from a provider is
+    deleted before the withdrawal notice goes out.
+    """
+    sender = parseaddr(settings.DEFAULT_FROM_EMAIL)[1]
+    _, at, domain = sender.rpartition("@")
+    if not at or not domain:
+        domain = "localhost"
+    return f"<support-issue-{issue_uuid.hex}@{domain}>"
+
+
+def get_issue_thread_headers(issue_uuid) -> dict[str, str]:
+    """Threading headers for a notification about the issue with that UUID.
+
+    No message claims the thread id as its own ``Message-ID``. Notifications
+    fan out as one message per recipient, so a shared id would break RFC 5322
+    uniqueness, and a mailbox that receives it twice -- through an alias, a
+    group address, or a retried task -- suppresses the second copy. The thread
+    therefore has no root message, which costs nothing: a ``References`` chain
+    pointing at a message the client has never seen is the ordinary case for
+    mail clients, and every copy keeps a unique ``Message-ID`` of its own.
+    """
+    thread_id = get_issue_thread_id(issue_uuid)
+    return {"In-Reply-To": thread_id, "References": thread_id}
+
+
+def format_issue_subject(subject: str, issue) -> str:
+    """Prefix a rendered subject with the ticket key.
+
+    Clients that thread by subject need every mail about one ticket to share a
+    prefix. Most subject templates carry ``[{{ issue.key }}]`` already; this
+    covers the notifications whose subject may come from a
+    ``TemplateStatusNotification`` row instead of a template file.
+    """
+    prefix = f"[{issue.key or issue.uuid.hex[:8]}]"
+    if subject.startswith(prefix):
+        return subject
+    return f"{prefix} {subject}"
 
 
 def get_feedback_link(token, evaluation=""):

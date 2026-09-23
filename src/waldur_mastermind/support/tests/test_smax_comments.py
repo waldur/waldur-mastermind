@@ -10,6 +10,7 @@ from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.smax_utils import Comment, Issue
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
+from waldur_mastermind.support.utils import get_issue_thread_headers
 
 
 def _set_notification_template(path, content):
@@ -179,10 +180,11 @@ class CommentNotificationTest(smax_base.BaseTest):
         serialized_comment = core_utils.serialize_instance(self.comment)
         tasks.send_comment_added_notification(serialized_comment)
         mock_send_mail.assert_called_once_with(
-            "New comment.",
+            f"[{self.fixture.issue.key}] New comment.",
             "message",
             [self.fixture.issue.caller.email],
             html_message="<p>message</p>",
+            headers=get_issue_thread_headers(self.fixture.issue.uuid),
         )
 
     def test_update_comment_notification(self, mock_send_mail):
@@ -204,8 +206,9 @@ class CommentNotificationTest(smax_base.BaseTest):
         old_description = "<p>old message</p>"
         tasks.send_comment_updated_notification(serialized_comment, old_description)
         mock_send_mail.assert_called_once_with(
-            "Update comment.",
+            f"[{self.fixture.issue.key}] Update comment.",
             "New: message, old: old message",
             [self.fixture.issue.caller.email],
             html_message="New: <p>message</p>, old: <p>old message</p>",
+            headers=get_issue_thread_headers(self.fixture.issue.uuid),
         )

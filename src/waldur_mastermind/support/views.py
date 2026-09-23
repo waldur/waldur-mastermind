@@ -486,7 +486,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
         try:
             with transaction.atomic():
-                new_child, old_helpdesks = tasks.reroute_issue_to_provider(
+                new_child, withdrawn = tasks.reroute_issue_to_provider(
                     issue, new_helpdesk
                 )
         except Exception:
@@ -500,14 +500,17 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
         issue_id = issue.id
         new_child_id = new_child.id
-        old_helpdesk_ids = [helpdesk.id for helpdesk in old_helpdesks]
+        withdrawn_args = [
+            (helpdesk.id, child_uuid, child_key)
+            for helpdesk, child_uuid, child_key in withdrawn
+        ]
         transaction.on_commit(
             lambda: tasks.notify_provider_new_ticket.delay(new_child_id)
         )
-        for helpdesk_id in old_helpdesk_ids:
+        for args in withdrawn_args:
             transaction.on_commit(
-                lambda helpdesk_id=helpdesk_id: tasks.notify_provider_ticket_withdrawn.delay(
-                    issue_id, helpdesk_id
+                lambda args=args: tasks.notify_provider_ticket_withdrawn.delay(
+                    issue_id, *args
                 )
             )
 
