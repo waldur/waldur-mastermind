@@ -124,3 +124,22 @@ class ChangelogEntryListSerializer(serializers.Serializer):
     latest_version = serializers.CharField()
     versions_behind = serializers.IntegerField()
     results = ChangelogFlatEntrySerializer(many=True)
+
+
+class UpgradeCommandsSerializer(serializers.Serializer):
+    helm = serializers.CharField()
+    docker_compose = serializers.CharField()
+
+
+class ChangelogUpgradeReportSerializer(serializers.Serializer):
+    """Upgrade report and announcement covering every pending entry."""
+
+    current_version = serializers.CharField()
+    latest_version = serializers.CharField()
+    entry_count = serializers.IntegerField()
+    commands = UpgradeCommandsSerializer()
+    report = serializers.CharField(help_text="Markdown upgrade report")
+    announcement = serializers.CharField(
+        help_text="Markdown text for a maintenance announcement"
+    )
+    announcement_type = serializers.ChoiceField(choices=["information", "warning"])

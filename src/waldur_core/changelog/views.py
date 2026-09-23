@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from waldur_core import __version__
-from waldur_core.changelog import serializers
+from waldur_core.changelog import report, serializers
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.changelog.utils import (
     compare_versions,
@@ -397,4 +397,42 @@ def changelog_entries_list(request):
         "results": paginated,
     }
     serializer = serializers.ChangelogEntryListSerializer(response_data)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="Get upgrade report",
+    description="Returns a Markdown upgrade report, maintenance announcement text and "
+    "upgrade commands covering every changelog entry pending for this deployment, "
+    "regardless of any table filters or pagination.",
+    responses={200: serializers.ChangelogUpgradeReportSerializer},
+)
+@api_view(["GET"])
+@permission_classes([rf_permissions.IsAuthenticated, IsStaffOrSupportUser])
+def changelog_upgrade_report(request):
+    if not is_changelog_enabled():
+        return _not_enabled_response()
+
+    pending = get_pending_versions(__version__)
+    target_version = pending[-1]["version"] if pending else __version__
+    entries = [
+        entry
+        for _info, _data, release_entries in select_new_entries(
+            __version__, _fetch_releases(pending)
+        )
+        for entry in release_entries
+    ]
+    announcement, announcement_type = report.build_announcement(
+        __version__, target_version, entries
+    )
+    response_data = {
+        "current_version": __version__,
+        "latest_version": target_version,
+        "entry_count": len(entries),
+        "commands": report.get_upgrade_commands(target_version),
+        "report": report.build_upgrade_report(__version__, target_version, entries),
+        "announcement": announcement,
+        "announcement_type": announcement_type,
+    }
+    serializer = serializers.ChangelogUpgradeReportSerializer(response_data)
     return Response(serializer.data)
