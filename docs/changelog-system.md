@@ -137,11 +137,17 @@ Security urgency levels control frontend notification behavior. `changelog_summa
 
 Waldur uses SemVer with `-rc.N` pre-releases. Each release file contains:
 
-- `entries[]` — cumulative since the previous stable release
-- `since_previous[]` — incremental since the immediately preceding version (RC or stable)
-- `component_activity` — per-repo commit counts with compare URLs
+- `entries[]` — cumulative since the previous stable release (`base_stable_version`)
+- `since_previous[]` — incremental since the immediately preceding version (`previous_version`, RC or stable)
+- `component_activity` — per-repo commit counts with compare URLs (optional; `release.sh` does not produce it yet)
 
 This supports three views: stable-to-stable, RC-to-RC, and RC-to-stable.
+
+`assemble_changelog` builds both lists. An RC's fragments cover only the commits since the previous RC, so with `--previous-release` pointing at that RC's file, its `entries` are the previous RC's entries (ids kept) followed by the new ones, and `since_previous` is the new ones. A stable release's fragments cover the whole cycle, so they are its `entries`; with `--previous-release` pointing at the last RC, `since_previous` keeps only the entries that list a commit the RC's entries don't.
+
+#### Which entries a deployment is shown
+
+Every pending release is listed, RCs included, but entries are never repeated. The pending releases are walked in version order: while a release's `previous_version` is the version just before it (the deployment's own version for the first one), its `since_previous` is used; when the chain breaks (a release file missing, or one without `since_previous`), that release falls back to its cumulative `entries`. Entry ids already shown are skipped, which covers an RC's carried-over entries after such a break. `utils.select_new_entries()` implements this, and `pending`, `changelog-entries` and the impact analysis all use it.
 
 ## API Endpoints
 
@@ -210,7 +216,7 @@ All endpoints require `IsAuthenticated + IsStaffOrSupportUser`.
 
 ### Flat entries endpoint
 
-`GET /api/changelog-entries/` flattens every pending version's entries into one paginated list — for the standard Waldur table component, rather than the per-release grouping `pending` returns. Query parameters:
+`GET /api/changelog-entries/` flattens the entries of every pending version, selected as described in "Which entries a deployment is shown", into one paginated list — for the standard Waldur table component, rather than the per-release grouping `pending` returns. Query parameters:
 
 | Param | Description |
 |-------|-------------|
@@ -312,6 +318,7 @@ waldur assemble_changelog \
 | `--release-type` | No | `stable` (default) or `rc` |
 | `--base-stable` | No | Previous stable version for cumulative entries |
 | `--previous` | No | Immediately preceding version |
+| `--previous-release` | No | Path to the previous version's release file: an RC carries its entries forward, a stable release derives `since_previous` from it |
 | `--stable-target` | No | Target stable version (for RC releases) |
 | `--summary` | No | Release summary text |
 | `--no-clear` | No | Don't clear `changelog/next/` after assembly |
@@ -355,10 +362,10 @@ The JSON schema at `changelog/schema.json` includes a `schema_version` field (cu
 Changelog entries are generated at release time by `waldur-docs/scripts/release.sh` — a local, interactive script a dev runs to cut a release (`./scripts/release.sh <VERSION>`). It's not CI-driven: there's no dedicated pipeline job for changelog generation, staff/support-facing or otherwise. The script already collects git log data across all core repos (mastermind, homeport, helm, docker-compose) between the previous tag and the new one, and drives two independent Claude Code (`claude --print`) calls against that same commit data:
 
 1. **`scripts/prompts/changelog-prompt.md`** — produces free-form Markdown, prepended to `docs/about/CHANGELOG.md`. This is the pre-existing, human-facing changelog and is unaffected by the structured system described in this document.
-2. **`scripts/prompts/changelog-json-prompt.md`** — produces a single `{summary, entries[]}` JSON object classifying the same changes into this schema's fields (`type`, `category`, `scope`, `component`, `impact`, `relevant_when`, etc.). Each entry in `entries[]` is written to its own file under `waldur-mastermind/changelog/next/` (a fragment, matching this document's fragment format above), then `assemble_changelog` validates and assembles them into `changelog/releases/{version}.json` inside this repo. That file is copied into `waldur-docs/docs/changelog/releases/{version}.json`, and `scripts/update_changelog_index.py` upserts its summary row into `waldur-docs/docs/changelog/index.json`.
+2. **`scripts/prompts/changelog-json-prompt.md`** — produces a single `{summary, entries[]}` JSON object classifying the same changes into this schema's fields (`type`, `category`, `scope`, `component`, `impact`, `relevant_when`, etc.). Each entry in `entries[]` is written to its own file under `waldur-mastermind/changelog/next/` (a fragment, matching this document's fragment format above), then `assemble_changelog` validates and assembles them into `changelog/releases/{version}.json` inside this repo (git-ignored), passing the previous version's file from `waldur-docs/docs/changelog/releases/` as `--previous-release`. That file is copied into `waldur-docs/docs/changelog/releases/{version}.json`, and `scripts/update_changelog_index.py` upserts its summary row into `waldur-docs/docs/changelog/index.json`.
 
 Both stable and RC releases go through this same flow — there's no separate "daily RC" cadence script.
 
-Publishing happens for free: `docs/changelog/` lives in `waldur-docs`' normal `docs_dir`, so the site's existing "Deploy MkDocs pages" CI job (`mkdocs build` + `mike deploy $TAG latest --update-aliases`, unchanged by this) picks it up like any other doc content. Because `mike` nests the built site under version-prefixed paths (`docs.waldur.com/8.0.9/...`), the changelog is only reachable at a **stable, unversioned URL via mike's `latest` alias** — `docs.waldur.com/latest/changelog/...` — which is why `CHANGELOG_BASE_URL` in `utils.py` points at `/latest/changelog`, not `/changelog`, and why the alias must be kept up to date on every stable release (mike already does this via `--update-aliases`).
+Publishing happens for free: `docs/changelog/` lives in `waldur-docs`' normal `docs_dir`, so the site's existing "Deploy MkDocs pages" CI job picks it up like any other doc content. That job runs `mike deploy latest` on every push to `master` — including the release script's changelog commit — and `mike deploy $TAG` (the version alone, no alias) on a stable tag. `docs.waldur.com/latest/changelog/...` is therefore the only stable, unversioned URL for the changelog, which is why `CHANGELOG_BASE_URL` in `utils.py` points at `/latest/changelog`, not `/changelog`.
 
-`release.sh` also commits `changelog/releases/{version}.json` directly into this repo (`waldur-mastermind`, `develop` branch) as an audit trail, independent of `waldur-docs` — that commit is not required at runtime (the API only ever fetches from `docs.waldur.com`), it just keeps the generated release data in this repo's history too.
+`waldur-docs` is the only place the release files are committed; the copy `assemble_changelog` writes into this repo is transient.

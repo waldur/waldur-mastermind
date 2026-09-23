@@ -461,3 +461,83 @@ class RcTargetMismatchTest(ChangelogViewTestBase):
         entries = [e for r in data["releases"] for e in r["entries"]]
         counts = {e["id"]: e.get("affected_users_count") for e in entries}
         self.assertEqual(counts.get(f"{STABLE_VERSION}-1"), 3)
+
+
+class ChangelogRcCycleTest(ChangelogViewTestBase):
+    """A stable deployment behind an RC cycle and its stable release sees
+    every change once, not once per release."""
+
+    def _releases(self):
+        a = self._entry(id="8.1.3-rc.1-1", title="A")
+        b = self._entry(id="8.1.3-rc.2-1", title="B")
+        c = self._entry(id="8.1.3-3", title="C")
+        return {
+            "8.1.3-rc.1": {
+                "version": "8.1.3-rc.1",
+                "date": "2026-09-23",
+                "summary": "",
+                "type": "rc",
+                "previous_version": "8.1.2",
+                "entries": [a],
+                "since_previous": [a],
+            },
+            "8.1.3-rc.2": {
+                "version": "8.1.3-rc.2",
+                "date": "2026-09-23",
+                "summary": "",
+                "type": "rc",
+                "previous_version": "8.1.3-rc.1",
+                "entries": [a, b],
+                "since_previous": [b],
+            },
+            "8.1.3": {
+                "version": "8.1.3",
+                "date": "2026-09-23",
+                "summary": "",
+                "type": "stable",
+                "previous_version": "8.1.3-rc.2",
+                "entries": [
+                    self._entry(id="8.1.3-1", title="A"),
+                    self._entry(id="8.1.3-2", title="B"),
+                    c,
+                ],
+                "since_previous": [c],
+            },
+        }
+
+    def _pending(self):
+        return [
+            {"version": v, "type": data["type"], "date": "2026-09-23"}
+            for v, data in self._releases().items()
+        ]
+
+    @mock.patch("waldur_core.changelog.views.__version__", "8.1.2")
+    @mock.patch("waldur_core.changelog.views.fetch_changelog_release")
+    @mock.patch("waldur_core.changelog.views.get_pending_versions")
+    def test_entries_list_has_each_change_once(self, mock_pending, mock_release):
+        mock_pending.return_value = self._pending()
+        mock_release.side_effect = lambda v: self._releases()[v]
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.get("/api/changelog-entries/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = sorted(e["title"] for e in response.data["results"])
+        self.assertEqual(titles, ["A", "B", "C"])
+
+    @mock.patch("waldur_core.changelog.views.__version__", "8.1.2")
+    @mock.patch("waldur_core.changelog.views.fetch_changelog_release")
+    @mock.patch("waldur_core.changelog.views.get_pending_versions")
+    def test_pending_lists_rcs_with_their_new_entries(self, mock_pending, mock_release):
+        mock_pending.return_value = self._pending()
+        mock_release.side_effect = lambda v: self._releases()[v]
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.get("/api/changelog/pending/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [
+                (r["version"], [e["title"] for e in r["entries"]])
+                for r in response.data["releases"]
+            ],
+            [("8.1.3", ["C"]), ("8.1.3-rc.2", ["B"]), ("8.1.3-rc.1", ["A"])],
+        )

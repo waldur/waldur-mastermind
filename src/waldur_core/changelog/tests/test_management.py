@@ -190,3 +190,126 @@ class AssembleChangelogTest(TestCase):
                 "assemble_changelog", release_version="8.0.8", date="2026-04-15"
             )
         self.assertIn("expected a JSON object", str(ctx.exception))
+
+
+@mock.patch(
+    "waldur_core.changelog.management.commands.assemble_changelog.Command._find_project_root"
+)
+class AssembleChangelogPreviousReleaseTest(TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.next_dir = Path(self.tmpdir) / "changelog" / "next"
+        self.releases_dir = Path(self.tmpdir) / "changelog" / "releases"
+        self.next_dir.mkdir(parents=True)
+
+    def _fragment(self, title, commits=None):
+        fragment = {
+            "type": "fix",
+            "category": "marketplace",
+            "title": title,
+            "description": "Test description",
+            "scope": "core",
+            "component": ["backend"],
+            "impact": {"risk": "low"},
+            "relevant_when": {"plugins": [], "feature_flags": [], "settings": []},
+        }
+        if commits is not None:
+            fragment["commits"] = commits
+        with open(self.next_dir / f"{title}.json", "w") as f:
+            json.dump(fragment, f)
+
+    def _previous(self, version, release_type, entries, base_stable="8.1.2"):
+        path = Path(self.tmpdir) / f"{version}.json"
+        with open(path, "w") as f:
+            json.dump(
+                {
+                    "version": version,
+                    "type": release_type,
+                    "base_stable_version": base_stable,
+                    "entries": entries,
+                },
+                f,
+            )
+        return str(path)
+
+    def _assemble(self, version, release_type, **options):
+        call_command(
+            "assemble_changelog",
+            release_version=version,
+            date="2026-09-23",
+            release_type=release_type,
+            base_stable="8.1.2",
+            **options,
+        )
+        with open(self.releases_dir / f"{version}.json") as f:
+            return json.load(f)
+
+    def test_without_previous_release_since_previous_equals_entries(self, mock_root):
+        mock_root.return_value = Path(self.tmpdir)
+        self._fragment("a")
+        release = self._assemble("8.1.3-rc.1", "rc", previous="8.1.2")
+        self.assertEqual(release["since_previous"], release["entries"])
+        self.assertEqual(release["previous_version"], "8.1.2")
+
+    def test_rc_carries_previous_rc_entries(self, mock_root):
+        mock_root.return_value = Path(self.tmpdir)
+        self._fragment("b")
+        previous = self._previous(
+            "8.1.3-rc.1", "rc", [{"id": "8.1.3-rc.1-1", "title": "a"}]
+        )
+        release = self._assemble(
+            "8.1.3-rc.2", "rc", previous="8.1.3-rc.1", previous_release=previous
+        )
+        self.assertEqual(
+            [e["id"] for e in release["entries"]], ["8.1.3-rc.1-1", "8.1.3-rc.2-1"]
+        )
+        self.assertEqual([e["id"] for e in release["since_previous"]], ["8.1.3-rc.2-1"])
+
+    def test_first_rc_after_stable_does_not_carry(self, mock_root):
+        mock_root.return_value = Path(self.tmpdir)
+        self._fragment("a")
+        previous = self._previous("8.1.2", "stable", [{"id": "8.1.2-1"}], "8.1.1")
+        release = self._assemble(
+            "8.1.3-rc.1", "rc", previous="8.1.2", previous_release=previous
+        )
+        self.assertEqual([e["id"] for e in release["entries"]], ["8.1.3-rc.1-1"])
+
+    def test_stable_since_previous_keeps_entries_with_unshipped_commits(
+        self, mock_root
+    ):
+        mock_root.return_value = Path(self.tmpdir)
+        self._fragment("a-shipped", commits=["abc1234"])
+        self._fragment("b-new", commits=["def5678"])
+        self._fragment("c-partly-new", commits=["abc1234", "0123456"])
+        self._fragment("d-no-commits")
+        previous = self._previous(
+            "8.1.3-rc.2",
+            "rc",
+            # A longer abbreviation of the same commit still matches.
+            [{"id": "8.1.3-rc.1-1", "commits": ["abc1234ef"]}],
+        )
+        release = self._assemble(
+            "8.1.3", "stable", previous="8.1.3-rc.2", previous_release=previous
+        )
+        self.assertEqual(len(release["entries"]), 4)
+        self.assertEqual(
+            [e["title"] for e in release["since_previous"]],
+            ["b-new", "c-partly-new", "d-no-commits"],
+        )
+
+    def test_previous_release_must_match_previous(self, mock_root):
+        mock_root.return_value = Path(self.tmpdir)
+        self._fragment("a")
+        previous = self._previous("8.1.3-rc.1", "rc", [])
+        with self.assertRaisesRegex(CommandError, "--previous is 8.1.3-rc.2"):
+            self._assemble(
+                "8.1.3-rc.3", "rc", previous="8.1.3-rc.2", previous_release=previous
+            )
+
+    def test_missing_previous_release_file_fails(self, mock_root):
+        mock_root.return_value = Path(self.tmpdir)
+        self._fragment("a")
+        with self.assertRaisesRegex(CommandError, "Cannot read --previous-release"):
+            self._assemble(
+                "8.1.3-rc.2", "rc", previous_release=f"{self.tmpdir}/missing.json"
+            )
