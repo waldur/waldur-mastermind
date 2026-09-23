@@ -45,5 +45,9 @@ waldur-openapi-schema.yaml
 # clears this directory itself.
 changelog/next/
 
+# Release files assembled by the same script. They are published from
+# waldur-docs (docs/changelog/releases/), which keeps their history.
+changelog/releases/
+
 # UI review screenshot artifacts (not for commit)
 .ui-review-shots/

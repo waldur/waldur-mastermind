@@ -17,6 +17,7 @@ from waldur_core.changelog.utils import (
     match_relevance,
     merge_delta_entries,
     parse_version,
+    select_new_entries,
 )
 
 
@@ -365,3 +366,57 @@ class RelevanceQueryCountTest(TestCase):
         # 10 entries must not cost ~10x what 1 entry costs - the context
         # (active plugins, feature flags, customized settings) is shared.
         self.assertLessEqual(counts[10], counts[1] + 2)
+
+
+class SelectNewEntriesTest(TestCase):
+    def _release(self, version, previous, entries, since_previous=None):
+        data = {"version": version, "entries": entries}
+        if previous:
+            data["previous_version"] = previous
+        if since_previous is not None:
+            data["since_previous"] = since_previous
+        return ({"version": version}, data)
+
+    def _ids(self, selected):
+        return [[e["id"] for e in entries] for _info, _data, entries in selected]
+
+    def _rc_cycle(self):
+        a, b, c = {"id": "rc.1-1"}, {"id": "rc.2-1"}, {"id": "8.1.3-1"}
+        stable_a = {"id": "8.1.3-2"}
+        stable_b = {"id": "8.1.3-3"}
+        return [
+            self._release("8.1.3-rc.1", "8.1.2", [a], [a]),
+            self._release("8.1.3-rc.2", "8.1.3-rc.1", [a, b], [b]),
+            # The stable release re-describes the whole cycle under new ids;
+            # only c is new since rc.2.
+            self._release("8.1.3", "8.1.3-rc.2", [stable_a, stable_b, c], [c]),
+        ]
+
+    def test_stable_deployment_sees_each_change_once_through_rcs(self):
+        selected = select_new_entries("8.1.2", self._rc_cycle())
+        self.assertEqual(self._ids(selected), [["rc.1-1"], ["rc.2-1"], ["8.1.3-1"]])
+
+    def test_rc_deployment_sees_only_later_deltas(self):
+        selected = select_new_entries("8.1.3-rc.1", self._rc_cycle()[1:])
+        self.assertEqual(self._ids(selected), [["rc.2-1"], ["8.1.3-1"]])
+
+    def test_broken_chain_falls_back_to_cumulative_entries(self):
+        # rc.1's file is missing: rc.2 can't use its delta, so it shows its
+        # cumulative entries; the stable release then chains from rc.2 again.
+        selected = select_new_entries("8.1.2", self._rc_cycle()[1:])
+        self.assertEqual(self._ids(selected), [["rc.1-1", "rc.2-1"], ["8.1.3-1"]])
+
+    def test_release_without_since_previous_uses_entries(self):
+        releases = [self._release("8.1.3", "8.1.2", [{"id": "8.1.3-1"}])]
+        selected = select_new_entries("8.1.2", releases)
+        self.assertEqual(self._ids(selected), [["8.1.3-1"]])
+
+    def test_carried_over_ids_are_not_repeated_after_a_break(self):
+        a, b = {"id": "rc.1-1"}, {"id": "rc.3-1"}
+        releases = [
+            self._release("8.1.3-rc.1", "8.1.2", [a], [a]),
+            # rc.2 is missing, so rc.3 falls back to entries, which carry a.
+            self._release("8.1.3-rc.3", "8.1.3-rc.2", [a, b], [b]),
+        ]
+        selected = select_new_entries("8.1.2", releases)
+        self.assertEqual(self._ids(selected), [["rc.1-1"], ["rc.3-1"]])

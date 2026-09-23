@@ -140,6 +140,43 @@ def get_impact_analysis_target(pending):
     return pending[-1]["version"]
 
 
+def select_new_entries(current_version, releases):
+    """Pick, for each pending release, the entries this deployment hasn't seen.
+
+    `releases` is a list of (release_info, release_data) pairs in ascending
+    version order, as _fetch_releases returns them for get_pending_versions().
+    A release's `entries` are cumulative since its base stable version, so
+    concatenating them across an RC cycle repeats every change once per
+    release. Instead, walk the chain: while each release's previous_version
+    is the version just before it (the deployment's own version for the first
+    one), its since_previous is exactly what is new. When the chain breaks - a
+    release file is missing, or predates since_previous - fall back to the
+    cumulative entries for that release. An RC carries its predecessors'
+    entries with their original ids, so ids already selected are skipped.
+
+    Returns (release_info, release_data, entries) triples in the same order.
+    """
+    selected = []
+    selected_ids = set()
+    seen = current_version
+    for release_info, release_data in releases:
+        delta = release_data.get("since_previous")
+        if delta is not None and release_data.get("previous_version") == seen:
+            candidates = delta
+        else:
+            candidates = release_data.get("entries", [])
+        entries = []
+        for entry in candidates:
+            entry_id = entry.get("id")
+            if entry_id and entry_id in selected_ids:
+                continue
+            selected_ids.add(entry_id)
+            entries.append(entry)
+        selected.append((release_info, release_data, entries))
+        seen = release_data.get("version", release_info["version"])
+    return selected
+
+
 def get_active_plugins():
     """Return list of active waldur extension plugin names from INSTALLED_APPS."""
     return [

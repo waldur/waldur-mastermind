@@ -42,6 +42,11 @@ class Command(BaseCommand):
             help="Immediately preceding version (for delta)",
         )
         parser.add_argument(
+            "--previous-release",
+            help="Path to the previous version's release file. An RC carries its "
+            "entries forward; a stable release uses them to work out since_previous",
+        )
+        parser.add_argument(
             "--stable-target",
             help="Target stable version (for RC releases)",
         )
@@ -112,6 +117,20 @@ class Command(BaseCommand):
             self._validate_fragment(filename, fragment, validator)
             entries.append(fragment)
 
+        previous_release = self._load_previous_release(options)
+        since_previous = entries
+        if previous_release is not None:
+            if release_type == "rc" and self._same_rc_cycle(
+                previous_release, options["base_stable"]
+            ):
+                # The fragments of an RC cover only the commits since the previous
+                # RC, so the cumulative list is the previous RC's plus these.
+                entries = previous_release.get("entries", []) + entries
+            elif release_type == "stable" and previous_release.get("type") == "rc":
+                # The fragments of a stable release cover the whole cycle; only
+                # entries with a commit the last RC didn't ship are new since it.
+                since_previous = self._new_since(entries, previous_release)
+
         # Build release file
         release = {
             "schema_version": "1.0.0",
@@ -120,12 +139,15 @@ class Command(BaseCommand):
             "type": release_type,
             "summary": options["summary"],
             "entries": entries,
+            "since_previous": since_previous,
         }
 
         if options["base_stable"]:
             release["base_stable_version"] = options["base_stable"]
         if options["previous"]:
             release["previous_version"] = options["previous"]
+        elif previous_release is not None:
+            release["previous_version"] = previous_release["version"]
         if options["stable_target"]:
             release["stable_target"] = options["stable_target"]
 
@@ -153,6 +175,60 @@ class Command(BaseCommand):
             for f in next_dir.glob("*.json"):
                 os.remove(f)
             self.stdout.write(self.style.SUCCESS(f"Cleared {next_dir}"))
+
+    def _load_previous_release(self, options):
+        path = options["previous_release"]
+        if not path:
+            return None
+        try:
+            with open(path) as fh:
+                previous = json.load(fh)
+        except OSError as e:
+            raise CommandError(f"Cannot read --previous-release {path}: {e}")
+        except json.JSONDecodeError as e:
+            raise CommandError(f"Invalid JSON in --previous-release {path}: {e}")
+        if not isinstance(previous, dict) or "version" not in previous:
+            raise CommandError(f"--previous-release {path} is not a release file")
+        if options["previous"] and previous["version"] != options["previous"]:
+            raise CommandError(
+                f"--previous-release is {previous['version']}, "
+                f"but --previous is {options['previous']}"
+            )
+        return previous
+
+    @staticmethod
+    def _same_rc_cycle(previous_release, base_stable):
+        if previous_release.get("type") != "rc":
+            return False
+        previous_base = previous_release.get("base_stable_version")
+        return not (base_stable and previous_base and previous_base != base_stable)
+
+    @staticmethod
+    def _new_since(entries, previous_release):
+        """Entries with at least one commit that previous_release doesn't list.
+
+        Commit hashes are abbreviated, and not always to the same length, so
+        two hashes match when one is a prefix of the other. An entry without
+        commits can't be matched and counts as new.
+        """
+        shipped = {
+            commit
+            for entry in previous_release.get("entries", [])
+            for commit in entry.get("commits", [])
+        }
+
+        def is_shipped(commit):
+            return any(
+                commit.startswith(known) or known.startswith(commit)
+                for known in shipped
+            )
+
+        return [
+            entry
+            for entry in entries
+            if not entry.get("commits")
+            or not all(is_shipped(commit) for commit in entry["commits"])
+        ]
 
     def _find_project_root(self):
         """Walk up from CWD to find the directory containing changelog/."""

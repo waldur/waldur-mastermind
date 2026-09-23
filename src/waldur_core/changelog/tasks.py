@@ -12,6 +12,7 @@ from waldur_core.changelog.utils import (
     get_active_plugins,
     get_customized_settings,
     get_pending_versions,
+    select_new_entries,
 )
 from waldur_core.core.models import User
 
@@ -145,12 +146,16 @@ def compute_changelog_impact(current_version, target_version):
         active_plugins = get_active_plugins()
         customized_settings = get_customized_settings()
 
+        releases = []
         for release_info in pending:
             release_data = fetch_changelog_release(release_info["version"])
-            if not release_data:
-                continue
+            if release_data:
+                releases.append((release_info, release_data))
 
-            for entry in release_data.get("entries", []):
+        for _release_info, _release_data, entries in select_new_entries(
+            current_version, releases
+        ):
+            for entry in entries:
                 entry_id = entry.get("id")
                 if not entry_id:
                     continue

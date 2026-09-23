@@ -18,6 +18,7 @@ from waldur_core.changelog.utils import (
     is_changelog_enabled,
     merge_delta_entries,
     parse_version,
+    select_new_entries,
 )
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 
@@ -100,7 +101,7 @@ def _merge_impact_analysis(entries, current_version, target_version):
 
 @extend_schema(
     summary="Get pending changelog",
-    description="Returns cumulative changelog entries for all versions newer than the current deployment, "
+    description="Returns the changelog entries this deployment has not seen yet, grouped by each newer version, "
     "with relevance matching and impact analysis results.",
     responses={200: serializers.ChangelogPendingSerializer},
 )
@@ -125,10 +126,9 @@ def changelog_pending(request):
     stable_count = sum(1 for r in pending if r.get("type") == "stable")
 
     releases = []
-    for _release_info, release_data in _fetch_releases(
-        list(reversed(pending))
-    ):  # newest first
-        entries = enrich_entries_with_relevance(release_data.get("entries", []))
+    selected = select_new_entries(__version__, _fetch_releases(pending))
+    for _release_info, release_data, entries in reversed(selected):  # newest first
+        entries = enrich_entries_with_relevance(entries)
         # Sort: relevant first, then by risk
         risk_order = {"high": 0, "medium": 1, "low": 2, "none": 3}
         entries.sort(
@@ -310,8 +310,10 @@ def changelog_entries_list(request):
     # Collect all entries from pending versions
     pending = get_pending_versions(__version__)
     all_entries = []
-    for release_info, release_data in _fetch_releases(pending):
-        for entry in release_data.get("entries", []):
+    for release_info, _release_data, entries in select_new_entries(
+        __version__, _fetch_releases(pending)
+    ):
+        for entry in entries:
             entry["version"] = release_info["version"]
             entry["release_date"] = release_info.get("date", "")
             entry["release_type"] = release_info.get("type", "stable")
