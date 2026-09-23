@@ -79,3 +79,33 @@ class LifecyclePluginOptionsPersistenceTest(test.APITestCase):
         result = self._update({"enable_resource_access_subnets": True})
         self.assertEqual(result["enable_resource_access_subnets"], True)
         self.assertEqual(result["auto_approve_remote_orders"], True)
+
+    def test_uses_robot_accounts_persists(self):
+        self.assertIs(
+            self._update({"uses_robot_accounts": True})["uses_robot_accounts"],
+            True,
+        )
+
+    def test_uses_robot_accounts_rejected_with_offering_users(self):
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, "update_integration")
+        response = self.client.post(
+            url, {"plugin_options": {"uses_robot_accounts": True}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.offering.refresh_from_db()
+        self.assertNotIn("uses_robot_accounts", self.offering.plugin_options)
+
+    def test_uses_robot_accounts_allowed_when_offering_users_disabled(self):
+        result = self._update(
+            {
+                "uses_robot_accounts": True,
+                "service_provider_can_create_offering_user": False,
+            }
+        )
+        self.assertIs(result["uses_robot_accounts"], True)
+        self.assertIs(result["service_provider_can_create_offering_user"], False)
