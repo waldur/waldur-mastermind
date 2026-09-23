@@ -1,1 +1,1 @@
-Issue {{ issue.key }}. The comment has been updated
+The comment has been updated

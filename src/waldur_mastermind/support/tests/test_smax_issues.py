@@ -9,6 +9,7 @@ from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.smax_utils import Issue
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
+from waldur_mastermind.support.utils import get_issue_thread_headers
 
 
 def _set_notification_template(path, content):
@@ -162,8 +163,9 @@ class IssueNotificationTest(smax_base.BaseTest):
             serialized_issue, {"description": "<p>old message</p>"}
         )
         mock_send_mail.assert_called_once_with(
-            f"Updated issue: {self.issue.key} {self.issue.summary}",
+            f"[{self.issue.key}] Updated issue: {self.issue.summary}",
             "New: message, old: old message",
             [self.issue.caller.email],
             html_message="New: <p>message</p>, old: <p>old message</p>",
+            headers=get_issue_thread_headers(self.issue.uuid),
         )
