@@ -48,6 +48,7 @@ from waldur_core.changelog.utils import (
     build_changelog_summary,
     fetch_changelog_index,
     get_impact_analysis_target,
+    get_latest_version,
     get_pending_versions,
 )
 from waldur_core.core import WaldurExtension, models, permissions
@@ -1971,9 +1972,9 @@ def _populate_changelog_fields(response_data):
             response_data["latest_version"] = latest_version
         return
 
-    latest_stable = index_data.get("latest_stable")
-    if latest_stable:
-        response_data["latest_version"] = latest_stable
+    latest_version = get_latest_version(index_data, __version__)
+    if latest_version:
+        response_data["latest_version"] = latest_version
 
     summary = build_changelog_summary(index_data, __version__)
     if not summary:

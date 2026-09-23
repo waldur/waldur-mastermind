@@ -10,10 +10,13 @@ from waldur_core.changelog.utils import (
     CHANGELOG_INDEX_CACHE_KEY,
     build_changelog_summary,
     compare_versions,
+    count_versions_behind,
     enrich_entries_with_relevance,
     fetch_changelog_index,
     fetch_changelog_release,
+    get_latest_version,
     get_pending_versions,
+    is_rc_version,
     match_relevance,
     merge_delta_entries,
     parse_version,
@@ -406,6 +409,13 @@ class SelectNewEntriesTest(TestCase):
         selected = select_new_entries("8.1.2", self._rc_cycle()[1:])
         self.assertEqual(self._ids(selected), [["rc.1-1", "rc.2-1"], ["8.1.3-1"]])
 
+    def test_development_build_of_the_previous_release_keeps_the_chain(self):
+        # A staging or dev deployment reports rc.1 plus a local build suffix.
+        selected = select_new_entries(
+            "8.1.3-rc.1+5.gb6fab9572.dirty", self._rc_cycle()[1:]
+        )
+        self.assertEqual(self._ids(selected), [["rc.2-1"], ["8.1.3-1"]])
+
     def test_release_without_since_previous_uses_entries(self):
         releases = [self._release("8.1.3", "8.1.2", [{"id": "8.1.3-1"}])]
         selected = select_new_entries("8.1.2", releases)
@@ -420,3 +430,53 @@ class SelectNewEntriesTest(TestCase):
         ]
         selected = select_new_entries("8.1.2", releases)
         self.assertEqual(self._ids(selected), [["rc.1-1"], ["rc.3-1"]])
+
+
+class RcDeploymentVersionTest(TestCase):
+    INDEX = {
+        "latest_stable": "8.1.2",
+        "latest_rc": "8.1.3-rc.16",
+        "releases": [
+            {"version": "8.1.2", "type": "stable"},
+            {"version": "8.1.3-rc.15", "type": "rc"},
+            {"version": "8.1.3-rc.16", "type": "rc"},
+        ],
+    }
+
+    def test_is_rc_version(self):
+        self.assertTrue(is_rc_version("8.1.3-rc.15"))
+        # A development build of an RC, as setuptools-scm reports it.
+        self.assertTrue(is_rc_version("8.1.3-rc.15+49.gb97210b96"))
+        self.assertFalse(is_rc_version("8.1.2"))
+        self.assertFalse(is_rc_version("not-a-version"))
+
+    def test_stable_deployment_is_offered_the_latest_stable(self):
+        # The newest stable is reported even when the deployment already runs
+        # it, as before; comparing it with the running version is the
+        # caller's job.
+        self.assertEqual(get_latest_version(self.INDEX, "8.1.2"), "8.1.2")
+        self.assertEqual(get_latest_version(self.INDEX, "8.1.1"), "8.1.2")
+
+    def test_rc_deployment_is_offered_a_newer_rc(self):
+        self.assertEqual(get_latest_version(self.INDEX, "8.1.3-rc.15"), "8.1.3-rc.16")
+
+    def test_rc_deployment_is_offered_a_stable_newer_than_the_latest_rc(self):
+        index = dict(self.INDEX, latest_stable="8.1.3")
+        self.assertEqual(get_latest_version(index, "8.1.3-rc.16"), "8.1.3")
+
+    def test_index_without_stable_releases(self):
+        index = {"latest_rc": "8.1.3-rc.16", "releases": []}
+        self.assertEqual(get_latest_version(index, "8.1.3-rc.15"), "8.1.3-rc.16")
+        self.assertIsNone(get_latest_version(index, "8.1.2"))
+
+    def test_versions_behind_counts_rcs_only_for_rc_deployments(self):
+        pending = [
+            {"version": "8.1.3-rc.16", "type": "rc"},
+            {"version": "8.1.3", "type": "stable"},
+        ]
+        self.assertEqual(count_versions_behind("8.1.3-rc.15", pending), 2)
+        self.assertEqual(count_versions_behind("8.1.2", pending), 1)
+
+    def test_summary_for_rc_deployment(self):
+        summary = build_changelog_summary(self.INDEX, "8.1.3-rc.15")
+        self.assertEqual(summary["versions_behind"], 1)
