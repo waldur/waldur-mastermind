@@ -66,6 +66,7 @@ usage: waldur assemble_changelog --release-version RELEASE_VERSION --date DATE
                                  [--release-type {stable,rc}]
                                  [--base-stable BASE_STABLE]
                                  [--previous PREVIOUS]
+                                 [--previous-release PREVIOUS_RELEASE]
                                  [--stable-target STABLE_TARGET]
                                  [--summary SUMMARY] [--no-clear] [--dry-run]
 
@@ -78,6 +79,10 @@ options:
   --base-stable BASE_STABLE
                         Previous stable version (for cumulative entries)
   --previous PREVIOUS   Immediately preceding version (for delta)
+  --previous-release PREVIOUS_RELEASE
+                        Path to the previous version's release file. An RC
+                        carries its entries forward; a stable release uses
+                        them to work out since_previous
   --stable-target STABLE_TARGET
                         Target stable version (for RC releases)
   --summary SUMMARY     Release summary text

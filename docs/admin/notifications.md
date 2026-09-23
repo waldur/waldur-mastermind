@@ -2749,7 +2749,7 @@ Notification about a new comment in the issue. The recipient is issue caller.
 
 ```txt
 
-    The issue ({{ issue.key }}) you have created has a new comment
+    The issue you have created has a new comment
 
 ```
 
@@ -2852,7 +2852,7 @@ Notification about an update in the issue comment. The recipient is issue caller
 
 ```txt
 
-    Issue {{ issue.key }}. The comment has been updated
+    The comment has been updated
 
 ```
 
@@ -3001,7 +3001,7 @@ Notification about a feedback related to the issue. The recipient is issue calle
 
 ```txt
 
-    Please share your feedback: {{issue.key}} {{issue.summary}}
+    Please share your feedback: {{ issue.summary }}
 
 ```
 
@@ -3082,7 +3082,7 @@ Notification about an update in the issue. The recipient is issue caller.
 
 ```txt
 
-    Updated issue: {{issue.key}} {{issue.summary}}
+    Updated issue: {{ issue.summary }}
 
 ```
 
@@ -3276,7 +3276,7 @@ Notify a provider helpdesk that a routed ticket has been escalated.
 
 ```txt
 
-    [{{ issue.key }}] ESCALATED: {{ issue.summary }}
+    [{{ child_issue.key }}] ESCALATED: {{ issue.summary }}
 
 ```
 
@@ -3396,7 +3396,7 @@ Notify a provider helpdesk that a ticket previously routed to them was rerouted 
 
 ```txt
 
-    [{{ issue.key }}] Ticket withdrawn: {{ issue.summary }}
+    [{{ child_key|default:issue.key }}] Ticket withdrawn: {{ issue.summary }}
 
 ```
 
@@ -3406,7 +3406,7 @@ Notify a provider helpdesk that a ticket previously routed to them was rerouted 
 
     A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.
 
-    Ticket: {{ issue.key }}
+    Ticket: {{ child_key|default:issue.key }}
     Summary: {{ issue.summary }}
 
     No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.
@@ -3418,7 +3418,7 @@ Notify a provider helpdesk that a ticket previously routed to them was rerouted 
 ```txt
 
     <p>A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.</p>
-    <p><strong>Ticket:</strong> {{ issue.key }}<br>
+    <p><strong>Ticket:</strong> {{ child_key|default:issue.key }}<br>
     <strong>Summary:</strong> {{ issue.summary }}</p>
     <p>No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.</p>
 

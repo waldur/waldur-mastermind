@@ -1681,6 +1681,20 @@ Brand color is used for button background.
 
 Toggler to disable dark theme.
 
+### About us page
+
+#### ABOUT_US_PAGE_ENABLED
+
+**Type:** bool
+
+Show the About us page and its link in the footer.
+
+#### ABOUT_US_PAGE_CONTENT
+
+**Type:** markdown_field
+
+Markdown content of the About us page.
+
 ### Login page
 
 #### LOGIN_PAGE_LAYOUT

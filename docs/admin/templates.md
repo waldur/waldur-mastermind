@@ -4714,7 +4714,7 @@ Description:
 
 ```txt
 
-[{{ issue.key }}] ESCALATED: {{ issue.summary }}
+[{{ child_issue.key }}] ESCALATED: {{ issue.summary }}
 
 ```
 
@@ -4820,7 +4820,7 @@ Comment:
 ```html
 
 <p>A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.</p>
-<p><strong>Ticket:</strong> {{ issue.key }}<br>
+<p><strong>Ticket:</strong> {{ child_key|default:issue.key }}<br>
 <strong>Summary:</strong> {{ issue.summary }}</p>
 <p>No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.</p>
 
@@ -4927,7 +4927,7 @@ Open the request: {{ issue_url }}
 
 ```txt
 
-[{{ issue.key }}] Ticket withdrawn: {{ issue.summary }}
+[{{ child_key|default:issue.key }}] Ticket withdrawn: {{ issue.summary }}
 
 ```
 
@@ -4937,7 +4937,7 @@ Open the request: {{ issue_url }}
 
 A support ticket previously routed to your helpdesk has been withdrawn and reassigned to a different provider.
 
-Ticket: {{ issue.key }}
+Ticket: {{ child_key|default:issue.key }}
 Summary: {{ issue.summary }}
 
 No further action is required on your side. If you have already opened a corresponding ticket in your system, you may close it.
@@ -5017,7 +5017,7 @@ Please take action to avoid an SLA breach.
 
 ```txt
 
-The issue ({{ issue.key }}) you have created has a new comment
+The issue you have created has a new comment
 
 ```
 
@@ -5025,7 +5025,7 @@ The issue ({{ issue.key }}) you have created has a new comment
 
 ```txt
 
-Issue {{ issue.key }}. The comment has been updated
+The comment has been updated
 
 ```
 
@@ -5051,7 +5051,7 @@ The comment has been updated. Please go to {{issue_url}} to see it.
 
 ```txt
 
-Updated issue: {{issue.key}} {{issue.summary}}
+Updated issue: {{ issue.summary }}
 
 ```
 
@@ -5120,7 +5120,7 @@ Description:
 
 ```txt
 
-Please share your feedback: {{issue.key}} {{issue.summary}}
+Please share your feedback: {{ issue.summary }}
 
 ```
 
