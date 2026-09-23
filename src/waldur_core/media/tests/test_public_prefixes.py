@@ -40,11 +40,12 @@ PUBLIC_PREFIXES = (
     "project/",
     "callmanagingorganisation/",
     "call_documents/",
+    # Avatars load through <img src>, which cannot send the API token.
+    "user/",
 )
 
 # Require a session, but no per-object check.
 AUTHENTICATED_PREFIXES = (
-    "user/",
     "support_template_attachments/",
     "marketplace_offering_group_icons/",
     "rancher_icons/",
