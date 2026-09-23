@@ -205,12 +205,12 @@ class MediaViewTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_authenticated_prefix_denies_anonymous(self):
-        file = make_file("user/avatar.png")
+        file = make_file("support_template_attachments/x.png")
         response = self.client.get(reverse("media", kwargs={"uuid": file.uuid}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_authenticated_prefix_allows_any_logged_in_user(self):
-        file = make_file("user/avatar.png")
+        file = make_file("support_template_attachments/x.png")
         self.client.force_authenticate(structure_factories.UserFactory())
         response = self.client.get(reverse("media", kwargs={"uuid": file.uuid}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
