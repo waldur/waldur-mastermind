@@ -57,6 +57,47 @@ def compare_versions(a, b):
     return 0
 
 
+def is_rc_version(version_string):
+    """Whether version_string is a release candidate (or a build of one)."""
+    parsed = parse_version(version_string)
+    return bool(parsed and parsed.is_prerelease)
+
+
+def is_same_release(a, b):
+    """Whether two version strings name the same release. A development or
+    staging build reports its release plus a local build suffix
+    (8.1.3-rc.16+5.gb6fab9572), which is still that release."""
+    parsed_a, parsed_b = parse_version(a or ""), parse_version(b or "")
+    if parsed_a is None or parsed_b is None:
+        return a == b
+    return parsed_a.public == parsed_b.public
+
+
+def get_latest_version(index_data, current_version):
+    """The newest release this deployment should be offered.
+
+    A stable deployment is only pointed at stable releases. A deployment
+    running an RC already tracks release candidates, so a newer RC counts too.
+    """
+    latest_stable = index_data.get("latest_stable")
+    if not is_rc_version(current_version):
+        return latest_stable
+    candidates = [
+        version
+        for version in (latest_stable, index_data.get("latest_rc"))
+        if version and parse_version(version)
+    ]
+    return max(candidates, key=parse_version, default=None)
+
+
+def count_versions_behind(current_version, pending):
+    """Pending releases counted the way get_latest_version() offers them:
+    every newer release for an RC deployment, stable ones otherwise."""
+    if is_rc_version(current_version):
+        return len(pending)
+    return sum(1 for release in pending if release.get("type") == "stable")
+
+
 def _fetch_json(url, timeout, cache_key, success_timeout):
     """Fetch JSON from docs.waldur.com, caching both success and failure."""
     cached = cache.get(cache_key)
@@ -161,7 +202,9 @@ def select_new_entries(current_version, releases):
     seen = current_version
     for release_info, release_data in releases:
         delta = release_data.get("since_previous")
-        if delta is not None and release_data.get("previous_version") == seen:
+        if delta is not None and is_same_release(
+            release_data.get("previous_version"), seen
+        ):
             candidates = delta
         else:
             candidates = release_data.get("entries", [])
@@ -291,9 +334,6 @@ def build_changelog_summary(index_data, current_version):
     if not pending:
         return None
 
-    # Only count stable releases for versions_behind
-    stable_pending = [r for r in pending if r.get("type") == "stable"]
-
     # The index only carries a per-release has_breaking flag, not per-entry
     # risk, so this counts releases with at least one breaking change - not
     # high-risk entries. Getting an actual entry-level count would mean
@@ -320,7 +360,7 @@ def build_changelog_summary(index_data, current_version):
             )
 
     summary = {
-        "versions_behind": len(stable_pending),
+        "versions_behind": count_versions_behind(current_version, pending),
         "breaking_release_count": breaking_release_count,
         "has_breaking_changes": has_breaking,
     }

@@ -174,3 +174,40 @@ class TriggerImpactAnalysisTest(test.APITestCase):
         )
         self._hit(1)
         self.assertEqual(task.delay.call_count, 1)
+
+
+@mock.patch("waldur_core.core.views.compute_changelog_impact")
+class RcDeploymentLatestVersionTest(test.APITestCase):
+    """A deployment running an RC is told about a newer RC; a stable one only
+    about stable releases."""
+
+    INDEX = {
+        "latest_rc": "8.1.3-rc.16",
+        "releases": [{"version": "8.1.3-rc.16", "type": "rc"}],
+    }
+
+    def setUp(self):
+        self.client.force_authenticate(UserFactory(is_staff=True))
+        self.version_url = "http://testserver/api/version/"
+
+    def _get(self, version):
+        with (
+            mock.patch("waldur_core.core.views.__version__", version),
+            mock.patch(
+                "waldur_core.core.views.fetch_changelog_index",
+                return_value=self.INDEX,
+            ),
+        ):
+            response = self.client.get(self.version_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data
+
+    def test_rc_deployment_gets_newer_rc(self, _task):
+        data = self._get("8.1.3-rc.15")
+        self.assertEqual(data["latest_version"], "8.1.3-rc.16")
+        self.assertEqual(data["changelog_summary"]["versions_behind"], 1)
+
+    def test_stable_deployment_is_not_pointed_at_an_rc(self, _task):
+        data = self._get("8.1.2")
+        self.assertNotIn("latest_version", data)
+        self.assertEqual(data["changelog_summary"]["versions_behind"], 0)

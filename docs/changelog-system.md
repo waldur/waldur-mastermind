@@ -183,6 +183,8 @@ All endpoints require `IsAuthenticated + IsStaffOrSupportUser`.
 }
 ```
 
+`latest_version` and `versions_behind` depend on what the deployment runs. A stable deployment is offered the index's `latest_stable`, and `versions_behind` counts pending stable releases. A deployment running a release candidate (including a development build of one, such as `8.1.3-rc.15+49.gb97210b96`) already tracks RCs, so it is offered the newer of `latest_stable` and `latest_rc`, and `versions_behind` counts every pending release. `utils.get_latest_version()` and `utils.count_versions_behind()` implement this; the pending and entries endpoints use the same count.
+
 ### Pending endpoint response
 
 ```json

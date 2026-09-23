@@ -11,6 +11,7 @@ from waldur_core.changelog import serializers
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.changelog.utils import (
     compare_versions,
+    count_versions_behind,
     enrich_entries_with_relevance,
     fetch_changelog_release,
     get_impact_analysis_target,
@@ -123,7 +124,6 @@ def changelog_pending(request):
         )
 
     latest_version = pending[-1]["version"]
-    stable_count = sum(1 for r in pending if r.get("type") == "stable")
 
     releases = []
     selected = select_new_entries(__version__, _fetch_releases(pending))
@@ -156,7 +156,7 @@ def changelog_pending(request):
     response_data = {
         "current_version": __version__,
         "latest_version": latest_version,
-        "versions_behind": stable_count,
+        "versions_behind": count_versions_behind(__version__, pending),
         "releases": releases,
     }
 
@@ -393,7 +393,7 @@ def changelog_entries_list(request):
         "count": len(all_entries),
         "current_version": __version__,
         "latest_version": pending[-1]["version"] if pending else __version__,
-        "versions_behind": sum(1 for r in pending if r.get("type") == "stable"),
+        "versions_behind": count_versions_behind(__version__, pending),
         "results": paginated,
     }
     serializer = serializers.ChangelogEntryListSerializer(response_data)
