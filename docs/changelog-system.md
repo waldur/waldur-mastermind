@@ -161,6 +161,7 @@ All endpoints require `IsAuthenticated + IsStaffOrSupportUser`.
 | `GET /api/changelog/{version}/delta/` | Only `since_previous` entries |
 | `GET /api/changelog/compare/{from}/{to}/` | Merged deltas between arbitrary versions |
 | `GET /api/changelog-entries/` | Flat, paginated, filterable list of entries across all pending versions (table view) |
+| `GET /api/changelog-upgrade-report/` | Markdown upgrade report, maintenance announcement text and upgrade commands covering every pending entry |
 
 ### Version endpoint response
 
@@ -251,6 +252,26 @@ Results are sorted relevant-first, then by risk (high to none). Each entry addit
       "release_type": "stable"
     }
   ]
+}
+```
+
+### Upgrade report endpoint
+
+`GET /api/changelog-upgrade-report/` backs the admin changelog page's "Download report", "Schedule upgrade" and "Upgrade commands" actions. They describe the whole upgrade, so the response is built from every pending entry (selected as for `changelog-entries`), independent of the table's filters and pagination. `report.py` builds it:
+
+- `report` — Markdown brief: breaking changes, security fixes, post-upgrade actions, every change, the upgrade commands and a pre-upgrade checklist.
+- `announcement` / `announcement_type` — prefilled maintenance announcement text; `warning` when the upgrade brings security fixes or breaking changes, otherwise `information`.
+- `commands` — `helm` and `docker_compose`, following the waldur-helm and waldur-docker-compose READMEs. The Helm chart version equals the Waldur version and its repository is added as `waldur-charts`. Docker Compose pins the images in `.env`, so the commands update `WALDUR_MASTERMIND_IMAGE_TAG` and `WALDUR_HOMEPORT_IMAGE_TAG` before `pull`, `down` and `up -d`; migrations then run on start-up in the `waldur-mastermind-db-migration` service.
+
+```json
+{
+  "current_version": "8.1.3-rc.16",
+  "latest_version": "8.1.3-rc.17",
+  "entry_count": 2,
+  "commands": {"helm": "...", "docker_compose": "..."},
+  "report": "# Waldur Upgrade Report\n...",
+  "announcement": "## Scheduled Upgrade: 8.1.3-rc.16 → 8.1.3-rc.17\n...",
+  "announcement_type": "warning"
 }
 ```
 

@@ -541,3 +541,44 @@ class ChangelogRcCycleTest(ChangelogViewTestBase):
             ],
             [("8.1.3", ["C"]), ("8.1.3-rc.2", ["B"]), ("8.1.3-rc.1", ["A"])],
         )
+
+
+class ChangelogUpgradeReportTest(ChangelogRcCycleTest):
+    """The report covers every pending entry once, whatever the table shows."""
+
+    url = "/api/changelog-upgrade-report/"
+
+    @mock.patch("waldur_core.changelog.views.__version__", "8.1.2")
+    @mock.patch("waldur_core.changelog.views.fetch_changelog_release")
+    @mock.patch("waldur_core.changelog.views.get_pending_versions")
+    def test_report_covers_every_pending_entry(self, mock_pending, mock_release):
+        mock_pending.return_value = self._pending()
+        mock_release.side_effect = lambda v: self._releases()[v]
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["latest_version"], "8.1.3")
+        self.assertEqual(response.data["entry_count"], 3)
+        self.assertIn("## All Changes (3)", response.data["report"])
+        self.assertIn("**3 total changes:**", response.data["announcement"])
+        self.assertEqual(response.data["announcement_type"], "information")
+        self.assertIn("--version 8.1.3 ", response.data["commands"]["helm"])
+
+    @mock.patch("waldur_core.changelog.views.get_pending_versions", return_value=[])
+    def test_nothing_pending(self, _pending):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["entry_count"], 0)
+
+    def test_regular_user_cannot_access(self):
+        self.client.force_authenticate(self.regular)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @mock.patch("waldur_core.changelog.views.is_changelog_enabled", return_value=False)
+    def test_returns_404_when_disabled(self, _enabled):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

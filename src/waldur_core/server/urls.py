@@ -213,6 +213,10 @@ urlpatterns += [
 
 urlpatterns += [
     re_path(r"^api/changelog-entries/$", changelog_views.changelog_entries_list),
+    re_path(
+        r"^api/changelog-upgrade-report/$",
+        changelog_views.changelog_upgrade_report,
+    ),
     re_path(r"^api/changelog/pending/$", changelog_views.changelog_pending),
     re_path(
         r"^api/changelog/compare/(?P<from_version>[^/]+)/(?P<to_version>[^/]+)/$",
