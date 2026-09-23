@@ -106,7 +106,15 @@ class TestEvaluationScoringTest(TestCase):
         _FakeStreamer.error = None
         self.staff = structure_factories.UserFactory(username="staff", is_staff=True)
 
-    def _run(self, scenario, blocks, *args, presets_loaded=(), scenarios_error=None):
+    def _run(
+        self,
+        scenario,
+        blocks,
+        *args,
+        presets_loaded=(),
+        scenarios_error=None,
+        public_marketplace=True,
+    ):
         _FakeStreamer.blocks = blocks
         # (call_command args, streamers built so far) per preset load.
         self.preset_loads = []
@@ -121,6 +129,13 @@ class TestEvaluationScoringTest(TestCase):
             mock.patch(
                 f"{_COMMAND_MODULE}.build_context", return_value=[]
             ) as self.build_context,
+            mock.patch(
+                f"{_COMMAND_MODULE}.build_anonymous_messages", return_value=[]
+            ) as self.build_anonymous_messages,
+            mock.patch(
+                f"{_COMMAND_MODULE}.is_public_marketplace_enabled",
+                return_value=public_marketplace,
+            ),
             mock.patch(
                 f"{_COMMAND_MODULE}.call_command", side_effect=self._load_preset
             ),
@@ -158,11 +173,12 @@ class TestEvaluationScoringTest(TestCase):
         return self.output
 
     @staticmethod
-    def _no_tool_scenario(preset=None, scope_tier=None):
+    def _no_tool_scenario(preset=None, scope_tier=None, role="authenticated"):
         return TestEvaluationScoringTest._scenario(
             {"type": "tool_usage", "config": {"expected_tool": None}},
             preset=preset,
             scope_tier=scope_tier,
+            role=role,
         )
 
     def _load_preset(self, *args, **kwargs):
@@ -170,7 +186,7 @@ class TestEvaluationScoringTest(TestCase):
         self.presets_loaded.add(args[2])
 
     @staticmethod
-    def _scenario(evaluation, preset=None, scope_tier=None):
+    def _scenario(evaluation, preset=None, scope_tier=None, role="authenticated"):
         return Scenario(
             name="probe",
             category="harness",
@@ -179,6 +195,7 @@ class TestEvaluationScoringTest(TestCase):
             evaluations=[evaluation],
             preset=preset,
             scope_tier=scope_tier,
+            role=role,
         )
 
     def test_tool_called_in_earlier_round_satisfies_expected_tool(self):
@@ -244,6 +261,59 @@ class TestEvaluationScoringTest(TestCase):
         self.assertEqual(kwargs.get("user"), self.staff)
         self.assertFalse(kwargs.get("preload_all_tools", False))
         self.assertEqual(kwargs.get("worker_timeout"), 123)
+
+    def test_anonymous_scenario_runs_the_anonymous_pipeline(self):
+        # ``role: anonymous`` mirrors the anonymous view: the catalog
+        # prompt instead of build_context, no user (which selects the
+        # anonymous toolset), the first tool round pinned, and the same
+        # worker timeout.
+        self._run(self._no_tool_scenario(role="anonymous"), [_markdown("Hello")])
+        self.build_anonymous_messages.assert_called_once_with("hi")
+        self.build_context.assert_not_called()
+        kwargs = _FakeStreamer.instances[0].init_kwargs
+        self.assertIsNone(kwargs.get("user"))
+        self.assertEqual(kwargs.get("tool_choice_override"), "required")
+        self.assertEqual(kwargs.get("worker_timeout"), 123)
+        self.assertFalse(kwargs.get("preload_all_tools", False))
+
+    def test_authenticated_scenario_never_touches_the_anonymous_pipeline(self):
+        self._run(self._no_tool_scenario(), [_markdown("Hello")])
+        self.build_anonymous_messages.assert_not_called()
+        self.build_context.assert_called()
+
+    def test_anonymous_scenario_skipped_when_public_marketplace_off(self):
+        # The anonymous view refuses requests while the gate is off, so
+        # there is no production behaviour to score — skip, don't fail.
+        out = self._run_all_skipped(
+            self._no_tool_scenario(role="anonymous"),
+            [_markdown("Hello")],
+            public_marketplace=False,
+        )
+        self.assertIn("ANONYMOUS_USER_CAN_VIEW_OFFERINGS", out)
+        self.assertFalse(_FakeStreamer.instances)
+
+    def test_preset_backed_anonymous_scenario_runs_for_any_user(self):
+        # The anonymous toolset sees public offerings regardless of who
+        # invoked the command, so the staff-visibility skip guard must not
+        # apply to it.
+        structure_factories.UserFactory(username="acme_member")
+        self._run(
+            self._no_tool_scenario(preset="hpc_ai_platform", role="anonymous"),
+            [_markdown("Hello")],
+            "--user",
+            "acme_member",
+            presets_loaded=("hpc_ai_platform",),
+        )
+        self.assertTrue(_FakeStreamer.instances)
+        self.build_anonymous_messages.assert_called_once()
+
+    def test_preset_backed_anonymous_scenario_still_needs_its_preset(self):
+        out = self._run_all_skipped(
+            self._no_tool_scenario(preset="hpc_ai_platform", role="anonymous"),
+            [_markdown("Hello")],
+        )
+        self.assertIn("hpc_ai_platform", out)
+        self.assertFalse(_FakeStreamer.instances)
 
     def test_user_option_picks_that_user(self):
         support = structure_factories.UserFactory(username="support", is_support=True)

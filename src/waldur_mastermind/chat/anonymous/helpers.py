@@ -15,11 +15,15 @@ from django.db import DatabaseError
 from django.db.models import Q
 
 from waldur_mastermind.chat.anonymous import models as anonymous_models
+from waldur_mastermind.chat.anonymous.catalog import build_catalog_summary
+from waldur_mastermind.chat.anonymous.persona import ANONYMOUS_SYSTEM_PROMPT
 from waldur_mastermind.chat.context_assembler import (
     EXCLUDED_SEVERITIES,
     blocks_to_llm_messages,
 )
 from waldur_mastermind.chat.tools.marketplace.helpers import offerings_queryset_for
+from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.chat.tools.tool_sets import ANONYMOUS_TOOLS
 from waldur_mastermind.marketplace import models as marketplace_models
 
 logger = logging.getLogger(__name__)
@@ -186,3 +190,26 @@ def build_session_history(session_id: str) -> list[dict]:
     for interaction in recent:
         out.extend(_interaction_to_llm_messages(interaction))
     return out
+
+
+def build_anonymous_messages(
+    user_input: str, history: list[dict] | None = None
+) -> list[dict]:
+    """System prompt + filtered session history + new user input.
+
+    Shared by the anonymous stream view and the validation harness so
+    scenarios measure the exact prompt production serves.
+    """
+    system_prompt = ANONYMOUS_SYSTEM_PROMPT.format(
+        assistant_name=config.AI_ASSISTANT_NAME,
+        organization=config.SITE_NAME,
+        domain_context=build_domain_context(),
+        tools=tool_registry.get_tools_prompt(ANONYMOUS_TOOLS),
+        catalog=build_catalog_summary(),
+        offering_format_hint=build_offering_format_hint(),
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        *(history or []),
+        {"role": "user", "content": user_input},
+    ]

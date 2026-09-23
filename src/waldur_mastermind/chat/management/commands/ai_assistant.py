@@ -13,6 +13,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
 from waldur_core.core import utils as core_utils
+from waldur_mastermind.chat.anonymous.helpers import build_anonymous_messages
 from waldur_mastermind.chat.context_assembler import (
     build_context,
     resolve_prompt_role,
@@ -23,6 +24,9 @@ from waldur_mastermind.chat.health_checks import (
     LLMResponseHealthCheck,
 )
 from waldur_mastermind.chat.llm_streamer import LLMStreamer
+from waldur_mastermind.chat.tools.marketplace.helpers import (
+    is_public_marketplace_enabled,
+)
 from waldur_mastermind.chat.validation.evaluators import get_evaluator
 from waldur_mastermind.chat.validation.presets import is_preset_loaded
 from waldur_mastermind.chat.validation.scenarios import load_all_scenarios
@@ -420,6 +424,7 @@ class Command(BaseCommand):
 
                     if (
                         scenario.preset
+                        and scenario.role != "anonymous"
                         and scenario.scope_tier != "end_user"
                         and not (run_user.is_staff or run_user.is_support)
                     ):
@@ -428,7 +433,8 @@ class Command(BaseCommand):
                         # to anyone else and "not found" becomes the right
                         # answer to a question the pack scores as wrong. An
                         # explicit end_user tier means the author wanted the
-                        # scoped view.
+                        # scoped view. Anonymous scenarios never use the run
+                        # user's toolset, so visibility is not theirs to gate.
                         skipped = len(scenario.inputs)
                         total_skipped += skipped
                         category_stats(category)["skipped"] += skipped
@@ -455,6 +461,23 @@ class Command(BaseCommand):
                         )
                         continue
 
+                    if scenario.role == "anonymous" and not (
+                        is_public_marketplace_enabled()
+                    ):
+                        # The anonymous view refuses these requests outright,
+                        # so there is no production behaviour to score.
+                        skipped = len(scenario.inputs)
+                        total_skipped += skipped
+                        category_stats(category)["skipped"] += skipped
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"  ⊘ {scenario.name}: the anonymous pipeline "
+                                "is off here. Enable "
+                                "ANONYMOUS_USER_CAN_VIEW_OFFERINGS to score it."
+                            )
+                        )
+                        continue
+
                     # Test each input
                     for input_text in scenario.inputs:
                         total_tests += 1
@@ -464,21 +487,37 @@ class Command(BaseCommand):
                         try:
                             start_time = time.time()
 
-                            messages = build_context(
-                                user=run_user, user_input=input_text, thread=None
-                            )
+                            if scenario.role == "anonymous":
+                                # Same construction as the anonymous view:
+                                # no user (which selects the anonymous
+                                # toolset), catalog-grounded prompt, first
+                                # tool round pinned.
+                                messages = build_anonymous_messages(input_text)
+                                streamer = LLMStreamer(
+                                    messages,
+                                    config.AI_ASSISTANT_API_URL,
+                                    config.AI_ASSISTANT_API_TOKEN,
+                                    user=None,
+                                    worker_timeout=config.AI_ASSISTANT_STREAM_TIMEOUT_SECONDS,
+                                    tool_choice_override="required",
+                                )
+                            else:
+                                messages = build_context(
+                                    user=run_user, user_input=input_text, thread=None
+                                )
 
-                            # Same construction as the authenticated view:
-                            # tools execute for real as this user, and arrive
-                            # via search_tools unless --preload-tools.
-                            streamer = LLMStreamer(
-                                messages,
-                                config.AI_ASSISTANT_API_URL,
-                                config.AI_ASSISTANT_API_TOKEN,
-                                user=run_user,
-                                preload_all_tools=preload_tools,
-                                worker_timeout=config.AI_ASSISTANT_STREAM_TIMEOUT_SECONDS,
-                            )
+                                # Same construction as the authenticated view:
+                                # tools execute for real as this user, and
+                                # arrive via search_tools unless
+                                # --preload-tools.
+                                streamer = LLMStreamer(
+                                    messages,
+                                    config.AI_ASSISTANT_API_URL,
+                                    config.AI_ASSISTANT_API_TOKEN,
+                                    user=run_user,
+                                    preload_all_tools=preload_tools,
+                                    worker_timeout=config.AI_ASSISTANT_STREAM_TIMEOUT_SECONDS,
+                                )
 
                             # Iterate through stream to complete the request
                             for _ in streamer:

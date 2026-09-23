@@ -233,3 +233,24 @@ def test_offering_format_hint_propagates_non_db_errors():
     with mock.patch.object(helpers, "offerings_queryset_for", side_effect=ValueError):
         with pytest.raises(ValueError):
             helpers.build_offering_format_hint()
+
+
+@pytest.mark.django_db
+def test_build_anonymous_messages_shape():
+    history = [
+        {"role": "user", "content": "earlier question"},
+        {"role": "assistant", "content": "earlier answer"},
+    ]
+    messages = helpers.build_anonymous_messages("what GPUs do you have?", history)
+
+    assert [m["role"] for m in messages] == ["system", "user", "assistant", "user"]
+    assert messages[0]["content"]
+    assert "{catalog}" not in messages[0]["content"]
+    assert "CATALOG" in messages[0]["content"]
+    assert messages[-1]["content"] == "what GPUs do you have?"
+
+
+@pytest.mark.django_db
+def test_build_anonymous_messages_without_history():
+    messages = helpers.build_anonymous_messages("hello")
+    assert [m["role"] for m in messages] == ["system", "user"]
