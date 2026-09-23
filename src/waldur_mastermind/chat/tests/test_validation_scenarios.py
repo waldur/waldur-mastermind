@@ -85,3 +85,40 @@ class ScenarioLoadingTest(unittest.TestCase):
         """Test that loading non-existent file raises FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
             load_scenarios_from_yaml(Path("/nonexistent/file.yaml"))
+
+
+class ScenarioRoleTest(unittest.TestCase):
+    """The role field routes a scenario to the authenticated or anonymous pipeline."""
+
+    scenarios_dir = Path(__file__).parent.parent / "validation_scenarios"
+
+    def test_role_defaults_to_authenticated(self):
+        scenario = Scenario(
+            name="x", category="c", description="", inputs=["hi"], evaluations=[]
+        )
+        self.assertEqual(scenario.role, "authenticated")
+
+    def test_invalid_role_raises(self):
+        with self.assertRaises(ValueError):
+            Scenario(
+                name="x",
+                category="c",
+                description="",
+                inputs=["hi"],
+                evaluations=[],
+                role="staff",
+            )
+
+    def test_anonymous_discovery_scenarios_load_with_role(self):
+        scenarios = load_scenarios_from_yaml(
+            self.scenarios_dir / "anonymous_discovery.yaml"
+        )
+        self.assertGreater(len(scenarios), 0)
+        for scenario in scenarios:
+            self.assertEqual(scenario.role, "anonymous")
+            self.assertEqual(scenario.category, "anonymous_discovery")
+
+    def test_existing_scenarios_stay_authenticated(self):
+        scenarios = load_scenarios_from_yaml(self.scenarios_dir / "tool_usage.yaml")
+        for scenario in scenarios:
+            self.assertEqual(scenario.role, "authenticated")

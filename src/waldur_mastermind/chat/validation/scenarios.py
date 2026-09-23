@@ -32,6 +32,10 @@ class EvaluationCriteria:
             )
 
 
+# Which chat pipeline a scenario runs against.
+VALID_SCENARIO_ROLES = {"authenticated", "anonymous"}
+
+
 @dataclass
 class Scenario:
     """A test scenario for LLM validation."""
@@ -49,11 +53,19 @@ class Scenario:
     # scenario's assertions were written against. Each tier grants
     # different subject matter, so a scenario run under another one scores
     # the tier rather than the assistant; the harness skips it instead.
-    # Not ``role``: !6157 uses that key for which identity path to take.
+    # Not ``role``: that key picks which identity path the scenario takes.
     scope_tier: str | None = None
+    # Which chat pipeline the scenario runs through: the authenticated
+    # context builder as the run user, or the anonymous marketplace one.
+    role: str = "authenticated"
 
     def __post_init__(self):
         """Convert evaluation dicts to EvaluationCriteria objects."""
+        if self.role not in VALID_SCENARIO_ROLES:
+            raise ValueError(
+                f"Invalid scenario role '{self.role}'. "
+                f"Must be one of: {', '.join(sorted(VALID_SCENARIO_ROLES))}"
+            )
         converted_evaluations: list[EvaluationCriteria] = []
         for ev in self.evaluations:
             if isinstance(ev, dict):
@@ -132,6 +144,7 @@ def load_scenarios_from_yaml(yaml_path: Path) -> list[Scenario]:
                     evaluations=scenario_data.get("evaluations", []),
                     preset=scenario_data.get("preset"),
                     scope_tier=scenario_data.get("scope_tier"),
+                    role=scenario_data.get("role", "authenticated"),
                 )
                 scenarios.append(scenario)
 

@@ -33,16 +33,13 @@ from waldur_mastermind.chat.anonymous import aggregates
 from waldur_mastermind.chat.anonymous import filters as anonymous_filters
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous import serializers as anonymous_serializers
-from waldur_mastermind.chat.anonymous.catalog import build_catalog_summary
 from waldur_mastermind.chat.anonymous.helpers import (
-    build_domain_context,
-    build_offering_format_hint,
+    build_anonymous_messages,
     build_session_history,
     compute_feedback_token,
     compute_user_slug,
     verify_feedback_token,
 )
-from waldur_mastermind.chat.anonymous.persona import ANONYMOUS_SYSTEM_PROMPT
 from waldur_mastermind.chat.budget_gate import (
     CapacityException,
     capacity_exception_handler,
@@ -61,8 +58,6 @@ from waldur_mastermind.chat.models import GlobalAssistantBudget, TokenQuota
 from waldur_mastermind.chat.tools.marketplace.helpers import (
     is_public_marketplace_enabled,
 )
-from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.chat.tools.tool_sets import ANONYMOUS_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -142,25 +137,6 @@ def _enforce_session_binding(session_id: str, ip_address: str) -> None:
                 "Session is bound to a different network. Please start a new conversation."
             )
         )
-
-
-def _build_anonymous_messages(
-    user_input: str, history: list[dict] | None = None
-) -> list[dict]:
-    """System prompt + filtered session history + new user input."""
-    system_prompt = ANONYMOUS_SYSTEM_PROMPT.format(
-        assistant_name=config.AI_ASSISTANT_NAME,
-        organization=config.SITE_NAME,
-        domain_context=build_domain_context(),
-        tools=tool_registry.get_tools_prompt(ANONYMOUS_TOOLS),
-        catalog=build_catalog_summary(),
-        offering_format_hint=build_offering_format_hint(),
-    )
-    return [
-        {"role": "system", "content": system_prompt},
-        *(history or []),
-        {"role": "user", "content": user_input},
-    ]
 
 
 def _strike_and_maybe_block(budget: anonymous_models.AnonymousChatBudget) -> None:
@@ -463,7 +439,7 @@ class MarketplaceChatViewSet(viewsets.ViewSet):
             ip_address=ip_address,
         )
 
-        messages = _build_anonymous_messages(user_input, history=history)
+        messages = build_anonymous_messages(user_input, history=history)
 
         streamer = LLMStreamer(
             messages=messages,

@@ -93,3 +93,17 @@ class AnonymousPromptContentTest(SimpleTestCase):
 
     def test_no_filler_communication_style(self):
         self.assertIn("No filler phrases", ANONYMOUS_SYSTEM_PROMPT)
+
+
+class AnonymousPromptClarificationTest(SimpleTestCase):
+    """Discovery-dialogue rules: clarify only on ambiguity, never fabricate eligibility."""
+
+    def test_clarification_gate_is_ambiguity_only(self):
+        self.assertIn("do NOT ask a clarifying question", ANONYMOUS_SYSTEM_PROMPT)
+        self.assertIn("ONLY when the request is too ambiguous", ANONYMOUS_SYSTEM_PROMPT)
+
+    def test_single_focused_question_limit(self):
+        self.assertIn("ONE focused question", ANONYMOUS_SYSTEM_PROMPT)
+
+    def test_eligibility_stated_only_rule_present(self):
+        self.assertIn("Eligibility or geographic restrictions", ANONYMOUS_SYSTEM_PROMPT)
