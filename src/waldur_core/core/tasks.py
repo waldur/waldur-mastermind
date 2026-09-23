@@ -369,6 +369,10 @@ class ErrorMessageTask(Task):
                 error_message = f"Internal error: {ex}"
                 error_traceback = traceback.format_exc()
 
+            # AsyncResult.result is the raised exception so we need to stringify it.
+            if not isinstance(error_message, str):
+                error_message = str(error_message)
+
             instance.error_message = error_message
             instance.error_traceback = error_traceback
 

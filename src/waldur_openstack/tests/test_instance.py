@@ -1238,6 +1238,38 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             "Termination failed at step 'delete_instance': Nova API error",
         )
 
+    def test_non_force_failure_signature_stringifies_backend_exception(self):
+        self.instance.state = CoreStates.DELETION_SCHEDULED
+        self.instance.action_details = {
+            "termination_step": openstack_tasks.TERMINATION_STEP_DELETE_INSTANCE
+        }
+        self.instance.save()
+
+        backend_error = OpenStackBackendError(
+            nova_exceptions.ClientException(500, "Nova API error")
+        )
+        serialized = serialize_instance(self.instance)
+        failure = executors.InstanceDeleteExecutor.get_failure_signature(
+            self.instance, serialized, force=False
+        )
+        fake_result_id = "00000000-0000-0000-0000-000000000002"
+        with mock.patch.object(
+            openstack_tasks.InstanceDeleteFailureTask,
+            "AsyncResult",
+            return_value=mock.Mock(result=backend_error, traceback="tb"),
+        ):
+            failure.args = (fake_result_id,) + failure.args
+            task_result = failure.apply()
+
+        self.assertTrue(task_result.successful(), task_result.traceback)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.state, CoreStates.ERRED)
+        self.assertIsInstance(self.instance.error_message, str)
+        self.assertEqual(
+            self.instance.error_message,
+            "Termination failed at step 'delete_instance': Nova API error (HTTP 500)",
+        )
+
 
 class InstanceDisabledActionsTest(test.APITestCase):
     """Tests to verify that create and destroy actions are disabled for the instance endpoint."""
