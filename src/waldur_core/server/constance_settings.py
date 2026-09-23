@@ -285,6 +285,10 @@ CONSTANCE_ADDITIONAL_FIELDS = {
     "color_field": ["django.forms.CharField", {"required": False}],
     "html_field": ["django.forms.CharField", {"required": False}],
     "text_field": ["django.forms.CharField", {"required": False}],
+    "markdown_field": [
+        "django.forms.CharField",
+        {"required": False, "widget": "django.forms.Textarea"},
+    ],
     # String setting that must not be blanked out - an empty value would change
     # the meaning of the setting rather than just unset it.
     "non_empty_field": ["django.forms.CharField", {"required": True}],
@@ -370,6 +374,15 @@ CONSTANCE_CONFIG = {
         "",
         "Text content rendered in the disclaimer area below the footer.",
         "text_field",
+    ),
+    "ABOUT_US_PAGE_ENABLED": (
+        False,
+        "Show the About us page and its link in the footer.",
+    ),
+    "ABOUT_US_PAGE_CONTENT": (
+        "",
+        "Markdown content of the About us page.",
+        "markdown_field",
     ),
     "SITE_ADDRESS": ("", "It is used in marketplace order header."),
     "SITE_EMAIL": ("", "It is used in marketplace order header and UI footer."),
@@ -1963,6 +1976,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "BRAND_COLOR",
         "DISABLE_DARK_THEME",
     ),
+    "About us page": (
+        "ABOUT_US_PAGE_ENABLED",
+        "ABOUT_US_PAGE_CONTENT",
+    ),
     "Login page": (
         "LOGIN_PAGE_LAYOUT",
         "LOGIN_PAGE_VIDEO_URL",
@@ -2330,6 +2347,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "OFFERING_LOGO_PLACEHOLDER",
     "DISCLAIMER_AREA_LOGO",
     "DISCLAIMER_AREA_TEXT",
+    "ABOUT_US_PAGE_ENABLED",
+    "ABOUT_US_PAGE_CONTENT",
     "COMMON_FOOTER_TEXT",
     "COMMON_FOOTER_HTML",
     "LANGUAGE_CHOICES",
