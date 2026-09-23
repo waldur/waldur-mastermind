@@ -19,6 +19,7 @@ from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import (
     OpenStackAuthorizationFailed,
     OpenStackBackendError,
+    OpenStackRateLimited,
 )
 from waldur_openstack.models import Port
 from waldur_openstack.tests.factories import (
@@ -2832,3 +2833,34 @@ class DetachFloatingIpFromPortTest(BaseBackendTest):
         self._detach()
 
         self.assertEqual(self.floating_ip.address, self.FLOATING_ADDRESS)
+
+
+class IsInstanceDeletedTest(BaseBackendTest):
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+
+    def test_rate_limit_is_raised_as_retryable_with_retry_after(self):
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.RateLimit(
+            code=429, retry_after="17"
+        )
+
+        with self.assertRaises(OpenStackRateLimited) as ctx:
+            self.backend.is_instance_deleted(self.instance)
+
+        self.assertEqual(ctx.exception.retry_after, 17)
+
+    def test_other_client_errors_are_still_backend_errors(self):
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.ClientException(
+            code=500
+        )
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.is_instance_deleted(self.instance)
+
+        self.assertNotIsInstance(ctx.exception, OpenStackRateLimited)
+
+    def test_not_found_means_deleted(self):
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.NotFound(code=404)
+
+        self.assertTrue(self.backend.is_instance_deleted(self.instance))
