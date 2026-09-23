@@ -727,6 +727,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 "color_field",
                 "html_field",
                 "text_field",
+                "markdown_field",
                 "url_field",
                 "secret_field",
                 "non_empty_field",
@@ -741,6 +742,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
             if config_type == "image_field":
                 kwargs["allow_null"] = True
             if config_type == "secret_field":
+                kwargs["allow_blank"] = True
+            if config_type == "markdown_field":
                 kwargs["allow_blank"] = True
             if config_type == "issue_key_prefix_field":
                 kwargs["allow_blank"] = False
