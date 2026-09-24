@@ -4,6 +4,9 @@ from constance.test.unittest import override_config
 from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
+from waldur_auth_social.models import IdentityProvider
+from waldur_auth_social.utils import create_or_update_oauth_user
 from waldur_core.core.models import User
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.scim.server import matching
@@ -84,7 +87,8 @@ class MatchingEndpointTest(test.APITestCase):
     def test_new_account_is_named_after_matched_value(self):
         response = self.post(scim_user())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(response.data["userName"], "alice-uid@sram.surf.nl")
+        # As sent, so a login presenting the same identifier finds the account.
+        self.assertEqual(response.data["userName"], "Alice-UID@sram.surf.nl")
         self.assertFalse(User.objects.filter(username="alice").exists())
 
     @override_config(SCIM_USER_MATCH_SCIM_ATTRIBUTE=SRAM_UID_PATH)
@@ -142,6 +146,67 @@ class MatchingEndpointTest(test.APITestCase):
         user = User.objects.get(uuid=response.data["id"])
         self.assertEqual(user.username, "alice")
         self.assertEqual(user.email, "Alice@Example.com")
+
+    @override_config(SCIM_USER_MATCH_SCIM_ATTRIBUTE=SRAM_UID_PATH)
+    def test_username_match_value_is_kept_as_sent(self):
+        for value in ("Alice-UID@sram.surf.nl", "alice_example.com#EXT#@tenant"):
+            body = scim_user(
+                externalId=value, **{SRAM_URN: {"eduPersonUniqueId": value}}
+            )
+            response = self.post(body)
+            self.assertEqual(
+                response.status_code, status.HTTP_201_CREATED, response.data
+            )
+            self.assertTrue(User.objects.filter(username=value).exists(), value)
+
+    @override_config(SCIM_USER_MATCH_SCIM_ATTRIBUTE=SRAM_UID_PATH)
+    def test_login_with_the_same_identifier_finds_the_account(self):
+        body = scim_user(**{SRAM_URN: {"eduPersonUniqueId": "AbC123@idp.example.org"}})
+        created = self.post(body).data
+        idp = IdentityProvider(
+            provider=ProviderChoices.EDUTEAMS,
+            **PROVIDER_DEFAULTS[ProviderChoices.EDUTEAMS],
+        )
+        user, was_created = create_or_update_oauth_user(
+            idp, {"sub": "AbC123@idp.example.org", "given_name": "Alice"}
+        )
+        self.assertFalse(was_created)
+        self.assertEqual(user.uuid.hex, created["id"])
+
+    @override_config(SCIM_USER_MATCH_SCIM_ATTRIBUTE=SRAM_UID_PATH)
+    def test_account_named_under_the_legacy_rule_still_matches(self):
+        legacy = structure_factories.UserFactory(username="alice1@idp.example.org")
+        body = scim_user(**{SRAM_URN: {"eduPersonUniqueId": "Alice:1@idp.example.org"}})
+        response = self.post(body)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn(legacy.uuid.hex, response.data["detail"])
+
+    @override_config(SCIM_USER_MATCH_SCIM_ATTRIBUTE=SRAM_UID_PATH)
+    def test_value_without_any_valid_character_is_refused(self):
+        body = scim_user(**{SRAM_URN: {"eduPersonUniqueId": "!!!???"}})
+        response = self.post(body)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["scimType"], "invalidValue")
+
+    def test_login_created_mixed_case_account_accepts_put(self):
+        # Created by a login, which keeps the identifier as sent.
+        user = structure_factories.UserFactory(username="alice")
+        User.objects.filter(pk=user.pk).update(username="Alice")
+        response = self.client.put(
+            f"/scim/v2/Users/{user.uuid.hex}",
+            data=scim_user(userName="Alice"),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    @override_config(
+        SCIM_USER_MATCH_WALDUR_ATTRIBUTE="email",
+        SCIM_USER_MATCH_SCIM_ATTRIBUTE="emails",
+    )
+    def test_username_is_still_stripped_when_matching_on_email(self):
+        response = self.post(scim_user(userName="Alice Doe"))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(User.objects.filter(username="alicedoe").exists())
 
     @override_config(
         SCIM_USER_MATCH_WALDUR_ATTRIBUTE="civil_number",

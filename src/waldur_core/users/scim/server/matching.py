@@ -138,9 +138,19 @@ def matching_users(body: dict, value: str | None = None):
     if not value:
         return User.all_objects.none()
     field = waldur_attribute()
-    lookup = f"{field}__iexact" if field in CASE_INSENSITIVE_FIELDS else field
     if field == DEFAULT_WALDUR_ATTRIBUTE:
-        value = normalize_username(value, strict=False) or value
+        # A login looks the username up exactly as the identity provider sends
+        # it (waldur_auth_social.utils.get_lookup_params), so match that first.
+        exact = User.all_objects.filter(username=value)
+        if exact.exists():
+            return exact
+        # Accounts SCIM created before usernames were kept as sent are named
+        # after the lowercased value with invalid characters dropped.
+        legacy = normalize_username(value, strict=False)
+        if not legacy:
+            return User.all_objects.none()
+        return User.all_objects.filter(username__iexact=legacy)
+    lookup = f"{field}__iexact" if field in CASE_INSENSITIVE_FIELDS else field
     return User.all_objects.filter(**{lookup: value})
 
 
@@ -155,6 +165,11 @@ def find_matching_user(body: dict) -> User | None:
             scim_type="uniqueness",
         )
     return users[0] if users else None
+
+
+def username_matches(user: User, value: str) -> bool:
+    """Whether ``value`` names ``user`` -- as sent, or in the legacy form."""
+    return user.username in (value, normalize_username(value, strict=False))
 
 
 def normalize_username(raw: str, strict: bool = True) -> str | None:
