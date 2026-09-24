@@ -830,6 +830,7 @@ class PublicInvitationExposureTestCase(APITestCase):
             "call_name",
             "call_uuid",
             "invitation_status",
+            "invited_at",
             "expires_at",
             "is_expired",
             "max_assignments",

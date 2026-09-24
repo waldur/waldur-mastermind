@@ -1029,12 +1029,19 @@ def notify_managers_of_expired_batches():
 @shared_task(name="waldur_mastermind.proposal.send_reviewer_invitation_email")
 def send_reviewer_invitation_email(pool_member_uuid):
     pool_member = proposal_models.CallReviewerPool.objects.select_related(
-        "call", "invited_by"
+        "call", "invited_by", "reviewer__user", "invited_user"
     ).get(uuid=pool_member_uuid)
 
-    if not pool_member.invited_email:
+    if pool_member.reviewer:
+        recipient = pool_member.reviewer.user.email
+    elif pool_member.invited_user:
+        recipient = pool_member.invited_user.email
+    else:
+        recipient = pool_member.invited_email
+
+    if not recipient:
         logger.warning(
-            f"Cannot send reviewer invitation email. Pool member {pool_member_uuid} has no invited_email."
+            f"Cannot send reviewer invitation email. Pool member {pool_member_uuid} has no email address."
         )
         return
 
@@ -1056,7 +1063,7 @@ def send_reviewer_invitation_email(pool_member_uuid):
         "proposal",
         "reviewer_invitation",
         context,
-        [pool_member.invited_email],
+        [recipient],
     )
 
 
