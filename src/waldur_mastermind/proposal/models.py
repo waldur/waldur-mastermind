@@ -1419,6 +1419,7 @@ class Review(
     )
     coi_confirmed_at = models.DateTimeField(null=True, blank=True)
 
+    objects = managers.ReviewQuerySet.as_manager()
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     @classmethod

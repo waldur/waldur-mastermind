@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
+from django.db.models import DateTimeField, ExpressionWrapper, F
 from django.utils import timezone
 
 from waldur_core.core.models import User
@@ -27,6 +30,35 @@ class CallQuerySet(django_models.QuerySet):
 class CallManager(MixinManager):
     def get_queryset(self):
         return CallQuerySet(self.model, using=self._db)
+
+
+class ReviewQuerySet(django_models.QuerySet):
+    def with_deadline(self):
+        """Reviews that have a deadline, with it aliased as ``review_deadline``.
+
+        Same rule as ``Review.review_end_date``: created + the round's review
+        duration, where an unset or zero duration means no deadline. Evaluated
+        in SQL so callers can filter and order on it.
+        """
+        return self.filter(proposal__round__review_duration_in_days__gt=0).alias(
+            review_deadline=ExpressionWrapper(
+                F("created")
+                + timedelta(days=1) * F("proposal__round__review_duration_in_days"),
+                output_field=DateTimeField(),
+            )
+        )
+
+    def due_within(self, days):
+        """Reviews in progress whose deadline is at most ``days`` from now.
+
+        Past deadlines are included: the hourly expiry task rejects those
+        reviews, and until it runs they are the most urgent ones. The call
+        manager dashboard count and the reviews list filter both use this.
+        """
+        return self.with_deadline().filter(
+            state=models.Review.States.IN_REVIEW,
+            review_deadline__lte=timezone.now() + timedelta(days=days),
+        )
 
 
 class RequestedOfferingQuerySet(django_models.QuerySet):
