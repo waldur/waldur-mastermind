@@ -1,5 +1,11 @@
+import logging
+
+import regex
 from django.core.validators import MinValueValidator
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
+
+logger = logging.getLogger(__name__)
 
 
 class StringListSerializer(serializers.ListField):
@@ -139,6 +145,73 @@ FIELD_CLASSES = {
 # Option types whose value can decide whether another option is shown.
 VISIBLE_IF_FIELD_TYPES = ("boolean", "select_string", "select_string_multi")
 
+# Option types whose value can be checked against a provider-defined pattern.
+PATTERN_FIELD_TYPES = ("string", "text")
+MAX_PATTERN_LENGTH = 500
+# Patterns come from providers and run on every order, so a pathological one
+# (catastrophic backtracking) must give up instead of hanging a worker.
+PATTERN_MATCH_TIMEOUT = 0.1
+
+
+def compile_option_pattern(pattern):
+    """Compile a provider-defined option pattern.
+
+    ASCII mode gives \\w, \\d, \\s and \\b the meaning they have in JavaScript,
+    so the check Homeport repeats in the order form accepts the same values.
+    Raises regex.error for an invalid pattern.
+    """
+    return regex.compile(pattern, flags=regex.ASCII)
+
+
+def option_pattern_matches(pattern, value):
+    """Whether the whole value matches the pattern.
+
+    Raises regex.error for an invalid pattern and TimeoutError when matching
+    takes longer than PATTERN_MATCH_TIMEOUT seconds.
+    """
+    compiled = compile_option_pattern(pattern)
+    return compiled.fullmatch(value, timeout=PATTERN_MATCH_TIMEOUT) is not None
+
+
+class OptionPatternValidator:
+    def __init__(self, name, pattern, message=None):
+        self.name = name
+        self.pattern = pattern
+        self.message = message or _("Value must match the pattern %(pattern)s.") % {
+            "pattern": pattern
+        }
+
+    def __call__(self, value):
+        try:
+            matches = option_pattern_matches(self.pattern, value)
+        except regex.error:
+            # Patterns are compiled when the offering is saved, so this is
+            # only reachable through data written around the serializer.
+            raise serializers.ValidationError(
+                _(
+                    "The validation pattern of this option is invalid. "
+                    "Please contact the service provider."
+                )
+            )
+        except TimeoutError:
+            # The customer cannot fix this, so make it visible to operators.
+            logger.warning(
+                "Pattern of offering option %s timed out after %ss on a "
+                "%s-character value: %r",
+                self.name,
+                PATTERN_MATCH_TIMEOUT,
+                len(value),
+                self.pattern,
+            )
+            raise serializers.ValidationError(
+                _(
+                    "Value could not be checked against the pattern in time. "
+                    "Please contact the service provider."
+                )
+            )
+        if not matches:
+            raise serializers.ValidationError(self.message)
+
 
 def _option_value_matches(option, value, values):
     """Whether a submitted option value satisfies a visible_if rule."""
@@ -247,6 +320,15 @@ def validate_options(options, attributes, optional=False, hidden=None):
                 serializers.MultipleChoiceField,
             ):
                 params["choices"] = option["choices"]
+
+        if field_type in PATTERN_FIELD_TYPES and option.get("pattern"):
+            params["validators"] = [
+                OptionPatternValidator(
+                    name, option["pattern"], option.get("pattern_error")
+                )
+            ]
+            # The submitted value is stored as is, so check it untrimmed.
+            params["trim_whitespace"] = False
 
         if issubclass(field_class, K8sConfigField):
             params["topology_mode"] = (option.get("default_configs") or {}).get(

@@ -217,3 +217,48 @@ class OptionVisibilityTest(TestCase):
         options = {"field1": {"type": "integer", "required": True}}
         attributes = {"field1": 1, "other": 2}
         self.assertIs(validate_options(options, attributes), attributes)
+
+
+class OptionPatternTest(TestCase):
+    options = {
+        "slug": {"type": "string", "pattern": "[a-z]+", "pattern_error": "Bad slug"},
+        "count": {"type": "integer", "pattern": "[a-z]+"},
+    }
+
+    def test_matching_value_is_accepted(self):
+        attributes = {"slug": "abc"}
+        self.assertIs(validate_options(self.options, attributes), attributes)
+
+    def test_partial_match_is_rejected_with_provider_message(self):
+        with self.assertRaisesMessage(serializers.ValidationError, "Bad slug"):
+            validate_options(self.options, {"slug": "abc1"})
+
+    def test_value_is_not_trimmed_before_matching(self):
+        with self.assertRaises(serializers.ValidationError):
+            validate_options(self.options, {"slug": "abc "})
+
+    def test_pattern_is_ignored_for_other_types(self):
+        validate_options(self.options, {"slug": "abc", "count": 5})
+
+    def test_slow_pattern_times_out_and_is_logged(self):
+        options = {"slug": {"type": "string", "pattern": "(x+x+)+y"}}
+        with self.assertLogs(
+            "waldur_mastermind.common.serializers", level="WARNING"
+        ) as logs:
+            with self.assertRaisesMessage(
+                serializers.ValidationError, "contact the service provider"
+            ):
+                validate_options(options, {"slug": "x" * 5000})
+        self.assertIn("slug", logs.output[0])
+        self.assertIn("(x+x+)+y", logs.output[0])
+
+    def test_character_classes_match_ascii_only_as_in_javascript(self):
+        options = {
+            "word": {"type": "string", "pattern": r"\w+"},
+            "digit": {"type": "string", "pattern": r"\d+"},
+        }
+        validate_options(options, {"word": "cheese", "digit": "42"})
+        with self.assertRaises(serializers.ValidationError):
+            validate_options(options, {"word": "käse"})
+        with self.assertRaises(serializers.ValidationError):
+            validate_options(options, {"digit": "٣"})
