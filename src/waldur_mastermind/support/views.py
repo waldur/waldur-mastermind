@@ -629,7 +629,16 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().comment_update_is_available(comment):
             raise ValidationError("Updating is not available.")
 
-    update_permissions = partial_update_permissions = [structure_permissions.is_staff]
+    def _update_permission(request, view, obj=None):
+        if obj is None:
+            return
+        active_backend = backend.get_active_backend()
+        if not backend.comment_change_is_permitted(
+            request.user, obj, active_backend.comment_author_update_is_supported
+        ):
+            raise rf_exceptions.PermissionDenied()
+
+    update_permissions = partial_update_permissions = [_update_permission]
     update_validators = partial_update_validators = [_update_is_available_validator]
 
     @transaction.atomic()
@@ -641,7 +650,16 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().comment_destroy_is_available(comment):
             raise ValidationError("Comment cannot be destroyed.")
 
-    destroy_permissions = [structure_permissions.is_staff]
+    def _destroy_permission(request, view, obj=None):
+        if obj is None:
+            return
+        active_backend = backend.get_active_backend()
+        if not backend.comment_change_is_permitted(
+            request.user, obj, active_backend.comment_author_destroy_is_supported
+        ):
+            raise rf_exceptions.PermissionDenied()
+
+    destroy_permissions = [_destroy_permission]
     destroy_validators = [_destroy_is_available_validator]
 
     def get_queryset(self):

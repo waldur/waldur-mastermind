@@ -147,9 +147,9 @@ def send_comment_added_notification(
     if comment.is_forwarded:
         return
 
-    # A comment from the caller is not sent back to them: the task routes it to
-    # whoever works the ticket instead. An edit of their own comment still
-    # notifies nobody, which is what it did before.
+    # A comment from the caller is not sent back to them: it goes to whoever
+    # works the ticket instead, and so does an edit of it, since the helpdesk
+    # may already have acted on the original.
     is_caller_comment = comment.author.user == comment.issue.caller
 
     serialized_comment = core_utils.serialize_instance(comment)
@@ -157,14 +157,24 @@ def send_comment_added_notification(
         transaction.on_commit(
             lambda: tasks.send_comment_added_notification.delay(serialized_comment)
         )
-    elif not is_caller_comment:
-        old_description = comment.tracker.previous("description")
-        if old_description != comment.description:
-            transaction.on_commit(
-                lambda: tasks.send_comment_updated_notification.delay(
-                    serialized_comment, old_description
-                )
+        return
+
+    old_description = comment.tracker.previous("description")
+    if old_description == comment.description:
+        return
+
+    if is_caller_comment:
+        transaction.on_commit(
+            lambda: tasks.notify_helpdesk_comment_updated.delay(
+                serialized_comment, old_description
             )
+        )
+    else:
+        transaction.on_commit(
+            lambda: tasks.send_comment_updated_notification.delay(
+                serialized_comment, old_description
+            )
+        )
 
 
 def send_issue_created_notification(

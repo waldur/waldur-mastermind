@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 class BasicBackend(SupportBackend):
     backend_name = "basic"
 
+    # Waldur holds the only copy of the ticket, so an author changing their own
+    # comment leaves nothing out of step.
+    comment_author_update_is_supported = True
+    comment_author_destroy_is_supported = True
+
     #: Status a new ticket opens in. `IssueStatus` cannot supply this: it is a
     #: registry of *terminal* statuses only — its `type` has just RESOLVED and
     #: CANCELED — so the non-terminal status a ticket starts in is never a row

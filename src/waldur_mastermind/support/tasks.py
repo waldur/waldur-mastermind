@@ -128,6 +128,25 @@ def send_comment_added_notification(serialized_comment):
 
 def notify_helpdesk_new_comment(comment):
     """Tell whoever works the ticket that its caller has commented."""
+    _notify_helpdesk_about_caller_comment(comment, "notification_comment_added_staff")
+
+
+@shared_task(name="waldur_mastermind.support.notify_helpdesk_comment_updated")
+def notify_helpdesk_comment_updated(serialized_comment, old_description):
+    """Tell whoever works the ticket that its caller has edited a comment.
+
+    They may already have acted on the original, so the old text goes along
+    with the new one.
+    """
+    comment = core_utils.deserialize_instance(serialized_comment)
+    _notify_helpdesk_about_caller_comment(
+        comment,
+        "notification_comment_updated_staff",
+        {"old_description": old_description},
+    )
+
+
+def _notify_helpdesk_about_caller_comment(comment, template, extra_context=None):
     issue = comment.issue
 
     # `broadcast_mail` consults only the Notification row, where `_send_email`
@@ -155,13 +174,14 @@ def notify_helpdesk_new_comment(comment):
     try:
         broadcast_mail(
             "support",
-            "notification_comment_added_staff",
+            template,
             {
                 "issue": issue,
                 "comment": comment,
                 "issue_url": core_utils.format_homeport_link(
                     "support/issue/{uuid}/", uuid=issue.uuid
                 ),
+                **(extra_context or {}),
             },
             recipients,
             headers=get_issue_thread_headers(issue.uuid),

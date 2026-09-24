@@ -198,6 +198,8 @@ sequenceDiagram
 
 The `is_forwarded` flag prevents infinite loops: forwarded comments are skipped by all signal handlers.
 
+Forwarding happens only when a comment is created, and a copy keeps no link to its original, so editing or deleting a comment does not reach its copies. For that reason the author of a comment cannot edit or delete it once the ticket has a parent or child issue, or when the comment is itself a forwarded copy. Staff still can, but their changes are not forwarded either.
+
 ## Escalation
 
 1. User calls `POST /api/support-issues/{uuid}/escalate/` with `reason`

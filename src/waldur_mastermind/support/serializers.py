@@ -740,11 +740,42 @@ class CommentSerializer(
     def _active_backend(self):
         return backend.get_active_backend()
 
+    # Both answer for the requesting user, not just the backend: the UI enables
+    # its edit and delete buttons from these, so a comment the user may not
+    # change has to read as unavailable to them.
     def get_update_is_available(self, obj) -> bool:
-        return self._active_backend.comment_update_is_available(obj)
+        return self._user_may_change(
+            obj, self._active_backend.comment_author_update_is_supported
+        ) and bool(self._active_backend.comment_update_is_available(obj))
 
     def get_destroy_is_available(self, obj) -> bool:
-        return self._active_backend.comment_destroy_is_available(obj)
+        return self._user_may_change(
+            obj, self._active_backend.comment_author_destroy_is_supported
+        ) and bool(self._active_backend.comment_destroy_is_available(obj))
+
+    def _user_may_change(self, obj, author_may_change) -> bool:
+        request = self.context.get("request")
+        if request is None:
+            return False
+        return backend.comment_change_is_permitted(
+            request.user, obj, author_may_change, is_routed=self._issue_is_routed
+        )
+
+    def _issue_is_routed(self, issue) -> bool:
+        # A comment list is nearly always one ticket, and both availability
+        # fields ask this for every comment the user wrote on it.
+        cache = self.context.setdefault("_routed_issues", {})
+        if issue.pk not in cache:
+            cache[issue.pk] = backend.issue_is_routed(issue)
+        return cache[issue.pk]
+
+    def validate(self, attrs):
+        # Visibility is the helpdesk's call. An author allowed to edit their
+        # own comment could otherwise hide it from everyone else on the ticket,
+        # which would also stop its notifications.
+        if self.instance is not None and not self.context["request"].user.is_staff:
+            attrs.pop("is_public", None)
+        return attrs
 
     def validate_description(self, description):
         impersonator = getattr(self.context["request"].user, "impersonator", None)

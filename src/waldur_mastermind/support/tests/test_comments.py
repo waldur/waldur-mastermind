@@ -9,7 +9,10 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import models
+from waldur_mastermind.support import backend, models
+from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.backend.basic import BasicBackend
+from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 from waldur_mastermind.support.tests import base, factories
 
@@ -209,6 +212,8 @@ class CommentUpdateTest(base.BaseTest):
 
     @data("owner", "admin", "manager")
     def test_nonstaff_user_cannot_edit_comment(self, user):
+        self.comment.is_public = True
+        self.comment.save()
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload()
 
@@ -221,6 +226,231 @@ class CommentUpdateTest(base.BaseTest):
 
     def _get_valid_payload(self):
         return {"description": "New comment description"}
+
+
+class AuthorCommentTestBase(base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.author = self.fixture.owner
+        support_user, _ = models.SupportUser.objects.get_or_create_from_user(
+            self.author
+        )
+        self.comment = factories.CommentFactory(
+            issue=self.fixture.issue, author=support_user, is_public=True
+        )
+        self.url = factories.CommentFactory.get_url(self.comment)
+
+    def _allow_author_changes(self, allowed=True):
+        active_backend = self.mock_get_active_backend()
+        active_backend.comment_author_update_is_supported = allowed
+        active_backend.comment_author_destroy_is_supported = allowed
+
+    def _get_availability(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["update_is_available"], response.data[
+            "destroy_is_available"
+        ]
+
+
+class CommentAuthorChangeTest(AuthorCommentTestBase):
+    """The author of a comment may change it where the backend allows that."""
+
+    def test_author_can_edit_own_comment_if_backend_supports_it(self):
+        self._allow_author_changes()
+        self.client.force_authenticate(self.author)
+
+        response = self.client.patch(self.url, {"description": "Edited by author"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.description, "Edited by author")
+
+    def test_author_cannot_edit_own_comment_if_backend_does_not_support_it(self):
+        self._allow_author_changes(False)
+        self.client.force_authenticate(self.author)
+
+        response = self.client.patch(self.url, {"description": "Edited by author"})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_author_cannot_edit_comment_the_backend_no_longer_accepts(self):
+        # A resolved ticket, for instance: the author rule does not lift it.
+        self._allow_author_changes()
+        self.mock_get_active_backend().comment_update_is_available.return_value = False
+        self.client.force_authenticate(self.author)
+
+        response = self.client.patch(self.url, {"description": "Edited by author"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_other_user_cannot_edit_comment_even_if_backend_supports_it(self):
+        self._allow_author_changes()
+        self.client.force_authenticate(self.fixture.admin)
+
+        response = self.client.patch(self.url, {"description": "Edited by admin"})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_author_cannot_change_comment_visibility(self):
+        self._allow_author_changes()
+        self.client.force_authenticate(self.author)
+
+        response = self.client.patch(
+            self.url, {"description": "Edited by author", "is_public": False}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.comment.refresh_from_db()
+        self.assertTrue(self.comment.is_public)
+
+    def test_staff_can_change_comment_visibility(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.patch(self.url, {"is_public": False})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.comment.refresh_from_db()
+        self.assertFalse(self.comment.is_public)
+
+    def test_author_can_delete_own_comment_if_backend_supports_it(self):
+        self._allow_author_changes()
+        self.client.force_authenticate(self.author)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.Comment.objects.filter(id=self.comment.id).exists())
+
+    def test_author_cannot_delete_own_comment_if_backend_does_not_support_it(self):
+        self._allow_author_changes(False)
+        self.client.force_authenticate(self.author)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.Comment.objects.filter(id=self.comment.id).exists())
+
+    def test_other_user_cannot_delete_comment_even_if_backend_supports_it(self):
+        self._allow_author_changes()
+        self.client.force_authenticate(self.fixture.admin)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.Comment.objects.filter(id=self.comment.id).exists())
+
+    def test_availability_is_reported_for_the_author(self):
+        self._allow_author_changes()
+        self.assertEqual(self._get_availability(self.author), (True, True))
+
+    def test_availability_is_not_reported_to_the_author_if_backend_refuses(self):
+        self._allow_author_changes(False)
+        self.assertEqual(self._get_availability(self.author), (False, False))
+
+    def test_availability_is_not_reported_to_other_users(self):
+        self._allow_author_changes()
+        self.assertEqual(self._get_availability(self.fixture.admin), (False, False))
+
+    def test_availability_is_reported_to_staff(self):
+        self.assertEqual(self._get_availability(self.fixture.staff), (True, True))
+
+    def test_availability_still_follows_the_backend_for_staff(self):
+        self.mock_get_active_backend().comment_update_is_available.return_value = False
+        self.mock_get_active_backend().comment_destroy_is_available.return_value = False
+        self.assertEqual(self._get_availability(self.fixture.staff), (False, False))
+
+
+@ddt
+class CommentAuthorChangeOnRoutedTicketTest(AuthorCommentTestBase):
+    """A copy made by provider routing is not updated when its original is."""
+
+    def _route_to_provider(self):
+        factories.IssueFactory(parent_issue=self.fixture.issue)
+
+    def _make_child_ticket(self):
+        parent = factories.IssueFactory()
+        self.fixture.issue.parent_issue = parent
+        self.fixture.issue.save()
+
+    def _make_forwarded_copy(self):
+        self.comment.is_forwarded = True
+        self.comment.save()
+
+    @data("_route_to_provider", "_make_child_ticket", "_make_forwarded_copy")
+    def test_author_cannot_change_a_copied_comment(self, setup):
+        self._allow_author_changes()
+        getattr(self, setup)()
+        self.client.force_authenticate(self.author)
+
+        edit = self.client.patch(self.url, {"description": "Edited by author"})
+        delete = self.client.delete(self.url)
+
+        self.assertEqual(edit.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(delete.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.Comment.objects.filter(id=self.comment.id).exists())
+
+    @data("_route_to_provider", "_make_child_ticket", "_make_forwarded_copy")
+    def test_availability_is_not_reported_for_a_copied_comment(self, setup):
+        self._allow_author_changes()
+        getattr(self, setup)()
+        self.assertEqual(self._get_availability(self.author), (False, False))
+
+    @data("_route_to_provider", "_make_child_ticket", "_make_forwarded_copy")
+    def test_staff_can_still_change_a_copied_comment(self, setup):
+        getattr(self, setup)()
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.patch(self.url, {"description": "Edited by staff"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class CommentListRoutingLookupTest(AuthorCommentTestBase):
+    def test_routing_is_looked_up_once_per_ticket(self):
+        self._allow_author_changes()
+        for _ in range(3):
+            factories.CommentFactory(
+                issue=self.fixture.issue, author=self.comment.author, is_public=True
+            )
+        self.client.force_authenticate(self.author)
+
+        with patch.object(
+            backend, "issue_is_routed", wraps=backend.issue_is_routed
+        ) as lookup:
+            response = self.client.get(
+                factories.CommentFactory.get_list_url(),
+                {"issue_uuid": self.fixture.issue.uuid.hex},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 4)
+        self.assertTrue(all(item["update_is_available"] for item in response.data))
+        self.assertEqual(lookup.call_count, 1)
+
+
+class CommentChangeIsPermittedTest(base.BaseTest):
+    def test_comment_without_a_local_user_is_left_to_staff(self):
+        comment = factories.CommentFactory(issue=self.fixture.issue)
+        comment.author.user = None
+        comment.author.save()
+
+        self.assertFalse(
+            backend.comment_change_is_permitted(self.fixture.owner, comment, True)
+        )
+        self.assertTrue(
+            backend.comment_change_is_permitted(self.fixture.staff, comment, False)
+        )
+
+    def test_only_the_basic_backend_lets_authors_change_comments(self):
+        # Every other backend has already delivered the comment to a service
+        # desk, where an edit would land under the integration account.
+        self.assertTrue(BasicBackend.comment_author_update_is_supported)
+        self.assertTrue(BasicBackend.comment_author_destroy_is_supported)
+        for klass in (ServiceDeskBackend, SmaxServiceBackend, ZammadServiceBackend):
+            self.assertFalse(klass.comment_author_update_is_supported, klass)
+            self.assertFalse(klass.comment_author_destroy_is_supported, klass)
 
 
 @ddt
@@ -283,11 +513,23 @@ class CommentDeleteTest(base.BaseTest):
 
     @data("owner", "admin", "manager")
     def test_not_staff_user_cannot_delete_comment(self, user):
+        self.comment.is_public = True
+        self.comment.save()
         self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.Comment.objects.filter(id=self.comment.id).exists())
+
+    def test_private_comment_of_someone_else_is_not_found(self):
+        # Same answer a read gets: a comment the user cannot see does not exist
+        # for them, whatever they try to do with it.
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(models.Comment.objects.filter(id=self.comment.id).exists())
 
 

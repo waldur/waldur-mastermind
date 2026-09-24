@@ -108,6 +108,20 @@ class Comment:
 - Automatic user information formatting for backends
 - Bidirectional synchronization
 
+**Editing and deleting comments:**
+
+Staff can edit and delete any comment. The author of a comment can edit or delete it only when all of the following hold:
+
+- The active backend allows author changes. Only the built-in (basic) backend does. With Atlassian, Zammad and SMAX the comment has already reached the external service desk, where an edit would be recorded under the integration account.
+- The ticket is not part of a [provider routing](provider-helpdesk.md#comment-forwarding) and the comment is not a forwarded copy. Forwarding copies a comment when it is created, so a later edit or deletion would not reach the provider's copy.
+- The backend still accepts changes to the comment. The basic backend accepts them only while the ticket is open.
+
+`is_public` can only be changed by staff; the field is ignored when an author edits their comment.
+
+The `update_is_available` and `destroy_is_available` fields of a comment tell the requesting user whether they can edit or delete it, taking all of the above into account.
+
+When the caller of a ticket edits their own public comment, the assignee is notified (or all staff and support users while the ticket is unassigned) through `support.notification_comment_updated_staff`, with the previous and the edited text. An edit by anyone else notifies the caller through `support.notification_comment_updated`. Deleting a comment notifies nobody.
+
 ### 3. Attachment Management
 
 File attachments for issues and templates:
@@ -433,6 +447,10 @@ class SupportBackend:
     def update_comment(comment: Comment) -> Comment
     def delete_comment(comment: Comment)
 
+    # May the author of a comment change or remove it? Staff always may.
+    comment_author_update_is_supported: bool = False
+    comment_author_destroy_is_supported: bool = False
+
     # Attachment operations
     def create_attachment(attachment: Attachment) -> Attachment
     def delete_attachment(attachment: Attachment)
@@ -466,8 +484,8 @@ class SupportBackend:
 |----------|--------|-------------|
 | `/api/support-comments/` | GET | List comments |
 | `/api/support-comments/{uuid}/` | GET | Retrieve comment |
-| `/api/support-comments/{uuid}/` | PATCH | Update comment |
-| `/api/support-comments/{uuid}/` | DELETE | Delete comment |
+| `/api/support-comments/{uuid}/` | PATCH | Update comment (staff, or the author where [allowed](#2-comment-system)) |
+| `/api/support-comments/{uuid}/` | DELETE | Delete comment (staff, or the author where [allowed](#2-comment-system)) |
 
 ### Attachments
 
