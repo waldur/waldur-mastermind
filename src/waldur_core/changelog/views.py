@@ -13,10 +13,12 @@ from waldur_core.changelog.utils import (
     compare_versions,
     count_versions_behind,
     enrich_entries_with_relevance,
+    fetch_changelog_index,
     fetch_changelog_release,
     get_impact_analysis_target,
     get_pending_versions,
     is_changelog_enabled,
+    list_releases,
     merge_delta_entries,
     parse_version,
     select_new_entries,
@@ -278,10 +280,16 @@ def changelog_compare(request, from_version, to_version):
 
 @extend_schema(
     summary="List changelog entries",
-    description="Returns a flat, paginated list of changelog entries for all pending versions. "
+    description="Returns a flat, paginated list of changelog entries for all pending versions, "
+    "or, with `release`, the entries that release introduced. "
     "Supports filtering by type, risk, scope, version, and text search. "
     "Compatible with the standard Waldur table component.",
     parameters=[
+        OpenApiParameter(
+            "release",
+            str,
+            description="List what this release introduced instead of the pending entries",
+        ),
         OpenApiParameter("type", str, description="Filter by entry type"),
         OpenApiParameter("risk", str, description="Filter by risk level"),
         OpenApiParameter("scope", str, description="Filter by scope"),
@@ -307,12 +315,38 @@ def changelog_entries_list(request):
     if not is_changelog_enabled():
         return _not_enabled_response()
 
-    # Collect all entries from pending versions
     pending = get_pending_versions(__version__)
+    release = request.query_params.get("release")
+    if release:
+        # History view: what one release introduced, whether it is pending,
+        # running or older. since_previous is exactly that; a release file
+        # without it falls back to its cumulative entries.
+        if parse_version(release) is None:
+            return _invalid_version_response(release)
+        release_data = fetch_changelog_release(release)
+        if not release_data:
+            return Response(
+                {"detail": f"Changelog for version {release} not found."},
+                status=404,
+            )
+        release_info = {
+            "version": release_data.get("version", release),
+            "date": release_data.get("date", ""),
+            "type": release_data.get("type", "stable"),
+        }
+        delta = release_data.get("since_previous")
+        selected = [
+            (
+                release_info,
+                release_data,
+                delta if delta is not None else release_data.get("entries", []),
+            )
+        ]
+    else:
+        selected = select_new_entries(__version__, _fetch_releases(pending))
+
     all_entries = []
-    for release_info, _release_data, entries in select_new_entries(
-        __version__, _fetch_releases(pending)
-    ):
+    for release_info, _release_data, entries in selected:
         for entry in entries:
             entry["version"] = release_info["version"]
             entry["release_date"] = release_info.get("date", "")
@@ -324,7 +358,8 @@ def changelog_entries_list(request):
 
     # Merge impact analysis - looked up by the same target the analysis was
     # actually triggered for, not pending[-1]["version"] (see changelog_pending).
-    if pending:
+    # It only covers pending entries, so the history view has none.
+    if pending and not release:
         impact_target = get_impact_analysis_target(pending)
         all_entries, _ = _merge_impact_analysis(all_entries, __version__, impact_target)
 
@@ -435,4 +470,24 @@ def changelog_upgrade_report(request):
         "announcement_type": announcement_type,
     }
     serializer = serializers.ChangelogUpgradeReportSerializer(response_data)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    summary="List changelog releases",
+    description="Returns every release in the changelog index, newest first, each marked "
+    "as the release this deployment runs, pending (newer) or older.",
+    responses={200: serializers.ChangelogReleaseListSerializer},
+)
+@api_view(["GET"])
+@permission_classes([rf_permissions.IsAuthenticated, IsStaffOrSupportUser])
+def changelog_releases(request):
+    if not is_changelog_enabled():
+        return _not_enabled_response()
+
+    response_data = {
+        "current_version": __version__,
+        "releases": list_releases(fetch_changelog_index(), __version__),
+    }
+    serializer = serializers.ChangelogReleaseListSerializer(response_data)
     return Response(serializer.data)

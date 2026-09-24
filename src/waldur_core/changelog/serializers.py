@@ -143,3 +143,21 @@ class ChangelogUpgradeReportSerializer(serializers.Serializer):
         help_text="Markdown text for a maintenance announcement"
     )
     announcement_type = serializers.ChoiceField(choices=["information", "warning"])
+
+
+class ChangelogReleaseSummarySerializer(serializers.Serializer):
+    version = serializers.CharField()
+    date = serializers.CharField(required=False, allow_blank=True)
+    type = serializers.CharField()
+    status = serializers.ChoiceField(
+        choices=["running", "pending", "older"],
+        help_text="Relative to the version this deployment runs",
+    )
+    has_breaking = serializers.BooleanField(required=False)
+    has_security = serializers.BooleanField(required=False)
+    max_security_urgency = serializers.CharField(required=False, allow_null=True)
+
+
+class ChangelogReleaseListSerializer(serializers.Serializer):
+    current_version = serializers.CharField()
+    releases = ChangelogReleaseSummarySerializer(many=True)

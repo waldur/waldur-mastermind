@@ -218,6 +218,9 @@ urlpatterns += [
         changelog_views.changelog_upgrade_report,
     ),
     re_path(r"^api/changelog/pending/$", changelog_views.changelog_pending),
+    # Before the ^api/changelog/<version>/$ route, which would take "releases"
+    # for a version.
+    re_path(r"^api/changelog/releases/$", changelog_views.changelog_releases),
     re_path(
         r"^api/changelog/compare/(?P<from_version>[^/]+)/(?P<to_version>[^/]+)/$",
         changelog_views.changelog_compare,

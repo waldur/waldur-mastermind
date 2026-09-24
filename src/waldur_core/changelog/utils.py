@@ -415,3 +415,25 @@ def merge_delta_entries(from_version, to_version, releases_data):
             merged.extend(release.get("since_previous", []))
 
     return merged
+
+
+def list_releases(index_data, current_version):
+    """Every release in the changelog index, newest first, each marked as the
+    one this deployment runs, pending (newer) or older."""
+    if not index_data:
+        return []
+    current = parse_version(current_version)
+    releases = []
+    for release in index_data.get("releases", []):
+        parsed = parse_version(release.get("version", ""))
+        if parsed is None:
+            continue
+        if is_same_release(release["version"], current_version):
+            status = "running"
+        elif current is not None and parsed > current:
+            status = "pending"
+        else:
+            status = "older"
+        releases.append((parsed, dict(release, status=status)))
+    releases.sort(key=lambda item: item[0], reverse=True)
+    return [release for _parsed, release in releases]

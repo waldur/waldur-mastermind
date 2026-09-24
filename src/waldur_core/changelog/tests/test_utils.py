@@ -17,6 +17,7 @@ from waldur_core.changelog.utils import (
     get_latest_version,
     get_pending_versions,
     is_rc_version,
+    list_releases,
     match_relevance,
     merge_delta_entries,
     parse_version,
@@ -480,3 +481,36 @@ class RcDeploymentVersionTest(TestCase):
     def test_summary_for_rc_deployment(self):
         summary = build_changelog_summary(self.INDEX, "8.1.3-rc.15")
         self.assertEqual(summary["versions_behind"], 1)
+
+
+class ListReleasesTest(TestCase):
+    INDEX = {
+        "releases": [
+            {"version": "8.1.3-rc.16", "type": "rc"},
+            {"version": "8.1.2", "type": "stable"},
+            {"version": "8.1.3-rc.17", "type": "rc"},
+            {"version": "not-a-version", "type": "rc"},
+        ]
+    }
+
+    def _statuses(self, current):
+        return [(r["version"], r["status"]) for r in list_releases(self.INDEX, current)]
+
+    def test_newest_first_with_status(self):
+        self.assertEqual(
+            self._statuses("8.1.3-rc.16"),
+            [
+                ("8.1.3-rc.17", "pending"),
+                ("8.1.3-rc.16", "running"),
+                ("8.1.2", "older"),
+            ],
+        )
+
+    def test_development_build_runs_its_release(self):
+        self.assertEqual(
+            self._statuses("8.1.3-rc.16+10.gcfdc7a7f9")[1],
+            ("8.1.3-rc.16", "running"),
+        )
+
+    def test_no_index(self):
+        self.assertEqual(list_releases(None, "8.1.2"), [])
