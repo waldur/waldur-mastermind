@@ -74,13 +74,16 @@ User attribute writes converge on the same `update_user_attributes_from_source()
 
 6. **Point the IdP at `/scim/v2/`** using the token. The IdP's SCIM connector tester should see `GET /scim/v2/ServiceProviderConfig` succeed.
 
-7. **Smoke test from the shell** before pointing real users at it:
+7. **Smoke test from the shell** before pointing real users at it. Request an empty page of users: the discovery endpoints need no token, so `ServiceProviderConfig` answers 200 even for a wrong one.
 
     ```bash
-    curl -H "Authorization: Bearer <token>" \
+    curl -s -o /dev/null -w '%{http_code}\n' \
+         -H "Authorization: Bearer <token>" \
          -H "Accept: application/scim+json" \
-         https://waldur.example.com/scim/v2/ServiceProviderConfig
+         "https://waldur.example.com/scim/v2/Users?count=0"
     ```
+
+    200 means the token works; 401 an unknown or expired token (clear the service account's `token_lifetime`); 403 `SCIM_INBOUND_ENABLED` off or a non-staff token; a `text/html` answer means the proxy does not route `/scim` to the API.
 
 ## Endpoint reference
 

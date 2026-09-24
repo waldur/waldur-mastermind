@@ -4,14 +4,14 @@ from django.urls import path, re_path
 
 from waldur_core.users.scim.server import views as scim_views
 
-from . import views
+from . import discovery, views
 
 urlpatterns = [
-    path("ServiceProviderConfig", scim_views.ServiceProviderConfigView.as_view()),
-    path("ResourceTypes", scim_views.ResourceTypesView.as_view()),
-    path("ResourceTypes/<str:name>", scim_views.ResourceTypeDetailView.as_view()),
-    path("Schemas", scim_views.SchemasView.as_view()),
-    path("Schemas/<path:urn>", scim_views.SchemaDetailView.as_view()),
+    path("ServiceProviderConfig", discovery.ServiceProviderConfigView.as_view()),
+    path("ResourceTypes", discovery.ResourceTypesView.as_view()),
+    path("ResourceTypes/<str:name>", discovery.ResourceTypeDetailView.as_view()),
+    path("Schemas", discovery.SchemasView.as_view()),
+    path("Schemas/<path:urn>", discovery.SchemaDetailView.as_view()),
     path("Users", views.UsersListView.as_view()),
     path("Users/<str:uuid_hex>", views.UserDetailView.as_view()),
     path("Groups", views.GroupsListView.as_view()),

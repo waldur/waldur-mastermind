@@ -33,9 +33,81 @@ class GatingTest(SramScimTest):
         response = self.client.get(f"{BASE}/ServiceProviderConfig")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    @override_config(SRAM_INTEGRATION_ENABLED=False)
+    def test_disabled_integration_hides_sram_discovery(self):
+        self.client.credentials()  # discovery needs no token either way
+        for path in (
+            "ServiceProviderConfig",
+            "ResourceTypes",
+            "ResourceTypes/User",
+            "Schemas",
+            f"Schemas/{SRAM_USER_EXTENSION_URN}",
+        ):
+            response = self.client.get(f"{BASE}/{path}")
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, path)
+        response = self.client.get("/scim/v2/ServiceProviderConfig")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_unknown_sram_path_is_a_scim_404(self):
         response = self.client.get(f"{BASE}/Nope")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class DiscoveryTest(SramScimTest):
+    COMMON_KEYS = {"schemas", "id", "externalId", "meta"}
+
+    def get(self, path):
+        response = self.client.get(f"{BASE}/{path}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        return response.json()
+
+    def test_patch_is_not_advertised(self):
+        self.assertFalse(self.get("ServiceProviderConfig")["patch"]["supported"])
+        generic = self.client.get("/scim/v2/ServiceProviderConfig").json()
+        self.assertTrue(generic["patch"]["supported"])
+
+    def test_resource_types_name_the_sram_extensions(self):
+        types = {rt["id"]: rt for rt in self.get("ResourceTypes")["Resources"]}
+        user_ext = {e["schema"] for e in types["User"]["schemaExtensions"]}
+        group_ext = {e["schema"] for e in types["Group"]["schemaExtensions"]}
+        self.assertIn(SRAM_USER_EXTENSION_URN, user_ext)
+        self.assertIn(SRAM_GROUP_EXTENSION_URN, group_ext)
+        self.assertEqual(self.get("ResourceTypes/Group")["id"], "Group")
+
+    def test_schemas_describe_sram_attributes(self):
+        schemas = {s["id"]: s for s in self.get("Schemas")["Resources"]}
+        self.assertIn(SRAM_USER_EXTENSION_URN, schemas)
+        self.assertIn(SRAM_GROUP_EXTENSION_URN, schemas)
+        user_attrs = {
+            a["name"]
+            for a in schemas["urn:ietf:params:scim:schemas:core:2.0:User"]["attributes"]
+        }
+        self.assertIn("x509Certificates", user_attrs)
+        sram_user = self.get(f"Schemas/{SRAM_USER_EXTENSION_URN}")
+        self.assertIn("eduPersonUniqueId", {a["name"] for a in sram_user["attributes"]})
+
+    def assert_advertised(self, resource, resource_type):
+        schemas = {s["id"]: s for s in self.get("Schemas")["Resources"]}
+        rt = self.get(f"ResourceTypes/{resource_type}")
+        extensions = {e["schema"] for e in rt["schemaExtensions"]}
+        core = {a["name"] for a in schemas[rt["schema"]]["attributes"]}
+        for urn in resource["schemas"]:
+            self.assertIn(urn, {rt["schema"], *extensions})
+        for key in resource:
+            if key in self.COMMON_KEYS or key in core:
+                continue
+            self.assertIn(key, extensions, f"{resource_type}.{key} is not advertised")
+            self.assertIn(key, schemas, f"no schema for {key}")
+
+    def test_rendered_resources_only_use_advertised_attributes(self):
+        body, _ = self.provision_user(ssh_keys=[payloads.KEY1])
+        self.assert_advertised(self.sbs.lookup("Users", body["externalId"]), "User")
+
+        _, member = self.provision_user(username="member")
+        group = payloads.sram_group(member_ids=[member["id"]], labels=["hpc"])
+        response = self.sbs.provision("Groups", group)
+        self.assertIn(response.status_code, (200, 201), response.content)
+        self.assert_advertised(self.sbs.lookup("Groups", group["externalId"]), "Group")
 
 
 class UserProvisioningTest(SramScimTest):
