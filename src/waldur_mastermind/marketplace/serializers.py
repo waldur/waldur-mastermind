@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Literal, cast
 
 import jwt
+import regex
 from constance import config
 from dateutil.parser import parse as parse_datetime
 from dateutil.relativedelta import relativedelta
@@ -82,8 +83,12 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import (
     K8S_TOPOLOGY_MODES,
+    MAX_PATTERN_LENGTH,
+    PATTERN_FIELD_TYPES,
     VISIBLE_IF_FIELD_TYPES,
+    compile_option_pattern,
     get_hidden_options,
+    option_pattern_matches,
     strip_hidden_options,
     validate_options,
 )
@@ -3525,9 +3530,29 @@ class OptionFieldSerializer(serializers.Serializer):
         required=False,
         help_text=_("Show this option only when another option has a given value."),
     )
+    pattern = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        # Whitespace is part of what a pattern matches.
+        trim_whitespace=False,
+        max_length=MAX_PATTERN_LENGTH,
+        help_text=_(
+            "Regular expression the whole value must match. "
+            "Only for string and text options. Use syntax common to Python "
+            "and JavaScript, so the order form can check it too; \\w, \\d, "
+            "\\s and \\b match ASCII characters only. Blank means no pattern."
+        ),
+    )
+    pattern_error = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=255,
+        help_text=_("Error shown when the value does not match the pattern."),
+    )
 
     def validate(self, attrs):
         field_type = attrs.get("type")
+        self._validate_pattern(attrs)
 
         if field_type == "conditional_cascade":
             if not attrs.get("cascade_config"):
@@ -3556,6 +3581,45 @@ class OptionFieldSerializer(serializers.Serializer):
             pass
 
         return attrs
+
+    def _validate_pattern(self, attrs):
+        # A cleared field arrives as a blank string and means "none".
+        for key in ("pattern", "pattern_error"):
+            if attrs.get(key) == "":
+                del attrs[key]
+        pattern = attrs.get("pattern")
+        if not pattern:
+            if attrs.get("pattern_error"):
+                raise serializers.ValidationError(
+                    {"pattern_error": _("pattern_error requires a pattern.")}
+                )
+            return
+        if attrs.get("type") not in PATTERN_FIELD_TYPES:
+            raise serializers.ValidationError(
+                {"pattern": _("A pattern is only allowed for string and text options.")}
+            )
+        try:
+            compile_option_pattern(pattern)
+        except regex.error as e:
+            raise serializers.ValidationError(
+                {"pattern": _("Invalid regular expression: %s") % e}
+            )
+        # This only checks the pattern against the default value, so it is not
+        # a guard against catastrophic backtracking: such a pattern passes here
+        # and is stopped by the timeout when an order is validated.
+        default = attrs.get("default")
+        if not default:
+            return
+        try:
+            default_matches = option_pattern_matches(pattern, default)
+        except TimeoutError:
+            raise serializers.ValidationError(
+                {"default": _("The pattern is too slow to check the default value.")}
+            )
+        if not default_matches:
+            raise serializers.ValidationError(
+                {"default": _("The default value does not match the pattern.")}
+            )
 
 
 class OfferingOptionsSerializer(serializers.Serializer):
