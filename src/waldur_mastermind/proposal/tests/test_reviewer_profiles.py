@@ -310,6 +310,7 @@ class ReviewerInvitationAPITest(test.APITestCase):
         )
         token = pool_member.invitation_token
 
+        self.client.force_authenticate(pool_member.reviewer.user)
         url = f"http://testserver/api/reviewer-invitations/{token}/accept/"
         response = self.client.post(url)
 

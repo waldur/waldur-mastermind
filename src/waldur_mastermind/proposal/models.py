@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import datetime, timedelta
 from typing import Literal, cast
 
@@ -2199,6 +2200,11 @@ def filter_call_reviewer_pool(user):
     )
 
 
+def generate_invitation_token():
+    # A field default rather than save(), so bulk_create gets one too
+    return secrets.token_urlsafe(48)
+
+
 class CallReviewerPool(
     TimeStampedModel,
     core_models.UuidMixin,
@@ -2267,6 +2273,7 @@ class CallReviewerPool(
         max_length=64,
         unique=True,
         blank=True,
+        default=generate_invitation_token,
     )
     invitation_expires_at = models.DateTimeField(null=True, blank=True)
 
@@ -2327,13 +2334,6 @@ class CallReviewerPool(
     @classmethod
     def get_url_name(cls):
         return "call-reviewer-pool"
-
-    def save(self, *args, **kwargs):
-        if not self.invitation_token:
-            import secrets
-
-            self.invitation_token = secrets.token_urlsafe(48)
-        super().save(*args, **kwargs)
 
 
 class ReviewerSuggestion(

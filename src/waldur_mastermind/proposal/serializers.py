@@ -4467,6 +4467,7 @@ class PublicInvitationSerializer(serializers.Serializer):
     call_name = serializers.CharField(read_only=True)
     call_uuid = serializers.UUIDField(read_only=True)
     invitation_status = serializers.CharField(read_only=True)
+    invited_at = serializers.DateTimeField(read_only=True)
     expires_at = serializers.DateTimeField(read_only=True, allow_null=True)
     is_expired = serializers.BooleanField(read_only=True)
     max_assignments = serializers.IntegerField(read_only=True, allow_null=True)
