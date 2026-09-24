@@ -2,6 +2,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from packaging.version import Version
 from rest_framework import permissions as rf_permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -27,16 +28,51 @@ from waldur_core.structure.permissions import IsStaffOrSupportUser
 
 logger = logging.getLogger(__name__)
 
-VALID_ENTRY_TYPES = {
-    "breaking",
-    "security",
-    "deprecation",
-    "feature",
-    "improvement",
-    "fix",
-}
-VALID_RISKS = {"high", "medium", "low", "none"}
+# Ordered as they should sort: most consequential first. Kept in step with the
+# entry enums in changelog/schema.json (see test_views).
+ENTRY_TYPES = ["breaking", "security", "deprecation", "feature", "improvement", "fix"]
+RISKS = ["high", "medium", "low", "none"]
+CATEGORIES = [
+    "marketplace",
+    "auth",
+    "identity",
+    "openstack",
+    "slurm",
+    "invoices",
+    "ai_assistant",
+    "reporting",
+    "policy",
+    "proposal",
+    "support",
+    "ui",
+    "infrastructure",
+    "notifications",
+]
+VALID_ENTRY_TYPES = set(ENTRY_TYPES)
+VALID_RISKS = set(RISKS)
+VALID_CATEGORIES = set(CATEGORIES)
 VALID_SCOPES = {"core", "plugin", "infra", "dev"}
+
+# `o` values for changelog-entries; "-field" sorts descending. Type and risk
+# sort by severity rather than alphabetically, version by version order.
+ENTRY_ORDERING_KEYS = {
+    "type": lambda e: ENTRY_TYPES.index(e["type"])
+    if e.get("type") in VALID_ENTRY_TYPES
+    else len(ENTRY_TYPES),
+    "title": lambda e: (e.get("title") or "").lower(),
+    "category": lambda e: (e.get("category") or "").lower(),
+    "risk": lambda e: RISKS.index(_entry_risk(e))
+    if _entry_risk(e) in VALID_RISKS
+    else len(RISKS),
+    "version": lambda e: parse_version(e.get("version") or "") or Version("0"),
+}
+ENTRY_ORDERING_CHOICES = [
+    value for key in ENTRY_ORDERING_KEYS for value in (key, f"-{key}")
+]
+
+
+def _entry_risk(entry):
+    return (entry.get("impact") or {}).get("risk")
 
 
 # Cap concurrent fetches so a deployment many versions behind doesn't open
@@ -290,9 +326,24 @@ def changelog_compare(request, from_version, to_version):
             str,
             description="List what this release introduced instead of the pending entries",
         ),
-        OpenApiParameter("type", str, description="Filter by entry type"),
-        OpenApiParameter("risk", str, description="Filter by risk level"),
-        OpenApiParameter("scope", str, description="Filter by scope"),
+        OpenApiParameter(
+            "type", str, enum=ENTRY_TYPES, description="Filter by entry type"
+        ),
+        OpenApiParameter("risk", str, enum=RISKS, description="Filter by risk level"),
+        OpenApiParameter(
+            "category", str, enum=CATEGORIES, description="Filter by category"
+        ),
+        OpenApiParameter(
+            "scope", str, enum=sorted(VALID_SCOPES), description="Filter by scope"
+        ),
+        OpenApiParameter(
+            "o",
+            str,
+            enum=ENTRY_ORDERING_CHOICES,
+            description="Sort by a field; prefix with - to reverse. Type and risk sort "
+            "most consequential first (breaking, high). Without it, relevant entries "
+            "come first, then by risk.",
+        ),
         OpenApiParameter("version", str, description="Filter by release version"),
         OpenApiParameter(
             "highlight", bool, description="Filter highlighted entries only"
@@ -375,6 +426,10 @@ def changelog_entries_list(request):
             e for e in all_entries if e.get("impact", {}).get("risk") == risk
         ]
 
+    category = params.get("category")
+    if category and category in VALID_CATEGORIES:
+        all_entries = [e for e in all_entries if e.get("category") == category]
+
     scope = params.get("scope")
     if scope and scope in VALID_SCOPES:
         all_entries = [e for e in all_entries if e.get("scope") == scope]
@@ -398,7 +453,8 @@ def changelog_entries_list(request):
             or search in e.get("description", "").lower()
         ]
 
-    # Sort: relevant first, then by risk
+    # Sort: relevant first, then by risk - or by the requested field, which the
+    # stable sort applies on top of that default order.
     risk_order = {"high": 0, "medium": 1, "low": 2, "none": 3}
     all_entries.sort(
         key=lambda e: (
@@ -406,6 +462,10 @@ def changelog_entries_list(request):
             risk_order.get(e.get("impact", {}).get("risk", "none"), 4),
         )
     )
+    ordering = params.get("o", "")
+    ordering_key = ENTRY_ORDERING_KEYS.get(ordering.lstrip("-"))
+    if ordering_key:
+        all_entries.sort(key=ordering_key, reverse=ordering.startswith("-"))
 
     # Paginate
     try:
