@@ -139,6 +139,9 @@ def _primary_email(emails) -> str | None:
     return None
 
 
+USERNAME_MAX_LENGTH = User._meta.get_field("username").max_length
+
+
 def _normalize_username(raw: str) -> str:
     return matching.normalize_username(raw)
 
@@ -154,14 +157,23 @@ def create_user(body: dict, request) -> User:
             scim_type="invalidValue",
         )
     if match_field == matching.DEFAULT_WALDUR_ATTRIBUTE:
-        # The account is named after the matched value, so a later login that
-        # presents the same value finds it instead of creating a second one.
-        raw_username = match_value
+        # Named exactly as sent: a later login looks the username up as the
+        # identity provider presents it, so any rewriting here (lowercasing,
+        # dropping characters) would give the person a second account. A value
+        # with no valid character at all is still refused (400).
+        _normalize_username(match_value)
+        username = match_value
     else:
         raw_username = body.get("userName")
         if not raw_username:
             raise ScimError(400, "userName is required.", scim_type="invalidValue")
-    username = _normalize_username(raw_username)
+        username = _normalize_username(raw_username)
+    if len(username) > USERNAME_MAX_LENGTH:
+        raise ScimError(
+            400,
+            f"A username may have at most {USERNAME_MAX_LENGTH} characters.",
+            scim_type="invalidValue",
+        )
 
     if User.all_objects.filter(username=username).exists():
         raise ScimError(
@@ -205,10 +217,12 @@ def _check_username_unchanged(user: User, body: dict) -> None:
     if matching.waldur_attribute() == matching.DEFAULT_WALDUR_ATTRIBUTE:
         submitted = matching.match_value(body)
         attribute = matching.scim_attribute()
+        unchanged = submitted is None or matching.username_matches(user, submitted)
     else:
         submitted = body.get("userName")
         attribute = "userName"
-    if submitted is not None and _normalize_username(submitted) != user.username:
+        unchanged = submitted is None or _normalize_username(submitted) == user.username
+    if not unchanged:
         raise ScimError(
             400,
             f"Changing '{attribute}' after creation is not supported.",

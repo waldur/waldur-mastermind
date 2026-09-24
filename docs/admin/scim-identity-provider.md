@@ -242,8 +242,9 @@ A provisioned user must become the same account the person gets at login, or the
 
 - The lookup order is `externalId`, then the configured match, then the primary email when `OIDC_MATCHMAKING_BY_EMAIL` is on.
 - More than one matching account is a 409; resolve the duplicate first.
-- With `username`, new accounts are **named after the matched value** (normalised to `[0-9a-z_.@+-]`), so a login that presents the same value as its username (see `OIDC_USER_FIELD`) finds the account. Changing that value later is rejected with `scimType: mutability`.
-- With `email` or `civil_number`, new accounts are named after `userName` and the matched attribute is set on them.
+- With `username`, new accounts are **named after the matched value exactly as sent** (no lowercasing, no characters dropped), because a login looks the username up exactly as the identity provider presents it (see `OIDC_USER_FIELD`). Matching tries that exact name first, then the lowercased form with characters outside `[0-9a-z_.@+-]` dropped, which is how accounts were named before. Changing the value later is rejected with `scimType: mutability`.
+- With `email` or `civil_number`, new accounts are named after `userName`, lowercased and with other characters dropped, and the matched attribute is set on them.
+- `waldur find_username_collisions` lists existing accounts whose usernames differ only in case or in such characters, which may be one person with two accounts. It changes nothing; merge them by hand.
 - For SRAM, pick the attribute your login uses. If users sign in through SRAM's OIDC with `sub` as username, use `urn:mace:surf.nl:sram:scim:extension:User.eduPersonUniqueId`. SRAM-provisioned accounts keep their username if the settings change later.
 
 ## SCIM-to-Waldur attribute mapping
