@@ -2281,6 +2281,14 @@ Shared secret expected in the X-Webhook-Secret header of inbound SMAX webhook de
 
 Review duration in days.
 
+#### PROPOSAL_DASHBOARD_REVIEWS_DUE_WITHIN_DAYS
+
+**Type:** int
+
+**Default value:** 7
+
+How many days ahead the call manager dashboard looks for review deadlines. Past-due reviews are always included.
+
 #### DEFAULT_PROPOSAL_REQUIRED_FIELDS
 
 **Type:** multiple_choice_field

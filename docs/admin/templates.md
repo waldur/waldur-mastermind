@@ -4944,6 +4944,37 @@ No further action is required on your side. If you have already opened a corresp
 
 ```
 
+### notification_comment_updated_staff_message.txt (waldur_mastermind.support)
+
+```txt
+
+{{ comment.author.name|default:"The requester" }} has edited a comment on a support request.
+
+Request: {{ issue.key }}
+Summary: {{ issue.summary.strip }}
+Status: {{ issue.status }}
+{% if issue.assignee %}Assignee: {{ issue.assignee.name }}
+{% endif %}{% if issue.customer %}Organization: {{ issue.customer.name }}
+{% endif %}{% if issue.project %}Project: {{ issue.project.name }}
+{% endif %}
+Previous comment:
+{{ old_description.strip }}
+
+Edited comment:
+{{ comment.description.strip }}
+
+Open the request: {{ issue_url }}
+
+```
+
+### notification_comment_updated_staff_subject.txt (waldur_mastermind.support)
+
+```txt
+
+[{{ issue.key }}] Comment edited by {{ comment.author.name|default:"the requester" }}: {{ issue.summary.strip }}
+
+```
+
 ### summary.txt (waldur_mastermind.support)
 
 ```txt
@@ -5084,6 +5115,25 @@ Updated issue: {{ issue.summary }}
 <p>A customer has added a comment to ticket <strong>{{ issue.key }}</strong>.</p>
 <p><strong>Comment:</strong></p>
 <p>{{ comment.description }}</p>
+
+```
+
+### notification_comment_updated_staff_message.html (waldur_mastermind.support)
+
+```html
+
+<p>{{ comment.author.name|default:"The requester" }} has edited a comment on a support request.</p>
+<p><strong>Request:</strong> {{ issue.key }}<br>
+<strong>Summary:</strong> {{ issue.summary.strip }}<br>
+<strong>Status:</strong> {{ issue.status }}
+{% if issue.assignee %}<br><strong>Assignee:</strong> {{ issue.assignee.name }}{% endif %}
+{% if issue.customer %}<br><strong>Organization:</strong> {{ issue.customer.name }}{% endif %}
+{% if issue.project %}<br><strong>Project:</strong> {{ issue.project.name }}{% endif %}</p>
+<p><strong>Previous comment:</strong></p>
+<p>{{ old_description.strip }}</p>
+<p><strong>Edited comment:</strong></p>
+<p>{{ comment.description.strip }}</p>
+<p><a href="{{ issue_url }}">Open the request</a></p>
 
 ```
 

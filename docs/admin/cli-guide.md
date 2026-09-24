@@ -662,6 +662,10 @@ options:
 
 ```
 
+## find_username_collisions
+
+List accounts whose usernames differ only in case or in characters a username should not hold, so that one person may hold two of them. Writes nothing.
+
 ## generate_appservice_registration
 
 Generate a Matrix Application Service registration YAML for the homeserver.
