@@ -818,6 +818,17 @@ class CommentAddedStaffContext(BaseModel):
     issue_url: str = Field(description="Link to the issue in Homeport.")
 
 
+class CommentUpdatedStaffContext(BaseModel):
+    issue: Any = Field(description="The Issue model instance that was commented on.")
+    comment: Any = Field(
+        description="The Comment model instance the caller edited, with its new content."
+    )
+    old_description: str = Field(
+        description="The content of the comment before the caller edited it."
+    )
+    issue_url: str = Field(description="Link to the issue in Homeport.")
+
+
 class ProviderTicketContext(BaseModel):
     issue: Any = Field(
         description="The Issue model instance routed to (or withdrawn from) the provider helpdesk."
@@ -885,6 +896,13 @@ class SupportSection(NotificationSection):
         "added. Sent only by the built-in service desk — the Atlassian, Zammad "
         "and SMAX backends notify their own agents.",
         context_model=CommentAddedStaffContext,
+    )
+    notification_comment_updated_staff = Notification(
+        key="notification_comment_updated_staff",
+        description="Notification to the assignee, or to all staff and support "
+        "users when the ticket is unassigned, that the issue caller has edited "
+        "one of their comments. Sent only by the built-in service desk.",
+        context_model=CommentUpdatedStaffContext,
     )
     notification_comment_updated = Notification(
         key="notification_comment_updated",

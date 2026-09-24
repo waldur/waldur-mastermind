@@ -30,6 +30,8 @@ class BaseTest(test.APITestCase):
             True
         )
         self.mock_get_active_backend().comment_create_is_available.return_value = True
+        self.mock_get_active_backend().comment_author_update_is_supported = False
+        self.mock_get_active_backend().comment_author_destroy_is_supported = False
         self.mock_get_active_backend().attachment_create_is_available.return_value = (
             True
         )

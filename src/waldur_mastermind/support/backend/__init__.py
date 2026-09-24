@@ -74,6 +74,13 @@ class SupportBackend:
     summary_max_length = 255
     message_format = SupportedFormat.TEXT
 
+    #: May the author of a comment change or remove it themselves? Off unless
+    #: Waldur is the system of record: on a remote service desk the comment has
+    #: already reached the agents, and a change made through the integration
+    #: account would rewrite it under that account's name.
+    comment_author_update_is_supported = False
+    comment_author_destroy_is_supported = False
+
     def create_issue(self, issue):
         return
 
@@ -197,6 +204,36 @@ class SupportBackend:
 
     def create_confirmation_comment(self, issue, comment_tmpl=""):
         return
+
+
+def issue_is_routed(issue) -> bool:
+    """Is the ticket part of a provider routing, as a parent or as a child?"""
+    return issue.parent_issue_id is not None or issue.child_issues.exists()
+
+
+def comment_change_is_permitted(
+    user, comment, author_may_change: bool, is_routed=issue_is_routed
+) -> bool:
+    """Staff may change any comment; its author only where the backend allows.
+
+    A comment pulled in from a remote service desk has no local user behind its
+    author, so it never matches and stays with staff.
+
+    Nor may the author change a comment that has been copied to another ticket.
+    Routing to a provider helpdesk copies public comments between the parent
+    ticket and its children, and only on creation: the copy carries no link back,
+    so an edit or a deletion would leave the provider holding the original text
+    while the author is told it is gone.
+
+    `is_routed` answers that for the comment's ticket. A caller checking many
+    comments of one ticket passes a cached one, to avoid a query per comment.
+    """
+    if user.is_staff:
+        return True
+    author_user_id = comment.author.user_id
+    if not author_may_change or author_user_id is None or author_user_id != user.id:
+        return False
+    return not (comment.is_forwarded or is_routed(comment.issue))
 
 
 def get_backend_for_provider(provider_helpdesk) -> SupportBackend:
