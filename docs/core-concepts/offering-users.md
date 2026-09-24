@@ -132,6 +132,16 @@ POST /api/marketplace-offering-users/{uuid}/set_validation_complete/
 
 **Note:** This action clears both the `service_provider_comment` and `service_provider_comment_url` fields.
 
+#### Set OK
+
+```http
+POST /api/marketplace-offering-users/{uuid}/set_ok/
+```
+
+**Valid transitions from:** `CREATION_REQUESTED`, `CREATING`, `PENDING_ADDITIONAL_VALIDATION`, `PENDING_ACCOUNT_LINKING`, `ERROR_CREATING`, `ERROR_DELETING`
+
+Manually sets the account to `OK`, for example to recover from an error state or to finish a manual creation. Like `set_validation_complete`, it clears both the `service_provider_comment` and `service_provider_comment_url` fields.
+
 #### Set Error Creating
 
 ```http
@@ -200,6 +210,8 @@ Marks the user account as successfully deleted. This is the final state for succ
 
 ### Service Provider Comment Management
 
+The comment and its URL explain a pending state to the user, so they are cleared whenever the account moves to `OK`: through `set_validation_complete`, `set_ok`, username assignment, or `restore()`. To show a comment on an account that is already `OK`, set it with `update_comments` after the transition.
+
 #### Update Comments
 
 Service providers can directly update comment fields without changing the user's state:
@@ -255,7 +267,7 @@ When retrieving or updating OfferingUser objects, the following state-related fi
 
 - `state` (string, read-only): Current lifecycle state of the user account (provisioning/deletion)
 - `runtime_state` (string, read-only): Current operational/access state of the user account
-- `service_provider_comment` (string, read-only): Comment from service provider for pending states
+- `service_provider_comment` (string, read-only): Comment from service provider for pending states; cleared when the account moves to `OK`
 - `service_provider_comment_url` (string, read-only): Optional URL link for additional information or actions related to the service provider comment
 
 ## Runtime States
@@ -285,7 +297,7 @@ The system maintains backward compatibility with existing integrations:
 
 ### Automatic State Transitions
 
-- **Username Assignment**: When a username is assigned to an OfferingUser (via API or `set_offerings_username`), the state automatically transitions to `OK`
+- **Username Assignment**: When a username is assigned to an OfferingUser (via API or `set_offerings_username`), the state automatically transitions to `OK` and the service provider comment fields are cleared
 - **Creation with Username**: Creating an OfferingUser with a username immediately sets the state to `OK`
 
 ### Legacy Endpoints

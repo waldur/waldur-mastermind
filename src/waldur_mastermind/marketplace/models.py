@@ -3611,6 +3611,16 @@ class BaseAccount(
         abstract = True
         ordering = ["username", "id"]
 
+    # The comment explains a pending state; it no longer applies once the account is OK.
+    SERVICE_PROVIDER_COMMENT_FIELDS = (
+        "service_provider_comment",
+        "service_provider_comment_url",
+    )
+
+    def _clear_service_provider_comment(self):
+        self.service_provider_comment = ""
+        self.service_provider_comment_url = ""
+
     @transition(
         field=state,
         source=[
@@ -3637,7 +3647,7 @@ class BaseAccount(
         target=OfferingUserStates.OK,
     )
     def set_ok(self):
-        pass
+        self._clear_service_provider_comment()
 
     @transition(
         field=state,
@@ -3678,10 +3688,7 @@ class BaseAccount(
         target=OfferingUserStates.OK,
     )
     def set_validation_complete(self):
-        self.service_provider_comment = ""  # Clear comment when validation is complete
-        self.service_provider_comment_url = (
-            ""  # Clear comment URL when validation is complete
-        )
+        self._clear_service_provider_comment()
 
     @transition(
         field=state,
@@ -3733,7 +3740,7 @@ class BaseAccount(
         record must be able to come back from DELETED rather than asking for a
         brand-new account under a new name.
         """
-        pass
+        self._clear_service_provider_comment()
 
     @transition(
         field=state,
@@ -3780,6 +3787,25 @@ class BaseAccount(
             and (self.tracker.has_changed("username") or not self.pk)
         ):
             self.set_ok()
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = {*kwargs["update_fields"], "state"}
+        # Moving to OK clears the comment in memory; persist that even when
+        # the caller only listed "state".
+        update_fields = kwargs.get("update_fields")
+        if (
+            update_fields is not None
+            and "state" in update_fields
+            and self.state == OfferingUserStates.OK
+            and self.tracker.has_changed("state")
+        ):
+            kwargs["update_fields"] = {
+                *update_fields,
+                *(
+                    field
+                    for field in self.SERVICE_PROVIDER_COMMENT_FIELDS
+                    if self.tracker.has_changed(field)
+                ),
+            }
         super().save(*args, **kwargs)
 
     def get_log_fields(self):

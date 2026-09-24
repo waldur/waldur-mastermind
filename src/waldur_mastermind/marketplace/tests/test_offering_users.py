@@ -825,6 +825,49 @@ class OfferingUserStateTransitionTest(test.APITestCase):
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
 
+    def test_set_ok_from_pending_state_clears_comment(self):
+        self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        self.offering_user.service_provider_comment = "Some validation comment"
+        self.offering_user.service_provider_comment_url = "https://example.com/info"
+        self.offering_user.save()
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(self.get_url(self.offering_user, "set_ok"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(self.offering_user.service_provider_comment, "")
+        self.assertEqual(self.offering_user.service_provider_comment_url, "")
+
+    def test_setting_username_in_pending_state_clears_comment(self):
+        self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
+        self.offering_user.service_provider_comment = "Some validation comment"
+        self.offering_user.service_provider_comment_url = "https://example.com/info"
+        self.offering_user.save()
+
+        self.offering_user.username = "new-username"
+        self.offering_user.save(update_fields=["username"])
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(self.offering_user.service_provider_comment, "")
+        self.assertEqual(self.offering_user.service_provider_comment_url, "")
+
+    def test_restore_clears_comment(self):
+        self.offering_user.state = OfferingUserStates.DELETED
+        self.offering_user.service_provider_comment = "Account removed"
+        self.offering_user.service_provider_comment_url = "https://example.com/info"
+        self.offering_user.save()
+
+        self.offering_user.restore()
+        self.offering_user.save(update_fields=["state"])
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+        self.assertEqual(self.offering_user.service_provider_comment, "")
+        self.assertEqual(self.offering_user.service_provider_comment_url, "")
+
     def test_state_transition_without_comment(self):
         """Test state transitions work without providing comment."""
         self.offering_user.state = OfferingUserStates.CREATING
