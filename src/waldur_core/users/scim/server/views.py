@@ -37,6 +37,7 @@ from scim2_models import (
 
 from waldur_core.users.scim.server.auth import ScimFeatureEnabled
 from waldur_core.users.scim.server.exceptions import ScimError
+from waldur_core.users.scim.server.pagination import MAX_PAGE_SIZE
 from waldur_core.users.scim.server.renderers import ScimJSONParser, ScimJSONRenderer
 
 WALDUR_USER_EXTENSION_URN = "urn:waldur:params:scim:schemas:extension:User:1.0"
@@ -66,12 +67,15 @@ class _ScimDiscoveryView(_ScimBaseView):
 class ServiceProviderConfigView(_ScimDiscoveryView):
     """``GET /scim/v2/ServiceProviderConfig`` — RFC 7644 §4."""
 
+    # A profile mounted elsewhere (``/scim/v2/sram/``) that refuses PATCH says so.
+    patch_supported = True
+
     def get(self, request):
         config_obj = ServiceProviderConfig(
             documentation_uri="https://docs.waldur.com/",
-            patch=Patch(supported=True),
+            patch=Patch(supported=self.patch_supported),
             bulk=Bulk(supported=False, max_operations=0, max_payload_size=0),
-            filter=Filter(supported=True, max_results=200),
+            filter=Filter(supported=True, max_results=MAX_PAGE_SIZE),
             change_password=ChangePassword(supported=False),
             sort=Sort(supported=False),
             etag=ETag(supported=False),
@@ -93,23 +97,27 @@ class ServiceProviderConfigView(_ScimDiscoveryView):
 class ResourceTypesView(_ScimDiscoveryView):
     """``GET /scim/v2/ResourceTypes`` — RFC 7644 §4."""
 
+    def get_resource_types(self) -> list[ResourceType]:
+        return _RESOURCE_TYPES
+
     def get(self, request):
+        resource_types = self.get_resource_types()
         return Response(
             {
                 "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-                "totalResults": len(_RESOURCE_TYPES),
+                "totalResults": len(resource_types),
                 "Resources": [
                     rt.model_dump(by_alias=True, exclude_none=True)
-                    for rt in _RESOURCE_TYPES
+                    for rt in resource_types
                 ],
             }
         )
 
 
 @extend_schema(exclude=True)
-class ResourceTypeDetailView(_ScimDiscoveryView):
+class ResourceTypeDetailView(ResourceTypesView):
     def get(self, request, name):
-        for rt in _RESOURCE_TYPES:
+        for rt in self.get_resource_types():
             if rt.id == name:
                 return Response(rt.model_dump(by_alias=True, exclude_none=True))
         raise ScimError(404, f"ResourceType {name!r} not found")
@@ -119,22 +127,26 @@ class ResourceTypeDetailView(_ScimDiscoveryView):
 class SchemasView(_ScimDiscoveryView):
     """``GET /scim/v2/Schemas`` — RFC 7644 §4."""
 
+    def get_schemas(self) -> list[ScimSchema]:
+        return _SCHEMAS
+
     def get(self, request):
+        schemas = self.get_schemas()
         return Response(
             {
                 "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-                "totalResults": len(_SCHEMAS),
+                "totalResults": len(schemas),
                 "Resources": [
-                    s.model_dump(by_alias=True, exclude_none=True) for s in _SCHEMAS
+                    s.model_dump(by_alias=True, exclude_none=True) for s in schemas
                 ],
             }
         )
 
 
 @extend_schema(exclude=True)
-class SchemaDetailView(_ScimDiscoveryView):
+class SchemaDetailView(SchemasView):
     def get(self, request, urn):
-        for s in _SCHEMAS:
+        for s in self.get_schemas():
             if s.id == urn:
                 return Response(s.model_dump(by_alias=True, exclude_none=True))
         raise ScimError(404, f"Schema {urn!r} not found")
@@ -189,7 +201,16 @@ def _build_schemas() -> list[ScimSchema]:
     providers to define a subset). The Waldur extension covers fields specific
     to research / federated deployments.
     """
-    waldur_schema = ScimSchema(
+    return [
+        trimmed_user_schema(),
+        Group.to_schema(),
+        trimmed_enterprise_schema(),
+        waldur_extension_schema(),
+    ]
+
+
+def waldur_extension_schema() -> ScimSchema:
+    return ScimSchema(
         id=WALDUR_USER_EXTENSION_URN,
         name="WaldurUserExtension",
         description=(
@@ -254,12 +275,6 @@ def _build_schemas() -> list[ScimSchema]:
             ),
         ],
     )
-    return [
-        _trimmed_user_schema(),
-        Group.to_schema(),
-        _trimmed_enterprise_schema(),
-        waldur_schema,
-    ]
 
 
 _SUPPORTED_USER_ATTRIBUTES = {
@@ -272,11 +287,9 @@ _SUPPORTED_USER_ATTRIBUTES = {
 }
 
 
-def _trimmed_user_schema() -> ScimSchema:
+def trimmed_user_schema(attributes=_SUPPORTED_USER_ATTRIBUTES) -> ScimSchema:
     schema = User.to_schema()
-    schema.attributes = [
-        attr for attr in schema.attributes if attr.name in _SUPPORTED_USER_ATTRIBUTES
-    ]
+    schema.attributes = [attr for attr in schema.attributes if attr.name in attributes]
     for attr in schema.attributes:
         if attr.name == "userName":
             # Immutable post-creation; changes are rejected with 400 mutability.
@@ -287,7 +300,7 @@ def _trimmed_user_schema() -> ScimSchema:
     return schema
 
 
-def _trimmed_enterprise_schema() -> ScimSchema:
+def trimmed_enterprise_schema() -> ScimSchema:
     schema = EnterpriseUser.to_schema()
     schema.attributes = [
         attr for attr in schema.attributes if attr.name == "organization"
