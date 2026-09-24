@@ -1,5 +1,6 @@
 import datetime
 
+from constance.test.unittest import override_config
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -118,6 +119,15 @@ class ReviewerDashboardStatsTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(list(response.data["deadlines"]), [])
 
+    def test_skips_deadline_when_review_duration_is_zero(self):
+        # Review.review_end_date treats 0 like an unset duration: no deadline.
+        self.fixture.round.review_duration_in_days = 0
+        self.fixture.round.save()
+        self.client.force_authenticate(self.fixture.reviewer_1)
+        response = self.client.get(self.url)
+        self.assertEqual(list(response.data["deadlines"]), [])
+        self.assertEqual(response.data["deadlines_total"], 0)
+
 
 class CallManagerDashboardStatsTest(test.APITestCase):
     def setUp(self):
@@ -138,7 +148,7 @@ class CallManagerDashboardStatsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["pending_assessments"], 0)
         self.assertEqual(response.data["active_calls"], 0)
-        self.assertEqual(response.data["overdue_reviews"], 0)
+        self.assertEqual(response.data["reviews_due_soon"], 0)
 
     def test_counts_active_calls_managed_by_user(self):
         # fixture.call is ACTIVE; new_call (draft) is also managed but not active
@@ -153,25 +163,36 @@ class CallManagerDashboardStatsTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.data["pending_assessments"], 1)
 
-    def test_counts_overdue_reviews_on_managed_calls(self):
+    def test_counts_reviews_due_soon_on_managed_calls(self):
         round_obj = self.fixture.round
-        round_obj.review_duration_in_days = 1
+        round_obj.review_duration_in_days = 10
         round_obj.save()
 
-        # Create an IN_REVIEW review that was created 10 days ago — overdue.
-        old_time = timezone.now() - datetime.timedelta(days=10)
-        with freeze_time(old_time):
+        # Created 5 days ago: due in 5 days, inside the 7-day window.
+        with freeze_time(timezone.now() - datetime.timedelta(days=5)):
             factories.ReviewFactory(
                 proposal=self.fixture.proposal_submitted,
                 reviewer=self.fixture.reviewer_2,
                 state=models.Review.States.IN_REVIEW,
             )
 
-        # fixture.review is also IN_REVIEW but created at fixture setup
-        # (just now), so its deadline = now + 1 day, not overdue yet.
+        # fixture.review was created just now, so it is due in 10 days.
         self.client.force_authenticate(self.manager_user)
         response = self.client.get(self.url)
-        self.assertEqual(response.data["overdue_reviews"], 1)
+        self.assertEqual(response.data["reviews_due_soon"], 1)
+        self.assertEqual(response.data["reviews_due_within_days"], 7)
+
+    @override_config(PROPOSAL_DASHBOARD_REVIEWS_DUE_WITHIN_DAYS=14)
+    def test_due_soon_window_is_configurable(self):
+        round_obj = self.fixture.round
+        round_obj.review_duration_in_days = 10
+        round_obj.save()
+
+        # fixture.review is due in 10 days: outside the default window, inside 14.
+        self.client.force_authenticate(self.manager_user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.data["reviews_due_soon"], 1)
+        self.assertEqual(response.data["reviews_due_within_days"], 14)
 
 
 class UpcomingDeadlinesTest(test.APITestCase):
@@ -330,3 +351,87 @@ class SubmitterDashboardStatsTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
         self.assertEqual(response.data["total"], 0)
+
+
+class ReviewDueWithinDaysFilterTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.manager_user = self.fixture.call_manager
+        self.url = factories.ReviewFactory.get_list_url()
+        self.fixture.round.review_duration_in_days = 10
+        self.fixture.round.save()
+
+        # fixture.review is IN_REVIEW and created just now: due in 10 days.
+        self.due_later = self.fixture.review
+        with freeze_time(timezone.now() - datetime.timedelta(days=5)):
+            # Due in 5 days.
+            self.due_soon = factories.ReviewFactory(
+                proposal=self.fixture.proposal_submitted,
+                reviewer=self.fixture.reviewer_2,
+                state=models.Review.States.IN_REVIEW,
+            )
+            # Also due in 5 days, but already handed in.
+            self.submitted = factories.ReviewFactory(
+                proposal=self.fixture.proposal_submitted,
+                reviewer=self.fixture.reviewer_1,
+                state=models.Review.States.SUBMITTED,
+            )
+        self.client.force_authenticate(self.manager_user)
+
+    def list_uuids(self, **params):
+        response = self.client.get(self.url, params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {item["uuid"] for item in response.data}
+
+    def test_returns_reviews_in_progress_due_within_the_window(self):
+        self.assertEqual(self.list_uuids(due_within_days=7), {self.due_soon.uuid.hex})
+
+    def test_wider_window_includes_later_deadlines(self):
+        self.assertEqual(
+            self.list_uuids(due_within_days=14),
+            {self.due_soon.uuid.hex, self.due_later.uuid.hex},
+        )
+
+    def test_includes_reviews_already_past_their_deadline(self):
+        # Until the hourly expiry task rejects it, a past-due review is the
+        # most urgent one, so it stays in the list.
+        with freeze_time(timezone.now() - datetime.timedelta(days=20)):
+            past_due = factories.ReviewFactory(
+                proposal=self.fixture.proposal_submitted,
+                reviewer=self.fixture.reviewer_1,
+                state=models.Review.States.IN_REVIEW,
+            )
+        self.assertIn(past_due.uuid.hex, self.list_uuids(due_within_days=7))
+
+    def test_round_without_review_duration_has_no_deadline(self):
+        for duration in (None, 0):
+            with self.subTest(duration=duration):
+                self.fixture.round.review_duration_in_days = duration
+                self.fixture.round.save()
+                self.assertEqual(self.list_uuids(due_within_days=7), set())
+
+    def test_negative_window_is_rejected(self):
+        response = self.client.get(self.url, {"due_within_days": -1})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_managed_calls_only_matches_the_call_manager_dashboard(self):
+        # Staff also see reviews on calls they do not manage. The card counts
+        # only managed calls, so the list it opens has to be narrowed the same way.
+        self.manager_user.is_staff = True
+        self.manager_user.save()
+        with freeze_time(timezone.now() - datetime.timedelta(days=5)):
+            other_call_review = factories.ReviewFactory(
+                proposal__round__review_duration_in_days=10,
+                state=models.Review.States.IN_REVIEW,
+            )
+        stats = self.client.get(
+            factories.CallFactory.get_protected_list_url(action="dashboard-stats")
+        ).data
+        days = stats["reviews_due_within_days"]
+
+        self.assertIn(other_call_review.uuid.hex, self.list_uuids(due_within_days=days))
+        self.assertEqual(
+            self.list_uuids(due_within_days=days, managed_calls_only=True),
+            {self.due_soon.uuid.hex},
+        )
+        self.assertEqual(stats["reviews_due_soon"], 1)

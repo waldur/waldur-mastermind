@@ -4,6 +4,7 @@ from django.utils import timezone
 from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
+from waldur_core.permissions.fixtures import CallRole
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
@@ -11,6 +12,7 @@ from waldur_mastermind.proposal.enums import (
 )
 
 from . import models
+from .managers import get_connected_calls
 
 
 class CallResourceTemplateFilter(django_filters.FilterSet):
@@ -194,10 +196,38 @@ class ReviewFilter(django_filters.FilterSet):
         view_name="reviewer-profile-detail", field_name="reviewer__uuid"
     )
     state = django_filters.MultipleChoiceFilter(choices=models.Review.States.CHOICES)
+    due_within_days = django_filters.NumberFilter(
+        method="filter_due_within_days",
+        min_value=0,
+        label="Due within days",
+        help_text=(
+            "Only reviews in progress whose deadline is at most this many days "
+            "away, including ones already past it. Implies state=in_review."
+        ),
+    )
+    managed_calls_only = django_filters.BooleanFilter(
+        method="filter_managed_calls_only",
+        widget=BooleanWidget,
+        help_text=(
+            "Only reviews on calls where the current user is call manager, "
+            "the same scope as the call manager dashboard."
+        ),
+    )
 
     class Meta:
         model = models.Review
         fields = []
+
+    def filter_due_within_days(self, queryset, name, value):
+        # Also narrows to in-review reviews, whatever the state filter says.
+        # NumberFilter yields a Decimal, which timedelta does not accept.
+        return queryset.due_within(int(value))
+
+    def filter_managed_calls_only(self, queryset, name, value):
+        if not value:
+            return queryset
+        managed_call_ids = get_connected_calls(self.request.user, CallRole.MANAGER)
+        return queryset.filter(proposal__round__call_id__in=managed_call_ids)
 
 
 class RequestedOfferingFilter(django_filters.FilterSet):

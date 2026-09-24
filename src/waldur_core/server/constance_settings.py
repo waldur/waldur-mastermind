@@ -935,6 +935,11 @@ CONSTANCE_CONFIG = {
     ),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
+    "PROPOSAL_DASHBOARD_REVIEWS_DUE_WITHIN_DAYS": (
+        7,
+        "How many days ahead the call manager dashboard looks for review "
+        "deadlines. Past-due reviews are always included.",
+    ),
     # ORCID integration settings
     "ORCID_CLIENT_ID": (
         "",
@@ -2078,6 +2083,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "Proposal settings": (
         "PROPOSAL_REVIEW_DURATION",
+        "PROPOSAL_DASHBOARD_REVIEWS_DUE_WITHIN_DAYS",
         "DEFAULT_PROPOSAL_REQUIRED_FIELDS",
         "DEFAULT_PROPOSAL_HIDDEN_FIELDS",
         "REVIEWER_PROFILES_ENABLED",

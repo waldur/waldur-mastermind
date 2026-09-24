@@ -5656,7 +5656,10 @@ class DashboardReviewerStatsSerializer(serializers.Serializer):
 class DashboardCallManagerStatsSerializer(serializers.Serializer):
     pending_assessments = serializers.IntegerField(read_only=True)
     active_calls = serializers.IntegerField(read_only=True)
-    overdue_reviews = serializers.IntegerField(read_only=True)
+    reviews_due_soon = serializers.IntegerField(read_only=True)
+    # The window behind reviews_due_soon, so a client can open the matching
+    # list (proposal-reviews ?due_within_days=) without hardcoding it.
+    reviews_due_within_days = serializers.IntegerField(read_only=True)
 
 
 class DashboardUpcomingDeadlineSerializer(serializers.Serializer):

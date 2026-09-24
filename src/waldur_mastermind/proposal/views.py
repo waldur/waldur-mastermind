@@ -3,12 +3,12 @@ import secrets
 from datetime import datetime, timedelta
 from typing import cast
 
+from constance import config
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import (
     Avg,
     Count,
-    DateTimeField,
     DurationField,
     Exists,
     ExpressionWrapper,
@@ -2602,8 +2602,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         summary="Get call manager dashboard stats",
         description=(
             "Returns counts for the call manager dashboard: pending "
-            "assessments, active calls managed by the user, and overdue "
-            "reviews on calls they manage."
+            "assessments, active calls managed by the user, and reviews on "
+            "calls they manage that are due within the next few days."
         ),
         responses={200: serializers.DashboardCallManagerStatsSerializer},
     )
@@ -2620,30 +2620,18 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             round__call_id__in=managed_call_ids,
             state__in=[ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW],
         ).count()
-        # review_end_date is created + review_duration_in_days, which Postgres
-        # can evaluate directly — no need to pull every pending review into
-        # Python to compare dates.
-        overdue_reviews = (
-            models.Review.objects.filter(
-                state=models.Review.States.IN_REVIEW,
-                proposal__round__call_id__in=managed_call_ids,
-                proposal__round__review_duration_in_days__isnull=False,
-            )
-            .annotate(
-                deadline=ExpressionWrapper(
-                    F("created")
-                    + timedelta(days=1) * F("proposal__round__review_duration_in_days"),
-                    output_field=DateTimeField(),
-                )
-            )
-            .filter(deadline__lt=timezone.now())
+        due_within_days = config.PROPOSAL_DASHBOARD_REVIEWS_DUE_WITHIN_DAYS
+        reviews_due_soon = (
+            models.Review.objects.filter(proposal__round__call_id__in=managed_call_ids)
+            .due_within(due_within_days)
             .count()
         )
         return response.Response(
             {
                 "pending_assessments": pending_assessments,
                 "active_calls": active_calls,
-                "overdue_reviews": overdue_reviews,
+                "reviews_due_soon": reviews_due_soon,
+                "reviews_due_within_days": due_within_days,
             },
             status=status.HTTP_200_OK,
         )
@@ -3968,22 +3956,13 @@ class ReviewViewSet(ActionsViewSet):
             completed=Count("id", filter=Q(state=models.Review.States.SUBMITTED)),
         )
 
-        # A deadline only exists when the round sets review_duration_in_days;
-        # annotating it lets Postgres do the filtering and the ordering.
+        # A deadline only exists when the round sets a review duration;
+        # computing it in SQL lets Postgres do the filtering and the ordering.
         reviews_with_deadline = (
-            own_reviews.filter(
-                state=models.Review.States.IN_REVIEW,
-                proposal__round__review_duration_in_days__isnull=False,
-            )
-            .annotate(
-                deadline=ExpressionWrapper(
-                    F("created")
-                    + timedelta(days=1) * F("proposal__round__review_duration_in_days"),
-                    output_field=DateTimeField(),
-                )
-            )
+            own_reviews.filter(state=models.Review.States.IN_REVIEW)
+            .with_deadline()
             .select_related("proposal", "proposal__round", "proposal__round__call")
-            .order_by("deadline")
+            .order_by("review_deadline")
         )
         # This list is embedded in an object, so it cannot be paginated the way
         # the standalone dashboard lists are. It carries its own total instead —
@@ -3997,7 +3976,7 @@ class ReviewViewSet(ActionsViewSet):
                 "proposal_name": review.proposal.name,
                 "call_uuid": review.proposal.round.call.uuid,
                 "call_name": review.proposal.round.call.name,
-                "due_date": review.deadline,
+                "due_date": review.review_end_date,
             }
             for review in reviews_with_deadline[:DASHBOARD_LIST_LIMIT]
         ]
