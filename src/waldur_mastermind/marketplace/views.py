@@ -12054,7 +12054,7 @@ class OfferingUsersViewSet(
 
     @extend_schema(
         summary="Set state to OK",
-        description="Manually sets the offering user state to 'OK'. This can be used to recover from an error state or to complete a manual creation process.",
+        description="Manually sets the offering user state to 'OK'. This can be used to recover from an error state or to complete a manual creation process. This clears any service provider comments.",
         request=None,
         responses={200: None},
     )
