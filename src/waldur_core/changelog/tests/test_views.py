@@ -582,3 +582,69 @@ class ChangelogUpgradeReportTest(ChangelogRcCycleTest):
         self.client.force_authenticate(self.staff)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ChangelogReleaseHistoryTest(ChangelogRcCycleTest):
+    """Browsing what any release introduced, not only pending ones."""
+
+    INDEX = {
+        "releases": [
+            {"version": "8.1.3-rc.1", "type": "rc", "date": "2026-09-01"},
+            {"version": "8.1.3-rc.2", "type": "rc", "date": "2026-09-02"},
+            {"version": "8.1.3", "type": "stable", "date": "2026-09-03"},
+        ]
+    }
+
+    @mock.patch("waldur_core.changelog.views.__version__", "8.1.3-rc.2")
+    @mock.patch("waldur_core.changelog.views.fetch_changelog_index")
+    def test_releases_are_listed_with_status(self, mock_index):
+        mock_index.return_value = self.INDEX
+        self.client.force_authenticate(self.staff)
+        response = self.client.get("/api/changelog/releases/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current_version"], "8.1.3-rc.2")
+        self.assertEqual(
+            [(r["version"], r["status"]) for r in response.data["releases"]],
+            [("8.1.3", "pending"), ("8.1.3-rc.2", "running"), ("8.1.3-rc.1", "older")],
+        )
+
+    def test_regular_user_cannot_list_releases(self):
+        self.client.force_authenticate(self.regular)
+        response = self.client.get("/api/changelog/releases/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @mock.patch("waldur_core.changelog.views.__version__", "8.1.3")
+    @mock.patch("waldur_core.changelog.views.fetch_changelog_release")
+    @mock.patch("waldur_core.changelog.views.get_pending_versions", return_value=[])
+    def test_entries_of_an_older_release(self, _pending, mock_release):
+        mock_release.side_effect = lambda v: self._releases()[v]
+        self.client.force_authenticate(self.staff)
+        response = self.client.get("/api/changelog-entries/", {"release": "8.1.3-rc.2"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # What rc.2 introduced (since_previous), not its cumulative entries.
+        self.assertEqual([e["title"] for e in response.data["results"]], ["B"])
+        self.assertEqual(response.data["results"][0]["version"], "8.1.3-rc.2")
+
+    @mock.patch("waldur_core.changelog.views.fetch_changelog_release")
+    def test_release_without_since_previous_lists_its_entries(self, mock_release):
+        release = dict(self._releases()["8.1.3-rc.2"])
+        del release["since_previous"]
+        mock_release.return_value = release
+        self.client.force_authenticate(self.staff)
+        response = self.client.get("/api/changelog-entries/", {"release": "8.1.3-rc.2"})
+        self.assertEqual(
+            sorted(e["title"] for e in response.data["results"]), ["A", "B"]
+        )
+
+    @mock.patch(
+        "waldur_core.changelog.views.fetch_changelog_release", return_value=None
+    )
+    def test_unknown_release_is_404(self, _release):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get("/api/changelog-entries/", {"release": "9.9.9"})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_invalid_release_is_404(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get("/api/changelog-entries/", {"release": "latest"})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
