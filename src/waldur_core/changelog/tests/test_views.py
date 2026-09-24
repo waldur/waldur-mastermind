@@ -1,9 +1,12 @@
+import json
 import threading
 import time
+from pathlib import Path
 from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.changelog import views
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.core.models import User
 
@@ -648,3 +651,87 @@ class ChangelogReleaseHistoryTest(ChangelogRcCycleTest):
         self.client.force_authenticate(self.staff)
         response = self.client.get("/api/changelog-entries/", {"release": "latest"})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ChangelogEntriesSortAndCategoryTest(ChangelogViewTestBase):
+    def _entries(self):
+        return [
+            self._entry(
+                id="1",
+                type="fix",
+                title="beta",
+                category="ui",
+                impact={"risk": "low"},
+                version="8.1.3",
+            ),
+            self._entry(
+                id="2",
+                type="breaking",
+                title="Alpha",
+                category="auth",
+                impact={"risk": "high"},
+                version="8.1.3-rc.2",
+            ),
+            self._entry(
+                id="3",
+                type="feature",
+                title="gamma",
+                category="ui",
+                impact={"risk": "medium"},
+                version="8.1.3-rc.10",
+            ),
+        ]
+
+    def _get(self, **params):
+        with (
+            mock.patch(
+                "waldur_core.changelog.views.get_pending_versions",
+                return_value=[{"version": "8.1.3", "type": "stable"}],
+            ),
+            mock.patch(
+                "waldur_core.changelog.views.fetch_changelog_release",
+                return_value={"entries": self._entries()},
+            ),
+        ):
+            self.client.force_authenticate(self.staff)
+            response = self.client.get("/api/changelog-entries/", params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [e["title"] for e in response.data["results"]]
+
+    def test_filter_by_category(self):
+        self.assertEqual(sorted(self._get(category="ui")), ["beta", "gamma"])
+
+    def test_unknown_category_is_ignored(self):
+        self.assertEqual(len(self._get(category="nope")), 3)
+
+    def test_sort_by_title_ignores_case(self):
+        self.assertEqual(self._get(o="title"), ["Alpha", "beta", "gamma"])
+        self.assertEqual(self._get(o="-title"), ["gamma", "beta", "Alpha"])
+
+    def test_sort_by_type_and_risk_by_severity(self):
+        self.assertEqual(self._get(o="type"), ["Alpha", "gamma", "beta"])
+        self.assertEqual(self._get(o="risk"), ["Alpha", "gamma", "beta"])
+        self.assertEqual(self._get(o="-risk"), ["beta", "gamma", "Alpha"])
+
+    def test_sort_by_version_in_version_order(self):
+        # rc.10 after rc.2, which a string sort would get wrong.
+        self.assertEqual(self._get(o="version"), ["Alpha", "gamma", "beta"])
+
+    def test_unknown_ordering_keeps_default_order(self):
+        self.assertEqual(self._get(o="nope"), self._get())
+
+
+class ChangelogEnumsMatchSchemaTest(ChangelogViewTestBase):
+    """The filter enums published in the API must match what release files
+    may contain."""
+
+    def test_enums_match_changelog_schema(self):
+        schema_path = Path(__file__).resolve().parents[4] / "changelog" / "schema.json"
+        entry = json.loads(schema_path.read_text())["$defs"]["entry"]["properties"]
+        self.assertEqual(views.ENTRY_TYPES, entry["type"]["enum"])
+        self.assertEqual(views.CATEGORIES, entry["category"]["enum"])
+        risk = json.loads(schema_path.read_text())["$defs"]["impact"]["properties"][
+            "risk"
+        ]
+        self.assertEqual(views.RISKS, risk["enum"])
+        self.assertEqual(sorted(views.VALID_SCOPES), sorted(entry["scope"]["enum"]))
