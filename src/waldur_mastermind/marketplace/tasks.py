@@ -52,6 +52,7 @@ from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoad
 from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
+    CourseAccountState,
     LimitPeriods,
     MaintenanceState,
     OfferingStates,
@@ -169,6 +170,116 @@ def create_course_account_task(course_account_uuid_hex: str, owner_username: str
         course_account.error_message = error_message
         course_account.set_state_erred()
         course_account.save(update_fields=["error_message", "state"])
+
+
+@shared_task
+def close_course_account_task(course_account_uuid_hex: str):
+    """Close a single course account via the external API.
+
+    Used by the destroy action, where the row is known to exist (the
+    ViewSet already resolved it) and closing one account at a time is
+    right - a direct API caller shouldn't wait on, or be blocked by,
+    anyone else's account.
+    """
+    try:
+        course_account = models.CourseAccount.objects.get(uuid=course_account_uuid_hex)
+    except models.CourseAccount.DoesNotExist:
+        logger.error(
+            "CourseAccount %s not found, skipping task", course_account_uuid_hex
+        )
+        return
+
+    _close_course_account_and_mark_erred_on_any_failure(course_account)
+
+
+@shared_task
+def close_course_accounts_task(accounts: list[dict]):
+    """Close every course account of one deleted project via the external API.
+
+    Batched into one task per project rather than one task per account so
+    the API token is fetched once here instead of once per account - and
+    only ever inside this task, never in the pre_delete signal that
+    scheduled it, so a slow token endpoint can't block whichever request
+    or admin action triggered the project deletion.
+
+    Each account's uuid/username/user_id is passed in rather than
+    re-queried, because CourseAccount.project is CASCADE: a hard project
+    delete (Customer.delete() once no active projects remain, or the
+    admin's "hard-delete soft-deleted projects" action) removes the row
+    before this task runs, and re-reading by uuid would silently skip
+    closing that account at the backend.
+    """
+    if not accounts:
+        return
+
+    try:
+        api_access_token = utils.get_course_account_api_token()
+    except httpx.HTTPError as exc:
+        logger.error(
+            "Unable to get course account API token, skipping %s accounts: %s",
+            len(accounts),
+            exc,
+        )
+        return
+
+    for account in accounts:
+        uuid_hex = account["uuid"]
+        username = account["username"]
+        user_id = account["user_id"]
+        try:
+            course_account = models.CourseAccount.objects.get(uuid=uuid_hex)
+        except models.CourseAccount.DoesNotExist:
+            if not username:
+                # No backend account was ever created for this one either.
+                continue
+            try:
+                utils.close_course_account_by_username(username, api_access_token)
+            except Exception as exc:
+                logger.error(
+                    "Failed to close course account %s at backend "
+                    "(local row already deleted): %s",
+                    username,
+                    exc,
+                )
+                continue
+            if user_id:
+                core_models.User.objects.filter(pk=user_id).update(
+                    is_active=False,
+                    deactivation_reason=f"Course account for {username} closed",
+                )
+            continue
+
+        _close_course_account_and_mark_erred_on_any_failure(
+            course_account, api_access_token
+        )
+
+
+def _close_course_account_and_mark_erred_on_any_failure(
+    course_account: models.CourseAccount, api_access_token: str | None = None
+):
+    """Run close_course_account and guarantee the account never gets stuck.
+
+    close_course_account itself only marks ERRED for httpx.HTTPError/ValueError
+    (the expected "backend call failed" cases). Anything else it lets
+    propagate - e.g. ValidationError when COURSE_ACCOUNT_URL isn't
+    configured - which would otherwise leave the account stuck in PENDING
+    forever: both destroy and retry require OK/ERRED as their source state,
+    so a PENDING account can't be re-attempted through the API at all.
+    """
+    try:
+        utils.close_course_account(course_account, api_access_token)
+    except Exception as exc:
+        logger.error(
+            "Failed to close course account %s: %s", course_account.uuid.hex, exc
+        )
+        course_account.refresh_from_db()
+        if course_account.state not in (
+            CourseAccountState.CLOSED,
+            CourseAccountState.ERRED,
+        ):
+            course_account.set_state_erred()
+            course_account.error_message = str(exc)
+            course_account.save(update_fields=["state", "error_message"])
 
 
 @shared_task

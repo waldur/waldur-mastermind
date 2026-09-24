@@ -1,9 +1,11 @@
 import datetime
+import uuid
 from unittest.mock import patch
 
 import httpx
 import respx
 from ddt import data, ddt
+from django.core.exceptions import ValidationError
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
@@ -180,7 +182,11 @@ class CourseAccountPermissionTest(test.APITestCase):
 
     @data("staff", "manager", "admin", "owner")
     def test_authorized_user_can_delete_course_account(self, user):
-        """Test that authorized user can delete course account"""
+        """Test that authorized user can request deletion of a course account.
+
+        Closing happens asynchronously: the response is 202 and the account
+        moves to PENDING, not CLOSED, until the task runs.
+        """
         self.client.force_authenticate(getattr(self.fixture, user))
         account = factories.CourseAccountFactory(
             project=self.course_project,
@@ -190,11 +196,11 @@ class CourseAccountPermissionTest(test.APITestCase):
         response = self.client.delete(url)
         self.assertEqual(
             response.status_code,
-            status.HTTP_204_NO_CONTENT,
+            status.HTTP_202_ACCEPTED,
             response.data,
         )
         account.refresh_from_db()
-        self.assertEqual(account.state, CourseAccountState.CLOSED)
+        self.assertEqual(account.state, CourseAccountState.PENDING)
 
     @data("user", "customer_support", "member")
     def test_unauthorized_user_can_not_delete_course_account(self, user):
@@ -213,7 +219,7 @@ class CourseAccountPermissionTest(test.APITestCase):
         )
 
     def test_delete_course_account_sets_deactivation_reason(self):
-        """Test that deleting a course account sets deactivation_reason on the user."""
+        """Test that closing a course account sets deactivation_reason on the user."""
         self.client.force_authenticate(self.fixture.staff)
         account = factories.CourseAccountFactory(
             project=self.course_project,
@@ -223,9 +229,14 @@ class CourseAccountPermissionTest(test.APITestCase):
         response = self.client.delete(url)
         self.assertEqual(
             response.status_code,
-            status.HTTP_204_NO_CONTENT,
+            status.HTTP_202_ACCEPTED,
             response.data,
         )
+
+        tasks.close_course_account_task(account.uuid.hex)
+
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.CLOSED)
         self.test_user.refresh_from_db()
         self.assertFalse(self.test_user.is_active)
         self.assertEqual(
@@ -248,9 +259,14 @@ class CourseAccountPermissionTest(test.APITestCase):
         response = self.client.delete(url)
         self.assertEqual(
             response.status_code,
-            status.HTTP_204_NO_CONTENT,
+            status.HTTP_202_ACCEPTED,
             response.data,
         )
+
+        tasks.close_course_account_task(account.uuid.hex)
+
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.CLOSED)
         self.test_user.refresh_from_db()
         self.assertFalse(self.test_user.is_active)
         self.assertEqual(
@@ -269,7 +285,12 @@ class CourseAccountPermissionTest(test.APITestCase):
         )
         url = factories.CourseAccountFactory.get_url(account)
         response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.PENDING)
+
+        tasks.close_course_account_task(account.uuid.hex)
+
         account.refresh_from_db()
         self.assertEqual(account.state, CourseAccountState.CLOSED)
 
@@ -493,6 +514,71 @@ class CourseAccountPermissionTest(test.APITestCase):
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
+    def test_retry_erred_account_with_user_reattempts_close_not_create(self):
+        """An ERRED account with a user already failed while closing, not
+        while creating (create_course_account_task only sets .user on
+        success) - retry must re-attempt the close, not create a second
+        backend account for the same person."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.ERRED,
+            error_message="close failed",
+        )
+        url = factories.CourseAccountFactory.get_url(account) + "retry/"
+
+        with patch.object(tasks.close_course_account_task, "delay") as mock_close:
+            with patch.object(tasks.create_course_account_task, "delay") as mock_create:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_close.assert_called_once_with(account.uuid.hex)
+        mock_create.assert_not_called()
+
+    def test_retry_erred_account_without_user_reattempts_create(self):
+        """An ERRED account with no user never finished creation - retry
+        must re-attempt create, not close."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=None,
+            email="no-user@example.com",
+            state=CourseAccountState.ERRED,
+            error_message="create failed",
+        )
+        url = factories.CourseAccountFactory.get_url(account) + "retry/"
+
+        with patch.object(tasks.close_course_account_task, "delay") as mock_close:
+            with patch.object(tasks.create_course_account_task, "delay") as mock_create:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_create.assert_called_once_with(
+            account.uuid.hex, self.fixture.staff.username
+        )
+        mock_close.assert_not_called()
+
+    def test_destroy_schedules_close_task_via_on_commit(self):
+        """Test that destroy() actually registers the task through
+        transaction.on_commit + .delay(), not just that the task function
+        works when called directly (which every other destroy test does)."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+        )
+        url = factories.CourseAccountFactory.get_url(account)
+
+        with patch.object(tasks.close_course_account_task, "delay") as mock_delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_delay.assert_called_once_with(account.uuid.hex)
+
 
 @override_waldur_core_settings(
     COURSE_ACCOUNT_USE_API=True,  # Note: typo exists in original code
@@ -560,8 +646,18 @@ class CourseAccountHandlerTest(test.APITestCase):
             return_value=httpx.Response(200, json={})
         )
 
-        # Delete the project - this should trigger the handler
-        self.course_project.delete()
+        # Delete the project - this schedules one batch close task for the
+        # whole project, via transaction.on_commit, to run after the
+        # deleting transaction commits rather than inline in the pre_delete
+        # signal. One task per project (not one per account) so the API
+        # token is fetched once for every account it closes.
+        with patch.object(
+            tasks.close_course_accounts_task,
+            "delay",
+            side_effect=tasks.close_course_accounts_task,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.course_project.delete()
 
         # Verify that close account API was called for each account
         close_requests = [
@@ -571,10 +667,23 @@ class CourseAccountHandlerTest(test.APITestCase):
         ]
         self.assertEqual(len(close_requests), 2)
 
+        # Verify the token was fetched once for the whole batch, not once
+        # per account.
+        token_requests = [
+            call
+            for call in respx.calls
+            if str(call.request.url) == COURSE_ACCOUNT_TOKEN_URL
+        ]
+        self.assertEqual(len(token_requests), 1)
+
     def test_course_accounts_handler_skips_when_token_request_fails(self):
-        """Test that handler gracefully handles token request failures"""
-        # Create course accounts in the project
-        factories.CourseAccountFactory(
+        """Test that a token failure skips the whole project's batch.
+
+        The token is fetched once for every account in the project, so a
+        token failure means none of them can be attempted - unlike a
+        per-account backend failure, which only fails that one account.
+        """
+        account = factories.CourseAccountFactory(
             project=self.course_project, state=CourseAccountState.OK
         )
 
@@ -584,8 +693,13 @@ class CourseAccountHandlerTest(test.APITestCase):
             return_value=httpx.Response(500, json={"error": "Internal server error"})
         )
 
-        # Delete the project - this should trigger the handler but skip account closure
-        self.course_project.delete()
+        with patch.object(
+            tasks.close_course_accounts_task,
+            "delay",
+            side_effect=tasks.close_course_accounts_task,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.course_project.delete()
 
         # Verify no close account requests were made since token failed
         close_requests = [
@@ -594,6 +708,13 @@ class CourseAccountHandlerTest(test.APITestCase):
             if call.request.method == "PUT" and "/close" in str(call.request.url)
         ]
         self.assertEqual(len(close_requests), 0)
+
+        # The account is left as-is (still OK): the batch never got far
+        # enough to attempt it, so there is nothing account-specific to
+        # mark ERRED - the whole batch is retried by re-triggering the
+        # project delete, not by retrying one account.
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.OK)
 
     def test_course_accounts_handler_processes_account_not_found_case(self):
         """Test handler behavior when course account is not found in remote API"""
@@ -610,7 +731,13 @@ class CourseAccountHandlerTest(test.APITestCase):
         )
 
         # Delete the project - this should trigger the handler
-        self.course_project.delete()
+        with patch.object(
+            tasks.close_course_accounts_task,
+            "delay",
+            side_effect=tasks.close_course_accounts_task,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.course_project.delete()
 
         # Verify no close request was made since account wasn't found
         close_requests = [
@@ -659,7 +786,13 @@ class CourseAccountHandlerTest(test.APITestCase):
         )
 
         # Delete only the first project
-        self.course_project.delete()
+        with patch.object(
+            tasks.close_course_accounts_task,
+            "delay",
+            side_effect=tasks.close_course_accounts_task,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.course_project.delete()
 
         # Verify only the first account's close was attempted
         close_requests = [
@@ -669,6 +802,83 @@ class CourseAccountHandlerTest(test.APITestCase):
         ]
         self.assertEqual(len(close_requests), 1)
         self.assertIn(account1.user.username, str(close_requests[0].request.url))
+
+    def test_hard_delete_captures_account_details_for_the_task(self):
+        """Test that the handler passes uuid/username/user_id, not just uuid.
+
+        CourseAccount.project is CASCADE, so Project.delete(soft=False)
+        (Customer.delete() once no active projects remain, or the admin's
+        "hard-delete soft-deleted projects" action) removes the local row
+        before the scheduled task actually runs - a real Celery worker only
+        picks the task up after the deleting transaction has committed, by
+        which point the row is gone. So the handler must capture what the
+        task needs while the row still exists (during pre_delete, before
+        any row is deleted), not just its uuid.
+        """
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            state=CourseAccountState.OK,
+            user=self.test_user,
+        )
+
+        with patch.object(tasks.close_course_accounts_task, "delay") as mock_delay:
+            with self.captureOnCommitCallbacks(execute=False):
+                self.course_project.delete(soft=False)
+
+        mock_delay.assert_called_once_with(
+            [
+                {
+                    "uuid": account.uuid.hex,
+                    "username": self.test_user.username,
+                    "user_id": self.test_user.pk,
+                }
+            ]
+        )
+
+    def test_close_accounts_task_closes_backend_account_with_local_row_already_gone(
+        self,
+    ):
+        """Test the task side of the same scenario directly: given account
+        details for a uuid that no longer resolves to a local row (as a real
+        worker would see after a hard delete's transaction has committed),
+        the task still closes the account at the backend and deactivates the
+        user - using the passed-in user_id, since there is no local
+        CourseAccount row left to update.
+        """
+        respx.get(COURSE_ACCOUNT_URL + f"/{self.test_user.username}").mock(
+            return_value=httpx.Response(
+                200, json={"tempAccounts": [{"username": self.test_user.username}]}
+            )
+        )
+        respx.put(COURSE_ACCOUNT_URL + f"/{self.test_user.username}/close").mock(
+            return_value=httpx.Response(200, json={})
+        )
+
+        missing_uuid_hex = uuid.uuid4().hex
+        tasks.close_course_accounts_task(
+            [
+                {
+                    "uuid": missing_uuid_hex,
+                    "username": self.test_user.username,
+                    "user_id": self.test_user.pk,
+                }
+            ]
+        )
+
+        close_requests = [
+            call
+            for call in respx.calls
+            if call.request.method == "PUT" and "/close" in str(call.request.url)
+        ]
+        self.assertEqual(len(close_requests), 1)
+        self.assertIn(self.test_user.username, str(close_requests[0].request.url))
+
+        self.test_user.refresh_from_db()
+        self.assertFalse(self.test_user.is_active)
+        self.assertEqual(
+            self.test_user.deactivation_reason,
+            f"Course account for {self.test_user.username} closed",
+        )
 
     def test_course_accounts_handler_no_op_when_no_accounts(self):
         """Test that handler works correctly when project has no course accounts"""
@@ -720,7 +930,11 @@ class CourseAccountHandlerTest(test.APITestCase):
         self.assertIsNone(account)
 
     def test_course_account_deletion_api_error_handling(self):
-        """Test that HTTP errors during course account deletion are properly handled"""
+        """Test that HTTP errors during course account closing are properly handled.
+
+        The DELETE request itself always accepts (202, PENDING) since it only
+        schedules the task; the backend error surfaces once the task runs.
+        """
         self.client.force_authenticate(self.fixture.staff)
 
         # Create a course account to delete
@@ -753,24 +967,17 @@ class CourseAccountHandlerTest(test.APITestCase):
 
         url = factories.CourseAccountFactory.get_url(account)
         response = self.client.delete(url)
-
-        # The API should return an error status due to the HTTP 500 from external service
-        # The exception is caught and converted to a 400 Bad Request
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # Refresh the course account from database
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
         account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.PENDING)
 
-        # Check if the account state changed (might be ERRED or still OK depending on transaction handling)
-        # Since the error is properly logged, the important thing is that the exception was caught and handled
-        # We verify this by checking the HTTP status response and that no CLOSED state was reached
-        self.assertNotEqual(account.state, CourseAccountState.CLOSED)
+        tasks.close_course_account_task(account.uuid.hex)
 
-        # If the account is in ERRED state, check error details
-        if account.state == CourseAccountState.ERRED:
-            self.assertIsNotNone(account.error_message)
-            self.assertIsNotNone(account.error_traceback)
-            self.assertIn("Internal server error", account.error_message)
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.ERRED)
+        self.assertIsNotNone(account.error_message)
+        self.assertIsNotNone(account.error_traceback)
+        self.assertIn("Internal server error", account.error_message)
 
 
 @override_waldur_core_settings(
@@ -1731,3 +1938,135 @@ class CreateCourseAccountTaskErrorHandlingTest(test.APITestCase):
         self._run_task()
         self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
         self.assertIn("Connection refused", self.course_account.error_message)
+
+
+@override_waldur_core_settings(
+    COURSE_ACCOUNT_USE_API=True,
+    COURSE_ACCOUNT_URL=COURSE_ACCOUNT_URL,
+    COURSE_ACCOUNT_TOKEN_URL=COURSE_ACCOUNT_TOKEN_URL,
+    COURSE_ACCOUNT_TOKEN_CLIENT_ID="test-client-id",
+    COURSE_ACCOUNT_TOKEN_SECRET="test-client-secret",
+)
+class AccountApiRequestTimeoutTest(test.APITestCase):
+    """Test that ACCOUNT_API_REQUEST_TIMEOUT actually reaches the httpx calls.
+
+    Nothing previously asserted this: the timeout constant existed and was
+    referenced in a comment, but no test failed if the `timeout=` kwarg was
+    dropped from a call site.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.course_project = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer, kind=ProjectKind.COURSE
+        )
+        self.user = structure_factories.UserFactory(username="timeout-check-user")
+        self.course_account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.user,
+            state=CourseAccountState.OK,
+        )
+
+    @patch("httpx.put")
+    @patch("httpx.get")
+    @patch("httpx.post")
+    def test_close_course_account_passes_explicit_timeout(
+        self, mock_post, mock_get, mock_put
+    ):
+        mock_post.return_value = httpx.Response(
+            200,
+            json={"access_token": "token"},
+            request=httpx.Request("POST", COURSE_ACCOUNT_TOKEN_URL),
+        )
+        mock_get.return_value = httpx.Response(
+            200,
+            json={"tempAccounts": [{"username": self.user.username}]},
+            request=httpx.Request("GET", COURSE_ACCOUNT_URL),
+        )
+        mock_put.return_value = httpx.Response(
+            200, json={}, request=httpx.Request("PUT", COURSE_ACCOUNT_URL)
+        )
+
+        utils.close_course_account(self.course_account)
+
+        self.assertEqual(
+            mock_post.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
+        )
+        self.assertEqual(
+            mock_get.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
+        )
+        self.assertEqual(
+            mock_put.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
+        )
+
+    @patch("httpx.put")
+    def test_close_course_account_by_username_passes_explicit_timeout(self, mock_put):
+        mock_put.return_value = httpx.Response(
+            200, json={}, request=httpx.Request("PUT", COURSE_ACCOUNT_URL)
+        )
+        utils.close_course_account_by_username(self.user.username, "token")
+        self.assertEqual(
+            mock_put.call_args.kwargs["timeout"], utils.ACCOUNT_API_REQUEST_TIMEOUT
+        )
+
+
+@override_waldur_core_settings(
+    COURSE_ACCOUNT_USE_API=True,
+    COURSE_ACCOUNT_URL=COURSE_ACCOUNT_URL,
+    COURSE_ACCOUNT_TOKEN_URL=COURSE_ACCOUNT_TOKEN_URL,
+    COURSE_ACCOUNT_TOKEN_CLIENT_ID="test-client-id",
+    COURSE_ACCOUNT_TOKEN_SECRET="test-client-secret",
+)
+class CloseCourseAccountTaskErrorHandlingTest(test.APITestCase):
+    """Test that close_course_account_task never leaves an account stuck in
+    PENDING, which destroy/retry can't recover from (both require OK/ERRED
+    as their source state)."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.course_project = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer, kind=ProjectKind.COURSE
+        )
+        self.user = structure_factories.UserFactory(username="pending-user")
+        self.course_account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.user,
+            state=CourseAccountState.PENDING,
+        )
+
+    @patch("waldur_mastermind.marketplace.utils.close_course_account")
+    def test_non_httpx_exception_still_marks_account_erred(self, mock_close):
+        # e.g. ValidationError("URL for course accounts is not configured"),
+        # which close_course_account's own except clause does not catch.
+        mock_close.side_effect = ValidationError(
+            "URL for course accounts is not configured"
+        )
+
+        tasks.close_course_account_task(self.course_account.uuid.hex)
+
+        self.course_account.refresh_from_db()
+        self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
+        self.assertIn("not configured", self.course_account.error_message)
+
+    @respx.mock
+    def test_httpx_error_keeps_close_course_account_own_error_message(self):
+        # close_course_account marks ERRED itself for httpx errors, with a
+        # detailed message; the task's own broader guard must not clobber
+        # it with a generic one (it only acts when state is still PENDING).
+        respx.post(COURSE_ACCOUNT_TOKEN_URL).mock(
+            return_value=httpx.Response(200, json={"access_token": "token"})
+        )
+        respx.get(COURSE_ACCOUNT_URL + f"/{self.user.username}").mock(
+            return_value=httpx.Response(
+                200, json={"tempAccounts": [{"username": self.user.username}]}
+            )
+        )
+        respx.put(COURSE_ACCOUNT_URL + f"/{self.user.username}/close").mock(
+            return_value=httpx.Response(500, json={"detail": "backend is down"})
+        )
+
+        tasks.close_course_account_task(self.course_account.uuid.hex)
+
+        self.course_account.refresh_from_db()
+        self.assertEqual(self.course_account.state, CourseAccountState.ERRED)
+        self.assertIn("backend is down", self.course_account.error_message)

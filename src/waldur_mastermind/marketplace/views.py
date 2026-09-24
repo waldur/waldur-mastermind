@@ -17893,12 +17893,28 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
                 )
             raise ValidationError({"detail": str(error_details)})
 
-    def perform_destroy(self, instance):
-        try:
-            utils.close_course_account(instance)
-        except httpx.HTTPError as exc:
-            error_details = utils.extract_error_details_from_httpx_error(exc)
-            raise ValidationError({"detail": error_details})
+    @extend_schema(
+        summary="Close a course account",
+        description=(
+            "Closing happens asynchronously against the external course-account "
+            "backend. The account moves to PENDING immediately and reaches CLOSED "
+            "(or ERRED, on failure) once the task completes."
+        ),
+        responses={202: serializers.CourseAccountSerializer},
+    )
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.error_message = ""
+        instance.error_traceback = ""
+        instance.set_state_pending()
+        instance.save(update_fields=["state", "error_message", "error_traceback"])
+
+        transaction.on_commit(
+            lambda: tasks.close_course_account_task.delay(instance.uuid.hex)
+        )
+
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 
     destroy_validators = [
         core_validators.StateValidator(CourseAccountState.OK, CourseAccountState.ERRED)
@@ -17917,11 +17933,21 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         instance.set_state_pending()
         instance.save(update_fields=["state", "error_message", "error_traceback"])
 
-        transaction.on_commit(
-            lambda: tasks.create_course_account_task.delay(
-                instance.uuid.hex, request.user.username
+        # instance.user is only ever set once creation has already succeeded
+        # (create_course_account_task sets it on success and never clears
+        # it). So an ERRED account with a user got there from a *failed
+        # close*, not a failed create - retrying it must re-attempt the
+        # close, not create a second backend account for the same person.
+        if instance.user:
+            transaction.on_commit(
+                lambda: tasks.close_course_account_task.delay(instance.uuid.hex)
             )
-        )
+        else:
+            transaction.on_commit(
+                lambda: tasks.create_course_account_task.delay(
+                    instance.uuid.hex, request.user.username
+                )
+            )
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data, status=status.HTTP_202_ACCEPTED)

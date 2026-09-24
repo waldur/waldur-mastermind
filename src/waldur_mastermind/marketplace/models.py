@@ -6049,7 +6049,14 @@ class CourseAccount(
 
     @transition(
         field=state,
-        source=[CourseAccountState.OK, CourseAccountState.ERRED],
+        # PENDING is included because closing goes through it too: the
+        # destroy action and the project pre_delete handler both move the
+        # account to PENDING before the close task actually runs.
+        source=[
+            CourseAccountState.OK,
+            CourseAccountState.ERRED,
+            CourseAccountState.PENDING,
+        ],
         target=CourseAccountState.CLOSED,
     )
     def set_state_closed(self):

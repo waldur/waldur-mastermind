@@ -2680,27 +2680,39 @@ def close_course_accounts_after_project_removal(
     if not settings.WALDUR_CORE.get("COURSE_ACCOUNT_USE_API"):
         return
 
-    course_accounts = models.CourseAccount.objects.filter(project=instance)
-    if not course_accounts.exists():
-        return
-    try:
-        api_access_token = utils.get_course_account_api_token()
-    except httpx.HTTPError:
-        logger.error(
-            "Unable to get course account API token, skipping accounts removal for project %s",
-            instance,
+    # Project.delete() defaults to a soft delete, but soft=False (Customer.delete()
+    # hard-deleting every project once none remain active, or the admin's
+    # "hard-delete soft-deleted projects" action) does a real DB delete, and
+    # CourseAccount.project is CASCADE - the row would be gone by the time a task
+    # re-read it by uuid. So the account's uuid/username/user_id are captured here,
+    # before the delete completes, and handed to the task instead of re-queried.
+    #
+    # Closing runs in a task rather than inline here because it calls a
+    # third-party API per account: looping synchronously blocked whichever
+    # caller triggered the deletion (an unrelated order state-transition
+    # request, in one observed case) on that backend's latency, with no
+    # bound on the outbound call. Batching every account from this project
+    # into one task (rather than one task per account) also means the API
+    # token is fetched once per project instead of once per account - and
+    # that fetch only ever happens inside the task, never here, so it can't
+    # reintroduce the same blocking-call-in-a-request problem for the
+    # synchronous hard-delete callers above.
+    accounts = list(
+        models.CourseAccount.objects.filter(project=instance).values(
+            "uuid", "user__username", "user_id"
         )
+    )
+    if not accounts:
         return
-
-    for course_account in course_accounts:
-        try:
-            utils.close_course_account(course_account, api_access_token)
-        except httpx.HTTPError:
-            logger.error(
-                "Unable to close course account %s from project %s",
-                course_account.user.username,
-                instance,
-            )
+    payload = [
+        {
+            "uuid": account["uuid"].hex,
+            "username": account["user__username"],
+            "user_id": account["user_id"],
+        }
+        for account in accounts
+    ]
+    transaction.on_commit(lambda: tasks.close_course_accounts_task.delay(payload))
 
 
 def log_terms_of_service_consent_granted(
