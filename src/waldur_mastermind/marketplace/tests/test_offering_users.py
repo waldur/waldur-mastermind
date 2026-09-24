@@ -169,6 +169,21 @@ class ListOfferingUsersTest(test.APITestCase):
         self.assertEqual(1, len(response.data))
         self.assertEqual(offering_user.user.get_username(), user.username)
 
+    def test_user_can_filter_by_username(self):
+        self.client.force_login(self.fixture.staff)
+
+        def usernames(value):
+            response = self.client.get(
+                OfferingUserFactory.get_list_url(), {"username": value}
+            )
+            self.assertEqual(200, response.status_code)
+            return [row["username"] for row in response.data]
+
+        self.assertEqual(usernames("user"), ["user"])  # not "user2" too
+        self.assertEqual(usernames("user2"), ["user2"])
+        self.assertEqual(usernames("USER"), [])  # POSIX names are case-sensitive
+        self.assertEqual(usernames("nobody"), [])
+
 
 @ddt
 class CreateOfferingUsersTest(test.APITestCase):

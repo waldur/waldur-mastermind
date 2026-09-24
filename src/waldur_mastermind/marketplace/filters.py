@@ -2320,6 +2320,11 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     user_username = django_filters.CharFilter(
         field_name="user__username", lookup_expr="iexact", label="User username"
     )
+    # The account's own (POSIX) username; exact because those names are
+    # case-sensitive -- use ``query`` for a substring search.
+    username = django_filters.CharFilter(
+        field_name="username", lookup_expr="exact", label="Username"
+    )
     provider_uuid = core_filters.RelatedUUIDFilter(
         view_name="marketplace-service-provider-detail",
         field_name="offering__customer__uuid",
@@ -2422,6 +2427,9 @@ class ServiceProviderAccountFilter(core_filters.CreatedModifiedFilter):
     )
     user_username = django_filters.CharFilter(
         field_name="user__username", lookup_expr="iexact", label="User username"
+    )
+    username = django_filters.CharFilter(
+        field_name="username", lookup_expr="exact", label="Username"
     )
     provider_uuid = core_filters.RelatedUUIDFilter(
         view_name="marketplace-service-provider-detail",

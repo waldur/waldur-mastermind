@@ -271,3 +271,29 @@ class ServiceProviderAccountListQueryCountTest(test.APITestCase):
             five,
             "the account list issues a query per row -- offering_count is not annotated",
         )
+
+
+class ServiceProviderAccountUsernameFilterTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        for username in ("hpc_1", "hpc_10"):
+            models.ServiceProviderAccount.objects.create(
+                service_provider=self.fixture.service_provider,
+                user=structure_factories.UserFactory(),
+                username=username,
+                state=OfferingUserStates.OK,
+            )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def usernames(self, value):
+        response = self.client.get(
+            factories.ServiceProviderAccountFactory.get_list_url(),
+            {"username": value},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [row["username"] for row in response.data]
+
+    def test_filter_matches_the_whole_username(self):
+        self.assertEqual(self.usernames("hpc_1"), ["hpc_1"])
+        self.assertEqual(self.usernames("HPC_1"), [])
+        self.assertEqual(self.usernames("hpc_2"), [])
