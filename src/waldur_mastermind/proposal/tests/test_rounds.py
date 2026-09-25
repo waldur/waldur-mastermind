@@ -67,7 +67,6 @@ class RoundGetTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_round_should_not_be_visible(self, user):
@@ -75,6 +74,13 @@ class RoundGetTest(test.APITestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_round_is_visible_to_organization_owner(self):
+        # CUSTOMER.OWNER carries CALL.LIST, so the owner sees their organization's calls.
+        user = self.fixture.owner
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 @ddt
@@ -100,12 +106,16 @@ class RoundCreateTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.create_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_add_offering_to_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.create_round("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_overlapping_of_rounds(self):
         # old: ---[-]-------
@@ -189,12 +199,16 @@ class RoundUpdateTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_update_round(self, user):
         response = self.update_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_update_round(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.update_round("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def update_round(self, user):
         user = getattr(self.fixture, user)
@@ -228,12 +242,16 @@ class RoundDeleteTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_delete_round(self, user):
         response = self.delete_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_delete_round(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.delete_round("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def delete_round(self, user):
         user = getattr(self.fixture, user)
@@ -281,12 +299,16 @@ class RoundCloseTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_close_round(self, user):
         response = self.close_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_close_round(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.close_round("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_close_rounds_alone_is_enough(self):
         """The route asks for CLOSE_ROUNDS and nothing else.
@@ -1028,10 +1050,15 @@ class BulkRoundCreateTest(test.APITestCase):
         # Nothing extra persisted — only the seeded round remains.
         self.assertEqual(self.call.round_set.count(), seeded)
 
-    @data("user", "owner", "customer_support")
+    @data("user", "customer_support")
     def test_user_can_not_bulk_create_rounds(self, user):
         response = self._post(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_owner_sees_but_can_not_bulk_create_rounds(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self._post("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertEqual(self.call.round_set.count(), 0)
 
     def test_bulk_create_after_duplicate_keeps_both_round_sets(self):

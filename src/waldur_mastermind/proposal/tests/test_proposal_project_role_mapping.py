@@ -142,8 +142,8 @@ class ProposalProjectRoleMappingVisibilityTest(test.APITestCase):
 
     def test_customer_role_without_list_calls_sees_no_mappings(self):
         # Seeing a call through its customer takes LIST_CALLS; its mappings
-        # follow the call.
-        self.client.force_authenticate(self.fixture.owner)
+        # follow the call. CUSTOMER.OWNER carries it, CUSTOMER.SUPPORT does not.
+        self.client.force_authenticate(self.fixture.customer_support)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json(), [])

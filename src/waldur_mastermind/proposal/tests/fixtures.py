@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 
 from waldur_core.permissions import enums
-from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.fixtures import CallRole, CustomerRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -41,6 +41,9 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         ):
             CallRole.MANAGER.add_permission(perm)
             self.call_organizer_role.add_permission(perm)
+
+        # Mirrors permissions.yaml: owners see their organization's calls.
+        CustomerRole.OWNER.add_permission(enums.PermissionEnum.LIST_CALLS)
 
         CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_PROPOSALS)
         CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_CALLS)
