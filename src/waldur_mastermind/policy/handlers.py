@@ -260,16 +260,19 @@ def customer_component_usage_policy_trigger_handler(
     )
 
 
+# Saves touching only these fields are sync bookkeeping (e.g. the site agent's
+# refresh_last_sync ping) and cannot change cost, so policies are not evaluated.
+# TimeStampedModel.save() adds "modified" to any explicit update_fields.
+_POLICY_IRRELEVANT_UPDATE_FIELDS = frozenset({"last_sync", "modified"})
+
+
 def get_estimated_cost_policy_handler_for_observable_class(klass, observable_class):
-    def handler(sender, instance, created=False, **kwargs):
+    def handler(sender, instance, created=False, update_fields=None, **kwargs):
         if not isinstance(instance, observable_class):
             return
 
-        logger.info(
-            "Estimated cost policy handler called for %s instance (created=%s).",
-            sender.__name__,
-            created,
-        )
+        if update_fields and set(update_fields) <= _POLICY_IRRELEVANT_UPDATE_FIELDS:
+            return
 
         observable_object = instance
 
@@ -280,15 +283,20 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
             )
             return
 
-        policies = klass.objects.filter(
-            scope=klass.get_scope_from_observable_object(observable_object)
+        policies = list(
+            klass.objects.filter(
+                scope=klass.get_scope_from_observable_object(observable_object)
+            )
         )
+
+        if not policies:
+            return
 
         logger.info(
             "Estimated cost policy handler triggered for %s (created=%s). Found %d policies.",
             observable_object.__class__.__name__,
             created,
-            policies.count(),
+            len(policies),
         )
 
         for policy in policies:

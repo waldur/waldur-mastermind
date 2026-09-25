@@ -88,6 +88,36 @@ class TestIsMockedSkipsPolicyCheck(test.APITestCase):
             actions_mock.assert_called_once()
 
 
+class TestSyncBookkeepingSaveSkipsPolicyCheck(test.APITestCase):
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(scope=self.project)
+        self.resource = marketplace_factories.ResourceFactory(project=self.project)
+
+    def test_last_sync_only_save_skips_policy_check(self):
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_scope_from_observable_object",
+            return_value=None,
+        ) as scope_mock:
+            self.resource.save(update_fields=["last_sync"])
+            scope_mock.assert_not_called()
+
+    def test_save_with_other_fields_runs_policy_check(self):
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            "get_scope_from_observable_object",
+            return_value=None,
+        ) as scope_mock:
+            self.resource.save(update_fields=["last_sync", "limits"])
+            scope_mock.assert_called_once()
+
+    def test_no_info_log_when_no_policies_match(self):
+        self.policy.delete()
+        with self.assertNoLogs("waldur_mastermind.policy.handlers", level="INFO"):
+            self.resource.save()
+
+
 class TestPolicySignalHandlerIsRegistered(test.APITestCase):
     """
     Test that policy signal handlers are properly registered and fire.
