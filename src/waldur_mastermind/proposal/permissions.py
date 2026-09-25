@@ -4,6 +4,7 @@ from rest_framework import exceptions, permissions
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import (
+    check_pat_support_scope,
     get_users,
     has_permission_on_any_source,
     permission_factory,
@@ -27,6 +28,34 @@ user_can_accept_requested_offering = permission_factory(
 # accept either, so the traversal is named once here rather than restated (and
 # forgotten) per call site.
 CALL_PERMISSION_SOURCES = ["*", "manager"]
+
+
+def support_can_read(check):
+    """Let support users through `check` on safe methods only.
+
+    Support can read every call (CallQuerySet.filter_for_user), so the data a
+    call is managed with -- reviewer pool, COI and matching configuration,
+    compliance -- must be readable to them too, or the call pages they are
+    allowed to open come out broken. Writes still go through `check`.
+
+    The wrapper carries `check`'s `permission` / `sources` over: ActionsPermission
+    uses `sources` to decide the check needs the object, and the OpenAPI
+    `x-permissions` extension reads both.
+    """
+
+    def wrapper(request, view, scope=None):
+        if (
+            request.method in permissions.SAFE_METHODS
+            and request.user.is_support
+            and check_pat_support_scope(request)
+        ):
+            return
+        return check(request, view, scope)
+
+    for attr in ("permission", "sources"):
+        if hasattr(check, attr):
+            setattr(wrapper, attr, getattr(check, attr))
+    return wrapper
 
 
 class CanUpdateCallPermission(permissions.BasePermission):

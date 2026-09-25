@@ -1244,7 +1244,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     # Call Manager Compliance Endpoints
     compliance_overview_permissions = [
-        permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+        proposal_permissions.support_can_read(
+            permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+        )
     ]
 
     @extend_schema(
@@ -1448,7 +1450,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     def _check_available_checklists_permission(request, view, obj=None):
         """Check if user has CREATE_CALL permission on call managing organization."""
         user = request.user
-        if user.is_staff:
+        if user.is_staff or user.is_support:
             return
 
         customer_uuid = request.query_params.get("customer_uuid")
@@ -1623,9 +1625,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     reviewer_pool_serializer_class = serializers.CallReviewerPoolSerializer
     reviewer_pool_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -1777,9 +1781,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     suggestions_serializer_class = serializers.ReviewerSuggestionSerializer
     suggestions_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -1920,9 +1926,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     coi_configuration_serializer_class = serializers.CallCOIConfigurationSerializer
     coi_configuration_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -1956,9 +1964,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     conflicts_serializer_class = serializers.ConflictOfInterestSerializer
     conflicts_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -2009,9 +2019,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
 
     conflict_summary_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -2095,9 +2107,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         serializers.MatchingConfigurationSerializer
     )
     matching_configuration_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -2153,9 +2167,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         return response.Response(matrix)
 
     affinity_matrix_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -2186,9 +2202,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     proposed_assignments_serializer_class = serializers.ProposedAssignmentSerializer
     proposed_assignments_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["*", "manager"],
+        proposal_permissions.support_can_read(
+            permission_factory(
+                PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+                ["*", "manager"],
+            )
         )
     ]
 
@@ -3835,7 +3853,9 @@ class ReviewViewSet(ActionsViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.is_staff:
+        # Support reads everything staff does and writes nothing; writes on
+        # this viewset are gated separately, not by queryset visibility.
+        if user.is_staff or user.is_support:
             return models.Review.objects.all().order_by("created")
 
         # Base queries for authorized users (call organizers, call managers, reviewers)
@@ -4391,17 +4411,22 @@ class ReviewerProfileViewSet(ActionsViewSet):
                 "user__first_name", "user__last_name"
             )
         # Users can see their own profile and profiles of ACCEPTED pool members
-        # (pending invitations don't expose profiles to managers)
+        # (pending invitations don't expose profiles to managers). Support sees
+        # the accepted members of every call's pool -- what the call pages they
+        # can open show -- but not unpooled or pending profiles as staff does.
+        accepted = Q(
+            pool_memberships__invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED
+        )
+        if user.is_support:
+            pooled = accepted
+        else:
+            pooled = accepted & Q(
+                pool_memberships__call__in=get_connected_calls(user, CallRole.MANAGER)
+            )
         return (
             models.ReviewerProfile.objects.filter(
                 Q(user=user)  # Own profile always visible
-                | Q(
-                    # Only ACCEPTED pool members visible to managers
-                    pool_memberships__call__in=get_connected_calls(
-                        user, CallRole.MANAGER
-                    ),
-                    pool_memberships__invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
-                )
+                | pooled
             )
             .distinct()
             .order_by("user__first_name", "user__last_name")
@@ -4780,7 +4805,7 @@ class ConflictOfInterestViewSet(ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if user.is_staff or user.is_support:
             return models.ConflictOfInterest.objects.all().order_by("-detected_at")
         # Call managers can see COIs for their calls
         return models.ConflictOfInterest.objects.filter(
@@ -5188,7 +5213,7 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if user.is_staff or user.is_support:
             qs = models.CallReviewerPool.objects.all()
         else:
             qs = models.CallReviewerPool.objects.filter(
@@ -5465,7 +5490,7 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if user.is_staff or user.is_support:
             return models.ReviewerSuggestion.objects.all().order_by("-affinity_score")
         return models.ReviewerSuggestion.objects.filter(
             Q(call__in=get_connected_calls(user, CallRole.MANAGER))
@@ -6276,7 +6301,7 @@ class AssignmentBatchViewSet(ActionsViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if user.is_staff:
+        if user.is_staff or user.is_support:
             return queryset
 
         # Filter based on user's roles
@@ -6777,14 +6802,25 @@ class CallAssignmentConfigurationViewSet(ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.CallAssignmentConfiguration.objects.all()
     serializer_class = serializers.CallAssignmentConfigurationSerializer
+    # Visibility below is any role on the call, reviewers and panel members
+    # included, so writes cannot ride on it: they need MANAGE_PROPOSAL_REVIEW.
+    unsafe_methods_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["call", "call.manager"],
+        )
+    ]
+    # The serializer's `call` is read-only, so a POST could never name the call
+    # it configures and died on the NOT NULL constraint; the list route also
+    # has no object to check the permission against. Refuse it outright.
+    disabled_actions = ["create"]
 
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        if user.is_staff:
+        if user.is_staff or user.is_support:
             return queryset
 
-        # Only call managers can view/edit configuration
         connected_calls = get_connected_calls(user)
         return queryset.filter(call__in=connected_calls)
 

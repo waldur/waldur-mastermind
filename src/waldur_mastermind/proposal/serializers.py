@@ -574,6 +574,7 @@ class ProposalReviewSerializer(
 
         if (
             user.is_staff
+            or user.is_support
             or review.reviewer == user
             or review.proposal.round.call.manager.customer.has_user(user)
             or review.proposal.round.call.has_user(user, CallRole.MANAGER)
