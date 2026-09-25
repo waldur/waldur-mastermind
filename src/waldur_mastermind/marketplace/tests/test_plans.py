@@ -262,6 +262,9 @@ class PlanRenderTest(test.APITestCase):
 
         self.assertEqual(rendered_plan, rendered_plan_expected)
 
+    def test_plan_render_without_plan(self):
+        self.assertEqual(plan_details(None).strip(), "Plan: none")
+
 
 @ddt
 class PlanOrganizationGroupsTest(test.APITestCase):
