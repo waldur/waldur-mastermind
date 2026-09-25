@@ -2333,7 +2333,7 @@ A new order by {{ order.created_by.get_full_name }} is waiting for approval.
 
 ```txt
 
-Plan: {{ plan.name }}{% for component in components %}
+Plan: {% if plan %}{{ plan.name }}{% else %}none{% endif %}{% for component in components %}
 {{component.name}}; amount: {{component.amount}}; price: {{component.price|floatformat }};
 {% endfor %}
 
