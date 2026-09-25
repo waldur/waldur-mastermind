@@ -32,8 +32,9 @@ def get_invoice_item_component_amount(item, component):
 @register.simple_tag
 def plan_details(plan):
     context = {"plan": plan, "components": []}
+    plan_components = plan.components.select_related("component") if plan else []
 
-    for component in plan.components.all():
+    for component in plan_components:
         offering_component = component.component
         if offering_component is None:
             continue

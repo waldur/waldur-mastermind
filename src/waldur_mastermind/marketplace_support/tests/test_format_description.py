@@ -2,7 +2,7 @@ import datetime
 
 from django.test import TestCase
 
-from waldur_mastermind.marketplace.enums import OrderTypes
+from waldur_mastermind.marketplace.enums import BillingTypes, OrderTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import utils
 
@@ -54,3 +54,30 @@ class FormatCreateDescriptionTest(TestCase):
         order = marketplace_factories.OrderFactory(type=OrderTypes.CREATE)
         description = utils.format_create_description(order)
         self.assertNotIn("restoration request", description)
+
+    def test_create_description_without_plan(self):
+        order = marketplace_factories.OrderFactory(plan=None, limits={"cpu": 10})
+        marketplace_factories.OfferingComponentFactory(
+            offering=order.offering,
+            type="cpu",
+            name="CPU",
+            measured_unit="cores",
+            billing_type=BillingTypes.LIMIT,
+        )
+        description = utils.format_create_description(order)
+        self.assertIn("Plan details:\n    Plan: none", description)
+        self.assertIn(f"Resource UUID: {order.resource.uuid}", description)
+        self.assertIn("CPU (cpu): 10 cores", description)
+        self.assertIn(f"Email: {order.created_by.email}", description)
+
+
+class FormatDeleteDescriptionTest(TestCase):
+    def test_delete_description_without_plan(self):
+        order = marketplace_factories.OrderFactory(type=OrderTypes.TERMINATE, plan=None)
+        order.resource.plan = None
+        order.resource.save(update_fields=["plan"])
+        description = utils.format_delete_description(order)
+        self.assertIn("Plan: none", description)
+        self.assertIn(
+            f"Marketplace resource UUID: {order.resource.uuid.hex}", description
+        )
