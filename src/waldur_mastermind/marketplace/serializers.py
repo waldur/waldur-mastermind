@@ -171,6 +171,31 @@ def validate_auto_approve_for_roles_is_staff_only(user, instance, plugin_options
         )
 
 
+def validate_uses_robot_accounts(instance, plugin_options):
+    """Robot-account mode and automatic offering users are alternative models.
+
+    ``uses_robot_accounts`` tells an integrator to provision per-resource robot
+    accounts instead of offering users. It does not gate ``RobotAccount``
+    creation: an offering that uses offering users can still have robot accounts
+    (for example a Lexis/HEAppE link) without this flag.
+    """
+    if not plugin_options:
+        return
+    merged = dict((instance.plugin_options or {}) if instance else {})
+    merged.update(plugin_options)
+    if merged.get("uses_robot_accounts") and merged.get(
+        "service_provider_can_create_offering_user"
+    ):
+        raise rf_exceptions.ValidationError(
+            {
+                "plugin_options": _(
+                    "uses_robot_accounts cannot be combined with "
+                    "service_provider_can_create_offering_user."
+                )
+            }
+        )
+
+
 def validate_disable_grace_period_is_staff_only(user, instance, plugin_options):
     """Reject a non-staff user setting or changing disable_grace_period.
     Overriding the org/project grace period is a staff-controlled policy, so it is
@@ -246,6 +271,16 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
 
     service_provider_can_create_offering_user = serializers.BooleanField(
         required=False, help_text="Service provider can create offering user"
+    )
+
+    uses_robot_accounts = serializers.BooleanField(
+        required=False,
+        help_text=(
+            "This offering's identity model is per-resource robot accounts "
+            "rather than automatic offering users. Unset means false. Cannot "
+            "be combined with service_provider_can_create_offering_user. Does "
+            "not block creating robot accounts on offerings that use offering users."
+        ),
     )
 
     offering_user_auto_deletion = serializers.BooleanField(
@@ -5304,6 +5339,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         validate_disable_grace_period_is_staff_only(
             self.context["request"].user, self.instance, attrs.get("plugin_options", {})
         )
+        validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
 
         attrs.setdefault("options", {"options": {}, "order": []})
         attrs.setdefault("resource_options", {"options": {}, "order": []})
@@ -5691,6 +5727,7 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         validate_disable_grace_period_is_staff_only(
             user, self.instance, attrs.get("plugin_options", {})
         )
+        validate_uses_robot_accounts(self.instance, attrs.get("plugin_options", {}))
         self._joining_offerings = self._validate_account_scope_switch(
             attrs.get("plugin_options", {})
         )

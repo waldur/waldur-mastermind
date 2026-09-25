@@ -353,6 +353,7 @@ The related `resource_slug_template` option (e.g. `{project_slug}-{counter}`) ge
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `service_provider_can_create_offering_user` | boolean | `false` | Allow provider to create offering-specific user accounts |
+| `uses_robot_accounts` | boolean | `false` (unset) | Identity model for this offering is per-resource robot accounts, for integrators choosing robot-account provisioning instead of offering users. Cannot be combined with `service_provider_can_create_offering_user`. Does not gate robot account creation: offerings that use offering users can still have robot accounts (for example Lexis/HEAppE) without this flag |
 | `username_generation_policy` | string | `"service_provider"` | How usernames are generated: `waldur_username`, `anonymized`, `service_provider`, `full_name`, `freeipa`, `eduteams`. Inherits from the provider's `account_username_generation_policy` when unset |
 | `account_name_generation_policy` | string | none | Site-agent backend ID (e.g. SLURM account name) generation. Unset = use the resource slug as-is; `project_slug` = derive from the project slug with an incrementing counter. Do not combine with `resource_slug_template` (see [Resource Naming](#resource-naming)) |
 | `initial_uidnumber` | integer | `5000` | Starting UID for generated users |
