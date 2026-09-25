@@ -155,7 +155,6 @@ class CallGetTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_call_should_not_be_visible(self, user):
@@ -165,6 +164,15 @@ class CallGetTest(test.APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
+
+    def test_call_is_visible_to_organization_owner(self):
+        # CUSTOMER.OWNER carries CALL.LIST, so the owner sees their organization's calls.
+        user = self.fixture.owner
+        self.client.force_authenticate(user)
+        url = factories.CallFactory.get_protected_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.json())
 
 
 @ddt
@@ -233,12 +241,16 @@ class CallUpdateTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_update_call(self, user):
         response = self.update_call(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_update_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.update_call("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data(
         "reviewer_1",
@@ -467,12 +479,16 @@ class CallDeleteTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_delete_call(self, user):
         response = self.delete_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_delete_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.delete_call("owner", self.draft_call)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(
             models.Call.objects.filter(uuid=self.draft_call.uuid.hex).exists()
         )
@@ -583,12 +599,16 @@ class CallActivateTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_activate_call(self, user):
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_owner_sees_but_can_not_activate_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.activate_call("owner", self.draft_call)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertEqual(self.active_call.state, CallStates.ACTIVE)
 
     @data("REVIEWER", "PANEL_MEMBER")
@@ -626,12 +646,16 @@ class CallArchiveTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_archive_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_owner_sees_but_can_not_archive_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.archive_call("owner", self.draft_call)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertEqual(self.draft_call.state, CallStates.DRAFT)
 
     @data("REVIEWER", "PANEL_MEMBER")
@@ -692,10 +716,15 @@ class CallDuplicateTest(test.APITestCase):
         response = self.duplicate_call("call_manager", self.source, name="Copy of call")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
-    @data("user", "owner", "customer_support")
+    @data("user", "customer_support")
     def test_user_can_not_duplicate_call(self, user):
         response = self.duplicate_call(user, self.source, name="Copy of call")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_owner_sees_but_can_not_duplicate_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.duplicate_call("owner", self.source, name="Copy of call")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
     def test_duplicate_requires_name(self):
         response = self.duplicate_call("staff", self.source, name="")
@@ -769,7 +798,6 @@ class RequestedOfferingsGetTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_call_should_not_be_visible(self, user):
@@ -777,6 +805,13 @@ class RequestedOfferingsGetTest(test.APITestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_call_is_visible_to_organization_owner(self):
+        # CUSTOMER.OWNER carries CALL.LIST, so the owner sees their organization's calls.
+        user = self.fixture.owner
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_state_filter_applied(self):
         factories.RequestedOfferingFactory(
@@ -899,12 +934,16 @@ class RequestedOfferingsCreateTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.add_offering(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_add_offering_to_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.add_offering("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_validate_attributes(self):
         user = self.fixture.staff
@@ -974,12 +1013,16 @@ class RequestedOfferingsUpdateTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.update_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_add_offering_to_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.update_requested_offering("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def update_requested_offering(self, user):
         user = getattr(self.fixture, user)
@@ -1012,12 +1055,16 @@ class RequestedOfferingsDeleteTest(test.APITestCase):
 
     @data(
         "user",
-        "owner",
         "customer_support",
     )
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.delete_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_sees_but_can_not_add_offering_to_call(self):
+        # The owner sees the call through CALL.LIST but holds no call write permission.
+        response = self.delete_requested_offering("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_delete_requested_offering_with_connected_proposals(self):
         user = self.fixture.staff
