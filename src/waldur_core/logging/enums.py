@@ -1054,6 +1054,10 @@ class ObservableObjectType(Enum):
     # knows the older type keeps working -- and one that does not recognise this
     # one drops it with a warning rather than mis-handling it.
     SERVICE_PROVIDER_ACCOUNT = "service_provider_account"
+    # Proposal-domain state changes, scoped to the call and its organiser so
+    # consumers bound to a call or a proposal receive them.
+    CALL = "call"
+    PROPOSAL = "proposal"
 
     @classmethod
     def choices(cls):

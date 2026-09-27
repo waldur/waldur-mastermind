@@ -22,6 +22,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates
+from waldur_mastermind.proposal import event_publishing
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
     AllocationTimes,
@@ -572,8 +573,33 @@ def process_closed_round(call_round: proposal_models.Round):
     """Process a closed round: cancel draft proposals."""
     from waldur_mastermind.proposal.enums import ProposalStates
 
-    call_round.proposal_set.filter(state=ProposalStates.DRAFT).update(
-        state=ProposalStates.CANCELED
+    # Lock the drafts while reading them, so the proposals announced are exactly
+    # the rows updated: a concurrent submit holds the same row lock, and if it
+    # wins the draft is no longer selected here — no bogus draft → canceled.
+    # of=("self",) keeps the lock off the joined call and customer rows.
+    with transaction.atomic():
+        drafts = list(
+            call_round.proposal_set.select_for_update(of=("self",))
+            .filter(state=ProposalStates.DRAFT)
+            .select_related("round__call__manager__customer")
+        )
+        # A bulk update skips post_save, so announce each cancellation explicitly.
+        proposal_models.Proposal.objects.filter(
+            pk__in=[proposal.pk for proposal in drafts]
+        ).update(state=ProposalStates.CANCELED)
+        for proposal in drafts:
+            proposal.state = ProposalStates.CANCELED
+
+    # Announced outside the lock. The rows are committed as canceled by now, so
+    # the announcement is accurate either way, and the dispatcher's per-proposal
+    # consumer matching no longer runs while every draft is held FOR UPDATE --
+    # which is exactly the submit this lock exists to serialise against.
+    # Everything the payloads read is covered by the select_related above, so
+    # nothing is re-fetched here. ATOMIC_REQUESTS is off, so the block above is
+    # the outermost transaction and leaving it really does release the locks;
+    # under a future outer transaction this stays correct, just no longer shorter.
+    event_publishing.publish_proposal_state_changes(
+        (proposal, ProposalStates.DRAFT) for proposal in drafts
     )
 
 

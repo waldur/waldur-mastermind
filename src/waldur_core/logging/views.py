@@ -1187,7 +1187,8 @@ def _resolve_consumer_authorization(request, resolved_scopes) -> str:
     (a staff/support caller may bind to anything, and is the only one who may
     request the global empty binding set), then identity (a caller binding only
     to their own user scope needs no role at all), then the per-scope role the
-    serializer validated with `holds_any_role_on_scope_or_ancestor`.
+    serializer validated with `event_dispatch.holds_role_on_event_chain` (the
+    generic ancestor walk, or the chain an app registered for that scope type).
     """
     user = request.user
     if user.is_staff:

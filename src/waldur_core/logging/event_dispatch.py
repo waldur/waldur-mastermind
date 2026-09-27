@@ -33,7 +33,8 @@ plain string).
 
 import json
 import logging
-from typing import NamedTuple
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.serializers.json import DjangoJSONEncoder
@@ -226,6 +227,52 @@ def build_messages(
     return DispatchResult(messages, delivered_user_ids)
 
 
+# Scope chains that differ from get_scope_ancestors, keyed by model class. An app
+# whose events are scoped to a chain the generic walker does not build registers
+# that chain in its AppConfig.ready(), and passes the same function's result to
+# build_messages. Registration (holds_role_on_event_chain) and the diagnostic
+# (delivery_blocked_reason) then read the chain from here, so all three agree
+# and this module still imports no app code.
+_event_chains: dict[type, Callable[[Any], list]] = {}
+
+
+def register_event_chain(model: type, chain: Callable[[Any], list]) -> None:
+    """Register ``chain(instance) -> [instance, *ancestors]`` for ``model``."""
+    _event_chains[model] = chain
+
+
+def event_scope_keys(scope) -> list[tuple[int, int]]:
+    """Scope keys of the chain an event about ``scope`` is emitted with."""
+    chain = _event_chains.get(type(scope))
+    if chain is None:
+        return permission_utils.scope_keys_for(scope)
+    return [
+        (ContentType.objects.get_for_model(entity.__class__).id, entity.id)
+        for entity in chain(scope)
+    ]
+
+
+def holds_role_on_event_chain(user, scope) -> bool:
+    """Registration guard: may this user bind a consumer to ``scope``?
+
+    For a scope with a registered chain, the role must lie on that chain -- the
+    one build_messages re-authorizes delivery against -- so a binding is accepted
+    exactly when it could receive something. Anything else keeps the generic
+    ancestor walk.
+    """
+    if type(scope) not in _event_chains:
+        return permission_utils.holds_any_role_on_scope_or_ancestor(user, scope)
+    if not user.is_active:
+        return False
+    if user.is_staff or user.is_support:
+        return True
+    return bool(
+        permission_utils.users_with_role_on_any_scope_key(
+            {user.id}, event_scope_keys(scope)
+        )
+    )
+
+
 _OBSERVABLE_OBJECT_TYPE_VALUES = frozenset(
     member.value for member in ObservableObjectType
 )
@@ -245,8 +292,11 @@ def delivery_blocked_reason(consumer) -> str | None:
     event's scope-keys. So an empty answer means "something is being delivered",
     not "everything is".
 
-    It is the standalone registration guard (``holds_any_role_on_scope_or_ancestor``,
-    which the serializer applies), NOT the site-agent one: ``register_queue``
+    Each binding contributes the chain its events are emitted with
+    (:func:`event_scope_keys`), so this is the standalone registration guard
+    (:func:`holds_role_on_event_chain`, which the serializer applies) — a proposal
+    binding resolves to the call side, not the applicant's project. It is NOT the
+    site-agent guard: ``register_queue``
     also admits an identity manager, who holds no role on the offering at all.
     Such a consumer is reported blocked here — correctly, since dispatch drops
     it too — which is why the message says the owner holds no role rather than
@@ -306,7 +356,7 @@ def delivery_blocked_reason(consumer) -> str | None:
         scope = binding.scope
         if scope is not None:
             resolvable = True
-            role_keys.update(permission_utils.scope_keys_for(scope))
+            role_keys.update(event_scope_keys(scope))
     if not resolvable:
         # Every binding is a dangling GenericFK — the bound project/offering row
         # was deleted. Distinct from a role problem: the fix is to re-register,
