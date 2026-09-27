@@ -135,6 +135,7 @@ ONBOARDING_VALIDATION_CHOICES = [
     ("ariregister", "ariregister"),
     ("wirtschaftscompass", "wirtschaftscompass"),
     ("bolagsverket", "bolagsverket"),
+    ("breg", "breg"),
     ("dnb_se", "dnb_se"),
     ("dnb_no", "dnb_no"),
     ("dnb_dk", "dnb_dk"),
