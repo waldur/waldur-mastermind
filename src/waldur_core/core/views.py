@@ -179,6 +179,15 @@ class ObtainAuthToken(APIView):
 
     throttle_classes = ()
     permission_classes = ()
+    # This view authenticates by credentials in the body; who the request
+    # already is, is irrelevant to it. Leaving the default authenticators on
+    # made SessionAuthentication pick up any Django `sessionid` cookie for this
+    # origin — set by Django admin, which the SPA is served alongside — and DRF
+    # then enforces CSRF on it. A login POST carries no CSRF token, so the
+    # credentials were never even read: it failed with "CSRF Failed: CSRF token
+    # missing." until the user cleared their cookies. Nothing here reads
+    # request.user, so there is nothing to authenticate.
+    authentication_classes = ()
     serializer_class = ObtainAuthTokenSerializer
 
     @extend_schema(
