@@ -48,6 +48,30 @@ class TokenAuthenticationTest(test.APITestCase):
         response = self.client.get(self.test_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_login_succeeds_while_a_session_cookie_is_present(self):
+        """A leftover Django session used to make login fail with a CSRF error.
+
+        The SPA and Django admin share an origin, so an admin visit leaves a
+        `sessionid` cookie that is sent to the login endpoint too. That made
+        SessionAuthentication authenticate the request, and DRF enforce CSRF on
+        it; a login POST carries no CSRF token, so the credentials were never
+        read. The reported workaround was clearing all cookies, and the symptom
+        showed up as "log out one user, log in as another".
+        """
+        client = test.APIClient(enforce_csrf_checks=True)
+        someone_else = User.objects.create_user(
+            "admin-visitor", "visitor@example.com", "other-secret"
+        )
+        client.force_login(someone_else)
+
+        response = client.post(
+            self.auth_url, data={"username": self.username, "password": self.password}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        # The credentials in the body decide who this is, not the cookie.
+        self.assertEqual(Token.objects.get(key=response.data["token"]).user, self.user)
+
     def test_user_can_logout(self):
         response = self.client.post(
             self.auth_url, data={"username": self.username, "password": self.password}
