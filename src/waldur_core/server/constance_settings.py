@@ -488,6 +488,11 @@ CONSTANCE_CONFIG = {
         "URL for sending telemetry data.",
     ),
     "TELEMETRY_VERSION": (1, "Telemetry service version."),
+    "TELEMETRY_DEPLOYMENT_ID": (
+        "",
+        "Random identifier sent with telemetry so reports from one deployment "
+        "can be grouped. Generated on the first report; clear it to rotate.",
+    ),
     "CHECK_FOR_UPDATES": (
         True,
         "If true, the version endpoint queries GitHub for the latest released "
@@ -1948,6 +1953,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Telemetry": (
         "TELEMETRY_URL",
         "TELEMETRY_VERSION",
+        "TELEMETRY_DEPLOYMENT_ID",
         "CHECK_FOR_UPDATES",
     ),
     "Custom Scripts": (

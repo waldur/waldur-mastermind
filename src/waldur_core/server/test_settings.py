@@ -3,6 +3,8 @@ from waldur_core.server.base_settings import *  # noqa
 
 SECRET_KEY = "test-key"
 
+TELEMETRY_ENABLED = False
+
 # Valid Fernet key so field encryption is exercised in tests. Test-only value.
 FIELD_ENCRYPTION_KEY = "0_MF86u8HjafXHqQSf9jm5r0Rbhn_jOcwTHk1f-3OqY="
 

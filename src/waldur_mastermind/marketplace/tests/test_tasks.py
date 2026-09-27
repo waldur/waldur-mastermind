@@ -2,12 +2,15 @@ import datetime
 from unittest import mock
 from unittest.mock import patch
 
+from constance import config
 from constance.test.unittest import override_config
 from django.core import mail
+from django.test import override_settings
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
+from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.enums import PermissionEnum
@@ -1312,3 +1315,79 @@ class MarketplaceAwareServiceListPullTaskTest(test.APITestCase):
         factories.OfferingFactory(scope=self.orphan, state=OfferingStates.PAUSED)
         result = list(tasks.ServicePropertiesListPullTask().get_pulled_objects())
         self.assertIn(self.orphan, result)
+
+
+@override_settings(TELEMETRY_ENABLED=True)
+@override_config(
+    TELEMETRY_URL="https://telemetry.example.com/",
+    TELEMETRY_VERSION=1,
+    TELEMETRY_DEPLOYMENT_ID="",
+)
+@patch("waldur_mastermind.marketplace.tasks.requests.post")
+class SendMetricsTest(test.APITestCase):
+    def setUp(self):
+        core_models.Feature.objects.filter(key__endswith=".send_metrics").delete()
+
+    def _set_feature(self, key, value):
+        core_models.Feature.objects.update_or_create(key=key, defaults={"value": value})
+
+    def test_metrics_are_sent_when_feature_is_enabled(self, post):
+        post.return_value.status_code = 200
+        self._set_feature("deployment.send_metrics", True)
+
+        tasks.send_metrics()
+
+        post.assert_called_once()
+        self.assertEqual(
+            post.call_args.args[0], "https://telemetry.example.com/v1/metrics/"
+        )
+
+    def test_deployment_id_is_random_and_stable(self, post):
+        post.return_value.status_code = 200
+        self._set_feature("deployment.send_metrics", True)
+
+        tasks.send_metrics()
+        tasks.send_metrics()
+
+        first, second = (c.kwargs["json"]["deployment_id"] for c in post.call_args_list)
+        self.assertEqual(first, second)
+        self.assertEqual(first, config.TELEMETRY_DEPLOYMENT_ID)
+        self.assertEqual(len(first), 32)
+
+    def test_metrics_are_not_sent_when_feature_is_disabled(self, post):
+        self._set_feature("deployment.send_metrics", False)
+
+        tasks.send_metrics()
+
+        post.assert_not_called()
+
+    def test_metrics_are_sent_by_default(self, post):
+        post.return_value.status_code = 200
+
+        tasks.send_metrics()
+
+        post.assert_called_once()
+
+    def test_legacy_feature_key_is_ignored(self, post):
+        post.return_value.status_code = 200
+        self._set_feature("telemetry.send_metrics", False)
+
+        tasks.send_metrics()
+
+        post.assert_called_once()
+
+    @override_config(TELEMETRY_URL="")
+    def test_metrics_are_not_sent_without_telemetry_url(self, post):
+        self._set_feature("deployment.send_metrics", True)
+
+        tasks.send_metrics()
+
+        post.assert_not_called()
+
+    @override_settings(TELEMETRY_ENABLED=False)
+    def test_deploy_time_kill_switch_overrides_feature(self, post):
+        self._set_feature("deployment.send_metrics", True)
+
+        tasks.send_metrics()
+
+        post.assert_not_called()

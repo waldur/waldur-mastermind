@@ -2,7 +2,6 @@ import collections
 import datetime
 import decimal
 import functools
-import hashlib
 import logging
 import uuid as uuid_mod
 from datetime import timedelta
@@ -14,6 +13,7 @@ import requests
 from celery import shared_task
 from constance import config
 from dateutil.relativedelta import relativedelta
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Count, Exists, F, OuterRef, Q, Subquery, Sum
@@ -23,6 +23,7 @@ from rest_framework import status
 
 from waldur_core import _get_version
 from waldur_core.checklist import models as checklist_models
+from waldur_core.core import features as core_features
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
@@ -1472,14 +1473,21 @@ def notification_about_resource_ending():
 @shared_task(name="waldur_mastermind.marketplace.send_metrics")
 def send_metrics():
     """Send anonymous usage metrics and telemetry data to the Waldur team."""
-    if not core_models.Feature.objects.filter(key="telemetry.send_metrics").exists():
+    if not settings.TELEMETRY_ENABLED:
+        return
+
+    if not core_features.is_enabled("deployment.send_metrics"):
         return
 
     # skip sending if setting is unset
     if not config.TELEMETRY_URL:
         return
 
-    site_name = config.HOMEPORT_URL
+    deployment_id = config.TELEMETRY_DEPLOYMENT_ID
+    if not deployment_id:
+        deployment_id = uuid_mod.uuid4().hex
+        config.TELEMETRY_DEPLOYMENT_ID = deployment_id
+
     deployment_type = core_utils.get_deployment_type()
     first_event = logging_models.Event.objects.order_by("created").first()
     installation_date = (
@@ -1487,7 +1495,7 @@ def send_metrics():
     )
     installation_date_str = str(installation_date) if installation_date else None
     params = {
-        "deployment_id": hashlib.sha256(site_name.encode()).hexdigest(),
+        "deployment_id": deployment_id,
         "deployment_type": deployment_type,
         "helpdesk_backend": config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE,
         "helpdesk_integration_status": config.WALDUR_SUPPORT_ENABLED,

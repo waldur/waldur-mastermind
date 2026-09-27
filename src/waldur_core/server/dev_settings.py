@@ -6,6 +6,9 @@ DEBUG = True
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 SECRET_KEY = "..."
 
+# Keep local stacks out of the deployment statistics.
+TELEMETRY_ENABLED = False
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",

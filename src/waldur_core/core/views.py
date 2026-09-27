@@ -60,7 +60,7 @@ from waldur_core.core.authentication import (
     set_authentication_method,
 )
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
-from waldur_core.core.features import FEATURES
+from waldur_core.core.features import FEATURE_DEFAULTS, FEATURES
 from waldur_core.core.fields import COUNTRIES
 from waldur_core.core.handlers import emit_user_blocked_event
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP, build_logo_url
@@ -577,7 +577,8 @@ def get_feature_values():
     return {
         section["key"]: {
             feature["key"]: feature_values.get(
-                f"{section['key']}.{feature['key']}", False
+                f"{section['key']}.{feature['key']}",
+                FEATURE_DEFAULTS.get(f"{section['key']}.{feature['key']}", False),
             )
             for feature in section["items"]
         }

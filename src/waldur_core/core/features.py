@@ -4,9 +4,15 @@ from dataclasses import dataclass
 @dataclass
 class Feature:
     description: str
+    # Value used while no core.Feature row exists, i.e. until an admin or
+    # load_features sets the flag explicitly.
+    default: bool = False
 
 
 FEATURES = []
+
+# Dotted keys of the features whose default is on.
+FEATURE_DEFAULTS: dict[str, bool] = {}
 
 
 class FeatureSectionMetaclass(type):
@@ -23,6 +29,8 @@ class FeatureSectionMetaclass(type):
                     section["items"].append(
                         {"key": key, "description": feature.description}
                     )
+                    if feature.default:
+                        FEATURE_DEFAULTS[f"{section['key']}.{key}"] = True
         return type.__new__(self, name, bases, attrs)
 
 
@@ -331,7 +339,7 @@ class WaldurDeploymentSection(FeatureSection):
         key = "deployment"
         description = "Waldur deployment settings"
 
-    send_metrics = Feature("Send telemetry metrics.")
+    send_metrics = Feature("Send telemetry metrics.", default=True)
     enable_cookie_notice = Feature("Enable cookie notice in marketplace.")
     enable_disclaimer_area = Feature("Enable disclaimer area below the footer.")
 
@@ -346,3 +354,11 @@ class ResellerSection(FeatureSection):
         "Show affiliate program menus and pages. Backend enforcement is "
         "controlled separately by the AFFILIATES_ENABLED Constance setting."
     )
+
+
+def is_enabled(key: str) -> bool:
+    """Current value of a feature flag, falling back to its declared default."""
+    from waldur_core.core.models import Feature as FeatureModel
+
+    value = FeatureModel.objects.filter(key=key).values_list("value", flat=True).first()
+    return FEATURE_DEFAULTS.get(key, False) if value is None else value

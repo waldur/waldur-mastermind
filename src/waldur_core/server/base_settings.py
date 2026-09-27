@@ -292,6 +292,16 @@ _FOREIGN_PRE_CHAIN = [
     structlog.processors.format_exc_info,
 ]
 
+# Deploy-time kill switch for the daily telemetry report. It overrides the
+# admin's feature toggle, so an operator can guarantee nothing leaves the
+# installation before first boot (air-gapped or contractually restricted sites).
+TELEMETRY_ENABLED = os.environ.get("WALDUR_TELEMETRY_ENABLED", "true").lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+
 # Use JSON in production, readable console in development
 _USE_JSON_LOGS = os.environ.get("WALDUR_DEV_LOGS", "").lower() not in (
     "1",
