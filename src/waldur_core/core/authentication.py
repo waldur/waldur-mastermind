@@ -7,6 +7,7 @@ import jwt
 import reversion
 from constance import config
 from django.conf import settings
+from django.contrib.auth import SESSION_KEY as AUTH_USER_SESSION_KEY
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import F
@@ -105,8 +106,20 @@ AUTHENTICATION_METHOD_KEY = "AUTHENTICATION_METHOD"
 
 
 def set_authentication_method(
-    request: HttpRequest, authentication_method: AuthenticationMethod
+    request: HttpRequest, authentication_method: AuthenticationMethod, user
 ):
+    # The session is whatever cookie the browser already sent: the SPA and
+    # Django admin share an origin, so it can be another user's live admin
+    # session. Writing into it as-is left that user logged in to the admin in
+    # a browser someone else had just signed in on, and LogoutView would pick
+    # the single-logout URL from a login that was not the one ending. Renew it
+    # the way auth.login() does: a different user's session is flushed, and
+    # otherwise only the key is cycled so the data survives.
+    session_user = request.session.get(AUTH_USER_SESSION_KEY)
+    if session_user is not None and session_user != user._meta.pk.value_to_string(user):
+        request.session.flush()
+    else:
+        request.session.cycle_key()
     request.session[AUTHENTICATION_METHOD_KEY] = authentication_method
 
 

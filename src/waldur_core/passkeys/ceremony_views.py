@@ -279,7 +279,7 @@ def issue_token(user, request, credential=None):
     from waldur_core.core.authentication import set_authentication_method
 
     try:
-        set_authentication_method(request, AuthenticationMethod.PASSKEY)
+        set_authentication_method(request, AuthenticationMethod.PASSKEY, user)
     except AttributeError:
         # The SPA does not carry a session cookie, and helm allows the API and
         # the portal to live on different hostnames, so there may be no session
