@@ -7,10 +7,11 @@ class ProposalConfig(AppConfig):
     verbose_name = "Proposal"
 
     def ready(self):
+        from waldur_core.logging import event_dispatch
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.permissions.utils import register_expiration_guard
 
-        from . import handlers, models
+        from . import event_publishing, handlers, models
 
         permission_signals.role_revoked.connect(
             handlers.clear_panel_chair_on_role_revoked,
@@ -40,4 +41,19 @@ class ProposalConfig(AppConfig):
             handlers.seed_proposal_field_config,
             sender=models.Call,
             dispatch_uid="waldur_mastermind.proposal.seed_proposal_field_config",
+        )
+
+        event_dispatch.register_event_chain(models.Call, event_publishing.call_chain)
+        event_dispatch.register_event_chain(
+            models.Proposal, event_publishing.proposal_chain
+        )
+        signals.post_save.connect(
+            event_publishing.emit_call_state_changed,
+            sender=models.Call,
+            dispatch_uid="waldur_mastermind.proposal.emit_call_state_changed",
+        )
+        signals.post_save.connect(
+            event_publishing.emit_proposal_state_changed,
+            sender=models.Proposal,
+            dispatch_uid="waldur_mastermind.proposal.emit_proposal_state_changed",
         )

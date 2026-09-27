@@ -509,6 +509,51 @@ whole scope chain), e.g. a billing or usage exporter for one service:
 }
 ```
 
+**Call-for-proposals tracking** — state changes of a call and of every proposal
+submitted to it, e.g. to mirror proposal status into an external grant or
+review system. Non-staff: you must hold a role on the call itself (call
+manager, reviewer, panel member) or on its managing organisation (call
+organiser):
+
+```json
+{
+    "scopes": [{"type": "call", "uuid": "<call-uuid>"}],
+    "object_types": ["call", "proposal"]
+}
+```
+
+Bind to a single `proposal` instead to follow just that one — its own members
+may, and so may anyone holding a role further up the same chain, such as the
+call's manager. A role on the *applicant's* project does not qualify: applicants
+cannot see the proposal through the API either, so the event is not scoped to
+them. To follow every call one organisation runs, bind to its `call_organizer`
+with a role on it.
+
+A role on the organiser's **customer** (owner, support, reader) admits `call`
+events only. Those roles cannot list the organisation's proposals through the
+API, so proposal events never reach them — a binding to the `customer` receives
+the organisation's call state changes, and a `proposal` binding is refused.
+
+Both types carry `event_type` (`call_state_changed` / `proposal_state_changed`),
+`state`, `previous_state`, names, and uuids for the call, its round and the
+organiser customer — identifiers, names and states only, never proposal content,
+scores or reviewer identities. Only transitions are published: creating a draft
+emits nothing, and rounds have no events of their own. When a round reaches its
+cutoff, every proposal still open in it (`draft`, `submitted` or `in_review`) is
+cancelled and each cancellation is published; closing a round by hand cancels
+only its drafts.
+
+A **new submission is not a single transition.** On a call without workflow
+steps `submit` moves `draft → submitted`; on a call with workflow steps it goes
+straight `draft → in_review`, and no `submitted` event is ever sent. To detect
+submissions, match `previous_state == "draft"` with `state` in
+(`submitted`, `in_review`) — filtering on `state == "submitted"` alone misses
+every submission to a workflow-enabled call.
+
+Global consumers (staff/support, empty scope set) receive `call` and `proposal`
+events too, exactly as they receive marketplace events; narrow them with
+`object_types` if they are not wanted.
+
 Omit `object_types` (or send `[]`) in any of these to receive **all** event
 kinds for the chosen scope. Delivery stays dynamic: if the integration's owner
 later loses their role on a bound scope, delivery for that scope stops on the

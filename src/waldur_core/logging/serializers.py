@@ -22,7 +22,6 @@ from waldur_core.logging import (
     models,
 )
 from waldur_core.permissions.enums import TYPE_MAP
-from waldur_core.permissions.utils import holds_any_role_on_scope_or_ancestor
 
 logger = logging.getLogger(__name__)
 
@@ -1345,7 +1344,7 @@ class EventConsumerRegistrationSerializer(serializers.Serializer):
             if instance is None:
                 errors.append(f"{type_key} with uuid {uuid_value} does not exist.")
                 continue
-            if not holds_any_role_on_scope_or_ancestor(user, instance):
+            if not event_dispatch.holds_role_on_event_chain(user, instance):
                 errors.append(
                     f"You do not hold a role on {type_key} {uuid_value}, so you "
                     f"may not subscribe to its events."
@@ -1434,7 +1433,7 @@ class EventConsumerSerializer(serializers.ModelSerializer):
         # warning only for a non-null value.
         #
         # Costs a few queries per row: the viewset prefetches the bindings but
-        # not their ancestor chains, which scope_keys_for walks, plus one role
+        # not their ancestor chains, which event_scope_keys walks, plus one role
         # query per consumer (staff/support rows short-circuit before either).
         # Bounded by page size. Not batched because the role check is per-owner
         # — one query over every owner and every binding on the page would match

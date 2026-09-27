@@ -932,7 +932,9 @@ def validate_user_restrictions(scope, user):
 # the entity or one of its ancestors. get_scope_ancestors(offering) yields
 # [offering, offering.project, project.customer, offering.customer], which is
 # exactly what OfferingQuerySet.filter_for_user ORs over — so the unified path
-# is never narrower than the legacy path it replaces.
+# is never narrower than the legacy path it replaces. A scope type whose events
+# follow a different chain (calls and proposals) registers it with
+# logging.event_dispatch.register_event_chain, and both sides use that instead.
 
 
 def scope_keys_for(scope) -> list[tuple[int, int]]:

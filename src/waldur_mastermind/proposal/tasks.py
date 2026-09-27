@@ -34,13 +34,20 @@ def proposals_for_ended_rounds_should_be_cancelled():
     """Cancel proposals for rounds that have ended."""
     date = timezone.now()
     cancellation_date = date.strftime("%Y-%m-%d %H:%M:%S")
-    for proposal in proposal_models.Proposal.objects.exclude(
-        state__in=(
-            ProposalStates.ACCEPTED,
-            ProposalStates.REJECTED,
-            ProposalStates.CANCELED,
+    for proposal in (
+        proposal_models.Proposal.objects.exclude(
+            state__in=(
+                ProposalStates.ACCEPTED,
+                ProposalStates.REJECTED,
+                ProposalStates.CANCELED,
+            )
         )
-    ).filter(round__cutoff_time__lt=date):
+        .filter(round__cutoff_time__lt=date)
+        .select_related(
+            # Each save publishes a proposal event whose scope chain walks these.
+            "round__call__manager__customer"
+        )
+    ):
         proposal.state = ProposalStates.CANCELED
         proposal.save(update_fields=["state"])
 
