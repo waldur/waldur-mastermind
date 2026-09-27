@@ -8,11 +8,13 @@ from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core.utils import format_homeport_link, text2html
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OrderTypes
 from waldur_mastermind.marketplace.utils import format_limits_list, get_order_url
+from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
@@ -42,6 +44,43 @@ def format_description(template_name, context):
     return template.template.render(Context(context, autoescape=False))
 
 
+def get_allocating_proposal(order):
+    """The proposal that granted this order's resource, or None.
+
+    Allocation links each requested resource to the resource it creates, so
+    the proposal is found through that link rather than inferred from the
+    project. The order author need not be the applicant -- a call can
+    attribute its orders to a call manager or a shared mailbox -- so the
+    ticket names the applicant separately.
+    """
+    if not order.resource_id:
+        return None
+    requested = (
+        proposal_models.RequestedResource.objects.filter(resource_id=order.resource_id)
+        .select_related("proposal__created_by")
+        .first()
+    )
+    return requested.proposal if requested else None
+
+
+def get_project_team(order):
+    """Active project members, for offerings that track team changes.
+
+    Membership tickets are only raised once the project holds a resource of
+    the offering, so whoever joined before it -- the whole proposal team, when
+    a call allocates -- would otherwise never be reported.
+    """
+    if not order.offering.plugin_options.get("enable_issues_for_membership_changes"):
+        return []
+    return list(
+        UserRole.objects.filter(
+            is_active=True, scope=order.project, user__is_active=True
+        )
+        .select_related("user", "role")
+        .order_by("user__first_name", "user__last_name", "user__username")
+    )
+
+
 def format_create_description(order):
     result = []
 
@@ -61,6 +100,10 @@ def format_create_description(order):
     if "description" in order.attributes:
         result.append("\n %s" % order.attributes["description"])
 
+    proposal = get_allocating_proposal(order)
+    proposal_url = proposal and format_homeport_link(
+        "proposals/{proposal_uuid}/", proposal_uuid=proposal.uuid.hex
+    )
     result.append(
         format_description(
             "create_resource_template",
@@ -68,6 +111,9 @@ def format_create_description(order):
                 "order": order,
                 "order_url": get_order_url(order),
                 "resource": order.resource,
+                "proposal": proposal,
+                "proposal_url": proposal_url,
+                "team": get_project_team(order),
             },
         )
     )

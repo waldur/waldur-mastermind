@@ -8,4 +8,8 @@ Plan details:
 {% endif %}{% if resource.end_date %}End date: {{resource.end_date}}
 {% endif %}Full name: {{order.created_by.full_name|default:"none"}}
 Civil code: {{order.created_by.civil_number|default:"none"}}
-Email: {{order.created_by.email}}
+Email: {{order.created_by.email}}{% if proposal %}{% if proposal.created_by %}
+Applicant: {{proposal.created_by.full_name|default:"none"}} (e-mail: {{proposal.created_by.email|default:"none"}}){% endif %}
+Proposal: {{proposal.name}} ({{proposal_url}}){% endif %}{% if team %}
+Project team:{% for user_role in team %}
+- {{user_role.user.full_name|default:"none"}} (e-mail: {{user_role.user.email|default:"none"}}, username: {{user_role.user.username}}), role: {{user_role.role.name}}{% endfor %}{% endif %}
