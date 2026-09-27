@@ -1,6 +1,7 @@
 import datetime
 import logging
 import uuid
+from collections import Counter
 from typing import cast
 
 from constance import config
@@ -12,6 +13,7 @@ from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import StringUUID
+from waldur_core.core.models import NAME_LENGTH
 from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
@@ -234,6 +236,19 @@ def granted_duration_in_days(
     return days if days > 0 else None
 
 
+def _allocated_resource_name(
+    project_name: str, offering_name: str, index: int | None = None
+) -> str:
+    """Name a granted resource after its project and offering.
+
+    The offering tells apart the resources of one allocation; a request for an
+    offering already requested is numbered. The project part is cut to fit, as
+    a project name may be longer than a resource name.
+    """
+    suffix = f" - {offering_name}" + (f" ({index})" if index else "")
+    return (project_name[: max(0, NAME_LENGTH - len(suffix))] + suffix)[:NAME_LENGTH]
+
+
 def _requested_end_date(
     requested_resource: proposal_models.RequestedResource,
     project: structure_models.Project,
@@ -445,9 +460,19 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
         proposal.approved_by = approved_by
     proposal.save()
 
-    requested_resources = proposal.requestedresource_set.filter(
-        requested_offering__state=RequestedOfferingStates.ACCEPTED
+    # Oldest first, so repeated offerings are numbered in the order requested.
+    requested_resources = list(
+        proposal.requestedresource_set.filter(
+            requested_offering__state=RequestedOfferingStates.ACCEPTED
+        )
+        .select_related("requested_offering__offering")
+        .order_by("created", "id")
     )
+    # Model instances hash and compare by primary key.
+    offering_counts = Counter(
+        requested.requested_offering.offering for requested in requested_resources
+    )
+    offering_seen = Counter()
 
     for mapping in proposal.round.call.proposalprojectrolemapping_set.all():  # type: ignore
         users = get_users(proposal, mapping.proposal_role.name)
@@ -467,17 +492,20 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
     consumer_reviewer = approved_by or get_system_robot()
 
     for requested_resource in requested_resources:
+        offering = requested_resource.requested_offering.offering
+        offering_seen[offering] += 1
+        index = offering_seen[offering] if offering_counts[offering] > 1 else None
         with transaction.atomic():
             attrs = dict(
                 project=project,
-                offering=requested_resource.requested_offering.offering,
+                offering=offering,
                 plan=requested_resource.requested_offering.plan,
                 attributes=requested_resource.attributes,
                 limits=requested_resource.limits,
             )
             resource = marketplace_models.Resource(
                 **attrs,
-                name=project.name,
+                name=_allocated_resource_name(project.name, offering.name, index),
             )
             # Before init_cost: the prepaid multiplier in Plan.get_estimate and
             # in the invoice item builder both read this field, so setting it
