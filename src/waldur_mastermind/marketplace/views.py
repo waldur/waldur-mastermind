@@ -118,6 +118,7 @@ from waldur_core.permissions.fixtures import (
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
     add_user,
+    check_pat_support_scope,
     get_user_ids,
     has_permission,
     has_permission_on_any_source,
@@ -234,6 +235,22 @@ OFFERING_SCOPED_SOURCES = ["offering", "offering.customer"]
 # A service provider manager holds their role on the ServiceProvider itself,
 # while organization owners hold theirs on its customer; accept either.
 SERVICE_PROVIDER_SOURCES = ["*", "customer"]
+
+
+def readable_by_support(permission_function):
+    """Let global support through a read gate otherwise held by scoped roles.
+
+    Support can read every other reporting endpoint; an oversight body given
+    that role should not lose the provider-level reports.
+    """
+
+    def check(request, view, scope=None):
+        user = request.user
+        if user.is_active and user.is_support and check_pat_support_scope(request):
+            return
+        permission_function(request, view, scope)
+
+    return check
 
 
 def get_allowed_offering_users_for_user(
@@ -817,9 +834,11 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     glauth_tree_permissions = [structure_permissions.is_service_manager]
 
     stat_permissions = [
-        permission_factory(
-            PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
-            SERVICE_PROVIDER_SOURCES,
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+                SERVICE_PROVIDER_SOURCES,
+            )
         )
     ]
 
@@ -911,9 +930,11 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
 
     revenue_permissions = [
-        permission_factory(
-            PermissionEnum.GET_SERVICE_PROVIDER_REVENUE,
-            SERVICE_PROVIDER_SOURCES,
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.GET_SERVICE_PROVIDER_REVENUE,
+                SERVICE_PROVIDER_SOURCES,
+            )
         )
     ]
 
