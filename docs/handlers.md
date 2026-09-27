@@ -527,7 +527,9 @@ td:nth-child(4) {
 | `drop_offering_user_for_openportal_remote_user` | `Custom Signal (openportal_remote_association_deleted)` | `waldur_openportal.RemoteAllocation` | No description |
 | `drop_offering_user_for_openportal_user` | `Custom Signal (openportal_association_deleted)` | `waldur_openportal.Allocation` | No description |
 | `drop_offering_user_for_rancher_user` | `Django Signal (pre_delete)` | `waldur_rancher.RancherUser` | No description |
+| `emit_call_state_changed` | `Django Signal (post_save)` | `proposal.Call` | No description |
 | `emit_invoice_created_event` | `Django Signal (post_save)` | `invoices.Invoice` | Emit invoice created signal when invoice state changes to CREATED. |
+| `emit_proposal_state_changed` | `Django Signal (post_save)` | `proposal.Proposal` | No description |
 | `enable_service_settings_when_not_archived` | `Django Signal (post_save)` | `marketplace.Offering` | Enable service settings when an offering is not archived. |
 | `enable_service_settings_with_existing_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Enable service settings if there are existing resources. |
 | `encrypt_secret_options_on_raw_save` | `Django Signal (pre_save)` | `marketplace.Offering` | Encrypt secret_options on a raw save (django-reversion revert, loaddata). |
@@ -809,14 +811,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 730
+Total unique handlers found: 732
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 325 handlers
+- **waldur_mastermind**: 327 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

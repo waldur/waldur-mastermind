@@ -1497,6 +1497,12 @@ URL for sending telemetry data.
 
 Telemetry service version.
 
+#### TELEMETRY_DEPLOYMENT_ID
+
+**Type:** str
+
+Random identifier sent with telemetry so reports from one deployment can be grouped. Generated on the first report; clear it to rotate.
+
 #### CHECK_FOR_UPDATES
 
 **Type:** bool
