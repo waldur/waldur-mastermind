@@ -328,7 +328,7 @@ class ObtainAuthToken(APIView):
         token = refresh_token(user)
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
-        set_authentication_method(request, AuthenticationMethod.LOCAL)
+        set_authentication_method(request, AuthenticationMethod.LOCAL, user)
 
         logger.debug("Returning token for successful login of user %s", user)
 

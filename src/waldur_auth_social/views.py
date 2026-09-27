@@ -289,7 +289,7 @@ class OAuthViewComplete(BaseOAuthView):
         token = refresh_token(user)
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
-        set_authentication_method(request, provider)
+        set_authentication_method(request, provider, user)
 
         event_logger.emit(
             "User {user_username} with full name {user_full_name} authenticated successfully with {provider}.",

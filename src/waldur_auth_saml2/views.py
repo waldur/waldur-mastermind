@@ -285,7 +285,7 @@ class Saml2LoginCompleteView(BaseSaml2View):
             event_context={"user": user, "request": request},
             scopes=[user],
         )
-        set_authentication_method(request, AuthenticationMethod.SAML2)
+        set_authentication_method(request, AuthenticationMethod.SAML2, user)
         return login_completed(token, "saml2")
 
 
