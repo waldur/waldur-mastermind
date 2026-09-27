@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import F
@@ -1044,6 +1045,13 @@ class Command(BaseCommand):
                 data.get("question_dependencies", [])
             ),
         )
+        # Offerings are imported before checklists, so their compliance
+        # checklist could not be resolved then. Link it now, before offering
+        # users are imported, so each gets its checklist completion.
+        self._safe_import(
+            "offerings",
+            lambda: self.link_offering_compliance_checklists(data.get("offerings", [])),
+        )
 
         # Import proposal/call management data BEFORE user_roles (user_roles may scope to Calls)
         # Dependency order: CMO -> calls -> offerings -> templates -> rounds -> proposals -> resources -> reviews
@@ -1523,8 +1531,6 @@ class Command(BaseCommand):
         if touched:
             # Drop the cached public configuration so consumers see the new
             # flag values without a backend restart.
-            from django.core.cache import cache
-
             cache.delete("API_CONFIGURATION")
 
     def import_users(self, users_data):
@@ -3206,6 +3212,25 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["offerings"]["errors"] += 1
+
+    def link_offering_compliance_checklists(self, offerings_data):
+        """Attach compliance checklists that did not exist when offerings were imported."""
+        for offering_data in offerings_data:
+            checklist_uuid = offering_data.get("compliance_checklist_uuid")
+            if not checklist_uuid or self.dry_run:
+                continue
+            checklist = Checklist.objects.filter(uuid=checklist_uuid).first()
+            if not checklist:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Offering {offering_data.get('uuid')}: compliance checklist "
+                        f"{checklist_uuid} not found"
+                    )
+                )
+                continue
+            Offering.objects.filter(
+                uuid=offering_data.get("uuid"), compliance_checklist__isnull=True
+            ).update(compliance_checklist=checklist)
 
     def import_offering_endpoints(self, endpoints_data):
         """Import offering access endpoints."""
@@ -5402,7 +5427,9 @@ class Command(BaseCommand):
                     "credit": credit,
                 }
 
-                # Only set start/end if provided, otherwise let model use defaults
+                # Only set unit/start/end if provided, otherwise let model use defaults
+                if item_data.get("unit"):
+                    defaults["unit"] = item_data["unit"]
                 if start is not None:
                     defaults["start"] = start
                 if end is not None:
@@ -7747,6 +7774,11 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to import constance settings: {e}")
             )
             self.stats["constance_settings"]["errors"] += 1
+
+        if not self.dry_run:
+            # Public settings are cached without expiry; drop them so a running
+            # backend serves the imported branding and profile attributes.
+            cache.delete("API_CONFIGURATION")
 
     def import_call_managing_organisations(self, cmo_data):
         """Import call managing organisation data."""
