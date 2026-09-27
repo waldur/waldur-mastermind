@@ -24,6 +24,7 @@ from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
 from waldur_core.checklist import enums as checklist_enums
+from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
@@ -4224,6 +4225,30 @@ class OfferingComplianceChecklistSerializerTest(test.APITestCase):
         # Check has_compliance_requirements field
         self.assertIn("has_compliance_requirements", response.data)
         self.assertTrue(response.data["has_compliance_requirements"])
+
+    def test_owner_sees_details_of_assigned_checklist(self):
+        checklist = checklist_factories.ChecklistFactory(
+            name="AI compute eligibility",
+            checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE,
+        )
+        checklist_factories.QuestionFactory.create_batch(3, checklist=checklist)
+        self.offering.compliance_checklist = checklist
+        self.offering.save()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(factories.OfferingFactory.get_url(self.offering))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        details = response.data["compliance_checklist_details"]
+        self.assertEqual(details["uuid"], checklist.uuid.hex)
+        self.assertEqual(details["name"], "AI compute eligibility")
+        self.assertEqual(details["questions_count"], 3)
+
+    def test_checklist_details_are_null_without_checklist(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(factories.OfferingFactory.get_url(self.offering))
+
+        self.assertIsNone(response.data["compliance_checklist_details"])
 
     def test_offering_compliance_checklist_url_structure(self):
         """Test that compliance_checklist field follows proper URL structure."""

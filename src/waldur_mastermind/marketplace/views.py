@@ -2784,7 +2784,9 @@ class ProviderOfferingViewSet(
             queryset = utils.annotate_scope_resource(queryset)
 
         # account_settings falls back to the offering's service provider.
-        return queryset.select_related("customer__serviceprovider")
+        return queryset.select_related(
+            "customer__serviceprovider", "compliance_checklist"
+        )
 
     destroy_permissions = [
         marketplace_permissions.can_manage_offering_lifecycle,

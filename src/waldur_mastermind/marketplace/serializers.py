@@ -4581,6 +4581,21 @@ class BillingModeComponentSerializer(serializers.Serializer):
     limit_period = serializers.ChoiceField(choices=LimitPeriods.CHOICES)
 
 
+class OfferingComplianceChecklistSerializer(serializers.ModelSerializer):
+    """The checklist assigned to an offering, readable by those who manage it.
+
+    ``compliance_checklist`` links to the staff-only admin endpoint, so the
+    offering's own managers could not resolve it.
+    """
+
+    questions_count = serializers.IntegerField(source="questions.count", read_only=True)
+
+    class Meta:
+        model = checklist_models.Checklist
+        fields = ("uuid", "name", "description", "questions_count")
+        read_only_fields = fields
+
+
 class ProviderOfferingDetailsSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -4647,6 +4662,9 @@ class ProviderOfferingDetailsSerializer(
         lookup_field="uuid",
         required=False,
         allow_null=True,
+    )
+    compliance_checklist_details = OfferingComplianceChecklistSerializer(
+        source="compliance_checklist", read_only=True, allow_null=True
     )
     # `profile` (FK to OfferingProfile) is intentionally NOT exposed for
     # write here. Binding an offering to a service profile is a staff-only
@@ -4750,6 +4768,7 @@ class ProviderOfferingDetailsSerializer(
             "billing_type_classification",
             "effective_available_limits",
             "compliance_checklist",
+            "compliance_checklist_details",
             "profile_uuid",
             "profile_name",
             "offering_group",
