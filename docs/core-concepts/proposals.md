@@ -403,6 +403,21 @@ The author is a name on the order, not an authorisation.
     before pointing `call_manager` or `specific_user` at someone outside the
     project, such as a grants office.
 
+#### What the ticket says about people
+
+The creation ticket for an allocated order names the order's author as its
+requester, and adds the applicant and a link to the proposal — they differ when
+the call attributes its orders to a call manager or a named contact.
+
+The proposal team is only listed when the offering tracks team changes
+(`enable_issues_for_membership_changes`). Such an offering normally hears about
+each member through a separate membership ticket, but those are raised only
+once the project holds one of its resources, and allocation adds the team
+before creating any. The creation ticket therefore carries a snapshot of the
+project's active members with their roles; later changes raise membership
+tickets as usual. Who the team is depends on the call's
+[role mappings](#role-mapping-system): a call with none allocates an empty project.
+
 #### When the author cannot receive a ticket
 
 A helpdesk ticket needs an address. If the order's author has none — an SSO

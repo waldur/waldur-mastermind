@@ -14,6 +14,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
 from waldur_mastermind.proposal import models, utils
 from waldur_mastermind.proposal.enums import (
     OrderAuthors,
@@ -177,6 +178,54 @@ class OrderAuthorTest(test.APITestCase):
             )
         )
         self.assertEqual(authors, {self.applicant.id})
+
+
+class AllocatedOrderTicketTest(test.APITestCase):
+    """What the helpdesk ticket for a call-allocated order says about people.
+
+    The proposal team joins the project before the resources exist, so no
+    membership ticket is ever raised for them; the order ticket has to carry
+    them.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.applicant = self.proposal.created_by
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.project = None
+        self.proposal.save()
+        self.offering = self.fixture.offering
+        self.offering.type = SUPPORT_OFFERING
+        self.offering.plugin_options = {"enable_issues_for_membership_changes": True}
+        self.offering.save()
+        self.member = structure_factories.UserFactory()
+        self.proposal.add_user(self.member, ProposalRole.MEMBER)
+        models.ProposalProjectRoleMapping.objects.create(
+            call=self.fixture.call,
+            proposal_role=ProposalRole.MEMBER,
+            project_role=ProjectRole.MEMBER,
+        )
+
+    def describe_allocated_order(self):
+        utils.allocate_proposal(self.proposal, approved_by=self.fixture.staff)
+        self.proposal.refresh_from_db()
+        resource = self.proposal.requestedresource_set.first().resource
+        order = marketplace_models.Order.objects.get(resource=resource)
+        return marketplace_support_utils.format_create_description(order)
+
+    def test_ticket_names_the_applicant_and_the_proposal(self):
+        description = self.describe_allocated_order()
+        self.assertIn(f"Applicant: {self.applicant.full_name}", description)
+        self.assertIn(f"proposals/{self.proposal.uuid.hex}/", description)
+
+    def test_ticket_lists_the_team_mapped_onto_the_project(self):
+        description = self.describe_allocated_order()
+        self.assertIn(
+            f"- {self.member.full_name} (e-mail: {self.member.email}, "
+            f"username: {self.member.username}), role: PROJECT.MEMBER",
+            description,
+        )
 
 
 class AllocatedOrderApprovalRecordTest(test.APITestCase):
