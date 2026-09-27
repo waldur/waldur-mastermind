@@ -5,11 +5,13 @@ import tempfile
 from io import StringIO
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection
 from django.test import TestCase
 
+from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project
@@ -1535,6 +1537,7 @@ class ImportStructureCommandTest(TestCase):
                 "name": "Test Invoice Item 1",
                 "quantity": "10.50",
                 "measured_unit": "hours",
+                "unit": "hour",
                 "unit_price": "25.00",
                 "article_code": "ITEM-001",
                 "start": "2024-03-01T00:00:00Z",
@@ -1570,6 +1573,7 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(item1.name, "Test Invoice Item 1")
         self.assertEqual(float(item1.quantity), 10.5)
         self.assertEqual(item1.measured_unit, "hours")
+        self.assertEqual(item1.unit, "hour")
         self.assertEqual(float(item1.unit_price), 25.0)
         self.assertEqual(item1.article_code, "ITEM-001")
         self.assertIsNotNone(item1.start)
@@ -2007,6 +2011,64 @@ class ImportStructureCommandTest(TestCase):
         # Verify all credits were deleted
         self.assertEqual(CustomerCredit.objects.count(), 0)
         self.assertEqual(ProjectCredit.objects.count(), 0)
+
+    def test_offering_compliance_checklist_imported_in_same_file(self):
+        """An offering's checklist is linked although checklists import after offerings."""
+        customer = structure_factories.CustomerFactory()
+        category = marketplace_factories.CategoryFactory()
+        user = structure_factories.UserFactory()
+        data = {
+            "offerings": [
+                {
+                    "uuid": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+                    "name": "GPU offering",
+                    "type": "Marketplace.Basic",
+                    "customer_uuid": str(customer.uuid),
+                    "category_uuid": str(category.uuid),
+                    "compliance_checklist_uuid": "22222222-2222-2222-2222-222222222222",
+                }
+            ],
+            "checklists": [
+                {
+                    "uuid": "22222222-2222-2222-2222-222222222222",
+                    "name": "Eligibility",
+                    "checklist_type": "offering_compliance",
+                }
+            ],
+            "offering_users": [
+                {
+                    "uuid": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+                    "offering_uuid": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+                    "user_uuid": str(user.uuid),
+                    "state": 4,
+                }
+            ],
+        }
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path)
+
+        offering = Offering.objects.get(uuid="dddddddd-dddd-dddd-dddd-dddddddddddd")
+        self.assertEqual(
+            str(offering.compliance_checklist.uuid.hex),
+            "22222222222222222222222222222222",
+        )
+        offering_user = OfferingUser.objects.get(offering=offering, user=user)
+        self.assertTrue(
+            ChecklistCompletion.objects.filter(
+                scope_content_type=ContentType.objects.get_for_model(OfferingUser),
+                scope_object_id=offering_user.id,
+                checklist=offering.compliance_checklist,
+            ).exists()
+        )
+
+    def test_constance_import_drops_cached_public_settings(self):
+        cache.set("API_CONFIGURATION", {"SITE_NAME": "Old"}, None)
+        self._create_test_json({"constance_settings": {"SITE_NAME": "New"}})
+
+        self._call_import_command("-i", self.test_file_path)
+
+        self.assertIsNone(cache.get("API_CONFIGURATION"))
 
     def test_checklist_basic_import_functionality(self):
         """Test that checklist categories and checklists can be imported."""

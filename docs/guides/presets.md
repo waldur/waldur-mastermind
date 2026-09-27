@@ -5,12 +5,39 @@ Each preset contains users, organizations, projects, offerings, resources, and u
 
 ## Available Presets
 
+`waldur demo_presets list` is the authoritative list; `waldur demo_presets info <name>`
+shows a preset's scenarios and entity counts.
+
 | Preset | Description |
 |--------|-------------|
-| `minimal_quickstart` | Basic setup for quick demos and testing |
-| `government_cloud` | GDPR-compliant cloud services for public sector |
+| `minimal_quickstart` | Basic setup for quick demos and testing (default for the dev stack) |
+| `government_cloud` | Multi-agency public-sector cloud with compliance-focused offerings |
+| `public_sector_accounting` | Public-sector accounting and oversight: 2 public providers, 10 public bodies, service layers as category groups, GPU-hours per chip model, per-hour PaaS plans, 18 months of usage and invoices, offering users in screening states, a `governance` user with the global support role |
 | `research_institution` | HPC and research computing environment |
-| `hpc_ai_platform` | GPU clusters and AI/ML workloads |
+| `hpc_ai_platform` | GPU clusters, AI/ML workloads, SLURM periodic policies |
+| `ai_factory` | Multi-provider AI value chain with user demographics and 12 months of invoices |
+| `efp` | EuroHPC federation: 10 hosting entities, maintenance announcements |
+| `openstack_cloud` | OpenStack tenants, instances and volumes with backend scopes |
+| `call_management` | Calls for proposals, peer review, conflict-of-interest detection, allocation |
+| `reporting` | Small dataset for proposal reporting dashboards |
+| `credit_management` | Organization and project credits with cost policies |
+| `credit_realistic` | Production-shaped credit usage over six months |
+| `credit_scenarios` | One project per credit-dashboard state |
+| `discounts_and_affiliates` | Provider volume discounts and the affiliate programme |
+| `usage_periods_demo` | Every component limit period (month, quarter, year, total) |
+| `resource_renewal` | Resource renewal notification workflow |
+| `e2e_testing` | Minimal data for Playwright end-to-end tests |
+| `glauth` | LDAP (GLAuth) export testing |
+
+Presets whose `_metadata.rebase_billing_history` is `true` (`credit_realistic`,
+`public_sector_accounting`) have their invoices and usages moved on load so the newest month
+is the current one; the others keep the dates they were generated with.
+
+To regenerate `public_sector_accounting`:
+
+```bash
+python scripts/generate_public_sector_preset.py
+```
 
 ## Management Commands
 
