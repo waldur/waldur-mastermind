@@ -2,6 +2,7 @@ import logging
 import re
 from datetime import datetime
 
+import yaml
 from constance import config
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -4061,6 +4062,121 @@ class DuplicateCallRequestSerializer(serializers.Serializer):
     copy_assignment_configuration = serializers.BooleanField(
         required=False, default=True
     )
+
+
+class CallExportParametersSerializer(serializers.Serializer):
+    """Request body for the protected-calls export_call action.
+
+    Call settings are always exported; each flag adds one section.
+    """
+
+    include_documents = serializers.BooleanField(required=False, default=True)
+    include_rounds = serializers.BooleanField(required=False, default=True)
+    include_offerings = serializers.BooleanField(
+        required=False,
+        default=True,
+        help_text="Requested offerings together with their resource templates.",
+    )
+    include_workflow_steps = serializers.BooleanField(
+        required=False,
+        default=True,
+        help_text="Workflow steps with their notification rules and criteria.",
+    )
+    include_field_configs = serializers.BooleanField(
+        required=False,
+        default=True,
+        help_text="Proposal field and applicant visibility configuration.",
+    )
+    include_review_configs = serializers.BooleanField(
+        required=False,
+        default=True,
+        help_text="COI, reviewer matching and assignment configuration.",
+    )
+    include_role_mappings = serializers.BooleanField(required=False, default=True)
+    include_compliance_checklist = serializers.BooleanField(
+        required=False, default=True
+    )
+
+    def sections(self) -> dict[str, bool]:
+        return {
+            key.removeprefix("include_"): value
+            for key, value in self.validated_data.items()
+        }
+
+
+class CallExportResponseSerializer(serializers.Serializer):
+    call_uuid = serializers.UUIDField()
+    call_name = serializers.CharField()
+    export_data = serializers.JSONField()
+    exported_sections = serializers.ListField(child=serializers.CharField())
+    export_timestamp = serializers.DateTimeField()
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Parts that could not be exported, such as unreadable documents.",
+    )
+
+
+class CallImportParametersSerializer(serializers.Serializer):
+    """Request body for the protected-calls import_call action."""
+
+    manager = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.CallManagingOrganisation.objects.all(),
+        help_text="Call managing organisation that will own the imported call.",
+    )
+    name = serializers.CharField(
+        max_length=models.Call._meta.get_field("name").max_length,
+        required=False,
+        allow_blank=False,
+        trim_whitespace=True,
+        help_text="Name for the imported call. Defaults to the exported name.",
+    )
+    call_data = serializers.JSONField(
+        help_text="Exported call document, as a mapping or a YAML string.",
+    )
+    import_documents = serializers.BooleanField(required=False, default=True)
+    import_rounds = serializers.BooleanField(required=False, default=True)
+    import_offerings = serializers.BooleanField(required=False, default=True)
+    import_workflow_steps = serializers.BooleanField(required=False, default=True)
+    import_field_configs = serializers.BooleanField(required=False, default=True)
+    import_review_configs = serializers.BooleanField(required=False, default=True)
+    import_role_mappings = serializers.BooleanField(required=False, default=True)
+    import_compliance_checklist = serializers.BooleanField(required=False, default=True)
+
+    def validate_manager(self, manager):
+        # Raised from validation, not the view, so that the serializer cannot
+        # be used to import a call without this check.
+        if not permissions_utils.has_permission(
+            self.context["request"],
+            permissions_enums.PermissionEnum.CREATE_CALL,
+            manager,
+        ):
+            raise PermissionDenied()
+        return manager
+
+    def validate_call_data(self, value):
+        if isinstance(value, str):
+            try:
+                value = yaml.safe_load(value)
+            except yaml.YAMLError as e:
+                raise serializers.ValidationError(f"Invalid YAML data: {e}")
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Expected a mapping.")
+        return value
+
+    def sections(self) -> dict[str, bool]:
+        return {
+            key.removeprefix("import_"): value
+            for key, value in self.validated_data.items()
+            if key.startswith("import_")
+        }
+
+
+class CallImportResponseSerializer(serializers.Serializer):
+    call_uuid = serializers.UUIDField()
+    call_name = serializers.CharField()
+    imported_sections = serializers.ListField(child=serializers.CharField())
+    warnings = serializers.ListField(child=serializers.CharField())
 
 
 class BulkRoundCreateRequestSerializer(serializers.ModelSerializer):
