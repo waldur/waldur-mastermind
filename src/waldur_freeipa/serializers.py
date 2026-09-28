@@ -48,6 +48,10 @@ class FreeipaProfileSerializer(
         validated_data["user"] = user
 
         validated_data["username"] = utils.generate_username(validated_data["username"])
+        if models.Profile.objects.filter(username=validated_data["username"]).exists():
+            raise serializers.ValidationError(
+                {"username": _("Profile with such name already exists.")}
+            )
 
         validated_data["is_active"] = True
 
