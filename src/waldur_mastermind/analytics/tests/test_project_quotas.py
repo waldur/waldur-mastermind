@@ -31,3 +31,19 @@ class TestProjectQuotas(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
+
+    def test_filter_by_customer_uuid(self):
+        other_project = structure_fixtures.ProjectFixture().project
+        other_project.set_quota_usage("nc_resource_count", 5)
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            reverse("project-quotas-list"),
+            {
+                "quota_name": "nc_resource_count",
+                "customer_uuid": self.fixture.customer.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [row["project_name"] for row in response.data], [self.project.name]
+        )
