@@ -17,6 +17,8 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
         "template",
         "cluster",
         "datastore",
+        "folder",
+        "networks",
     )
 
     def get_post_data(self):

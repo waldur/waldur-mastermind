@@ -181,6 +181,11 @@ class Template(
 ):
     created = models.DateTimeField()
     modified = models.DateTimeField()
+    # Null until the template is next pulled, so a template synced before this
+    # field existed is not mistaken for one without network adapters.
+    nic_count = models.PositiveSmallIntegerField(
+        null=True, help_text=_("Number of network adapters in the template")
+    )
 
     @classmethod
     def get_url_name(cls):
