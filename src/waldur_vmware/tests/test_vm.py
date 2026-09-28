@@ -153,6 +153,50 @@ class VirtualMachineNetworkValidationTest(VirtualMachineCreateBaseTest):
             "This network is not available for this service.",
         )
 
+    def create_with_networks(self, nic_count, networks):
+        self.fixture.template.nic_count = nic_count
+        self.fixture.template.save()
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        payload["networks"] = [
+            {"url": factories.NetworkFactory.get_url(network)} for network in networks
+        ]
+        return self.client.post(self.url, payload)
+
+    def second_network(self):
+        network = factories.NetworkFactory(settings=self.fixture.settings)
+        factories.CustomerNetworkFactory(
+            network=network, customer=self.fixture.customer
+        )
+        return network
+
+    def test_networks_matching_template_adapters_are_accepted(self):
+        response = self.create_with_networks(
+            2, [self.fixture.network, self.second_network()]
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_more_networks_than_template_adapters_are_rejected(self):
+        response = self.create_with_networks(
+            1, [self.fixture.network, self.second_network()]
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("has 1 network adapters", response.data["non_field_errors"][0])
+
+    def test_fewer_networks_than_template_adapters_are_rejected(self):
+        response = self.create_with_networks(2, [self.fixture.network])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_no_networks_keeps_the_template_networks(self):
+        response = self.create_with_networks(2, [])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_network_count_is_not_checked_before_template_is_pulled_again(self):
+        response = self.create_with_networks(
+            None, [self.fixture.network, self.second_network()]
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
     @override_plugin_settings(BASIC_MODE=True)
     def test_with_basic_mode_network_is_matched_by_customer_and_settings(self):
         self.client.force_authenticate(self.fixture.owner)

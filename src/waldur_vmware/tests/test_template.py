@@ -165,3 +165,25 @@ class TemplatePullTest(test.APITestCase):
         self.backend.pull_templates()
 
         self.assertEqual(models.Template.objects.get().disk, 0)
+
+    def test_template_nic_count_is_pulled(self):
+        client = mock.MagicMock()
+        self.mock_client.return_value = client
+        client.list_all_templates.return_value = self.ALL_TEMPLATES
+
+        self.backend.pull_templates()
+
+        self.assertEqual(models.Template.objects.get().nic_count, 1)
+
+    def test_nic_count_of_a_template_pulled_before_it_was_tracked_is_filled_in(self):
+        template = factories.TemplateFactory(
+            settings=self.settings, backend_id="obj-103", nic_count=None
+        )
+        client = mock.MagicMock()
+        self.mock_client.return_value = client
+        client.list_all_templates.return_value = self.ALL_TEMPLATES
+
+        self.backend.pull_templates()
+
+        template.refresh_from_db()
+        self.assertEqual(template.nic_count, 1)

@@ -614,6 +614,25 @@ class VmwareVirtualMachineSerializer(structure_serializers.BaseResourceSerialize
 
         networks = attrs.get("networks", [])
 
+        # Networks are mapped onto the template's adapters one to one, so a
+        # different number leaves some networks unattached or some adapters on
+        # the template's network. Choosing none keeps the template's networks.
+        template = attrs.get("template")
+        if (
+            networks
+            and template
+            and template.nic_count is not None
+            and len(networks) != template.nic_count
+        ):
+            raise serializers.ValidationError(
+                _(
+                    "Template %(template)s has %(count)s network adapters, "
+                    "so select %(count)s networks or none to keep the "
+                    "template's networks."
+                )
+                % {"template": template.name, "count": template.nic_count}
+            )
+
         for network in networks:
             if network.settings != service_settings:
                 raise serializers.ValidationError(

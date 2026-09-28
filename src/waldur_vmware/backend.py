@@ -474,6 +474,7 @@ class VMwareBackend(ServiceBackend):
                 "ram",
                 "disk",
                 "guest_os",
+                "nic_count",
                 "modified",
                 "description",
             )
@@ -532,6 +533,7 @@ class VMwareBackend(ServiceBackend):
             ram=template["memory"]["size_MiB"],
             disk=total_disk,
             guest_os=template["guest_OS"],
+            nic_count=len(template.get("nics") or []),
         )
 
     def _get_total_disk(self, backend_disks):

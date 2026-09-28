@@ -16,6 +16,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_vmware import executors as vmware_executors
 from waldur_vmware import models as vmware_models
+from waldur_vmware.tests import factories as vmware_factories
 from waldur_vmware.tests.fixtures import VMwareFixture
 
 
@@ -52,6 +53,55 @@ class BaseVirtualMachineOrderTest(test.APITestCase):
                 "disk": self.vm.total_disk,
             },
         )
+
+
+class VirtualMachineCreateProcessorTest(BaseVirtualMachineOrderTest):
+    def create_order(self, **attributes):
+        return marketplace_factories.OrderFactory(
+            type=OrderTypes.CREATE,
+            project=self.fixture.project,
+            offering=self.offering,
+            attributes={
+                "name": "vm-from-order",
+                "template": vmware_factories.TemplateFactory.get_url(
+                    self.fixture.template
+                ),
+                "cluster": vmware_factories.ClusterFactory.get_url(
+                    self.fixture.cluster
+                ),
+                **attributes,
+            },
+            state=OrderStates.EXECUTING,
+        )
+
+    def process(self, order):
+        with mock.patch.object(
+            vmware_executors.VirtualMachineCreateExecutor, "execute"
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                marketplace_utils.process_order(order, self.fixture.staff)
+        order.refresh_from_db()
+        return vmware_models.VirtualMachine.objects.get(name="vm-from-order")
+
+    def test_chosen_networks_reach_the_virtual_machine(self):
+        order = self.create_order(
+            networks=[
+                {"url": vmware_factories.NetworkFactory.get_url(self.fixture.network)}
+            ]
+        )
+
+        vm = self.process(order)
+
+        self.assertEqual(list(vm.networks.all()), [self.fixture.network])
+
+    def test_chosen_folder_reaches_the_virtual_machine(self):
+        order = self.create_order(
+            folder=vmware_factories.FolderFactory.get_url(self.fixture.folder)
+        )
+
+        vm = self.process(order)
+
+        self.assertEqual(vm.folder, self.fixture.folder)
 
 
 class VirtualMachineUpdateProcessorTest(BaseVirtualMachineOrderTest):
