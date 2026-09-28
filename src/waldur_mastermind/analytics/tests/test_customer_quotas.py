@@ -31,3 +31,39 @@ class TestCustomerQuotas(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
+
+    def test_filter_by_customer_uuid(self):
+        other_customer = structure_fixtures.CustomerFixture().customer
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            reverse("customer-quotas-list"),
+            {
+                "quota_name": "nc_resource_count",
+                "customer_uuid": other_customer.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [row["customer_name"] for row in response.data], [other_customer.name]
+        )
+
+    def test_filter_by_customer_uuid_is_limited_to_visible_customers(self):
+        other_customer = structure_fixtures.CustomerFixture().customer
+        self.client.force_login(self.fixture.owner)
+        response = self.client.get(
+            reverse("customer-quotas-list"),
+            {
+                "quota_name": "nc_resource_count",
+                "customer_uuid": other_customer.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_invalid_customer_uuid(self):
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            reverse("customer-quotas-list"),
+            {"quota_name": "nc_resource_count", "customer_uuid": "invalid"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

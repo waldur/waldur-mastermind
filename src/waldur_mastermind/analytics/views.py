@@ -1,4 +1,5 @@
 import collections
+import uuid
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
@@ -14,7 +15,7 @@ from drf_spectacular.plumbing import (
     build_basic_type,
 )
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework import generics, permissions, status, viewsets
+from rest_framework import exceptions, generics, permissions, status, viewsets
 from rest_framework.response import Response
 
 from waldur_core.core.serializers import EmptySerializer
@@ -51,6 +52,15 @@ QUOTA_NAME_PARAMETER = OpenApiParameter(
     extensions={
         "x-enum-descriptions": [str(label) for _, label in QuotaName.choices],
     },
+)
+
+CUSTOMER_UUID_PARAMETER = OpenApiParameter(
+    name="customer_uuid",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.QUERY,
+    required=False,
+    description="Limit results to the given organization",
+    extensions={"x-waldur-operation-id": "customers_retrieve"},
 )
 
 
@@ -136,18 +146,27 @@ class BaseQuotasViewSet(viewsets.GenericViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
     model = None
+    customer_lookup = None
 
     def get_queryset(self) -> QuerySet:
         qs = self.model
         if hasattr(qs, "available_objects"):
-            return filter_queryset_for_user(qs.available_objects, self.request.user)
+            qs = filter_queryset_for_user(qs.available_objects, self.request.user)
         else:
-            return filter_queryset_for_user(qs.objects, self.request.user)
+            qs = filter_queryset_for_user(qs.objects, self.request.user)
+        customer_uuid = self.request.query_params.get("customer_uuid")
+        if customer_uuid:
+            try:
+                customer_uuid = uuid.UUID(customer_uuid)
+            except ValueError:
+                raise exceptions.ValidationError({"customer_uuid": _("Invalid UUID.")})
+            qs = qs.filter(**{self.customer_lookup: customer_uuid})
+        return qs
 
     def get_content_type(self):
         return ContentType.objects.get_for_model(self.model)
 
-    @extend_schema(parameters=[QUOTA_NAME_PARAMETER])
+    @extend_schema(parameters=[QUOTA_NAME_PARAMETER, CUSTOMER_UUID_PARAMETER])
     def list(self, request):
         quota_name = request.query_params.get("quota_name")
         if not quota_name:
@@ -194,19 +213,21 @@ class BaseQuotasViewSet(viewsets.GenericViewSet):
     list=extend_schema(
         description="List project quotas.",
         responses=serializers.ProjectQuotasSerializer,
-        parameters=[QUOTA_NAME_PARAMETER],
+        parameters=[QUOTA_NAME_PARAMETER, CUSTOMER_UUID_PARAMETER],
     )
 )
 class ProjectQuotasViewSet(BaseQuotasViewSet):
     model = Project
+    customer_lookup = "customer__uuid"
 
 
 @extend_schema_view(
     list=extend_schema(
         description="List customer quotas.",
         responses=serializers.CustomerQuotasSerializer,
-        parameters=[QUOTA_NAME_PARAMETER],
+        parameters=[QUOTA_NAME_PARAMETER, CUSTOMER_UUID_PARAMETER],
     )
 )
 class CustomerQuotasViewSet(BaseQuotasViewSet):
     model = Customer
+    customer_lookup = "uuid"
