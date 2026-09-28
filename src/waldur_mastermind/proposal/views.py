@@ -67,6 +67,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
     affinity_scoring,
+    call_transfer,
     filters,
     models,
     notification_rules,
@@ -855,6 +856,86 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         permission_factory(PermissionEnum.CREATE_CALL, ["manager"])
     ]
     duplicate_serializer_class = serializers.DuplicateCallRequestSerializer
+
+    @extend_schema(
+        summary="Export call configuration",
+        description=(
+            "Export the call's configuration as a portable document that "
+            "import_call can recreate on another portal. Offerings, plans, "
+            "checklists and roles are referenced by name. Proposals, reviews, "
+            "reviewer pools, assignments and user references are never "
+            "exported."
+        ),
+        request=serializers.CallExportParametersSerializer,
+        responses=serializers.CallExportResponseSerializer,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def export_call(self, request, uuid=None):
+        call = self.get_object()
+        params = serializers.CallExportParametersSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        sections = params.sections()
+        export_data, warnings = call_transfer.export_call(call, sections)
+        return response.Response(
+            serializers.CallExportResponseSerializer(
+                {
+                    "call_uuid": call.uuid,
+                    "call_name": call.name,
+                    "export_data": export_data,
+                    "exported_sections": [s for s, on in sections.items() if on],
+                    "export_timestamp": timezone.now(),
+                    "warnings": warnings,
+                }
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    export_call_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+    ]
+    export_call_serializer_class = serializers.CallExportParametersSerializer
+
+    @extend_schema(
+        summary="Import call configuration",
+        description=(
+            "Create a draft call under the given call managing organisation "
+            "from a document produced by export_call. References that cannot "
+            "be resolved by name on this portal are skipped and reported in "
+            "warnings. The import is atomic."
+        ),
+        request=serializers.CallImportParametersSerializer,
+        responses={201: serializers.CallImportResponseSerializer},
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def import_call(self, request):
+        params = serializers.CallImportParametersSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        params.is_valid(raise_exception=True)
+        call, imported_sections, warnings = call_transfer.import_call(
+            params.validated_data["call_data"],
+            manager=params.validated_data["manager"],
+            user=request.user,
+            sections=params.sections(),
+            name=params.validated_data.get("name"),
+        )
+        return response.Response(
+            serializers.CallImportResponseSerializer(
+                {
+                    "call_uuid": call.uuid,
+                    "call_name": call.name,
+                    "imported_sections": imported_sections,
+                    "warnings": warnings,
+                }
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    # No object to check on the list route; CREATE_CALL on the target manager
+    # is enforced by CallImportParametersSerializer.validate_manager, the same
+    # split as create_permissions above.
+    import_call_permissions = []
+    import_call_serializer_class = serializers.CallImportParametersSerializer
 
     archive_validators = [
         core_validators.StateValidator(CallStates.DRAFT, CallStates.ACTIVE)
