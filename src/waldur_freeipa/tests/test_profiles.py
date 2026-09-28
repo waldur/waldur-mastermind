@@ -62,6 +62,14 @@ class ProfileCreateTest(BaseProfileTest):
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertIn("username", response.data)
 
+    def test_profile_creation_fails_if_username_is_taken_in_waldur(self, mock_client):
+        other_user = structure_factories.UserFactory()
+        factories.ProfileFactory(user=other_user, username="waldur_alice")
+        response = self.client.post(self.url, self.valid_data)
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertIn("username", response.data)
+        mock_client().user_add.assert_not_called()
+
     def test_if_profile_created_client_is_called(self, mock_client):
         response = self.client.post(self.url, self.valid_data)
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
