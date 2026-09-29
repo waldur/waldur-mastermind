@@ -233,6 +233,22 @@ no stored row falls back to the Constance setting `DEFAULT_CALL_USER_ATTRIBUTES`
 before applying what was sent, so an unmentioned attribute is not silently exposed by a
 model-level `default=True` (`get_default_exposure_flags`).
 
+### Where the configuration applies
+
+A reviewer who holds only the call's reviewer role sees the configuration applied in two places:
+
+- **The proposal** (`GET /api/proposal-proposals/{uuid}/`): the `applicant_*` and `created_by*`
+  fields of a concealed attribute are left out.
+- **The proposal team** (`GET /api/proposal-proposals/{uuid}/list_users/`): each member row drops
+  the keys of a concealed attribute — `user_email` for `email`; `user_full_name`,
+  `created_by_full_name` and the `user_image` avatar for `full_name`; `user_username`,
+  `user_uuid` and `created_by_uuid` for `username`. A filter, search or ordering that matches
+  on a concealed attribute (`search_string`, `username`, `user_slug`, `user`, `full_name`,
+  `native_name`, or `o` by email, username or name) is refused with HTTP 400.
+
+Both derive what to hide from the same set of concealed attributes, so they cannot disagree.
+Staff, support, call managers, the applicant and the proposal team always get full data.
+
 ### API
 
 There are no dedicated attribute-configuration endpoints. The configuration is a nested object

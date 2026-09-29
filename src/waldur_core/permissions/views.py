@@ -764,6 +764,7 @@ class UserRoleMixin:
             raise PermissionDenied(
                 "You do not have permission to list team members of this scope."
             )
+        self.validate_user_roles_query(scope, request)
         user_uuid = request.query_params.get("user")
 
         user = None
@@ -817,6 +818,11 @@ class UserRoleMixin:
         )
         data = self.filter_user_roles_representation(serializer.data, scope, request)
         return self.get_paginated_response(data)
+
+    def validate_user_roles_query(self, scope, request):
+        """Hook for subclasses to refuse list_users query parameters the viewer
+        may not use (e.g. searching by an attribute concealed from them).
+        Default: every parameter is allowed."""
 
     def filter_user_roles_representation(self, data, scope, request):
         """Hook for subclasses to redact fields from the list_users payload
