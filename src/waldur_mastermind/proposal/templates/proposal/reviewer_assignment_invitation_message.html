@@ -1,0 +1,26 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Dear {{ reviewer_name }},</p>
+
+<p>You have been asked to review {{ items_count }} proposal{{ items_count|pluralize }} in the call "<strong>{{ call_name }}</strong>" on {{ site_name }}:</p>
+
+<ul>
+{% for proposal in proposals %}
+    <li><strong>{{ proposal.name }}</strong>{% if proposal.summary %}<br>{{ proposal.summary }}{% endif %}</li>
+{% endfor %}
+</ul>
+
+{% if manager_notes %}
+<p><strong>Note from the call manager:</strong><br>{{ manager_notes|linebreaksbr }}</p>
+{% endif %}
+
+<p>Please accept or decline each proposal by <strong>{{ expires_at }}</strong>:</p>
+
+<p><a href="{{ link }}">{{ link }}</a></p>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>

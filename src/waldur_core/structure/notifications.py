@@ -1208,6 +1208,52 @@ class ReviewerInvitationContext(BaseModel):
     )
 
 
+class ReviewerAssignmentInvitationContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    reviewer_name: str = Field(description="Full name (or email) of the reviewer.")
+    call_name: str = Field(description="Name of the call.")
+    proposals: list[dict[str, Any]] = Field(
+        description=(
+            "Proposals in the batch, each with `name` and `summary`. `summary` is "
+            "empty unless the call's COI configuration discloses summaries in "
+            "reviewer invitations."
+        )
+    )
+    items_count: int = Field(description="Number of proposals in the batch.")
+    expires_at: Any = Field(
+        description="Date and time by which the reviewer must respond."
+    )
+    manager_notes: str = Field(
+        description="Optional note from the call manager; may be empty."
+    )
+    link: str = Field(
+        description="URL of the reviewer's assignments page, where they accept or decline."
+    )
+
+
+class AssignmentExpiryReminderContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    reviewer_name: str = Field(description="Full name (or email) of the reviewer.")
+    call_name: str = Field(description="Name of the call.")
+    expires_at: Any = Field(description="Date and time the assignment batch expires.")
+    items_count: int = Field(description="Number of proposals in the batch.")
+    link: str = Field(
+        description="URL of the reviewer's assignments page, where they accept or decline."
+    )
+
+
+class AssignmentBatchExpiredContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    call_name: str = Field(description="Name of the call.")
+    reviewer_name: str = Field(description="Full name (or email) of the reviewer.")
+    items_count: int = Field(description="Number of proposals in the batch.")
+    sent_at: Any = Field(description="Date and time the batch was sent.")
+    expired_at: Any = Field(description="Date and time the batch expired.")
+    assignments_url: str = Field(
+        description="URL of the call's assignment management tab."
+    )
+
+
 class WorkflowStepEventContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
     trigger: str = Field(
@@ -1327,6 +1373,30 @@ class ProposalSection(NotificationSection):
         key="round_opening_for_reviewers",
         description="A notification to reviewers about a new call round opening.",
         context_model=RoundOpeningForReviewersContext,
+    )
+    reviewer_assignment_invitation = Notification(
+        key="reviewer_assignment_invitation",
+        description=(
+            "Sent to a reviewer when a call manager sends them a batch of "
+            "proposals to accept or decline."
+        ),
+        context_model=ReviewerAssignmentInvitationContext,
+    )
+    assignment_expiry_reminder = Notification(
+        key="assignment_expiry_reminder",
+        description=(
+            "Reminds a reviewer that their assignment batch expires soon; the "
+            "lead time is set per call."
+        ),
+        context_model=AssignmentExpiryReminderContext,
+    )
+    assignment_batch_expired = Notification(
+        key="assignment_batch_expired",
+        description=(
+            "Notifies call managers that a reviewer's assignment batch expired "
+            "before they responded to every proposal."
+        ),
+        context_model=AssignmentBatchExpiredContext,
     )
     reviewer_invitation = Notification(
         key="reviewer_invitation",
