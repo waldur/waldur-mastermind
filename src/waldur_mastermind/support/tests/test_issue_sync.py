@@ -11,6 +11,8 @@ from waldur_mastermind.support.backend.atlassian import (
     CommentSynchronizer,
     ServiceDeskBackend,
 )
+from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
+from waldur_mastermind.support.backend.zammad_utils import User as ZammadUser
 from waldur_mastermind.support.tests import factories
 
 
@@ -314,3 +316,82 @@ class GetOrCreateSupportUserTest(test.APITestCase):
             ).count(),
             1,
         )
+
+
+@mock.patch("waldur_mastermind.support.backend.zammad.ZammadBackend")
+class GetOrCreateZammadSupportUserByIdTest(test.APITestCase):
+    """Tests for Zammad comment sync support-user lookup."""
+
+    def test_handles_duplicate_support_users_prefers_linked_row(
+        self, mock_zammad_backend
+    ):
+        zammad_user_id = "42"
+        linked_user = structure_factories.UserFactory()
+        factories.SupportUserFactory(
+            backend_id=zammad_user_id,
+            backend_name=SupportBackendType.ZAMMAD,
+            name="Orphan",
+            user=None,
+        )
+        linked = factories.SupportUserFactory(
+            backend_id=zammad_user_id,
+            backend_name=SupportBackendType.ZAMMAD,
+            name="Linked",
+            user=linked_user,
+        )
+
+        backend = ZammadServiceBackend()
+        support_user = backend.get_or_create_support_user_by_zammad_user_id(
+            zammad_user_id
+        )
+
+        self.assertEqual(support_user.id, linked.id)
+        self.assertEqual(support_user.user_id, linked_user.id)
+        mock_zammad_backend().get_user_by_id.assert_not_called()
+
+    def test_handles_duplicate_orphan_support_users_returns_oldest(
+        self, mock_zammad_backend
+    ):
+        zammad_user_id = "43"
+        oldest = factories.SupportUserFactory(
+            backend_id=zammad_user_id,
+            backend_name=SupportBackendType.ZAMMAD,
+            name="Oldest orphan",
+            user=None,
+        )
+        factories.SupportUserFactory(
+            backend_id=zammad_user_id,
+            backend_name=SupportBackendType.ZAMMAD,
+            name="Newer orphan",
+            user=None,
+        )
+
+        backend = ZammadServiceBackend()
+        support_user = backend.get_or_create_support_user_by_zammad_user_id(
+            zammad_user_id
+        )
+
+        self.assertEqual(support_user.id, oldest.id)
+        mock_zammad_backend().get_user_by_id.assert_not_called()
+
+    def test_creates_support_user_when_missing(self, mock_zammad_backend):
+        zammad_user_id = "99"
+        mock_zammad_backend().get_user_by_id.return_value = ZammadUser(
+            id=zammad_user_id,
+            email="agent@example.com",
+            login="agent",
+            firstname="Agent",
+            lastname="Smith",
+            name="Agent Smith",
+            is_active=True,
+        )
+
+        backend = ZammadServiceBackend()
+        support_user = backend.get_or_create_support_user_by_zammad_user_id(
+            zammad_user_id
+        )
+
+        self.assertEqual(support_user.backend_id, zammad_user_id)
+        self.assertEqual(support_user.backend_name, SupportBackendType.ZAMMAD)
+        self.assertEqual(support_user.name, "Agent Smith")
+        mock_zammad_backend().get_user_by_id.assert_called_once_with(zammad_user_id)

@@ -225,12 +225,22 @@ class ZammadServiceBackend(SupportBackend):
             )
 
     def get_or_create_support_user_by_zammad_user_id(self, zammad_user_id):
-        try:
-            return models.SupportUser.objects.get(
-                backend_id=zammad_user_id, backend_name=self.backend_name
+        queryset = models.SupportUser.objects.filter(
+            backend_id=zammad_user_id,
+            backend_name=self.backend_name,
+        )
+        if queryset.count() > 1:
+            logger.warning(
+                "Multiple SupportUser rows for backend_name=%s backend_id=%s; "
+                "using the first linked row, otherwise the oldest by id.",
+                self.backend_name,
+                zammad_user_id,
             )
-        except models.SupportUser.DoesNotExist:
-            pass
+        support_user = queryset.filter(user__isnull=False).order_by("id").first()
+        if not support_user:
+            support_user = queryset.order_by("id").first()
+        if support_user:
+            return support_user
 
         zammad_user = self.manager.get_user_by_id(zammad_user_id)
 
