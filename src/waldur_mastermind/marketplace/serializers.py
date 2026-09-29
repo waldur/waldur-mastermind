@@ -5778,9 +5778,47 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
         fields = ("resource_options",)
 
     def validate_resource_options(self, resource_options):
-        return derived_limits.pair_resource_options(
-            resource_options, (self.instance.options or {}).get("options")
+        order_options = (self.instance.options or {}).get("options")
+        resource_options = derived_limits.pair_resource_options(
+            resource_options, order_options
         )
+        self._check_changed_values_are_kept(resource_options, order_options)
+        return resource_options
+
+    def _check_changed_values_are_kept(self, resource_options, order_options):
+        """Refuse to drop a paired option while resources hold a changed value.
+
+        Without the pairing, a value changed after ordering stops counting and
+        the resource's limits would fall back to the ordered value on their
+        next change, without an order for it. The option can go once no
+        resource of the offering holds a value different from its ordered one.
+        """
+        removed = derived_limits.paired_resource_options(
+            self.instance.resource_options, order_options
+        ) - derived_limits.paired_resource_options(resource_options, order_options)
+        for name in sorted(removed):
+            resources = (
+                models.Resource.objects.filter(
+                    offering=self.instance, options__has_key=name
+                )
+                .exclude(state=models.Resource.States.TERMINATED)
+                .only("options", "attributes")
+            )
+            changed = sum(
+                1
+                for resource in resources
+                if str(resource.options.get(name))
+                != str((resource.attributes or {}).get(name))
+            )
+            if changed:
+                raise serializers.ValidationError(
+                    _(
+                        "Option %(name)s cannot be removed or re-paired: "
+                        "%(count)s resource(s) hold a value changed since "
+                        "ordering, which their limits are calculated from."
+                    )
+                    % {"name": name, "count": changed}
+                )
 
 
 class OfferingComplianceChecklistUpdateSerializer(serializers.ModelSerializer):
