@@ -79,11 +79,12 @@ from waldur_core.structure.managers import (
     get_project_users,
 )
 from waldur_freeipa import models as freeipa_models
+from waldur_mastermind.common.serializers import strip_hidden_options
 from waldur_mastermind.common.utils import create_request, mb_to_gb
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.structures import InvoiceResourceLimitPeriodDict
 from waldur_mastermind.invoices.utils import get_full_days
-from waldur_mastermind.marketplace import attribute_types, billing_mode
+from waldur_mastermind.marketplace import attribute_types, billing_mode, derived_limits
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
@@ -570,13 +571,109 @@ def get_components_map(limits, offering: models.Offering, plan=None):
     return result
 
 
-def validate_limits(limits, offering, resource=None, is_creation=False, plan=None):
+def derived_limit_inputs(resource, new_options=None):
+    """The inputs a resource's derived limits are calculated from.
+
+    Ordered values live in the resource's attributes; a paired
+    ``component_formula`` resource option holds the value as changed since,
+    and wins, and ``new_options`` -- an order's option changes -- win over
+    both. Other resource options never do, even with the same name: they can
+    be edited without an order.
     """
+    offering = resource.offering
+    paired = derived_limits.paired_resource_options(
+        offering.resource_options, (offering.options or {}).get("options")
+    )
+    inputs = dict(resource.attributes or {})
+    for options in (resource.options or {}, new_options or {}):
+        inputs.update({name: options[name] for name in paired if name in options})
+    return inputs
+
+
+def copy_order_options_to_resource(order):
+    """Set a created resource's options from its order's current values.
+
+    The values are copied when the order is placed; an order changed since
+    (edited while pending, or by the provider at approval) must not leave the
+    resource with the value it was first ordered with.
+    """
+    resource = order.resource
+    resource_options = (order.offering.resource_options or {}).get("options")
+    if not resource or not resource_options:
+        return
+    attributes = order.attributes or {}
+    resource.options = strip_hidden_options(
+        resource_options,
+        {key: attributes[key] for key in resource_options if key in attributes},
+    )
+    resource.save(update_fields=["options"])
+
+
+def changed_derived_inputs(resource, new_options):
+    """Names of the formula inputs that ``new_options`` would change on ``resource``."""
+    offering = resource.offering
+    paired = derived_limits.paired_resource_options(
+        offering.resource_options, (offering.options or {}).get("options")
+    )
+    current = derived_limit_inputs(resource)
+    return {
+        name
+        for name in paired
+        if name in (new_options or {})
+        and str(new_options[name]) != str(current.get(name))
+    }
+
+
+def apply_derived_limits(limits, offering, attributes, plan=None, fallback=None):
+    """Return ``limits`` with the offering's derived limits set by the server.
+
+    Derived limits come from ``component_formula`` and ``component_sum`` order
+    options (see ``derived_limits``). ``attributes`` holds the formula inputs;
+    ``fallback`` is what to keep for a derived limit that cannot be calculated,
+    normally the resource's current limits.
+    """
+    options = (offering.options or {}).get("options")
+    if not derived_limits.derived_components(options):
+        return limits
+    components = (
+        billing_mode.resolve_plan(plan)
+        if plan is not None
+        else billing_mode.resolve_offering(offering)
+    ).limit_components
+    return derived_limits.compute_derived_limits(
+        options, attributes, limits, components, fallback=fallback
+    )
+
+
+def validate_limits(
+    limits,
+    offering,
+    resource=None,
+    is_creation=False,
+    plan=None,
+    attributes=None,
+    fallback=None,
+):
+    """Validate requested limits and return them with derived limits applied.
+
+    Every change to a resource's limits passes through here, so this is where
+    the server sets the limits it derives from order options: a derived limit
+    sent by the client is replaced, one left out is put back, and a sum is
+    recalculated when a component it adds up changes. Callers must use the
+    returned limits.
+
     @param limits Maximum/Minimum limit-based components values and maximum available limit
     @param offering The offering being created
     @param resource Passing the resource if the limits of the resource are being updated.
     @param is_creation If True, skip the can_update_limits check (it only applies to updates).
     @param plan The plan the limits are requested under; decides which components take limits.
+    @param attributes The order options that derived limits are calculated
+        from, when the caller holds them (creating, editing or approving an
+        order). Omitted for a change to an existing resource, whose own
+        options are used; there a derived limit that cannot be calculated
+        keeps its current value.
+    @param fallback With ``attributes``: values to keep for derived limits that
+        cannot be calculated from them.
     """
     if not is_creation and not plugins.manager.can_update_limits(offering.type):
         raise serializers.ValidationError(
@@ -585,6 +682,19 @@ def validate_limits(limits, offering, resource=None, is_creation=False, plan=Non
 
     if plan is None and resource is not None:
         plan = resource.plan
+
+    if attributes is not None:
+        limits = apply_derived_limits(
+            limits, offering, attributes, plan=plan, fallback=fallback
+        )
+    elif resource is not None:
+        limits = apply_derived_limits(
+            limits,
+            offering,
+            derived_limit_inputs(resource),
+            plan=plan,
+            fallback=resource.limits,
+        )
 
     limits_validator = plugins.manager.get_limits_validator(offering.type)
     if limits_validator:
@@ -598,6 +708,8 @@ def validate_limits(limits, offering, resource=None, is_creation=False, plan=Non
         validate_limit_amount(value, component)
 
         validate_maximum_available_limit(value, component, resource)
+
+    return limits
 
 
 def validate_attributes(attributes, category):
@@ -6439,7 +6551,18 @@ def validate_reallocation(source_resource, limits_to_reallocate, targets, user):
 
     source_limits = validate_source_resource(source_resource)
 
+    derived = derived_limits.derived_components(
+        (source_resource.offering.options or {}).get("options")
+    )
     for component, value in limits_to_reallocate.items():
+        if component in derived:
+            # The server sets it from the resource's order options; moving it
+            # would be undone on the target's next limit change.
+            error_validation(
+                "The limit of %(component)s is calculated from the order form "
+                "and cannot be reallocated.",
+                component=component,
+            )
         validate_source_component(component, value, source_limits)
 
     target_resource_uuids = [target["resource_uuid"] for target in targets]

@@ -343,6 +343,11 @@ def check_order_creation_permission_for_options(
     ):
         return
 
+    check_order_creation_permission_as_consumer(request, view, resource)
+
+
+def check_order_creation_permission_as_consumer(request, view, resource):
+    """Order creation rights, from which the offering's provider is exempt."""
     if has_permission(
         request, PermissionEnum.UPDATE_RESOURCE_OPTIONS, resource.offering.customer
     ):

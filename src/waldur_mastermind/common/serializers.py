@@ -136,10 +136,15 @@ FIELD_CLASSES = {
     "select_multiple_emails": EmailListSerializer,
     "conditional_cascade": ConditionalCascadeField,
     "component_multiplier": serializers.IntegerField,
+    "component_formula": serializers.IntegerField,
     "storage_folder_manager": StorageFolderManagerField,
     "single_datacenter_k8s_config": SingleDatacenterK8sConfigField,
     "multi_datacenter_k8s_config": MultiDatacenterK8sConfigField,
 }
+
+
+# Option types the customer never fills in; any value sent for one is dropped.
+NON_INPUT_FIELD_TYPES = frozenset({"component_sum"})
 
 
 # Option types whose value can decide whether another option is shown.
@@ -296,6 +301,8 @@ def validate_options(options, attributes, optional=False, hidden=None):
             continue
         params = {}
         field_type = option.get("type", "")
+        if field_type in NON_INPUT_FIELD_TYPES:
+            continue
         field_class = FIELD_CLASSES.get(field_type, serializers.CharField)
 
         default_value = option.get("default")
@@ -379,7 +386,20 @@ def validate_options(options, attributes, optional=False, hidden=None):
     serializer = serializer_class(data=attributes)
     serializer.is_valid(raise_exception=True)
 
-    return strip_hidden_options(options, attributes, hidden)
+    return strip_hidden_options(
+        options, strip_non_input_options(options, attributes), hidden
+    )
+
+
+def strip_non_input_options(options, values):
+    """Drop values sent for options the customer never fills in."""
+    if not isinstance(values, dict):
+        return values
+    return {
+        key: value
+        for key, value in values.items()
+        if (options.get(key) or {}).get("type") not in NON_INPUT_FIELD_TYPES
+    }
 
 
 def strip_hidden_options(options, values, hidden=None):

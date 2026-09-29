@@ -90,6 +90,7 @@ from waldur_mastermind.common.serializers import (
     get_hidden_options,
     option_pattern_matches,
     strip_hidden_options,
+    strip_non_input_options,
     validate_options,
 )
 from waldur_mastermind.common.utils import prices_are_equal
@@ -148,7 +149,16 @@ from waldur_mastermind.marketplace_rancher.const import (
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
-from . import billing_mode, log, models, permissions, plugins, posix_ids, utils
+from . import (
+    billing_mode,
+    derived_limits,
+    log,
+    models,
+    permissions,
+    plugins,
+    posix_ids,
+    utils,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -3163,6 +3173,8 @@ FIELD_TYPES = (
     "time",
     "conditional_cascade",
     "component_multiplier",
+    "component_formula",
+    "component_sum",
     "single_datacenter_k8s_config",
     "multi_datacenter_k8s_config",
     "storage_folder_manager",
@@ -3464,6 +3476,43 @@ class ComponentMultiplierConfigSerializer(serializers.Serializer):
         return attrs
 
 
+class ComponentFormulaTargetSerializer(serializers.Serializer):
+    component_type = serializers.CharField()
+    formula = serializers.CharField(
+        max_length=derived_limits.MAX_FORMULA_LENGTH,
+        help_text=_(
+            "Expression over input, numbers, + - * / and parentheses, "
+            "for example input * 2 * 0.25."
+        ),
+    )
+
+    def validate_formula(self, value):
+        try:
+            derived_limits.parse_formula(value)
+        except derived_limits.FormulaError as e:
+            raise serializers.ValidationError(str(e))
+        return value
+
+
+class ComponentFormulaConfigSerializer(serializers.Serializer):
+    targets = ComponentFormulaTargetSerializer(
+        many=True,
+        allow_empty=False,
+        help_text=_("Limit components set from the value the customer enters."),
+    )
+
+
+class ComponentSumConfigSerializer(serializers.Serializer):
+    target_component = serializers.CharField(
+        help_text=_("Limit component whose quantity is the sum.")
+    )
+    components = serializers.ListField(
+        child=serializers.CharField(),
+        allow_empty=False,
+        help_text=_("Limit components added together."),
+    )
+
+
 class StorageDataTypeSerializer(serializers.Serializer):
     key = serializers.CharField()
     label = serializers.CharField()
@@ -3556,6 +3605,8 @@ class OptionFieldSerializer(serializers.Serializer):
     max = serializers.IntegerField(required=False)
     cascade_config = CascadeConfigSerializer(required=False)
     component_multiplier_config = ComponentMultiplierConfigSerializer(required=False)
+    component_formula_config = ComponentFormulaConfigSerializer(required=False)
+    component_sum_config = ComponentSumConfigSerializer(required=False)
     storage_folder_config = StorageFolderConfigSerializer(required=False)
     default_configs = K8sDefaultConfigurationSerializer(required=False)
     validators = serializers.ListField(
@@ -3599,6 +3650,12 @@ class OptionFieldSerializer(serializers.Serializer):
             if not attrs.get("component_multiplier_config"):
                 raise serializers.ValidationError(
                     "component_multiplier_config is required for component_multiplier type"
+                )
+
+        if field_type == "component_sum":
+            if not attrs.get("component_sum_config"):
+                raise serializers.ValidationError(
+                    "component_sum_config is required for component_sum type"
                 )
 
         if field_type == "storage_folder_manager":
@@ -3661,9 +3718,31 @@ class OfferingOptionsSerializer(serializers.Serializer):
     order = serializers.ListField(child=serializers.CharField())
     options = serializers.DictField(child=OptionFieldSerializer())
 
+    def __init__(self, *args, for_resource=False, **kwargs):
+        # Resource options: a component_formula there pairs with the order
+        # option of the same key and takes its formulas from it, which only
+        # the offering, holding both lists, can check.
+        self.for_resource = for_resource
+        super().__init__(*args, **kwargs)
+
     def validate(self, attrs):
         options = attrs.get("options", {})
         self._validate_visible_if(options, attrs.get("order") or [])
+        if not self.for_resource:
+            for name, option in options.items():
+                if option.get("type") == derived_limits.FORMULA_TYPE and not (
+                    option.get("component_formula_config")
+                ):
+                    raise serializers.ValidationError(
+                        {
+                            "options": _(
+                                "Option %s: component_formula_config is required "
+                                "for component_formula type."
+                            )
+                            % name
+                        }
+                    )
+            derived_limits.validate_derived_options(options)
         for name, option in options.items():
             validators = option.get("validators")
             if not validators:
@@ -4068,7 +4147,27 @@ class UpdateOfferingComponent(OfferingComponentSerializer):
                         }
                     )
 
+        if self.instance:
+            self._validate_derived_reference(attrs)
         return attrs
+
+    def _validate_derived_reference(self, attrs):
+        # An order option calculating this component's limit would otherwise
+        # be left pointing at a component it can no longer set.
+        options = (self.instance.offering.options or {}).get("options")
+        option = derived_limits.referenced_components(options).get(self.instance.type)
+        if not option:
+            return
+        renamed = attrs.get("type", self.instance.type) != self.instance.type
+        billing_type = attrs.get("billing_type", self.instance.billing_type)
+        if renamed or billing_type != BillingTypes.LIMIT:
+            raise serializers.ValidationError(
+                _(
+                    "Component %(component)s is used by order option %(option)s; "
+                    "change or remove that option first."
+                )
+                % {"component": self.instance.type, "option": option}
+            )
 
 
 class ExportImportOfferingComponentSerializer(OfferingComponentSerializer):
@@ -5323,7 +5422,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         child=OfferingComponentLimitSerializer(), write_only=True, required=False
     )
     options = OfferingOptionsSerializer(required=False)
-    resource_options = OfferingOptionsSerializer(required=False)
+    resource_options = OfferingOptionsSerializer(required=False, for_resource=True)
     plugin_options = MergedPluginOptionsSerializer(required=False)
     # full_description and vendor_details are TextField-backed, hence unbounded.
     description = core_serializers.HTMLCleanField(
@@ -5351,6 +5450,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         self._validate_offering_group(attrs)
         self._validate_attributes(attrs)
         self._validate_plans(attrs)
+        self._validate_derived_options(attrs)
 
         validate_auto_approve_for_roles_is_staff_only(
             self.context["request"].user, self.instance, attrs.get("plugin_options", {})
@@ -5364,6 +5464,26 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         attrs.setdefault("resource_options", {"options": {}, "order": []})
 
         return attrs
+
+    def _validate_derived_options(self, attrs):
+        options = (attrs.get("options") or {}).get("options")
+        if options:
+            offering_type = attrs.get("type", getattr(self.instance, "type", None))
+            limit_types = {
+                component.type
+                for component in plugins.manager.get_components(offering_type)
+                if component.billing_type == BillingTypes.LIMIT
+            }
+            limit_types |= {
+                component["type"]
+                for component in attrs.get("components") or []
+                if component.get("billing_type") == BillingTypes.LIMIT
+            }
+            derived_limits.validate_derived_components(options, limit_types)
+        if attrs.get("resource_options"):
+            attrs["resource_options"] = derived_limits.pair_resource_options(
+                attrs["resource_options"], options
+            )
 
     def _validate_offering_group(self, attrs):
         offering_group = attrs.get("offering_group")
@@ -5604,6 +5724,30 @@ class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
         model = models.Offering
         fields = ("options",)
 
+    def validate_options(self, options):
+        # Plain limit components only: a prepaid one is priced per period in
+        # a table of its own, where a calculated quantity has no place.
+        derived_limits.validate_derived_components(
+            options.get("options"),
+            set(
+                self.instance.components.filter(
+                    billing_type=BillingTypes.LIMIT
+                ).values_list("type", flat=True)
+            ),
+        )
+        # A resource option changing a formula input takes its formulas from
+        # the order option, which therefore has to stay, and its bounds, which
+        # follow the order option's.
+        self._resource_options = derived_limits.pair_resource_options(
+            self.instance.resource_options, options.get("options")
+        )
+        return options
+
+    def update(self, instance, validated_data):
+        if getattr(self, "_resource_options", None) is not None:
+            instance.resource_options = self._resource_options
+        return super().update(instance, validated_data)
+
 
 class OfferingTypeUpdateSerializer(serializers.ModelSerializer):
     type = serializers.ChoiceField(choices=sorted(SWAPPABLE_OFFERING_TYPES))
@@ -5627,11 +5771,16 @@ class OfferingTypeUpdateSerializer(serializers.ModelSerializer):
 
 
 class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
-    resource_options = OfferingOptionsSerializer()
+    resource_options = OfferingOptionsSerializer(for_resource=True)
 
     class Meta:
         model = models.Offering
         fields = ("resource_options",)
+
+    def validate_resource_options(self, resource_options):
+        return derived_limits.pair_resource_options(
+            resource_options, (self.instance.options or {}).get("options")
+        )
 
 
 class OfferingComplianceChecklistUpdateSerializer(serializers.ModelSerializer):
@@ -6236,6 +6385,11 @@ class BaseItemSerializer(
             )
             if "attributes" in attrs:
                 attrs["attributes"] = attributes
+            limits = utils.apply_derived_limits(
+                attrs.get("limits"), offering, attributes, plan=plan
+            )
+            if limits is not attrs.get("limits"):
+                attrs["limits"] = limits
 
         limits = attrs.get("limits")
         if limits:
@@ -6417,18 +6571,70 @@ class OrderUpdateSerializer(BaseOrderSerializer):
         return attributes
 
     def validate(self, attrs):
-        limits = attrs.get("limits")
-        if limits:
-            validate_limits(
-                limits,
+        options = (self.instance.offering.options or {}).get("options")
+        if options and "attributes" in attrs:
+            attrs["attributes"] = strip_non_input_options(
+                options, strip_hidden_options(options, attrs["attributes"])
+            )
+        attributes = attrs.get("attributes", self.instance.attributes) or {}
+        if (
+            options
+            and self.instance.type == OrderTypes.UPDATE
+            and "old_limits" in attributes
+            and attributes.get("new_options")
+            and self.instance.resource
+            and ("limits" in attrs or "attributes" in attrs)
+        ):
+            # A pending change of a formula input: its limits derive from the
+            # new value on the order, not the one the resource still holds.
+            resource = self.instance.resource
+            attrs["limits"] = validate_limits(
+                attrs.get("limits", self.instance.limits) or {},
+                self.instance.offering,
+                resource,
+                plan=self.instance.plan,
+                attributes=utils.derived_limit_inputs(
+                    resource, attributes["new_options"]
+                ),
+                fallback=resource.limits,
+            )
+        elif (
+            options
+            and self.instance.type == OrderTypes.CREATE
+            and ("limits" in attrs or "attributes" in attrs)
+            and derived_limits.derived_components(options)
+        ):
+            # A pending order's own options are the ones its limits derive
+            # from; the resource's are a copy taken when it was created.
+            attrs["limits"] = validate_limits(
+                attrs.get("limits", self.instance.limits) or {},
+                self.instance.offering,
+                self.instance.resource,
+                is_creation=True,
+                plan=self.instance.plan,
+                attributes=attrs.get("attributes", self.instance.attributes),
+            )
+        elif attrs.get("limits"):
+            attrs["limits"] = validate_limits(
+                attrs["limits"],
                 self.instance.offering,
                 self.instance.resource,
                 plan=self.instance.plan,
             )
-        options = (self.instance.offering.options or {}).get("options")
-        if options and "attributes" in attrs:
-            attrs["attributes"] = strip_hidden_options(options, attrs["attributes"])
         return attrs
+
+    def update(self, instance, validated_data):
+        limits_changed = (
+            "limits" in validated_data and validated_data["limits"] != instance.limits
+        )
+        order = super().update(instance, validated_data)
+        if limits_changed:
+            # Derived limits may have moved with an edited input.
+            order.init_cost()
+            order.save(update_fields=["cost"])
+        if order.type == OrderTypes.CREATE and "attributes" in validated_data:
+            utils.copy_order_options_to_resource(order)
+        return order
 
 
 class OrderApproveByProviderSerializer(serializers.Serializer):

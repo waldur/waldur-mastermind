@@ -155,7 +155,12 @@ from waldur_core.users.utils import get_invitation_duplicates
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
-from waldur_mastermind.marketplace import billing_mode, callbacks, provider_accounts
+from waldur_mastermind.marketplace import (
+    billing_mode,
+    callbacks,
+    derived_limits,
+    provider_accounts,
+)
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.catalog_loaders import (
     detect_eessi_version,
@@ -4480,6 +4485,21 @@ class ProviderOfferingViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        option = derived_limits.referenced_components(
+            (offering.options or {}).get("options")
+        ).get(offering_component.type)
+        if option:
+            return Response(
+                {
+                    "details": _(
+                        "The component %(component)s is used by order option "
+                        "%(option)s; change or remove that option first."
+                    )
+                    % {"component": offering_component.type, "option": option}
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         offering_component.delete()
         return Response(status=status.HTTP_200_OK)
 
@@ -7901,7 +7921,48 @@ class OrderViewSet(
         attributes = serializer.validated_data.get("attributes")
         if attributes:
             order.attributes.update(attributes)
-            order.save(update_fields=["attributes"])
+            update_fields = ["attributes"]
+            if order.type == OrderTypes.CREATE:
+                # The provider may have changed an input that limits are
+                # derived from; the limits, and so the price, follow it.
+                limits = utils.apply_derived_limits(
+                    order.limits or {},
+                    order.offering,
+                    order.attributes,
+                    plan=order.plan,
+                )
+                if limits != (order.limits or {}):
+                    utils.validate_limits(
+                        limits, order.offering, is_creation=True, plan=order.plan
+                    )
+                    order.limits = limits
+                    order.init_cost()
+                    update_fields += ["limits", "cost"]
+                # The resource took its options from the order when it was
+                # placed; they follow the provider's change.
+                utils.copy_order_options_to_resource(order)
+            elif (
+                order.type == OrderTypes.UPDATE
+                and "old_limits" in order.attributes
+                and order.attributes.get("new_options")
+                and order.resource
+            ):
+                # The same for a changed formula input on an existing resource.
+                limits = utils.validate_limits(
+                    order.limits or {},
+                    order.offering,
+                    order.resource,
+                    plan=order.plan,
+                    attributes=utils.derived_limit_inputs(
+                        order.resource, order.attributes["new_options"]
+                    ),
+                    fallback=order.resource.limits,
+                )
+                if limits != (order.limits or {}):
+                    order.limits = limits
+                    order.init_cost()
+                    update_fields += ["limits", "cost"]
+            order.save(update_fields=update_fields)
         order.review_by_provider(request.user)
 
         # After provider approval, check for the order's own start_date
@@ -9373,6 +9434,43 @@ class BaseResourceViewSet(
         serializer = self.get_serializer(data=request.data, instance=resource)
         serializer.is_valid(raise_exception=True)
 
+        # A changed formula input changes the limits calculated from it, and so
+        # the price: it is always ordered, with the new limits on the order,
+        # which needs order creation rights whatever the offering says.
+        new_options = serializer.validated_data.get("options", {})
+        changed = utils.changed_derived_inputs(resource, new_options)
+        if changed:
+            permissions.check_order_creation_permission_as_consumer(
+                request, self, resource
+            )
+            limits = utils.validate_limits(
+                resource.limits or {},
+                resource.offering,
+                resource,
+                attributes=utils.derived_limit_inputs(resource, new_options),
+                fallback=resource.limits,
+            )
+            return self.create_resource_order(
+                request=request,
+                resource=resource,
+                plan=resource.plan,
+                type=OrderTypes.UPDATE,
+                limits=limits,
+                attributes={
+                    # A resource ordered before its resource option existed
+                    # has the old value only in its attributes.
+                    "old_options": {
+                        **(resource.options or {}),
+                        **{
+                            name: utils.derived_limit_inputs(resource).get(name)
+                            for name in changed
+                        },
+                    },
+                    "new_options": new_options,
+                    "old_limits": resource.limits,
+                },
+            )
+
         # Check if offering requires order creation for option changes
         if resource.offering.plugin_options.get(
             "create_orders_on_resource_option_change"
@@ -9724,13 +9822,23 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         serializer.is_valid(raise_exception=True)
         plan = serializer.validated_data["plan"]
 
+        # The new plan may round a derived limit differently, or not bill its
+        # component as a limit at all, which refuses the switch.
+        limits = utils.apply_derived_limits(
+            resource.limits or {},
+            resource.offering,
+            utils.derived_limit_inputs(resource),
+            plan=plan,
+            fallback=resource.limits,
+        )
+
         return self.create_resource_order(
             request=request,
             resource=resource,
             old_plan=resource.plan,
             plan=plan,
             type=OrderTypes.UPDATE,
-            limits=resource.limits or {},
+            limits=limits,
         )
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
@@ -9757,12 +9865,13 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         request_comment = serializer.validated_data.get("request_comment", "")
         attachment = serializer.validated_data.get("attachment")
 
+        # Derived limits are set by the server, so compare what it would order.
+        limits = utils.validate_limits(limits, resource.offering, resource)
+
         if resource.limits == limits:
             raise ValidationError(
                 "Impossible to create update orders with limits set to exactly the same."
             )
-
-        utils.validate_limits(limits, resource.offering, resource)
 
         return self.create_resource_order(
             request=request,
@@ -10246,6 +10355,21 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data, instance=resource)
         serializer.is_valid(raise_exception=True)
+        changed = utils.changed_derived_inputs(
+            resource, serializer.validated_data.get("options", {})
+        )
+        if changed:
+            # Written straight to the resource, the value would no longer
+            # match the limits billed for it.
+            raise ValidationError(
+                {
+                    "options": _(
+                        "%s sets limits, so a change to it has to be ordered "
+                        "(update_options)."
+                    )
+                    % ", ".join(sorted(changed))
+                }
+            )
         # Always update options directly without creating orders
         serializer.save()
         return Response(
@@ -18866,7 +18990,9 @@ class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSe
                 _("This offering no longer accepts limit change requests.")
             )
 
-        utils.validate_limits(requested_limits, resource.offering, resource)
+        requested_limits = utils.validate_limits(
+            requested_limits, resource.offering, resource
+        )
 
         with transaction.atomic():
             order = models.Order(

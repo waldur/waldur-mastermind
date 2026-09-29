@@ -180,6 +180,17 @@ def resource_restore_canceled(resource: models.Resource, validate=False):
     return order
 
 
+def apply_new_options(resource, new_options):
+    """Merge an order's new option values into the resource's options."""
+    current_options = resource.options or {}
+    current_options.update(new_options)
+    resource_options = (resource.offering.resource_options or {}).get("options")
+    if resource_options:
+        # Options hidden by the new values lose their stored values.
+        current_options = strip_hidden_options(resource_options, current_options)
+    resource.options = current_options
+
+
 def resource_update_succeeded(resource: models.Resource, validate=False):
     """
     Handle successful resource update completion.
@@ -229,17 +240,7 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
             # Handle options updates from order attributes
             new_options = order.attributes.get("new_options")
             if new_options:
-                current_options = locked_resource.options or {}
-                current_options.update(new_options)
-                resource_options = (
-                    locked_resource.offering.resource_options or {}
-                ).get("options")
-                if resource_options:
-                    # Options hidden by the new values lose their stored values.
-                    current_options = strip_hidden_options(
-                        resource_options, current_options
-                    )
-                locked_resource.options = current_options
+                apply_new_options(locked_resource, new_options)
                 logger.info(
                     "Updated options for resource %s (UUID: %s) from order %s",
                     locked_resource.name,
