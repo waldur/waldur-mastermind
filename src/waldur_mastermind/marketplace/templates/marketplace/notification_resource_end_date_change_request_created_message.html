@@ -1,0 +1,12 @@
+{% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}<p>Hello!</p>
+<p>{% if request.created_by %}{{ request.created_by.full_name|default:request.created_by.username }}{% if request.created_by.email %} ({{ request.created_by.email }}){% endif %}{% else %}A project member{% endif %} has requested to change the end date of a resource.</p>
+<table>
+    <tr><td>Resource:</td><td><strong>{{ resource.name }}</strong></td></tr>
+    <tr><td>Project:</td><td>{{ resource.project.name }}</td></tr>
+    <tr><td>Organization:</td><td>{{ resource.project.customer.name }}</td></tr>
+    <tr><td>Current end date:</td><td>{{ resource.end_date|date:"Y-m-d"|default:"not set" }}</td></tr>
+    <tr><td>Requested end date:</td><td><strong>{{ request.requested_end_date|date:"Y-m-d" }}</strong></td></tr>
+    {% if request.comment %}<tr><td>Comment:</td><td>{{ request.comment }}</td></tr>{% endif %}
+</table>
+<p>Please <a href="{{ resource_url }}">review and approve or reject the request</a>.</p>
+<p>Thank you!</p>{% endwith %}

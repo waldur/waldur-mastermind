@@ -19104,6 +19104,24 @@ class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsView
         user_can_approve_resource_end_date_change_request
     ]
 
+    @staticmethod
+    def _lock_pending_request(end_date_request):
+        """Re-read the request under a row lock and insist it is still pending.
+
+        StateValidator runs before the action, so two concurrent decisions (or
+        a decision racing the requester's cancel) can both pass it. Must be
+        called inside transaction.atomic().
+        """
+        locked = models.ResourceEndDateChangeRequest.objects.select_for_update().get(
+            pk=end_date_request.pk
+        )
+        if locked.state != ReviewStates.PENDING:
+            raise ValidationError(
+                _("This end date change request has already been %(state)s.")
+                % {"state": locked.get_state_display()}
+            )
+        return locked
+
     @extend_schema(
         request=ReviewCommentSerializer,
         responses={status.HTTP_200_OK: None},
@@ -19117,34 +19135,37 @@ class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsView
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment")
 
-        resource = end_date_request.resource
-        requested_end_date = end_date_request.requested_end_date
-
-        if resource.state != models.Resource.States.OK:
-            raise ValidationError(_("Resource is not in OK state."))
-
-        if resource.end_date == requested_end_date:
-            raise ValidationError(
-                _("Requested end date is identical to the current end date.")
-            )
-
-        # Re-checked here rather than trusted from creation time, for the same
-        # reason the date is: the offering may have stopped accepting these
-        # while the request waited — the option turned off, or a prepaid
-        # component added, which routes extensions through renewal instead.
-        if not utils.offering_allows_end_date_change_requests(resource.offering):
-            raise ValidationError(
-                _("This offering no longer accepts end date change requests.")
-            )
-
-        # Likewise the date: it may have stopped being acceptable while the
-        # request waited, for instance because the project end date moved in.
-        utils.validate_end_date_for_resource(resource, requested_end_date)
-
-        # The end date is a Waldur-side concept — moving it provisions and
-        # releases nothing — so the approval writes it directly. The approver is
-        # recorded as the requester of the date, mirroring the direct path.
         with transaction.atomic():
+            end_date_request = self._lock_pending_request(end_date_request)
+            resource = end_date_request.resource
+            requested_end_date = end_date_request.requested_end_date
+
+            if resource.state != models.Resource.States.OK:
+                raise ValidationError(_("Resource is not in OK state."))
+
+            if resource.end_date == requested_end_date:
+                raise ValidationError(
+                    _("Requested end date is identical to the current end date.")
+                )
+
+            # Re-checked here rather than trusted from creation time, for the
+            # same reason the date is: the offering may have stopped accepting
+            # these while the request waited — the option turned off, or a
+            # prepaid component added, which routes extensions through renewal
+            # instead.
+            if not utils.offering_allows_end_date_change_requests(resource.offering):
+                raise ValidationError(
+                    _("This offering no longer accepts end date change requests.")
+                )
+
+            # Likewise the date: it may have stopped being acceptable while the
+            # request waited, for instance because the project end date moved in.
+            utils.validate_end_date_for_resource(resource, requested_end_date)
+
+            # The end date is a Waldur-side concept — moving it provisions and
+            # releases nothing — so the approval writes it directly. The
+            # approver is recorded as the requester of the date, mirroring the
+            # direct path.
             resource.end_date = requested_end_date
             resource.end_date_requested_by = request.user
             resource.save(update_fields=["end_date", "end_date_requested_by"])
@@ -19178,7 +19199,9 @@ class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsView
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment")
-        end_date_request.reject(request.user, comment)
+        with transaction.atomic():
+            end_date_request = self._lock_pending_request(end_date_request)
+            end_date_request.reject(request.user, comment)
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -19245,7 +19268,9 @@ class ResourceEndDateChangeRequestViewSet(EagerLoadMixin, core_views.ActionsView
             raise PermissionDenied(
                 _("You can only cancel your own resource end date change requests.")
             )
-        end_date_request.cancel()
+        with transaction.atomic():
+            end_date_request = self._lock_pending_request(end_date_request)
+            end_date_request.cancel()
         return Response(
             {"detail": _("Resource end date change request has been canceled.")},
             status=status.HTTP_200_OK,

@@ -3412,6 +3412,32 @@ def log_resource_end_date_change_request_events(
         )
 
 
+def notify_about_resource_end_date_change_request(
+    sender, instance, created=False, **kwargs
+):
+    """Email approvers about a new request, and the requester about the verdict.
+
+    The events above only reach people through generic event subscriptions,
+    which send the bare event message with no context or link to act on.
+    """
+    if get_skip_side_effects():
+        return
+
+    if created:
+        task = tasks.send_resource_end_date_change_request_notification
+    elif not instance.tracker.has_changed("state"):
+        return
+    elif instance.state == ReviewStates.APPROVED:
+        task = tasks.send_resource_end_date_change_request_approved_notification
+    elif instance.state == ReviewStates.REJECTED:
+        task = tasks.send_resource_end_date_change_request_rejected_notification
+    else:
+        return
+
+    request_uuid = instance.uuid.hex
+    transaction.on_commit(lambda: task.delay(request_uuid))
+
+
 def release_posix_allocations_on_consumer_deletion(sender, instance, **kwargs):
     """Mark the deleted POSIX id consumer's identity as released.
 

@@ -683,6 +683,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.notify_about_resource_end_date_change_request,
+            sender=models.ResourceEndDateChangeRequest,
+            dispatch_uid="waldur_mastermind.marketplace.notify_about_resource_end_date_change_request",
+        )
+
+        signals.post_save.connect(
             handlers.log_access_subnet_offering_scope_save,
             sender=models.AccessSubnetOfferingScope,
             dispatch_uid="waldur_mastermind.marketplace.log_access_subnet_offering_scope_save",

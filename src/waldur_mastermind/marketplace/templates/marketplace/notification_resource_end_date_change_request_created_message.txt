@@ -1,0 +1,15 @@
+{% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}Hello!
+
+{% if request.created_by %}{{ request.created_by.full_name|default:request.created_by.username }}{% if request.created_by.email %} ({{ request.created_by.email }}){% endif %}{% else %}A project member{% endif %} has requested to change the end date of a resource.
+
+Resource: {{ resource.name }}
+Project: {{ resource.project.name }}
+Organization: {{ resource.project.customer.name }}
+Current end date: {{ resource.end_date|date:"Y-m-d"|default:"not set" }}
+Requested end date: {{ request.requested_end_date|date:"Y-m-d" }}
+{% if request.comment %}Comment: {{ request.comment }}
+{% endif %}
+Please review and approve or reject the request:
+{{ resource_url }}
+
+Thank you!{% endwith %}

@@ -1,0 +1,1 @@
+End date change request for resource {{ resource_end_date_change_request.resource.name }}

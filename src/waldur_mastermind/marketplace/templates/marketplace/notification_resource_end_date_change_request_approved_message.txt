@@ -1,0 +1,11 @@
+{% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}Hello!
+
+Your request to change the end date of resource {{ resource.name }} in project {{ resource.project.name }} has been approved{% if request.reviewed_by %} by {{ request.reviewed_by.full_name|default:request.reviewed_by.username }}{% endif %}.
+
+The new end date is {{ request.requested_end_date|date:"Y-m-d" }}.
+{% if request.review_comment %}Review comment: {{ request.review_comment }}
+{% endif %}
+You can view the resource here:
+{{ resource_url }}
+
+Thank you!{% endwith %}
