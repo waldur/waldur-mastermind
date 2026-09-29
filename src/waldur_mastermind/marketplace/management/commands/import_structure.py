@@ -88,10 +88,12 @@ from waldur_mastermind.policy.models import (
     SlurmCommandHistory,
     SlurmPeriodicUsagePolicy,
 )
+from waldur_mastermind.proposal.enums import ProposalDisclosureLevels
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
     Call,
+    CallAssignmentConfiguration,
     CallCOIConfiguration,
     CallDocument,
     CallManagingOrganisation,
@@ -117,6 +119,9 @@ from waldur_mastermind.proposal.models import (
     ReviewerStats,
     ReviewerSuggestion,
     Round,
+)
+from waldur_mastermind.proposal.serializers import (
+    CallAssignmentConfigurationSerializer,
 )
 from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
 
@@ -180,6 +185,13 @@ class Command(BaseCommand):
         waldur import_structure -i structure.json --skip-users --dry-run
         waldur import_structure -i structure.json --skip-rabbitmq-messages --skip-roles
     """
+
+    ASSIGNMENT_CONFIGURATION_FIELDS = (
+        "auto_reassign_on_decline",
+        "max_auto_reassign_attempts",
+        "assignment_expiration_days",
+        "send_reminder_before_expiry_days",
+    )
 
     @staticmethod
     def _normalize_uuid(uuid_str):
@@ -513,6 +525,12 @@ class Command(BaseCommand):
             },
             "reviewer_stats": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "call_coi_configurations": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "call_assignment_configurations": {
                 "created": 0,
                 "updated": 0,
                 "skipped": 0,
@@ -1076,6 +1094,12 @@ class Command(BaseCommand):
             "call_coi_configurations",
             lambda: self.import_call_coi_configurations(
                 data.get("call_coi_configurations", [])
+            ),
+        )
+        self._safe_import(
+            "call_assignment_configurations",
+            lambda: self.import_call_assignment_configurations(
+                data.get("call_assignment_configurations", [])
             ),
         )
         self._safe_import(
@@ -9376,6 +9400,16 @@ class Command(BaseCommand):
                     problems.append(
                         f"each conflict type may only be assigned to one rule ({listed})"
                     )
+                disclosure = config_data.get(
+                    "invitation_proposal_disclosure",
+                    ProposalDisclosureLevels.TITLES_ONLY,
+                )
+                known_levels = [level for level, _ in ProposalDisclosureLevels.CHOICES]
+                if disclosure not in known_levels:
+                    problems.append(
+                        f"unknown invitation disclosure level {disclosure!r} "
+                        f"(expected one of {', '.join(known_levels)})"
+                    )
                 if problems:
                     self.stdout.write(
                         self.style.WARNING(
@@ -9412,6 +9446,7 @@ class Command(BaseCommand):
                     "auto_detect_named_personnel": config_data.get(
                         "auto_detect_named_personnel", True
                     ),
+                    "invitation_proposal_disclosure": disclosure,
                 }
 
                 if not self.dry_run:
@@ -9446,6 +9481,98 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["call_coi_configurations"]["errors"] += 1
+
+    def import_call_assignment_configurations(self, configs_data):
+        """Import per-call reviewer assignment configuration data."""
+        self.stdout.write("Importing call assignment configurations...")
+        stats = self.stats["call_assignment_configurations"]
+        for config_data in configs_data:
+            try:
+                uuid = config_data.get("uuid")
+                call_uuid = config_data.get("call_uuid")
+
+                if not uuid or not call_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call assignment config without UUID or call_uuid"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping assignment config {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+
+                # Written straight to the ORM, so run the values through the
+                # API serializer's validation to reject what the API would.
+                serializer = CallAssignmentConfigurationSerializer(
+                    data={
+                        field: config_data[field]
+                        for field in self.ASSIGNMENT_CONFIGURATION_FIELDS
+                        if field in config_data
+                    }
+                )
+                if not serializer.is_valid():
+                    listed = "; ".join(
+                        f"{field}: {' '.join(str(e) for e in errors)}"
+                        for field, errors in sorted(serializer.errors.items())
+                    )
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping assignment config {uuid}: {listed}"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+
+                defaults = {
+                    "call": call,
+                    **{
+                        field: serializer.validated_data.get(
+                            field,
+                            CallAssignmentConfiguration._meta.get_field(
+                                field
+                            ).get_default(),
+                        )
+                        for field in self.ASSIGNMENT_CONFIGURATION_FIELDS
+                    },
+                }
+
+                existing = CallAssignmentConfiguration.objects.filter(
+                    uuid=uuid
+                ).exists()
+                if existing:
+                    if self.update_existing:
+                        if not self.dry_run:
+                            with transaction.atomic():
+                                CallAssignmentConfiguration.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
+                        stats["updated"] += 1
+                    else:
+                        stats["skipped"] += 1
+                else:
+                    if not self.dry_run:
+                        with transaction.atomic():
+                            CallAssignmentConfiguration.objects.create(
+                                uuid=uuid, **defaults
+                            )
+                    stats["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call assignment config {config_data.get('uuid')}: {e}"
+                    )
+                )
+                stats["errors"] += 1
 
     def import_matching_configurations(self, configs_data):
         """Import matching configuration data."""
