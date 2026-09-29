@@ -237,6 +237,24 @@ class RoundStatuses:
     VALUES = [val for (val, _) in CHOICES]
 
 
+class EvaluationStart:
+    """When a submitted proposal's review workflow starts.
+
+    ``on_submission`` starts the first enabled step as soon as the applicant
+    submits. ``at_cutoff`` holds every proposal in ``submitted`` until its
+    round's cut-off, then starts them together, so a panel evaluates the whole
+    batch of a cut-off at once and no check starts while the round is open.
+    """
+
+    ON_SUBMISSION = "on_submission"
+    AT_CUTOFF = "at_cutoff"
+
+    CHOICES = (
+        (ON_SUBMISSION, "On submission"),
+        (AT_CUTOFF, "At the round cut-off"),
+    )
+
+
 class OrderAuthors:
     """Who the orders a call places when it grants resources are attributed to.
 

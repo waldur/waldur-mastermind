@@ -94,6 +94,63 @@ def _activate_next_step(proposal, next_step_def):
     return instance
 
 
+def create_step_instances(proposal):
+    """Fix the proposal's workflow path at submission.
+
+    One instance per catalog step: ``pending`` where the call has the step
+    enabled, ``skipped`` otherwise. Later edits to the call's step
+    configuration do not alter this path (see ``_next_enabled_step``).
+    """
+    enabled_step_ids = set(
+        models.CallWorkflowStep.objects.filter(
+            call=proposal.round.call, is_enabled=True
+        ).values_list("step", flat=True)
+    )
+    models.ProposalWorkflowStepInstance.objects.bulk_create(
+        [
+            models.ProposalWorkflowStepInstance(
+                proposal=proposal,
+                step=step_def.id,
+                status=(
+                    WorkflowStepInstanceStatuses.PENDING
+                    if step_def.id in enabled_step_ids
+                    else WorkflowStepInstanceStatuses.SKIPPED
+                ),
+            )
+            for step_def in WORKFLOW_STEPS
+        ]
+    )
+
+
+def _first_pending_step(proposal):
+    pending_step_ids = set(
+        proposal.workflow_step_instances.filter(
+            status=WorkflowStepInstanceStatuses.PENDING
+        ).values_list("step", flat=True)
+    )
+    return next((s for s in WORKFLOW_STEPS if s.id in pending_step_ids), None)
+
+
+def activate_first_step(proposal):
+    """Start a submitted proposal's evaluation: activate its first pending step.
+
+    Shared by submission (when the call evaluates on submission) and by the
+    cut-off task (when it evaluates at the round's cut-off). The deadline runs
+    from now, and the step-started notification rules fire through their
+    ledger. Moves the proposal to ``in_review``. Returns the active instance,
+    or None when the proposal has no pending step, in which case it is left
+    as it is. The caller holds the proposal's row lock inside a transaction.
+    """
+    step_def = _first_pending_step(proposal)
+    if step_def is None:
+        return None
+    instance = _activate_next_step(proposal, step_def)
+    proposal.state = ProposalStates.IN_REVIEW
+    proposal.workflow_step = step_def.id
+    proposal.save(update_fields=["state", "workflow_step"])
+    return instance
+
+
 @transaction.atomic
 def complete_step(
     proposal,

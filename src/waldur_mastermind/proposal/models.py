@@ -46,6 +46,7 @@ from waldur_mastermind.proposal.enums import (
     COISeverityLevels,
     COIStatuses,
     COITypes,
+    EvaluationStart,
     ExpertiseProficiencyLevels,
     FinancialInterestAmountRanges,
     FinancialInterestEntityTypes,
@@ -69,6 +70,11 @@ from waldur_mastermind.proposal.enums import (
 from . import managers
 
 logger = logging.getLogger(__name__)
+
+EVALUATION_START_LOCKED_MESSAGE = _(
+    "Cannot change when evaluation starts while the call has proposals that "
+    "are submitted or in review."
+)
 
 
 class CallDocument(
@@ -249,6 +255,18 @@ class Call(
         ),
     )
 
+    evaluation_start = models.CharField(
+        max_length=20,
+        choices=EvaluationStart.CHOICES,
+        default=EvaluationStart.ON_SUBMISSION,
+        help_text=(
+            "When a submitted proposal's evaluation starts: at once on "
+            "submission, or for every proposal of a round together at the "
+            "round's cut-off. Cannot be changed while proposals are submitted "
+            "or in review."
+        ),
+    )
+
     coi_configuration: "CallCOIConfiguration"
 
     objects = managers.CallManager()
@@ -274,6 +292,12 @@ class Call(
     def customer(self):
         return self.manager.customer
 
+    def has_proposals_under_evaluation(self):
+        return Proposal.objects.filter(
+            round__call=self,
+            state__in=[ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW],
+        ).exists()
+
     def clean(self):
         """Prevent changing checklist or slug template if proposals exist."""
         if (
@@ -287,6 +311,12 @@ class Call(
                     "panel_chair": "Panel chair must hold the panel member role on this call."
                 }
             )
+        if (
+            self.pk
+            and self.tracker.has_changed("evaluation_start")
+            and self.has_proposals_under_evaluation()
+        ):
+            raise ValidationError({"evaluation_start": EVALUATION_START_LOCKED_MESSAGE})
         if self.pk and self.proposal_set.exists():
             if self.tracker.has_changed("compliance_checklist"):
                 raise ValidationError(

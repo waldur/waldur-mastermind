@@ -70,7 +70,6 @@ from waldur_mastermind.proposal import (
     call_transfer,
     filters,
     models,
-    notification_rules,
     orcid_service,
     serializers,
     tasks,
@@ -91,6 +90,7 @@ from waldur_mastermind.proposal.enums import (
     COISeverityLevels,
     COIStatuses,
     COITypes,
+    EvaluationStart,
     ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
@@ -3069,52 +3069,15 @@ class ProposalViewSet(
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            call = proposal.round.call
-            enabled_steps = list(
-                models.CallWorkflowStep.objects.filter(call=call, is_enabled=True)
-            )
-            enabled_step_ids = {s.step for s in enabled_steps}
-            first_step_id = next(
-                (s.id for s in WORKFLOW_STEPS if s.id in enabled_step_ids), None
-            )
-
-            instances_to_create = [
-                models.ProposalWorkflowStepInstance(
-                    proposal=proposal,
-                    step=step_def.id,
-                    status=(
-                        WorkflowStepInstanceStatuses.PENDING
-                        if step_def.id in enabled_step_ids
-                        else WorkflowStepInstanceStatuses.SKIPPED
-                    ),
-                )
-                for step_def in WORKFLOW_STEPS
-            ]
-            models.ProposalWorkflowStepInstance.objects.bulk_create(instances_to_create)
-
-            if first_step_id:
-                first_step = models.ProposalWorkflowStepInstance.objects.get(
-                    proposal=proposal, step=first_step_id
-                )
-                first_step.status = WorkflowStepInstanceStatuses.ACTIVE
-                first_step.started_at = timezone.now()
-                call_step = next(
-                    (s for s in enabled_steps if s.step == first_step_id), None
-                )
-                if call_step and call_step.duration_in_days:
-                    first_step.deadline = first_step.started_at + timedelta(
-                        days=call_step.duration_in_days
-                    )
-                first_step.save(update_fields=["status", "started_at", "deadline"])
-                notification_rules.dispatch_step_event(
-                    first_step, proposal_enums.NotificationRuleTriggers.STEP_STARTED
-                )
-                proposal.state = ProposalStates.IN_REVIEW
-                proposal.workflow_step = first_step_id
-            else:
+            workflow_service.create_step_instances(proposal)
+            started = None
+            if proposal.round.call.evaluation_start == EvaluationStart.ON_SUBMISSION:
+                started = workflow_service.activate_first_step(proposal)
+            if started is None:
+                # Evaluation waits for the round's cut-off, or the call has no
+                # enabled step to start.
                 proposal.state = ProposalStates.SUBMITTED
-
-            proposal.save()
+                proposal.save()
 
         tasks.notify_user_about_proposal_state_update.delay(
             proposal.uuid, previous_state, proposal.state
