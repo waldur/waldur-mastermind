@@ -248,6 +248,8 @@ class Call(
         ),
     )
 
+    coi_configuration: "CallCOIConfiguration"
+
     objects = managers.CallManager()
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -2776,7 +2778,11 @@ class CallAssignmentConfiguration(
 def filter_assignment_batches(user):
     """Filter assignment batches based on user's roles."""
     return (
-        Q(reviewer_pool_entry__reviewer__user=user)  # Reviewer's own batches
+        # Reviewer's own batches, once they have been sent
+        Q(
+            reviewer_pool_entry__reviewer__user=user,
+            status__in=AssignmentBatchStatuses.SENT_TO_REVIEWER,
+        )
         | Q(call__in=managers.get_connected_calls(user, RoleEnum.CALL_MANAGER))
     )
 
@@ -2953,7 +2959,11 @@ class AssignmentBatch(
 def filter_assignment_items(user):
     """Filter assignment items based on user's roles."""
     return (
-        Q(batch__reviewer_pool_entry__reviewer__user=user)  # Reviewer's own items
+        # Reviewer's own items, once their batch has been sent
+        Q(
+            batch__reviewer_pool_entry__reviewer__user=user,
+            batch__status__in=AssignmentBatchStatuses.SENT_TO_REVIEWER,
+        )
         | Q(batch__call__in=managers.get_connected_calls(user, RoleEnum.CALL_MANAGER))
     )
 

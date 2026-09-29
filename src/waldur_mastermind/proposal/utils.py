@@ -26,9 +26,11 @@ from waldur_mastermind.proposal import event_publishing
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
     AllocationTimes,
+    AssignmentItemStatuses,
     BulkRoundCadence,
     CallStates,
     OrderAuthors,
+    ProposalDisclosureLevels,
     RequestedOfferingStates,
 )
 
@@ -862,3 +864,50 @@ def bulk_create_rounds(
         created.append(round_obj)
 
     return created
+
+
+def proposal_disclosure_for_reviewer(call: proposal_models.Call) -> str:
+    """How much of a proposal the call reveals to a reviewer before acceptance.
+
+    A call without a COI configuration discloses titles only, the same as the
+    configuration's default.
+    """
+    try:
+        return call.coi_configuration.invitation_proposal_disclosure
+    except proposal_models.CallCOIConfiguration.DoesNotExist:
+        return ProposalDisclosureLevels.TITLES_ONLY
+
+
+def disclosed_proposal_fields(
+    item: proposal_models.AssignmentItem, disclosure: str | None = None
+) -> dict:
+    """The proposal fields a reviewer may see for an assignment they have not
+    accepted yet.
+
+    The title (name, uuid and slug) is always shown. The summary is shown for
+    ``titles_and_summaries`` and ``full_details``; ``full_details`` currently
+    reveals nothing beyond the summary here, since the full proposal becomes
+    readable through proposal access once the assignment is accepted.
+
+    A COI-blocked item never carries more than its title, whatever the level:
+    the reviewer was kept away from that proposal because of the conflict.
+    ``proposal_summary`` is always present, empty when it is not disclosed.
+
+    Pass ``disclosure`` to avoid resolving the call's level once per item.
+    """
+    proposal = item.proposal
+    if disclosure is None:
+        disclosure = proposal_disclosure_for_reviewer(item.batch.call)
+    show_summary = item.status != AssignmentItemStatuses.COI_BLOCKED and (
+        disclosure
+        in (
+            ProposalDisclosureLevels.TITLES_AND_SUMMARIES,
+            ProposalDisclosureLevels.FULL_DETAILS,
+        )
+    )
+    return {
+        "proposal_uuid": proposal.uuid,
+        "proposal_name": proposal.name,
+        "proposal_slug": proposal.slug,
+        "proposal_summary": (proposal.project_summary or "") if show_summary else "",
+    }

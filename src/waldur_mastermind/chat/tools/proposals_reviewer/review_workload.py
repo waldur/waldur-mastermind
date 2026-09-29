@@ -5,6 +5,10 @@ from django.utils import timezone
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal.enums import (
+    AssignmentBatchStatuses,
+    AssignmentItemStatuses,
+)
 from waldur_mastermind.proposal.models import (
     AssignmentItem,
     RequestedResource,
@@ -110,7 +114,8 @@ proposals_reviewer in the same search_tools batch.\
 
         pending_assignments = AssignmentItem.objects.filter(
             batch__reviewer_pool_entry__reviewer__user=user,
-            status=AssignmentItem.Statuses.PENDING,
+            batch__status__in=AssignmentBatchStatuses.SENT_TO_REVIEWER,
+            status=AssignmentItemStatuses.PENDING,
         ).select_related(
             "proposal",
             "batch",
