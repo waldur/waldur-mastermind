@@ -67,6 +67,11 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "mark-expired-reviewer-pool-invitations": {
+                "task": "waldur_mastermind.proposal.mark_expired_reviewer_pool_invitations",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
             "mark-expired-workflow-steps": {
                 "task": "waldur_mastermind.proposal.mark_expired_workflow_steps",
                 "schedule": timedelta(hours=1),

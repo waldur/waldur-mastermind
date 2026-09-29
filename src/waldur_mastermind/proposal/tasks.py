@@ -21,6 +21,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     NotificationRuleTriggers,
     ProposalStates,
+    ReviewerPoolInvitationStatuses,
     WorkflowStepInstanceStatuses,
 )
 
@@ -1130,6 +1131,73 @@ def notify_managers_of_expired_batches():
 
     if count > 0:
         logger.info(f"Notified managers about {count} expired assignment batches")
+
+
+@shared_task(name="waldur_mastermind.proposal.mark_expired_reviewer_pool_invitations")
+def mark_expired_reviewer_pool_invitations():
+    """Expire pending pool invitations past their date and tell who sent them."""
+    candidates = proposal_models.CallReviewerPool.objects.filter(
+        invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+        invitation_expires_at__lt=timezone.now(),
+    ).select_related("call", "invited_by", "reviewer__user", "invited_user")
+
+    count = 0
+    for invitation in candidates:
+        # The conditional update is the once-only guard: an invitation that was
+        # answered, re-sent or expired by a concurrent run in the meantime is
+        # left alone and its inviter is not notified again.
+        updated = proposal_models.CallReviewerPool.objects.filter(
+            pk=invitation.pk,
+            invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+            invitation_expires_at__lt=timezone.now(),
+        ).update(
+            invitation_status=ReviewerPoolInvitationStatuses.EXPIRED,
+            modified=timezone.now(),
+        )
+        if not updated:
+            continue
+        count += 1
+        _notify_reviewer_pool_invitation_expired(invitation)
+
+    if count:
+        logger.info("Expired %d reviewer pool invitation(s)", count)
+    return count
+
+
+def _notify_reviewer_pool_invitation_expired(invitation):
+    call = invitation.call
+    if invitation.invited_by and invitation.invited_by.email:
+        recipients = [invitation.invited_by.email]
+    else:
+        recipients = sorted(
+            {email for email in call.call_managers.values_list("email", flat=True)}
+            - {""}
+        )
+    if not recipients:
+        logger.warning(
+            "Cannot notify about expired reviewer pool invitation %s: "
+            "nobody to notify for call %s",
+            invitation.uuid,
+            call.uuid,
+        )
+        return
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "call_name": call.name,
+        "invitee_name": invitation.invitee_name,
+        "invited_at": invitation.invited_at,
+        "expired_at": invitation.invitation_expires_at,
+        "reviewer_pool_url": core_utils.format_homeport_link(
+            f"call/{call.uuid}/manage/?tab=reviewer-pool"
+        ),
+    }
+    core_utils.broadcast_mail(
+        "proposal",
+        "reviewer_pool_invitation_expired",
+        context,
+        recipients,
+    )
 
 
 @shared_task(name="waldur_mastermind.proposal.send_reviewer_invitation_email")

@@ -1,0 +1,20 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Reviewer pool invitation expired</title>
+</head>
+<body>
+    <p>Dear call manager,</p>
+
+    <p>The invitation you sent to <strong>{{ invitee_name }}</strong> to join the reviewer pool for the call "<strong>{{ call_name }}</strong>" has expired without an answer.</p>
+
+    <ul>
+        <li><strong>Invited:</strong> {{ invited_at }}</li>
+        <li><strong>Expired:</strong> {{ expired_at }}</li>
+    </ul>
+
+    <p>The invitation can no longer be accepted or declined. You can send it again from the call's reviewer pool, which gives it a new expiry date: <a href="{{ reviewer_pool_url }}">{{ reviewer_pool_url }}</a></p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>
