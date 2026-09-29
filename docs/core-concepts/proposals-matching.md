@@ -1,6 +1,6 @@
 # Reviewer-Proposal Matching System
 
-The Waldur proposal module includes an automated reviewer-proposal matching system that computes expertise affinity scores and generates optimal reviewer assignments. This ensures qualified reviewers are matched with proposals in their area of expertise.
+The Waldur proposal module includes an automated reviewer-proposal matching system that computes expertise affinity scores and uses them to suggest reviewers and to generate reviewer assignments. This ensures qualified reviewers are matched with proposals in their area of expertise.
 
 ## Architecture Overview
 
@@ -54,17 +54,15 @@ The Waldur proposal module includes an automated reviewer-proposal matching syst
                                                 │
                                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   ASSIGNMENT ALGORITHMS                                          │
+│                                   ASSIGNMENT (generate-assignments)                             │
 │                                                                                                 │
-│  ┌─────────────────────┐      ┌─────────────────────┐      ┌─────────────────────┐            │
-│  │      MinMax         │      │     FairFlow        │      │     Hungarian       │            │
-│  │  (balanced load)    │      │ (quality threshold) │      │  (global optimum)   │            │
-│  └─────────────────────┘      └─────────────────────┘      └─────────────────────┘            │
+│  Greedy, per proposal: highest stored affinity first, skipping reviewers with a pending or      │
+│  recused conflict and reviewers already assigned; then accepted pool members in pool order.     │
 │                                          │                                                     │
 │                                          ▼                                                     │
 │                           ┌──────────────────────────────┐                                     │
-│                           │    ProposedAssignment        │                                     │
-│                           │  (reviewer → proposal)       │                                     │
+│                           │  AssignmentBatch (draft)     │                                     │
+│                           │  → AssignmentItem per pair   │                                     │
 │                           └──────────────────────────────┘                                     │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -160,63 +158,40 @@ Each call can have its own matching configuration via `MatchingConfiguration`:
 | `max_reviewers_per_proposal` | int | 5 | Maximum reviewers per proposal |
 | `min_proposals_per_reviewer` | int | 3 | Minimum proposals per reviewer |
 | `max_proposals_per_reviewer` | int | 10 | Maximum proposals per reviewer |
-| `algorithm` | choice | `minmax` | Assignment algorithm |
+| `algorithm` | choice | `minmax` | Reserved; not used by assignment today |
 | `min_affinity_threshold` | float | 0.1 | Minimum affinity for suggestions |
-| `use_reviewer_bids` | bool | true | Consider reviewer preferences |
-| `bid_weight` | float | 0.3 | Weight for reviewer bids |
+| `use_reviewer_bids` | bool | true | Reserved; bids are not used today |
+| `bid_weight` | float | 0.3 | Reserved; bids are not used today |
 
 **Validation:** `keyword_weight + text_weight` must equal 1.0
 
-## Assignment Algorithms
+## Assignment
 
-Three algorithms are available for computing optimal reviewer-proposal assignments:
+`POST /api/proposal-protected-calls/{uuid}/generate-assignments/` creates draft
+assignment batches (`AssignmentBatch`, one per reviewer, with an `AssignmentItem`
+per reviewer–proposal pair) that the call manager reviews and sends. For each
+submitted or in-review proposal it picks reviewers in one greedy pass:
 
-### MinMax (Balanced Load)
+1. Accepted pool members ordered by their stored affinity for the proposal,
+   highest first.
+2. Skipped: reviewers with a `pending` or `recused` conflict of interest on the
+   proposal (`dismissed` and `waived` conflicts do not block), and reviewers
+   already assigned to it.
+3. If affinity yields too few reviewers, remaining accepted pool members are
+   added in pool order.
 
-Balances reviewer workload while maximizing total affinity.
-
-**Characteristics:**
-
-- Prioritizes even distribution of reviews
-- Good for calls with many proposals and limited reviewers
-- Prevents reviewer overload
-
-### FairFlow (Quality Threshold)
-
-Ensures minimum quality threshold for all assignments.
-
-**Characteristics:**
-
-- Only assigns pairs above `min_affinity_threshold`
-- Better match quality at cost of some assignments
-- Useful for specialized domains
-
-### Hungarian (Global Optimum)
-
-Finds globally optimal assignment maximizing total affinity.
-
-**Characteristics:**
-
-- Optimal solution for the assignment problem
-- May result in uneven workload distribution
-- Best for small to medium-sized calls
+The number of reviewers per proposal comes from the request or, if absent, the
+call's `min_reviewers_per_proposal` (2 when the call has no matching
+configuration). There is no global optimisation across proposals: the
+`algorithm` setting (`minmax`, `fairflow`, `hungarian`) is stored but not read.
 
 ## Reviewer Bids
 
-Reviewers can express preferences for reviewing specific proposals:
-
-| Bid Value | Weight | Description |
-|-----------|--------|-------------|
-| `eager` | +1.0 | Reviewer wants to review this proposal |
-| `willing` | +0.5 | Reviewer is willing to review |
-| `not_willing` | -0.5 | Reviewer prefers not to review |
-| `conflict` | -1.0 | Reviewer has conflict of interest |
-
-When `use_reviewer_bids` is enabled, bid weights are incorporated into the final affinity score:
-
-```python
-final_score = affinity_score + (bid_weight × bid_value)
-```
+Reviewers can record a preference for each proposal (`eager`, `willing`,
+`not_willing`, `conflict`) through `/api/reviewer-bids/`. Bids are stored and
+listed only: neither affinity scoring nor assignment reads them, and a
+`conflict` bid does not create a conflict-of-interest record. Declare conflicts
+through [COI disclosure](proposals-coi.md) instead.
 
 ## Reviewer Discovery Workflow
 
@@ -553,7 +528,9 @@ Algorithm-generated reviewer suggestions.
 
 ### ProposedAssignment
 
-Final reviewer assignments from matching algorithm.
+Reserved for algorithm-proposed assignments. No code path writes it today; the
+`proposed-assignments` endpoint only lists it. Assignments are created as
+`AssignmentBatch` / `AssignmentItem`.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -583,10 +560,10 @@ Reviewer preferences for proposals.
 
 The matching system integrates with [Conflict of Interest Detection](proposals-coi.md):
 
-1. Before computing suggestions, COI status is checked
-2. Reviewers with confirmed COIs are excluded from matching
-3. Self-disclosed conflicts (via bids) affect affinity scores
-4. Waived conflicts may still be assigned with oversight
+1. `generate-assignments` skips reviewers with a `pending` or `recused` conflict on the proposal
+2. `dismissed` and `waived` conflicts do not block assignment
+3. Reviewer suggestions do not check conflicts; the affinity matrix reports each pair's conflict status
+4. A `conflict` bid is not a conflict record and is not checked
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -594,18 +571,17 @@ The matching system integrates with [Conflict of Interest Detection](proposals-c
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────────┐ │
-│  │  Affinity   │───▶│ COI Filter  │───▶│ Final Suggestions/Assign.  │ │
-│  │ Computation │    │ (exclude    │    │ (COI-free reviewers only)   │ │
+│  │  Affinity   │───▶│ COI Filter  │───▶│ Assignment batches          │ │
+│  │ Computation │    │ (exclude    │    │ (suggestions not filtered)  │ │
 │  └─────────────┘    │  conflicts) │    └─────────────────────────────┘ │
 │                     └─────────────┘                                     │
 │                                                                          │
-│  Excluded from matching:                                                 │
-│  • CONFIRMED conflicts                                                   │
+│  Excluded from assignment:                                               │
+│  • PENDING conflicts                                                     │
 │  • RECUSED reviewers                                                     │
-│  • Reviewers with bid="conflict"                                         │
 │                                                                          │
-│  May be assigned with oversight:                                         │
-│  • WAIVED conflicts (with management plan)                               │
+│  Not blocking:                                                           │
+│  • WAIVED (with management plan) and DISMISSED conflicts                 │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```

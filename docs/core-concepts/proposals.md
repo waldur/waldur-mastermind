@@ -261,8 +261,8 @@ Key features:
 
 - **Affinity scoring**: Keyword-based and TF-IDF text similarity algorithms
 - **Reviewer discovery**: Algorithm-based suggestions from published profiles
-- **Assignment algorithms**: MinMax, FairFlow, and Hungarian optimization
-- **Bid integration**: Reviewer preferences influence assignments
+- **Assignment**: Greedy per proposal by stored affinity, skipping pending or recused conflicts
+- **Bids**: Reviewers can record preferences; assignment does not use them yet
 
 For complete documentation on the matching system, including configuration options, scoring algorithms, and API endpoints, see [Reviewer-Proposal Matching](proposals-matching.md).
 
@@ -1161,5 +1161,5 @@ def cleanup_proposal_resources(proposal):
 
 - [Call Eligibility and Applicant Attributes](./proposals-eligibility.md) - AAI-based eligibility restrictions and GDPR-compliant attribute exposure
 - [Conflict of Interest Detection](./proposals-coi.md) - COI management and detection workflows
-- [Reviewer Matching](./proposals-matching.md) - Automated reviewer assignment algorithms
+- [Reviewer Matching](./proposals-matching.md) - Affinity scoring, reviewer suggestions and assignment
 - [User Profile Attributes](../user-profile-attributes.md) - User attribute reference for AAI integration
