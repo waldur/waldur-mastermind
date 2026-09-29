@@ -4304,6 +4304,31 @@ def get_consumer_approvers(order):
     return approvers
 
 
+def get_resource_end_date_approvers(resource):
+    """Emails of everyone who may decide a resource end date change request.
+
+    Mirrors user_can_approve_resource_end_date_change_request: whoever holds
+    SET_RESOURCE_END_DATE on the resource's project or its customer. Which roles
+    carry that permission is set per deployment, so recipients follow it rather
+    than a fixed role such as customer owner.
+
+    Staff may approve too, but are not emailed: like project end date change
+    requests, these are the consumer organisation's own decision.
+    """
+    users = get_users_with_permission(
+        resource.project.customer, PermissionEnum.SET_RESOURCE_END_DATE
+    ) | get_users_with_permission(
+        resource.project, PermissionEnum.SET_RESOURCE_END_DATE
+    )
+
+    return list(
+        users.distinct()
+        .exclude(email="")
+        .exclude(notifications_enabled=False)
+        .values_list("email", flat=True)
+    )
+
+
 def get_provider_approvers(order):
     users = User.objects.none()
 

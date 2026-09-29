@@ -534,6 +534,19 @@ class ResourceLimitChangeRequestContext(BaseModel):
     resource_url: str = Field(description="A URL to the resource's page.")
 
 
+class ResourceEndDateChangeRequestContext(BaseModel):
+    resource_end_date_change_request: Any = Field(
+        description="The ResourceEndDateChangeRequest instance. Provides "
+        "resource_end_date_change_request.resource.name, "
+        "resource.end_date, resource.project.name, "
+        "resource.project.customer.name, requested_end_date, comment, "
+        "review_comment, created_by.full_name, reviewed_by.full_name."
+    )
+    resource_url: str = Field(
+        description="A URL to the resource's end date change requests tab."
+    )
+
+
 class MarketplaceSection(NotificationSection):
     class Meta:
         key = "marketplace"
@@ -663,6 +676,21 @@ class MarketplaceSection(NotificationSection):
         key="notification_resource_limit_change_request_rejected",
         description="Notifies the requester when their resource limit change request is rejected.",
         context_model=ResourceLimitChangeRequestContext,
+    )
+    notification_resource_end_date_change_request_created = Notification(
+        key="notification_resource_end_date_change_request_created",
+        description="Notifies users who may set the resource end date when someone requests to change it.",
+        context_model=ResourceEndDateChangeRequestContext,
+    )
+    notification_resource_end_date_change_request_approved = Notification(
+        key="notification_resource_end_date_change_request_approved",
+        description="Notifies the requester when their resource end date change request is approved.",
+        context_model=ResourceEndDateChangeRequestContext,
+    )
+    notification_resource_end_date_change_request_rejected = Notification(
+        key="notification_resource_end_date_change_request_rejected",
+        description="Notifies the requester when their resource end date change request is rejected.",
+        context_model=ResourceEndDateChangeRequestContext,
     )
 
 

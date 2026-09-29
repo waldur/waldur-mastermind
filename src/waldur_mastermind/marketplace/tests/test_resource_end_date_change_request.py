@@ -9,6 +9,8 @@ approval system can take the decision instead.
 from datetime import timedelta
 from unittest import mock
 
+from constance.test import override_config
+from django.core import mail
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -17,7 +19,7 @@ from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, tasks, views
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     BillingTypes,
@@ -429,3 +431,281 @@ class EndDateChangeRequestExternalApprovalTest(BaseEndDateChangeRequestTest):
 
         states = [call[0][1]["request_state"] for call in prepare.call_args_list]
         self.assertIn("approved", states)
+
+
+class EndDateChangeRequestConcurrentDecisionTest(BaseEndDateChangeRequestTest):
+    """A decision taken while another was in flight must not be applied twice.
+
+    StateValidator runs on the object the view loaded, before the action. To
+    simulate a concurrent decision, the view is handed a stale pending copy of
+    a request that the database already records as decided.
+    """
+
+    def stale_copy(self, state):
+        request_obj = self.make_request()
+        models.ResourceEndDateChangeRequest.objects.filter(pk=request_obj.pk).update(
+            state=state
+        )
+        return request_obj
+
+    def post(self, request_obj, action, user):
+        self.client.force_authenticate(user)
+        with mock.patch.object(
+            views.ResourceEndDateChangeRequestViewSet,
+            "get_object",
+            return_value=request_obj,
+        ):
+            return self.client.post(
+                f"/api/marketplace-resource-end-date-change-requests/"
+                f"{request_obj.uuid.hex}/{action}/"
+            )
+
+    def test_approving_an_already_rejected_request_is_refused(self):
+        original_end_date = self.resource.end_date
+        request_obj = self.stale_copy(ReviewStates.REJECTED)
+
+        response = self.post(request_obj, "approve", self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        request_obj.refresh_from_db()
+        self.assertEqual(request_obj.state, ReviewStates.REJECTED)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, original_end_date)
+
+    def test_approving_a_withdrawn_request_is_refused(self):
+        original_end_date = self.resource.end_date
+        request_obj = self.stale_copy(ReviewStates.CANCELED)
+
+        response = self.post(request_obj, "approve", self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, original_end_date)
+
+    def test_rejecting_an_already_approved_request_is_refused(self):
+        request_obj = self.stale_copy(ReviewStates.APPROVED)
+
+        response = self.post(request_obj, "reject", self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        request_obj.refresh_from_db()
+        self.assertEqual(request_obj.state, ReviewStates.APPROVED)
+
+    def test_withdrawing_an_already_approved_request_is_refused(self):
+        request_obj = self.stale_copy(ReviewStates.APPROVED)
+
+        response = self.post(request_obj, "cancel", self.fixture.member)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        request_obj.refresh_from_db()
+        self.assertEqual(request_obj.state, ReviewStates.APPROVED)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_resource_end_date_change_request_approved_notification"
+    )
+    def test_refused_decision_sends_no_email(self, mock_task):
+        request_obj = self.stale_copy(ReviewStates.APPROVED)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.post(request_obj, "approve", self.fixture.owner)
+
+        mock_task.delay.assert_not_called()
+
+
+class EndDateChangeRequestNotificationTest(BaseEndDateChangeRequestTest):
+    """Each step of a request schedules its own templated email."""
+
+    def request_url(self, request_obj, action):
+        return (
+            f"/api/marketplace-resource-end-date-change-requests/"
+            f"{request_obj.uuid.hex}/{action}/"
+        )
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_resource_end_date_change_request_notification"
+    )
+    def test_approvers_are_notified_when_request_is_created(self, mock_task):
+        self.client.force_authenticate(self.fixture.member)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.list_url, self.create_request_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        request_obj = models.ResourceEndDateChangeRequest.objects.get(
+            resource=self.resource, created_by=self.fixture.member
+        )
+        mock_task.delay.assert_called_once_with(request_obj.uuid.hex)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_resource_end_date_change_request_approved_notification"
+    )
+    def test_requester_is_notified_when_request_is_approved(self, mock_task):
+        request_obj = self.make_request()
+        self.client.force_authenticate(self.fixture.owner)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.request_url(request_obj, "approve"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        mock_task.delay.assert_called_once_with(request_obj.uuid.hex)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.send_resource_end_date_change_request_rejected_notification"
+    )
+    def test_requester_is_notified_when_request_is_rejected(self, mock_task):
+        request_obj = self.make_request()
+        self.client.force_authenticate(self.fixture.owner)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.request_url(request_obj, "reject"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        mock_task.delay.assert_called_once_with(request_obj.uuid.hex)
+
+    @mock.patch("waldur_mastermind.marketplace.handlers.tasks")
+    def test_nobody_is_emailed_when_requester_withdraws(self, mock_tasks):
+        request_obj = self.make_request()
+        mock_tasks.reset_mock()
+        self.client.force_authenticate(self.fixture.member)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.request_url(request_obj, "cancel"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        mock_tasks.send_resource_end_date_change_request_notification.delay.assert_not_called()
+        mock_tasks.send_resource_end_date_change_request_approved_notification.delay.assert_not_called()
+        mock_tasks.send_resource_end_date_change_request_rejected_notification.delay.assert_not_called()
+
+
+class EndDateChangeRequestNotificationDispatchTest(BaseEndDateChangeRequestTest):
+    """The tasks must deliver an email with enough context to act on.
+
+    broadcast_mail() silently returns unless a Notification row exists for the
+    key, so these tests also guard against the notifications being unregistered.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Fixture roles are created lazily on first access. Materialize them
+        # before the task looks up who holds the permission.
+        self.owner = self.fixture.owner
+        self.manager = self.fixture.manager
+        self.request_obj = self.make_request(created_by=self.fixture.member)
+        self.request_obj.comment = "Thesis deadline moved"
+        self.request_obj.save()
+        mail.outbox = []
+
+    def enable(self, event):
+        structure_factories.NotificationFactory(
+            key=f"marketplace.notification_resource_end_date_change_request_{event}"
+        )
+
+    def recipients(self):
+        return {addr for message in mail.outbox for addr in message.to}
+
+    def test_created_email_goes_to_users_who_may_set_the_end_date(self):
+        self.enable("created")
+        tasks.send_resource_end_date_change_request_notification(
+            self.request_obj.uuid.hex
+        )
+
+        # Only the owner holds SET_RESOURCE_END_DATE in the base setUp.
+        self.assertEqual(self.recipients(), {self.fixture.owner.email})
+
+    def test_created_email_recipients_follow_the_permission_not_the_role(self):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        CustomerRole.OWNER.delete_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        self.enable("created")
+        tasks.send_resource_end_date_change_request_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertEqual(self.recipients(), {self.fixture.manager.email})
+
+    def test_created_email_explains_the_request_and_links_to_it(self):
+        self.enable("created")
+        tasks.send_resource_end_date_change_request_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertIn(self.resource.name, message.subject)
+        for expected in (
+            "Hello",
+            self.fixture.member.full_name,
+            self.resource.name,
+            self.fixture.project.name,
+            self.fixture.customer.name,
+            self.resource.end_date.isoformat(),
+            self.requested_end_date.isoformat(),
+            "Thesis deadline moved",
+            f"resource-details/{self.resource.uuid.hex}/?tab=end-date-change-requests",
+            "approve or reject",
+        ):
+            self.assertIn(expected, message.body)
+
+    @override_config(NOTIFY_STAFF_ABOUT_APPROVALS=True)
+    def test_created_email_is_not_sent_to_staff(self):
+        staff = self.fixture.staff
+        self.enable("created")
+        tasks.send_resource_end_date_change_request_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertNotIn(staff.email, self.recipients())
+
+    def test_created_email_names_no_one_when_requester_was_deleted(self):
+        self.request_obj.created_by = None
+        self.request_obj.save()
+        self.enable("created")
+        tasks.send_resource_end_date_change_request_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertIn("A project member has requested", mail.outbox[0].body)
+
+    def test_created_email_is_skipped_once_request_is_decided(self):
+        self.request_obj.state = ReviewStates.CANCELED
+        self.request_obj.save()
+        mail.outbox = []
+        self.enable("created")
+        tasks.send_resource_end_date_change_request_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_approved_email_goes_to_requester(self):
+        self.request_obj.approve(self.fixture.owner, "Fine by me")
+        mail.outbox = []
+        self.enable("approved")
+        tasks.send_resource_end_date_change_request_approved_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertEqual(self.recipients(), {self.fixture.member.email})
+        body = mail.outbox[0].body
+        self.assertIn(self.requested_end_date.isoformat(), body)
+        self.assertIn("Fine by me", body)
+
+    def test_rejected_email_goes_to_requester(self):
+        self.request_obj.reject(self.fixture.owner, "Budget ends earlier")
+        mail.outbox = []
+        self.enable("rejected")
+        tasks.send_resource_end_date_change_request_rejected_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertEqual(self.recipients(), {self.fixture.member.email})
+        body = mail.outbox[0].body
+        self.assertIn(self.resource.end_date.isoformat(), body)
+        self.assertIn("Budget ends earlier", body)
+
+    def test_requester_with_notifications_disabled_is_not_emailed(self):
+        self.fixture.member.notifications_enabled = False
+        self.fixture.member.save()
+        self.request_obj.reject(self.fixture.owner, "No")
+        mail.outbox = []
+        self.enable("rejected")
+        tasks.send_resource_end_date_change_request_rejected_notification(
+            self.request_obj.uuid.hex
+        )
+
+        self.assertEqual(mail.outbox, [])

@@ -25,6 +25,7 @@ from waldur_core import _get_version
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
@@ -3654,3 +3655,87 @@ def send_resource_limit_change_request_rejected_notification(request_uuid):
         context,
         [request.created_by.email],
     )
+
+
+def _get_resource_end_date_change_request_context(request):
+    resource_url = core_utils.format_homeport_link(
+        "resource-details/{resource_uuid}/?tab=end-date-change-requests",
+        resource_uuid=request.resource.uuid.hex,
+    )
+    return {
+        "resource_end_date_change_request": request,
+        "resource_url": resource_url,
+    }
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.send_resource_end_date_change_request_notification"
+)
+def send_resource_end_date_change_request_notification(request_uuid):
+    """Ask whoever may decide a resource end date change request to review it."""
+    try:
+        request = models.ResourceEndDateChangeRequest.objects.get(uuid=request_uuid)
+    except models.ResourceEndDateChangeRequest.DoesNotExist:
+        logger.warning(
+            "Resource end date change request %s not found, skipping notification",
+            request_uuid,
+        )
+        return
+
+    if request.state != ReviewStates.PENDING:
+        # Decided or withdrawn before the task ran: nothing left to review.
+        return
+
+    mails = utils.get_resource_end_date_approvers(request.resource)
+    if not mails:
+        logger.info(
+            "No approvers for resource %s, skipping resource end date change request notification",
+            request.resource.uuid,
+        )
+        return
+
+    core_utils.broadcast_mail(
+        "marketplace",
+        "notification_resource_end_date_change_request_created",
+        _get_resource_end_date_change_request_context(request),
+        mails,
+    )
+
+
+def _notify_resource_end_date_change_request_requester(request_uuid, event):
+    try:
+        request = models.ResourceEndDateChangeRequest.objects.get(uuid=request_uuid)
+    except models.ResourceEndDateChangeRequest.DoesNotExist:
+        logger.warning(
+            "Resource end date change request %s not found, skipping %s notification",
+            request_uuid,
+            event,
+        )
+        return
+
+    requester = request.created_by
+    if not requester or not requester.email or not requester.notifications_enabled:
+        return
+
+    core_utils.broadcast_mail(
+        "marketplace",
+        f"notification_resource_end_date_change_request_{event}",
+        _get_resource_end_date_change_request_context(request),
+        [requester.email],
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.send_resource_end_date_change_request_approved_notification"
+)
+def send_resource_end_date_change_request_approved_notification(request_uuid):
+    """Tell the requester their resource end date change request was approved."""
+    _notify_resource_end_date_change_request_requester(request_uuid, "approved")
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.send_resource_end_date_change_request_rejected_notification"
+)
+def send_resource_end_date_change_request_rejected_notification(request_uuid):
+    """Tell the requester their resource end date change request was rejected."""
+    _notify_resource_end_date_change_request_requester(request_uuid, "rejected")
