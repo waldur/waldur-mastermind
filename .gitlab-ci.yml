@@ -37,13 +37,12 @@ include:
     file: "/templates/test/vulnerability-scan.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/license-scan.yml"
-  # Temporarily disabled - SBOMs taking too much space in docs
-  # - project: "waldur/waldur-pipelines"
-  #   file: "/templates/sbom/generate-python-codebase-sbom.yml"
-  # - project: "waldur/waldur-pipelines"
-  #   file: "/templates/sbom/upload-sboms-to-docs.yml"
-  # - project: "waldur/waldur-pipelines"
-  #   file: "/templates/sbom/generate-image-sbom.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/sbom/generate-image-sbom.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/sbom/generate-python-codebase-sbom.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/sbom/publish-sboms-to-github-release.yml"
 
 before_script:
   - export
@@ -679,19 +678,11 @@ Try building docker image:
       ${CI_PROJECT_DIR}
 
 
-# Temporarily disabled - SBOMs taking too much space in docs
-# Generate Image SBOM:
-#   extends: .Generate Image SBOM template
-#   variables:
-#     PROJECT_NAME: "waldur-mastermind"
+Generate Image SBOM:
+  extends: .Generate Image SBOM template
 
-# Generate Codebase SBOM:
-#   extends: .Generate Codebase SBOM template
-#   variables:
-#     PROJECT_NAME: "waldur-mastermind"
-#   before_script:
-#     - apt-get update
-#     - apt-get install -y gcc libldap2-dev libsasl2-dev libssl-dev libdb-dev
+Generate Codebase SBOM:
+  extends: .Generate Codebase SBOM template
 
 Build docker image for tests:
   stage: build
@@ -880,24 +871,8 @@ Lint dockerfile:
         - DL3015 # "--no-install-recommends" info
         - SC2094 # "read and write the same file in the same pipeline" info
 
-# Temporarily disabled - SBOMs taking too much space in docs
-# Upload Image SBOM:
-#   extends: .Upload SBOM template
-#   needs:
-#     - Generate Image SBOM
-#   variables:
-#     PROJECT_NAME: "waldur-mastermind"
-#     SBOM_TYPE: "image"
-#     SBOM_DIR: "images"
-
-# Upload Source SBOM:
-#   extends: .Upload SBOM template
-#   needs:
-#     - Generate Codebase SBOM
-#   variables:
-#     PROJECT_NAME: "waldur-mastermind"
-#     SBOM_TYPE: "source"
-#     SBOM_DIR: "source"
+Publish SBOMs to GitHub release:
+  extends: .Publish SBOMs to GitHub release template
 
 Upload configuration guide:
   stage: postdeploy
