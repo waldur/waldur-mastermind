@@ -31,22 +31,16 @@ logger = logging.getLogger(__name__)
     name="waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled"
 )
 def proposals_for_ended_rounds_should_be_cancelled():
-    """Cancel proposals for rounds that have ended."""
+    """Cancel draft proposals for rounds that have ended."""
+    # Only drafts: a proposal submitted before the cutoff is reviewed after it,
+    # so submitted and in-review proposals are left to the review workflow.
     date = timezone.now()
     cancellation_date = date.strftime("%Y-%m-%d %H:%M:%S")
-    for proposal in (
-        proposal_models.Proposal.objects.exclude(
-            state__in=(
-                ProposalStates.ACCEPTED,
-                ProposalStates.REJECTED,
-                ProposalStates.CANCELED,
-            )
-        )
-        .filter(round__cutoff_time__lt=date)
-        .select_related(
-            # Each save publishes a proposal event whose scope chain walks these.
-            "round__call__manager__customer"
-        )
+    for proposal in proposal_models.Proposal.objects.filter(
+        state=ProposalStates.DRAFT, round__cutoff_time__lt=date
+    ).select_related(
+        # Each save publishes a proposal event whose scope chain walks these.
+        "round__call__manager__customer"
     ):
         proposal.state = ProposalStates.CANCELED
         proposal.save(update_fields=["state"])

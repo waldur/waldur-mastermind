@@ -16,7 +16,12 @@ from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks, utils
-from waldur_mastermind.proposal.enums import AllocationTimes, CallStates, ProposalStates
+from waldur_mastermind.proposal.enums import (
+    AllocationTimes,
+    CallStates,
+    ProposalStates,
+    WorkflowStepInstanceStatuses,
+)
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 SVG_WITH_SCRIPT = (
@@ -772,6 +777,7 @@ class RequestedResourceDeleteTest(test.APITestCase):
         return self.client.delete(self.url)
 
 
+@ddt
 class TaskTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
@@ -797,6 +803,37 @@ class TaskTest(test.APITestCase):
 
         self.assertTrue(Event.objects.filter(event_type="proposal_canceled").exists())
 
+    @data(ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW)
+    def test_submitted_proposals_survive_round_end(self, state):
+        # Review normally happens after the cutoff, so a proposal that was sent
+        # in time must not be swept up with the unsent drafts.
+        self.proposal.state = state
+        self.proposal.save()
+        step_instance = models.ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+        )
+        review = factories.ReviewFactory(
+            proposal=self.proposal, state=models.Review.States.IN_REVIEW
+        )
+        self.round.cutoff_time = timezone.now() - datetime.timedelta(days=1)
+        self.round.save()
+
+        with mock.patch.object(
+            tasks.notify_proposal_creator_about_cancelled_proposal, "apply_async"
+        ) as notify:
+            tasks.proposals_for_ended_rounds_should_be_cancelled()
+
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, state)
+        step_instance.refresh_from_db()
+        self.assertEqual(step_instance.status, WorkflowStepInstanceStatuses.ACTIVE)
+        review.refresh_from_db()
+        self.assertEqual(review.state, models.Review.States.IN_REVIEW)
+        notified = {call.kwargs["args"][0] for call in notify.call_args_list}
+        self.assertNotIn(self.proposal.uuid, notified)
+
     @override_settings(task_always_eager=True)
     def test_notifications_for_cancelled_proposals(self):
         structure_factories.NotificationFactory(
@@ -807,18 +844,15 @@ class TaskTest(test.APITestCase):
         tasks.proposals_for_ended_rounds_should_be_cancelled()
         self.proposal.refresh_from_db()
 
-        # Verify that notification email has been sent to proposal creator
-        # in fixtures.py there are two proposals belong to this round; therefore, there are two emails in the mail outbox
-        self.assertEqual(len(mail.outbox), 2)
-
-        # Check that both expected email recipients are present (order doesn't matter)
-        email_recipients = [mail.to for mail in mail.outbox]
-        expected_recipients = [
-            [self.proposal.created_by.email],
-            [self.fixture.proposal_submitted.created_by.email],
-        ]
-
-        self.assertEqual(sorted(email_recipients), sorted(expected_recipients))
+        # The fixture's round also holds a submitted proposal; only the draft's
+        # creator is told about a cancellation.
+        self.assertEqual(
+            [email.to for email in mail.outbox], [[self.proposal.created_by.email]]
+        )
+        self.fixture.proposal_submitted.refresh_from_db()
+        self.assertEqual(
+            self.fixture.proposal_submitted.state, ProposalStates.SUBMITTED
+        )
 
         # Find the email for self.proposal and verify its content
         proposal_email = None
