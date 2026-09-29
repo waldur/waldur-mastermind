@@ -398,10 +398,12 @@ def validate_limit_amount(value, component):
             )
 
 
-def validate_maximum_available_limit(value, component, resource=None):
-    if not component.max_available_limit:
-        return
+def get_allocated_limit_total(component, resource=None):
+    """Sum of ``component``'s limit over the offering's other resources.
 
+    ``resource`` is the one being changed, so its own stored limit is left out
+    of the total the new value is weighed against.
+    """
     all_offering_resources = models.Resource.objects.filter(
         offering=component.offering
     ).exclude(limits={})
@@ -413,13 +415,20 @@ def validate_maximum_available_limit(value, component, resource=None):
     # against come out of a JSONField as int or float. Comparing the two is
     # fine, but subtracting is a TypeError, so the running total is carried as
     # Decimal from the start.
-    current_total_limits = sum(
+    return sum(
         (
-            decimal.Decimal(str(resource["limits"].get(component.type, 0)))
-            for resource in all_offering_resources.values("limits")
+            decimal.Decimal(str(item["limits"].get(component.type, 0)))
+            for item in all_offering_resources.values("limits")
         ),
         decimal.Decimal(0),
     )
+
+
+def validate_maximum_available_limit(value, component, resource=None):
+    if not component.max_available_limit:
+        return
+
+    current_total_limits = get_allocated_limit_total(component, resource)
 
     if (
         current_total_limits + decimal.Decimal(str(value))
@@ -542,6 +551,132 @@ def validate_limit_precision(value, component):
                 "%(places)s decimal places."
             ) % {"value": value, "places": places}
         raise serializers.ValidationError(message)
+
+
+def clamp_limit_value(value, component, resource=None, stored_value=None):
+    """Narrow a limit to the nearest value the component accepts.
+
+    ``validate_limits`` rejects a limit outside the component's bounds, which
+    is the right answer when a person is ordering: the request stops and they
+    correct it. The site agent has no such recourse — it has no error handling
+    for a ``set_limits`` 4xx and marks the resource as ERRED — so that route
+    narrows the value instead and logs the divergence, which is the signal that
+    the agent's limit reporting needs fixing.
+
+    ``stored_value`` is the limit the resource already holds. A clamp may
+    refuse the request, wholly or in part, but never moves the limit against
+    the direction the request asked for, so the result always lies between the
+    stored limit and the requested one.
+
+    Returns a ``(value, reason)`` pair. ``reason`` is None when the value was
+    already acceptable, otherwise it names the bound that moved it. A None
+    value means the component's own configuration leaves nothing to narrow to,
+    so the caller keeps whatever it had.
+    """
+    places = component.limit_decimal_places or 0
+    step = decimal.Decimal(1).scaleb(-places)
+
+    def truncate(amount):
+        # ROUND_FLOOR rather than ROUND_DOWN: the latter rounds toward zero, so
+        # it would raise a negative limit instead of narrowing it.
+        return amount.quantize(step, rounding=decimal.ROUND_FLOOR)
+
+    try:
+        amount = decimal.Decimal(str(value))
+        truncated = truncate(amount)
+    except (decimal.InvalidOperation, ValueError, TypeError):
+        # Not a number, or more digits than the decimal context can hold.
+        # Nothing legitimate reaches this and there is no nearest value to
+        # narrow it to.
+        return None, "precision"
+
+    reason = None
+    raw = amount
+
+    if truncated != amount:
+        amount = truncated
+        reason = "precision"
+
+    requested = amount
+
+    stored = None
+    if stored_value is not None:
+        try:
+            # Left as stored, not truncated: it is the direction boundary, not
+            # a value being proposed. A limit written before this route checked
+            # precision may be finer than the component accepts, and truncating
+            # it here would turn "refuse the request" into "shave the existing
+            # allocation".
+            stored = decimal.Decimal(str(stored_value))
+        except (decimal.InvalidOperation, ValueError, TypeError):
+            stored = None
+
+    # max_value keeps the truthiness test validate_min_max_limit uses: 0 in
+    # that column means "no maximum".
+    if component.max_value and amount > component.max_value:
+        amount = truncate(decimal.Decimal(component.max_value))
+        reason = "max_value"
+
+    if component.min_value is not None and amount < component.min_value:
+        # The bound is rounded up, since truncating it would land back below
+        # the minimum it is meant to enforce.
+        amount = decimal.Decimal(component.min_value).quantize(
+            step, rounding=decimal.ROUND_CEILING
+        )
+        reason = "min_value"
+        if component.max_value and amount > component.max_value:
+            return None, reason
+
+    # The offering-wide cap bounds the total the offering hands out, and a
+    # value at or below the stored limit adds nothing to that total. Weighing a
+    # shrink against it would refuse to let an allocation that already exceeds
+    # a lowered cap give anything back, and keep billing for capacity the
+    # backend has released.
+    if component.max_available_limit and (stored is None or amount > stored):
+        remaining = component.max_available_limit - get_allocated_limit_total(
+            component, resource
+        )
+        # The offering-wide cap is exclusive (validate_maximum_available_limit
+        # rejects a total that merely reaches it), so the ceiling is the
+        # largest step strictly below what is left.
+        ceiling = truncate(remaining)
+        if ceiling == remaining:
+            ceiling -= step
+        if amount > ceiling:
+            if ceiling < 0 or (
+                component.min_value is not None and ceiling < component.min_value
+            ):
+                return None, "max_available_limit"
+            amount = ceiling
+            reason = "max_available_limit"
+
+    if stored is not None:
+        # A bound may refuse what the request asks for, but it may not reverse
+        # it. A provider can lower a maximum or raise a minimum long after the
+        # resource was allocated, and the agent then reports a value moving the
+        # other way; clamping to the bound there would resize a working
+        # resource — and bill the customer for it — in the opposite direction
+        # from the one anybody asked for. Keeping the result between the stored
+        # limit and the requested one means the worst outcome is a refused
+        # request, with the resource holding on to what it had. The
+        # offering-wide ceiling relies on this too: growth is capped, while an
+        # allocation that already exceeds what is left is not taken away.
+        if requested < stored < raw:
+            # Truncation alone carried a growth request below the stored
+            # limit, so the interval below would accept a shrink. The request
+            # asks for a step the component does not have: refuse it.
+            amount = stored
+        else:
+            low, high = min(stored, requested), max(stored, requested)
+            if amount < low:
+                amount = low
+            elif amount > high:
+                amount = high
+
+    if reason is None:
+        return value, None
+
+    return narrow_limit_value(amount), reason
 
 
 def get_components_map(limits, offering: models.Offering, plan=None):

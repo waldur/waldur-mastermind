@@ -10,6 +10,7 @@ from ddt import data, ddt, unpack
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from freezegun import freeze_time
+from rest_framework import exceptions as rf_exceptions
 from rest_framework import status, test
 
 from waldur_core.core.utils import month_start
@@ -3024,6 +3025,17 @@ class ProviderResourceSetLimitsWithPeriodicPolicyTest(test.APITestCase):
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits["node"], 24440)
 
+    def test_held_value_is_not_clamped_to_the_component_bounds(self):
+        """The gate restores the stored limit, and the bounds check must not
+        then narrow that restored value: the request was already decided
+        against, and clamping it would shrink a working allocation."""
+        self.component.max_value = 100
+        self.component.save()
+        response = self._post({"node": 24440})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits["node"], 18800)
+
     def test_usage_component_changes_pass_through(self):
         """The gate only protects LIMIT-typed components. A USAGE-typed
         component on the same offering must still be writable."""
@@ -3044,6 +3056,347 @@ class ProviderResourceSetLimitsWithPeriodicPolicyTest(test.APITestCase):
         # node held (gated), cpu updated (not LIMIT-typed).
         self.assertEqual(self.resource.limits["node"], 18800)
         self.assertEqual(self.resource.limits["cpu"], 200)
+
+
+class ProviderResourceSetLimitsClampingTest(test.APITestCase):
+    """set_limits narrows a value outside the component's bounds instead of
+    rejecting it: the agent has no error handling for a 4xx and would mark the
+    resource ERRED, so a configuration skew must not break the resource. The
+    limits written here are the ones that get billed, so they may not stay
+    outside what the offering declares either."""
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.component = self.fixture.offering_component
+        self.component.billing_type = BillingTypes.LIMIT
+        self.component.save()
+        self.resource.limits = {"cpu": 10}
+        self.resource.save()
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "set_limits"
+        )
+
+    def _post(self, limits):
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.post(self.url, {"limits": limits}, format="json")
+
+    def _set_bounds(self, **kwargs):
+        for field, value in kwargs.items():
+            setattr(self.component, field, value)
+        self.component.save()
+
+    def test_valid_value_is_stored_unchanged(self):
+        self._set_bounds(min_value=1, max_value=100)
+        response = self._post({"cpu": 20})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 20})
+
+    def test_fraction_is_truncated_for_integer_only_component(self):
+        # limit_decimal_places defaults to 0: the backend maps the limit onto an
+        # integer quota and would truncate the fraction at the far end anyway.
+        response = self._post({"cpu": 20.7})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 20})
+
+    def test_fraction_is_truncated_to_declared_precision(self):
+        self._set_bounds(limit_decimal_places=1)
+        response = self._post({"cpu": 20.78})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 20.7})
+
+    def test_value_above_maximum_is_clamped(self):
+        self._set_bounds(max_value=50)
+        response = self._post({"cpu": 80})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 50})
+
+    def test_zero_maximum_is_not_a_bound(self):
+        # 0 in max_value means "no maximum", the same reading validate_limits
+        # and the frontend use.
+        self._set_bounds(max_value=0)
+        response = self._post({"cpu": 80})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 80})
+
+    def test_value_below_minimum_is_clamped(self):
+        self._set_bounds(min_value=5)
+        response = self._post({"cpu": 2})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 5})
+
+    def test_zero_minimum_rules_out_a_negative_limit(self):
+        self._set_bounds(min_value=0)
+        response = self._post({"cpu": -5})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 0})
+
+    def test_fractional_minimum_is_rounded_up_to_declared_precision(self):
+        # Truncating the bound would land back below the minimum it enforces.
+        self._set_bounds(min_value=Decimal("5.5"))
+        response = self._post({"cpu": 2})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 6})
+
+    def test_value_above_offering_safety_limit_is_clamped(self):
+        self._set_bounds(max_available_limit=100)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 30},
+        )
+        response = self._post({"cpu": 90})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        # 70 is left, and the cap is exclusive, so 69 is the largest value the
+        # order path would accept.
+        self.assertEqual(self.resource.limits, {"cpu": 69})
+
+    def test_own_limit_is_not_counted_against_the_safety_limit(self):
+        self._set_bounds(max_available_limit=100)
+        response = self._post({"cpu": 90})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 90})
+
+    def test_echo_of_the_stored_limit_survives_a_shrunken_safety_limit(self):
+        # The offering has no room left, but this request does not ask for any:
+        # the agent is echoing the limit the resource already holds. Clamping it
+        # would shrink a working resource, and bill a compensation, over a
+        # shortfall the request did not cause.
+        self._set_bounds(max_available_limit=100)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 95},
+        )
+        response = self._post({"cpu": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10})
+
+    def test_growth_is_capped_at_the_stored_limit_when_nothing_is_left(self):
+        self._set_bounds(max_available_limit=100)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 95},
+        )
+        response = self._post({"cpu": 20})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        # Only 4 would fit, but the resource already holds 10 and the increase
+        # is what gets refused, not the limit it already has.
+        self.assertEqual(self.resource.limits, {"cpu": 10})
+
+    def test_shrink_is_accepted_when_the_offering_is_over_its_safety_limit(self):
+        # The cap was lowered below what is already allocated. A shrink hands
+        # capacity back rather than taking any, and the backend has already
+        # shrunk: keeping the old limit would bill for capacity it gave up.
+        self._set_bounds(max_available_limit=100)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 100},
+        )
+        response = self._post({"cpu": 5})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 5})
+
+    def test_shrink_is_accepted_when_what_is_left_is_below_the_minimum(self):
+        self._set_bounds(min_value=5, max_available_limit=100)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 95},
+        )
+        response = self._post({"cpu": 6})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 6})
+
+    def test_shrink_under_the_safety_limit_is_not_reported_as_clamped(self):
+        self.resource.limits = {"cpu": 100}
+        self.resource.save()
+        self._set_bounds(max_available_limit=1000)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 950},
+        )
+        with self.assertLogs("waldur_mastermind.marketplace.views", "WARNING") as logs:
+            response = self._post({"cpu": 60})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 60})
+        self.assertFalse(
+            [line for line in logs.output if "Clamping set_limits" in line],
+            logs.output,
+        )
+
+    def test_unsatisfiable_bounds_keep_the_stored_limit(self):
+        # Nothing between the minimum and what the offering has left, so there
+        # is no value to narrow to.
+        self._set_bounds(min_value=80, max_available_limit=100)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 60},
+        )
+        response = self._post({"cpu": 90})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10})
+
+    def test_unsatisfiable_bounds_leave_a_new_component_out(self):
+        self._set_bounds(min_value=80, max_value=50)
+        self.resource.limits = {}
+        self.resource.save()
+        response = self._post({"cpu": 90})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {})
+
+    def test_unchanged_value_is_left_alone_when_a_bound_is_raised(self):
+        # The provider raised the minimum after the resource was allocated. The
+        # agent keeps reporting the limit the backend actually holds, and
+        # clamping that echo would inflate the stored limit — and the invoice —
+        # to capacity that does not exist, on every single sync.
+        self._set_bounds(min_value=50)
+        response = self._post({"cpu": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10})
+
+    def test_unchanged_value_is_left_alone_when_a_maximum_is_lowered(self):
+        self._set_bounds(max_value=5)
+        response = self._post({"cpu": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10})
+
+    def test_negative_value_is_truncated_downwards(self):
+        # ROUND_DOWN rounds toward zero, which would raise the limit instead of
+        # narrowing it.
+        self._set_bounds(min_value=-100)
+        response = self._post({"cpu": -20.7})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": -21})
+
+    def test_negative_minimum_is_rounded_towards_zero(self):
+        self._set_bounds(min_value=Decimal("-5.5"))
+        response = self._post({"cpu": -9})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": -5})
+
+    def test_lowered_maximum_does_not_reverse_a_growth_request(self):
+        # The provider lowered the maximum after the resource was allocated.
+        # The agent asks to grow; refusing that is fine, but clamping to the
+        # bound would shrink a working allocation four-fold in answer to a
+        # request to enlarge it.
+        self.resource.limits = {"cpu": 200}
+        self.resource.save()
+        self._set_bounds(max_value=50)
+        response = self._post({"cpu": 210})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 200})
+
+    def test_raised_minimum_does_not_reverse_a_shrink_request(self):
+        self._set_bounds(min_value=50)
+        response = self._post({"cpu": 8})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10})
+
+    def test_a_step_towards_the_bound_is_still_accepted(self):
+        # The direction rule refuses a reversal, not a partial move: shrinking
+        # towards a lowered maximum goes through untouched.
+        self.resource.limits = {"cpu": 200}
+        self.resource.save()
+        self._set_bounds(max_value=50)
+        response = self._post({"cpu": 30})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 30})
+
+    def test_growth_request_does_not_shave_an_imprecise_stored_limit(self):
+        # 10.7 predates this route enforcing precision. The offering has no
+        # room for the requested growth, which is a reason to refuse it — not
+        # to trim the allocation the resource is running on.
+        self.resource.limits = {"cpu": 10.7}
+        self.resource.save()
+        self._set_bounds(max_available_limit=100)
+        factories.ResourceFactory(
+            offering=self.resource.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={"cpu": 95},
+        )
+        response = self._post({"cpu": 20})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10.7})
+
+    def test_growth_within_a_step_does_not_shave_an_imprecise_stored_limit(self):
+        # Truncating 10.8 gives 10, below the stored 10.7: a request to grow
+        # must not come out as a shrink.
+        self.resource.limits = {"cpu": 10.7}
+        self.resource.save()
+        response = self._post({"cpu": 10.8})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10.7})
+
+    def test_growth_past_a_step_from_an_imprecise_stored_limit_is_accepted(self):
+        self.resource.limits = {"cpu": 10.7}
+        self.resource.save()
+        response = self._post({"cpu": 11.3})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 11})
+
+    def test_usage_component_is_not_clamped(self):
+        # Bounds describe a requested limit; a usage-typed component reports
+        # what the backend measured and is not a limit at all.
+        self.component.billing_type = BillingTypes.USAGE
+        self.component.max_value = 50
+        self.component.save()
+        response = self._post({"cpu": 80})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 80})
+
+    def test_plugin_validator_rejection_keeps_the_stored_limits(self):
+        def reject(limits):
+            raise rf_exceptions.ValidationError("CPU limit is mandatory.")
+
+        with mock.patch.object(
+            plugins.manager, "get_limits_validator", return_value=reject
+        ):
+            response = self._post({"cpu": 20})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {"cpu": 10})
 
 
 @ddt

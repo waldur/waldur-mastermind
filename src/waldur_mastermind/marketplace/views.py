@@ -10784,8 +10784,9 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
                 }
             )
 
+        resolved = billing_mode.resolve_for_resource(resource)
         limit_based_components = resource.offering.components.filter(
-            type__in=billing_mode.resolve_for_resource(resource).limit_types
+            type__in=resolved.limit_types
         )
 
         # When a SLURM periodic usage policy is active on the offering, the
@@ -10824,6 +10825,85 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
                     "Use an update_limits order to change them.",
                     resource,
                     ignored_components,
+                )
+
+        # Unlike the order path, this action does not reject a value that falls
+        # outside the bounds the offering declares. Rejecting would mean a 4xx,
+        # which the agent does not handle and answers by marking the resource
+        # ERRED, so a configuration skew between the agent and the offering
+        # would break the resource. Narrow the value to the nearest acceptable
+        # one instead — downwards for a precision the backend would truncate
+        # anyway — and log the divergence: these limits are what gets billed,
+        # and the log is the signal that the agent's reporting needs fixing.
+        clamped_components = {}
+        for component_type, component in resolved.limit_components.items():
+            if component_type not in new_limits:
+                continue
+            value = new_limits[component_type]
+            if value == resource.limits.get(component_type):
+                # The request does not change this component: the agent is
+                # echoing what is already stored, or the policy branch above
+                # has just restored it. A bound that the stored value does not
+                # satisfy predates this request — narrowing it here would
+                # resize a working resource, and bill for it, over something
+                # nobody asked to change. Bounds apply to what the agent
+                # actually moves.
+                continue
+            clamped_value, reason = utils.clamp_limit_value(
+                value,
+                component,
+                resource,
+                stored_value=resource.limits.get(component_type),
+            )
+            if reason is None:
+                continue
+            if clamped_value is None:
+                # The component's own bounds leave nothing acceptable to fall
+                # back to, so keep whatever the resource already had.
+                old_value = resource.limits.get(component_type)
+                if old_value is None:
+                    del new_limits[component_type]
+                    outcome = "dropped"
+                else:
+                    new_limits[component_type] = old_value
+                    outcome = old_value
+            else:
+                new_limits[component_type] = clamped_value
+                outcome = clamped_value
+            clamped_components[component_type] = {
+                "from": value,
+                "to": outcome,
+                "reason": reason,
+            }
+        if clamped_components:
+            logger.warning(
+                "Clamping set_limits value(s) on resource %s to the bounds declared "
+                "by the offering components: %s. The agent is expected to report "
+                "limits the offering accepts.",
+                resource,
+                clamped_components,
+            )
+
+        # A plugin-level validator judges the limits as a whole and can only
+        # reject, so there is no nearest acceptable value to narrow to. Keep the
+        # stored limits and still answer 200, for the same reason the bounds
+        # above clamp rather than reject.
+        limits_validator = plugins.manager.get_limits_validator(resource.offering.type)
+        if limits_validator:
+            try:
+                limits_validator(new_limits)
+            except rf_exceptions.ValidationError as e:
+                logger.warning(
+                    "Ignoring set_limits write on resource %s: the %s validator "
+                    "rejected the resulting limits %s: %s",
+                    resource,
+                    resource.offering.type,
+                    new_limits,
+                    e,
+                )
+                return Response(
+                    {"status": _("The resource limits are unchanged")},
+                    status=status.HTTP_200_OK,
                 )
 
         for component in limit_based_components:
