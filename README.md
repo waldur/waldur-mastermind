@@ -1,4 +1,4 @@
-<img src="https://waldur.com/assets/img/logo.svg" alt="Waldur Logo" width="400"/>
+<img src="https://waldur.com/img/logo.svg" alt="Waldur Logo" width="400"/>
 
 # Waldur MasterMind
 
