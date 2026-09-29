@@ -1634,6 +1634,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         email_invited_ids = reviewers_with_email_invitation(call, reviewers)
 
         created_memberships = []
+        expires_at = models.CallReviewerPool.get_invitation_expires_at(call)
         with transaction.atomic():
             for reviewer_uuid in reviewer_uuids:
                 reviewer = reviewers_by_uuid.get(reviewer_uuid)
@@ -1646,7 +1647,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                     defaults={
                         "invited_by": request.user,
                         "max_assignments": max_assignments,
-                        "invitation_expires_at": timezone.now() + timedelta(days=14),
+                        "invitation_expires_at": expires_at,
                     },
                 )
                 if created:
@@ -1786,6 +1787,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             invited_user=user,  # May be None
             invited_by=request.user,
             invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+            invitation_expires_at=models.CallReviewerPool.get_invitation_expires_at(
+                call
+            ),
         )
 
         tasks.send_reviewer_invitation_email.delay(pool_member.uuid)
@@ -1929,6 +1933,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             # Prepare bulk operations
             invitations_to_create = []
             suggestions_to_update = []
+            expires_at = models.CallReviewerPool.get_invitation_expires_at(call)
 
             for suggestion in confirmed_suggestions:
                 # Skip if already in pool
@@ -1942,6 +1947,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                         reviewer=suggestion.reviewer,
                         invited_by=request.user,
                         invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+                        invitation_expires_at=expires_at,
                         expertise_match_score=suggestion.affinity_score,
                     )
                 )
@@ -5152,11 +5158,13 @@ class InvitationAcceptanceMixin:
 
     def _validate_invitation_not_expired(self, invitation: models.CallReviewerPool):
         """Validate that the invitation has not expired."""
-        if (
-            invitation.invitation_expires_at
-            and invitation.invitation_expires_at < timezone.now()
-        ):
+        if invitation.is_invitation_expired:
             raise exceptions.ValidationError(_("This invitation has expired."))
+
+    def _validate_invitation_answerable(self, invitation: models.CallReviewerPool):
+        """An invitation can be accepted or declined only while pending and in date."""
+        self._validate_invitation_not_expired(invitation)
+        self._validate_invitation_status(invitation)
 
     def _ensure_published_profile(
         self, request, invitation: models.CallReviewerPool
@@ -5432,9 +5440,7 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
                 _("You do not have permission to accept this invitation.")
             )
 
-        # Use mixin methods for validation
-        self._validate_invitation_status(invitation)
-        self._validate_invitation_not_expired(invitation)
+        self._validate_invitation_answerable(invitation)
 
         # Profile-gating: user must have a published reviewer profile
         profile, error = self._ensure_published_profile(request, invitation)
@@ -5474,7 +5480,7 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
                 _("You do not have permission to decline this invitation.")
             )
 
-        self._validate_invitation_status(invitation)
+        self._validate_invitation_answerable(invitation)
 
         serializer = serializers.InvitationDeclineSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -5539,6 +5545,66 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
         )
 
     force_accept_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["call", "call.manager"],
+        )
+    ]
+
+    @extend_schema(
+        description=(
+            "Send a pending or expired pool invitation again. The invitation "
+            "returns to pending with a new expiry date from the call's "
+            "assignment configuration, and the invitee is emailed the link again."
+        ),
+        request=None,
+        responses={200: serializers.CallReviewerPoolSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="resend-invitation")
+    def resend_invitation(self, request, uuid=None):
+        """Send a pending or expired pool invitation again."""
+        invitation = self.get_object()
+
+        with transaction.atomic():
+            invitation = models.CallReviewerPool.objects.select_for_update().get(
+                pk=invitation.pk
+            )
+            if invitation.invitation_status not in (
+                ReviewerPoolInvitationStatuses.PENDING,
+                ReviewerPoolInvitationStatuses.EXPIRED,
+            ):
+                raise exceptions.ValidationError(
+                    _("Only pending or expired invitations can be sent again.")
+                )
+            invitation.invitation_status = ReviewerPoolInvitationStatuses.PENDING
+            invitation.invitation_expires_at = (
+                models.CallReviewerPool.get_invitation_expires_at(invitation.call)
+            )
+            # A new link replaces the old one, so a copy of an earlier
+            # invitation email cannot answer the re-sent invitation.
+            invitation.invitation_token = models.generate_invitation_token()
+            invitation.save(
+                update_fields=[
+                    "invitation_status",
+                    "invitation_expires_at",
+                    "invitation_token",
+                    "modified",
+                ]
+            )
+            transaction.on_commit(
+                lambda uuid=invitation.uuid: (
+                    tasks.send_reviewer_invitation_email.delay(uuid)
+                )
+            )
+
+        return response.Response(
+            serializers.CallReviewerPoolSerializer(
+                invitation, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    resend_invitation_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
             ["call", "call.manager"],
@@ -5740,10 +5806,7 @@ class PublicReviewerInvitationViewSet(InvitationAcceptanceMixin, viewsets.ViewSe
         invitation = self._get_invitation(token)
         call = invitation.call
 
-        is_expired = (
-            invitation.invitation_expires_at
-            and invitation.invitation_expires_at < timezone.now()
-        )
+        is_expired = invitation.is_invitation_expired
 
         # Check user's profile status if authenticated
         profile_status = None
@@ -5812,9 +5875,7 @@ class PublicReviewerInvitationViewSet(InvitationAcceptanceMixin, viewsets.ViewSe
                     _("This invitation was sent to another reviewer.")
                 )
 
-        # Use mixin methods for validation
-        self._validate_invitation_status(invitation)
-        self._validate_invitation_not_expired(invitation)
+        self._validate_invitation_answerable(invitation)
 
         # Profile-gating for email invitations
         profile, error = self._ensure_published_profile(request, invitation)
@@ -5847,7 +5908,7 @@ class PublicReviewerInvitationViewSet(InvitationAcceptanceMixin, viewsets.ViewSe
         """Decline a reviewer invitation."""
         invitation = self._get_invitation(token)
 
-        self._validate_invitation_status(invitation)
+        self._validate_invitation_answerable(invitation)
 
         serializer = serializers.InvitationDeclineSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

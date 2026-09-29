@@ -1254,6 +1254,19 @@ class AssignmentBatchExpiredContext(BaseModel):
     )
 
 
+class ReviewerPoolInvitationExpiredContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    call_name: str = Field(description="Name of the call the invitation was for.")
+    invitee_name: str = Field(
+        description="Full name of the invited reviewer, or the invited email address."
+    )
+    invited_at: Any = Field(description="When the invitation was created.")
+    expired_at: Any = Field(description="When the invitation stopped being answerable.")
+    reviewer_pool_url: str = Field(
+        description="Link to the call's reviewer pool, where the invitation can be sent again."
+    )
+
+
 class WorkflowStepEventContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
     trigger: str = Field(
@@ -1402,6 +1415,14 @@ class ProposalSection(NotificationSection):
         key="reviewer_invitation",
         description="Sent to a person invited to join the reviewer pool for a call.",
         context_model=ReviewerInvitationContext,
+    )
+    reviewer_pool_invitation_expired = Notification(
+        key="reviewer_pool_invitation_expired",
+        description=(
+            "Sent once to the call manager who invited a reviewer to the pool "
+            "when the invitation expires without an answer."
+        ),
+        context_model=ReviewerPoolInvitationExpiredContext,
     )
     reviews_complete = Notification(
         key="reviews_complete",

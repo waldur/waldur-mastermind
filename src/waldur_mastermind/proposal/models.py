@@ -2383,6 +2383,40 @@ class CallReviewerPool(
     def get_url_name(cls):
         return "call-reviewer-pool"
 
+    DEFAULT_INVITATION_EXPIRATION_DAYS = 7
+
+    @classmethod
+    def get_invitation_expires_at(cls, call) -> datetime:
+        """When a pool invitation sent now for this call stops being answerable.
+
+        Pool invitations share the call's assignment expiration setting, so a
+        manager configures one response window for both stages of reviewer
+        recruitment.
+        """
+        try:
+            days = call.assignment_configuration.assignment_expiration_days
+        except CallAssignmentConfiguration.DoesNotExist:
+            days = cls.DEFAULT_INVITATION_EXPIRATION_DAYS
+        return timezone.now() + timedelta(days=days)
+
+    @property
+    def is_invitation_expired(self) -> bool:
+        if self.invitation_status == ReviewerPoolInvitationStatuses.EXPIRED:
+            return True
+        return bool(
+            self.invitation_status == ReviewerPoolInvitationStatuses.PENDING
+            and self.invitation_expires_at
+            and self.invitation_expires_at < timezone.now()
+        )
+
+    @property
+    def invitee_name(self) -> str:
+        if self.reviewer:
+            return self.reviewer.user.full_name
+        if self.invited_user:
+            return self.invited_user.full_name
+        return self.invited_email
+
 
 class ReviewerSuggestion(
     TimeStampedModel,

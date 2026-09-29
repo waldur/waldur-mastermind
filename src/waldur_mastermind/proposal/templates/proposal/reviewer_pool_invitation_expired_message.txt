@@ -1,0 +1,12 @@
+Dear call manager,
+
+The invitation you sent to {{ invitee_name }} to join the reviewer pool for the call "{{ call_name }}" has expired without an answer.
+
+Invited: {{ invited_at }}
+Expired: {{ expired_at }}
+
+The invitation can no longer be accepted or declined. You can send it again from the call's reviewer pool, which gives it a new expiry date:
+
+{{ reviewer_pool_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
