@@ -585,6 +585,7 @@ td:nth-child(4) {
 | `maybe_auto_approve_order_for_project` | `Django Signal (post_save)` | `marketplace.Order` | Auto-approve a newly created PENDING_CONSUMER order if the project has |
 | `notify_about_project_details_update` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
 | `notify_about_request_based_item_creation` | `Django Signal (post_save)` | `support.Issue` | No description |
+| `notify_about_resource_end_date_change_request` | `Django Signal (post_save)` | `marketplace.ResourceEndDateChangeRequest` | Email approvers about a new request, and the requester about the verdict. |
 | `notify_approvers_when_order_is_created` | `Django Signal (post_save)` | `marketplace.Order` | Notify approvers when an order is created. |
 | `notify_offering_user_about_tos_requirement` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Notify user about ToS requirement when OfferingUser is created. |
 | `notify_recipients_when_order_is_created` | `Django Signal (post_save)` | `marketplace.Order` | Notify the recipients configured on the offering about a new order. |
@@ -811,14 +812,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 732
+Total unique handlers found: 733
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 327 handlers
+- **waldur_mastermind**: 328 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

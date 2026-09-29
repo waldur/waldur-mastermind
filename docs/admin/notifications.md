@@ -1766,6 +1766,151 @@ Notifies organization owners about active resources that have not generated cost
 
 ```
 
+### marketplace.notification_resource_end_date_change_request_approved
+
+Notifies the requester when their resource end date change request is approved.
+
+#### Templates
+
+=== "marketplace/notification_resource_end_date_change_request_approved_subject.txt"
+
+```txt
+
+    End date change request approved for resource {{ resource_end_date_change_request.resource.name }}
+
+```
+
+=== "marketplace/notification_resource_end_date_change_request_approved_message.txt"
+
+```txt
+
+    {% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}Hello!
+
+    Your request to change the end date of resource {{ resource.name }} in project {{ resource.project.name }} has been approved{% if request.reviewed_by %} by {{ request.reviewed_by.full_name|default:request.reviewed_by.username }}{% endif %}.
+
+    The new end date is {{ request.requested_end_date|date:"Y-m-d" }}.
+    {% if request.review_comment %}Review comment: {{ request.review_comment }}
+    {% endif %}
+    You can view the resource here:
+    {{ resource_url }}
+
+    Thank you!{% endwith %}
+
+```
+
+=== "marketplace/notification_resource_end_date_change_request_approved_message.html"
+
+```txt
+
+    {% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}<p>Hello!</p>
+    <p>Your request to change the end date of resource <strong>{{ resource.name }}</strong> in project <strong>{{ resource.project.name }}</strong> has been approved{% if request.reviewed_by %} by {{ request.reviewed_by.full_name|default:request.reviewed_by.username }}{% endif %}.</p>
+    <p>The new end date is <strong>{{ request.requested_end_date|date:"Y-m-d" }}</strong>.</p>
+    {% if request.review_comment %}<p>Review comment: {{ request.review_comment }}</p>{% endif %}
+    <p>You can <a href="{{ resource_url }}">view the resource here</a>.</p>
+    <p>Thank you!</p>{% endwith %}
+
+```
+
+### marketplace.notification_resource_end_date_change_request_created
+
+Notifies users who may set the resource end date when someone requests to change it.
+
+#### Templates
+
+=== "marketplace/notification_resource_end_date_change_request_created_subject.txt"
+
+```txt
+
+    End date change request for resource {{ resource_end_date_change_request.resource.name }}
+
+```
+
+=== "marketplace/notification_resource_end_date_change_request_created_message.txt"
+
+```txt
+
+    {% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}Hello!
+
+    {% if request.created_by %}{{ request.created_by.full_name|default:request.created_by.username }}{% if request.created_by.email %} ({{ request.created_by.email }}){% endif %}{% else %}A project member{% endif %} has requested to change the end date of a resource.
+
+    Resource: {{ resource.name }}
+    Project: {{ resource.project.name }}
+    Organization: {{ resource.project.customer.name }}
+    Current end date: {{ resource.end_date|date:"Y-m-d"|default:"not set" }}
+    Requested end date: {{ request.requested_end_date|date:"Y-m-d" }}
+    {% if request.comment %}Comment: {{ request.comment }}
+    {% endif %}
+    Please review and approve or reject the request:
+    {{ resource_url }}
+
+    Thank you!{% endwith %}
+
+```
+
+=== "marketplace/notification_resource_end_date_change_request_created_message.html"
+
+```txt
+
+    {% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}<p>Hello!</p>
+    <p>{% if request.created_by %}{{ request.created_by.full_name|default:request.created_by.username }}{% if request.created_by.email %} ({{ request.created_by.email }}){% endif %}{% else %}A project member{% endif %} has requested to change the end date of a resource.</p>
+    <table>
+        <tr><td>Resource:</td><td><strong>{{ resource.name }}</strong></td></tr>
+        <tr><td>Project:</td><td>{{ resource.project.name }}</td></tr>
+        <tr><td>Organization:</td><td>{{ resource.project.customer.name }}</td></tr>
+        <tr><td>Current end date:</td><td>{{ resource.end_date|date:"Y-m-d"|default:"not set" }}</td></tr>
+        <tr><td>Requested end date:</td><td><strong>{{ request.requested_end_date|date:"Y-m-d" }}</strong></td></tr>
+        {% if request.comment %}<tr><td>Comment:</td><td>{{ request.comment }}</td></tr>{% endif %}
+    </table>
+    <p>Please <a href="{{ resource_url }}">review and approve or reject the request</a>.</p>
+    <p>Thank you!</p>{% endwith %}
+
+```
+
+### marketplace.notification_resource_end_date_change_request_rejected
+
+Notifies the requester when their resource end date change request is rejected.
+
+#### Templates
+
+=== "marketplace/notification_resource_end_date_change_request_rejected_subject.txt"
+
+```txt
+
+    End date change request rejected for resource {{ resource_end_date_change_request.resource.name }}
+
+```
+
+=== "marketplace/notification_resource_end_date_change_request_rejected_message.txt"
+
+```txt
+
+    {% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}Hello!
+
+    Your request to change the end date of resource {{ resource.name }} in project {{ resource.project.name }} to {{ request.requested_end_date|date:"Y-m-d" }} has been rejected{% if request.reviewed_by %} by {{ request.reviewed_by.full_name|default:request.reviewed_by.username }}{% endif %}.
+
+    The end date remains {{ resource.end_date|date:"Y-m-d"|default:"not set" }}.
+    {% if request.review_comment %}Review comment: {{ request.review_comment }}
+    {% endif %}
+    You can view the resource here:
+    {{ resource_url }}
+
+    Thank you!{% endwith %}
+
+```
+
+=== "marketplace/notification_resource_end_date_change_request_rejected_message.html"
+
+```txt
+
+    {% with request=resource_end_date_change_request resource=resource_end_date_change_request.resource %}<p>Hello!</p>
+    <p>Your request to change the end date of resource <strong>{{ resource.name }}</strong> in project <strong>{{ resource.project.name }}</strong> to <strong>{{ request.requested_end_date|date:"Y-m-d" }}</strong> has been rejected{% if request.reviewed_by %} by {{ request.reviewed_by.full_name|default:request.reviewed_by.username }}{% endif %}.</p>
+    <p>The end date remains <strong>{{ resource.end_date|date:"Y-m-d"|default:"not set" }}</strong>.</p>
+    {% if request.review_comment %}<p>Review comment: {{ request.review_comment }}</p>{% endif %}
+    <p>You can <a href="{{ resource_url }}">view the resource here</a>.</p>
+    <p>Thank you!</p>{% endwith %}
+
+```
+
 ### marketplace.notification_resource_limit_change_request_approved
 
 Notifies the requester when their resource limit change request is approved.

@@ -38,6 +38,7 @@
 
 - call_document_added
 - call_document_removed
+- reviewer_workload_limit_overridden
 
 ## Chat
 
