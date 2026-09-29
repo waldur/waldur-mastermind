@@ -104,6 +104,15 @@ class OnSubmissionTest(EvaluationStartTestBase):
         proposal = self.submit()
         self.assertGreater(proposal.modified, before)
 
+    def test_submit_records_submitted_at(self):
+        # activate_first_step() saves with update_fields; the timestamp must
+        # survive it.
+        before = timezone.now()
+        proposal = self.submit()
+        self.assertEqual(proposal.state, ProposalStates.IN_REVIEW)
+        self.assertIsNotNone(proposal.submitted_at)
+        self.assertGreaterEqual(proposal.submitted_at, before)
+
     def test_task_leaves_on_submission_proposals_alone(self):
         self.submit()
         self.pass_cutoff()
@@ -138,6 +147,13 @@ class AtCutoffSubmitTest(EvaluationStartTestBase):
             instances.filter(status=WorkflowStepInstanceStatuses.ACTIVE).exists()
         )
         self.assertEqual(self.step_started_dispatches(), [])
+
+    def test_submit_records_submitted_at(self):
+        before = timezone.now()
+        proposal = self.submit()
+        self.assertEqual(proposal.state, ProposalStates.SUBMITTED)
+        self.assertIsNotNone(proposal.submitted_at)
+        self.assertGreaterEqual(proposal.submitted_at, before)
 
     def test_task_does_nothing_before_the_cutoff(self):
         self.submit()
