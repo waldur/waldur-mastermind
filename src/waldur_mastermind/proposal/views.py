@@ -1098,11 +1098,24 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         if call_round.call.state != CallStates.ACTIVE:
             raise exceptions.ValidationError(_("Call is not active."))
 
-        if call_round.start_time > timezone.now():
-            call_round.start_time = timezone.now()
-
-        if call_round.cutoff_time < timezone.now():
+        # Whether a round is open is derived from its times alone, so closing it
+        # means moving its cutoff to now -- and saving it. The status is checked
+        # under the row lock, so two concurrent closes cannot both pass.
+        with transaction.atomic():
+            call_round = models.Round.objects.select_for_update().get(pk=call_round.pk)
+            round_status = call_round.status
+            if round_status == RoundStatuses.ENDED:
+                raise exceptions.ValidationError(_("Round is already closed."))
+            if round_status == RoundStatuses.SCHEDULED:
+                # A round that has not started holds no proposals. Closing it
+                # would leave a round whose cutoff is not after its start and
+                # which overlaps whichever round is open now -- both refused
+                # when a round is created, edited or imported.
+                raise exceptions.ValidationError(
+                    _("Round has not started yet. Delete it instead of closing it.")
+                )
             call_round.cutoff_time = timezone.now()
+            call_round.save(update_fields=["cutoff_time"])
 
         utils.process_closed_round(call_round)
 

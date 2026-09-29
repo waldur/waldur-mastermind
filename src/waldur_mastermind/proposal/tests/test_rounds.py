@@ -13,7 +13,7 @@ from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
-from waldur_mastermind.proposal.enums import ProposalStates
+from waldur_mastermind.proposal.enums import CallStates, ProposalStates, RoundStatuses
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -296,6 +296,70 @@ class RoundCloseTest(test.APITestCase):
         # Submitted proposals remain submitted (reviews created via assignment workflow)
         self.submitted_proposal.refresh_from_db()
         self.assertEqual(self.submitted_proposal.state, ProposalStates.SUBMITTED)
+
+    def test_closing_open_round_moves_cutoff_to_now_and_saves_it(self):
+        start_time = self.round.start_time
+        before = timezone.now()
+        response = self.close_round("staff")
+        after = timezone.now()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.round.refresh_from_db()
+        self.assertEqual(self.round.start_time, start_time)
+        self.assertGreaterEqual(self.round.cutoff_time, before)
+        self.assertLessEqual(self.round.cutoff_time, after)
+        self.assertEqual(self.round.status, RoundStatuses.ENDED)
+
+    def test_closed_round_is_no_longer_open_for_proposals(self):
+        call = factories.CallFactory(state=CallStates.ACTIVE)
+        call_round = factories.RoundFactory(
+            call=call,
+            start_time=timezone.now() - datetime.timedelta(days=1),
+            cutoff_time=timezone.now() + datetime.timedelta(days=10),
+        )
+        requested_offering = factories.RequestedOfferingFactory(call=call)
+        open_offerings = models.RequestedOffering.objects.open_for_proposals()
+        self.assertIn(requested_offering, open_offerings)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            factories.RoundFactory.get_url(call, call_round, "close")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        open_offerings = models.RequestedOffering.objects.open_for_proposals()
+        self.assertNotIn(requested_offering, open_offerings)
+
+    def test_closing_ended_round_is_refused(self):
+        cutoff_time = timezone.now() - datetime.timedelta(days=1)
+        self.round.start_time = cutoff_time - datetime.timedelta(days=10)
+        self.round.cutoff_time = cutoff_time
+        self.round.save()
+
+        response = self.close_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Round is already closed.", str(response.data))
+
+        self.round.refresh_from_db()
+        self.assertEqual(self.round.cutoff_time, cutoff_time)
+        # Nothing is cancelled by a refused close.
+        self.draft_proposal.refresh_from_db()
+        self.assertEqual(self.draft_proposal.state, ProposalStates.DRAFT)
+
+    def test_closing_scheduled_round_is_refused(self):
+        start_time = timezone.now() + datetime.timedelta(days=1)
+        cutoff_time = start_time + datetime.timedelta(days=10)
+        self.round.start_time = start_time
+        self.round.cutoff_time = cutoff_time
+        self.round.save()
+
+        response = self.close_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.round.refresh_from_db()
+        self.assertEqual(self.round.start_time, start_time)
+        self.assertEqual(self.round.cutoff_time, cutoff_time)
+        self.assertEqual(self.round.status, RoundStatuses.SCHEDULED)
 
     @data(
         "user",
