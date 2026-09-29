@@ -531,6 +531,13 @@ class ProposalReviewSerializer(
     proposal_uuid = serializers.UUIDField(read_only=True, source="proposal.uuid")
     proposal_slug = serializers.ReadOnlyField(source="proposal.slug")
     coi_confirmation_required = serializers.SerializerMethodField()
+    override_workload_limit = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        help_text="Create the review even if this takes the reviewer above "
+        "their maximum number of open assignments in the call's reviewer "
+        "pool. The override is logged.",
+    )
 
     class Meta:
         model = models.Review
@@ -569,6 +576,7 @@ class ProposalReviewSerializer(
             "coi_confirmed",
             "coi_confirmed_at",
             "coi_confirmation_required",
+            "override_workload_limit",
             "created",
             "modified",
         )
@@ -696,7 +704,12 @@ class ProposalReviewSerializer(
                 _("Review already exists for this proposal and reviewer.")
             )
 
+        validated_data.pop("override_workload_limit", None)
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data.pop("override_workload_limit", None)
+        return super().update(instance, validated_data)
 
 
 set_override(
@@ -3574,6 +3587,7 @@ class CallReviewerPoolSerializer(
     - annotated_reviews_pending
     - annotated_reviews_in_progress
     - annotated_reviews_completed
+    - open_assignments (``CallReviewerPool.objects.with_open_assignments()``)
     """
 
     reviewer_name = serializers.SerializerMethodField()
@@ -3592,6 +3606,13 @@ class CallReviewerPoolSerializer(
     reviews_pending = serializers.SerializerMethodField()
     reviews_in_progress = serializers.SerializerMethodField()
     reviews_completed = serializers.SerializerMethodField()
+    current_assignments = serializers.IntegerField(
+        source="get_open_assignments",
+        read_only=True,
+        help_text="Number of the reviewer's open assignments in this call: "
+        "pending or accepted assignment items whose review is not finished, "
+        "plus reviews in progress created without an assignment item.",
+    )
     overridden_by_name = serializers.ReadOnlyField(
         source="overridden_by.full_name", default=""
     )
@@ -5221,6 +5242,11 @@ class CreateManualAssignmentSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
         help_text="Optional notes about this assignment",
+    )
+    override_workload_limit = serializers.BooleanField(
+        default=False,
+        help_text="Assign even if this takes the reviewer above their "
+        "maximum number of open assignments. The override is logged.",
     )
 
 

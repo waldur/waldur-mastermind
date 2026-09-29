@@ -2319,6 +2319,8 @@ class CallReviewerPool(
 
     # Assignment limits
     max_assignments = models.PositiveIntegerField(default=5)
+    # Not maintained and not read: the open assignment count is derived by
+    # ``CallReviewerPoolQuerySet.with_open_assignments`` instead.
     current_assignments = models.PositiveIntegerField(default=0)
 
     # Matching score
@@ -2351,6 +2353,7 @@ class CallReviewerPool(
     )
     overridden_at = models.DateTimeField(null=True, blank=True)
 
+    objects = managers.CallReviewerPoolQuerySet.as_manager()
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
@@ -2428,6 +2431,19 @@ class CallReviewerPool(
         if self.invited_user:
             return self.invited_user.full_name
         return self.invited_email
+
+    def get_open_assignments(self) -> int:
+        """Number of assignments currently occupying this reviewer's workload."""
+        annotated = getattr(self, "open_assignments", None)
+        if annotated is not None:
+            return annotated
+        return (
+            type(self)
+            .objects.filter(pk=self.pk)
+            .with_open_assignments()
+            .values_list("open_assignments", flat=True)
+            .get()
+        )
 
 
 class ReviewerSuggestion(

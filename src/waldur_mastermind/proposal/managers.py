@@ -2,11 +2,12 @@ from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
-from django.db.models import DateTimeField, ExpressionWrapper, F
+from django.db.models import DateTimeField, ExpressionWrapper, F, OuterRef, Q
 from django.db.models.functions import Coalesce, Greatest
 from django.utils import timezone
 
 from waldur_core.core.models import User
+from waldur_core.core.utils import SubqueryCount
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_scope_ids
 from waldur_core.structure.managers import get_connected_customers
@@ -14,7 +15,13 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.managers import MixinManager
 
 from . import models
-from .enums import CallStates, ProposalStates, RequestedOfferingStates
+from .enums import (
+    AssignmentBatchStatuses,
+    AssignmentItemStatuses,
+    CallStates,
+    ProposalStates,
+    RequestedOfferingStates,
+)
 
 
 class CallQuerySet(django_models.QuerySet):
@@ -70,6 +77,49 @@ class ReviewQuerySet(django_models.QuerySet):
         return self.with_deadline().filter(
             state=models.Review.States.IN_REVIEW,
             review_deadline__lte=timezone.now() + timedelta(days=days),
+        )
+
+
+def open_assignment_items_q():
+    """Assignment items that still occupy a reviewer's workload.
+
+    A pending item counts unless its batch was cancelled or has expired; an
+    accepted item counts until its review is submitted or rejected. Declined,
+    expired, reassigned and COI-blocked items never count.
+    """
+    pending = Q(status=AssignmentItemStatuses.PENDING) & ~Q(
+        batch__status__in=[
+            AssignmentBatchStatuses.CANCELLED,
+            AssignmentBatchStatuses.EXPIRED,
+        ]
+    )
+    accepted = Q(status=AssignmentItemStatuses.ACCEPTED) & (
+        Q(review__isnull=True) | Q(review__state=models.Review.States.IN_REVIEW)
+    )
+    return pending | accepted
+
+
+class CallReviewerPoolQuerySet(django_models.QuerySet):
+    def with_open_assignments(self):
+        """Annotate each pool entry with ``open_assignments``.
+
+        The count is the entry's open assignment items (see
+        ``open_assignment_items_q``) plus reviews in progress by the same
+        reviewer on the call's proposals that were created directly rather
+        than from an assignment item, so a review is never counted twice.
+        """
+        items = models.AssignmentItem.objects.filter(
+            open_assignment_items_q(),
+            batch__reviewer_pool_entry=OuterRef("pk"),
+        ).values("pk")
+        direct_reviews = models.Review.objects.filter(
+            proposal__round__call=OuterRef("call_id"),
+            reviewer=OuterRef("reviewer__user_id"),
+            state=models.Review.States.IN_REVIEW,
+            assignment_item__isnull=True,
+        ).values("pk")
+        return self.annotate(
+            open_assignments=SubqueryCount(items) + SubqueryCount(direct_reviews)
         )
 
 
