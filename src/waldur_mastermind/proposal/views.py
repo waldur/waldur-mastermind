@@ -1,5 +1,6 @@
 import logging
 import secrets
+import uuid as uuid_module
 from datetime import datetime, timedelta
 from typing import cast
 
@@ -68,6 +69,7 @@ from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViews
 from waldur_mastermind.proposal import (
     affinity_scoring,
     call_transfer,
+    exports,
     filters,
     models,
     orcid_service,
@@ -96,6 +98,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     ReviewerSuggestionStatuses,
+    ReviewStates,
     RoundStatuses,
     TransitionModes,
     WorkflowStepInstanceStatuses,
@@ -618,6 +621,85 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
         return response.Response(serializer.data)
 
 
+# Shared by both exports. The extension names the endpoint the value comes
+# from, as the schema validation requires of every UUID query parameter.
+def _export_uuid_parameter(name: str, operation_id: str, description: str):
+    return OpenApiParameter(
+        name,
+        OpenApiTypes.UUID,
+        OpenApiParameter.QUERY,
+        description=description,
+        extensions={"x-waldur-operation-id": operation_id},
+    )
+
+
+_EXPORT_APPLICANT_PARAMETER = _export_uuid_parameter(
+    "created_by_uuid", "users_list", "Limit the export to one applicant."
+)
+_EXPORT_REVIEWER_PARAMETER = _export_uuid_parameter(
+    "reviewer_uuid", "users_list", "Limit the export to one reviewer."
+)
+_EXPORT_PROPOSAL_PARAMETER = _export_uuid_parameter(
+    "proposal_uuid", "proposal_proposals_list", "Limit the export to one proposal."
+)
+
+_EXPORT_NAME_PARAMETER = OpenApiParameter(
+    "proposal_name",
+    OpenApiTypes.STR,
+    OpenApiParameter.QUERY,
+    description=(
+        "Limit the export to proposals whose name contains this text — the "
+        "list's search box. Named proposal_name because a bare `name` is read "
+        "by the call's own filterset."
+    ),
+)
+
+_EXPORT_ROUND_PARAMETER = OpenApiParameter(
+    "round_uuid",
+    OpenApiTypes.UUID,
+    OpenApiParameter.QUERY,
+    description="Limit the export to one round.",
+    extensions={"x-waldur-operation-id": "proposal_protected_calls_rounds_list"},
+)
+
+
+def _export_uuid(request, parameter: str) -> str | None:
+    """A UUID filter, rejected early when it is not a UUID.
+
+    Feeding a malformed value straight to the queryset raises a ValidationError
+    from deep inside Django and comes back as a 500.
+    """
+    raw = request.query_params.get(parameter)
+    if not raw:
+        return None
+    try:
+        uuid_module.UUID(raw)
+    except (TypeError, ValueError):
+        raise exceptions.ValidationError({parameter: _("Not a valid UUID.")}) from None
+    return raw
+
+
+def _export_states(request, parameter: str, choices) -> list[str]:
+    """The state filter, restricted to the states the model defines.
+
+    Named ``proposal_state`` / ``review_state`` rather than ``state``: the
+    permission check resolves the call through ``get_object()``, which still
+    runs the call's own list filterset, and a bare ``state`` there is read as a
+    *call* state and rejected.
+
+    An unknown state is refused rather than ignored: silently returning every
+    row would hand the user a file they believe is filtered.
+    """
+    states = request.query_params.getlist(parameter)
+    valid = {state for state, _label in choices}
+    unknown = [state for state in states if state not in valid]
+    if unknown:
+        raise exceptions.ValidationError(
+            {parameter: _("Unknown state: %s.") % ", ".join(sorted(unknown))}
+        )
+    return states
+
+
 class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
     serializer_class = serializers.ProtectedCallSerializer
@@ -823,6 +905,94 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             {"message": "Call has been archived."},
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        operation_id="proposal_protected_calls_export_proposals",
+        description=(
+            "Download the call's proposals as CSV, one row per proposal, with "
+            "one column per requested offering component. The column set is "
+            "derived from the call, so it is the same for every row and "
+            "between exports of the same call."
+        ),
+        parameters=[
+            _EXPORT_ROUND_PARAMETER,
+            _EXPORT_APPLICANT_PARAMETER,
+            _EXPORT_NAME_PARAMETER,
+            OpenApiParameter(
+                "proposal_state",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                many=True,
+                enum=[state for state, _label in ProposalStates.CHOICES],
+                description="Limit the export to proposals in these states.",
+            ),
+        ],
+        responses={(200, "text/csv"): OpenApiTypes.BINARY},
+        filters=False,
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="export-proposals")
+    def export_proposals(self, request, uuid=None):
+        call: models.Call = self.get_object()
+        queryset = exports.proposal_queryset(
+            call,
+            round_uuid=_export_uuid(request, "round_uuid"),
+            states=_export_states(request, "proposal_state", ProposalStates.CHOICES),
+            applicant_uuid=_export_uuid(request, "created_by_uuid"),
+            name=request.query_params.get("proposal_name"),
+        )
+        schema = exports.CallExportSchema(call)
+        return exports.csv_response(
+            exports.proposal_rows(schema, queryset),
+            f"{call.slug}-proposals.csv",
+        )
+
+    export_proposals_permissions = [
+        proposal_permissions.support_can_read(
+            permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
+        )
+    ]
+
+    @extend_schema(
+        operation_id="proposal_protected_calls_export_reviews",
+        description=(
+            "Download the call's reviews as CSV, one row per review. The "
+            "reviewer's private comment is never included: the export is open "
+            "to call managers, and the review API keeps that field from them."
+        ),
+        parameters=[
+            _EXPORT_ROUND_PARAMETER,
+            _EXPORT_REVIEWER_PARAMETER,
+            _EXPORT_PROPOSAL_PARAMETER,
+            _EXPORT_NAME_PARAMETER,
+            OpenApiParameter(
+                "review_state",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                many=True,
+                enum=[state for state, _label in ReviewStates.CHOICES],
+                description="Limit the export to reviews in these states.",
+            ),
+        ],
+        responses={(200, "text/csv"): OpenApiTypes.BINARY},
+        filters=False,
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="export-reviews")
+    def export_reviews(self, request, uuid=None):
+        call: models.Call = self.get_object()
+        queryset = exports.review_queryset(
+            call,
+            round_uuid=_export_uuid(request, "round_uuid"),
+            states=_export_states(request, "review_state", ReviewStates.CHOICES),
+            reviewer_uuid=_export_uuid(request, "reviewer_uuid"),
+            proposal_uuid=_export_uuid(request, "proposal_uuid"),
+            proposal_name=request.query_params.get("proposal_name"),
+        )
+        return exports.csv_response(
+            exports.review_rows(queryset),
+            f"{call.slug}-reviews.csv",
+        )
+
+    export_reviews_permissions = export_proposals_permissions
 
     @extend_schema(
         operation_id="proposal_protected_calls_duplicate",
@@ -3074,6 +3244,11 @@ class ProposalViewSet(
                     {"detail": "Proposal must have a project team before submission."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+
+            # Saved here, not below: activate_first_step() saves with
+            # update_fields and would drop anything set beforehand.
+            proposal.submitted_at = timezone.now()
+            proposal.save(update_fields=["submitted_at"])
 
             workflow_service.create_step_instances(proposal)
             started = None

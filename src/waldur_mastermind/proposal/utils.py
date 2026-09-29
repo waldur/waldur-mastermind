@@ -37,7 +37,7 @@ from waldur_mastermind.proposal.enums import (
 logger = logging.getLogger(__name__)
 
 
-def _requested_months(
+def requested_months(
     requested_resource: proposal_models.RequestedResource,
 ) -> int | None:
     """How many whole months the request asks for, or None when it names none.
@@ -110,7 +110,7 @@ def get_proposal_duration_months(proposal: proposal_models.Proposal) -> int | No
             requested_offering__state=RequestedOfferingStates.ACCEPTED
         ).select_related("requested_offering__offering")
         if _is_prepaid(requested_resource)
-        and (months := _requested_months(requested_resource)) is not None
+        and (months := requested_months(requested_resource)) is not None
     ]
     return max(lengths) if lengths else None
 
@@ -271,7 +271,7 @@ def _requested_end_date(
     the offering's own termination rules — allocation must not fail over a date,
     so the resource is left open and the operator gets a warning.
     """
-    months = _requested_months(requested_resource)
+    months = requested_months(requested_resource)
     if months is None:
         return None
 

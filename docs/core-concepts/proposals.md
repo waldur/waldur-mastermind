@@ -322,6 +322,101 @@ Calls can configure review transparency:
 | **`reviewer_identity_visible_to_submitters`** | Whether submitters see reviewer names | `False`: Shows "Reviewer 1", "Reviewer 2" |
 | **`reviews_visible_to_submitters`** | Whether submitters see review details | `False`: Only final decision visible |
 
+## Exports for Call Managers
+
+Panel meetings, funding-body reporting and archiving work from a spreadsheet of
+proposals plus one document per application. Three exports cover that.
+
+### Proposal and review CSV
+
+Two actions on the protected call stream a CSV:
+
+| Endpoint | Rows |
+|----------|------|
+| `GET /api/proposal-protected-calls/<uuid>/export-proposals/` | One per proposal |
+| `GET /api/proposal-protected-calls/<uuid>/export-reviews/` | One per review |
+
+They take the same filters as the matching lists, so a filtered table exports
+the rows it shows:
+
+| Parameter | Proposals | Reviews | Limits the export to |
+|-----------|:---------:|:-------:|----------------------|
+| `round_uuid` | ✓ | ✓ | One round |
+| `proposal_state` (repeatable) | ✓ | | Proposals in these states |
+| `review_state` (repeatable) | | ✓ | Reviews in these states |
+| `created_by_uuid` | ✓ | | One applicant |
+| `reviewer_uuid` | | ✓ | One reviewer |
+| `proposal_uuid` | | ✓ | One proposal |
+| `proposal_name` | ✓ | ✓ | Proposals whose name contains the text |
+
+The state and name filters are prefixed rather than bare `state` / `name`
+because the call's own list filterset still runs when the endpoint resolves the
+call, and reads a bare `state` or `name` as the *call's*.
+
+An unknown state is refused with a 400 rather than ignored: a silently
+unfiltered file is worse than an error.
+
+The proposal export carries the proposal's identity, its created and submitted
+dates, its applicant and organisation, its state and current workflow step, the
+science sub-domain and the requested duration, **one column per requested
+offering component** with the amount asked for, and the review counts, average
+score and individual scores. Rejected reviews — declined, expired or dropped
+for a conflict of interest — are left out of the counts, so "assigned" minus
+"submitted" is the number still outstanding. The column set is derived from the call, not from
+the proposals that matched the filters, so every row has the same shape and two
+exports of one call line up. An offering gets columns once it is accepted, or
+when proposals already asked for it before it was cancelled; a pending offering
+cannot carry amounts yet and is left out.
+
+The duration is what the proposal asks for, not what was granted: reading the
+grant back costs a query per proposal.
+
+`Proposal.submitted_at` is recorded when the proposal leaves draft. It is empty
+for proposals submitted before that field existed: their submission was never
+stored, and the only proxy — the first workflow step instance — was backfilled
+by migration for the oldest of them, so it would read as the upgrade date. The
+column is left empty rather than filled with a date that reads as fact.
+
+The review export carries the proposal, the round, the proposal's step, the
+reviewer, the state, the score, the public comment and the review deadline.
+
+### Permissions and what is left out
+
+Both exports require `UPDATE_CALL` on the call or its managing organisation —
+staff, support (read-only) and call managers. Reviewers and panel members hold a
+role on the call but not that permission, so they get a 403; an applicant cannot
+see the protected call at all and gets a 404.
+
+- `summary_private_comment` is **never** exported. The review API keeps it from
+  call managers, and the export is open to them.
+- Reviewer identity needs no such treatment: it is already visible to exactly
+  the roles that may run an export (see `ProposalReviewSerializer.get_fields`),
+  so no export can widen it.
+- A step's `blind_review` does not apply. It hides evaluators' assessments from
+  *each other*, not from the people running the call.
+- Text that would start a spreadsheet formula (`=`, `+`, `-`, `@`, tab or
+  carriage return) is written with a leading apostrophe. Proposal names,
+  applicant profiles and review comments come from applicants and reviewers,
+  and the file is opened by call managers. Numbers, negative ones included, are
+  left as they are.
+
+### Scale
+
+The response is streamed row by row, and the queryset costs a fixed number of
+queries regardless of how many proposals a call holds — the per-component
+columns are resolved once from the call, and reviews and requested resources are
+prefetched. A call with several thousand proposals starts sending bytes
+immediately instead of waiting behind a proxy's read timeout.
+
+### Per-proposal PDF
+
+The application as the applicant filled it — fields, requested resources, team
+and the *names* of its attachments — is rendered in the browser from the
+proposal detail page (Homeport's `DownloadProposalPdfAction`). Rendering it
+client-side keeps a PDF toolchain and its system packages out of the image for
+the sake of one document, and the attachment files themselves stay behind the
+media endpoint, which applies its own access rules.
+
 ## Integration with Waldur Marketplace
 
 ### Resource Provisioning Flow

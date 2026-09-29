@@ -1012,6 +1012,18 @@ class Proposal(
         related_name="+",
     )
     project_summary = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "When the proposal left draft. Null for proposals submitted before "
+            "this field existed: their submission was never recorded and the "
+            "only proxy, the first workflow step instance, was backfilled by "
+            "migration for the oldest of them — so it is left empty rather "
+            "than filled with a date that reads as fact."
+        ),
+    )
 
     resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
     allocation_comment = models.CharField(blank=True, max_length=150, null=True)
