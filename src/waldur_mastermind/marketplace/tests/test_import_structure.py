@@ -47,8 +47,9 @@ from waldur_mastermind.policy.models import (
     SlurmPeriodicUsagePolicy,
 )
 from waldur_mastermind.policy.tests import factories as policy_factories
-from waldur_mastermind.proposal.enums import COITypes
+from waldur_mastermind.proposal.enums import COITypes, ProposalDisclosureLevels
 from waldur_mastermind.proposal.models import (
+    CallAssignmentConfiguration,
     CallCOIConfiguration,
     CallWorkflowStep,
     Proposal,
@@ -3879,3 +3880,158 @@ class ImportCallCOIConfigurationTest(TestCase):
 
         self.assertIn("unknown conflict types", output)
         self.assertIn("only be assigned to one rule", output)
+
+    def test_invitation_disclosure_level_is_imported(self):
+        self._run(invitation_proposal_disclosure=ProposalDisclosureLevels.FULL_DETAILS)
+
+        config = CallCOIConfiguration.objects.get(call=self.call)
+        self.assertEqual(
+            config.invitation_proposal_disclosure,
+            ProposalDisclosureLevels.FULL_DETAILS,
+        )
+
+    def test_unknown_invitation_disclosure_level_is_skipped(self):
+        output = self._run(invitation_proposal_disclosure="everything")
+
+        self.assertFalse(CallCOIConfiguration.objects.filter(call=self.call).exists())
+        self.assertIn("everything", output)
+
+
+class ImportCallAssignmentConfigurationTest(TestCase):
+    CONFIG_UUID = "c9100000000000000000000000000001"
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.temp_dir, "test_structure.json")
+        self.call = proposal_factories.CallFactory()
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def _run(self, *args, **fields):
+        data = {
+            "call_assignment_configurations": [
+                {
+                    "uuid": self.CONFIG_UUID,
+                    "call_uuid": self.call.uuid.hex,
+                    **fields,
+                }
+            ]
+        }
+        with open(self.test_file_path, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        output = StringIO()
+        call_command(
+            "import_structure", *args, input=self.test_file_path, stdout=output
+        )
+        return output.getvalue()
+
+    def test_non_default_values_are_imported(self):
+        self._run(
+            auto_reassign_on_decline=True,
+            max_auto_reassign_attempts=5,
+            assignment_expiration_days=14,
+            send_reminder_before_expiry_days=3,
+        )
+
+        config = CallAssignmentConfiguration.objects.get(call=self.call)
+        self.assertEqual(config.uuid.hex, self.CONFIG_UUID)
+        self.assertTrue(config.auto_reassign_on_decline)
+        self.assertEqual(config.max_auto_reassign_attempts, 5)
+        self.assertEqual(config.assignment_expiration_days, 14)
+        self.assertEqual(config.send_reminder_before_expiry_days, 3)
+
+    def test_missing_fields_fall_back_to_model_defaults(self):
+        self._run(assignment_expiration_days=10)
+
+        config = CallAssignmentConfiguration.objects.get(call=self.call)
+        self.assertEqual(config.assignment_expiration_days, 10)
+        self.assertFalse(config.auto_reassign_on_decline)
+        self.assertEqual(config.max_auto_reassign_attempts, 3)
+        self.assertEqual(config.send_reminder_before_expiry_days, 2)
+
+    def test_existing_configuration_is_updated_with_update_flag(self):
+        self._run(assignment_expiration_days=10)
+        self._run("--update", assignment_expiration_days=21)
+
+        config = CallAssignmentConfiguration.objects.get(call=self.call)
+        self.assertEqual(config.assignment_expiration_days, 21)
+
+    def test_existing_configuration_is_kept_without_update_flag(self):
+        self._run(assignment_expiration_days=10)
+        self._run(assignment_expiration_days=21)
+
+        config = CallAssignmentConfiguration.objects.get(call=self.call)
+        self.assertEqual(config.assignment_expiration_days, 10)
+
+    def test_invalid_value_is_skipped(self):
+        output = self._run(assignment_expiration_days=-1)
+
+        self.assertFalse(
+            CallAssignmentConfiguration.objects.filter(call=self.call).exists()
+        )
+        self.assertIn("assignment_expiration_days", output)
+
+    def test_unknown_call_is_skipped(self):
+        self.call.delete()
+        output = self._run(assignment_expiration_days=10)
+
+        self.assertFalse(CallAssignmentConfiguration.objects.exists())
+        self.assertIn("not found", output)
+
+
+class CallConfigurationRoundTripTest(TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.export_path = os.path.join(self.temp_dir, "export.json")
+        self.call = proposal_factories.CallFactory()
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def test_export_then_import_preserves_both_configurations(self):
+        coi = CallCOIConfiguration.objects.create(
+            call=self.call,
+            coauthorship_lookback_years=6,
+            include_same_institution=False,
+            recusal_required_types=[COITypes.INST_SAME],
+            invitation_proposal_disclosure=ProposalDisclosureLevels.TITLES_AND_SUMMARIES,
+        )
+        assignment = CallAssignmentConfiguration.objects.create(
+            call=self.call,
+            auto_reassign_on_decline=True,
+            max_auto_reassign_attempts=4,
+            assignment_expiration_days=14,
+            send_reminder_before_expiry_days=3,
+        )
+        fields = [
+            f.name
+            for model in (CallCOIConfiguration, CallAssignmentConfiguration)
+            for f in model._meta.concrete_fields
+        ]
+        self.assertIn("invitation_proposal_disclosure", fields)
+
+        def snapshot(instance):
+            return {
+                f.name: f.value_from_object(instance)
+                for f in type(instance)._meta.concrete_fields
+                if f.name not in {"id", "created", "modified"}
+            }
+
+        expected_coi = snapshot(coi)
+        expected_assignment = snapshot(assignment)
+
+        call_command("export_structure", "-o", self.export_path, stdout=StringIO())
+        CallCOIConfiguration.objects.all().delete()
+        CallAssignmentConfiguration.objects.all().delete()
+        call_command("import_structure", "-i", self.export_path, stdout=StringIO())
+
+        self.assertEqual(
+            snapshot(CallCOIConfiguration.objects.get(call=self.call)), expected_coi
+        )
+        self.assertEqual(
+            snapshot(CallAssignmentConfiguration.objects.get(call=self.call)),
+            expected_assignment,
+        )

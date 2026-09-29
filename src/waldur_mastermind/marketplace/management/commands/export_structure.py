@@ -67,6 +67,8 @@ from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
     Call,
+    CallAssignmentConfiguration,
+    CallCOIConfiguration,
     CallManagingOrganisation,
     CallResourceTemplate,
     Proposal,
@@ -267,6 +269,13 @@ class Command(BaseCommand):
                 "call_managing_organisations", self.export_call_managing_organisations
             ),
             "calls": self.log_export_step("calls", self.export_calls),
+            "call_coi_configurations": self.log_export_step(
+                "call_coi_configurations", self.export_call_coi_configurations
+            ),
+            "call_assignment_configurations": self.log_export_step(
+                "call_assignment_configurations",
+                self.export_call_assignment_configurations,
+            ),
             "requested_offerings": self.log_export_step(
                 "requested_offerings", self.export_requested_offerings
             ),
@@ -1744,6 +1753,48 @@ class Command(BaseCommand):
                 }
             )
         return calls
+
+    def export_call_coi_configurations(self):
+        """Export per-call conflict-of-interest configuration data."""
+        return [
+            {
+                "uuid": config.uuid.hex,
+                "call_uuid": config.call.uuid.hex,
+                "call_name": config.call.name,
+                "coauthorship_lookback_years": config.coauthorship_lookback_years,
+                "coauthorship_threshold_papers": config.coauthorship_threshold_papers,
+                "institutional_lookback_years": config.institutional_lookback_years,
+                "include_same_department": config.include_same_department,
+                "include_same_institution": config.include_same_institution,
+                "recusal_required_types": config.recusal_required_types,
+                "management_allowed_types": config.management_allowed_types,
+                "disclosure_only_types": config.disclosure_only_types,
+                "auto_detect_coauthorship": config.auto_detect_coauthorship,
+                "auto_detect_institutional": config.auto_detect_institutional,
+                "auto_detect_named_personnel": config.auto_detect_named_personnel,
+                "invitation_proposal_disclosure": config.invitation_proposal_disclosure,
+            }
+            for config in CallCOIConfiguration.objects.select_related("call").order_by(
+                "call__name", "uuid"
+            )
+        ]
+
+    def export_call_assignment_configurations(self):
+        """Export per-call reviewer assignment configuration data."""
+        return [
+            {
+                "uuid": config.uuid.hex,
+                "call_uuid": config.call.uuid.hex,
+                "call_name": config.call.name,
+                "auto_reassign_on_decline": config.auto_reassign_on_decline,
+                "max_auto_reassign_attempts": config.max_auto_reassign_attempts,
+                "assignment_expiration_days": config.assignment_expiration_days,
+                "send_reminder_before_expiry_days": config.send_reminder_before_expiry_days,
+            }
+            for config in CallAssignmentConfiguration.objects.select_related(
+                "call"
+            ).order_by("call__name", "uuid")
+        ]
 
     def export_requested_offerings(self):
         """Export requested offering data."""

@@ -22,6 +22,10 @@ from waldur_mastermind.marketplace.demo_presets.manifest import (
 from waldur_mastermind.marketplace.demo_presets.time_shift import (
     rebase_to_current_month,
 )
+from waldur_mastermind.proposal.models import (
+    CallAssignmentConfiguration,
+    CallCOIConfiguration,
+)
 
 
 def _billing_preset(*, opt_in=True):
@@ -437,6 +441,45 @@ class DemoPresetLoadTest(test.APITestCase):
             f"Preset '{preset_name}' failed to load: {result['message']}\n"
             f"Output: {result.get('output', '')}",
         )
+
+    def test_call_management_preset_loads_call_configurations(self):
+        preset = json.loads(
+            pathlib.Path(
+                DemoPresetManager.get_preset_path("call_management")
+            ).read_text()
+        )
+        result = DemoPresetManager.load_preset(
+            "call_management",
+            cleanup_first=True,
+            dry_run=False,
+            skip_users=False,
+            skip_roles=False,
+        )
+        self.assertTrue(result["success"], result["message"])
+
+        coi_entries = preset["call_coi_configurations"]
+        assignment_entries = preset["call_assignment_configurations"]
+        self.assertTrue(coi_entries)
+        self.assertTrue(assignment_entries)
+
+        for entry in coi_entries:
+            config = CallCOIConfiguration.objects.get(call__uuid=entry["call_uuid"])
+            self.assertEqual(
+                config.invitation_proposal_disclosure,
+                entry["invitation_proposal_disclosure"],
+            )
+        for entry in assignment_entries:
+            config = CallAssignmentConfiguration.objects.get(
+                call__uuid=entry["call_uuid"]
+            )
+            self.assertEqual(config.uuid.hex, entry["uuid"])
+            for field in (
+                "auto_reassign_on_decline",
+                "max_auto_reassign_attempts",
+                "assignment_expiration_days",
+                "send_reminder_before_expiry_days",
+            ):
+                self.assertEqual(getattr(config, field), entry[field], field)
 
 
 class PresetMonthRebaseTest(TestCase):
