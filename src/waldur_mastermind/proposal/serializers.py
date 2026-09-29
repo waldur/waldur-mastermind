@@ -52,6 +52,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     COISeverityLevels,
     COITypes,
+    EvaluationStart,
     NotificationRuleRecipients,
     NotificationRuleTriggers,
     OrderAuthors,
@@ -1018,6 +1019,9 @@ class PublicCallSerializer(
             "reviews_visible_to_submitters",
             "has_eligibility_restrictions",
             "proposal_field_config",
+            # Public so an applicant can be told their evaluation waits for
+            # the cut-off.
+            "evaluation_start",
         )
         view_name = "proposal-public-call-detail"
         extra_kwargs = {
@@ -1478,6 +1482,15 @@ class ProtectedCallSerializer(PublicCallSerializer):
         required=False,
         help_text="Whose name the orders for resources granted by this call carry.",
     )
+    evaluation_start = serializers.ChoiceField(
+        choices=EvaluationStart.CHOICES,
+        required=False,
+        help_text=(
+            "When a submitted proposal's evaluation starts: on submission, or "
+            "for all proposals of a round together at its cut-off. Cannot be "
+            "changed while the call has proposals submitted or in review."
+        ),
+    )
     # The queryset is narrowed to the call's own people in get_fields(); what
     # stands here is only the schema's view of the field.
     order_author_user = serializers.SlugRelatedField(
@@ -1646,6 +1659,21 @@ class ProtectedCallSerializer(PublicCallSerializer):
         attrs = super().validate(attrs)
         self._validate_order_author(attrs)
         return attrs
+
+    def validate_evaluation_start(self, value):
+        """Refuse a switch while proposals are being evaluated.
+
+        A switch mid-round would leave the round split between proposals that
+        started on submission and proposals that wait for the cut-off.
+        """
+        call = self.instance
+        if (
+            isinstance(call, models.Call)
+            and value != call.evaluation_start
+            and call.has_proposals_under_evaluation()
+        ):
+            raise serializers.ValidationError(models.EVALUATION_START_LOCKED_MESSAGE)
+        return value
 
     def _validate_order_author(self, attrs):
         """A named contact the call ends up using has to be reachable.

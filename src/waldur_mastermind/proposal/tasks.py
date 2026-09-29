@@ -780,6 +780,63 @@ def notify_manager_when_reviews_are_completed(proposal_uuid):
     )
 
 
+@shared_task(name="waldur_mastermind.proposal.start_evaluation_for_closed_rounds")
+def start_evaluation_for_closed_rounds():
+    """Start the evaluation of proposals held for their round's cut-off.
+
+    A call that evaluates at the cut-off leaves each proposal ``submitted``
+    with its steps pending. Once the round's cut-off has passed, this activates
+    the first pending step of every such proposal, one transaction per
+    proposal so a single failure does not hold back the rest of the batch.
+
+    The candidates are not filtered on the call's current setting: only a
+    held submission leaves a proposal ``submitted`` with a pending step, so a
+    proposal held just before a manager switched the call back is still
+    started rather than stranded. Idempotent: a started proposal is
+    ``in_review`` and is not picked up again.
+    """
+    now = timezone.now()
+    held_ids = list(
+        proposal_models.Proposal.objects.filter(
+            state=ProposalStates.SUBMITTED,
+            round__cutoff_time__lte=now,
+            workflow_step_instances__status=WorkflowStepInstanceStatuses.PENDING,
+        )
+        .exclude(workflow_step_instances__status=WorkflowStepInstanceStatuses.ACTIVE)
+        .distinct()
+        .values_list("id", flat=True)
+    )
+
+    started = []
+    for proposal_id in held_ids:
+        try:
+            with transaction.atomic():
+                proposal = (
+                    proposal_models.Proposal.objects.select_for_update()
+                    .filter(id=proposal_id, state=ProposalStates.SUBMITTED)
+                    .first()
+                )
+                if proposal is None:
+                    continue
+                if workflow_service.activate_first_step(proposal) is None:
+                    continue
+        except Exception:
+            logger.exception(
+                "Failed to start the evaluation of proposal id=%s", proposal_id
+            )
+            continue
+        started.append(proposal.uuid)
+
+    for proposal_uuid in started:
+        notify_user_about_proposal_state_update.delay(
+            proposal_uuid, ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW
+        )
+
+    if started:
+        logger.info("Started the evaluation of %d proposal(s)", len(started))
+    return len(started)
+
+
 @shared_task(name="waldur_mastermind.proposal.mark_expired_workflow_steps")
 def mark_expired_workflow_steps():
     """Expire ACTIVE workflow step instances past their deadline and advance the workflow.
