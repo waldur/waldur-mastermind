@@ -60,6 +60,9 @@ from waldur_mastermind.marketplace.enums import (
     CourseAccountState,
     DiscountAggregations,
     ImpactLevel,
+    KpiAggregations,
+    KpiCadences,
+    KpiDirections,
     LimitPeriods,
     MaintenanceState,
     MaintenanceTimingBucket,
@@ -3434,6 +3437,134 @@ class ComponentUsagePollRecord(models.Model):
             f"{self.resource.name} / {self.component.type}: "
             f"last_poll={self.last_poll_time}, total={self.accumulated_total}"
         )
+
+
+class OfferingKpi(
+    core_models.UuidMixin,
+    BaseComponent,
+):
+    """A business KPI an offering reports for the projects consuming it.
+
+    Separate from OfferingComponent on purpose: a component is money-bearing
+    and feeds invoices, whereas a KPI must never reach billing.
+    """
+
+    class Meta:
+        unique_together = ("type", "offering")
+        ordering = ["name", "id"]
+
+    offering = models.ForeignKey(
+        on_delete=models.CASCADE, to=Offering, related_name="kpis"
+    )
+    aggregation = models.CharField(
+        max_length=10,
+        choices=KpiAggregations.CHOICES,
+        default=KpiAggregations.SUM,
+        help_text=_("How datapoints roll up into one project-level figure."),
+    )
+    direction = models.CharField(
+        max_length=10,
+        choices=KpiDirections.CHOICES,
+        default=KpiDirections.NEUTRAL,
+        help_text=_("Which way this KPI has to move to count as an improvement."),
+    )
+    target = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text=_("Optional value the project is aiming for."),
+    )
+    cadence = models.CharField(
+        max_length=10,
+        choices=KpiCadences.CHOICES,
+        default=KpiCadences.MONTHLY,
+        help_text=_("How often the service is expected to report this KPI."),
+    )
+    attribute = models.CharField(
+        max_length=50,
+        blank=True,
+        validators=[InternalNameValidator],
+        help_text=_(
+            "Datapoint attribute this KPI is broken down by, for example "
+            "course. Empty when the KPI has no breakdown."
+        ),
+    )
+
+    class Permissions:
+        customer_path = "offering__customer"
+
+    def __str__(self):
+        return f"{self.offering.name} / {self.type}"
+
+
+class ResourceKpiValue(
+    TimeStampedModel,
+    core_models.UuidMixin,
+    LoggableMixin,
+):
+    """One KPI datapoint reported by a service for one of its resources.
+
+    Values hang off the resource, so a project figure is the aggregate over
+    its resources. No billing_period: a KPI is never tied to an invoice.
+    """
+
+    resource = models.ForeignKey(
+        on_delete=models.CASCADE, to=Resource, related_name="kpi_values"
+    )
+    kpi = models.ForeignKey(
+        on_delete=models.CASCADE, to=OfferingKpi, related_name="values"
+    )
+    value = models.DecimalField(max_digits=20, decimal_places=2)
+    timestamp = models.DateTimeField(help_text=_("When the measurement was taken."))
+    attributes = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "OpenTelemetry-style attributes qualifying this datapoint, "
+            "for example the course or the support queue."
+        ),
+    )
+
+    class Permissions:
+        customer_path = ["resource__project__customer", "resource__offering__customer"]
+        project_path = "resource__project"
+
+    class Meta:
+        # "id" is the tiebreaker: timestamps tie by design when a service
+        # reports several attribute sets for the same moment, and an ordering
+        # that is not total lets paging repeat one row and skip another.
+        ordering = ["-timestamp", "id"]
+        constraints = [
+            UniqueConstraint(
+                fields=["resource", "kpi", "timestamp", "attributes"],
+                name="unique_resource_kpi_datapoint",
+            ),
+        ]
+        indexes = [
+            Index(fields=["resource", "kpi", "timestamp"]),
+        ]
+
+    def __str__(self):
+        return f"{self.resource.name} / {self.kpi.type}: {self.value}"
+
+    def clean(self):
+        super().clean()
+        # A KPI can only be reported against the offering that declares it;
+        # without this a service could write into another provider's KPI.
+        if not self.kpi_id or not self.resource_id:
+            return
+        if self.kpi.offering_id != self.resource.offering_id:
+            raise ValidationError(
+                _("KPI %(kpi)s is not declared by the resource's offering.")
+                % {"kpi": self.kpi.type}
+            )
+
+    def save(self, *args, **kwargs):
+        # Django does not run clean() on save and DRF does not call it either,
+        # so the cross-offering guard above would never fire without this.
+        self.clean()
+        return super().save(*args, **kwargs)
 
 
 class ComponentUserUsage(
