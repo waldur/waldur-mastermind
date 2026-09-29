@@ -717,6 +717,11 @@ class AssignmentBatchStatuses:
         (CANCELLED, "Cancelled by manager"),
     )
 
+    # Batches the reviewer has actually received. A draft is still the call
+    # manager's work in progress and a cancelled batch was withdrawn, so
+    # neither is shown to the reviewer.
+    SENT_TO_REVIEWER = (SENT, RESPONDED, EXPIRED)
+
 
 class AssignmentItemStatuses:
     """Status for individual proposal assignments within a batch."""

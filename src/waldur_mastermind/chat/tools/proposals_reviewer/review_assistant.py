@@ -8,6 +8,7 @@ from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.proposal.enums import AssignmentBatchStatuses
 from waldur_mastermind.proposal.models import (
     AssignmentItem,
     ConflictOfInterest,
@@ -115,6 +116,7 @@ class ReviewAssistantTool(BaseTool):
             or AssignmentItem.objects.filter(
                 proposal=proposal,
                 batch__reviewer_pool_entry__reviewer__user=user,
+                batch__status__in=AssignmentBatchStatuses.SENT_TO_REVIEWER,
             ).exists()
             or user.is_staff
         )

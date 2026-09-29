@@ -6982,21 +6982,21 @@ class MyAssignmentBatchViewSet(viewsets.ViewSet):
         except models.ReviewerProfile.DoesNotExist:
             raise exceptions.NotFound(_("Reviewer profile not found."))
 
+        # Drafts and cancelled batches were never sent to the reviewer.
         batch = get_object_or_404(
             models.AssignmentBatch,
             uuid=uuid,
             reviewer_pool_entry__reviewer=profile,
+            status__in=models.AssignmentBatchStatuses.SENT_TO_REVIEWER,
         )
 
+        disclosure = utils.proposal_disclosure_for_reviewer(batch.call)
         items = []
-        for item in batch.items.all():
+        for item in batch.items.select_related("proposal"):
             items.append(
                 {
                     "uuid": item.uuid,
-                    "proposal_uuid": item.proposal.uuid,
-                    "proposal_name": item.proposal.name,
-                    "proposal_slug": item.proposal.slug,
-                    "proposal_summary": item.proposal.project_summary or "",
+                    **utils.disclosed_proposal_fields(item, disclosure),
                     "status": item.status,
                     "status_display": item.get_status_display(),
                     "affinity_score": item.affinity_score,
