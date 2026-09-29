@@ -2,6 +2,17 @@
 
 When a notification is removed from a release, its database row is not deleted automatically. Run `waldur load_notifications <file> --prune` to report and remove notifications whose key is no longer listed below, along with any of their templates that no other notification declares and that have no operator-customised content. Customised template content is never deleted automatically.
 
+## Enabling notifications
+
+A notification that a release adds is registered disabled, unless the release says otherwise, and a disabled notification sends no email. After an upgrade, check this list for new notifications and enable the ones you need. Either list them with the value `true` in the file passed to `waldur load_notifications <file>` (in waldur-helm, `waldur.notifications` in `values.yaml`), or have a staff user enable them in the notifications list of the administration interface (the `enable` action of `/api/notification-messages/`). Keys not listed in the file keep their current state.
+
+The call-management reviewer workflow depends on these notifications, which are disabled until enabled:
+
+- `proposal.reviewer_assignment_invitation` — the email a reviewer receives when an assignment batch is sent to them
+- `proposal.assignment_expiry_reminder` — the reminder before an assignment batch expires
+- `proposal.assignment_batch_expired` — tells call managers that a batch expired without a full response
+- `proposal.reviewer_pool_invitation_expired` — tells the inviting call manager that a reviewer pool invitation expired
+
 ## WALDUR_CORE.STRUCTURE
 
 ### structure.change_email_request
@@ -3496,6 +3507,112 @@ A template used for generating the issue summary field during issue creation.
 
 ## WALDUR_MASTERMIND.PROPOSAL
 
+### proposal.assignment_batch_expired
+
+Notifies call managers that a reviewer's assignment batch expired before they responded to every proposal.
+
+#### Templates
+
+=== "proposal/assignment_batch_expired_subject.txt"
+
+```txt
+
+    Review assignments for "{{ call_name }}" expired without a response from {{ reviewer_name }}
+
+```
+
+=== "proposal/assignment_batch_expired_message.txt"
+
+```txt
+
+    Hello,
+
+    The review assignments sent to {{ reviewer_name }} for the call "{{ call_name }}" on {{ sent_at }} expired on {{ expired_at }} before every proposal was accepted or declined ({{ items_count }} proposal{{ items_count|pluralize }} in the batch).
+
+    You can extend the deadline or reassign the proposals here:
+
+    {{ assignments_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/assignment_batch_expired_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <p>Hello,</p>
+
+    <p>The review assignments sent to <strong>{{ reviewer_name }}</strong> for the call "<strong>{{ call_name }}</strong>" on {{ sent_at }} expired on {{ expired_at }} before every proposal was accepted or declined ({{ items_count }} proposal{{ items_count|pluralize }} in the batch).</p>
+
+    <p>You can extend the deadline or reassign the proposals here:</p>
+
+    <p><a href="{{ assignments_url }}">{{ assignments_url }}</a></p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
+### proposal.assignment_expiry_reminder
+
+Reminds a reviewer that their assignment batch expires soon; the lead time is set per call.
+
+#### Templates
+
+=== "proposal/assignment_expiry_reminder_subject.txt"
+
+```txt
+
+    Reminder: your review assignments for "{{ call_name }}" expire soon
+
+```
+
+=== "proposal/assignment_expiry_reminder_message.txt"
+
+```txt
+
+    Dear {{ reviewer_name }},
+
+    You have been asked to review {{ items_count }} proposal{{ items_count|pluralize }} in the call "{{ call_name }}" on {{ site_name }}, and the invitation expires soon.
+
+    Please accept or decline each proposal before {{ expires_at }}:
+
+    {{ link }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/assignment_expiry_reminder_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <p>Dear {{ reviewer_name }},</p>
+
+    <p>You have been asked to review {{ items_count }} proposal{{ items_count|pluralize }} in the call "<strong>{{ call_name }}</strong>" on {{ site_name }}, and the invitation expires soon.</p>
+
+    <p>Please accept or decline each proposal before <strong>{{ expires_at }}</strong>:</p>
+
+    <p><a href="{{ link }}">{{ link }}</a></p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
 ### proposal.new_proposal_submitted
 
 Notifies call managers about a new proposal submission.
@@ -4506,6 +4623,75 @@ A notification to the call managers about a rejected review.
 
 ```
 
+### proposal.reviewer_assignment_invitation
+
+Sent to a reviewer when a call manager sends them a batch of proposals to accept or decline.
+
+#### Templates
+
+=== "proposal/reviewer_assignment_invitation_subject.txt"
+
+```txt
+
+    You have {{ items_count }} proposal{{ items_count|pluralize }} to review for "{{ call_name }}"
+
+```
+
+=== "proposal/reviewer_assignment_invitation_message.txt"
+
+```txt
+
+    Dear {{ reviewer_name }},
+
+    You have been asked to review {{ items_count }} proposal{{ items_count|pluralize }} in the call "{{ call_name }}" on {{ site_name }}:
+    {% for proposal in proposals %}
+    - {{ proposal.name }}{% if proposal.summary %}
+      {{ proposal.summary }}{% endif %}{% endfor %}
+    {% if manager_notes %}
+    Note from the call manager:
+    {{ manager_notes }}
+    {% endif %}
+    Please accept or decline each proposal by {{ expires_at }}:
+
+    {{ link }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/reviewer_assignment_invitation_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <p>Dear {{ reviewer_name }},</p>
+
+    <p>You have been asked to review {{ items_count }} proposal{{ items_count|pluralize }} in the call "<strong>{{ call_name }}</strong>" on {{ site_name }}:</p>
+
+    <ul>
+    {% for proposal in proposals %}
+        <li><strong>{{ proposal.name }}</strong>{% if proposal.summary %}<br>{{ proposal.summary }}{% endif %}</li>
+    {% endfor %}
+    </ul>
+
+    {% if manager_notes %}
+    <p><strong>Note from the call manager:</strong><br>{{ manager_notes|linebreaksbr }}</p>
+    {% endif %}
+
+    <p>Please accept or decline each proposal by <strong>{{ expires_at }}</strong>:</p>
+
+    <p><a href="{{ link }}">{{ link }}</a></p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
 ### proposal.reviewer_invitation
 
 Sent to a person invited to join the reviewer pool for a call.
@@ -4554,6 +4740,66 @@ Sent to a person invited to join the reviewer pool for a call.
     <p>If you do not yet have an account, you will need to register and create a reviewer profile before accepting.</p>
 
     <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
+### proposal.reviewer_pool_invitation_expired
+
+Sent once to the call manager who invited a reviewer to the pool when the invitation expires without an answer.
+
+#### Templates
+
+=== "proposal/reviewer_pool_invitation_expired_subject.txt"
+
+```txt
+
+    Reviewer pool invitation for "{{ call_name }}" has expired
+
+```
+
+=== "proposal/reviewer_pool_invitation_expired_message.txt"
+
+```txt
+
+    Dear call manager,
+
+    The invitation you sent to {{ invitee_name }} to join the reviewer pool for the call "{{ call_name }}" has expired without an answer.
+
+    Invited: {{ invited_at }}
+    Expired: {{ expired_at }}
+
+    The invitation can no longer be accepted or declined. You can send it again from the call's reviewer pool, which gives it a new expiry date:
+
+    {{ reviewer_pool_url }}
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/reviewer_pool_invitation_expired_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Reviewer pool invitation expired</title>
+    </head>
+    <body>
+        <p>Dear call manager,</p>
+
+        <p>The invitation you sent to <strong>{{ invitee_name }}</strong> to join the reviewer pool for the call "<strong>{{ call_name }}</strong>" has expired without an answer.</p>
+
+        <ul>
+            <li><strong>Invited:</strong> {{ invited_at }}</li>
+            <li><strong>Expired:</strong> {{ expired_at }}</li>
+        </ul>
+
+        <p>The invitation can no longer be accepted or declined. You can send it again from the call's reviewer pool, which gives it a new expiry date: <a href="{{ reviewer_pool_url }}">{{ reviewer_pool_url }}</a></p>
+
+        <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
     </body>
     </html>
 
