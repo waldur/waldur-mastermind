@@ -975,7 +975,6 @@ class Proposal(
         related_name="+",
     )
     project_summary = models.TextField(blank=True)
-    project_duration = models.PositiveIntegerField(null=True, blank=True)
 
     resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
     allocation_comment = models.CharField(blank=True, max_length=150, null=True)
@@ -1398,7 +1397,6 @@ class Review(
     comment_project_description = models.CharField(
         max_length=255, null=True, blank=True
     )
-    comment_project_duration = models.CharField(max_length=255, null=True, blank=True)
     comment_project_supporting_documentation = models.CharField(
         max_length=255, null=True, blank=True
     )

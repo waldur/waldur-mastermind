@@ -280,7 +280,6 @@ class Review:
     comment_project_title: str
     comment_project_summary: str
     comment_project_description: str
-    comment_project_duration: str
     comment_resource_requests: str
     comment_team: str
 

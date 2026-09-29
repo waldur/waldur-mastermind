@@ -1862,7 +1862,6 @@ class Command(BaseCommand):
                     if proposal.approved_by
                     else None,
                     "project_summary": proposal.project_summary,
-                    "project_duration": proposal.project_duration,
                     "allocation_comment": proposal.allocation_comment,
                     "slug": proposal.slug,
                     "created": proposal.created.isoformat()
@@ -1929,7 +1928,6 @@ class Command(BaseCommand):
                     "comment_project_title": review.comment_project_title,
                     "comment_project_summary": review.comment_project_summary,
                     "comment_project_description": review.comment_project_description,
-                    "comment_project_duration": review.comment_project_duration,
                     "comment_project_supporting_documentation": review.comment_project_supporting_documentation,
                     "comment_resource_requests": review.comment_resource_requests,
                     "comment_team": review.comment_team,

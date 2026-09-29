@@ -2108,7 +2108,6 @@
       "created_by_uuid": "a4000000000000000000000000000006",
       "description": "This research program will develop and implement novel quantum error correction codes optimized for near-term quantum hardware. Using large-scale HPC simulations, we will benchmark these codes against current state-of-the-art approaches and identify promising candidates for experimental implementation.",
       "project_summary": "This proposal requests HPC resources for large-scale quantum error correction code simulations. We aim to develop and benchmark novel quantum error correction codes that can be implemented on near-term quantum hardware. Our team combines expertise in quantum computing theory, numerical simulation methods, and experimental quantum physics.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "1.3",
       "_team_comment": "PI: Niels Bohr (quantum theory), Co-PI: Project Manager (simulation expertise), Team Member: Project Member (data analysis)"
     },
@@ -2120,7 +2119,6 @@
       "created_by_uuid": "a4000000000000000000000000000007",
       "description": "We will employ high-throughput density functional theory (DFT) calculations combined with machine learning models to screen thousands of candidate materials for next-generation lithium-ion and solid-state batteries. This computational approach significantly accelerates the materials discovery process compared to experimental trial-and-error methods.",
       "project_summary": "We propose to use high-throughput computational screening to discover new battery electrode materials. Our approach combines DFT calculations with machine learning to accelerate the discovery process. The interdisciplinary team includes computational chemists, materials scientists, and machine learning experts.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "2.5",
       "_team_comment": "PI: Linus Pauling (materials chemistry), Co-I: Rachel Carson (data modeling)"
     },
@@ -2132,7 +2130,6 @@
       "created_by_uuid": "a4000000000000000000000000000008",
       "description": "Our project will implement adaptive mesh refinement (AMR) techniques in global climate models to achieve unprecedented resolution in critical regions such as mountain ranges, coastlines, and urban areas. This will enable more accurate predictions of extreme weather events and regional climate impacts.",
       "project_summary": "This project aims to enhance global climate model resolution using adaptive mesh refinement techniques. We will focus on improving precipitation predictions in mountainous regions. The team includes climate scientists, numerical methods specialists, and HPC software engineers.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "1.5",
       "_team_comment": "PI: Rachel Carson (climate science), Team: 2 postdocs (not yet in system)"
     },
@@ -2143,7 +2140,6 @@
       "state": "in_review",
       "created_by_uuid": "00000000000000000000000000000004",
       "project_summary": "We request GPU resources to fine-tune large language models for scientific text understanding. The models will be optimized for extracting structured information from research papers.",
-      "project_duration": 180,
       "oecd_fos_2007_code": "1.2"
     },
     {
@@ -2153,7 +2149,6 @@
       "state": "in_review",
       "created_by_uuid": "a4000000000000000000000000000007",
       "project_summary": "This proposal focuses on using deep learning methods for protein structure prediction. We will develop and train neural networks to predict 3D protein structures from amino acid sequences.",
-      "project_duration": 180,
       "oecd_fos_2007_code": "1.6"
     },
     {
@@ -2165,7 +2160,6 @@
       "approved_by_uuid": "a4000000000000000000000000000002",
       "project_uuid": "c4000000000000000000000000000001",
       "project_summary": "We propose large-scale molecular dynamics simulations of membrane protein complexes. This work will provide insights into drug binding mechanisms and membrane transport.",
-      "project_duration": 180,
       "allocation_comment": "Excellent proposal with strong scientific merit",
       "oecd_fos_2007_code": "1.6"
     },
@@ -2176,7 +2170,6 @@
       "state": "rejected",
       "created_by_uuid": "a4000000000000000000000000000008",
       "project_summary": "Training neural networks for short-term weather prediction using historical data.",
-      "project_duration": 180,
       "allocation_comment": "Insufficient technical detail in methodology",
       "oecd_fos_2007_code": "1.5"
     },
@@ -2188,7 +2181,6 @@
       "created_by_uuid": "a4000000000000000000000000000006",
       "approved_by_uuid": "a4000000000000000000000000000001",
       "project_summary": "Monte Carlo simulation of particle physics events for LHC data analysis.",
-      "project_duration": 365,
       "allocation_comment": "Strong track record and clear methodology",
       "oecd_fos_2007_code": "1.3"
     },
@@ -2200,7 +2192,6 @@
       "created_by_uuid": "00000000000000000000000000000004",
       "approved_by_uuid": "a4000000000000000000000000000001",
       "project_summary": "CFD simulations for aerodynamic optimization of wind turbine blades.",
-      "project_duration": 365,
       "allocation_comment": "Important application with clear industrial impact",
       "oecd_fos_2007_code": "2.3"
     },
@@ -2211,7 +2202,6 @@
       "state": "rejected",
       "created_by_uuid": "a4000000000000000000000000000007",
       "project_summary": "Development of genomic analysis pipeline for population genetics studies.",
-      "project_duration": 365,
       "allocation_comment": "Resource request not well justified",
       "oecd_fos_2007_code": "1.6"
     },
@@ -2222,7 +2212,6 @@
       "state": "draft",
       "created_by_uuid": "a4000000000000000000000000000007",
       "project_summary": "AI-powered platform for virtual screening of drug candidates.",
-      "project_duration": 180,
       "oecd_fos_2007_code": "3.1"
     },
     {
@@ -2232,7 +2221,6 @@
       "state": "canceled",
       "created_by_uuid": "00000000000000000000000000000005",
       "project_summary": "N-body simulations of galaxy formation and evolution.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "1.3"
     },
     {
@@ -2242,7 +2230,6 @@
       "state": "in_review",
       "created_by_uuid": "a4000000000000000000000000000006",
       "project_summary": "Direct numerical simulation of compressible turbulence at exascale to resolve the fine-scale energy cascade; awaiting the applicant's award response before provisioning.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "1.3"
     },
     {
@@ -2252,7 +2239,6 @@
       "state": "in_review",
       "created_by_uuid": "a4000000000000000000000000000007",
       "project_summary": "GPU-accelerated cryo-EM density map refinement; currently at technical assessment awaiting the responsible role to complete the required feasibility checklist.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "1.6"
     },
     {
@@ -2262,7 +2248,6 @@
       "state": "in_review",
       "created_by_uuid": "a4000000000000000000000000000008",
       "project_summary": "Design and simulation of a metropolitan-scale photonic quantum network; all evaluation steps complete, awaiting the allocation decision.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "1.3"
     },
     {
@@ -2272,7 +2257,6 @@
       "state": "in_review",
       "created_by_uuid": "a4000000000000000000000000000008",
       "project_summary": "High-fidelity gyrokinetic modeling of fusion plasma turbulence; technical assessment in progress with the feasibility checklist completed.",
-      "project_duration": 365,
       "oecd_fos_2007_code": "1.3"
     }
   ],
@@ -2401,7 +2385,6 @@
       "summary_public_comment": "Good proposal addressing an important research question. Some concerns about the timeline feasibility.",
       "summary_private_comment": "Consider requesting revised timeline.",
       "comment_project_summary": "Well written",
-      "comment_project_duration": "Timeline seems optimistic",
       "comment_resource_requests": "Adequate resource request"
     },
     {
