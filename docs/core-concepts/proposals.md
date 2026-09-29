@@ -41,7 +41,8 @@ graph TB
 
 - **`CallManagingOrganisation`**: Organizations that create and manage calls for proposals
 - **`Call`**: Main entity representing calls with configuration for review settings and duration
-- **`Round`**: Time-bounded submission periods with configurable review and allocation strategies
+- **`Round`**: Time-bounded submission periods; a round holds scheduling only
+- **`CallWorkflowStep`**: Per-call evaluation policy — which steps run and how each is gated
 - **`Proposal`**: Individual proposals with project details and resource requests
 - **`RequestedResource`**: Specific resource requests within proposals linked to marketplace
 - **`Review`**: Peer review system with scoring, comments, and field-specific feedback
@@ -121,44 +122,72 @@ stateDiagram-v2
     REJECTED --> [*] : Assignment ended
 ```
 
-## Round Management and Strategies
+## Rounds and Evaluation Policy
 
-### Review Strategies
+### What a round holds
 
-Rounds can be configured with different review timing approaches:
+A round is a submission window and nothing more. Its fields are scheduling only:
 
-| Strategy | Description | Use Case | Workflow |
-|----------|-------------|----------|----------|
-| **AFTER_ROUND** | Reviews start after submission deadline | Large competitive calls | All proposals collected → batch review assignment |
-| **AFTER_PROPOSAL** | Reviews start immediately upon submission | Rolling submissions | Individual proposal → immediate review assignment |
+| Field | Meaning |
+| --- | --- |
+| `start_time` | Submissions open |
+| `cutoff_time` | Submissions close |
+| `review_duration_in_days` | How long an individual review may stay open before it expires |
+| `allocation_date` | The date granted projects start when the allocation decision uses a fixed date |
 
-### Allocation Strategies
+A round's status (`scheduled`, `open`, `ended`) is derived from `start_time` and
+`cutoff_time`; it is not stored. Proposals can be created and submitted only while
+their round is open.
 
-Resource allocation can be automated or manual:
+Evaluation starts **per proposal, at submission**: submitting creates the
+proposal's workflow step instances and activates the first enabled step. There is
+no batch evaluation of a round after its cut-off.
 
-| Strategy | Description | Decision Maker | Allocation Logic |
-|----------|-------------|---------------|------------------|
-| **BY_CALL_MANAGER** | Manual allocation by call administrators | Human reviewers | Call manager reviews scores and allocates |
-| **AUTOMATIC** | Automated based on review scores | System algorithm | Automatic allocation above score threshold |
+### Where evaluation policy lives
 
-### Round Configuration
+Review and allocation policy is configured per call, on its workflow steps
+(`CallWorkflowStep`, one row per catalogue step, seeded when the call is created):
+
+| Setting | Meaning |
+| --- | --- |
+| `is_enabled` | Whether the step runs; `allocation_decision` is mandatory |
+| `duration_in_days` | Step deadline, counted from when the step starts |
+| `responsible_role` | Who acts on the step (call manager, offering manager, reviewer, panel member, applicant) |
+| `checklist`, `checklist_required` | Evaluation form for the step, and whether it must be answered |
+| `min_reviewers`, `min_score_threshold` | Completion gates: the step cannot be completed until enough reviews are in and their average reaches the threshold. They never decide on their own |
+| `blind_review`, `requires_coi_confirmation` | Evaluator isolation and conflict-of-interest attestation |
+| `applicant_visible` | Whether the applicant sees the step |
+| `transition_mode` | `automatic_on_completion` advances to the next step when this one is completed; `manual` waits for a separate advance |
+| `include_award_response`, `allocation_time` | On `allocation_decision` only: whether the applicant must accept the award, and whether allocation happens `on_decision` or on the round's `allocation_date` (`fixed_date`) |
+
+The step catalogue, in order: `administrative_check`, `technical_assessment`,
+`expert_review`, `panel_review`, `allocation_decision`, `award_response`.
 
 ```mermaid
 graph LR
-    subgraph "Round Configuration"
+    subgraph "Round (scheduling)"
         ST[Start Time] --> CT[Cutoff Time]
-        CT --> RD[Review Duration]
-        RD --> MR[Min Reviewers]
-        MR --> MS[Min Score]
-        MS --> AD[Allocation Date]
+        RD[Review Duration]
+        AD[Allocation Date]
     end
 
-    subgraph "Strategies"
-        RS[Review Strategy:<br/>AFTER_ROUND/<br/>AFTER_PROPOSAL]
-        AS[Allocation Strategy:<br/>BY_CALL_MANAGER/<br/>AUTOMATIC]
-        AT[Allocation Time:<br/>ON_DECISION/<br/>FIXED_DATE]
+    subgraph "CallWorkflowStep (policy, per call)"
+        EN[Enabled / Duration] --> GT[Min Reviewers / Min Score]
+        GT --> TM[Transition Mode]
+        TM --> AT[Allocation Time:<br/>on_decision / fixed_date]
     end
 ```
+
+### How long a granted project runs
+
+When a proposal is allocated, the project's end date is decided in this order:
+
+1. **The call's fixed duration** (`Call.fixed_duration_in_days`), whenever it is set.
+   Prepaid subscription lengths requested under the call are capped to fit inside
+   it, and resource end dates are clamped to the project's.
+2. **The longest requested prepaid subscription**, when the call sets no fixed
+   duration.
+3. **No end date**, when neither applies: the project runs until someone sets one.
 
 ## Resource Template System
 
@@ -239,30 +268,25 @@ For complete documentation on the matching system, including configuration optio
 
 ### Review Assignment
 
-The system supports flexible reviewer assignment strategies:
+Reviewers are assigned while a proposal's `expert_review` step is active. The
+step starts when the proposal reaches it in its workflow, which begins at
+submission; the call manager then assigns reviewers manually or generates
+assignment batches from the reviewer pool:
 
 ```mermaid
 sequenceDiagram
-    participant R as Round
     participant P as Proposal
-    participant RM as ReviewManager
+    participant WF as Workflow steps
+    participant CM as Call manager
     participant Rev as Reviewer
     participant N as NotificationSystem
 
-    Note over R: Review Strategy Check
-
-    alt After Round Strategy
-        R->>R: Cutoff time reached
-        R->>RM: Assign reviewers to all proposals
-    else After Proposal Strategy
-        P->>P: State changed to SUBMITTED
-        P->>RM: Assign reviewers immediately
-    end
-
-    RM->>Rev: Create review assignments
-    RM->>N: Notify assigned reviewers
+    P->>WF: Submitted, first enabled step starts
+    WF->>WF: Earlier steps completed, expert_review starts
+    CM->>Rev: Assign reviewers (manual or assignment batch)
+    WF->>N: Notify assigned reviewers
     Rev->>Rev: Complete reviews
-    RM->>RM: Aggregate review results
+    CM->>WF: Complete step once min reviewers and min score are met
 ```
 
 ### Review Scoring System
@@ -458,15 +482,18 @@ call = Call.objects.create(
     fixed_duration_in_days=365  # 1-year allocations
 )
 
-# Round with automatic allocation
+# Round: scheduling only
 round = Round.objects.create(
     call=call,
     start_time=datetime(2024, 1, 1),
     cutoff_time=datetime(2024, 2, 15),
-    review_strategy=Round.ReviewStrategies.AFTER_ROUND,
-    deciding_entity=Round.AllocationStrategies.AUTOMATIC,
-    minimal_average_scoring=7.0,  # Require 7/10 average
-    minimum_number_of_reviewers=3
+)
+
+# Evaluation policy: expert review with three reviewers and a 7.0 average
+CallWorkflowStep.objects.filter(call=call, step="expert_review").update(
+    is_enabled=True,
+    min_reviewers=3,
+    min_score_threshold=7.0,
 )
 
 # Resource template
@@ -491,7 +518,7 @@ template = CallResourceTemplate.objects.create(
 
 1. Researchers submit proposals with resource requests
 2. Expert reviewers evaluate scientific merit
-3. Proposals scoring ≥7.0 automatically receive allocations
+3. Once three reviews averaging at least 7.0 are in, the call manager completes the review step and decides the allocation
 4. HPC accounts created with specified limits
 5. Usage tracked through marketplace billing
 
@@ -508,15 +535,19 @@ call = Call.objects.create(
     reviews_visible_to_submitters=True
 )
 
-# Quarterly rounds with manual allocation
+# Quarterly rounds; granted projects start on the round's allocation date
 round_q1 = Round.objects.create(
     call=call,
     start_time=datetime(2024, 1, 1),
     cutoff_time=datetime(2024, 3, 15),
-    review_strategy=Round.ReviewStrategies.AFTER_ROUND,
-    deciding_entity=Round.AllocationStrategies.BY_CALL_MANAGER,
-    allocation_time=Round.AllocationTimes.FIXED_DATE,
     allocation_date=datetime(2024, 4, 1)
+)
+
+CallWorkflowStep.objects.filter(call=call, step="panel_review").update(
+    is_enabled=True
+)
+CallWorkflowStep.objects.filter(call=call, step="allocation_decision").update(
+    allocation_time=AllocationTimes.FIXED_DATE
 )
 
 # Multiple resource options
@@ -563,14 +594,16 @@ call = Call.objects.create(
     reviews_visible_to_submitters=False  # Confidential evaluation
 )
 
-# Continuous rolling rounds
+# One year-long round; each proposal is reviewed as soon as it is submitted
 rolling_round = Round.objects.create(
     call=call,
     start_time=datetime(2024, 1, 1),
     cutoff_time=datetime(2024, 12, 31),
-    review_strategy=Round.ReviewStrategies.AFTER_PROPOSAL,  # Immediate review
-    deciding_entity=Round.AllocationStrategies.BY_CALL_MANAGER,
     review_duration_in_days=14  # Fast turnaround
+)
+
+CallWorkflowStep.objects.filter(call=call, step="expert_review").update(
+    is_enabled=True, duration_in_days=14
 )
 
 # Startup development package
