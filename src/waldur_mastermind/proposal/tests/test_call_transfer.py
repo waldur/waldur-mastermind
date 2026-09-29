@@ -48,6 +48,7 @@ class CallTransferTest(test.APITestCase):
         self.call.description = "Call for compute time"
         self.call.fixed_duration_in_days = 365
         self.call.proposal_slug_template = "{call_slug}-{round_slug}-{seq}"
+        self.call.backend_id = "HPC-2026"
         self.call.compliance_checklist = checklist_factories.ChecklistFactory(
             name="Export control", checklist_type=ChecklistTypes.PROPOSAL_COMPLIANCE
         )
@@ -331,6 +332,24 @@ class CallTransferTest(test.APITestCase):
         self.assertNotIn("compliance_checklist", response.data["imported_sections"])
         self.assertNotIn("offerings", response.data["imported_sections"])
         self.assertIn("rounds", response.data["imported_sections"])
+
+    def test_reference_code_travels_with_the_call(self):
+        exported = self.export().data["export_data"]
+        self.assertEqual(exported["call"]["reference_code"], "HPC-2026")
+        self.assertNotIn("backend_id", exported["call"])
+
+        response = self.import_(exported)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["warnings"], [])
+        new_call = models.Call.objects.get(uuid=response.data["call_uuid"])
+        self.assertEqual(new_call.backend_id, "HPC-2026")
+
+    def test_overlong_reference_code_is_rejected(self):
+        exported = self.export().data["export_data"]
+        exported["call"]["reference_code"] = "x" * 1000
+        response = self.import_(exported)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("call.reference_code", response.data)
 
 
 class CallTransferSectionFlagsTest(test.APITestCase):

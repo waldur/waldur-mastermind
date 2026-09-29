@@ -59,6 +59,10 @@ _ALWAYS_EXCLUDED = frozenset(
 # Per-model plain fields that are portal-local or owned by someone other than
 # the call manager, on top of _ALWAYS_EXCLUDED.
 _CALL_EXCLUDED = frozenset({"state"})
+# Call.backend_id is not an external system's id but the reference code a call
+# manager types in (it prefixes proposal names). It travels under the name the
+# API and the UI give it.
+_CALL_REFERENCE_CODE = "reference_code"
 # The provider sets require_purchase_order; the call manager cannot, so an
 # import must not either. State restarts at requested on the new portal.
 _REQUESTED_OFFERING_EXCLUDED = frozenset({"state", "require_purchase_order"})
@@ -154,7 +158,10 @@ def export_call(call, sections=None):
     warnings = []
     data = {
         "schema_version": SCHEMA_VERSION,
-        "call": _dump(call, _CALL_EXCLUDED),
+        "call": {
+            **_dump(call, _CALL_EXCLUDED),
+            _CALL_REFERENCE_CODE: call.backend_id,
+        },
     }
 
     if sections["compliance_checklist"]:
@@ -435,7 +442,23 @@ class _Importer:
         call = models.Call(
             manager=self.manager, created_by=self.user, state=CallStates.DRAFT
         )
-        self._assign(call, self.data.get("call"), "call", _CALL_EXCLUDED)
+        values = self._mapping(self.data.get("call"), "call")
+        reference_code = self._text(
+            values.get(_CALL_REFERENCE_CODE), f"call.{_CALL_REFERENCE_CODE}"
+        )
+        self._assign(call, values, "call", _CALL_EXCLUDED)
+        if reference_code:
+            max_length = models.Call._meta.get_field("backend_id").max_length
+            if len(reference_code) > max_length:
+                raise serializers.ValidationError(
+                    {
+                        f"call.{_CALL_REFERENCE_CODE}": (
+                            f"Ensure this field has no more than {max_length} "
+                            "characters."
+                        )
+                    }
+                )
+            call.backend_id = reference_code
         if self.name:
             call.name = self.name
 
@@ -666,6 +689,7 @@ _NESTED_KEYS = frozenset(
         "checklist",
         "notification_rules",
         "criteria",
+        _CALL_REFERENCE_CODE,
     }
 )
 
