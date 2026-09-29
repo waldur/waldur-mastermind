@@ -8,6 +8,9 @@
 .DS_Store
 src/waldur_core/server/settings.py
 src/waldur_core/server/settings_local.py
+# Local test settings overrides (unique test DB names per workspace or run)
+src/waldur_core/server/test_settings_*.py
+!src/waldur_core/server/test_settings_local.py
 
 # Editor artifacts
 /.idea
