@@ -171,6 +171,25 @@ class ExtendDeadlineTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_extending_a_sent_batch_allows_another_reminder(self):
+        batch = self._create_batch(
+            status=AssignmentBatchStatuses.SENT,
+            expires_at=timezone.now() + timedelta(days=1),
+        )
+        batch.reminder_sent = True
+        batch.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            factories.AssignmentBatchFactory.get_url(batch, action="extend-deadline"),
+            {"expires_at": (timezone.now() + timedelta(days=14)).isoformat()},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, AssignmentBatchStatuses.SENT)
+        self.assertFalse(batch.reminder_sent)
+
     def test_extends_deadline_resets_notification_flags(self):
         batch = self._create_batch(
             status=AssignmentBatchStatuses.EXPIRED,

@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db.models import DateTimeField, ExpressionWrapper, F
+from django.db.models.functions import Coalesce, Greatest
 from django.utils import timezone
 
 from waldur_core.core.models import User
@@ -37,13 +38,24 @@ class ReviewQuerySet(django_models.QuerySet):
         """Reviews that have a deadline, with it aliased as ``review_deadline``.
 
         Same rule as ``Review.review_end_date``: created + the round's review
-        duration, where an unset or zero duration means no deadline. Evaluated
-        in SQL so callers can filter and order on it.
+        duration, where an unset or zero duration means no deadline, pushed
+        back to the assignment batch's deadline when the review was accepted
+        from a batch that ends later. Evaluated in SQL so callers can filter
+        and order on it.
         """
+        round_deadline = ExpressionWrapper(
+            F("created")
+            + timedelta(days=1) * F("proposal__round__review_duration_in_days"),
+            output_field=DateTimeField(),
+        )
         return self.filter(proposal__round__review_duration_in_days__gt=0).alias(
-            review_deadline=ExpressionWrapper(
-                F("created")
-                + timedelta(days=1) * F("proposal__round__review_duration_in_days"),
+            review_deadline=Greatest(
+                round_deadline,
+                Coalesce(
+                    F("assignment_item__batch__expires_at"),
+                    round_deadline,
+                    output_field=DateTimeField(),
+                ),
                 output_field=DateTimeField(),
             )
         )
@@ -180,3 +192,23 @@ def get_offering_manager_proposals(user):
         .exclude(proposal__state=ProposalStates.DRAFT)
         .values_list("proposal_id", flat=True)
     )
+
+
+def get_live_reviews(user):
+    """The user's reviews that are in review or submitted.
+
+    A rejected review is one that was cancelled or expired, so it no longer
+    gives the reviewer a reason to read the proposal.
+    """
+    return models.Review.objects.filter(reviewer=user).exclude(
+        state=models.Review.States.REJECTED
+    )
+
+
+def get_reviewed_proposals(user):
+    """Proposal ids the user holds a live review for."""
+    return get_live_reviews(user).values_list("proposal_id", flat=True)
+
+
+def holds_live_review(user, proposal) -> bool:
+    return get_live_reviews(user).filter(proposal=proposal).exists()

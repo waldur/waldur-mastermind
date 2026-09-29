@@ -1,0 +1,16 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Hello,</p>
+
+<p>The review assignments sent to <strong>{{ reviewer_name }}</strong> for the call "<strong>{{ call_name }}</strong>" on {{ sent_at }} expired on {{ expired_at }} before every proposal was accepted or declined ({{ items_count }} proposal{{ items_count|pluralize }} in the batch).</p>
+
+<p>You can extend the deadline or reassign the proposals here:</p>
+
+<p><a href="{{ assignments_url }}">{{ assignments_url }}</a></p>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>

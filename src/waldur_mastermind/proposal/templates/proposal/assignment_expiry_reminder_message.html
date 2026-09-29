@@ -1,0 +1,16 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>Dear {{ reviewer_name }},</p>
+
+<p>You have been asked to review {{ items_count }} proposal{{ items_count|pluralize }} in the call "<strong>{{ call_name }}</strong>" on {{ site_name }}, and the invitation expires soon.</p>
+
+<p>Please accept or decline each proposal before <strong>{{ expires_at }}</strong>:</p>
+
+<p><a href="{{ link }}">{{ link }}</a></p>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>

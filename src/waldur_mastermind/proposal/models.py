@@ -6,6 +6,7 @@ from typing import Literal, cast
 from constance import config as constance_config
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -935,6 +936,10 @@ def filter_proposals(user):
         # requested one of their accepted offerings (not every proposal on the
         # call).
         | Q(pk__in=managers.get_offering_manager_proposals(user))
+        # A reviewer reads the proposal they are reviewing through their review,
+        # not through a call role: accepting a reviewer-pool invitation or an
+        # assignment grants none.
+        | Q(pk__in=managers.get_reviewed_proposals(user))
     )
 
 
@@ -1428,13 +1433,26 @@ class Review(
         return "proposal-review"
 
     @property
-    def review_end_date(self) -> datetime:
-        if not self.proposal.round.review_duration_in_days:
-            return
+    def review_end_date(self) -> datetime | None:
+        """When the review is due, or None if the round sets no review duration.
 
-        return self.created + timedelta(
+        A review created by accepting an assignment is also due no earlier than
+        its assignment batch's deadline, so extending the batch deadline moves
+        the deadline of the reviews accepted from it.
+        """
+        if not self.proposal.round.review_duration_in_days:
+            return None
+
+        end_date = self.created + timedelta(
             days=self.proposal.round.review_duration_in_days
         )
+        try:
+            batch_expires_at = self.assignment_item.batch.expires_at
+        except ObjectDoesNotExist:
+            return end_date
+        if batch_expires_at and batch_expires_at > end_date:
+            return batch_expires_at
+        return end_date
 
 
 class ReviewComment(
@@ -2877,6 +2895,8 @@ class AssignmentBatch(
         help_text=_("Whether manager has been notified of expiration."),
     )
 
+    items: models.Manager["AssignmentItem"]
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
@@ -2952,8 +2972,8 @@ class AssignmentBatch(
         self.sent_at = timezone.now()
         self.expires_at = timezone.now() + timedelta(days=expiration_days)
         self.save(update_fields=["status", "sent_at", "expires_at"])
-
-        # TODO: Send email notification to reviewer
+        # The caller queues the invitation email
+        # (tasks.send_assignment_batch_invitation) once this returns.
 
 
 def filter_assignment_items(user):

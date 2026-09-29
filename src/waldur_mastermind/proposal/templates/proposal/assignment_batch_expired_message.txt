@@ -1,0 +1,9 @@
+Hello,
+
+The review assignments sent to {{ reviewer_name }} for the call "{{ call_name }}" on {{ sent_at }} expired on {{ expired_at }} before every proposal was accepted or declined ({{ items_count }} proposal{{ items_count|pluralize }} in the batch).
+
+You can extend the deadline or reassign the proposals here:
+
+{{ assignments_url }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

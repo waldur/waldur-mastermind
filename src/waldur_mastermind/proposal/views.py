@@ -102,7 +102,11 @@ from waldur_mastermind.proposal.enums import (
 )
 from waldur_mastermind.proposal.permissions import CALL_PERMISSION_SOURCES
 
-from .managers import get_connected_call_organizers, get_connected_calls
+from .managers import (
+    get_connected_call_organizers,
+    get_connected_calls,
+    holds_live_review,
+)
 from .models import Proposal
 from .serializers import ReviewSubmitSerializer, _is_reviewer_only_view
 
@@ -2605,9 +2609,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         for batch in batches:
             try:
                 batch.send_invitation(user=request.user)
-                sent_count += 1
             except Exception:
                 skipped_count += 1
+                continue
+            sent_count += 1
+            tasks.send_assignment_batch_invitation.delay(batch.uuid)
 
         return response.Response(
             {
@@ -2866,10 +2872,14 @@ class ProposalViewSet(
         if super().can_view_scope_team(user, proposal):
             return True
         call_id = proposal.round.call_id
-        return any(
+        if any(
             call_id in get_connected_calls(user, role)
             for role in (CallRole.MANAGER, CallRole.REVIEWER, CallRole.PANEL_MEMBER)
-        )
+        ):
+            return True
+        # A reviewer holding a review of this proposal but no call role (an
+        # accepted assignment grants none) evaluates it the same way.
+        return holds_live_review(user, proposal)
 
     def filter_user_roles_representation(self, data, scope, request):
         # Role expiration is team-admin metadata irrelevant to evaluation, so
@@ -6422,8 +6432,10 @@ class AssignmentBatchViewSet(ActionsViewSet):
 
         if serializer.validated_data.get("manager_notes"):
             batch.manager_notes = serializer.validated_data["manager_notes"]
+            batch.save(update_fields=["manager_notes"])
 
         batch.send_invitation(user=request.user)
+        tasks.send_assignment_batch_invitation.delay(batch.uuid)
 
         return response.Response(
             {
@@ -6494,12 +6506,13 @@ class AssignmentBatchViewSet(ActionsViewSet):
 
         new_expires_at = serializer.validated_data["expires_at"]
         batch.expires_at = new_expires_at
+        # A new deadline earns a new reminder before it.
+        batch.reminder_sent = False
 
         # Reactivate expired batch if new deadline is in future
         if batch.status == models.AssignmentBatchStatuses.EXPIRED:
             batch.status = models.AssignmentBatchStatuses.SENT
             batch.manager_notified = False  # Reset notification flag
-            batch.reminder_sent = False  # Reset reminder flag
             # Also reactivate pending items
             batch.items.filter(status=models.AssignmentItemStatuses.EXPIRED).update(
                 status=models.AssignmentItemStatuses.PENDING
@@ -6509,21 +6522,9 @@ class AssignmentBatchViewSet(ActionsViewSet):
             update_fields=["expires_at", "status", "manager_notified", "reminder_sent"]
         )
 
-        # Sync review deadlines for accepted assignments
-        # This ensures reviews don't get auto-rejected by the expiry task
-        # before the extended deadline
-        accepted_items_with_reviews = batch.items.filter(
-            status=models.AssignmentItemStatuses.ACCEPTED,
-            review__isnull=False,
-        ).select_related("review")
-
-        for item in accepted_items_with_reviews:
-            if (
-                item.review.review_end_date
-                and item.review.review_end_date < new_expires_at
-            ):
-                item.review.review_end_date = new_expires_at
-                item.review.save(update_fields=["review_end_date"])
+        # Accepted reviews need no update: Review.review_end_date is never
+        # earlier than the deadline of the batch the review was accepted from,
+        # so the expiry task already honours the new deadline.
 
         return response.Response(
             {

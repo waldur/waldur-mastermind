@@ -1,0 +1,9 @@
+Dear {{ reviewer_name }},
+
+You have been asked to review {{ items_count }} proposal{{ items_count|pluralize }} in the call "{{ call_name }}" on {{ site_name }}, and the invitation expires soon.
+
+Please accept or decline each proposal before {{ expires_at }}:
+
+{{ link }}
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.

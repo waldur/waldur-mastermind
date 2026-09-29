@@ -65,8 +65,9 @@ def expired_reviews_should_be_cancelled():
     """Cancel reviews that have expired."""
     for review in proposal_models.Review.objects.filter(
         state=proposal_models.Review.States.IN_REVIEW
-    ):
-        if review.review_end_date <= timezone.now():
+    ).select_related("proposal__round", "assignment_item__batch"):
+        review_end_date = review.review_end_date
+        if review_end_date and review_end_date <= timezone.now():
             review.state = proposal_models.Review.States.REJECTED
             review.save(update_fields=["state"])
 
@@ -858,6 +859,71 @@ def mark_expired_assignment_batches():
     logger.info(f"Marked {count} assignment batches as expired: {batch_uuids}")
 
 
+# Homeport's "My assignments" tab, where a reviewer answers assignment batches.
+MY_ASSIGNMENTS_PATH = "reviews/assignments/"
+
+
+def _get_batch_reviewer_contact(batch):
+    """Email address and display name of the reviewer an assignment batch is for."""
+    pool_entry = batch.reviewer_pool_entry
+    if pool_entry.reviewer:
+        user = pool_entry.reviewer.user
+        return user.email, user.full_name
+    if pool_entry.invited_user:
+        user = pool_entry.invited_user
+        return user.email, user.full_name
+    return pool_entry.invited_email, pool_entry.invited_email
+
+
+@shared_task(name="waldur_mastermind.proposal.send_assignment_batch_invitation")
+def send_assignment_batch_invitation(batch_uuid):
+    """Email a reviewer the proposals of an assignment batch that was just sent.
+
+    Proposal details are disclosed exactly as the reviewer's assignment API
+    discloses them (``utils.disclosed_proposal_fields``).
+    """
+    batch = proposal_models.AssignmentBatch.objects.select_related(
+        "call",
+        "reviewer_pool_entry__reviewer__user",
+        "reviewer_pool_entry__invited_user",
+    ).get(uuid=batch_uuid)
+
+    reviewer_email, reviewer_name = _get_batch_reviewer_contact(batch)
+    if not reviewer_email:
+        logger.warning(
+            f"Cannot send assignment invitation for batch {batch.uuid}: no reviewer email"
+        )
+        return
+
+    # Same disclosure as the reviewer's assignment API, so the two cannot
+    # drift: a COI-blocked proposal is listed by title only.
+    disclosure = utils.proposal_disclosure_for_reviewer(batch.call)
+    proposals = []
+    for item in batch.items.select_related("proposal").order_by("proposal__name"):
+        fields = utils.disclosed_proposal_fields(item, disclosure)
+        proposals.append(
+            {"name": fields["proposal_name"], "summary": fields["proposal_summary"]}
+        )
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "reviewer_name": reviewer_name,
+        "call_name": batch.call.name,
+        "proposals": proposals,
+        "items_count": len(proposals),
+        "expires_at": batch.expires_at,
+        "manager_notes": batch.manager_notes,
+        "link": core_utils.format_homeport_link(MY_ASSIGNMENTS_PATH),
+    }
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "reviewer_assignment_invitation",
+        context,
+        [reviewer_email],
+    )
+
+
 @shared_task(
     name="waldur_mastermind.proposal.send_assignment_expiry_reminders",
     autoretry_for=(Exception,),
@@ -876,7 +942,8 @@ def send_assignment_expiry_reminders():
         proposal_models.AssignmentBatch.objects.filter(
             status=AssignmentBatchStatuses.SENT,
             reminder_sent=False,
-            expires_at__isnull=False,
+            # A batch past its deadline is for the expiry task, not a reminder.
+            expires_at__gt=timezone.now(),
         )
         .select_related(
             "call",
@@ -906,19 +973,7 @@ def send_assignment_expiry_reminders():
         # Check if we're within the reminder window
         reminder_threshold = batch.expires_at - timedelta(days=reminder_days)
         if timezone.now() >= reminder_threshold:
-            # Get reviewer email
-            reviewer_email = None
-            reviewer_name = None
-
-            if batch.reviewer_pool_entry.reviewer:
-                reviewer_email = batch.reviewer_pool_entry.reviewer.user.email
-                reviewer_name = batch.reviewer_pool_entry.reviewer.user.full_name
-            elif batch.reviewer_pool_entry.invited_user:
-                reviewer_email = batch.reviewer_pool_entry.invited_user.email
-                reviewer_name = batch.reviewer_pool_entry.invited_user.full_name
-            else:
-                reviewer_email = batch.reviewer_pool_entry.invited_email
-                reviewer_name = reviewer_email
+            reviewer_email, reviewer_name = _get_batch_reviewer_contact(batch)
 
             if reviewer_email:
                 # Mark reminder_sent BEFORE sending to prevent duplicate emails
@@ -932,8 +987,8 @@ def send_assignment_expiry_reminders():
                     "reviewer_name": reviewer_name,
                     "call_name": batch.call.name,
                     "expires_at": batch.expires_at,
-                    "items_count": batch.assignment_items.count(),  # type: ignore[attr-defined]
-                    "link": core_utils.format_homeport_link("my-assignments/"),
+                    "items_count": batch.items.count(),
+                    "link": core_utils.format_homeport_link(MY_ASSIGNMENTS_PATH),
                 }
 
                 core_utils.broadcast_mail(
@@ -991,24 +1046,17 @@ def notify_managers_of_expired_batches():
             batch.save(update_fields=["manager_notified"])
             continue
 
-        # Get reviewer name
-        reviewer_name = None
-        if batch.reviewer_pool_entry.reviewer:
-            reviewer_name = batch.reviewer_pool_entry.reviewer.user.full_name
-        elif batch.reviewer_pool_entry.invited_user:
-            reviewer_name = batch.reviewer_pool_entry.invited_user.full_name
-        else:
-            reviewer_name = batch.reviewer_pool_entry.invited_email
+        _, reviewer_name = _get_batch_reviewer_contact(batch)
 
         context = {
             "site_name": config.SITE_NAME,
             "call_name": batch.call.name,
             "reviewer_name": reviewer_name,
-            "items_count": batch.assignment_items.count(),  # type: ignore[attr-defined]
+            "items_count": batch.items.count(),
             "sent_at": batch.sent_at,
             "expired_at": batch.expires_at,
             "assignments_url": core_utils.format_homeport_link(
-                f"call/{batch.call.uuid}/manage/?tab=reviewer-pool&pool_tab=assignments"
+                f"call/{batch.call.uuid}/manage/?tab=reviewer-pool&pool_tab=assignment_batches"
             ),
         }
 

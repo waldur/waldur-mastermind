@@ -65,7 +65,7 @@ from waldur_mastermind.proposal.enums import (
 )
 
 from . import models, notification_rules, utils, workflow_service
-from .managers import get_connected_calls
+from .managers import get_connected_calls, holds_live_review
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,8 @@ def _is_reviewer_only_view(user, proposal) -> bool:
     """True if the user views this proposal solely as a reviewer.
 
     Returns False for the applicant, call managers, staff, support, and
-    anonymous users — all of whom should see unfiltered data.
+    anonymous users — all of whom should see unfiltered data. True for call
+    reviewers and for anyone holding a live review of the proposal.
     """
     if not user or user.is_anonymous:
         return False
@@ -126,7 +127,12 @@ def _is_reviewer_only_view(user, proposal) -> bool:
     call_id = proposal.round.call_id
     if call_id in get_connected_calls(user, CallRole.MANAGER):
         return False
-    return call_id in get_connected_calls(user, CallRole.REVIEWER)
+    # A reviewer reaches the proposal either through a call role or through a
+    # review they hold on it (an accepted assignment grants no role); both see
+    # only what the call's applicant visibility config exposes.
+    return call_id in get_connected_calls(user, CallRole.REVIEWER) or holds_live_review(
+        user, proposal
+    )
 
 
 def filter_applicant_fields_for_reviewer(data: dict, proposal, user) -> dict:

@@ -1,0 +1,1 @@
+You have {{ items_count }} proposal{{ items_count|pluralize }} to review for "{{ call_name }}"
