@@ -117,9 +117,9 @@ def validate_round_is_open(proposal):
 
     Nothing checked the round here before, so a draft could be submitted after
     the cutoff: that notified the call managers, created the workflow step
-    instances and moved the proposal into review, only for
-    ``proposals_for_ended_rounds_should_be_cancelled`` to cancel it within the
-    hour. The deadline is now enforced at the door rather than swept up after.
+    instances and moved a late proposal into review. The deadline is enforced
+    here, at the door: ``proposals_for_ended_rounds_should_be_cancelled`` only
+    sweeps up the drafts left behind, never a proposal that was sent.
     """
     round_status = proposal.round.status
     if round_status == RoundStatuses.SCHEDULED:

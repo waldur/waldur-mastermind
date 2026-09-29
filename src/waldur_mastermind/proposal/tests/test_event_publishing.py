@@ -247,12 +247,10 @@ class ProposalEventPublishingTest(test.APITestCase):
         self.assertEqual(payload["previous_state"], CallStates.ACTIVE)
 
     @mock.patch(DELAY)
-    def test_round_cutoff_publishes_cancel_for_every_open_proposal(self, mock_delay):
+    def test_round_cutoff_publishes_cancel_for_drafts_only(self, mock_delay):
         self.other_proposal.state = ProposalStates.IN_REVIEW
         self.other_proposal.save()
-        accepted = factories.ProposalFactory(
-            round=self.round, state=ProposalStates.ACCEPTED
-        )
+        factories.ProposalFactory(round=self.round, state=ProposalStates.ACCEPTED)
         self.round.cutoff_time = timezone.now() - timedelta(minutes=1)
         self.round.save()
         mock_delay.reset_mock()
@@ -260,19 +258,18 @@ class ProposalEventPublishingTest(test.APITestCase):
         with self.captureOnCommitCallbacks(execute=True):
             tasks.proposals_for_ended_rounds_should_be_cancelled()
 
+        # Only the draft is cancelled. The in-review proposal was submitted
+        # before the cutoff and stays with its reviewers, so nothing is
+        # published for it (nor for the accepted one).
         payloads = _payloads_by_topic(mock_delay)[self._topic(self.call_consumer)]
         self.assertEqual(
             {(p["proposal_uuid"], p["state"], p["previous_state"]) for p in payloads},
             {
                 (self.proposal.uuid.hex, ProposalStates.CANCELED, ProposalStates.DRAFT),
-                (
-                    self.other_proposal.uuid.hex,
-                    ProposalStates.CANCELED,
-                    ProposalStates.IN_REVIEW,
-                ),
             },
         )
-        self.assertNotIn(accepted.uuid.hex, {p["proposal_uuid"] for p in payloads})
+        self.other_proposal.refresh_from_db()
+        self.assertEqual(self.other_proposal.state, ProposalStates.IN_REVIEW)
 
     @mock.patch(DELAY)
     def test_submit_to_workflow_call_publishes_draft_to_in_review(self, mock_delay):

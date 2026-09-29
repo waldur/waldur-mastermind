@@ -296,9 +296,9 @@ introducing `SUBSCRIBE_*` permissions that would have to be kept in sync.
   a round opens or ends. The proposal cancellations a round's end causes *are*
   published, as `proposal` events, on two paths:
   - at cutoff, the periodic `proposals_for_ended_rounds_should_be_cancelled`
-    task cancels every proposal not yet accepted, rejected or cancelled —
-    `submitted` and `in_review` as well as `draft` — saving them one at a time,
-    so each goes out through `post_save` as its own publish task;
+    task cancels the round's `draft` proposals — `submitted` and `in_review`
+    ones stay with the review workflow — saving them one at a time, so each
+    goes out through `post_save` as its own publish task;
   - the manual `close_round` endpoint cancels only the drafts, in one bulk
     update announced as a single batch.
   A busy round therefore reaches consumers as a burst of cancellations at
