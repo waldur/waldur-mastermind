@@ -2,8 +2,11 @@ from rest_framework import status, test
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.permissions.fixtures import OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.proposal.enums import ProposalStates
+from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.proposal import permissions
+from waldur_mastermind.proposal.enums import ProposalStates, RequestedOfferingStates
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
@@ -129,19 +132,48 @@ class TechnicalAssessmentResponsesTest(test.APITestCase):
         comment = next(a for a in answers if a["question_description"] == "Comment")
         self.assertEqual(comment["answer_display"], "Feasible")
 
-    def test_offering_manager_permission_allows_view(self):
-        # The view permission itself allows offering managers of the call (they
-        # may see peers' technical assessments). Proposal-level visibility for
-        # offering managers is enforced by filter_proposals (restricted to
-        # non-draft proposals that requested their offering) -- covered by the
-        # request-path tests below; this asserts the permission layer directly.
-        from waldur_mastermind.proposal import permissions
-
-        self.fixture.requested_offering_accepted
+    def test_offering_manager_permission_follows_requested_offerings(self):
+        # The permission layer recognises the managers of the offerings the
+        # proposal requested -- the same set notification rules mail -- and
+        # not the managers of every other offering accepted into the call.
+        self._link_offering_to_proposal()
         manager = self.fixture.offering_fixture.offering_manager
-        self.assertTrue(
-            permissions._user_holds_offering_manager_for_call(manager, self.call)
+        other_offering = marketplace_fixtures.MarketplaceFixture().offering
+        factories.RequestedOfferingFactory(
+            call=self.call,
+            offering=other_offering,
+            state=RequestedOfferingStates.ACCEPTED,
+            created_by=self.fixture.owner,
         )
+        other_manager = structure_factories.UserFactory()
+        other_offering.add_user(other_manager, OfferingRole.MANAGER)
+
+        self.assertTrue(
+            permissions._user_holds_offering_manager_for_proposal(
+                manager, self.proposal
+            )
+        )
+        self.assertFalse(
+            permissions._user_holds_offering_manager_for_proposal(
+                other_manager, self.proposal
+            )
+        )
+
+    def test_other_providers_manager_with_call_role_cannot_view_responses(self):
+        # A call reviewer can reach every proposal on the call; also managing
+        # an offering accepted into the call does not make them a technical
+        # reviewer of a proposal that never requested that offering.
+        other_offering = marketplace_fixtures.MarketplaceFixture().offering
+        factories.RequestedOfferingFactory(
+            call=self.call,
+            offering=other_offering,
+            state=RequestedOfferingStates.ACCEPTED,
+            created_by=self.fixture.owner,
+        )
+        dual_role = self.fixture.reviewer_1
+        other_offering.add_user(dual_role, OfferingRole.MANAGER)
+        self._answer(self.reviewer_a, self.accepted_option, "Feasible")
+        self.assertEqual(self._get(dual_role).status_code, status.HTTP_403_FORBIDDEN)
 
     def test_applicant_denied_when_not_visible(self):
         self._answer(self.reviewer_a, self.accepted_option, "Feasible")

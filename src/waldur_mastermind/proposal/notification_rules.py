@@ -25,7 +25,10 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ResponsibleRoles,
 )
-from waldur_mastermind.proposal.permissions import RESPONSIBLE_ROLE_TO_CALL_ROLE
+from waldur_mastermind.proposal.permissions import (
+    RESPONSIBLE_ROLE_TO_CALL_ROLE,
+    offering_manager_user_ids_for_proposal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +45,13 @@ def ledger_key(trigger, days_before=None):
     return trigger
 
 
-def _offering_manager_users(call):
+def _call_offering_manager_users(call):
+    """Managers of every offering accepted into the call.
+
+    For the call manager's configuration view only, which answers "who could
+    evaluate on this call". Mail about a proposal goes to that proposal's
+    offering managers instead; see ``_responsible_role_users``.
+    """
     offering_ids = models.RequestedOffering.objects.filter(
         call=call, state=RequestedOfferingStates.ACCEPTED
     ).values_list("offering_id", flat=True)
@@ -57,10 +66,11 @@ def _offering_manager_users(call):
 
 
 def _responsible_role_users(call_step, proposal=None):
-    """Users holding the step's responsible role on the call.
+    """Users holding the step's responsible role for ``proposal``.
 
-    ``proposal`` is only needed for the applicant role, which is per proposal;
-    without one that role resolves to nobody.
+    The applicant and offering-manager roles are per proposal: the offering
+    managers are those of the offerings the proposal requested, the same set
+    that may act on the step. Without a proposal both resolve to nobody.
     """
     role = call_step.responsible_role
     call = call_step.call
@@ -71,7 +81,11 @@ def _responsible_role_users(call_step, proposal=None):
             return User.objects.none()
         return _applicant_users(proposal)
     if role == ResponsibleRoles.OFFERING_MANAGER:
-        return _offering_manager_users(call)
+        if proposal is None:
+            return User.objects.none()
+        return User.objects.filter(
+            id__in=offering_manager_user_ids_for_proposal(proposal)
+        )
     role_name = RESPONSIBLE_ROLE_TO_CALL_ROLE.get(role)
     if not role_name:
         return User.objects.none()
@@ -100,11 +114,11 @@ def responsible_users_for_step(call_step):
     the call (technical assessment): that acceptance is the working
     relationship that justifies showing provider staff to the call manager.
     """
-    return (
-        _responsible_role_users(call_step)
-        .filter(is_active=True)
-        .order_by("first_name", "last_name", "username")
-    )
+    if call_step.responsible_role == ResponsibleRoles.OFFERING_MANAGER:
+        users = _call_offering_manager_users(call_step.call)
+    else:
+        users = _responsible_role_users(call_step)
+    return users.filter(is_active=True).order_by("first_name", "last_name", "username")
 
 
 def resolve_recipients(rule, proposal):

@@ -9,13 +9,22 @@ from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core.models import Notification
+from waldur_core.permissions.fixtures import OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.proposal import handlers, tasks, workflow_service
+from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.proposal import (
+    handlers,
+    notification_rules,
+    tasks,
+    workflow_service,
+)
 from waldur_mastermind.proposal.enums import (
     CallStates,
     NotificationRuleRecipients,
     NotificationRuleTriggers,
     ProposalStates,
+    RequestedOfferingStates,
+    ResponsibleRoles,
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
@@ -24,7 +33,7 @@ from waldur_mastermind.proposal.models import (
     CallWorkflowStepNotificationRule,
     ProposalWorkflowStepInstance,
 )
-from waldur_mastermind.proposal.tests import fixtures
+from waldur_mastermind.proposal.tests import factories, fixtures
 
 LIST_URL = "/api/call-workflow-step-notification-rules/"
 
@@ -191,7 +200,7 @@ class NotificationRuleApiTest(test.APITestCase):
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-class NotificationRuleDeliveryTest(test.APITestCase):
+class NotificationRuleDeliveryTestBase(test.APITestCase):
     """Rules fire from the workflow engine. Dispatch is deferred to
     ``transaction.on_commit``, so every trigger runs under
     ``captureOnCommitCallbacks(execute=True)``."""
@@ -253,6 +262,8 @@ class NotificationRuleDeliveryTest(test.APITestCase):
                 self.manager,
             )
 
+
+class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
     def test_no_rule_no_mail(self):
         self._complete()
         self.assertEqual(len(mail.outbox), 0)
@@ -398,3 +409,64 @@ class NotificationRuleDeliveryTest(test.APITestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("was rejected", mail.outbox[0].subject)
         self.assertIn("Out of scope", mail.outbox[0].body)
+
+
+class OfferingManagerRecipientTest(NotificationRuleDeliveryTestBase):
+    """The offering-manager role is scoped to the offerings the proposal
+    requested, as read access is; other providers in the call are not told
+    the proposal exists."""
+
+    def setUp(self):
+        super().setUp()
+        self.tech_step = self.call.workflow_steps.get(step="technical_assessment")
+        self.tech_step.responsible_role = ResponsibleRoles.OFFERING_MANAGER
+        self.tech_step.save()
+
+        # Offering A is accepted and requested by the proposal.
+        self.manager_a = structure_factories.UserFactory()
+        self.fixture.offering.add_user(self.manager_a, OfferingRole.MANAGER)
+        factories.RequestedResourceFactory(
+            proposal=self.proposal,
+            requested_offering=self.fixture.requested_offering_accepted,
+        )
+
+        # Offering B, from another provider, is accepted into the same call
+        # but the proposal did not request it.
+        self.offering_b = marketplace_fixtures.MarketplaceFixture().offering
+        factories.RequestedOfferingFactory(
+            call=self.call,
+            offering=self.offering_b,
+            state=RequestedOfferingStates.ACCEPTED,
+            created_by=self.fixture.owner,
+        )
+        self.manager_b = structure_factories.UserFactory()
+        self.offering_b.add_user(self.manager_b, OfferingRole.MANAGER)
+
+    def _recipients(self):
+        return sorted(email for m in mail.outbox for email in m.to)
+
+    def test_only_managers_of_requested_offerings_are_mailed(self):
+        self._rule("step_started", "responsible_role", step=self.tech_step)
+        self._complete()
+        self.assertEqual(self._recipients(), [self.manager_a.email])
+
+    def test_offering_requested_but_not_accepted_is_not_mailed(self):
+        pending = factories.RequestedOfferingFactory(
+            call=self.call,
+            offering=marketplace_fixtures.MarketplaceFixture().offering,
+            state=RequestedOfferingStates.REQUESTED,
+            created_by=self.fixture.owner,
+        )
+        pending_manager = structure_factories.UserFactory()
+        pending.offering.add_user(pending_manager, OfferingRole.MANAGER)
+        factories.RequestedResourceFactory(
+            proposal=self.proposal, requested_offering=pending
+        )
+        self._rule("step_started", "responsible_role", step=self.tech_step)
+        self._complete()
+        self.assertEqual(self._recipients(), [self.manager_a.email])
+
+    def test_resolves_to_nobody_without_a_proposal(self):
+        self.assertFalse(
+            notification_rules._responsible_role_users(self.tech_step).exists()
+        )
