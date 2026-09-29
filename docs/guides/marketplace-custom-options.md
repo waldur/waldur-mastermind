@@ -614,6 +614,10 @@ of type `component_formula` with the same internal name as the order option:
   and `max` are copied from the order option when the offering is saved. A
   `component_formula` resource option without such an order option is
   refused, and so is removing or retyping an order option that one pairs with.
+  The resource option itself cannot be removed, or re-paired under another
+  name, while a resource of the offering holds a value changed since
+  ordering: without the pairing, that resource's limits would fall back to
+  the ordered value on their next change.
 - The value entered at order time is copied onto the resource, so it shows on
   the resource's Options tab (resources ordered earlier show the value from
   their order).

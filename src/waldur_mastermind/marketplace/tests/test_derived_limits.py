@@ -1075,3 +1075,46 @@ class ResourceOptionChangeDerivedLimitsTest(test.APITestCase):
         ProjectRole.MANAGER.delete_permission(PermissionEnum.CREATE_ORDER)
         response = self.change_storage(100, user=self.fixture.manager)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PairedResourceOptionRemovalTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.options = copy.deepcopy(DATABASE_OPTIONS)
+        self.offering.resource_options = copy.deepcopy(PAIRED_RESOURCE_OPTIONS)
+        self.offering.save()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.attributes = {"storage": 200}
+        self.resource.options = {"storage": 200}
+        self.resource.save()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def remove_option(self):
+        url = factories.OfferingFactory.get_url(
+            self.offering, "update_resource_options"
+        )
+        return self.client.post(
+            url,
+            {"resource_options": {"order": [], "options": {}}},
+            format="json",
+        )
+
+    def test_option_can_go_while_values_are_as_ordered(self):
+        response = self.remove_option()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_option_stays_while_a_resource_holds_a_changed_value(self):
+        self.resource.options = {"storage": 300}
+        self.resource.save()
+        response = self.remove_option()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("storage", str(response.data))
+
+    def test_terminated_resources_do_not_count(self):
+        self.resource.options = {"storage": 300}
+        self.resource.state = ResourceStates.TERMINATED
+        self.resource.save()
+        response = self.remove_option()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
