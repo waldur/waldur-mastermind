@@ -104,7 +104,7 @@ from waldur_mastermind.proposal.permissions import CALL_PERMISSION_SOURCES
 
 from .managers import get_connected_call_organizers, get_connected_calls
 from .models import Proposal
-from .serializers import ReviewSubmitSerializer, _is_reviewer_only_view
+from .serializers import ReviewSubmitSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -2871,13 +2871,44 @@ class ProposalViewSet(
             for role in (CallRole.MANAGER, CallRole.REVIEWER, CallRole.PANEL_MEMBER)
         )
 
+    def _concealed_team_attributes(self, scope, request):
+        # The view instance lives for one request: resolve the viewer's
+        # concealed attributes once for both list_users hooks.
+        if not hasattr(self, "_concealed_team_attributes_cache"):
+            self._concealed_team_attributes_cache = (
+                serializers.get_concealed_applicant_attributes(request.user, scope)
+            )
+        return self._concealed_team_attributes_cache
+
+    def validate_user_roles_query(self, scope, request):
+        # A filter, search or ordering on a concealed attribute would reveal it
+        # through which rows come back, so refuse it outright.
+        concealed = self._concealed_team_attributes(scope, request)
+        if not concealed:
+            return
+        refused = serializers.get_concealed_team_member_query(
+            request.query_params, concealed
+        )
+        if refused:
+            raise exceptions.ValidationError(
+                {
+                    param: _(
+                        "The call does not expose this applicant attribute to reviewers."
+                    )
+                    for param in refused
+                }
+            )
+
     def filter_user_roles_representation(self, data, scope, request):
-        # Role expiration is team-admin metadata irrelevant to evaluation, so
-        # conceal it from reviewers viewing the proposal team read-only.
-        if _is_reviewer_only_view(request.user, scope):
-            for item in data:
-                item.pop("expiration_time", None)
-        return data
+        concealed = self._concealed_team_attributes(scope, request)
+        if concealed is None:
+            return data
+        # Reviewer-only viewer. Role expiration is team-admin metadata
+        # irrelevant to evaluation; identity follows the call's applicant
+        # visibility config, exactly as on the proposal itself.
+        for item in data:
+            item.pop("expiration_time", None)
+        return serializers.filter_team_member_fields(data, concealed)
 
     # Both mixins use the default implementation (obj.checklist_completion)
     # UserChecklistMixin permissions - for proposal managers only

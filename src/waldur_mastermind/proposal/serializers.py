@@ -129,24 +129,91 @@ def _is_reviewer_only_view(user, proposal) -> bool:
     return call_id in get_connected_calls(user, CallRole.REVIEWER)
 
 
+# Maps applicant attribute name to the proposal team list (list_users) row
+# keys that carry it. The team list is serialised by UserRoleDetailsSerializer;
+# each row describes a team member and, through created_by_*, the member who
+# granted the role (usually the applicant). As in APPLICANT_FIELD_MAP the user
+# UUID is the identity link and follows username, and the avatar image follows
+# full_name because it identifies the person as much as the name does. Row keys
+# absent from this map (uuid, created, role_*, source) describe the grant, not
+# the person; expiration_time is concealed separately.
+TEAM_MEMBER_FIELD_MAP: dict[str, list[str]] = {
+    "full_name": ["user_full_name", "created_by_full_name", "user_image"],
+    "username": ["user_username", "user_uuid", "created_by_uuid"],
+    "email": ["user_email"],
+}
+
+# Maps applicant attribute name to the list_users query parameters that match
+# on it (filters, search and ordering keys). A viewer from whom the attribute
+# is concealed may not use them: the size or order of the result would reveal
+# the value even with the row keys dropped.
+TEAM_MEMBER_QUERY_MAP: dict[str, dict[str, list[str]]] = {
+    "full_name": {
+        "params": ["full_name", "native_name", "search_string"],
+        "ordering": ["full_name", "native_name"],
+    },
+    "username": {
+        "params": ["username", "user_slug", "user", "user_url", "search_string"],
+        "ordering": ["username"],
+    },
+    "email": {
+        "params": ["search_string"],
+        "ordering": ["email"],
+    },
+}
+
+
+def get_concealed_applicant_attributes(user, proposal) -> set[str] | None:
+    """Applicant attributes the call's visibility config conceals from ``user``.
+
+    Returns None when the user does not view the proposal solely as a
+    reviewer; such viewers see every attribute. Both the proposal payload and
+    the proposal team list derive what to drop from this one set.
+    """
+    if not _is_reviewer_only_view(user, proposal):
+        return None
+    config_model = models.CallApplicantVisibilityConfig
+    exposed = set(config_model.get_exposed_fields_for_call(proposal.round.call))
+    return set(config_model.get_attribute_names()) - exposed
+
+
 def filter_applicant_fields_for_reviewer(data: dict, proposal, user) -> dict:
     """Mutate the serialized representation to drop applicant fields that
     are not exposed by the call's visibility config when the user is a
     reviewer-only viewer."""
-    if not _is_reviewer_only_view(user, proposal):
-        return data
-    exposed = models.CallApplicantVisibilityConfig.get_exposed_fields_for_call(
-        proposal.round.call
-    )
-    kept_serializer_fields: set[str] = set()
-    for attr in exposed:
-        kept_serializer_fields.update(APPLICANT_FIELD_MAP.get(attr, []))
-    all_filterable: set[str] = set()
-    for serializer_fields in APPLICANT_FIELD_MAP.values():
-        all_filterable.update(serializer_fields)
-    for field_name in all_filterable - kept_serializer_fields:
-        data.pop(field_name, None)
+    concealed = get_concealed_applicant_attributes(user, proposal)
+    for attr in concealed or ():
+        for field_name in APPLICANT_FIELD_MAP.get(attr, []):
+            data.pop(field_name, None)
     return data
+
+
+def filter_team_member_fields(rows, concealed: set[str]):
+    """Drop the team list row keys carrying a concealed applicant attribute."""
+    for attr in concealed:
+        for field_name in TEAM_MEMBER_FIELD_MAP.get(attr, []):
+            for row in rows:
+                row.pop(field_name, None)
+    return rows
+
+
+def get_concealed_team_member_query(query_params, concealed: set[str]) -> list[str]:
+    """Return the list_users query parameters that match on a concealed
+    attribute, as they appear in the request."""
+    requested_ordering = {
+        key.strip().lstrip("-")
+        for value in query_params.getlist("o")
+        for key in value.split(",")
+    }
+    refused = []
+    for attr in sorted(concealed):
+        query = TEAM_MEMBER_QUERY_MAP.get(attr)
+        if not query:
+            continue
+        refused.extend(param for param in query["params"] if param in query_params)
+        if requested_ordering & set(query["ordering"]):
+            refused.append("o")
+    return sorted(set(refused))
 
 
 class EligibilityCheckSerializer(serializers.Serializer):

@@ -1260,6 +1260,12 @@ class UserAttributeConfigBase(TimeStampedModel, core_models.UuidMixin):
             if field.name.startswith(prefix):
                 yield field
 
+    @classmethod
+    def get_attribute_names(cls) -> list[str]:
+        """Return every attribute name (without expose_ prefix) this config governs."""
+        prefix = cls.EXPOSE_PREFIX
+        return [field.name[len(prefix) :] for field in cls._iter_expose_fields()]
+
     def get_exposed_fields(self) -> list[str]:
         """Return list of attribute names (without expose_ prefix) that are enabled."""
         prefix = type(self).EXPOSE_PREFIX
