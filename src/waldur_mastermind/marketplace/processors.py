@@ -10,11 +10,13 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.callbacks import (
+    apply_new_options,
     resource_creation_succeeded,
     resource_update_failed,
     resource_update_succeeded,
 )
 from waldur_mastermind.marketplace.utils import (
+    derived_limit_inputs,
     parse_date,
     validate_limits,
 )
@@ -189,12 +191,24 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
 
     def validate_order(self, request):
         if self.is_update_limit_order() or self.is_renewal_order():
-            # For both limit updates and renewals, we must validate the final limits.
-            validate_limits(
+            # For both limit updates and renewals, we must validate the final
+            # limits. Every such order passes here before it is priced and
+            # saved, so the limits the server derives are stored on it here.
+            resource = self.order.resource
+            attributes = fallback = None
+            new_options = self.order.attributes.get("new_options")
+            if new_options:
+                # The order changes a formula input: derive from the new
+                # value, not the one the resource still holds.
+                attributes = derived_limit_inputs(resource, new_options)
+                fallback = resource.limits
+            self.order.limits = validate_limits(
                 self.order.limits,
                 self.order.offering,
-                self.order.resource,
+                resource,
                 plan=self.order.plan,
+                attributes=attributes,
+                fallback=fallback,
             )
             return
 
@@ -321,6 +335,12 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
 
                 # Update limits for both renewals and limit updates
                 resource.limits = self.order.limits
+
+                # A changed formula input is ordered with the limits it
+                # derives; the new value is applied with them.
+                new_options = self.order.attributes.get("new_options")
+                if new_options:
+                    apply_new_options(resource, new_options)
 
                 if is_renewal:
                     # For renewals, also update end_date and history
