@@ -499,7 +499,7 @@ class CallReviewerPoolFilter(django_filters.FilterSet):
         fields=(
             "invited_at",
             "expertise_match_score",
-            "current_assignments",
+            ("open_assignments", "current_assignments"),
             "created",
         )
     )

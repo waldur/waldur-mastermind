@@ -381,6 +381,7 @@ class EventType(StrEnum):
     RESOURCE_UPDATE_SUCCEEDED = "resource_update_succeeded"
     RESTRICT_MEMBERS = "restrict_members"
     REVIEW_CANCELED = "review_canceled"
+    REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN = "reviewer_workload_limit_overridden"
     ROLE_CLONED = "role_cloned"
     ROLE_CONCEALED = "role_concealed"
     ROLE_DEFINITION_CREATED = "role_definition_created"
@@ -523,6 +524,7 @@ EVENT_GROUP_MAPPING = {
     EventGroup.CALL: [
         EventType.CALL_DOCUMENT_ADDED,
         EventType.CALL_DOCUMENT_REMOVED,
+        EventType.REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN,
     ],
     EventGroup.CREDITS: [
         EventType.ALLOWED_OFFERINGS_HAVE_BEEN_UPDATED,

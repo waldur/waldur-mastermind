@@ -136,6 +136,53 @@ def validate_round_is_open(proposal):
         )
 
 
+def check_reviewer_workload_limit(pool_entry, new_assignments, override, user):
+    """Refuse assignments that would take a reviewer above their limit.
+
+    ``pool_entry`` must be locked by the caller so that concurrent assignments
+    to the same reviewer are counted one after the other. A call manager may
+    pass ``override_workload_limit`` to assign anyway; the override is
+    recorded as an event on the call.
+    """
+    if new_assignments <= 0:
+        return
+    open_assignments = pool_entry.get_open_assignments()
+    if open_assignments + new_assignments <= pool_entry.max_assignments:
+        return
+
+    reviewer_name = (
+        pool_entry.reviewer.user.full_name
+        if pool_entry.reviewer
+        else pool_entry.invited_email
+    )
+    params = {
+        "reviewer": reviewer_name,
+        "open": open_assignments,
+        "limit": pool_entry.max_assignments,
+        "new": new_assignments,
+    }
+    if not override:
+        raise exceptions.ValidationError(
+            _(
+                "Reviewer %(reviewer)s has %(open)s open assignments and a limit "
+                "of %(limit)s, so %(new)s more would exceed it. Set "
+                "override_workload_limit to assign anyway."
+            )
+            % params
+        )
+
+    call = pool_entry.call
+    event_logger.emit(
+        f"{user.full_name or user.username} assigned {new_assignments} more "
+        f"proposal(s) to reviewer {reviewer_name} in call {call.name}, above "
+        f"the limit of {pool_entry.max_assignments} "
+        f"({open_assignments} already open).",
+        event_type=EventType.REVIEWER_WORKLOAD_LIMIT_OVERRIDDEN,
+        event_context={"call": call},
+        scopes=[_get_customer(call)],
+    )
+
+
 def validate_project_details_complete(proposal):
     """Every field the call marked required carries a value.
 
@@ -1600,7 +1647,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
         if request.method == "GET":
             pool_members = list(
-                models.CallReviewerPool.objects.filter(call=call).select_related(
+                models.CallReviewerPool.objects.filter(call=call)
+                .with_open_assignments()
+                .select_related(
                     "reviewer",
                     "reviewer__user",
                     "invited_by",
@@ -2321,6 +2370,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         responses={200: serializers.GenerateAssignmentsResponseSerializer},
     )
     @decorators.action(detail=True, methods=["post"], url_path="generate-assignments")
+    @transaction.atomic
     def generate_assignments(self, request, uuid=None):
         """
         Generate assignment batches for reviewers.
@@ -2422,8 +2472,22 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 (reviewer_id, score)
             )
 
-        # Build pool entries lookup by reviewer_id for O(1) access
-        pool_entries_list = list(pool_entries.select_related("reviewer"))
+        # Build pool entries lookup by reviewer_id for O(1) access.
+        # The entries are locked first so that a concurrent assignment to the
+        # same reviewers waits and then counts the items created here.
+        list(pool_entries.select_for_update().values_list("pk", flat=True))
+        pool_entries_list = list(
+            pool_entries.select_related("reviewer").with_open_assignments()
+        )
+        # Kept up to date as items are created, so the limit also holds for
+        # entries selected earlier in this run.
+        open_assignments = {
+            entry.id: entry.open_assignments for entry in pool_entries_list
+        }
+
+        def has_capacity(entry):
+            return open_assignments[entry.id] < entry.max_assignments
+
         pool_entries_by_reviewer = {
             entry.reviewer_id: entry for entry in pool_entries_list
         }
@@ -2487,11 +2551,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 :reviewers_per_proposal
             ]:
                 entry = pool_entries_by_reviewer.get(reviewer_id)
-                if (
-                    entry
-                    and entry.id not in selected_entry_ids
-                    and entry.current_assignments < (entry.max_assignments or 999)
-                ):
+                if entry and entry.id not in selected_entry_ids and has_capacity(entry):
                     selected_entries.append((entry, affinity_score))
                     selected_entry_ids.add(entry.id)
 
@@ -2500,9 +2560,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 for entry in eligible_entries:
                     if entry.id in selected_entry_ids:
                         continue
-                    if entry.max_assignments is None or (
-                        entry.current_assignments < entry.max_assignments
-                    ):
+                    if has_capacity(entry):
                         selected_entries.append((entry, None))
                         selected_entry_ids.add(entry.id)
                         if len(selected_entries) >= reviewers_per_proposal:
@@ -2558,6 +2616,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                     )
                     if has_coi:
                         item.coi_records.set(coi_list)
+                    else:
+                        open_assignments[entry.id] += 1
 
                     created_items.add(item_key)
                     items_created += 1
@@ -2648,6 +2708,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(
         detail=True, methods=["post"], url_path="create-manual-assignment"
     )
+    @transaction.atomic
     def create_manual_assignment(self, request, uuid=None):
         """
         Create a manual assignment batch for a specific reviewer.
@@ -2661,10 +2722,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         pool_entry_uuid = serializer.validated_data["reviewer_pool_entry_uuid"]
         proposal_uuids = serializer.validated_data["proposal_uuids"]
         manager_notes = serializer.validated_data.get("manager_notes", "")
+        override_workload_limit = serializer.validated_data["override_workload_limit"]
 
-        # Get the reviewer pool entry
+        # Get the reviewer pool entry, locked so that concurrent assignments
+        # to the same reviewer are checked against the limit one at a time.
         try:
-            pool_entry = models.CallReviewerPool.objects.get(
+            pool_entry = models.CallReviewerPool.objects.select_for_update().get(
                 uuid=pool_entry_uuid,
                 call=call,
                 invitation_status=models.ReviewerPoolInvitationStatuses.ACCEPTED,
@@ -2689,25 +2752,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 {"proposal_uuids": _("No valid proposals found.")}
             )
 
-        # Create or get existing draft batch for this reviewer
-        batch, batch_created = models.AssignmentBatch.objects.get_or_create(
-            call=call,
-            reviewer_pool_entry=pool_entry,
-            status=models.AssignmentBatchStatuses.DRAFT,
-            defaults={
-                "source": models.AssignmentSources.MANUAL,
-                "manager_notes": manager_notes,
-                "created_by": request.user,
-            },
-        )
-
-        # If batch already existed, update notes if provided
-        if not batch_created and manager_notes:
-            batch.manager_notes = manager_notes
-            batch.save(update_fields=["manager_notes"])
-
-        items_created = 0
         skipped_proposals = []
+        new_items = []
 
         for proposal in proposals:
             # Check if assignment already exists
@@ -2729,26 +2775,54 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 continue
 
             # Check for blocking COI
-            coi_records = models.ConflictOfInterest.objects.filter(
-                reviewer=pool_entry.reviewer,
-                proposal=proposal,
-                status__in=["pending", "recused"],
+            coi_records = list(
+                models.ConflictOfInterest.objects.filter(
+                    reviewer=pool_entry.reviewer,
+                    proposal=proposal,
+                    status__in=["pending", "recused"],
+                )
             )
+            new_items.append((proposal, coi_records))
 
-            # Create assignment item
+        # COI-blocked items do not add to the reviewer's workload.
+        check_reviewer_workload_limit(
+            pool_entry,
+            sum(1 for _proposal, coi_records in new_items if not coi_records),
+            override_workload_limit,
+            request.user,
+        )
+
+        # Create or get existing draft batch for this reviewer
+        batch, batch_created = models.AssignmentBatch.objects.get_or_create(
+            call=call,
+            reviewer_pool_entry=pool_entry,
+            status=models.AssignmentBatchStatuses.DRAFT,
+            defaults={
+                "source": models.AssignmentSources.MANUAL,
+                "manager_notes": manager_notes,
+                "created_by": request.user,
+            },
+        )
+
+        # If batch already existed, update notes if provided
+        if not batch_created and manager_notes:
+            batch.manager_notes = manager_notes
+            batch.save(update_fields=["manager_notes"])
+
+        for proposal, coi_records in new_items:
             item = models.AssignmentItem.objects.create(
                 batch=batch,
                 proposal=proposal,
                 affinity_score=None,  # Manual assignment - no affinity
-                has_coi=coi_records.exists(),
+                has_coi=bool(coi_records),
                 status=models.AssignmentItemStatuses.COI_BLOCKED
-                if coi_records.exists()
+                if coi_records
                 else models.AssignmentItemStatuses.PENDING,
             )
-            if coi_records.exists():
+            if coi_records:
                 item.coi_records.set(coi_records)
 
-            items_created += 1
+        items_created = len(new_items)
 
         return response.Response(
             {
@@ -4009,7 +4083,26 @@ class ReviewViewSet(ActionsViewSet):
             raise exceptions.ValidationError(
                 _("Valid states for proposals: Draft, In Review, Submitted.")
             )
-        review: models.Review = serializer.save()
+        with transaction.atomic():
+            # A reviewer in the call's pool may not be given reviews above
+            # their assignment limit; the pool entry is locked so concurrent
+            # assignments are counted one at a time.
+            pool_entry = (
+                models.CallReviewerPool.objects.select_for_update(of=("self",))
+                .filter(
+                    call=proposal.round.call,
+                    reviewer__user=serializer.validated_data["reviewer"],
+                )
+                .first()
+            )
+            if pool_entry:
+                check_reviewer_workload_limit(
+                    pool_entry,
+                    1,
+                    serializer.validated_data.get("override_workload_limit", False),
+                    self.request.user,
+                )
+            review: models.Review = serializer.save()
         tasks.notify_reviewer_about_assignment.delay(review.uuid)
 
     def check_create_permissions(request, view, obj=None):
@@ -5335,13 +5428,17 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
                 | Q(invited_email=user.email)  # Include email-based invitations
             )
         # Add select_related to avoid N+1 on related fields
-        return qs.select_related(
-            "call",
-            "reviewer",
-            "reviewer__user",
-            "invited_by",
-            "invited_user",
-        ).order_by("call", "reviewer")
+        return (
+            qs.with_open_assignments()
+            .select_related(
+                "call",
+                "reviewer",
+                "reviewer__user",
+                "invited_by",
+                "invited_user",
+            )
+            .order_by("call", "reviewer")
+        )
 
     def get_serializer_context(self):
         """Add prefetched COI and review counts to context to avoid N+1 queries."""
@@ -6746,6 +6843,7 @@ class AssignmentItemViewSet(ActionsViewSet):
             )
             .exclude(id__in=existing_reviewers)
             .exclude(id__in=declined_reviewers)
+            .with_open_assignments()
         )
 
         # Get affinity scores for suggestions
@@ -6776,7 +6874,7 @@ class AssignmentItemViewSet(ActionsViewSet):
                     if entry.reviewer
                     else entry.invited_email,
                     "affinity_score": affinity.affinity_score if affinity else None,
-                    "current_assignments": entry.current_assignments,
+                    "current_assignments": entry.open_assignments,
                     "max_assignments": entry.max_assignments,
                 }
             )
