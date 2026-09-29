@@ -51,7 +51,9 @@ from waldur_mastermind.proposal.enums import COITypes
 from waldur_mastermind.proposal.models import (
     CallCOIConfiguration,
     CallWorkflowStep,
+    Proposal,
     ProposalWorkflowStepInstance,
+    Review,
 )
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 
@@ -3755,6 +3757,58 @@ class ImportWorkflowEngineStateTest(TestCase):
         self.assertEqual(
             ProposalWorkflowStepInstance.objects.filter(proposal=proposal).count(), 0
         )
+
+
+class ImportRetiredProposalFieldsTest(TestCase):
+    """Dumps written before the proposal duration fields were dropped still
+    carry their keys; the importer must load them and ignore those keys.
+    """
+
+    PROPOSAL_UUID = "cf100000000000000000000000000001"
+    REVIEW_UUID = "cf200000000000000000000000000001"
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.temp_dir, "test_structure.json")
+
+    def tearDown(self):
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
+
+    def test_old_duration_keys_are_ignored(self):
+        round_obj = proposal_factories.RoundFactory()
+        reviewer = structure_factories.UserFactory()
+        data = {
+            "proposals": [
+                {
+                    "uuid": self.PROPOSAL_UUID,
+                    "round_uuid": round_obj.uuid.hex,
+                    "name": "Legacy proposal",
+                    "project_summary": "Summary",
+                    "project_duration": 365,
+                    "duration_in_days": 365,
+                }
+            ],
+            "reviews": [
+                {
+                    "uuid": self.REVIEW_UUID,
+                    "proposal_uuid": self.PROPOSAL_UUID,
+                    "reviewer_uuid": reviewer.uuid.hex,
+                    "comment_project_summary": "Well written",
+                    "comment_project_duration": "Timeline seems optimistic",
+                }
+            ],
+        }
+        with open(self.test_file_path, "w") as f:
+            json.dump(data, f)
+
+        call_command("import_structure", input=self.test_file_path, stdout=StringIO())
+
+        proposal = Proposal.objects.get(uuid=self.PROPOSAL_UUID)
+        self.assertEqual(proposal.project_summary, "Summary")
+        review = Review.objects.get(uuid=self.REVIEW_UUID)
+        self.assertEqual(review.proposal, proposal)
+        self.assertEqual(review.comment_project_summary, "Well written")
 
 
 class ImportCallCOIConfigurationTest(TestCase):

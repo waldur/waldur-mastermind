@@ -8294,10 +8294,10 @@ class Command(BaseCommand):
                     "project": project,
                     "created_by": created_by,
                     "approved_by": approved_by,
-                    # Dumps written before #324 carry "duration_in_days"; the
-                    # column is gone, so the key is ignored.
+                    # Older dumps may carry "duration_in_days" or
+                    # "project_duration"; the columns are gone, so the keys
+                    # are ignored.
                     "project_summary": proposal_data.get("project_summary", ""),
-                    "project_duration": proposal_data.get("project_duration"),
                     "allocation_comment": proposal_data.get("allocation_comment", ""),
                 }
 
@@ -8549,9 +8549,8 @@ class Command(BaseCommand):
                     "comment_project_description": review_data.get(
                         "comment_project_description"
                     ),
-                    "comment_project_duration": review_data.get(
-                        "comment_project_duration"
-                    ),
+                    # Older dumps may carry "comment_project_duration"; the
+                    # column is gone, so the key is ignored.
                     "comment_project_supporting_documentation": review_data.get(
                         "comment_project_supporting_documentation"
                     ),

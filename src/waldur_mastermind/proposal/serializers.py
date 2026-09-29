@@ -489,7 +489,6 @@ class ProposalReviewSerializer(
             "comment_project_title",
             "comment_project_summary",
             "comment_project_description",
-            "comment_project_duration",
             "comment_project_supporting_documentation",
             "comment_resource_requests",
             "comment_team",
