@@ -3594,6 +3594,10 @@ class OptionVisibleIfSerializer(serializers.Serializer):
     )
 
 
+# Option types whose value can be required to be unique across an offering.
+UNIQUE_OPTION_FIELD_TYPES = ("string", "text", "integer", "select_string")
+
+
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
@@ -3615,6 +3619,14 @@ class OptionFieldSerializer(serializers.Serializer):
     visible_if = OptionVisibleIfSerializer(
         required=False,
         help_text=_("Show this option only when another option has a given value."),
+    )
+    unique = serializers.BooleanField(
+        required=False,
+        help_text=_(
+            "The value must not be used by another non-terminated resource "
+            "of this offering. Only for string, text, integer and "
+            "select_string options."
+        ),
     )
     pattern = serializers.CharField(
         required=False,
@@ -3639,6 +3651,16 @@ class OptionFieldSerializer(serializers.Serializer):
     def validate(self, attrs):
         field_type = attrs.get("type")
         self._validate_pattern(attrs)
+
+        if attrs.get("unique") and field_type not in UNIQUE_OPTION_FIELD_TYPES:
+            raise serializers.ValidationError(
+                {
+                    "unique": _(
+                        "Only string, text, integer and select_string "
+                        "options can be unique."
+                    )
+                }
+            )
 
         if field_type == "conditional_cascade":
             if not attrs.get("cascade_config"):
@@ -6659,20 +6681,47 @@ class OrderUpdateSerializer(BaseOrderSerializer):
                 self.instance.resource,
                 plan=self.instance.plan,
             )
+        if options and "attributes" in attrs:
+            self._validate_unique_options(attrs["attributes"])
         return attrs
 
-    def update(self, instance, validated_data):
-        limits_changed = (
-            "limits" in validated_data and validated_data["limits"] != instance.limits
+    def _validate_unique_options(self, attributes):
+        # An edited create order also sets its resource's options (see
+        # copy_order_options_to_resource), so both kinds are checked.
+        order = self.instance
+        if order.type != OrderTypes.CREATE:
+            return
+        utils.validate_unique_order_values(
+            order.offering,
+            attributes,
+            exclude_resource=order.resource,
+            exclude_order=order,
         )
-        order = super().update(instance, validated_data)
-        if limits_changed:
-            # Derived limits may have moved with an edited input.
-            order.init_cost()
-            order.save(update_fields=["cost"])
-        if order.type == OrderTypes.CREATE and "attributes" in validated_data:
-            utils.copy_order_options_to_resource(order)
-        return order
+
+    def update(self, instance, validated_data):
+        with transaction.atomic():
+            if "attributes" in validated_data:
+                # Re-check under the lock, which is held until the order and
+                # its resource's options are written.
+                utils.lock_offering_for_unique_options(
+                    instance.offering,
+                    (instance.offering.options or {}).get("options"),
+                    (instance.offering.resource_options or {}).get("options"),
+                )
+                self._validate_unique_options(validated_data["attributes"])
+            limits_changed = (
+                "limits" in validated_data
+                and validated_data["limits"] != instance.limits
+            )
+            order = super().update(instance, validated_data)
+            if limits_changed:
+                # Derived limits may have moved with an edited input.
+                order.init_cost()
+                order.save(update_fields=["cost"])
+            if order.type == OrderTypes.CREATE and "attributes" in validated_data:
+                utils.copy_order_options_to_resource(order)
+                utils.copy_order_attributes_to_resource(order)
+            return order
 
 
 class OrderApproveByProviderSerializer(serializers.Serializer):
@@ -6695,7 +6744,50 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
             attributes["new_options"] = validate_options(
                 options, new_options, optional=True, hidden=hidden
             )
+            # new_options carries the resource's full option set, so check only
+            # what changes: a value the resource already held, even one it
+            # shares with another resource from before the option was made
+            # unique, must not block approving an unrelated change. Pending
+            # update orders reserve their values, so the check runs under the
+            # lock, which the approve view's transaction holds until saved.
+            utils.lock_offering_for_unique_options(order.offering, options)
+            utils.validate_unique_options(
+                order.offering,
+                options,
+                {
+                    key: value
+                    for key, value in attributes["new_options"].items()
+                    if current_options.get(key) != value
+                },
+                "options",
+                exclude_resource=order.resource,
+            )
+        if order.type == OrderTypes.CREATE:
+            self._validate_unique_create_values(order, attributes)
         return attributes
+
+    def _validate_unique_create_values(self, order, attributes):
+        # The provider's values replace the ordered ones and are copied to the
+        # resource's options, so the ones that change are checked. The approve
+        # view runs in a transaction, which holds the lock until they are saved.
+        current = order.attributes or {}
+        changed = {
+            key for key, value in attributes.items() if current.get(key) != value
+        }
+        if not changed:
+            return
+        utils.lock_offering_for_unique_options(
+            order.offering,
+            (order.offering.options or {}).get("options"),
+            (order.offering.resource_options or {}).get("options"),
+        )
+        utils.validate_unique_order_values(
+            order.offering,
+            {**current, **attributes},
+            keys=changed,
+            exclude_resource=order.resource,
+            exclude_order=order,
+        )
 
 
 class OrderProviderInfoSerializer(serializers.Serializer):
@@ -7188,6 +7280,22 @@ class OrderCreateSerializer(
 
     @transaction.atomic
     def create(self, validated_data):
+        offering: models.Offering = validated_data["offering"]
+        # Re-check under the lock, which @transaction.atomic holds until the
+        # resource is written: another order may have taken a unique value
+        # since validate() ran.
+        utils.lock_offering_for_unique_options(
+            offering,
+            (offering.options or {}).get("options"),
+            (offering.resource_options or {}).get("options"),
+        )
+        self._validate_unique_options(offering, validated_data.get("attributes") or {})
+        return self._create(validated_data)
+
+    def _validate_unique_options(self, offering, attributes):
+        utils.validate_unique_order_values(offering, attributes)
+
+    def _create(self, validated_data):
         request = self.context["request"]
         project: structure_models.Project = validated_data["project"]
         attributes = validated_data.get("attributes", {})
@@ -7306,6 +7414,7 @@ class OrderCreateSerializer(
             )
 
         self._validate_order_start_date(attrs)
+        self._validate_unique_options(offering, attributes)
 
         return attrs
 
@@ -9344,7 +9453,51 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
         merged = {**(self.instance.options or {}), **attrs}
         hidden = get_hidden_options(options, merged)
         validate_options(options, attrs, optional=True, hidden=hidden)
+        self._validate_unique_options(
+            {key: value for key, value in attrs.items() if key not in hidden}
+        )
         return strip_hidden_options(options, merged, hidden)
+
+    def _validate_unique_options(self, values):
+        # Only values that change are checked, as at provider approval: a
+        # client may send the whole option set, and a value the resource
+        # already holds, even one it shares with another resource from before
+        # the option was made unique, must not block the change.
+        resource: models.Resource = self.instance
+        current = resource.options or {}
+        utils.validate_unique_options(
+            resource.offering,
+            resource.offering.resource_options.get("options"),
+            {key: value for key, value in values.items() if current.get(key) != value},
+            "options",
+            exclude_resource=resource,
+        )
+
+    def lock_and_validate_unique_options(self):
+        """Re-check the submitted values under the offering lock.
+
+        Must run inside the transaction that writes them: the resource update
+        below, or the update order that carries them when the offering changes
+        options through orders.
+        """
+        resource: models.Resource = self.instance
+        utils.lock_offering_for_unique_options(
+            resource.offering, resource.offering.resource_options.get("options")
+        )
+        submitted = self.initial_data.get("options")
+        if isinstance(submitted, dict):
+            self._validate_unique_options(
+                {
+                    key: value
+                    for key, value in self.validated_data.get("options", {}).items()
+                    if key in submitted
+                }
+            )
+
+    def update(self, instance, validated_data):
+        with transaction.atomic():
+            self.lock_and_validate_unique_options()
+            return super().update(instance, validated_data)
 
 
 class ResourceOfferingSerializer(serializers.ModelSerializer):
