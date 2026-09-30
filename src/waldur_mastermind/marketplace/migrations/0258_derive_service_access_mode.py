@@ -44,6 +44,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0257_drop_resource_api_key_fingerprint"),
         ("core", "0040_personalaccesstoken_allowed_networks"),
+        ("constance", "0003_drop_pickle"),
     ]
 
     operations = [

@@ -1,21 +1,32 @@
 import os
 
-from constance.admin import get_values
+from constance import config
+from constance.codecs import loads
 from constance.models import Constance
-from django.core.cache import cache
+from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.management import BaseCommand
 from django.utils.translation import gettext as _
 
 
-def make_constance_file_value(image_path, setting_key):
-    image_content = open(image_path, "rb")
+def drop_unencoded_value(setting_key):
+    """Earlier versions of this command stored the bare file name, which the
+    codec cannot decode, and Constance decodes the old value on every write."""
+    row = Constance.objects.filter(key=setting_key).first()
+    if row is None or row.value is None:
+        return
+    try:
+        loads(row.value)
+    except ValueError:
+        row.delete()
 
-    filename = os.path.basename(image_path)
-    path = default_storage.save(filename, image_content)
-    setting, _ = Constance.objects.get_or_create(key=setting_key)
-    setting.value = os.path.split(path)[1]
-    setting.save()
+
+def make_constance_file_value(image_path, setting_key):
+    with open(image_path, "rb") as image_content:
+        filename = os.path.basename(image_path)
+        path = default_storage.save(filename, image_content)
+    drop_unencoded_value(setting_key)
+    setattr(config, setting_key, os.path.split(path)[1])
 
 
 class Command(BaseCommand):
@@ -38,9 +49,16 @@ class Command(BaseCommand):
         setting_key = options["key"]
         path = options["path"]
 
-        if setting_key not in get_values():
+        if setting_key not in settings.CONSTANCE_CONFIG:
             self.stdout.write(
                 self.style.ERROR(f"{setting_key} is not a valid Constance setting")
+            )
+            return
+
+        definition = settings.CONSTANCE_CONFIG[setting_key]
+        if len(definition) < 3 or definition[2] != "image_field":
+            self.stdout.write(
+                self.style.ERROR(f"{setting_key} is not an image setting")
             )
             return
 
@@ -53,7 +71,5 @@ class Command(BaseCommand):
                 )
             )
             return
-
-        cache.delete("API_CONFIGURATION")
 
         self.stdout.write(self.style.SUCCESS(f"{setting_key} has been set to {path}"))

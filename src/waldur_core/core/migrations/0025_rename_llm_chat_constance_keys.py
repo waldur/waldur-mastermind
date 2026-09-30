@@ -34,6 +34,7 @@ def rename_forward(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("core", "0024_remove_constance_site_logo"),
+        ("constance", "0003_drop_pickle"),
     ]
 
     operations = [

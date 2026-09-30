@@ -8,6 +8,7 @@ def remove_site_logo_setting(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("core", "0023_user_identity_bridge_fields"),
+        ("constance", "0003_drop_pickle"),
     ]
 
     operations = [

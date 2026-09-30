@@ -1,6 +1,7 @@
 from contextlib import redirect_stdout
 from io import StringIO
 
+from django.conf import settings
 from django.core.management import call_command
 from rest_framework import status, test
 
@@ -56,3 +57,44 @@ class SettingsMetadataCountriesTest(test.APITestCase):
         # otherwise terminate the generated single-quoted string early.
         self.assertNotIn("label: 'Lao People's", output)
         self.assertIn("People\\'s", output)
+
+
+class SettingsMetadataTypeTest(test.APITestCase):
+    """The API and the generated TypeScript must report the same setting types."""
+
+    def _api_types(self):
+        response = self.client.get("/api/metadata/settings/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {
+            item["key"]: item["type"]
+            for section in response.data["settings"]
+            for item in section["items"]
+        }
+
+    def test_python_type_is_mapped_to_type_name(self):
+        types = self._api_types()
+        self.assertEqual(types["WALDUR_SUPPORT_SLA_RESPONSE_HOURS"], "integer")
+        self.assertEqual(types["WALDUR_SUPPORT_SLA_RESOLUTION_HOURS"], "integer")
+
+    def test_api_types_match_typescript_description(self):
+        out = StringIO()
+        with redirect_stdout(out):
+            call_command("print_settings_description")
+        rendered = out.getvalue()
+        for key, value_type in self._api_types().items():
+            self.assertIn(
+                f"key: '{key}',", rendered, f"{key} is missing from TypeScript"
+            )
+            block = rendered.split(f"key: '{key}',")[1].split("\n      },")[0]
+            self.assertIn(f"type: '{value_type}',", block, key)
+
+
+class SettingsFieldsetsTest(test.APITestCase):
+    def test_each_key_belongs_to_one_fieldset(self):
+        seen = {}
+        for title, keys in settings.CONSTANCE_CONFIG_FIELDSETS.items():
+            for key in keys:
+                self.assertNotIn(
+                    key, seen, f"{key} is in both '{seen.get(key)}' and '{title}'"
+                )
+                seen[key] = title

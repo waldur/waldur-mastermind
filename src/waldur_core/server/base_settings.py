@@ -78,7 +78,6 @@ INSTALLED_APPS = (
     # health_check.contrib.celery_ping for better performance (connection pooling + targeted pings)
     "netfields",
     "constance",
-    "constance.backends.database",
     "drf_spectacular",
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
