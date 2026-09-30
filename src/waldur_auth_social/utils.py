@@ -461,9 +461,23 @@ def create_or_update_oauth_user(
     user = None
     email_matched = False
 
-    # Primary lookup
+    # Primary lookup. Email is compared ignoring case, as SCIM matching and the
+    # email failover below do, so a claim in different case than the stored
+    # address still finds the account.
+    lookup_query = lookup_params
+    if identity_provider.user_field == "email":
+        lookup_query = {"email__iexact": lookup_params["email"]}
     try:
-        user = cast(User, User.all_objects.get(**lookup_params))
+        user = cast(User, User.all_objects.get(**lookup_query))
+    except User.MultipleObjectsReturned:
+        # The lookup field need not be unique (email is not).
+        field = identity_provider.user_field
+        logger.warning("OIDC lookup: multiple users match %s", lookup_params)
+        raise OAuthException(
+            identity_provider.provider,
+            f"Multiple users found with the same {field}. "
+            "Cannot determine which account to use.",
+        )
     except User.DoesNotExist:
         # Email-based failover
         if config.OIDC_MATCHMAKING_BY_EMAIL:
