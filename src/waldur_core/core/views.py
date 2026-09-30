@@ -98,7 +98,7 @@ from waldur_core.core.serializers import (
     _serialize_allowed_scopes,
 )
 from waldur_core.core.tasks import sample_table_sizes
-from waldur_core.core.utils import format_homeport_link
+from waldur_core.core.utils import format_homeport_link, get_constance_setting_type
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.event_logger import get_event_groups
@@ -2276,36 +2276,12 @@ class SettingsMetadataView(APIView):
                 if key in settings.CONSTANCE_CONFIG:
                     default = settings.CONSTANCE_CONFIG[key][0]
                     description = settings.CONSTANCE_CONFIG[key][1].replace("'", "\\'")
-                    value_type = (
-                        len(settings.CONSTANCE_CONFIG[key]) >= 3
-                        and settings.CONSTANCE_CONFIG[key][2]
-                        or None
-                    )
-
-                    if isinstance(default, str):
-                        formatted_default = default
-                    elif default is True:
-                        formatted_default = True
-                    elif default is False:
-                        formatted_default = False
-                    else:
-                        formatted_default = default
-
-                    if value_type:
-                        formatted_type = value_type
-                    elif isinstance(default, str):
-                        formatted_type = "string"
-                    elif isinstance(default, bool):
-                        formatted_type = "boolean"
-                    elif isinstance(default, int):
-                        formatted_type = "integer"
-                    else:
-                        formatted_type = "string"
+                    formatted_type = get_constance_setting_type(key)
 
                     item_data = {
                         "key": key,
                         "description": description,
-                        "default": formatted_default,
+                        "default": default,
                         "type": formatted_type,
                     }
 

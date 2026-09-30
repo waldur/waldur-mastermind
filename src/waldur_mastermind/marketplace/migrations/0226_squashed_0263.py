@@ -78,6 +78,7 @@ class Migration(migrations.Migration):
     ]
 
     dependencies = [
+        ("constance", "0003_drop_pickle"),
         ("contenttypes", "0002_remove_content_type_name"),
         ("core", "0040_personalaccesstoken_allowed_networks"),
         ("core", "__first__"),

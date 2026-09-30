@@ -4,7 +4,9 @@ import tempfile
 from io import StringIO
 from unittest import mock
 
+from constance import config
 from constance.models import Constance
+from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase
 from rest_framework import status, test
@@ -209,6 +211,21 @@ class SetLoginLogoLanguageCommandTest(TestCase):
         setting = Constance.objects.get(key="LOGIN_LOGO_MULTILINGUAL")
         self.assertIn("de", setting.value)
         self.assertIn("et", setting.value)
+
+    def test_value_is_readable_through_config_and_clears_cached_settings(self):
+        cache.set("API_CONFIGURATION", {"stale": True})
+
+        call_command(
+            "set_login_logo_language",
+            "--language",
+            "de",
+            "--file",
+            self._create_test_image(),
+            stdout=StringIO(),
+        )
+
+        self.assertEqual(list(config.LOGIN_LOGO_MULTILINGUAL), ["de"])
+        self.assertIsNone(cache.get("API_CONFIGURATION"))
 
 
 class MultilingualLogoRestApiTest(test.APITestCase):

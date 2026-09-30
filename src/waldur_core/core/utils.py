@@ -1071,3 +1071,28 @@ def validate_outbound_url(url: str) -> None:
                 f"URL host {parsed.hostname!r} resolves to a non-routable "
                 f"address ({ip}); outbound webhook destinations must be public."
             )
+
+
+CONSTANCE_PYTHON_TYPE_NAMES = {
+    int: "integer",
+    float: "float",
+    bool: "boolean",
+    str: "string",
+    list: "list_field",
+}
+
+
+def get_constance_setting_type(key):
+    """Type name of a Constance setting, as reported to clients.
+
+    An explicit third element of the config tuple wins: a Python type is mapped
+    to its name, a field name from CONSTANCE_ADDITIONAL_FIELDS is used as is.
+    Otherwise the type is inferred from the default.
+    """
+    definition = settings.CONSTANCE_CONFIG[key]
+    if len(definition) >= 3 and definition[2]:
+        raw_type = definition[2]
+        if isinstance(raw_type, type):
+            return CONSTANCE_PYTHON_TYPE_NAMES.get(raw_type, raw_type.__name__)
+        return raw_type
+    return CONSTANCE_PYTHON_TYPE_NAMES.get(type(definition[0]), "string")
