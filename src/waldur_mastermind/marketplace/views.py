@@ -7938,9 +7938,10 @@ class OrderViewSet(
                     order.limits = limits
                     order.init_cost()
                     update_fields += ["limits", "cost"]
-                # The resource took its options from the order when it was
-                # placed; they follow the provider's change.
+                # The resource took its options and attributes from the order
+                # when it was placed; they follow the provider's change.
                 utils.copy_order_options_to_resource(order)
+                utils.copy_order_attributes_to_resource(order)
             elif (
                 order.type == OrderTypes.UPDATE
                 and "old_limits" in order.attributes
@@ -8885,17 +8886,19 @@ class BaseResourceViewSet(
                 _("Restoring resource is not supported for this offering type.")
             )
 
-        resource.set_state_creating()
-        resource.save(update_fields=["state"])
+        with transaction.atomic():
+            utils.lock_and_validate_unique_options_of_resource(resource)
+            resource.set_state_creating()
+            resource.save(update_fields=["state"])
 
-        return self.create_resource_order(
-            request=request,
-            resource=resource,
-            type=OrderTypes.RESTORE,
-            attributes=resource.attributes,
-            plan=resource.plan,
-            limits=resource.limits,
-        )
+            return self.create_resource_order(
+                request=request,
+                resource=resource,
+                type=OrderTypes.RESTORE,
+                attributes=resource.attributes,
+                plan=resource.plan,
+                limits=resource.limits,
+            )
 
     restore_permissions = [
         permission_factory(
@@ -9450,26 +9453,30 @@ class BaseResourceViewSet(
                 attributes=utils.derived_limit_inputs(resource, new_options),
                 fallback=resource.limits,
             )
-            return self.create_resource_order(
-                request=request,
-                resource=resource,
-                plan=resource.plan,
-                type=OrderTypes.UPDATE,
-                limits=limits,
-                attributes={
-                    # A resource ordered before its resource option existed
-                    # has the old value only in its attributes.
-                    "old_options": {
-                        **(resource.options or {}),
-                        **{
-                            name: utils.derived_limit_inputs(resource).get(name)
-                            for name in changed
+            # A pending update order reserves its unique values, so they are
+            # re-checked under the lock in the transaction that creates it.
+            with transaction.atomic():
+                serializer.lock_and_validate_unique_options()
+                return self.create_resource_order(
+                    request=request,
+                    resource=resource,
+                    plan=resource.plan,
+                    type=OrderTypes.UPDATE,
+                    limits=limits,
+                    attributes={
+                        # A resource ordered before its resource option existed
+                        # has the old value only in its attributes.
+                        "old_options": {
+                            **(resource.options or {}),
+                            **{
+                                name: utils.derived_limit_inputs(resource).get(name)
+                                for name in changed
+                            },
                         },
+                        "new_options": new_options,
+                        "old_limits": resource.limits,
                     },
-                    "new_options": new_options,
-                    "old_limits": resource.limits,
-                },
-            )
+                )
 
         # Check if offering requires order creation for option changes
         if resource.offering.plugin_options.get(
@@ -9479,14 +9486,19 @@ class BaseResourceViewSet(
             old_options = resource.options or {}
             new_options = serializer.validated_data.get("options", {})
 
-            # Create order for option change
-            return self.create_resource_order(
-                request=request,
-                resource=resource,
-                plan=resource.plan,
-                type=OrderTypes.UPDATE,
-                attributes={"old_options": old_options, "new_options": new_options},
-            )
+            # Create order for option change; as above, it reserves the values.
+            with transaction.atomic():
+                serializer.lock_and_validate_unique_options()
+                return self.create_resource_order(
+                    request=request,
+                    resource=resource,
+                    plan=resource.plan,
+                    type=OrderTypes.UPDATE,
+                    attributes={
+                        "old_options": old_options,
+                        "new_options": new_options,
+                    },
+                )
         else:
             # Direct update without order
             serializer.save()

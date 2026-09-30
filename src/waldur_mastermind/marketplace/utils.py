@@ -744,6 +744,23 @@ def copy_order_options_to_resource(order):
     resource.save(update_fields=["options"])
 
 
+def copy_order_attributes_to_resource(order):
+    """Set a created resource's attributes from its create order's current values.
+
+    Like copy_order_options_to_resource, for the order form values: they are
+    copied when the order is placed, and a value changed since (edited while
+    pending, or by the provider at approval) must replace the ordered one on
+    the resource too. Otherwise the resource keeps holding a value its order no
+    longer asks for, and a unique option counts it as taken. They are replaced,
+    not merged, so a value the change dropped does not stay behind.
+    """
+    resource = order.resource
+    if not resource:
+        return
+    resource.attributes = dict(order.attributes or {})
+    resource.save(update_fields=["attributes"])
+
+
 def changed_derived_inputs(resource, new_options):
     """Names of the formula inputs that ``new_options`` would change on ``resource``."""
     offering = resource.offering
@@ -845,6 +862,183 @@ def validate_limits(
         validate_maximum_available_limit(value, component, resource)
 
     return limits
+
+
+def get_unique_options(options):
+    """Names of the options whose values must be unique across the offering."""
+    return [
+        name
+        for name, option in (options or {}).items()
+        if isinstance(option, dict) and option.get("unique")
+    ]
+
+
+def _unique_option_candidates(option, value):
+    """Stored forms of a value that count as the same value.
+
+    Attributes are stored as submitted, so an integer option may hold 5 or "5".
+    """
+    if option.get("type") == "integer":
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return [value]
+        return [number, str(number)]
+    return [value]
+
+
+# Update orders whose new_options have not been written to the resource yet.
+PENDING_UPDATE_ORDER_STATES = (
+    OrderStates.PENDING_CONSUMER,
+    OrderStates.PENDING_PROVIDER,
+    OrderStates.PENDING_PROJECT,
+    OrderStates.PENDING_START_DATE,
+    OrderStates.EXECUTING,
+)
+
+
+def validate_unique_options(
+    offering, options, values, field, exclude_resource=None, exclude_order=None
+):
+    """Reject option values that another live resource of the offering holds.
+
+    `field` is "attributes" for the order form options and "options" for the
+    resource options. A resource counts until it is terminated. That includes
+    an ERRED one, which may still exist in the backend; a create order that
+    errs before the backend created anything, and a rejected or canceled one,
+    terminates its resource and so frees the value.
+
+    For "attributes" the create orders of live resources are checked as well:
+    an edited create order copies its attributes onto its resource (see
+    copy_order_attributes_to_resource), but orders edited before that did not.
+    For "options" the pending update orders of live resources are checked too:
+    their new_options are written only when they complete, and until then
+    they must reserve the value.
+
+    Callers that write the values must hold a lock on the offering row (see
+    lock_offering_for_unique_options), or two requests can both pass.
+    """
+    if not isinstance(values, dict):
+        return
+    options = options or {}
+    resources = models.Resource.objects.filter(offering=offering).exclude(
+        state=ResourceStates.TERMINATED
+    )
+    orders = models.Order.objects.filter(
+        offering=offering, type=OrderTypes.CREATE, resource__in=resources
+    )
+    update_orders = models.Order.objects.filter(
+        offering=offering,
+        type=OrderTypes.UPDATE,
+        state__in=PENDING_UPDATE_ORDER_STATES,
+        resource__in=resources,
+    )
+    if exclude_resource is not None:
+        resources = resources.exclude(pk=exclude_resource.pk)
+        orders = orders.exclude(resource=exclude_resource)
+        update_orders = update_orders.exclude(resource=exclude_resource)
+    if exclude_order is not None:
+        orders = orders.exclude(pk=exclude_order.pk)
+        update_orders = update_orders.exclude(pk=exclude_order.pk)
+
+    errors = {}
+    for name in get_unique_options(options):
+        value = values.get(name)
+        if value is None or value == "":
+            continue
+        candidates = _unique_option_candidates(options[name], value)
+        query = Q()
+        for candidate in candidates:
+            query |= Q(**{f"{field}__contains": {name: candidate}})
+        taken = resources.filter(query).exists()
+        if not taken and field == "attributes":
+            taken = orders.filter(query).exists()
+        if not taken and field == "options":
+            pending = Q()
+            for candidate in candidates:
+                pending |= Q(attributes__new_options__contains={name: candidate})
+            taken = update_orders.filter(pending).exists()
+        if taken:
+            errors[name] = _(
+                "This value is already used by another resource of this offering."
+            )
+    if errors:
+        raise rf_exceptions.ValidationError(errors)
+
+
+def lock_offering_for_unique_options(offering, *option_sets):
+    """Serialise writers of unique option values for one offering.
+
+    Takes a row lock only when one of the option sets has a unique option, so
+    offerings without them are not slowed down. Must run inside a transaction.
+    """
+    if any(get_unique_options(options) for options in option_sets):
+        models.Offering.objects.select_for_update().filter(pk=offering.pk).first()
+
+
+def validate_unique_order_values(
+    offering, attributes, keys=None, exclude_resource=None, exclude_order=None
+):
+    """Check the values of a create order against the offering's unique options.
+
+    The order form values are checked against unique order options. The ones
+    that also name a resource option are copied to the resource's options (see
+    copy_order_options_to_resource), so they are checked against unique
+    resource options too. `keys` limits the check to those option names, for
+    callers that change only some values.
+    """
+    attributes = attributes or {}
+    options = (offering.options or {}).get("options")
+    resource_options = (offering.resource_options or {}).get("options") or {}
+    copied = strip_hidden_options(
+        resource_options,
+        {key: attributes[key] for key in resource_options if key in attributes},
+    )
+    if keys is not None:
+        attributes = {key: value for key, value in attributes.items() if key in keys}
+        copied = {key: value for key, value in copied.items() if key in keys}
+    validate_unique_options(
+        offering,
+        options,
+        attributes,
+        "attributes",
+        exclude_resource=exclude_resource,
+        exclude_order=exclude_order,
+    )
+    validate_unique_options(
+        offering,
+        resource_options,
+        copied,
+        "options",
+        exclude_resource=exclude_resource,
+    )
+
+
+def lock_and_validate_unique_options_of_resource(resource):
+    """Reject bringing back a resource whose unique values are taken now.
+
+    A terminated resource frees its values, so by the time it is restored
+    another resource may hold them. Must run inside a transaction that also
+    makes the resource live again, so the lock covers that write.
+    """
+    offering = resource.offering
+    options = (offering.options or {}).get("options")
+    resource_options = (offering.resource_options or {}).get("options")
+    lock_offering_for_unique_options(offering, options, resource_options)
+    validate_unique_options(
+        offering,
+        options,
+        resource.attributes or {},
+        "attributes",
+        exclude_resource=resource,
+    )
+    validate_unique_options(
+        offering,
+        resource_options,
+        resource.options or {},
+        "options",
+        exclude_resource=resource,
+    )
 
 
 def validate_attributes(attributes, category):
