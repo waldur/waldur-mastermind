@@ -1,18 +1,27 @@
 import django_filters
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.utils import get_scope_ids
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
     RequestedOfferingStates,
+    ResponsibleRoles,
 )
 
 from . import models
-from .managers import get_connected_calls
+from .managers import (
+    get_connected_call_organizers,
+    get_connected_calls,
+    get_offering_manager_proposals,
+    get_reviewed_proposals,
+)
 
 
 class CallResourceTemplateFilter(django_filters.FilterSet):
@@ -145,6 +154,11 @@ class ProposalFilter(django_filters.FilterSet):
         method="filter_my_proposals",
         widget=BooleanWidget,
     )
+    as_role = django_filters.ChoiceFilter(
+        choices=ResponsibleRoles.CHOICES,
+        method="filter_as_role",
+        label="Only proposals the current user holds this role on",
+    )
     o = django_filters.OrderingFilter(
         fields=(
             "round__call__name",
@@ -164,6 +178,79 @@ class ProposalFilter(django_filters.FilterSet):
         if not user or not user.is_authenticated:
             return queryset.none()
         return queryset.filter(created_by=user)
+
+    def filter_as_role(self, queryset, name, value):
+        """Narrow the readable queryset to what one of the reader's roles reaches.
+
+        In a peer-review deployment one person is routinely an applicant on one
+        call, a reviewer on another, a call manager on a third and an offering
+        manager for a provider. ``filter_proposals`` grants the *union* of all
+        of that, so an unfiltered list mixes their own applications with every
+        proposal of the calls they run. This intersects that union with a single
+        role's own scope, so the reader can ask for one hat at a time.
+
+        It only ever narrows. Every branch is a subset of what
+        ``filter_proposals`` already granted, and an unrecognised role is
+        rejected by the ChoiceFilter before it gets here — so this grants
+        nothing that the plain list would have withheld, and callers still get
+        today's permission checks on the objects themselves.
+        """
+        if not value:
+            return queryset
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return queryset.none()
+
+        if value == ResponsibleRoles.APPLICANT:
+            # Creator *or* proposal-role holder: a team member added to someone
+            # else's proposal (PROPOSAL.MEMBER / PROPOSAL.MANAGER) is an
+            # applicant on it too, which ``my_proposals`` — created_by only —
+            # misses.
+            proposal_ctype = ContentType.objects.get_for_model(models.Proposal)
+            return queryset.filter(
+                Q(created_by=user) | Q(id__in=get_scope_ids(user, proposal_ctype))
+            )
+
+        if value == ResponsibleRoles.CALL_MANAGER:
+            # Both ways a call is managed, as CALL_PERMISSION_SOURCES has it: a
+            # CALL.MANAGER on the call itself, or a CUSTOMER.CALL_ORGANIZER on
+            # the organisation running it. No distinct() needed for the reverse
+            # join: filter_queryset_for_user already ends with one.
+            return queryset.filter(
+                Q(round__call__in=get_connected_calls(user, RoleEnum.CALL_MANAGER))
+                | Q(
+                    round__call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
+                        user
+                    )
+                )
+            )
+
+        if value == ResponsibleRoles.OFFERING_MANAGER:
+            # Offering managers hold no call-scoped role at all, so the call
+            # traversals above cannot see them; this is the same predicate that
+            # granted them read access in the first place.
+            return queryset.filter(id__in=get_offering_manager_proposals(user))
+
+        # Fails closed on a role with no call-role mapping: a new call-level role
+        # added to ResponsibleRoles (the observer of waldur-mastermind#546 would
+        # be one) becomes a valid choice the moment it is declared, and showing
+        # it the whole readable union is the one outcome this filter prevents.
+        call_role = {
+            ResponsibleRoles.REVIEWER: RoleEnum.CALL_REVIEWER,
+            ResponsibleRoles.PANEL_MEMBER: RoleEnum.CALL_PANEL_MEMBER,
+        }.get(value)
+        if not call_role:
+            return queryset.none()
+
+        # The call role, plus — for a reviewer — the proposals they hold a live
+        # review for. Accepting a pool invitation or an assignment grants no
+        # call role at all, so the reviewer reads the proposal through the
+        # review (models.filter_proposals) and the call traversal alone returned
+        # nothing for the most common reviewer there is.
+        by_call = Q(round__call__in=get_connected_calls(user, call_role))
+        if value == ResponsibleRoles.REVIEWER:
+            return queryset.filter(by_call | Q(pk__in=get_reviewed_proposals(user)))
+        return queryset.filter(by_call)
 
     class Meta:
         model = models.Proposal
