@@ -1,5 +1,6 @@
 from unittest import mock
 
+from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -268,3 +269,67 @@ class OnOrderStateChangedTest(TestCase):
             sender=type(order), instance=order, created=False
         )
         mock_tasks.send_room_notification.delay.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
+@mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+class OnProjectCreatedTest(TestCase):
+    def _rooms_for(self, project):
+        ct = ContentType.objects.get_for_model(project)
+        return models.MatrixRoom.objects.filter(content_type=ct, object_id=project.id)
+
+    @override_config(MATRIX_AUTO_CREATE_PROJECT_ROOMS=True)
+    def test_room_is_created_when_opted_in(self, mock_tasks, mock_client):
+        mock_client.is_enabled.return_value = True
+        project = structure_factories.ProjectFactory()
+        self.assertEqual(self._rooms_for(project).count(), 1)
+        mock_tasks.create_room.delay.assert_called_once()
+
+    @override_config(MATRIX_AUTO_CREATE_PROJECT_ROOMS=False)
+    def test_no_room_when_not_opted_in(self, mock_tasks, mock_client):
+        mock_client.is_enabled.return_value = True
+        project = structure_factories.ProjectFactory()
+        self.assertEqual(self._rooms_for(project).count(), 0)
+        mock_tasks.create_room.delay.assert_not_called()
+
+    @override_config(MATRIX_AUTO_CREATE_PROJECT_ROOMS=True)
+    def test_no_room_when_matrix_disabled(self, mock_tasks, mock_client):
+        # The opt-in flag alone is not enough — MATRIX_ENABLED still gates it.
+        mock_client.is_enabled.return_value = False
+        project = structure_factories.ProjectFactory()
+        self.assertEqual(self._rooms_for(project).count(), 0)
+        mock_tasks.create_room.delay.assert_not_called()
+
+    @override_config(MATRIX_AUTO_CREATE_PROJECT_ROOMS=True)
+    def test_long_project_name_does_not_break_project_creation(
+        self, mock_tasks, mock_client
+    ):
+        mock_client.is_enabled.return_value = True
+        project = structure_factories.ProjectFactory(name="x" * 300)
+        self.assertEqual(self._rooms_for(project).count(), 1)
+
+    @override_config(MATRIX_AUTO_CREATE_PROJECT_ROOMS=True)
+    def test_no_room_for_fixture_loading(self, mock_tasks, mock_client):
+        # loaddata saves with raw=True; fixtures must not provision rooms.
+        mock_client.is_enabled.return_value = False
+        project = structure_factories.ProjectFactory()
+        mock_client.is_enabled.return_value = True
+
+        handlers.on_project_created(
+            sender=type(project), instance=project, created=True, raw=True
+        )
+
+        self.assertEqual(self._rooms_for(project).count(), 0)
+        mock_tasks.create_room.delay.assert_not_called()
+
+    @override_config(MATRIX_AUTO_CREATE_PROJECT_ROOMS=True)
+    def test_no_room_on_project_update(self, mock_tasks, mock_client):
+        mock_client.is_enabled.return_value = True
+        project = structure_factories.ProjectFactory()
+        mock_tasks.create_room.delay.reset_mock()
+
+        project.name = "Renamed"
+        project.save(update_fields=["name"])
+
+        self.assertEqual(self._rooms_for(project).count(), 1)
+        mock_tasks.create_room.delay.assert_not_called()

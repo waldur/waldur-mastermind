@@ -1,5 +1,6 @@
 import logging
 
+from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django_fsm import TransitionNotAllowed
@@ -8,7 +9,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace.enums import OrderStates
 
-from . import matrix_client, tasks
+from . import matrix_client, room_provisioning, tasks
 from .models import MatrixRoom, RoomStates
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,33 @@ def on_role_revoked(sender, instance: UserRole, **kwargs):
     user_uuid = str(user.uuid)
 
     transaction.on_commit(lambda: tasks.kick_user_from_room.delay(room_uuid, user_uuid))
+
+
+def on_project_created(sender, instance, created=False, raw=False, **kwargs):
+    """Provision a Matrix room for a newly created project, when opted in.
+
+    Off by default: it is gated on MATRIX_AUTO_CREATE_PROJECT_ROOMS on top of
+    the usual MATRIX_ENABLED check, so enabling Matrix chat does not silently
+    start creating a room per project on an existing deployment.
+    """
+    if not created or raw:
+        return
+
+    if not matrix_client.is_enabled():
+        return
+
+    if not config.MATRIX_AUTO_CREATE_PROJECT_ROOMS:
+        return
+
+    # Project has no created_by field, so the room is left unattributed —
+    # same as a room provisioned by the backfill command.
+    room = room_provisioning.provision_project_room(instance)
+    if room:
+        logger.info(
+            "Auto-creating Matrix room %s for new project %s",
+            room.uuid,
+            instance.uuid,
+        )
 
 
 def on_project_pre_delete(sender, instance, **kwargs):

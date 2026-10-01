@@ -20,11 +20,7 @@ from rest_framework.throttling import ScopedRateThrottle
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.views import ActionsViewSet
-from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure.managers import (
-    get_connected_customers,
-)
 from waldur_core.structure.models import Project
 
 from . import (
@@ -33,6 +29,7 @@ from . import (
     livekit_client,
     matrix_client,
     models,
+    room_provisioning,
     serializers,
     tasks,
 )
@@ -103,20 +100,13 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
 
         project = serializer.validated_data["project"]
 
-        # Demo policy: only staff and support provision rooms; owners manage an
-        # existing room (sync, export) but do not create or tear them down.
-        structure_permissions.is_staff_or_support(request, self)
-
-        ct = ContentType.objects.get_for_model(project)
-        room = models.MatrixRoom.objects.create(
-            room_name=project.name,
-            content_type=ct,
-            object_id=project.id,
-            created_by=request.user,
+        room = room_provisioning.provision_project_room(
+            project, created_by=request.user
         )
-
-        room_uuid = str(room.uuid)
-        transaction.on_commit(lambda: tasks.create_room.delay(room_uuid))
+        if room is None:
+            # Lost the race against a concurrent create for the same project;
+            # the serializer's uniqueness check passed before the row landed.
+            raise ValidationError("A Matrix room already exists for this project.")
 
         output_serializer = serializers.MatrixRoomSerializer(
             room, context=self.get_serializer_context()
@@ -135,18 +125,15 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
                 required=False,
             ),
         ],
-        description="Returns projects where the caller is customer owner "
-        "(staff sees all) and no MatrixRoom row exists yet. Existing archived "
-        "rooms still block creation, so projects with any room are excluded.",
+        description="Returns projects where the caller holds MATRIX_ROOM.CREATE "
+        "on the project or its organization (staff and support see all) and no "
+        "MatrixRoom row exists yet. Existing archived rooms still block "
+        "creation, so projects with any room are excluded.",
     )
     @action(detail=False, methods=["get"])
     def eligible_projects(self, request):
         user = request.user
-        projects = Project.available_objects.all()
-
-        if not (user.is_staff or user.is_support):
-            owned_customer_ids = get_connected_customers(user, CustomerRole.OWNER)
-            projects = projects.filter(customer_id__in=owned_customer_ids)
+        projects = room_provisioning.creatable_projects(user)
 
         customer_uuid = request.query_params.get("customer_uuid")
         if customer_uuid:

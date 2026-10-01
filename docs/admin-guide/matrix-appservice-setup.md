@@ -171,6 +171,46 @@ counts can be checked before the new homeserver is switched on.
 Room creation happens in the background, so the command returns before the
 rooms exist. Watch the room states to confirm they leave `creating`.
 
+### Creating project rooms
+
+Anyone holding the `MATRIX_ROOM.CREATE` permission on a project or its
+organization can create the project's room from its Chat tab. Organization
+owners hold it by default. Staff can create any room from the Chat tab;
+support can create one from the Matrix admin rooms page or through
+`POST /api/matrix/rooms/`.
+Disabling and deleting a room stay with staff and support.
+
+To let project managers create rooms too, grant them the permission in
+`permissions-override.yaml`:
+
+```yaml
+- role: PROJECT.MANAGER
+  add_permissions:
+    - MATRIX_ROOM.CREATE
+```
+
+If you replaced `CUSTOMER.OWNER` wholesale in `custom-roles.yaml`, add
+`MATRIX_ROOM.CREATE` to that list yourself, or owners lose room creation.
+
+To give every project a room without anyone asking for one:
+
+- **New projects:** turn on `MATRIX_AUTO_CREATE_PROJECT_ROOMS` (off by default).
+  It applies to every project created from then on, including projects
+  created by loading a demo preset.
+- **Existing projects:** run the backfill.
+
+```bash
+waldur provision_matrix_rooms --dry-run                 # list the projects, create nothing
+waldur provision_matrix_rooms --customer <uuid>         # one organization only
+waldur provision_matrix_rooms --limit 50                # at most 50 rooms this run
+```
+
+The backfill skips projects that already have a room, including an archived
+one, so it is safe to re-run. Each room provisions a Matrix account for, and
+invites, every member of its project and of its organization. `--limit` only caps how many rooms one
+run queues; on a large deployment, wait for a batch to leave `creating` before
+running the next.
+
 ### Room aliases
 
 The registration claims an alias namespace of `#waldur-<project>:<your domain>`,

@@ -24,6 +24,12 @@ class MatrixChatConfig(AppConfig):
             dispatch_uid="waldur_mastermind.matrix_chat.on_role_revoked",
         )
 
+        signals.post_save.connect(
+            handlers.on_project_created,
+            sender=Project,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_project_created",
+        )
+
         signals.pre_delete.connect(
             handlers.on_project_pre_delete,
             sender=Project,
