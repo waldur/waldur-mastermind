@@ -64,6 +64,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     get_connected_offerings,
+    get_connected_provider_customers_by_permission,
 )
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_openstack import models as openstack_models
@@ -2868,8 +2869,9 @@ class MarketplaceInvoiceItemsFilterBackend(BaseFilterBackend):
         if user.is_staff:
             return queryset
 
-        customer_ids = get_connected_customers(
-            user, [RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_MANAGER]
+        # Invoice items of the provider's offerings are its revenue.
+        customer_ids = get_connected_provider_customers_by_permission(
+            user, PermissionEnum.GET_SERVICE_PROVIDER_REVENUE
         )
 
         return queryset.filter(resource__offering__customer_id__in=customer_ids)
@@ -3147,8 +3149,14 @@ class MaintenanceAnnouncementOfferingTemplateFilter(django_filters.FilterSet):
 
 
 def user_extra_query(user):
-    customer_ids = get_connected_customers(
-        user, (RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_MANAGER)
+    """Let a provider see the users of the projects consuming its offerings.
+
+    Follows the permission of the provider's own user list
+    (ServiceProviderUsersViewSet) rather than a fixed set of roles, so a custom
+    provider role granting it sees the same users there and here.
+    """
+    customer_ids = get_connected_provider_customers_by_permission(
+        user, PermissionEnum.LIST_SERVICE_PROVIDER_USERS
     )
     offering_ids = models.Offering.objects.filter(
         shared=True, customer_id__in=customer_ids

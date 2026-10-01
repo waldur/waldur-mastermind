@@ -263,6 +263,12 @@ class CreateOfferingUsersTest(test.APITestCase):
 @ddt
 class ListUsersTest(test.APITestCase):
     def setUp(self):
+        # Consumer users are shown to a provider by SERVICE_PROVIDER.LIST_USERS,
+        # which permissions.yaml grants both roles; test roles start without it.
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_USERS
+        )
         self.fixture = fixtures.MarketplaceFixture()
         self.fixture.admin
         self.fixture.manager
