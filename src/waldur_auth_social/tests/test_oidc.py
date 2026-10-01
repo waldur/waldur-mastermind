@@ -2257,6 +2257,46 @@ class OIDCEmailMatchmakingTest(test.APITestCase):
         # Should have matched via primary lookup (email field)
         self.assertEqual(User.objects.count(), 1)
 
+    def _login(self, user_info):
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+        return self.client.get(self.url, {"state": self.state, "code": self.code})
+
+    def _look_up_by(self, user_field, user_claim):
+        self.provider.user_field = user_field
+        self.provider.user_claim = user_claim
+        self.provider.save()
+
+    def test_email_lookup_ignores_case(self):
+        self._look_up_by("email", "email")
+        existing_user = structure_factories.UserFactory(email="J.Doe@Example.org")
+
+        response = self._login({"sub": "new_oidc_sub", "email": "j.doe@example.org"})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(User.objects.get().pk, existing_user.pk)
+
+    def test_email_lookup_refuses_ambiguous_match(self):
+        self._look_up_by("email", "email")
+        structure_factories.UserFactory(email="j.doe@example.org")
+        structure_factories.UserFactory(email="J.Doe@example.org")
+
+        response = self._login({"sub": "new_oidc_sub", "email": "j.doe@example.org"})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("Multiple users found with the same email", str(response.content))
+        self.assertEqual(User.objects.count(), 2)
+
+    def test_lookup_on_other_fields_stays_exact(self):
+        self._look_up_by("civil_number", "sub")
+        structure_factories.UserFactory(civil_number="EE60001019906")
+
+        response = self._login({"sub": "ee60001019906", "email": "other@example.org"})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(User.objects.count(), 2)
+
     @override_config(OIDC_MATCHMAKING_BY_EMAIL=True)
     def test_email_matchmaking_case_insensitive(self):
         """Email case mismatch still matches."""
