@@ -1347,10 +1347,11 @@ class ServiceProviderProjectsViewSet(mixins.ListModelMixin, rf_viewsets.GenericV
         service_provider = get_object_or_404(
             models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
-        if not has_permission(
+        if not has_permission_on_any_source(
             self.request,
             PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS,
-            service_provider.customer,
+            service_provider,
+            SERVICE_PROVIDER_SOURCES,
         ):
             raise PermissionDenied()
         return service_provider
@@ -1463,10 +1464,11 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
         service_provider = get_object_or_404(
             models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
-        if not has_permission(
+        if not has_permission_on_any_source(
             self.request,
             PermissionEnum.LIST_SERVICE_PROVIDER_USERS,
-            service_provider.customer,
+            service_provider,
+            SERVICE_PROVIDER_SOURCES,
         ):
             raise PermissionDenied()
         return service_provider

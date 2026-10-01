@@ -35,6 +35,12 @@ class ServiceProviderManagerAccessTest(test.APITestCase):
         ServiceProviderRole.MANAGER.add_permission(
             PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS
         )
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS
+        )
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_USERS
+        )
 
         self.manager = structure_factories.UserFactory()
         self.service_provider.add_user(self.manager, ServiceProviderRole.MANAGER)
@@ -91,6 +97,8 @@ class ServiceProviderManagerAccessTest(test.APITestCase):
             "compliance": factories.ServiceProviderFactory.get_compliance_url(
                 self.service_provider, "compliance-overview"
             ),
+            "projects": f"/api/marketplace-service-providers/{self.service_provider.uuid.hex}/projects/",
+            "users": f"/api/marketplace-service-providers/{self.service_provider.uuid.hex}/users/",
         }
 
     def test_manager_gets_own_provider_tabs(self):

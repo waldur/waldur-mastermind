@@ -9,7 +9,7 @@ from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import ServiceProviderRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -468,6 +468,12 @@ class TotalLimitDailyPlanTest(test.APITestCase):
 @freeze_time("2020-11-01")
 class InvoiceItemsTest(test.APITestCase):
     def setUp(self):
+        # Provider invoice items are gated by GET_REVENUE, which
+        # permissions.yaml grants both roles; test roles start without it.
+        CustomerRole.OWNER.add_permission(PermissionEnum.GET_SERVICE_PROVIDER_REVENUE)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_REVENUE
+        )
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.resource.set_state_ok()

@@ -484,6 +484,25 @@ def get_connected_serviceproviders(user, role=None):
     return get_scope_ids(user, content_type, role)
 
 
+def get_connected_provider_customers_by_permission(user, permission):
+    """Ids of the provider organizations on which the user holds ``permission``.
+
+    A provider-side right can come from a role on the organization (an owner,
+    or a custom least-privilege provider role) or from a role on its
+    ServiceProvider (a service provider manager), so both are collected.
+
+    Each grant is matched on its own role's permissions, as ``has_permission``
+    does. Matching role names instead would let an organization clone that
+    staff narrowed keep a permission its template still holds.
+    """
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    provider_ct = ContentType.objects.get_for_model(models.ServiceProvider)
+    return structure_models.Customer.objects.filter(
+        Q(id__in=get_scope_ids(user, customer_ct, permission=permission))
+        | Q(serviceprovider__in=get_scope_ids(user, provider_ct, permission=permission))
+    ).values_list("id", flat=True)
+
+
 def filter_offering_permissions(user, is_active=True):
     if user.is_anonymous:
         return UserRole.objects.none()
