@@ -1,3 +1,4 @@
+from constance.test.unittest import override_config
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -310,3 +311,104 @@ class ProviderResourceListUsersTest(test.APITestCase):
         self.client.force_authenticate(consumer_owner)
         response = self.client.get(self._provider_resource_project_url())
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class ProviderResourceListUsersConsentTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.offering = self.fixture.offering
+        self.member = structure_factories.UserFactory()
+        resource_ct = ContentType.objects.get_for_model(models.Resource)
+        role = Role.objects.create(
+            name="Resource Member", content_type=resource_ct, is_system_role=False
+        )
+        UserRole.objects.create(
+            user=self.member,
+            role=role,
+            content_type=resource_ct,
+            object_id=self.resource.id,
+        )
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test ToS",
+            version="1.0",
+            is_active=True,
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.OWNER.add_permission(PermissionEnum.VIEW_CUSTOMER_TEAM)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        self.provider_url = (
+            marketplace_factories.ResourceFactory.get_provider_resource_url(
+                self.resource, action="list_users"
+            )
+        )
+        self.consumer_url = marketplace_factories.ResourceFactory.get_url(
+            self.resource, action="list_users"
+        )
+
+    def _user_uuids(self, response):
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return [row["user_uuid"] for row in response.data]
+
+    def test_provider_list_users_hides_member_without_consent(self):
+        self.client.force_authenticate(self.fixture.provider_owner)
+        response = self.client.get(self.provider_url)
+        self.assertNotIn(self.member.uuid.hex, self._user_uuids(response))
+
+    def test_provider_list_users_includes_member_with_consent(self):
+        models.UserOfferingConsent.objects.create(
+            user=self.member, offering=self.offering, version="1.0"
+        )
+        self.client.force_authenticate(self.fixture.provider_owner)
+        response = self.client.get(self.provider_url)
+        self.assertIn(self.member.uuid.hex, self._user_uuids(response))
+
+    def test_staff_list_users_includes_member_without_consent(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.provider_url)
+        self.assertIn(self.member.uuid.hex, self._user_uuids(response))
+
+    def test_consumer_list_users_includes_member_without_consent(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.consumer_url)
+        self.assertIn(self.member.uuid.hex, self._user_uuids(response))
+
+    def test_provider_resource_project_list_users_hides_member_without_consent(self):
+        resource_project = models.ResourceProject.objects.create(
+            resource=self.resource, name="Project A"
+        )
+        project_ct = ContentType.objects.get_for_model(models.ResourceProject)
+        role = Role.objects.create(
+            name="Project Member", content_type=project_ct, is_system_role=False
+        )
+        UserRole.objects.create(
+            user=self.member,
+            role=role,
+            content_type=project_ct,
+            object_id=resource_project.id,
+        )
+        url = reverse(
+            "marketplace-provider-resource-project-list-users",
+            kwargs={"uuid": resource_project.uuid.hex},
+        )
+        self.client.force_authenticate(self.fixture.provider_owner)
+        response = self.client.get(url)
+        self.assertNotIn(self.member.uuid.hex, self._user_uuids(response))
+
+    def test_offering_manager_list_users_hides_member_without_consent(self):
+        self.client.force_authenticate(self.fixture.offering_manager)
+        response = self.client.get(self.provider_url)
+        self.assertNotIn(self.member.uuid.hex, self._user_uuids(response))
+
+    def test_support_list_users_includes_member_without_consent(self):
+        self.client.force_authenticate(self.fixture.global_support)
+        response = self.client.get(self.provider_url)
+        self.assertIn(self.member.uuid.hex, self._user_uuids(response))
+
+    @override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False)
+    def test_provider_list_users_includes_member_when_enforcement_is_off(self):
+        self.client.force_authenticate(self.fixture.provider_owner)
+        response = self.client.get(self.provider_url)
+        self.assertIn(self.member.uuid.hex, self._user_uuids(response))

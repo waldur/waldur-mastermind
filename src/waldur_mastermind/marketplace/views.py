@@ -6882,6 +6882,13 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
         )
         return qs.filter(resource__in=provider_resources)
 
+    def get_user_roles_queryset(self, scope, user=None):
+        # list_users would otherwise return every grant on the resource project,
+        # including users who have not accepted the offering's terms.
+        return utils.user_roles_for_provider_caller(
+            self.request.user, scope, scope.resource.offering, user
+        )
+
     @extend_schema(responses={status.HTTP_200_OK: StatusSerializer})
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
@@ -10200,6 +10207,11 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             has_api_keys_annotation=Exists(
                 models.ResourceApiKey.objects.filter(resource=OuterRef("pk"))
             )
+        )
+
+    def get_user_roles_queryset(self, scope, user=None):
+        return utils.user_roles_for_provider_caller(
+            self.request.user, scope, scope.offering, user
         )
 
     @extend_schema(

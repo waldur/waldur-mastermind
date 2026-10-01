@@ -7467,11 +7467,17 @@ def build_incomplete_profile_q():
     return incomplete_q
 
 
+def _active_offering_consent_q(offering, prefix=""):
+    return Q(
+        **{
+            f"{prefix}offering_consents__offering": offering,
+            f"{prefix}offering_consents__revocation_date__isnull": True,
+        }
+    )
+
+
 def filter_users_with_active_offering_consent(users, offering):
-    return users.filter(
-        offering_consents__offering=offering,
-        offering_consents__revocation_date__isnull=True,
-    ).distinct()
+    return users.filter(_active_offering_consent_q(offering)).distinct()
 
 
 def filter_offering_users_queryset_by_consent(queryset, offering=None):
@@ -7504,12 +7510,118 @@ def filter_offering_users_queryset_by_consent(queryset, offering=None):
     ).distinct()
 
 
-def should_filter_provider_resource_team_by_consent(user, offering) -> bool:
-    if user.is_staff or user.is_support:
-        return False
+def offering_consent_is_enforced(offering) -> bool:
+    """Whether the Terms of Service gate is on for this offering.
+
+    True when enforcement is enabled and the offering has an active Terms of
+    Service. It does not check whether any user has accepted those terms.
+    """
     if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
         return False
     return offering.has_terms_of_service()
+
+
+def should_filter_provider_resource_team_by_consent(user, offering) -> bool:
+    if user.is_staff or user.is_support:
+        return False
+    return offering_consent_is_enforced(offering)
+
+
+def robot_account_caller_scopes(user):
+    """Customer and project ids the caller holds a role on."""
+    return set(get_connected_customers(user)), set(get_connected_projects(user))
+
+
+def is_on_consuming_side(resource, scopes) -> bool:
+    """Whether the caller reaches the resource through its consuming project or organization."""
+    customer_ids, project_ids = scopes
+    return (
+        resource.project.customer_id in customer_ids
+        or resource.project_id in project_ids
+    )
+
+
+def is_provider_gated_for_offering(user, offering, scopes) -> bool:
+    """Whether the caller is a service provider for the offering and the consent gate is on."""
+    if not should_filter_provider_resource_team_by_consent(user, offering):
+        return False
+    customer_ids, _ = scopes
+    return offering.customer_id in customer_ids
+
+
+def should_hide_unconsented_robot_account_users(user, resource) -> bool:
+    """Hide non-consenting users when a service provider reads a robot account.
+
+    Consent gating applies only to callers who belong to the offering's provider
+    organization, under the same conditions as the provider resource team. A
+    caller who is also on the consuming side, such as the owner of an
+    organization that consumes its own offering, sees every linked user.
+    """
+    scopes = robot_account_caller_scopes(user)
+    if not is_provider_gated_for_offering(user, resource.offering, scopes):
+        return False
+    return not is_on_consuming_side(resource, scopes)
+
+
+def active_offering_consent_user_ids(users, offering):
+    users = [user for user in users if user is not None]
+    if not users:
+        return set()
+    return set(
+        filter_users_with_active_offering_consent(
+            core_models.User.objects.filter(id__in={user.id for user in users}),
+            offering,
+        ).values_list("id", flat=True)
+    )
+
+
+def users_with_active_offering_consent(users, offering):
+    users = [user for user in users if user is not None]
+    consented_ids = active_offering_consent_user_ids(users, offering)
+    return [user for user in users if user.id in consented_ids]
+
+
+def retain_robot_account_users_hidden_from_caller(
+    instance, validated_data, caller, consented_ids
+):
+    """Keep links a provider cannot see when they save a redacted payload.
+
+    The edit form sends the users and responsible user it just loaded. A
+    provider read omits people without consent, so writing that list back
+    would detach them.
+    """
+    if instance is None or not should_hide_unconsented_robot_account_users(
+        caller, instance.resource
+    ):
+        return
+    if "users" in validated_data:
+        kept = list(validated_data["users"])
+        kept_ids = {user.id for user in kept}
+        for user in instance.users.all():
+            if user.id not in consented_ids and user.id not in kept_ids:
+                kept.append(user)
+                kept_ids.add(user.id)
+        validated_data["users"] = kept
+    if "responsible_user" in validated_data and not validated_data.get(
+        "responsible_user"
+    ):
+        current = instance.responsible_user if instance.responsible_user_id else None
+        if current is not None and current.id not in consented_ids:
+            validated_data["responsible_user"] = current
+
+
+def user_roles_for_provider_caller(caller, scope, offering, user=None):
+    """Role rows on ``scope``, without users who have not accepted the offering terms."""
+    return filter_user_roles_by_offering_consent(
+        get_permissions(scope, user), caller, offering
+    )
+
+
+def filter_user_roles_by_offering_consent(queryset, user, offering):
+    """Drop role rows whose user has no active consent, for provider callers."""
+    if not should_filter_provider_resource_team_by_consent(user, offering):
+        return queryset
+    return queryset.filter(_active_offering_consent_q(offering, "user__")).distinct()
 
 
 def build_resource_team_response(resource, request, users):
