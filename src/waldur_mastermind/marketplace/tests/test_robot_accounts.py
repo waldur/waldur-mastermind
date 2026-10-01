@@ -1,6 +1,10 @@
 from unittest import mock
 
+from constance.test.unittest import override_config
 from ddt import data, ddt
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core.models import get_ssh_key_fingerprints
@@ -13,6 +17,7 @@ from waldur_core.permissions.fixtures import (
 )
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import RobotAccountStates
 from waldur_mastermind.marketplace.tasks import (
     reconcile_robot_account_access,
@@ -812,3 +817,386 @@ class RobotAccountRoleRevocationTest(test.APITestCase):
             self.assertEqual(
                 event[1]["event_context"]["reason"], "access_reconciliation"
             )
+
+
+def _grant_offering_consent(user, offering, *, revoked=False):
+    return models.UserOfferingConsent.objects.create(
+        user=user,
+        offering=offering,
+        version="1.0",
+        revocation_date=timezone.now() if revoked else None,
+    )
+
+
+@override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class RobotAccountConsentTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT)
+        self.offering = self.fixture.offering
+        self.resource = self.fixture.resource
+        self.member = self.fixture.admin
+        self.member_url = structure_factories.UserFactory.get_url(self.member)
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test ToS",
+            version="1.0",
+            is_active=True,
+        )
+        self.list_url = factories.RobotAccountFactory.get_list_url()
+        self.resource_url = factories.ResourceFactory.get_url(self.resource)
+
+    def _account_with_member(self):
+        account = factories.RobotAccountFactory(resource=self.resource)
+        account.users.add(self.member)
+        account.responsible_user = self.member
+        account.save(update_fields=["responsible_user"])
+        structure_factories.SshPublicKeyFactory(user=self.member)
+        return account
+
+    def test_provider_cannot_attach_user_without_consent(self):
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.post(
+            self.list_url,
+            {
+                "resource": self.resource_url,
+                "type": "cicd",
+                "users": [self.member_url],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Terms of Service", str(response.data))
+
+    def test_provider_cannot_set_responsible_user_without_consent(self):
+        self.client.force_authenticate(self.fixture.service_owner)
+        account = factories.RobotAccountFactory(resource=self.resource)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {"responsible_user": self.member_url},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("responsible user", str(response.data).lower())
+
+    def test_provider_can_attach_user_with_active_consent(self):
+        _grant_offering_consent(self.member, self.offering)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.post(
+            self.list_url,
+            {
+                "resource": self.resource_url,
+                "type": "cicd",
+                "users": [self.member_url],
+                "responsible_user": self.member_url,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_revoked_consent_is_not_enough_to_attach_user(self):
+        _grant_offering_consent(self.member, self.offering, revoked=True)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.post(
+            self.list_url,
+            {
+                "resource": self.resource_url,
+                "type": "cicd",
+                "users": [self.member_url],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_staff_cannot_attach_user_without_consent(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.list_url,
+            {
+                "resource": self.resource_url,
+                "type": "cicd",
+                "users": [self.member_url],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_provider_detail_hides_user_without_consent(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["users"], [])
+        self.assertIsNone(response.data["responsible_user"])
+        self.assertEqual(response.data["user_keys"], [])
+
+    def test_provider_detail_includes_user_with_consent(self):
+        _grant_offering_consent(self.member, self.offering)
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [self.member.uuid.hex],
+            [user["uuid"] for user in response.data["users"]],
+        )
+        self.assertEqual(
+            self.member.uuid.hex, response.data["responsible_user"]["uuid"]
+        )
+        self.assertEqual(1, len(response.data["user_keys"]))
+
+    def test_consumer_detail_still_shows_user_without_consent(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.member)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [self.member.uuid.hex],
+            [user["uuid"] for user in response.data["users"]],
+        )
+        self.assertEqual(
+            self.member.uuid.hex, response.data["responsible_user"]["uuid"]
+        )
+        self.assertEqual(1, len(response.data["user_keys"]))
+
+    def test_staff_detail_shows_user_without_consent(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(1, len(response.data["users"]))
+
+    def test_provider_detail_hides_user_with_revoked_consent(self):
+        _grant_offering_consent(self.member, self.offering, revoked=True)
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["users"], [])
+        self.assertIsNone(response.data["responsible_user"])
+        self.assertEqual(response.data["user_keys"], [])
+
+    def test_provider_detail_keeps_only_consenting_users_and_their_keys(self):
+        consented = self.fixture.manager
+        _grant_offering_consent(consented, self.offering)
+        account = factories.RobotAccountFactory(resource=self.resource)
+        account.users.add(self.member, consented)
+        account.responsible_user = self.member
+        account.save(update_fields=["responsible_user"])
+        structure_factories.SshPublicKeyFactory(user=self.member)
+        structure_factories.SshPublicKeyFactory(user=consented)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [consented.uuid.hex],
+            [user["uuid"] for user in response.data["users"]],
+        )
+        self.assertIsNone(response.data["responsible_user"])
+        self.assertEqual(
+            [consented.uuid.hex],
+            [key["user_uuid"] for key in response.data["user_keys"]],
+        )
+
+    def test_provider_list_hides_user_without_consent(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(self.list_url)
+        row = self._row(response, account)
+        self.assertEqual(row["users"], [])
+        self.assertIsNone(row["responsible_user"])
+
+    def test_username_only_update_keeps_user_without_consent(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {"username": "builder"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        account.refresh_from_db()
+        self.assertEqual(account.username, "builder")
+        self.assertCountEqual([self.member], list(account.users.all()))
+        self.assertEqual(account.responsible_user, self.member)
+
+    def test_provider_save_of_redacted_users_keeps_hidden_user(self):
+        consented = self.fixture.manager
+        _grant_offering_consent(consented, self.offering)
+        account = factories.RobotAccountFactory(resource=self.resource)
+        account.users.add(self.member, consented)
+        account.responsible_user = self.member
+        account.save(update_fields=["responsible_user"])
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {
+                "users": [structure_factories.UserFactory.get_url(consented)],
+                "responsible_user": "",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        account.refresh_from_db()
+        self.assertCountEqual([self.member, consented], list(account.users.all()))
+        self.assertEqual(account.responsible_user, self.member)
+
+    def test_provider_can_detach_consenting_user(self):
+        _grant_offering_consent(self.member, self.offering)
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {"users": [], "responsible_user": None},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        account.refresh_from_db()
+        self.assertFalse(account.users.exists())
+        self.assertIsNone(account.responsible_user)
+
+    def test_provider_update_response_hides_user_without_consent(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {"username": "builder"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["users"], [])
+        self.assertIsNone(response.data["responsible_user"])
+        self.assertNotIn(self.member.uuid.hex, str(response.data))
+
+    def test_provider_update_response_keeps_user_with_consent(self):
+        _grant_offering_consent(self.member, self.offering)
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {"username": "builder"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual([self.member_url], response.data["users"])
+        self.assertEqual(self.member_url, response.data["responsible_user"])
+
+    def test_staff_can_resave_existing_user_without_consent(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {
+                "username": "builder",
+                "users": [self.member_url],
+                "responsible_user": self.member_url,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        account.refresh_from_db()
+        self.assertCountEqual([self.member], list(account.users.all()))
+        self.assertEqual(account.responsible_user, self.member)
+
+    def test_staff_cannot_add_another_user_without_consent(self):
+        account = self._account_with_member()
+        newcomer = self.fixture.manager
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {
+                "users": [
+                    self.member_url,
+                    structure_factories.UserFactory.get_url(newcomer),
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(newcomer.full_name, str(response.data))
+        self.assertNotIn(self.member.full_name, str(response.data))
+
+    def test_provider_member_on_consumer_side_sees_every_user(self):
+        account = self._account_with_member()
+        self.fixture.project.add_user(self.fixture.service_owner, ProjectRole.MEMBER)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [self.member.uuid.hex],
+            [user["uuid"] for user in response.data["users"]],
+        )
+        self.assertEqual(
+            self.member.uuid.hex, response.data["responsible_user"]["uuid"]
+        )
+        self.assertEqual(1, len(response.data["user_keys"]))
+
+    def test_provider_member_on_consumer_side_can_detach_user(self):
+        account = self._account_with_member()
+        self.fixture.project.add_user(self.fixture.service_owner, ProjectRole.MEMBER)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.patch(
+            factories.RobotAccountFactory.get_url(account),
+            {"users": [], "responsible_user": None},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        account.refresh_from_db()
+        self.assertFalse(account.users.exists())
+        self.assertIsNone(account.responsible_user)
+
+    @override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False)
+    def test_provider_detail_shows_user_when_enforcement_is_off(self):
+        account = self._account_with_member()
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(factories.RobotAccountFactory.get_url(account))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [self.member.uuid.hex],
+            [user["uuid"] for user in response.data["users"]],
+        )
+        self.assertEqual(
+            self.member.uuid.hex, response.data["responsible_user"]["uuid"]
+        )
+
+    def test_provider_list_consent_lookup_does_not_repeat_per_account(self):
+        for index in range(3):
+            account = factories.RobotAccountFactory(
+                resource=self.resource, type=f"t{index}"
+            )
+            account.users.add(self.member)
+            account.responsible_user = self.member
+            account.save(update_fields=["responsible_user"])
+        self.client.force_authenticate(self.fixture.service_owner)
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        consent_queries = [
+            query
+            for query in ctx.captured_queries
+            if "userofferingconsent" in query["sql"].lower()
+        ]
+        terms_queries = [
+            query
+            for query in ctx.captured_queries
+            if "offeringtermsofservice" in query["sql"].lower()
+        ]
+        self.assertEqual(len(consent_queries), 1)
+        self.assertEqual(len(terms_queries), 1)
+
+    def _row(self, response, account):
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        rows = response.data
+        if isinstance(rows, dict):
+            rows = rows["results"]
+        return next(row for row in rows if row["uuid"] == account.uuid.hex)
+
+
+@override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class RobotAccountConsentWithoutTermsTest(test.APITestCase):
+    def test_enforcement_without_active_terms_does_not_block_attach(self):
+        fixture = fixtures.MarketplaceFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT)
+        self.client.force_authenticate(fixture.service_owner)
+        response = self.client.post(
+            factories.RobotAccountFactory.get_list_url(),
+            {
+                "resource": factories.ResourceFactory.get_url(fixture.resource),
+                "type": "cicd",
+                "users": [structure_factories.UserFactory.get_url(fixture.admin)],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

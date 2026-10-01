@@ -22,6 +22,7 @@ from django.core.exceptions import (
 from django.core.validators import DomainNameValidator
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Sum
+from django.urls import resolve
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
@@ -13688,7 +13689,148 @@ class RobotAccountSerializer(BaseServiceAccountSerializer):
             raise serializers.ValidationError(
                 f"The responsible user {identifier} should belong to the same project or organization as the resource."
             )
+        # Only people this request newly links need consent, for every caller
+        # including staff. Re-sending links that already exist is allowed, so
+        # an edit still succeeds when a linked user has since revoked consent.
+        # Reads hide that user from the service provider, and a provider save
+        # of that redacted payload does not detach them.
+        if utils.offering_consent_is_enforced(resource.offering) and (
+            "users" in validated_data or "responsible_user" in validated_data
+        ):
+            offering = resource.offering
+            existing_users = list(self.instance.users.all()) if self.instance else []
+            existing_ids = {user.id for user in existing_users}
+            current_responsible_id = (
+                self.instance.responsible_user_id if self.instance else None
+            )
+            people = list(existing_users)
+            if "users" in validated_data:
+                people.extend(validated_data["users"])
+            if responsible_user:
+                people.append(responsible_user)
+            if current_responsible_id:
+                people.append(self.instance.responsible_user)
+            consented_ids = utils.active_offering_consent_user_ids(people, offering)
+            if "users" in validated_data:
+                missing_consent = [
+                    user
+                    for user in validated_data["users"]
+                    if user is not None
+                    and user.id not in existing_ids
+                    and user.id not in consented_ids
+                ]
+                if missing_consent:
+                    names = ", ".join(
+                        user.full_name or user.email for user in missing_consent
+                    )
+                    raise serializers.ValidationError(
+                        f"Users {names} have not accepted the Terms of Service for this offering."
+                    )
+            if (
+                "responsible_user" in validated_data
+                and responsible_user
+                and responsible_user.id != current_responsible_id
+                and responsible_user.id not in consented_ids
+            ):
+                identifier = responsible_user.full_name or responsible_user.email
+                raise serializers.ValidationError(
+                    f"The responsible user {identifier} has not accepted the Terms of Service for this offering."
+                )
+            utils.retain_robot_account_users_hidden_from_caller(
+                self.instance,
+                validated_data,
+                request.user,
+                consented_ids,
+            )
         return validated_data
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        consented_uuids = self._consented_uuids_for_provider(instance)
+        if consented_uuids is None:
+            return data
+
+        if "users" in data:
+            data["users"] = [
+                row
+                for row in data["users"]
+                if self._row_user_uuid(row) in consented_uuids
+            ]
+        responsible = data.get("responsible_user")
+        if responsible and self._row_user_uuid(responsible) not in consented_uuids:
+            data["responsible_user"] = None
+        if "user_keys" in data:
+            data["user_keys"] = [
+                row
+                for row in data["user_keys"]
+                if row.get("user_uuid") in consented_uuids
+            ]
+        return data
+
+    @staticmethod
+    def _row_user_uuid(row):
+        # Details rows are nested users; the write serializer renders hyperlinks.
+        if isinstance(row, dict):
+            return row.get("uuid")
+        return uuid_lib.UUID(resolve(core_utils.clear_url(row)).kwargs["uuid"]).hex
+
+    def _consented_uuids_for_provider(self, instance):
+        """Uuids to keep, or None when this caller sees every linked user.
+
+        The provider gate and the consent lookup are cached on the serializer
+        context once per offering for the whole response, so a list does not
+        repeat them per row. Only the consumer-side check runs per account.
+        """
+        cache = self.context.setdefault("_robot_account_consent_redaction", {})
+        resource = instance.resource
+        offering = resource.offering
+        if offering.pk not in cache:
+            cache[offering.pk] = self._load_consented_uuids(offering, cache)
+        consented_uuids = cache[offering.pk]
+        if consented_uuids is None:
+            return None
+        if utils.is_on_consuming_side(resource, cache["scopes"]):
+            return None
+        return consented_uuids
+
+    def _load_consented_uuids(self, offering, cache):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return None
+        if "scopes" not in cache:
+            cache["scopes"] = utils.robot_account_caller_scopes(user)
+        if not utils.is_provider_gated_for_offering(user, offering, cache["scopes"]):
+            return None
+        people = []
+        for account in self._accounts_sharing_offering(offering):
+            people.extend(account.users.all())
+            if account.responsible_user_id:
+                people.append(account.responsible_user)
+        return {
+            person.uuid.hex
+            for person in utils.users_with_active_offering_consent(people, offering)
+        }
+
+    def _accounts_sharing_offering(self, offering):
+        # In a list the parent ListSerializer holds the page being rendered.
+        parent = self.parent
+        accounts = None
+        if (
+            parent is not None
+            and getattr(parent, "many", False)
+            and parent.instance is not None
+        ):
+            accounts = parent.instance
+        if accounts is None:
+            return [self.instance]
+        if isinstance(accounts, QuerySet):
+            accounts = list(accounts)
+        return [
+            account
+            for account in accounts
+            if account.resource.offering_id == offering.pk
+        ]
 
 
 set_override(
