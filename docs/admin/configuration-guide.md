@@ -3507,6 +3507,12 @@ Enable the affiliate program: staff-configured affiliate links, fee accrual from
 
 Enable Matrix chat integration.
 
+#### MATRIX_AUTO_CREATE_PROJECT_ROOMS
+
+**Type:** bool
+
+Automatically create a Matrix room for every newly created project. Off by default; existing projects are backfilled with the provision_matrix_rooms management command.
+
 #### MATRIX_HOMESERVER_URL
 
 **Type:** url_field

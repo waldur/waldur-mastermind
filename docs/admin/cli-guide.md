@@ -1320,6 +1320,23 @@ options:
 
 ```
 
+## provision_matrix_rooms
+
+Create Matrix rooms for existing projects that do not have one yet. Provisioning itself runs asynchronously via Celery, and each room invites every project member, so on large deployments run it in batches with --limit to avoid homeserver rate limits.
+
+```bash
+
+usage: waldur provision_matrix_rooms [--customer CUSTOMER] [--limit LIMIT]
+                                     [--dry-run]
+
+options:
+  --customer CUSTOMER  Limit to projects of a single customer, given by UUID.
+  --limit LIMIT        Stop after provisioning this many rooms (0 = no limit).
+  --dry-run            List the projects that would get a room, without
+                       creating any.
+
+```
+
 ## pull_openstack_usage
 
 Trigger OpenStack usage billing poll synchronously.
