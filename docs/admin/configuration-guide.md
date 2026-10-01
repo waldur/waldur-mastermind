@@ -1341,12 +1341,6 @@ How users reach services. 'calls': only through calls for proposals, no marketpl
 
 Show offering cover image as a banner above the name on the offering page.
 
-#### ENABLE_MARKDOWN_IMAGE_UPLOAD
-
-**Type:** bool
-
-Allow uploading images for embedding in offering markdown descriptions.
-
 #### ENFORCE_USER_CONSENT_FOR_OFFERINGS
 
 **Type:** bool
