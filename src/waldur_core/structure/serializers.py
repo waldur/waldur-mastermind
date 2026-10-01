@@ -2675,25 +2675,21 @@ class UserSerializer(
     def _can_see_token(self, user):
         # Nobody apart from the user herself can see her token.
         # User can see the token either via details view or /api/users/me
+        #
+        # NOTE: impersonation is deliberately NOT excluded here. `user` is
+        # request.user, which impersonation has already replaced with the
+        # impersonated account, so a staff member impersonating somebody sees
+        # that account's token on /api/users/me. Integrations depend on this:
+        # staff impersonate a service account in Homeport and copy its token
+        # from there. It does hand the impersonator a credential for the
+        # impersonated account, so impersonation itself is the guarded step —
+        # under PASSKEY_ENFORCED_FOR_STAFF it requires a passkey-verified
+        # session (ImpersonationAuthentication).
 
         if isinstance(self.instance, list) and len(self.instance) == 1:
-            is_self = self.instance[0] == user
+            return self.instance[0] == user
         else:
-            is_self = self.instance == user
-
-        if not is_self:
-            return False
-
-        # `user` here is request.user, which impersonation has already
-        # replaced with the impersonated account — so "her own token" reads as
-        # true for an impersonator viewing /api/users/me, and hands them a
-        # durable credential for somebody else. Impersonation is meant to let
-        # staff see what a user sees, not to walk away with their token.
-        request = self.context.get("request")
-        if request is not None and getattr(request.user, "impersonator", None):
-            return False
-
-        return True
+            return self.instance == user
 
     def _is_staff_editing_other_user(self):
         try:
