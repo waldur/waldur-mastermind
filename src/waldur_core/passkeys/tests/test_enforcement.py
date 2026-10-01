@@ -104,30 +104,32 @@ class OwnTokenTest(test.APITestCase):
         self.assertIn("token", response.data)
 
 
-class ImpersonationTokenLeakTest(test.APITestCase):
-    """`/api/users/me` under impersonation returned the impersonated user's token.
+class ImpersonationTokenVisibleTest(test.APITestCase):
+    """`/api/users/me` under impersonation returns the impersonated user's token.
 
-    `_can_see_token` compares against `request.user`, which impersonation has
-    already replaced — so "her own token" read as true for the impersonator,
-    handing them a durable credential for somebody else.
+    Deliberate: staff impersonate a service account in Homeport to copy its
+    token for an integration. Impersonation itself is what enforcement guards
+    (see ImpersonationRequiresVerifiedSessionTest).
     """
 
-    def test_impersonator_does_not_receive_the_impersonated_users_token(self):
+    def test_impersonator_receives_the_impersonated_users_token(self):
         staff = structure_factories.UserFactory(is_staff=True)
-        victim = structure_factories.UserFactory()
+        service_account = structure_factories.UserFactory()
         Token.objects.get_or_create(user=staff)
-        Token.objects.get_or_create(user=victim)
+        Token.objects.get_or_create(user=service_account)
 
         token = Token.objects.get(user=staff)
         response = self.client.get(
             "/api/users/me/",
             HTTP_AUTHORIZATION=f"Token {token.key}",
-            HTTP_X_IMPERSONATED_USER_UUID=victim.uuid.hex,
+            HTTP_X_IMPERSONATED_USER_UUID=service_account.uuid.hex,
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["username"], victim.username)
-        self.assertNotIn("token", response.data)
+        self.assertEqual(response.data["username"], service_account.username)
+        self.assertEqual(
+            response.data["token"], Token.objects.get(user=service_account).key
+        )
 
 
 @enforce()
