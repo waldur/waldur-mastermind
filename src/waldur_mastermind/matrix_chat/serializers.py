@@ -3,11 +3,12 @@ import re
 from django.contrib.contenttypes.models import ContentType
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure.models import Project
 
-from . import models
+from . import models, room_provisioning
 
 # Matrix appservice registration regexes are built by string interpolation into
 # YAML the homeserver compiles as Python re. Validate inputs up front so a
@@ -157,10 +158,25 @@ class EligibleProjectSerializer(serializers.Serializer):
 class MatrixRoomCreateSerializer(serializers.Serializer):
     project = serializers.SlugRelatedField(
         slug_field="uuid",
-        queryset=Project.objects.all(),
+        queryset=Project.available_objects.all(),
     )
 
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get("request")
+        if request is None or getattr(
+            self.context.get("view"), "swagger_fake_view", False
+        ):
+            return fields
+        # A project the caller cannot create for gets the same "does not
+        # exist" as a made-up UUID, so the endpoint reveals neither whether it
+        # exists nor whether it already has a room.
+        fields["project"].queryset = room_provisioning.creatable_projects(request.user)
+        return fields
+
     def validate_project(self, project):
+        if not room_provisioning.can_create_room(self.context["request"], project):
+            raise PermissionDenied()
         ct = ContentType.objects.get_for_model(project)
         if models.MatrixRoom.objects.filter(
             content_type=ct, object_id=project.id

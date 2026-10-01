@@ -1794,6 +1794,12 @@ CONSTANCE_CONFIG = {
     ),
     # Matrix chat settings
     "MATRIX_ENABLED": (False, "Enable Matrix chat integration."),
+    "MATRIX_AUTO_CREATE_PROJECT_ROOMS": (
+        False,
+        "Automatically create a Matrix room for every newly created project. "
+        "Off by default; existing projects are backfilled with the "
+        "provision_matrix_rooms management command.",
+    ),
     "MATRIX_HOMESERVER_URL": (
         "",
         "Matrix homeserver base URL, e.g. https://matrix.example.com",
@@ -2299,6 +2305,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Affiliates": ("AFFILIATES_ENABLED",),
     "Matrix chat": (
         "MATRIX_ENABLED",
+        "MATRIX_AUTO_CREATE_PROJECT_ROOMS",
         "MATRIX_HOMESERVER_URL",
         "MATRIX_HOMESERVER_PUBLIC_URL",
         "MATRIX_HOMESERVER_DOMAIN",

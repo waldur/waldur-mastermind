@@ -50,6 +50,81 @@ class CreateRoomTaskTest(TestCase):
         self.assertEqual(room.state, models.RoomStates.ERROR)
         self.assertIn("Matrix error", room.error_message)
 
+    def test_projects_sharing_a_uuid_prefix_get_distinct_aliases(self, mock_client):
+        # Sequential UUIDs (demo presets) share their leading characters; an
+        # alias built from a prefix collided and the second room got none.
+        mock_client.is_enabled.return_value = True
+
+        aliases = []
+        for uuid in (
+            "c3000000000000000000000000000001",
+            "c3000000000000000000000000000002",
+        ):
+            project = structure_factories.ProjectFactory(uuid=uuid)
+            room = models.MatrixRoom.objects.create(
+                room_name=project.name,
+                content_type=ContentType.objects.get_for_model(project),
+                object_id=project.id,
+            )
+            mock_client.create_room.return_value = (f"!{uuid}:example.com", True)
+            tasks.create_room(str(room.uuid))
+            aliases.append(mock_client.create_room.call_args.kwargs["alias_localpart"])
+
+        self.assertEqual(
+            aliases,
+            [
+                "waldur-c3000000000000000000000000000001",
+                "waldur-c3000000000000000000000000000002",
+            ],
+        )
+
+    def test_second_dispatch_leaves_the_created_room_alone(self, mock_client):
+        # Retry is offered on a room that has sat in `creating` for a few
+        # minutes, which a backfill queue makes common, so the first task may
+        # still be pending when a second one is queued.
+        mock_client.is_enabled.return_value = True
+        mock_client.create_room.return_value = ("!first:matrix.example.com", True)
+
+        project = structure_factories.ProjectFactory()
+        room = models.MatrixRoom.objects.create(
+            room_name="Test Project",
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+        )
+
+        tasks.create_room(str(room.uuid))
+        tasks.create_room(str(room.uuid))
+
+        room.refresh_from_db()
+        self.assertEqual(room.state, models.RoomStates.ACTIVE)
+        self.assertEqual(room.room_id, "!first:matrix.example.com")
+        mock_client.create_room.assert_called_once()
+
+    def test_room_of_a_removed_project_is_not_provisioned(self, mock_client):
+        # A project removed while its room waited in the queue has already
+        # passed pre_delete, so nothing would ever archive a room made now.
+        mock_client.is_enabled.return_value = True
+
+        project = structure_factories.ProjectFactory()
+        ct = ContentType.objects.get_for_model(project)
+        room = models.MatrixRoom.objects.create(
+            room_name="Test Project",
+            content_type=ct,
+            object_id=project.id,
+        )
+        project.delete()
+
+        tasks.create_room(str(room.uuid))
+
+        room.refresh_from_db()
+        self.assertEqual(room.state, models.RoomStates.ERROR)
+        self.assertEqual(
+            room.error_message,
+            "The project was removed before its room was created, "
+            "so retrying cannot succeed.",
+        )
+        mock_client.create_room.assert_not_called()
+
     def test_skips_when_disabled(self, mock_client):
         mock_client.is_enabled.return_value = False
 

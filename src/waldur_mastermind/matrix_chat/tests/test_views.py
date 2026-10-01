@@ -1,10 +1,20 @@
+import uuid
 from unittest import mock
 
 from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from rest_framework import status, test
+from rest_framework.authtoken.models import Token
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.models import Role
+from waldur_core.permissions.tests.test_pat_list_filtering import (
+    _auth_header,
+    _create_pat,
+)
+from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import models
 from waldur_mastermind.matrix_chat.tests import fixtures
@@ -49,38 +59,59 @@ class MatrixRoomCreateTest(test.APITestCase):
         self.fixture = fixtures.MatrixChatFixture()
         self.url = "/api/matrix/rooms/"
 
-    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
     def test_staff_can_create_room(self, mock_tasks):
         # Use a fresh project without a room
-        from waldur_core.structure.tests import factories as structure_factories
-
         project = structure_factories.ProjectFactory(customer=self.fixture.customer)
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             self.url,
-            {"project": project.uuid.hex, "room_name": "My Room"},
+            {"project": project.uuid.hex},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["room_name"], project.name)
         mock_tasks.create_room.delay.assert_called_once()
 
-    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
-    def test_owner_cannot_create_room(self, mock_tasks):
-        # Demo policy: only staff/support provision rooms, not customer owners.
-        from waldur_core.structure.tests import factories as structure_factories
-
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_owner_can_create_room(self, mock_tasks):
+        # Owners hold MATRIX_ROOM.CREATE by default.
         project = structure_factories.ProjectFactory(customer=self.fixture.customer)
 
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(
             self.url,
-            {"project": project.uuid.hex, "room_name": "My Room"},
+            {"project": project.uuid.hex},
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        room = models.MatrixRoom.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(room.created_by, self.fixture.owner)
+        mock_tasks.create_room.delay.assert_called_once()
+
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_owner_cannot_create_room_for_other_customer(self, mock_tasks):
+        other_project = structure_factories.ProjectFactory()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            self.url,
+            {"project": other_project.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         mock_tasks.create_room.delay.assert_not_called()
 
-    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_manager_cannot_create_room(self, mock_tasks):
+        # Managers lack MATRIX_ROOM.CREATE by default.
+        self.client.force_authenticate(self.fixture.manager)
+        response = self.client.post(
+            self.url,
+            {"project": self.fixture.project.uuid.hex},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_tasks.create_room.delay.assert_not_called()
+
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
     def test_cannot_create_duplicate_room(self, mock_tasks):
         self.fixture.matrix_room  # ensure room exists
         self.client.force_authenticate(self.fixture.owner)
@@ -90,16 +121,122 @@ class MatrixRoomCreateTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_non_owner_cannot_create_room(self):
-        from waldur_core.structure.tests import factories as structure_factories
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_duplicate_that_slips_past_validation_is_rejected(self, mock_tasks):
+        # A concurrent create can land its row after validate_project ran;
+        # the unique constraint then decides, and the loser gets a 400.
+        self.fixture.matrix_room  # ensure room exists
+        self.client.force_authenticate(self.fixture.owner)
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.serializers."
+            "MatrixRoomCreateSerializer.validate_project",
+            side_effect=lambda project: project,
+        ):
+            response = self.client.post(
+                self.url,
+                {"project": self.fixture.project.uuid.hex},
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_tasks.create_room.delay.assert_not_called()
 
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_owner_cannot_create_room_for_removed_project(self, mock_tasks):
+        project = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        project.delete()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, {"project": project.uuid.hex})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.MatrixRoom.objects.filter(object_id=project.id).exists()
+        )
+        mock_tasks.create_room.delay.assert_not_called()
+
+    def test_non_owner_cannot_create_room(self):
         user = structure_factories.UserFactory()
         self.client.force_authenticate(user)
         response = self.client.post(
             self.url,
             {"project": self.fixture.project.uuid.hex},
         )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_foreign_project_with_room_looks_like_an_unknown_uuid(self, mock_tasks):
+        # The endpoint must not reveal which projects exist or have a room.
+        self.fixture.matrix_room
+        outsider = structure_factories.UserFactory()
+        self.client.force_authenticate(outsider)
+
+        with_room = self.client.post(
+            self.url, {"project": self.fixture.project.uuid.hex}
+        )
+        unknown = self.client.post(self.url, {"project": uuid.uuid4().hex})
+
+        self.assertEqual(with_room.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(with_room.status_code, unknown.status_code)
+        # The messages differ only by the UUID echoed back; the code is the
+        # same "does_not_exist" for both.
+        self.assertEqual(
+            with_room.data["project"][0].code, unknown.data["project"][0].code
+        )
+
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_owner_without_the_permission_cannot_create_room(self, mock_tasks):
+        # The permission decides, not the owner role itself.
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        project = structure_factories.ProjectFactory(customer=self.fixture.customer)
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.post(self.url, {"project": project.uuid.hex})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_tasks.create_room.delay.assert_not_called()
+
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_manager_can_create_room_once_granted(self, mock_tasks):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        self.client.force_authenticate(self.fixture.manager)
+
+        response = self.client.post(
+            self.url, {"project": self.fixture.project.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_config(PAT_ENABLED=True)
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_support_token_without_support_scope_cannot_create_room(self, mock_tasks):
+        # A support user's token only carries support powers when it is
+        # scoped for them, as everywhere else support bypasses a check.
+        support = structure_factories.UserFactory(
+            is_support=True, can_use_personal_access_tokens=True
+        )
+        Token.objects.get_or_create(user=support)
+        pat = _create_pat(
+            support, scopes=[PermissionEnum.LIST_PROJECTS.value], bindings=[]
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+
+        response = self.client.post(
+            self.url, {"project": self.fixture.project.uuid.hex}
+        )
+
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        mock_tasks.create_room.delay.assert_not_called()
+
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_support_can_create_room(self, mock_tasks):
+        # has_permission lets staff through but not global support.
+        support = structure_factories.UserFactory(is_support=True)
+        self.client.force_authenticate(support)
+
+        response = self.client.post(
+            self.url, {"project": self.fixture.project.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
 @override_config(**MATRIX_ENABLED_CONFIG)
@@ -310,8 +447,8 @@ class MatrixRoomMemberFilterTest(test.APITestCase):
 
 class EligibleProjectsTest(test.APITestCase):
     """GET /api/matrix/rooms/eligible_projects/ lists projects the caller
-    can create a new MatrixRoom for: caller is customer owner (or staff),
-    and the project has no existing MatrixRoom row."""
+    can create a new MatrixRoom for: caller holds MATRIX_ROOM.CREATE (or is
+    staff or support), and the project has no existing MatrixRoom row."""
 
     def setUp(self):
         self.fixture = fixtures.MatrixChatFixture()
@@ -365,13 +502,51 @@ class EligibleProjectsTest(test.APITestCase):
         self.assertNotIn(other_project.uuid.hex, self._project_uuids(response))
 
     def test_non_owner_sees_no_projects(self):
-        # Project admin/manager/member are not customer owners and cannot
-        # create rooms, so eligible_projects must return empty for them.
+        # Project roles lack MATRIX_ROOM.CREATE by default, so
+        # eligible_projects must return empty for them.
         self.client.force_authenticate(self.fixture.admin)
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(list(response.data), [])
+
+    @override_config(**MATRIX_ENABLED_CONFIG)
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_list_and_create_agree_for_a_granted_manager(self, mock_tasks):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        self.client.force_authenticate(self.fixture.manager)
+
+        listed = self.client.get(self.url)
+        created = self.client.post(
+            "/api/matrix/rooms/", {"project": self.project.uuid.hex}
+        )
+
+        self.assertIn(self.project.uuid.hex, self._project_uuids(listed))
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+
+    @override_config(**MATRIX_ENABLED_CONFIG)
+    @mock.patch("waldur_mastermind.matrix_chat.room_provisioning.tasks")
+    def test_owner_clone_without_the_permission_is_neither_listed_nor_allowed(
+        self, mock_tasks
+    ):
+        # A clone copies its template's permissions once; one edited to drop
+        # MATRIX_ROOM.CREATE must not be let in through its template's name.
+        clone = Role.objects.create(
+            name="CUSTOMER.acme.OWNER",
+            content_type=ContentType.objects.get_for_model(Customer),
+            template=CustomerRole.OWNER,
+        )
+        user = structure_factories.UserFactory()
+        self.fixture.customer.add_user(user, clone)
+        self.client.force_authenticate(user)
+
+        listed = self.client.get(self.url)
+        created = self.client.post(
+            "/api/matrix/rooms/", {"project": self.project.uuid.hex}
+        )
+
+        self.assertNotIn(self.project.uuid.hex, self._project_uuids(listed))
+        self.assertEqual(created.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_staff_sees_eligible_projects_across_customers(self):
         other_customer = structure_factories.CustomerFactory()
@@ -641,7 +816,7 @@ class MatrixWriteGuardTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             "/api/matrix/rooms/",
-            {"project": project.uuid.hex, "room_name": "My Room"},
+            {"project": project.uuid.hex},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

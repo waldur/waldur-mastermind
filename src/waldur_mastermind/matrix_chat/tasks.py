@@ -40,10 +40,35 @@ def create_room(room_uuid):
         logger.error("MatrixRoom %s not found", room_uuid)
         return
 
+    # Every dispatch moves the row to CREATING first, so any other state means
+    # an earlier task already handled it; creating again would leave a second
+    # homeserver room behind and flip the working one to ERROR.
+    if room.state != models.RoomStates.CREATING:
+        logger.info(
+            "Skipped creating Matrix room %s: already %s", room.uuid, room.state
+        )
+        return
+
+    # A scope removed while this task waited has already passed pre_delete, so
+    # a room created now would stay active and never be archived. No homeserver
+    # room exists yet, so marking the row erred leaves nothing behind.
+    scope = room.scope
+    if scope is None or getattr(scope, "is_removed", False):
+        room.set_erred()
+        room.error_message = (
+            f"The {room.content_type.name} was removed before its room was "
+            "created, so retrying cannot succeed."
+        )
+        room.save(update_fields=["state", "error_message"])
+        logger.info("Skipped creating Matrix room %s: scope removed", room.uuid)
+        return
+
     try:
         alias_localpart = None
         if room.project:
-            alias_localpart = f"{models.ROOM_ALIAS_PREFIX}{room.project.uuid.hex[:8]}"
+            # The whole UUID: a prefix collides on sequential UUIDs, and the
+            # alias must come out the same when a room is reprovisioned.
+            alias_localpart = f"{models.ROOM_ALIAS_PREFIX}{room.project.uuid.hex}"
 
         room_id, alias_was_set = matrix_client.create_room(
             name=room.room_name,

@@ -1,18 +1,25 @@
 from django.contrib.contenttypes.models import ContentType
 from django.utils.functional import cached_property
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.matrix_chat import models
 
 
 class MatrixChatFixture(ProjectFixture):
+    def __init__(self):
+        super().__init__()
+        # Mirrors permissions.yaml: owners create their projects' rooms.
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
     @cached_property
     def matrix_room(self):
         ct = ContentType.objects.get_for_model(self.project)
         return models.MatrixRoom.objects.create(
             room_id="!test_room:matrix.example.com",
             room_name=f"Project: {self.project.name}",
-            room_alias=f"#waldur-{self.project.uuid.hex[:8]}:matrix.example.com",
+            room_alias=f"#waldur-{self.project.uuid.hex}:matrix.example.com",
             state=models.RoomStates.ACTIVE,
             content_type=ct,
             object_id=self.project.id,
