@@ -3,7 +3,12 @@ import datetime
 from django.test import TestCase
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace.enums import BillingTypes, OrderTypes
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    BillingTypes,
+    OrderTypes,
+)
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import utils
 from waldur_mastermind.proposal.tests import factories as proposal_factories
@@ -169,3 +174,115 @@ class FormatCreateDescriptionTeamTest(TestCase):
         self.manager.save(update_fields=["is_active"])
         description = utils.format_create_description(self.make_order(True))
         self.assertNotIn("Project team:", description)
+
+
+class FormatCreateDescriptionOpenStackOptionsTest(TestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.instance_offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_INSTANCE_OFFERING
+        )
+        self.tenant_offering = marketplace_factories.OfferingFactory(
+            type=OPENSTACK_TENANT_OFFERING
+        )
+
+    def make_resource(self, offering, backend_id, name, project=None):
+        return marketplace_factories.ResourceFactory(
+            offering=offering,
+            project=project or self.fixture.project,
+            backend_id=backend_id,
+            name=name,
+        )
+
+    def make_order(self, option_type, value, label="Virtual machines"):
+        offering = marketplace_factories.OfferingFactory(
+            options={
+                "order": ["picked"],
+                "options": {"picked": {"type": option_type, "label": label}},
+            }
+        )
+        return marketplace_factories.OrderFactory(
+            project=self.fixture.project,
+            offering=offering,
+            attributes={"picked": value},
+        )
+
+    def test_multiple_instances_are_listed_one_per_line_with_names(self):
+        self.make_resource(self.instance_offering, "vm-1", "dmz-www-01")
+        self.make_resource(self.instance_offering, "vm-2", "dmz-www-02")
+        order = self.make_order("select_multiple_openstack_instances", ["vm-1", "vm-2"])
+
+        description = utils.format_create_description(order)
+
+        self.assertIn(
+            "Virtual machines:\n- vm-1 (dmz-www-01)\n- vm-2 (dmz-www-02)", description
+        )
+
+    def test_single_instance_shows_name(self):
+        self.make_resource(self.instance_offering, "vm-1", "dmz-www-01")
+        order = self.make_order("select_openstack_instance", "vm-1", label="VM")
+
+        description = utils.format_create_description(order)
+
+        self.assertIn("VM: 'vm-1 (dmz-www-01)'", description)
+
+    def test_tenants_show_names(self):
+        self.make_resource(self.tenant_offering, "tenant-1", "backup-tenant")
+        self.make_resource(self.tenant_offering, "tenant-2", "web-tenant")
+        single = self.make_order("select_openstack_tenant", "tenant-1", label="Tenant")
+        multiple = self.make_order(
+            "select_multiple_openstack_tenants",
+            ["tenant-1", "tenant-2"],
+            label="Tenants",
+        )
+
+        self.assertIn(
+            "Tenant: 'tenant-1 (backup-tenant)'",
+            utils.format_create_description(single),
+        )
+        self.assertIn(
+            "Tenants:\n- tenant-1 (backup-tenant)\n- tenant-2 (web-tenant)",
+            utils.format_create_description(multiple),
+        )
+
+    def test_unknown_id_is_shown_bare(self):
+        order = self.make_order("select_multiple_openstack_instances", ["vm-gone"])
+
+        description = utils.format_create_description(order)
+
+        self.assertIn("Virtual machines:\n- vm-gone", description)
+        self.assertNotIn("vm-gone (", description)
+
+    def test_name_of_another_customers_resource_is_not_shown(self):
+        other_project = structure_fixtures.ProjectFixture().project
+        self.make_resource(
+            self.instance_offering, "vm-1", "someone-elses-vm", project=other_project
+        )
+        order = self.make_order("select_multiple_openstack_instances", ["vm-1"])
+
+        description = utils.format_create_description(order)
+
+        self.assertNotIn("someone-elses-vm", description)
+
+    def test_resource_of_another_offering_type_does_not_contribute_its_name(self):
+        self.make_resource(self.tenant_offering, "vm-1", "a-tenant-not-a-vm")
+        order = self.make_order("select_multiple_openstack_instances", ["vm-1"])
+
+        description = utils.format_create_description(order)
+
+        self.assertNotIn("a-tenant-not-a-vm", description)
+
+    def test_legacy_value_with_name_is_shown_unchanged(self):
+        legacy = "Instance UUID: vm-1. Name: dmz-www-01"
+        order = self.make_order("select_multiple_openstack_instances", [legacy])
+
+        description = utils.format_create_description(order)
+
+        self.assertIn(f"Virtual machines:\n- {legacy}", description)
+
+    def test_other_option_types_are_rendered_as_before(self):
+        order = self.make_order("string", "nightly", label="Retention")
+
+        description = utils.format_create_description(order)
+
+        self.assertIn("Retention: 'nightly'", description)
