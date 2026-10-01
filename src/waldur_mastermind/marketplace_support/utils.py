@@ -12,7 +12,11 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OrderTypes
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_INSTANCE_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    OrderTypes,
+)
 from waldur_mastermind.marketplace.utils import format_limits_list, get_order_url
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.support import backend as support_backend
@@ -81,6 +85,37 @@ def get_project_team(order):
     )
 
 
+# The OpenStack pickers submit bare backend IDs. Providers often act on the
+# ticket from a machine without copy-paste, so the ticket names each resource
+# rather than leaving them to retype and cross-check UUIDs.
+OPENSTACK_PICKER_OFFERING_TYPES = {
+    "select_openstack_tenant": OPENSTACK_TENANT_OFFERING,
+    "select_multiple_openstack_tenants": OPENSTACK_TENANT_OFFERING,
+    "select_openstack_instance": OPENSTACK_INSTANCE_OFFERING,
+    "select_multiple_openstack_instances": OPENSTACK_INSTANCE_OFFERING,
+}
+
+
+def format_openstack_picker_option(order, label, option_type, value):
+    backend_ids = value if isinstance(value, list) else [value]
+    # Scoped to the ordering customer, as the picker is, so a colliding or
+    # crafted ID cannot put another organization's resource name in the ticket.
+    names = dict(
+        marketplace_models.Resource.objects.filter(
+            project__customer_id=order.project.customer_id,
+            offering__type=OPENSTACK_PICKER_OFFERING_TYPES[option_type],
+            backend_id__in=[backend_id for backend_id in backend_ids if backend_id],
+        ).values_list("backend_id", "name")
+    )
+    entries = [
+        f"{backend_id} ({names[backend_id]})" if backend_id in names else backend_id
+        for backend_id in backend_ids
+    ]
+    if isinstance(value, list):
+        return f"{label}:\n" + "\n".join(f"- {entry}" for entry in entries)
+    return f"{label}: '{entries[0]}'"
+
+
 def format_create_description(order):
     result = []
 
@@ -95,7 +130,15 @@ def format_create_description(order):
 
         label = order.offering.options["options"].get(key, {})
         label_value = label.get("label", key)
-        result.append(f"{label_value}: '{order.attributes[key]}'")
+        option_type = label.get("type")
+        if option_type in OPENSTACK_PICKER_OFFERING_TYPES:
+            result.append(
+                format_openstack_picker_option(
+                    order, label_value, option_type, order.attributes[key]
+                )
+            )
+        else:
+            result.append(f"{label_value}: '{order.attributes[key]}'")
 
     if "description" in order.attributes:
         result.append("\n %s" % order.attributes["description"])
