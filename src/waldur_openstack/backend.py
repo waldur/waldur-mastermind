@@ -4309,6 +4309,15 @@ class OpenStackBackend(ServiceBackend):
         if port.mac_address:
             port_payload["mac_address"] = port.mac_address
 
+        # Without the key Neutron applies the tenant's default group.
+        security_group_ids = list(
+            port.security_groups.exclude(backend_id="").values_list(
+                "backend_id", flat=True
+            )
+        )
+        if security_group_ids:
+            port_payload["security_groups"] = security_group_ids
+
         try:
             port_response = neutron.create_port({"port": port_payload})["port"]
         except neutron_exceptions.NeutronClientException as e:
@@ -8257,15 +8266,13 @@ class OpenStackBackend(ServiceBackend):
             neutron.update_port(
                 port.backend_id, {"port": {"security_groups": list(local_ids)}}
             )
-            logger.info(
-                "Updated security groups for port %s to %s",
-                port.backend_id,
-                list(local_ids),
-            )
-        except neutron_exceptions.NeutronClientException:
-            logger.exception(
-                "Failed to update security groups for port %s", port.backend_id
-            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        logger.info(
+            "Updated security groups for port %s to %s",
+            port.backend_id,
+            list(local_ids),
+        )
 
     @reraise_exceptions
     def create_image(self, tenant: models.Tenant, image_metadata: dict):

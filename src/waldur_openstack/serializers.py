@@ -2333,12 +2333,28 @@ class OpenStackAllowedAddressPairField(serializers.JSONField):
 class OpenStackPortNestedSecurityGroupSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    # Written as [{"url": ...}], read back as [{"uuid", "name", "url"}].
+    url = serializers.HyperlinkedRelatedField(
+        source="*",
+        queryset=models.SecurityGroup.objects.all(),
+        view_name="openstack-sgp-detail",
+        lookup_field="uuid",
+    )
+
     class Meta:
         model = models.SecurityGroup
         fields = ("uuid", "name", "url")
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid", "view_name": "openstack-sgp-detail"}
-        }
+        read_only_fields = ("uuid", "name")
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict):
+            raise serializers.ValidationError(
+                {"non_field_errors": [_("Expected an object with a url.")]}
+            )
+        try:
+            return self.fields["url"].run_validation(data.get("url", serializers.empty))
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"url": e.detail})
 
 
 class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer):
@@ -2395,6 +2411,8 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                 "fixed_ips",
                 "mac_address",
                 "allowed_address_pairs",
+                # Changed only through the update_security_groups action.
+                "security_groups",
             )
         )
         read_only_fields = (
@@ -2404,7 +2422,6 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
                 "allowed_address_pairs",
                 "device_id",
                 "device_owner",
-                "security_groups",
                 "admin_state_up",
                 "status",
             )
@@ -2505,7 +2522,30 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
         else:
             attrs["tenant"] = network.tenant
 
+        security_groups = attrs.get("security_groups", [])
+        if security_groups and not attrs.get("port_security_enabled", True):
+            raise serializers.ValidationError(
+                _("Security groups cannot be assigned when port security is disabled.")
+            )
+        for security_group in security_groups:
+            if security_group.tenant != attrs["tenant"]:
+                raise serializers.ValidationError(
+                    {
+                        "security_groups": _(
+                            "Security group %s does not belong to the same tenant as port."
+                        )
+                        % security_group.name
+                    }
+                )
+
         return super().validate(attrs)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        security_groups = validated_data.pop("security_groups", [])
+        port = super().create(validated_data)
+        port.security_groups.set(security_groups)
+        return port
 
 
 class NetworkRBACPolicySerializer(
