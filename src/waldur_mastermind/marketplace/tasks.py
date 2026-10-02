@@ -48,6 +48,7 @@ from waldur_mastermind.marketplace import (
     offering_merge,
     plugins,
     project_groups,
+    resource_api_keys,
     utils,
 )
 from waldur_mastermind.marketplace import log as marketplace_log
@@ -114,6 +115,16 @@ def re_evaluate_usage_limit_restrictions():
     )
     for resource in restricted:
         evaluate_usage_limit_restriction(resource)
+
+
+@shared_task(name="waldur_mastermind.marketplace.resume_api_keys_under_limit")
+def resume_api_keys_under_limit():
+    """Resume the API keys Waldur paused for a limit once a new month resets it.
+
+    The per-key counterpart of ``re_evaluate_usage_limit_restrictions``: a usage
+    report resumes such a key on its own, but a new month may begin without one.
+    """
+    resource_api_keys.resume_keys_under_limit()
 
 
 def process_order_on_commit(order: models.Order, user):

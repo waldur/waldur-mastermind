@@ -1,6 +1,7 @@
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.enums import ResourceApiKeyActions
 
 
 def get_resource_scopes(resource: models.Resource):
@@ -58,13 +59,87 @@ def log_resource_limit_update_succeeded(resource: models.Resource):
     )
 
 
-def log_resource_api_key_rotated(api_key: models.ResourceApiKey, user):
+# What each key command reads as in the audit log, and the event it emits.
+_API_KEY_COMMAND_EVENTS = {
+    ResourceApiKeyActions.CREATE: (
+        "Creation",
+        EventType.MARKETPLACE_RESOURCE_API_KEY_REQUESTED,
+    ),
+    ResourceApiKeyActions.ROTATE: (
+        "Rotation",
+        EventType.MARKETPLACE_RESOURCE_API_KEY_ROTATED,
+    ),
+    ResourceApiKeyActions.PAUSE: (
+        "Pause",
+        EventType.MARKETPLACE_RESOURCE_API_KEY_PAUSED,
+    ),
+    ResourceApiKeyActions.RESUME: (
+        "Resume",
+        EventType.MARKETPLACE_RESOURCE_API_KEY_RESUMED,
+    ),
+    ResourceApiKeyActions.UPDATE: (
+        "Update",
+        EventType.MARKETPLACE_RESOURCE_API_KEY_UPDATED,
+    ),
+    ResourceApiKeyActions.DELETE: (
+        "Deletion",
+        EventType.MARKETPLACE_RESOURCE_API_KEY_DELETED,
+    ),
+}
+
+
+def _api_key_name(api_key: models.ResourceApiKey) -> str:
     # A resource owns many keys — the audit event must identify which one.
-    resource = api_key.resource
-    event_logger.emit(
+    return (
         f"API key {api_key.client_id or api_key.uuid.hex} of resource "
-        f"{resource.name} has been rotated by {user}.",
-        event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_ROTATED,
+        f"{api_key.resource.name}"
+    )
+
+
+def log_resource_api_key_command(
+    api_key: models.ResourceApiKey,
+    action: str,
+    actor=None,
+    reason: str = "",
+    applied: bool = False,
+):
+    """Audit a key command. Without an actor the command was Waldur's own.
+
+    A command is logged when it is issued, before the agent has carried it out,
+    so it reads as requested; its failure is logged separately. ``applied`` is
+    for a change Waldur makes on its own, which is done at once: an assignee
+    change, or deleting a key that was never created.
+    """
+    resource = api_key.resource
+    noun, event_type = _API_KEY_COMMAND_EVENTS[action]
+    by = f"by {actor}" if actor else "automatically"
+    if applied:
+        done = "deleted" if action == ResourceApiKeyActions.DELETE else "updated"
+        message = f"{_api_key_name(api_key)} has been {done} {by}."
+    else:
+        message = f"{noun} of {_api_key_name(api_key)} has been requested {by}."
+    if reason:
+        message = f"{message} {reason}"
+    event_logger.emit(
+        message,
+        event_type=event_type,
+        event_context={"resource": resource},
+        scopes=get_resource_scopes(resource),
+    )
+
+
+def log_resource_api_key_command_failed(api_key: models.ResourceApiKey):
+    """Audit the site agent's report that a key command failed."""
+    resource = api_key.resource
+    noun, _ = _API_KEY_COMMAND_EVENTS[
+        api_key.pending_action or ResourceApiKeyActions.ROTATE
+    ]
+    message = f"{noun} of {_api_key_name(api_key)} has failed."
+    if api_key.error_message:
+        message = f"{message} {api_key.error_message}"
+    event_logger.emit(
+        message,
+        event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_FAILED,
         event_context={"resource": resource},
         scopes=get_resource_scopes(resource),
     )
@@ -73,8 +148,7 @@ def log_resource_api_key_rotated(api_key: models.ResourceApiKey, user):
 def log_resource_api_key_revealed(api_key: models.ResourceApiKey, user):
     resource = api_key.resource
     event_logger.emit(
-        f"API key {api_key.client_id or api_key.uuid.hex} of resource "
-        f"{resource.name} has been revealed to {user}.",
+        f"{_api_key_name(api_key)} has been revealed to {user}.",
         event_type=EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED,
         event_context={"resource": resource},
         scopes=get_resource_scopes(resource),

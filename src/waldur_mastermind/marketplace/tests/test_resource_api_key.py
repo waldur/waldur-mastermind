@@ -190,8 +190,7 @@ class ConsumerApiKeyTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_revoke_is_not_offered(self):
-        # The key count is fixed at provisioning; rotation re-mints in place, so
-        # there is no consumer-facing way to remove a key.
+        # Removing a key is the delete command (DELETE), not a revoke action.
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(f"{detail_url(self.key)}revoke/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -349,17 +348,17 @@ class ProviderApiKeyTest(test.APITestCase):
         self.assertEqual(key.state, States.ERRED)
         self.assertEqual(key.error_message, "boom")
 
-    def test_destroy_is_not_offered(self):
-        # The key count is fixed at provisioning, so nothing needs a delete, and an
-        # ungated one could drop a row whose key still serves at the backend.
-        # Termination cleanup deletes rows directly.
+    def test_provider_cannot_delete_a_key(self):
+        # DELETE is the consumer's delete command; the provider side only
+        # acknowledges it.
         key = models.ResourceApiKey.objects.create(
             resource=self.resource, client_id="cid-1", state=States.OK
         )
         self.client.force_authenticate(self.fixture.offering_owner)
         response = self.client.delete(detail_url(key))
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        self.assertTrue(models.ResourceApiKey.objects.filter(pk=key.pk).exists())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        key.refresh_from_db()
+        self.assertEqual(key.state, States.OK)
 
     def test_set_erred_rejected_from_ok(self):
         # A stale erred report must not clobber a key that a newer set_key landed OK.

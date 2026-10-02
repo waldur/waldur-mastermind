@@ -74,6 +74,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingUserStates,
     OrderStates,
     OrderTypes,
+    ResourceApiKeyActions,
     ResourceApiKeyStates,
     ResourceStates,
     RobotAccountStates,
@@ -5918,22 +5919,123 @@ class ResourceApiKey(
     then pushes the value here Fernet-encrypted — so a stored key is always one
     the backend already accepts. The state reuses the resource state vocabulary
     so the portal renders it with the standard StateIndicator.
+
+    On an offering with ``enable_api_key_provisioning`` a key is also governed
+    individually: it can be requested, assigned to a person, given per-component
+    limits, restricted to some models, paused, resumed and deleted. Each of those
+    is a command the agent carries out and acknowledges; ``pending_action`` names
+    the one in flight.
     """
 
     States = ResourceApiKeyStates
+    Actions = ResourceApiKeyActions
 
     resource = models.ForeignKey(
         to=Resource, on_delete=models.CASCADE, related_name="api_keys"
     )
     # The backend identity for this key (one gateway Secret entry). Assigned by
-    # the agent, e.g. "<resource_backend_id>-1".
+    # the agent, e.g. "<resource_backend_id>-1"; blank on a requested key until
+    # the agent has created it.
     client_id = models.CharField(max_length=255, blank=True, db_index=True)
     key_ciphertext = models.TextField(blank=True)
+    issued_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "When the agent last stored a value for this key: its creation or "
+            "its latest rotation. Unlike modified, a pause or an edit leaves it "
+            "alone."
+        ),
+    )
     state = FSMField(choices=States.CHOICES, default=States.CREATING)
+    pending_action = models.CharField(
+        max_length=16,
+        choices=ResourceApiKeyActions.CHOICES,
+        blank=True,
+        default="",
+        help_text=_(
+            "The command the site agent is carrying out on this key. Kept when "
+            "the key goes Erred, to show which command failed."
+        ),
+    )
+    # SET_NULL rather than CASCADE: deleting the key row would take its usage
+    # with it.
+    user = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=User,
+        null=True,
+        blank=True,
+        related_name="resource_api_keys",
+        help_text=_("Assignee. When set, only this user can reveal the key."),
+    )
+    limits = models.JSONField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Per-component limits, keyed by component type. Waldur pauses the key "
+            "once its reported usage reaches one; zero means no limit."
+        ),
+    )
+    allowed_models = models.JSONField(
+        null=True,
+        blank=True,
+        help_text=_("Models this key may call; null allows every model."),
+    )
+    current_usages = models.JSONField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Usage per component type in usage_period, as last reported by the "
+            "site agent."
+        ),
+    )
+    usage_period = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "The month current_usages covers (its first day). Limits are monthly: "
+            "usage of an earlier month counts against none."
+        ),
+    )
+    paused_by_limit = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Waldur paused the key because its usage reached a limit. Such a key "
+            "is resumed automatically once its usage is under its limits again: "
+            "in a new month, or when a limit is raised."
+        ),
+    )
+
+    objects = managers.ResourceApiKeyQuerySet.as_manager()
 
     class Meta:
         verbose_name = _("Resource API key")
-        unique_together = (("resource", "client_id"),)
+        constraints = [
+            # A requested key has no client_id until the agent creates it, so
+            # several can wait at once. A deleted key keeps its client_id, which
+            # the agent must not hand out again: usage is attributed by it.
+            UniqueConstraint(
+                fields=["resource", "client_id"],
+                condition=~Q(client_id=""),
+                name="marketplace_resource_api_key_unique_client_id",
+            ),
+        ]
+
+    @staticmethod
+    def is_managed_for(resource: Resource) -> bool:
+        """Whether the offering's backend supports per-key governance."""
+        return bool(resource.offering.plugin_options.get("enable_api_key_provisioning"))
+
+    @property
+    def is_managed(self) -> bool:
+        return self.is_managed_for(self.resource)
+
+    @staticmethod
+    def current_period() -> datetime.date:
+        """The month limits are counted in: its first day."""
+        return core_utils.month_start(timezone.now()).date()
+
+    # Every acknowledgement clears pending_action: the command has settled.
 
     @transition(
         field=state,
@@ -5941,23 +6043,92 @@ class ResourceApiKey(
         target=States.OK,
     )
     def set_ok(self):
-        pass
+        self.pending_action = ""
 
-    # Rotation is also allowed from Erred so a failed apply can be retried from
-    # the portal instead of leaving the key stuck.
+    # Only a retry of a failed request: a new key is created, not transitioned.
+    @transition(field=state, source=[States.ERRED], target=States.CREATING)
+    def set_creating(self):
+        self.pending_action = ResourceApiKeyActions.CREATE
+
+    # Every command is also allowed from Erred so a failed one can be retried
+    # from the portal instead of leaving the key stuck; issue_command decides
+    # which of them an Erred key accepts.
     @transition(field=state, source=[States.OK, States.ERRED], target=States.UPDATING)
-    def set_updating(self):
-        pass
+    def set_updating(self, action=ResourceApiKeyActions.ROTATE):
+        self.pending_action = action
 
-    # Only from the transitional states (not OK): a late/duplicate erred report
-    # must not flip a key that has since been applied successfully back to red.
+    @transition(field=state, source=[States.OK, States.ERRED], target=States.UPDATING)
+    def set_pausing(self):
+        self.pending_action = ResourceApiKeyActions.PAUSE
+
+    # A resume, whoever issues it, ends a pause for the limit: if the key is still
+    # over it, the next usage report pauses it again.
+    @transition(
+        field=state, source=[States.PAUSED, States.ERRED], target=States.UPDATING
+    )
+    def set_resuming(self):
+        self.pending_action = ResourceApiKeyActions.RESUME
+        self.paused_by_limit = False
+
     @transition(
         field=state,
-        source=[States.CREATING, States.UPDATING, States.ERRED],
+        source=[States.OK, States.PAUSED, States.ERRED],
+        target=States.DELETING,
+    )
+    def set_deleting(self):
+        self.pending_action = ResourceApiKeyActions.DELETE
+        self.paused_by_limit = False
+
+    # A requested key the agent has not created yet, or failed to create, has no
+    # client_id: nothing at the backend to revoke, so it is dropped without a
+    # command. A creation the agent reports later is refused, and the agent then
+    # withdraws what it minted.
+    @transition(
+        field=state, source=[States.CREATING, States.ERRED], target=States.DELETED
+    )
+    def cancel_request(self):
+        self.pending_action = ""
+        self.key_ciphertext = ""
+
+    @transition(
+        field=state, source=[States.UPDATING, States.ERRED], target=States.PAUSED
+    )
+    def set_paused(self):
+        self.pending_action = ""
+
+    # The value is dropped: the backend has revoked it, so it can never be
+    # revealed again. The row stays for the usage it carries.
+    @transition(
+        field=state, source=[States.DELETING, States.ERRED], target=States.DELETED
+    )
+    def set_deleted(self):
+        self.pending_action = ""
+        self.key_ciphertext = ""
+
+    # Only from the transitional states (not OK, Paused or Deleted): a
+    # late/duplicate erred report must not flip a key that has since settled.
+    @transition(
+        field=state,
+        source=[States.CREATING, States.UPDATING, States.DELETING, States.ERRED],
         target=States.ERRED,
     )
     def set_erred(self):
         pass
+
+    def exceeded_limits(self) -> list[str]:
+        """Component types whose usage this month has reached this key's limit.
+
+        Limits are monthly, so usage reported for an earlier month counts as none.
+        """
+        if self.usage_period != self.current_period():
+            return []
+        limits = self.limits or {}
+        usages = self.current_usages or {}
+        return sorted(
+            component_type
+            for component_type, limit in limits.items()
+            if limit and usages.get(component_type, 0) >= limit
+        )
 
     def __str__(self) -> str:
         return f"API key {self.client_id or self.uuid.hex} of {self.resource}"

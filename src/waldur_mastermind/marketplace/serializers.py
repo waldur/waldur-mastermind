@@ -122,6 +122,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStatesType,
     OrderTypes,
     ResourceAction,
+    ResourceApiKeyActions,
     ResourceStates,
     ResourceStatesType,
     RobotAccountStates,
@@ -971,6 +972,15 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         "resource, but the agent does not touch SLURM QoS. The agent config "
         "may override this per deployment.",
     )
+    enable_api_key_provisioning = serializers.BooleanField(
+        required=False,
+        help_text="Declares that the site agent can govern resource API keys "
+        "one by one: request, assign, limit, pause, resume and delete them. "
+        "Without it a resource's keys can only be revealed and rotated. Nothing "
+        "checks the claim: turn it on only if the agent's backend supports "
+        "per-key commands (such as the Envoy AI Gateway); on one that does not "
+        "(such as Ceph S3) every such command errs.",
+    )
 
 
 class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
@@ -1008,6 +1018,10 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
         default=False,
         help_text="Show a warning about unrecoverable loss of the SSH "
         "private key on the OpenStack instance order form.",
+    )
+    hide_api_keys_tab = serializers.BooleanField(
+        required=False,
+        help_text="Hide the API keys tab on resources of this offering.",
     )
 
     def validate_disabled_resource_actions(self, value):
@@ -8928,11 +8942,42 @@ class ResourceBackendMetadataSerializer(serializers.ModelSerializer):
 class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
     """Non-secret view of a resource API key — safe for listing/polling."""
 
+    # Per-key governance fields. On an offering whose backend does not support it
+    # they are always null, so the portal offers neither the fields nor the
+    # actions that set them.
+    MANAGED_FIELDS = (
+        "user_uuid",
+        "user_full_name",
+        "limits",
+        "allowed_models",
+        "current_usages",
+        "usage_period",
+        "paused_by_limit",
+    )
+
     resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
     # The agent's reconciliation pass finds keys by listing, so unlike a command
     # it has nothing carrying the resource's backend id — and it needs one to talk
     # to the backend.
     resource_backend_id = serializers.ReadOnlyField(source="resource.backend_id")
+    user_uuid = serializers.ReadOnlyField(source="user.uuid", allow_null=True)
+    user_full_name = serializers.ReadOnlyField(source="user.full_name", allow_null=True)
+    pending_action = serializers.ChoiceField(
+        choices=ResourceApiKeyActions.CHOICES,
+        allow_blank=True,
+        read_only=True,
+    )
+    limits = serializers.DictField(
+        child=LimitValueField(), allow_null=True, read_only=True
+    )
+    allowed_models = serializers.ListField(
+        child=serializers.CharField(), allow_null=True, read_only=True
+    )
+    current_usages = serializers.DictField(
+        child=LimitValueField(), allow_null=True, read_only=True
+    )
+    usage_period = serializers.DateField(allow_null=True, read_only=True)
+    paused_by_limit = serializers.BooleanField(allow_null=True, read_only=True)
 
     class Meta:
         model = models.ResourceApiKey
@@ -8942,9 +8987,155 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
             "resource_backend_id",
             "client_id",
             "state",
+            "pending_action",
             "modified",
+            "issued_at",
             "error_message",
+            "user_uuid",
+            "user_full_name",
+            "limits",
+            "allowed_models",
+            "current_usages",
+            "usage_period",
+            "paused_by_limit",
         )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not instance.is_managed:
+            for field in self.MANAGED_FIELDS:
+                data[field] = None
+        return data
+
+
+class ResourceApiKeySettingsSerializer(serializers.Serializer):
+    """The per-key settings shared by requesting and editing a key.
+
+    Every setting is optional. An empty limit map or model list is stored as null:
+    the key then follows the resource.
+    """
+
+    user = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Assignee. When set, only this user can reveal the key.",
+    )
+    limits = serializers.DictField(
+        child=LimitValueField(min_value=0),
+        required=False,
+        allow_null=True,
+        help_text="Limits per component type; zero or absent means no limit.",
+    )
+    allowed_models = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_null=True,
+        help_text="Models the key may call; empty or absent allows every model.",
+    )
+
+    def get_resource(self, attrs) -> models.Resource:
+        raise NotImplementedError
+
+    def validate(self, attrs):
+        resource = self.get_resource(attrs)
+        errors = {}
+        user = attrs.get("user")
+        # A key is handed to someone working in the resource's project; an
+        # organization role alone does not make someone a user of the resource.
+        if user is not None and not resource.project.has_user(user):
+            errors["user"] = _(
+                "The assignee must be a member of the resource's project."
+            )
+        if "limits" in attrs:
+            attrs["limits"] = attrs["limits"] or None
+            component_types = set(
+                resource.offering.components.values_list("type", flat=True)
+            )
+            unknown = sorted(set(attrs["limits"] or {}) - component_types)
+            if unknown:
+                errors["limits"] = _("Unknown components: %s.") % ", ".join(unknown)
+        if "allowed_models" in attrs:
+            allowed_models = attrs["allowed_models"] or None
+            attrs["allowed_models"] = allowed_models
+            # When the offering lists its models, a key may only narrow that list.
+            choices = (
+                (resource.offering.resource_options or {})
+                .get("options", {})
+                .get("models", {})
+                .get("choices")
+            )
+            if allowed_models and len(set(allowed_models)) != len(allowed_models):
+                errors["allowed_models"] = _("Models must not repeat.")
+            elif allowed_models and isinstance(choices, list):
+                unknown = sorted(set(allowed_models) - set(choices))
+                if unknown:
+                    errors["allowed_models"] = _("Unknown models: %s.") % ", ".join(
+                        unknown
+                    )
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+
+class ResourceApiKeyCreateSerializer(ResourceApiKeySettingsSerializer):
+    """Consumer request for a new key. Waldur mints nothing: the agent does."""
+
+    resource = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.Resource.objects.all()
+    )
+
+    def get_resource(self, attrs):
+        return attrs["resource"]
+
+
+class ResourceApiKeyUpdateSerializer(ResourceApiKeySettingsSerializer):
+    """Edit a key's assignee, limits or model allowlist."""
+
+    def get_resource(self, attrs):
+        return self.instance.resource
+
+
+class ResourceApiKeyUsageSerializer(serializers.Serializer):
+    """Agent push: a key's usage per component type in one month."""
+
+    usages = serializers.DictField(
+        child=LimitValueField(min_value=0),
+        help_text="The key's usage so far in billing_period, per component type.",
+    )
+    billing_period = serializers.DateField(
+        required=False,
+        help_text="Any day of the month the usage belongs to; the current month "
+        "when omitted. Limits are monthly, so a later month starts them afresh.",
+    )
+
+    def validate_billing_period(self, value):
+        period = core_utils.month_start(value).date()
+        if period > models.ResourceApiKey.current_period():
+            raise serializers.ValidationError(_("Usage cannot be reported ahead."))
+        return period
+
+    def validate_usages(self, usages):
+        component_types = set(
+            self.context["api_key"].resource.offering.components.values_list(
+                "type", flat=True
+            )
+        )
+        unknown = sorted(set(usages) - component_types)
+        if unknown:
+            raise serializers.ValidationError(
+                _("Unknown components: %s.") % ", ".join(unknown)
+            )
+        return usages
+
+
+class ResourceApiKeyUsageTotalsSerializer(serializers.Serializer):
+    usages = serializers.DictField(
+        child=LimitValueField(),
+        help_text="Usage per component type in the current month, summed over "
+        "the resource's keys, deleted ones included.",
+    )
 
 
 class ResourceApiKeySerializer(ResourceApiKeyStatusSerializer):
