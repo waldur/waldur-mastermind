@@ -12,6 +12,7 @@ To run:
 """
 
 import logging
+import time
 from uuid import uuid4
 
 import httpx
@@ -700,3 +701,81 @@ class MatrixMessageFlowIntegrationTest(TestCase):
             200,
             f"Typing indicator failed: {typing_resp.text}",
         )
+
+
+@override_config(**MATRIX_CONFIG)
+class MatrixWebSessionIntegrationTest(TestCase):
+    """Web chat sessions and their devices against the real homeserver."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_bot()
+        user = structure_factories.UserFactory(username=_unique_name("webuser"))
+        self.matrix_user_id = matrix_client.ensure_user_exists(user)
+
+    def _device_ids(self):
+        return {d["device_id"] for d in matrix_client.list_devices(self.matrix_user_id)}
+
+    def test_each_session_has_its_own_refreshable_device(self):
+        first = matrix_client.create_web_session(self.matrix_user_id)
+        second = matrix_client.create_web_session(self.matrix_user_id)
+
+        self.assertNotEqual(first["device_id"], second["device_id"])
+        self.assertTrue(first["refresh_token"])
+        self.assertTrue(first["expires_in_ms"])
+        self.assertLessEqual(
+            {first["device_id"], second["device_id"]}, self._device_ids()
+        )
+
+    def test_logout_device_removes_it_and_its_tokens(self):
+        session = matrix_client.create_web_session(self.matrix_user_id)
+
+        matrix_client.logout_device(self.matrix_user_id, session["device_id"])
+
+        self.assertNotIn(session["device_id"], self._device_ids())
+        whoami = httpx.get(
+            f"{HOMESERVER_URL}/_matrix/client/v3/account/whoami",
+            headers={"Authorization": f"Bearer {session['access_token']}"},
+            timeout=5,
+        )
+        self.assertEqual(whoami.status_code, 401)
+
+    def test_using_a_session_marks_its_device_seen(self):
+        # The prune rules rely on last_seen_ts moving with use.
+        session = matrix_client.create_web_session(self.matrix_user_id)
+
+        def last_seen():
+            devices = matrix_client.list_devices(self.matrix_user_id)
+            return next(
+                d["last_seen_ts"]
+                for d in devices
+                if d["device_id"] == session["device_id"]
+            )
+
+        before = last_seen()
+        time.sleep(1.1)
+        httpx.get(
+            f"{HOMESERVER_URL}/_matrix/client/v3/sync",
+            params={"timeout": 0},
+            headers={"Authorization": f"Bearer {session['access_token']}"},
+            timeout=5,
+        )
+
+        self.assertGreater(last_seen(), before)
+
+    def test_prune_spares_devices_in_use(self):
+        # Every device here was seen seconds ago, so even above the cap none
+        # is signed out: live tabs must not evict each other.
+        sessions = [
+            matrix_client.create_web_session(self.matrix_user_id)
+            for _ in range(matrix_client.MAX_WEB_DEVICES + 1)
+        ]
+
+        tasks.prune_web_devices(self.matrix_user_id, sessions[-1]["device_id"])
+
+        web = {
+            d
+            for d in self._device_ids()
+            if d.startswith(matrix_client.WEB_DEVICE_PREFIX)
+        }
+        self.assertEqual(web, {s["device_id"] for s in sessions})

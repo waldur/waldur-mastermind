@@ -339,6 +339,30 @@ def staff_join_room(room_uuid, user_uuid):
         logger.exception("Failed to add staff %s to room %s", user, room.room_id)
 
 
+@shared_task(name="waldur_mastermind.matrix_chat.prune_web_devices")
+def prune_web_devices(matrix_user_id, keep_device_id=None):
+    """Sign out a user's web chat devices that are stale or over the limit.
+
+    `keep_device_id` is the session that triggered the prune, which may not
+    have been seen by the homeserver yet.
+    """
+    if not matrix_client.is_enabled():
+        return
+
+    devices = matrix_client.list_devices(matrix_user_id)
+    now_ms = int(timezone.now().timestamp() * 1000)
+    stale = matrix_client.stale_web_devices(
+        devices, now_ms, keep_device_id=keep_device_id
+    )
+    for device_id in stale:
+        try:
+            matrix_client.logout_device(matrix_user_id, device_id)
+        except Exception:
+            logger.exception(
+                "Failed to sign out web device %s of %s", device_id, matrix_user_id
+            )
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.staff_leave_room")
 def staff_leave_room(room_uuid, user_uuid):
     """Remove a staff member from a Matrix room (voluntary leave) and announce it."""

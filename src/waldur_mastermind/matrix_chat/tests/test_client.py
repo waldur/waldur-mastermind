@@ -1,3 +1,4 @@
+import json
 from unittest import mock
 
 import httpx
@@ -730,3 +731,222 @@ class BotIdentityIsReservedTest(TestCase):
 
         self.assertIn("profile", str(cm.exception))
         mock_run_async.assert_not_called()
+
+
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+    SITE_NAME="Waldur",
+)
+class WebSessionTest(TestCase):
+    user_id = "@alice:matrix.example.com"
+    login_url = "https://matrix.example.com/_matrix/client/v3/login"
+
+    def _login_response(self, request):
+        body = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "user_id": self.user_id,
+                "device_id": body["device_id"],
+                "access_token": "access-1",
+                "refresh_token": "refresh-1",
+                "expires_in_ms": 300000,
+            },
+        )
+
+    @respx.mock
+    def test_logs_in_through_appservice_on_a_new_web_device(self):
+        route = respx.post(self.login_url).mock(side_effect=self._login_response)
+
+        session = matrix_client.create_web_session(self.user_id)
+
+        request = route.calls.last.request
+        body = json.loads(request.content)
+        self.assertEqual(request.headers["Authorization"], "Bearer test-as-token")
+        self.assertEqual(body["type"], "m.login.application_service")
+        self.assertEqual(
+            body["identifier"], {"type": "m.id.user", "user": self.user_id}
+        )
+        self.assertTrue(body["refresh_token"])
+        self.assertTrue(body["device_id"].startswith(matrix_client.WEB_DEVICE_PREFIX))
+        self.assertEqual(
+            session,
+            {
+                "device_id": body["device_id"],
+                "access_token": "access-1",
+                "refresh_token": "refresh-1",
+                "expires_in_ms": 300000,
+            },
+        )
+
+    @respx.mock
+    def test_every_session_gets_its_own_device(self):
+        # Tuwunel keeps one refresh token per device, so two sessions on one
+        # device would revoke each other.
+        respx.post(self.login_url).mock(side_effect=self._login_response)
+
+        first = matrix_client.create_web_session(self.user_id)
+        second = matrix_client.create_web_session(self.user_id)
+
+        self.assertNotEqual(first["device_id"], second["device_id"])
+
+    @respx.mock
+    def test_homeserver_without_refresh_tokens_returns_no_expiry(self):
+        respx.post(self.login_url).mock(
+            return_value=httpx.Response(
+                200, json={"device_id": "WALDUR_WEB_X", "access_token": "access-1"}
+            )
+        )
+
+        session = matrix_client.create_web_session(self.user_id)
+
+        self.assertIsNone(session["refresh_token"])
+        self.assertIsNone(session["expires_in_ms"])
+
+    @respx.mock
+    def test_unreachable_homeserver_raises_client_error(self):
+        respx.post(self.login_url).mock(side_effect=httpx.ConnectError("refused"))
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.create_web_session(self.user_id)
+
+    @respx.mock
+    def test_login_without_access_token_raises_client_error(self):
+        respx.post(self.login_url).mock(
+            return_value=httpx.Response(200, json={"device_id": "WALDUR_WEB_X"})
+        )
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.create_web_session(self.user_id)
+
+    @respx.mock
+    def test_rejected_login_raises(self):
+        respx.post(self.login_url).mock(
+            return_value=httpx.Response(403, json={"errcode": "M_FORBIDDEN"})
+        )
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.create_web_session(self.user_id)
+
+    @respx.mock
+    def test_bot_gets_no_session(self):
+        route = respx.post(self.login_url).mock(side_effect=self._login_response)
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.create_web_session(matrix_client.get_bot_user_id())
+
+        self.assertFalse(route.called)
+
+
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+)
+class DeviceManagementTest(TestCase):
+    user_id = "@alice:matrix.example.com"
+
+    @respx.mock
+    def test_lists_devices_through_appservice(self):
+        route = respx.get("https://matrix.example.com/_matrix/client/v3/devices").mock(
+            return_value=httpx.Response(
+                200, json={"devices": [{"device_id": "A", "last_seen_ts": 1}]}
+            )
+        )
+
+        devices = matrix_client.list_devices(self.user_id)
+
+        self.assertEqual(devices, [{"device_id": "A", "last_seen_ts": 1}])
+        request = route.calls.last.request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-as-token")
+        self.assertEqual(request.url.params["user_id"], self.user_id)
+
+    @respx.mock
+    def test_logs_out_a_device_by_signing_in_on_it(self):
+        # The appservice cannot DELETE a device without UIA, but a token on the
+        # device can log it out, which removes the device and all its tokens.
+        login = respx.post("https://matrix.example.com/_matrix/client/v3/login").mock(
+            return_value=httpx.Response(
+                200, json={"device_id": "WALDUR_WEB_A", "access_token": "kill"}
+            )
+        )
+        logout = respx.post("https://matrix.example.com/_matrix/client/v3/logout").mock(
+            return_value=httpx.Response(200, json={})
+        )
+
+        matrix_client.logout_device(self.user_id, "WALDUR_WEB_A")
+
+        login_body = json.loads(login.calls.last.request.content)
+        self.assertEqual(login_body["device_id"], "WALDUR_WEB_A")
+        self.assertNotIn("refresh_token", login_body)
+        self.assertEqual(
+            logout.calls.last.request.headers["Authorization"], "Bearer kill"
+        )
+
+
+class StaleWebDevicesTest(TestCase):
+    now_ms = 10 * 24 * 3600 * 1000
+    hour_ms = 3600 * 1000
+
+    def _device(self, device_id, hours_ago):
+        return {
+            "device_id": device_id,
+            "last_seen_ts": self.now_ms - hours_ago * self.hour_ms,
+        }
+
+    def test_ignores_devices_waldur_did_not_create(self):
+        devices = [self._device("ELEMENT", 100), self._device("WALDUR_WEB_A", 1)]
+
+        self.assertEqual(matrix_client.stale_web_devices(devices, self.now_ms), [])
+
+    def test_selects_web_devices_idle_past_the_refresh_window(self):
+        devices = [
+            self._device("WALDUR_WEB_OLD", 25),
+            self._device("WALDUR_WEB_NEW", 1),
+        ]
+
+        self.assertEqual(
+            matrix_client.stale_web_devices(devices, self.now_ms), ["WALDUR_WEB_OLD"]
+        )
+
+    def test_keeps_only_the_most_recently_seen_web_devices(self):
+        devices = [
+            self._device(f"WALDUR_WEB_{i:02d}", i)
+            for i in range(matrix_client.MAX_WEB_DEVICES + 2)
+        ]
+
+        stale = matrix_client.stale_web_devices(devices, self.now_ms)
+
+        self.assertEqual(
+            sorted(stale),
+            [
+                f"WALDUR_WEB_{matrix_client.MAX_WEB_DEVICES:02d}",
+                f"WALDUR_WEB_{matrix_client.MAX_WEB_DEVICES + 1:02d}",
+            ],
+        )
+
+    def test_device_never_seen_is_not_idle(self):
+        # Some homeservers fill last_seen_ts only on the first request, so a
+        # brand-new device would otherwise look idle forever.
+        devices = [{"device_id": "WALDUR_WEB_A", "last_seen_ts": None}]
+
+        self.assertEqual(matrix_client.stale_web_devices(devices, self.now_ms), [])
+
+    def test_device_being_kept_is_never_stale(self):
+        devices = [self._device("WALDUR_WEB_NEW", 48)]
+
+        self.assertEqual(
+            matrix_client.stale_web_devices(
+                devices, self.now_ms, keep_device_id="WALDUR_WEB_NEW"
+            ),
+            [],
+        )
+
+    def test_recently_seen_devices_are_never_evicted(self):
+        # More live tabs than the cap would otherwise evict each other in turn.
+        devices = [
+            {"device_id": f"WALDUR_WEB_{i:02d}", "last_seen_ts": self.now_ms - i * 1000}
+            for i in range(matrix_client.MAX_WEB_DEVICES + 2)
+        ]
+
+        self.assertEqual(matrix_client.stale_web_devices(devices, self.now_ms), [])

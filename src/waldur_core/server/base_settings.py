@@ -130,6 +130,9 @@ REST_FRAMEWORK = {
         "oauth_default": "60/s",
         "token_exchange": "60/min",
         "matrix_credentials": "1000/hour",
+        # Each call is a homeserver login on a new device. The drawer calls it on
+        # connect and when a token refresh is rejected, a few times an hour.
+        "matrix_session": "120/hour",
         "matrix_webhook": "10000/hour",
         # Passkey ceremonies. Sign-in is anonymous and unauthenticated, so it
         # is the tighter of the two. Deliberately not wired into django-axes:
