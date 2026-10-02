@@ -174,6 +174,102 @@ class PortCreateTest(BasePortTest):
             }
         )
 
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_port_create_with_security_groups(self, create_port_executor_mock):
+        security_groups = factories.SecurityGroupFactory.create_batch(
+            2, tenant=self.network.tenant
+        )
+        data = self.valid_data.copy()
+        data["security_groups"] = [
+            {"url": factories.SecurityGroupFactory.get_url(sg)}
+            for sg in security_groups
+        ]
+
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        create_port_executor_mock.assert_called_once()
+
+        port = Port.objects.get(uuid=response.data["uuid"])
+        self.assertCountEqual(port.security_groups.all(), security_groups)
+        self.assertCountEqual(
+            [sg["name"] for sg in response.data["security_groups"]],
+            [sg.name for sg in security_groups],
+        )
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_port_create_rejects_security_group_from_other_tenant(
+        self, create_port_executor_mock
+    ):
+        foreign_group = factories.SecurityGroupFactory()
+        data = self.valid_data.copy()
+        data["security_groups"] = [
+            {"url": factories.SecurityGroupFactory.get_url(foreign_group)}
+        ]
+
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("security_groups", response.data)
+        create_port_executor_mock.assert_not_called()
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_port_create_rejects_security_groups_without_port_security(
+        self, create_port_executor_mock
+    ):
+        security_group = factories.SecurityGroupFactory(tenant=self.network.tenant)
+        data = self.valid_data.copy()
+        data["port_security_enabled"] = False
+        data["security_groups"] = [
+            {"url": factories.SecurityGroupFactory.get_url(security_group)}
+        ]
+
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        create_port_executor_mock.assert_not_called()
+
+    @mock.patch("waldur_openstack.executors.PortCreateExecutor.execute")
+    def test_port_create_rejects_security_group_by_name(
+        self, create_port_executor_mock
+    ):
+        data = self.valid_data.copy()
+        data["security_groups"] = [{"name": "default"}]
+
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        create_port_executor_mock.assert_not_called()
+
+    @mock.patch("neutronclient.v2_0.client.Client")
+    @mock.patch("waldur_openstack.backend.get_keystone_session")
+    def test_port_creation_passes_security_groups_to_backend(
+        self, mock_get_keystone_session, mock_neutron_client
+    ):
+        mock_get_keystone_session.return_value = mock.MagicMock()
+        mock_neutron_instance = mock_neutron_client.return_value
+        mock_neutron_instance.create_port.return_value = {
+            "port": {
+                "id": "backend_id_from_mock",
+                "status": "ACTIVE",
+                "mac_address": "fa:16:3e:ab:cd:ef",
+                "fixed_ips": self.fixed_ips,
+                "admin_state_up": True,
+                "port_security_enabled": True,
+                "device_owner": "",
+            }
+        }
+        security_group = factories.SecurityGroupFactory(tenant=self.network.tenant)
+        data = self.valid_data.copy()
+        data["security_groups"] = [
+            {"url": factories.SecurityGroupFactory.get_url(security_group)}
+        ]
+
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        port = Port.objects.get(uuid=response.data["uuid"])
+        port.get_backend().create_port(port)
+
+        payload = mock_neutron_instance.create_port.call_args.args[0]["port"]
+        self.assertEqual(payload["security_groups"], [security_group.backend_id])
+
 
 class PortUpdateTest(BasePortTest):
     def setUp(self) -> None:
@@ -215,6 +311,26 @@ class PortUpdateTest(BasePortTest):
         self.assertEqual(self.port.description, "Updated port description")
         # The port_security_enabled field should not be updated since it's read-only in the update
         self.assertNotEqual(self.port.port_security_enabled, False)
+
+    @mock.patch(
+        "waldur_openstack.executors.PortUpdateNameAndDescriptionExecutor.execute"
+    )
+    def test_port_update_does_not_change_security_groups(
+        self, update_port_executor_mock
+    ):
+        security_group = factories.SecurityGroupFactory(tenant=self.port.tenant)
+        update_data = self.update_data.copy()
+        update_data["security_groups"] = [
+            {"url": factories.SecurityGroupFactory.get_url(security_group)}
+        ]
+
+        response = self.client.patch(self.url, update_data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.port.refresh_from_db()
+        self.assertFalse(
+            self.port.security_groups.filter(pk=security_group.pk).exists()
+        )
 
 
 class PortDeleteTest(BasePortTest):
