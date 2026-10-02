@@ -1,5 +1,6 @@
 from unittest import mock
 
+import httpx
 from constance.test import override_config
 from rest_framework import status, test
 
@@ -197,7 +198,7 @@ class MatrixCredentialsUnknownMethodTest(MatrixCredentialsBaseTest):
         self.assertIn("Unknown login method", response.data["detail"])
 
 
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client.join_room_as_self")
+@mock.patch("waldur_mastermind.matrix_chat.matrix_client.join_room_as_user")
 @mock.patch(
     "waldur_mastermind.matrix_chat.matrix_client.get_access_token_for_user",
     return_value="access_token_123",
@@ -219,7 +220,7 @@ class MatrixCredentialsRoomAccessTest(MatrixCredentialsBaseTest):
     def _credentials(self):
         return {
             "method": "token",
-            "matrix_user_id": "@user:matrix.example.com",
+            "matrix_user_id": "@admin:matrix.example.com",
             "homeserver_url": "https://matrix.example.com",
         }
 
@@ -242,7 +243,52 @@ class MatrixCredentialsRoomAccessTest(MatrixCredentialsBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["room_id"], self.room.room_id)
         self.assertEqual(response.data["access_token"], "access_token_123")
-        mock_join.assert_called_once()
+        mock_join.assert_called_once_with(
+            self.room.room_id, "@admin:matrix.example.com"
+        )
+
+    def test_room_member_is_joined_even_without_access_token(
+        self, mock_get_creds, mock_token, mock_join
+    ):
+        # The join goes through the appservice, so a failed user login must
+        # not leave the member stuck on a pending invite.
+        mock_token.side_effect = MatrixClientError("login failed")
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=self.fixture.admin,
+            matrix_user_id="@admin:matrix.example.com",
+            membership_state=models.MembershipStates.INVITED,
+        )
+        response = self._get(self.fixture.admin, mock_get_creds)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["room_id"], self.room.room_id)
+        self.assertNotIn("access_token", response.data)
+        mock_join.assert_called_once_with(
+            self.room.room_id, "@admin:matrix.example.com"
+        )
+        member = models.MatrixRoomMember.objects.get(
+            room=self.room, user=self.fixture.admin
+        )
+        self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
+
+    def test_unreachable_homeserver_does_not_fail_the_request(
+        self, mock_get_creds, mock_token, mock_join
+    ):
+        mock_join.side_effect = httpx.ConnectTimeout("homeserver down")
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=self.fixture.admin,
+            matrix_user_id="@admin:matrix.example.com",
+            membership_state=models.MembershipStates.INVITED,
+        )
+        response = self._get(self.fixture.admin, mock_get_creds)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        member = models.MatrixRoomMember.objects.get(
+            room=self.room, user=self.fixture.admin
+        )
+        self.assertEqual(member.membership_state, models.MembershipStates.INVITED)
 
     def test_customer_owner_without_membership_is_denied_convo(
         self, mock_get_creds, mock_token, mock_join

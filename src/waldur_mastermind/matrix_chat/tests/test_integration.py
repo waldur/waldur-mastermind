@@ -206,20 +206,18 @@ class MatrixClientUserProvisioningTest(TestCase):
         result = matrix_client.invite_user(self._room_id, matrix_user_id)
         self.assertTrue(result)
 
-    def test_join_room_as_self(self):
+    def test_join_room_as_user(self):
         user = self._make_waldur_user()
         matrix_user_id = matrix_client.ensure_user_exists(user)
         matrix_client.invite_user(self._room_id, matrix_user_id)
-        access_token = matrix_client.get_access_token_for_user(user)
-        result = matrix_client.join_room_as_self(self._room_id, access_token)
+        result = matrix_client.join_room_as_user(self._room_id, matrix_user_id)
         self.assertTrue(result)
 
     def test_kick_user(self):
         user = self._make_waldur_user()
         matrix_user_id = matrix_client.ensure_user_exists(user)
         matrix_client.invite_user(self._room_id, matrix_user_id)
-        access_token = matrix_client.get_access_token_for_user(user)
-        matrix_client.join_room_as_self(self._room_id, access_token)
+        matrix_client.join_room_as_user(self._room_id, matrix_user_id)
         result = matrix_client.kick_user(
             self._room_id, matrix_user_id, reason="test kick"
         )
@@ -229,8 +227,7 @@ class MatrixClientUserProvisioningTest(TestCase):
         user = self._make_waldur_user()
         matrix_user_id = matrix_client.ensure_user_exists(user)
         matrix_client.invite_user(self._room_id, matrix_user_id)
-        access_token = matrix_client.get_access_token_for_user(user)
-        matrix_client.join_room_as_self(self._room_id, access_token)
+        matrix_client.join_room_as_user(self._room_id, matrix_user_id)
         result = matrix_client.set_power_level(self._room_id, matrix_user_id, 50)
         self.assertTrue(result)
 
@@ -241,15 +238,45 @@ class MatrixClientUserProvisioningTest(TestCase):
         self.assertIsInstance(token, str)
         self.assertTrue(len(token) > 0)
 
+    def _device_ids(self, matrix_user_id):
+        response = httpx.get(
+            f"{HOMESERVER_URL}/_matrix/client/v3/devices",
+            params={"user_id": matrix_user_id},
+            headers={"Authorization": f"Bearer {AS_TOKEN}"},
+            timeout=5,
+        )
+        return {d["device_id"] for d in response.json()["devices"]}
+
+    def test_join_and_leave_create_no_device(self):
+        user = self._make_waldur_user()
+        matrix_user_id = matrix_client.ensure_user_exists(user)
+        before = self._device_ids(matrix_user_id)
+
+        matrix_client.invite_user(self._room_id, matrix_user_id)
+        matrix_client.join_room_as_user(self._room_id, matrix_user_id)
+        matrix_client.leave_room_as_user(self._room_id, matrix_user_id)
+
+        self.assertEqual(self._device_ids(matrix_user_id), before)
+
+    def test_leave_is_idempotent_and_rejoining_needs_an_invite(self):
+        user = self._make_waldur_user()
+        matrix_user_id = matrix_client.ensure_user_exists(user)
+        matrix_client.invite_user(self._room_id, matrix_user_id)
+        matrix_client.join_room_as_user(self._room_id, matrix_user_id)
+
+        self.assertTrue(matrix_client.leave_room_as_user(self._room_id, matrix_user_id))
+        self.assertTrue(matrix_client.leave_room_as_user(self._room_id, matrix_user_id))
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.join_room_as_user(self._room_id, matrix_user_id)
+
     def test_join_without_invite_raises(self):
         """Joining a room without an invite should fail (room is invite-only)."""
         user = self._make_waldur_user()
-        matrix_client.ensure_user_exists(user)
+        matrix_user_id = matrix_client.ensure_user_exists(user)
         # Create a fresh room to ensure user was never invited
         fresh_room_id, _ = matrix_client.create_room(_unique_name("noinvite"))
-        access_token = matrix_client.get_access_token_for_user(user)
         with self.assertRaises(matrix_client.MatrixClientError):
-            matrix_client.join_room_as_self(fresh_room_id, access_token)
+            matrix_client.join_room_as_user(fresh_room_id, matrix_user_id)
 
 
 @override_config(**MATRIX_CONFIG)
@@ -440,9 +467,9 @@ class MatrixSyncMembersTaskIntegrationTest(test.APITestCase):
                 user=user, provisioned=True
             ).exists()
         )
-        # Member record should exist
+        # Member record should exist, joined through the appservice
         member = models.MatrixRoomMember.objects.get(room=room, user=user)
-        self.assertEqual(member.membership_state, models.MembershipStates.INVITED)
+        self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
         self.assertGreater(member.power_level, 0)  # Admin gets power level 50
 
 
@@ -482,8 +509,7 @@ class MatrixDisableRoomIntegrationTest(test.APITestCase):
         # Provision and invite member
         matrix_user_id = matrix_client.ensure_user_exists(user)
         matrix_client.invite_user(room_id, matrix_user_id)
-        access_token = matrix_client.get_access_token_for_user(user)
-        matrix_client.join_room_as_self(room_id, access_token)
+        matrix_client.join_room_as_user(room_id, matrix_user_id)
         models.MatrixRoomMember.objects.create(
             room=room,
             user=user,
@@ -635,8 +661,7 @@ class MatrixMessageFlowIntegrationTest(TestCase):
         matrix_client.invite_user(room_id, matrix_user_id)
 
         # 4. Join
-        access_token = matrix_client.get_access_token_for_user(user)
-        matrix_client.join_room_as_self(room_id, access_token)
+        matrix_client.join_room_as_user(room_id, matrix_user_id)
 
         # 5. Set power level
         matrix_client.set_power_level(room_id, matrix_user_id, 50)
@@ -661,8 +686,8 @@ class MatrixMessageFlowIntegrationTest(TestCase):
         matrix_user_id = matrix_client.ensure_user_exists(user)
 
         matrix_client.invite_user(room_id, matrix_user_id)
+        matrix_client.join_room_as_user(room_id, matrix_user_id)
         token = matrix_client.get_access_token_for_user(user)
-        matrix_client.join_room_as_self(room_id, token)
 
         typing_resp = httpx.put(
             f"{HOMESERVER_URL}/_matrix/client/v3/rooms/{room_id}/typing/{matrix_user_id}",

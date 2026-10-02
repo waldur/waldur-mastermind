@@ -142,11 +142,11 @@ def sync_project_members_to_room(room_uuid):
             except Exception:
                 logger.warning("Failed to update display name for %s", matrix_user_id)
 
-            # Invite user and auto-join using the user's own access token
+            # Rooms are invite-only, so even the appservice needs the bot's
+            # invite before it can join the user.
             matrix_client.invite_user(room.room_id, matrix_user_id)
             try:
-                access_token = matrix_client.get_access_token_for_user(user)
-                matrix_client.join_room_as_self(room.room_id, access_token)
+                matrix_client.join_room_as_user(room.room_id, matrix_user_id)
                 membership_state = models.MembershipStates.JOINED
             except Exception:
                 logger.warning(
@@ -245,8 +245,7 @@ def invite_user_to_room(room_uuid, user_uuid):
 
         matrix_client.invite_user(room.room_id, matrix_user_id)
         try:
-            access_token = matrix_client.get_access_token_for_user(user)
-            matrix_client.join_room_as_self(room.room_id, access_token)
+            matrix_client.join_room_as_user(room.room_id, matrix_user_id)
             membership_state = models.MembershipStates.JOINED
         except Exception:
             logger.warning(
@@ -307,8 +306,7 @@ def staff_join_room(room_uuid, user_uuid):
 
         matrix_client.invite_user(room.room_id, matrix_user_id)
         try:
-            access_token = matrix_client.get_access_token_for_user(user)
-            matrix_client.join_room_as_self(room.room_id, access_token)
+            matrix_client.join_room_as_user(room.room_id, matrix_user_id)
             membership_state = models.MembershipStates.JOINED
         except Exception:
             logger.warning(
@@ -380,8 +378,7 @@ def staff_leave_room(room_uuid, user_uuid):
         logger.warning("Failed to announce staff leave in room %s", room.room_id)
 
     try:
-        access_token = matrix_client.get_access_token_for_user(user)
-        matrix_client.leave_room_as_self(room.room_id, access_token)
+        matrix_client.leave_room_as_user(room.room_id, matrix_user_id)
     except Exception:
         logger.exception(
             "Failed to leave room %s as staff %s", room.room_id, matrix_user_id
