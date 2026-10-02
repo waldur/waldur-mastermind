@@ -74,6 +74,9 @@ class EventType(StrEnum):
     MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED = (
         "marketplace_offering_user_restriction_updated"
     )
+    MARKETPLACE_PROVIDER_PROJECT_GROUP_GID_UPDATED = (
+        "marketplace_provider_project_group_gid_updated"
+    )
     MARKETPLACE_ORDER_APPROVED = "marketplace_order_approved"
     MARKETPLACE_ORDER_COMPLETED = "marketplace_order_completed"
     MARKETPLACE_ORDER_CREATED = "marketplace_order_created"
@@ -651,6 +654,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PROPOSAL_WORKFLOW_ADVANCED,
     ],
     EventGroup.PROVIDERS: [
+        EventType.MARKETPLACE_PROVIDER_PROJECT_GROUP_GID_UPDATED,
         EventType.MARKETPLACE_RESOURCE_CREATE_CANCELED,
         EventType.MARKETPLACE_RESOURCE_CREATE_FAILED,
         EventType.MARKETPLACE_RESOURCE_CREATE_REQUESTED,

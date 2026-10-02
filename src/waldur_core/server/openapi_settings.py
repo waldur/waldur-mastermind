@@ -156,6 +156,7 @@ SPECTACULAR_SETTINGS = {
         "QueueKindEnum": QueueKind.choices(),
         "GlauthGroupKind": [
             "project",
+            "provider_project",
             "resource_role",
             "resource_project_role",
             "personal",

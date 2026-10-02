@@ -323,6 +323,7 @@
 - maintenance_announcement_started
 - maintenance_announcement_unscheduled
 - maintenance_announcement_updated
+- marketplace_provider_project_group_gid_updated
 - marketplace_resource_create_canceled
 - marketplace_resource_create_failed
 - marketplace_resource_create_requested

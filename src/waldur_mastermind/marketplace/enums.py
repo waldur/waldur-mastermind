@@ -585,6 +585,13 @@ SCRIPT_OFFERING = "Marketplace.Script"
 SLURM_OFFERING = "SlurmInvoices.SlurmPackage"
 SITE_AGENT_OFFERING = "Marketplace.Slurm"
 
+# Offering types whose users get accounts (offering users) at the provider.
+OFFERING_USER_ALLOWED_OFFERING_TYPES = [
+    BASIC_OFFERING,
+    SITE_AGENT_OFFERING,
+    SCRIPT_OFFERING,
+]
+
 # Offering types that can be swapped between each other in-place via the
 # `update_type` action. The site-agent processors inherit from the Basic
 # processors and only no-op the send paths (delegating to the external

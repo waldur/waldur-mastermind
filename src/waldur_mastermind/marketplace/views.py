@@ -111,7 +111,7 @@ from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
 from waldur_core.media import utils as media_utils
 from waldur_core.permissions import models as permission_models
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -120,6 +120,7 @@ from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
     add_user,
     check_pat_support_scope,
+    get_scope_ids,
     get_user_ids,
     has_permission,
     has_permission_on_any_source,
@@ -222,6 +223,7 @@ from . import (
     plugins,
     posix_ids,
     posix_maintenance,
+    project_groups,
     serializers,
     tasks,
     utils,
@@ -791,6 +793,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             provider.account_options, serializer.validated_data["account_options"]
         )
         preview = provider_accounts.preview_account_options(provider, proposed)
+        preview["warnings"] = project_groups.switch_warnings(provider, proposed)
         return Response(preview, status=status.HTTP_200_OK)
 
     account_options_preview_permissions = [structure_permissions.is_owner]
@@ -2291,11 +2294,23 @@ class PosixIdPoolViewSet(core_views.ActionsViewSet):
                     ),
                     distinct=True,
                 ),
+                # A GID counts against the range it lies in: project groups
+                # against the group GID range when the pool has one.
                 gid_used=Count(
                     "identities",
                     filter=Q(
                         identities__released_at__isnull=True,
-                        identities__gid__isnull=False,
+                        identities__gid__gte=F("min_gid"),
+                        identities__gid__lte=F("max_gid"),
+                    ),
+                    distinct=True,
+                ),
+                group_gid_used=Count(
+                    "identities",
+                    filter=Q(
+                        identities__released_at__isnull=True,
+                        identities__gid__gte=F("min_group_gid"),
+                        identities__gid__lte=F("max_group_gid"),
                     ),
                     distinct=True,
                 ),
@@ -12982,6 +12997,324 @@ class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet)
         )
 
         return queryset.order_by("-modified")
+
+
+class ServiceProviderProjectGroupViewSet(core_views.ActionsViewSet):
+    """One POSIX group per project using a service provider's services.
+
+    Read by directory writers (the site agent's offering-manager token among
+    them); written only to pin a GID, by the provider's owners.
+    """
+
+    queryset = models.ServiceProviderProjectGroup.objects.select_related(
+        "service_provider__customer", "project__customer"
+    ).order_by(*models.ServiceProviderProjectGroup._meta.ordering)
+    serializer_class = serializers.ServiceProviderProjectGroupSerializer
+    create_serializer_class = serializers.ServiceProviderProjectGroupCreateSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ServiceProviderProjectGroupFilter
+    disabled_actions = ["update", "partial_update", "destroy"]
+
+    def get_queryset(self):
+        qs = project_groups.annotate_in_use(super().get_queryset())
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        owned_customer_ids = get_scope_ids(
+            user,
+            ContentType.objects.get_for_model(structure_models.Customer),
+            role=RoleEnum.CUSTOMER_OWNER,
+        )
+        # The service manager role (CUSTOMER.MANAGER) is scoped to the
+        # ServiceProvider itself, not to its organization.
+        provider_ids = get_scope_ids(
+            user,
+            ContentType.objects.get_for_model(models.ServiceProvider),
+            role=RoleEnum.CUSTOMER_MANAGER,
+        )
+        # The site agent authenticates as a manager of one offering and needs
+        # every group of that offering's provider.
+        managed_offering_ids = get_scope_ids(
+            user,
+            ContentType.objects.get_for_model(models.Offering),
+            role=RoleEnum.OFFERING_MANAGER,
+        )
+        offering_customer_ids = (
+            models.Offering.objects.filter(id__in=managed_offering_ids)
+            .exclude(state=models.Offering.States.ARCHIVED)
+            .values("customer_id")
+        )
+        return qs.filter(
+            Q(service_provider__customer_id__in=owned_customer_ids)
+            | Q(service_provider_id__in=provider_ids)
+            | Q(service_provider__customer_id__in=offering_customer_ids)
+        )
+
+    def _serialize(self, groups, many=False):
+        context = self.get_serializer_context()
+        context["group_details"] = project_groups.describe(groups if many else [groups])
+        return serializers.ServiceProviderProjectGroupSerializer(
+            groups, many=many, context=context
+        ).data
+
+    def list(self, request, *args, **kwargs):
+        # Offerings and members are computed for the whole page at once rather
+        # than with several queries per group.
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(self._serialize(page, many=True))
+        return Response(self._serialize(list(queryset), many=True))
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response(self._serialize(self.get_object()))
+
+    def _lock_pool(self, provider):
+        pool = posix_ids.provider_pool(provider)
+        if pool is not None:
+            models.PosixIdPool.objects.select_for_update().get(pk=pool.pk)
+
+    def _pin(self, group, gid, allow_outside_range):
+        try:
+            previous = posix_ids.set_project_group_gid(
+                group, gid, allow_outside_range=allow_outside_range
+            )
+        except posix_ids.PosixIdValueConflict as exc:
+            raise rf_exceptions.ValidationError({"gid": str(exc)})
+        except DjangoValidationError as exc:
+            raise rf_exceptions.ValidationError({"gid": exc.messages[0]})
+        if previous != gid:
+            # Emitted after commit so that a refused pin leaves no event.
+            transaction.on_commit(lambda: self._log_gid_change(group, previous, gid))
+        return previous
+
+    def _log_gid_change(self, group, previous, gid):
+        if previous is None:
+            template = (
+                "POSIX project group {group_name} of service provider "
+                "{provider_name} has been pinned to GID {new_gid}."
+            )
+        else:
+            template = (
+                "GID of POSIX project group {group_name} of service provider "
+                "{provider_name} has been changed from {old_gid} to {new_gid}. "
+                "The previous GID is not reused."
+            )
+        event_logger.emit(
+            template,
+            event_type=EventType.MARKETPLACE_PROVIDER_PROJECT_GROUP_GID_UPDATED,
+            event_context={
+                "project": group.project,
+                "group_name": group.name,
+                "provider_name": group.service_provider.customer.name,
+                "old_gid": previous,
+                "new_gid": gid,
+            },
+            scopes=[group.service_provider.customer, group.project],
+        )
+
+    @extend_schema(
+        summary="Adopt a POSIX project group with a given GID",
+        description=(
+            "Create the service provider's group for a project, pinned to a GID "
+            "the directory already uses. Works for a project that has no "
+            "resource at the provider yet; the allocator never hands the GID out "
+            "afterwards. Refused with 400 when the project already has a group "
+            "(use set_gid), when another consumer in the provider's pools holds "
+            "the GID, or when the GID is outside the range project groups draw "
+            "from and allow_outside_range is not set."
+        ),
+        request=serializers.ServiceProviderProjectGroupCreateSerializer,
+        responses={201: serializers.ServiceProviderProjectGroupSerializer},
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = serializers.ServiceProviderProjectGroupCreateSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        provider = data["service_provider"]
+        structure_permissions.is_owner(request, self, provider)
+        with transaction.atomic():
+            self._lock_pool(provider)
+            group = self._adopt(
+                provider,
+                data["project"],
+                data["gid"],
+                data.get("name"),
+                data["allow_outside_range"],
+            )
+        group = self.get_queryset().get(pk=group.pk)
+        return Response(self._serialize(group), status=status.HTTP_201_CREATED)
+
+    def _adopt(self, provider, project, gid, name, allow_outside_range):
+        groups = models.ServiceProviderProjectGroup.objects.filter(
+            service_provider=provider
+        )
+        if groups.filter(project=project).exists():
+            raise rf_exceptions.ValidationError(
+                {
+                    "project": _(
+                        "The project already has a group at this service "
+                        "provider; use Change GID to give it another GID."
+                    )
+                }
+            )
+        name_taken = rf_exceptions.ValidationError(
+            {"name": _("The service provider already has a group of this name.")}
+        )
+        if name and groups.filter(name__iexact=name).exists():
+            raise name_taken
+        try:
+            group, created = project_groups.get_or_create_group(
+                provider, project, name=name
+            )
+        except project_groups.GroupNameTaken:
+            raise name_taken
+        if not created:
+            # Created concurrently by the project's first resource.
+            raise rf_exceptions.ValidationError(
+                {
+                    "project": _(
+                        "The project already has a group at this service "
+                        "provider; use Change GID to give it another GID."
+                    )
+                }
+            )
+        self._pin(group, gid, allow_outside_range)
+        return group
+
+    @extend_schema(
+        summary="Set the GID of a POSIX project group",
+        description=(
+            "Move the group to another GID, e.g. one assigned outside Waldur. "
+            "The previous GID is released but never handed out again "
+            "automatically, since files may still carry it; renumbering them is "
+            "the operator's job. Refused with 400 on the same conditions as "
+            "adopting a group. Recorded as an event with both GIDs."
+        ),
+        request=serializers.ProjectGroupGidSerializer,
+        responses={200: serializers.ServiceProviderProjectGroupSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_gid(self, request, uuid=None):
+        group = self.get_object()
+        serializer = serializers.ProjectGroupGidSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        with transaction.atomic():
+            # Pool before group, the order every pinning path takes.
+            self._lock_pool(group.service_provider)
+            group = models.ServiceProviderProjectGroup.objects.select_for_update().get(
+                pk=group.pk
+            )
+            self._pin(group, data["gid"], data["allow_outside_range"])
+        group = self.get_queryset().get(pk=group.pk)
+        return Response(self._serialize(group))
+
+    set_gid_permissions = [structure_permissions.is_owner]
+    set_gid_serializer_class = serializers.ProjectGroupGidSerializer
+
+    @extend_schema(
+        summary="Adopt several POSIX project groups at once",
+        description=(
+            "Pin the groups of several projects in one step, e.g. the groups a "
+            "directory held before Waldur managed it. A project without a group "
+            "gets one; a project with a group has its GID set. All or nothing: "
+            "any refused entry leaves every group unchanged."
+        ),
+        request=serializers.ServiceProviderProjectGroupImportSerializer,
+        responses={200: serializers.ServiceProviderProjectGroupSerializer(many=True)},
+    )
+    @action(detail=False, methods=["post"])
+    def import_groups(self, request):
+        serializer = serializers.ServiceProviderProjectGroupImportSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        provider = data["service_provider"]
+        structure_permissions.is_owner(request, self, provider)
+        ids = []
+        with transaction.atomic():
+            self._lock_pool(provider)
+            for index, entry in enumerate(data["groups"]):
+                try:
+                    group = models.ServiceProviderProjectGroup.objects.filter(
+                        service_provider=provider, project=entry["project"]
+                    ).first()
+                    if group is None:
+                        group = self._adopt(
+                            provider,
+                            entry["project"],
+                            entry["gid"],
+                            entry.get("name"),
+                            data["allow_outside_range"],
+                        )
+                    else:
+                        self._pin(group, entry["gid"], data["allow_outside_range"])
+                except rf_exceptions.ValidationError as exc:
+                    raise rf_exceptions.ValidationError({"groups": {index: exc.detail}})
+                ids.append(group.pk)
+        groups = list(self.get_queryset().filter(pk__in=ids))
+        return Response(self._serialize(groups, many=True))
+
+    import_groups_serializer_class = (
+        serializers.ServiceProviderProjectGroupImportSerializer
+    )
+
+    @extend_schema(
+        summary="Projects a group can be adopted for",
+        description=(
+            "Projects with a resource or an order, in any state, on an offering "
+            "of the service provider: the projects its owners may adopt a group "
+            "for. Staff may adopt for any project. Filter by name, slug or "
+            "organization name with query."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "service_provider_uuid",
+                str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+            ),
+            OpenApiParameter("query", str, location=OpenApiParameter.QUERY),
+        ],
+        responses={200: serializers.AdoptableProjectSerializer(many=True)},
+        filters=False,
+    )
+    @action(detail=False, methods=["get"])
+    def adoptable_projects(self, request):
+        provider_uuid = request.query_params.get("service_provider_uuid") or ""
+        if not core_utils.is_uuid_like(provider_uuid):
+            raise rf_exceptions.ValidationError(
+                {"service_provider_uuid": _("Give a valid service provider UUID.")}
+            )
+        provider = get_object_or_404(models.ServiceProvider, uuid=provider_uuid)
+        if not project_groups.can_pin(request.user, provider):
+            raise PermissionDenied()
+        projects = project_groups.adoptable_projects(provider).select_related(
+            "customer"
+        )
+        query = (request.query_params.get("query") or "").strip()
+        if query:
+            projects = projects.filter(
+                Q(name__icontains=query)
+                | Q(slug__icontains=query)
+                | Q(customer__name__icontains=query)
+            )
+        page = self.paginate_queryset(projects.order_by("name", "id"))
+        names = dict(
+            models.ServiceProviderProjectGroup.objects.filter(
+                service_provider=provider, project__in=page
+            ).values_list("project_id", "name")
+        )
+        for project in page:
+            project.group_name = names.get(project.id)
+        return self.get_paginated_response(
+            serializers.AdoptableProjectSerializer(page, many=True).data
+        )
 
 
 class OfferingUserGroupViewSet(core_views.ActionsViewSet):

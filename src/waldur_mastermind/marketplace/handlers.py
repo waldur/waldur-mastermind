@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import F, Q, signals
+from django.db.models import F, ProtectedError, Q, QuerySet, signals
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.timezone import now
@@ -38,7 +38,7 @@ from waldur_mastermind.common.utils import price_has_changed
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
-    BASIC_OFFERING,
+    OFFERING_USER_ALLOWED_OFFERING_TYPES,
     AccountSettingSources,
     BillingTypes,
     MaintenanceState,
@@ -48,10 +48,6 @@ from waldur_mastermind.marketplace.enums import (
     OrderTypes,
     ResourceStates,
     UsageLimitAction,
-)
-from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
-from waldur_mastermind.marketplace.enums import (
-    SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
 )
 from waldur_mastermind.marketplace.log import get_order_scopes
 from waldur_mastermind.marketplace.maintenance_utils import (
@@ -77,16 +73,19 @@ from waldur_mastermind.marketplace.permissions import (
 from waldur_mastermind.marketplace.secret_options import is_sensitive_key
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
-from . import callbacks, log, models, order_approval, posix_ids, tasks, utils
+from . import (
+    callbacks,
+    log,
+    models,
+    order_approval,
+    posix_ids,
+    project_groups,
+    tasks,
+    utils,
+)
 from .tasks import remove_users_from_robot_accounts_on_permission_loss
 
 logger = logging.getLogger(__name__)
-
-OFFERING_USER_ALLOWED_OFFERING_TYPES = [
-    BASIC_OFFERING,
-    SITE_AGENT_PLUGIN_NAME,
-    SCRIPT_PLUGIN_NAME,
-]
 
 ROBOT_ACCOUNT_TYPE = "Robot account"
 SERVICE_ACCOUNT_TYPE = "Service account"
@@ -3452,6 +3451,132 @@ def release_posix_allocations_on_consumer_deletion(sender, instance, **kwargs):
     intentionally tied to actual row deletion only.
     """
     posix_ids.release_posix_allocations(instance)
+
+
+def create_provider_project_group_for_resource(
+    sender, instance: Resource, created=False, **kwargs
+):
+    """Give the resource's project its POSIX group at the provider on first use.
+
+    Runs on creation and on every state change into a non-terminated state, so
+    a group missed earlier (the switch was off, no pool yet) is caught up. The
+    group outlives the project's resources: a terminated resource changes
+    nothing here.
+    """
+    if not created and not instance.tracker.has_changed("state"):
+        return
+    if instance.state == ResourceStates.TERMINATED:
+        return
+    if not project_groups.offering_type_qualifies(instance):
+        return
+    resource = instance
+    transaction.on_commit(
+        lambda: project_groups.run_safely(
+            project_groups.ensure_group_for_resource, resource
+        )
+    )
+
+
+def release_provider_project_group_gid(sender, instance, **kwargs):
+    """Release a deleted project group's GID, never to be recycled."""
+    posix_ids.release_project_group_gid(instance)
+
+
+def backfill_project_groups_when_enabled(
+    sender, instance: models.ServiceProvider, created=False, **kwargs
+):
+    """Create the groups of projects already using the provider when switched on."""
+    if not instance.project_groups_enabled:
+        return
+    if not created:
+        previous = instance.tracker.previous("account_options") or {}
+        if previous.get("project_groups_enabled"):
+            return
+    for warning in project_groups.switch_warnings(instance, instance.account_options):
+        logger.warning("Project groups enabled for %s: %s", instance, warning)
+    provider_uuid = instance.uuid.hex
+    transaction.on_commit(
+        lambda: tasks.backfill_provider_project_groups.delay(provider_uuid)
+    )
+
+
+# TimeStampedModel adds "modified" to every update_fields save.
+POOL_COUNTER_FIELDS = {"next_uid", "next_gid", "next_group_gid", "modified"}
+
+
+def backfill_project_groups_when_pool_saved(
+    sender, instance: models.PosixIdPool, created=False, **kwargs
+):
+    """Number the provider's groups whenever the pool may be able to.
+
+    A new pool first reserves the GIDs the provider's groups already carry, so
+    it never hands them out again. Then, on creation and on any update -- a
+    group or GID range added or extended -- groups still without a GID get one.
+    """
+    if not instance.service_provider_id:
+        return
+    update_fields = kwargs.get("update_fields")
+    if update_fields and set(update_fields) <= POOL_COUNTER_FIELDS:
+        # The allocator advancing a counter; the ranges are unchanged.
+        return
+    if created:
+        project_groups.register_existing_gids(instance)
+    if not instance.service_provider.project_groups_enabled:
+        return
+    provider_uuid = instance.service_provider.uuid.hex
+    transaction.on_commit(
+        lambda: tasks.backfill_provider_project_groups.delay(provider_uuid)
+    )
+
+
+def protect_pool_holding_project_group_gids(
+    sender, instance: models.PosixIdPool, origin=None, **kwargs
+):
+    """Refuse to delete a pool on its own while project groups hold GIDs from it.
+
+    Deleting the pool would take the identity rows with it while the groups
+    keep their GIDs, and a new pool would then hand the same GIDs to other
+    projects. Checked here rather than in the API so that the admin is refused
+    too. Deleting the service provider (or its organization) is different: its
+    project groups go with it, so the cascade is allowed.
+    """
+    deleting_pool_itself = isinstance(origin, models.PosixIdPool) or (
+        isinstance(origin, QuerySet) and origin.model is models.PosixIdPool
+    )
+    if not deleting_pool_itself:
+        return
+    group_ct = ContentType.objects.get_for_model(models.ServiceProviderProjectGroup)
+    held = models.PosixIdentity.objects.filter(
+        pool=instance, released_at__isnull=True, content_type=group_ct
+    ).first()
+    if held is not None:
+        # One protected object, so the API maps it to 409 Conflict.
+        raise ProtectedError(
+            f"POSIX ID pool {instance} still supplies the GIDs of project "
+            "groups; delete the service provider or move the groups first.",
+            {held},
+        )
+
+
+def create_provider_project_group_on_order_approval(
+    sender, instance: Order, created=False, **kwargs
+):
+    """A resource starts to count once its create order has been approved."""
+    order = instance
+    if order.type != OrderTypes.CREATE or not order.resource_id:
+        return
+    if not created and not order.tracker.has_changed("state"):
+        return
+    if order.state not in project_groups.APPROVED_STATES:
+        return
+    if not project_groups.offering_type_qualifies(order):
+        return
+    resource = order.resource
+    transaction.on_commit(
+        lambda: project_groups.run_safely(
+            project_groups.ensure_group_for_resource, resource
+        )
+    )
 
 
 def get_access_subnet_changes(instance):

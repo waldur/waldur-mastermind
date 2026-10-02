@@ -46,7 +46,7 @@ from waldur_core.structure.managers import (
     get_project_users,
 )
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.marketplace import billing_mode, plugins
+from waldur_mastermind.marketplace import billing_mode, plugins, project_groups
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     CourseAccountState,
@@ -2593,6 +2593,85 @@ class PosixIdPoolFilter(django_filters.FilterSet):
         return queryset.filter(
             Q(service_provider__customer__uuid=value)
             | Q(offering__customer__uuid=value)
+        )
+
+
+class ServiceProviderProjectGroupFilter(core_filters.CreatedModifiedFilter):
+    service_provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-service-provider-detail",
+        field_name="service_provider__uuid",
+        label="Service provider UUID",
+    )
+    provider_offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        method="filter_provider_offering_uuid",
+        label="Every group of the service provider that owns this offering",
+    )
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        method="filter_offering_uuid",
+        label="Groups of projects with a non-terminated resource on this offering",
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail",
+        field_name="project__uuid",
+        label="Project UUID",
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="project__customer__uuid",
+        label="UUID of the project's organization",
+    )
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by group name, project name or slug, organization name or GID",
+    )
+    in_use = django_filters.BooleanFilter(field_name="in_use", label="In use")
+    name = django_filters.CharFilter(field_name="name", lookup_expr="exact")
+    gid = django_filters.NumberFilter(method="filter_gid")
+    o = django_filters.OrderingFilter(fields=("name", "gid", "created", "modified"))
+
+    class Meta:
+        model = models.ServiceProviderProjectGroup
+        fields = []
+
+    def filter_gid(self, queryset, name, value):
+        if value != int(value) or not 0 <= value <= models.PosixIdPool.MAX_ID:
+            raise rf_exceptions.ValidationError(
+                {"gid": _("Give a GID between 0 and %s.") % models.PosixIdPool.MAX_ID}
+            )
+        return queryset.filter(gid=int(value))
+
+    def filter_query(self, queryset, name, value):
+        value = value.strip()
+        condition = (
+            Q(name__icontains=value)
+            | Q(project__name__icontains=value)
+            | Q(project__slug__icontains=value)
+            | Q(project__customer__name__icontains=value)
+        )
+        if value.isdigit() and int(value) <= models.PosixIdPool.MAX_ID:
+            condition |= Q(gid=int(value))
+        return queryset.filter(condition)
+
+    def filter_provider_offering_uuid(self, queryset, name, value):
+        offering = models.Offering.objects.filter(uuid=value).first()
+        if offering is None:
+            return queryset.none()
+        return queryset.filter(service_provider__customer_id=offering.customer_id)
+
+    def filter_offering_uuid(self, queryset, name, value):
+        offering = models.Offering.objects.filter(uuid=value).first()
+        if offering is None or not project_groups.offering_qualifies(offering):
+            return queryset.none()
+        project_ids = (
+            project_groups.active_resources()
+            .filter(offering=offering)
+            .values_list("project_id", flat=True)
+        )
+        return queryset.filter(
+            service_provider__customer_id=offering.customer_id,
+            project_id__in=project_ids,
         )
 
 
