@@ -158,6 +158,7 @@ from . import (
     permissions,
     plugins,
     posix_ids,
+    project_groups,
     utils,
 )
 
@@ -1089,6 +1090,20 @@ class AccountOptionsSerializer(serializers.Serializer):
         return validate_posix_path(value, "Login shell")
 
 
+class ProviderAccountOptionsSerializer(AccountOptionsSerializer):
+    """A service provider's account options: the shared settings plus its own."""
+
+    project_groups_enabled = serializers.BooleanField(
+        required=False,
+        help_text=(
+            "Give every project with a resource on this provider's offerings one "
+            "POSIX group, with a GID from the provider's POSIX ID pool (its group "
+            "GID range when set). Turning it on also creates the groups of "
+            "projects already using the provider."
+        ),
+    )
+
+
 class InheritedAccountSettingSerializer(serializers.Serializer):
     value = serializers.CharField(help_text="The value the setting resolves to.")
     source = serializers.ChoiceField(
@@ -1121,7 +1136,7 @@ class OfferingAccountSettingsSerializer(serializers.Serializer):
 
 
 class AccountOptionsChangeSerializer(serializers.Serializer):
-    account_options = AccountOptionsSerializer(
+    account_options = ProviderAccountOptionsSerializer(
         help_text=(
             "Changes to the provider's account options, merged into the current "
             "ones key by key; a blank value removes a setting."
@@ -1184,12 +1199,16 @@ class OfferingAccountPreviewSerializer(serializers.Serializer):
 
 
 class AccountOptionsVersionsSerializer(serializers.Serializer):
-    current = AccountOptionsSerializer()
-    proposed = AccountOptionsSerializer()
+    current = ProviderAccountOptionsSerializer()
+    proposed = ProviderAccountOptionsSerializer()
 
 
 class AccountOptionsPreviewSerializer(serializers.Serializer):
     account_options = AccountOptionsVersionsSerializer()
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        help_text=_("Things to settle before saving, e.g. a missing group range."),
+    )
     offerings = OfferingAccountPreviewSerializer(many=True)
     renamed = serializers.IntegerField()
     provider_accounts_kept = serializers.IntegerField()
@@ -1618,13 +1637,14 @@ class ServiceProviderSerializer(
     organization_groups = structure_serializers.OrganizationGroupSerializer(
         many=True, read_only=True
     )
-    account_options = AccountOptionsSerializer(
+    account_options = ProviderAccountOptionsSerializer(
         required=False,
         help_text=(
             "Account settings for this provider's offerings, under the same keys "
             "as an offering's plugin options. Each applies to every offering that "
-            "does not set its own. Updated key by key: an omitted key is kept, "
-            "and a blank value removes it."
+            "does not set its own; project_groups_enabled is the provider's own. "
+            "Updated key by key: an omitted key is kept, and a blank value "
+            "removes it."
         ),
     )
 
@@ -2040,8 +2060,10 @@ class PosixIdPoolSerializer(
     scope = serializers.ReadOnlyField()
     uid_used = serializers.SerializerMethodField()
     gid_used = serializers.SerializerMethodField()
+    group_gid_used = serializers.SerializerMethodField()
     uid_utilization = serializers.SerializerMethodField()
     gid_utilization = serializers.SerializerMethodField()
+    group_gid_utilization = serializers.SerializerMethodField()
 
     class Meta:
         model = models.PosixIdPool
@@ -2058,20 +2080,34 @@ class PosixIdPoolSerializer(
             "min_gid",
             "max_gid",
             "next_gid",
+            "min_group_gid",
+            "max_group_gid",
+            "next_group_gid",
             "customer_uuid",
             "customer_name",
             "scope",
             "uid_used",
             "gid_used",
+            "group_gid_used",
             "uid_utilization",
             "gid_utilization",
+            "group_gid_utilization",
         )
         protected_fields = ("service_provider", "offering")
-        read_only_fields = ("next_uid", "next_gid")
+        read_only_fields = ("next_uid", "next_gid", "next_group_gid")
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-posix-id-pool-detail",
+            },
+            "min_group_gid": {
+                "help_text": _(
+                    "First GID of the range reserved for provider project "
+                    "groups. Without it, project groups draw from the GID range."
+                )
+            },
+            "max_group_gid": {
+                "help_text": _("Last GID of the range reserved for project groups.")
             },
         }
 
@@ -2087,6 +2123,10 @@ class PosixIdPoolSerializer(
     @extend_schema_field(serializers.IntegerField())
     def get_gid_used(self, pool) -> int:
         return self._used(pool, "gid")
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_group_gid_used(self, pool) -> int:
+        return self._used(pool, "group_gid")
 
     def _utilization(self, pool, namespace):
         min_v = getattr(pool, f"min_{namespace}")
@@ -2104,6 +2144,10 @@ class PosixIdPoolSerializer(
     @extend_schema_field(serializers.FloatField(allow_null=True))
     def get_gid_utilization(self, pool):
         return self._utilization(pool, "gid")
+
+    @extend_schema_field(serializers.FloatField(allow_null=True))
+    def get_group_gid_utilization(self, pool):
+        return self._utilization(pool, "group_gid")
 
     def validate(self, attrs):
         if not self.instance:
@@ -2149,13 +2193,15 @@ class PosixIdPoolSerializer(
             max_uid=field("max_uid"),
             min_gid=field("min_gid"),
             max_gid=field("max_gid"),
+            min_group_gid=field("min_group_gid"),
+            max_group_gid=field("max_group_gid"),
         )
         # Mirror update()'s high-water-mark handling so validate_pool sees the
         # same next the save will persist. A namespace with no min is unmanaged
         # (next null); a newly-added namespace starts its pointer at min; an
         # existing one rides its pointer down into any shrunk bounds (allowed as
         # long as no *active* value is excluded — the per-namespace guard below).
-        for ns in posix_ids.NAMESPACES:
+        for ns in posix_ids.RANGES:
             new_min = getattr(candidate, f"min_{ns}")
             new_max = getattr(candidate, f"max_{ns}")
             # Unmanaged, or a partial (min/max mismatch) namespace validate_pool
@@ -2178,37 +2224,73 @@ class PosixIdPoolSerializer(
             raise serializers.ValidationError(exc.messages)
 
         if self.instance:
-            for ns in posix_ids.NAMESPACES:
-                new_min = field(f"min_{ns}")
-                new_max = field(f"max_{ns}")
-                active = models.PosixIdentity.objects.filter(
-                    pool=self.instance,
-                    released_at__isnull=True,
-                    **{f"{ns}__isnull": False},
-                )
-                if new_min is None:
-                    # Removing a namespace: only allowed if nothing is allocated.
-                    if active.exists():
-                        raise serializers.ValidationError(
-                            _(
-                                "Cannot remove the %(ns)s range while %(count)s "
-                                "value(s) are allocated."
-                            )
-                            % {"ns": ns.upper(), "count": active.count()}
-                        )
-                    continue
-                out_of_bounds = active.exclude(
-                    **{f"{ns}__gte": new_min, f"{ns}__lte": new_max}
-                )
-                if out_of_bounds.exists():
-                    raise serializers.ValidationError(
-                        _(
-                            "Updated %(ns)s bounds would exclude %(count)s "
-                            "already allocated value(s)."
-                        )
-                        % {"ns": ns.upper(), "count": out_of_bounds.count()}
-                    )
+            self._check_allocated_values()
         return attrs
+
+    def _check_allocated_values(self):
+        """Refuse bounds that would leave allocated values outside every range."""
+        new = self._candidate
+        # Every active value must stay inside a range recorded in its
+        # column: a UID in the UID range, a GID in the GID range or in the
+        # group GID range.
+        for ns in posix_ids.NAMESPACES:
+            ranges = [r for r in posix_ids.RANGES if posix_ids.column(r) == ns]
+            active = models.PosixIdentity.objects.filter(
+                pool=self.instance,
+                released_at__isnull=True,
+                **{f"{ns}__isnull": False},
+            )
+            inside = Q()
+            was_inside = Q()
+            for r in ranges:
+                if getattr(new, f"min_{r}") is not None:
+                    inside |= Q(
+                        **{
+                            f"{ns}__gte": getattr(new, f"min_{r}"),
+                            f"{ns}__lte": getattr(new, f"max_{r}"),
+                        }
+                    )
+                if getattr(self.instance, f"min_{r}") is not None:
+                    was_inside |= Q(
+                        **{
+                            f"{ns}__gte": getattr(self.instance, f"min_{r}"),
+                            f"{ns}__lte": getattr(self.instance, f"max_{r}"),
+                        }
+                    )
+            # Only values the change pushes out matter: one pinned outside
+            # every range on purpose must not block unrelated updates.
+            if not was_inside:
+                continue
+            active = active.filter(was_inside)
+            out_of_bounds = active.exclude(inside) if inside else active
+            if not out_of_bounds.exists():
+                continue
+            for r in ranges:
+                old_min = getattr(self.instance, f"min_{r}")
+                if old_min is None:
+                    continue
+                pushed_out = out_of_bounds.filter(
+                    **{
+                        f"{ns}__gte": old_min,
+                        f"{ns}__lte": getattr(self.instance, f"max_{r}"),
+                    }
+                ).order_by(ns)
+                if not pushed_out.exists():
+                    continue
+                values = posix_ids.describe_values(pushed_out, ns)
+                if getattr(new, f"min_{r}") is None:
+                    message = _(
+                        "Cannot remove the %(range)s range: it holds "
+                        "allocated values %(values)s."
+                    )
+                else:
+                    message = _(
+                        "The new %(range)s range would leave out allocated "
+                        "values %(values)s."
+                    )
+                raise serializers.ValidationError(
+                    message % {"range": posix_ids.range_label(r), "values": values}
+                )
 
     def _save_under_provider_lock(self, save):
         # Overlap validation in validate() and the INSERT/UPDATE happen in
@@ -2223,13 +2305,18 @@ class PosixIdPoolSerializer(
                 posix_ids.validate_pool(self._candidate)
             except ValidationError as exc:
                 raise serializers.ValidationError(exc.messages)
+            if self.instance:
+                # The allocator takes the pool lock; holding it here keeps a
+                # value from being handed out between the check and the save.
+                models.PosixIdPool.objects.select_for_update().get(pk=self.instance.pk)
+                self._check_allocated_values()
             return save()
 
     def create(self, validated_data):
         # High-water marks start at the bottom of each managed namespace; an
         # unmanaged namespace (no min) keeps its pointer null.
-        validated_data["next_uid"] = validated_data.get("min_uid")
-        validated_data["next_gid"] = validated_data.get("min_gid")
+        for ns in posix_ids.RANGES:
+            validated_data[f"next_{ns}"] = validated_data.get(f"min_{ns}")
         return self._save_under_provider_lock(
             lambda: super(PosixIdPoolSerializer, self).create(validated_data)
         )
@@ -2238,7 +2325,7 @@ class PosixIdPoolSerializer(
         # Keep each high-water pointer inside the (possibly changed) bounds so
         # the model's next-in-[min, max+1] check constraint still holds; a
         # newly-added namespace starts at min, a removed one goes null.
-        for ns in posix_ids.NAMESPACES:
+        for ns in posix_ids.RANGES:
             new_min = validated_data.get(f"min_{ns}", getattr(instance, f"min_{ns}"))
             new_max = validated_data.get(f"max_{ns}", getattr(instance, f"max_{ns}"))
             if new_min is None:
@@ -2268,6 +2355,10 @@ class PosixIdPoolStatsSerializer(serializers.Serializer):
 
     uid = PosixIdPoolNamespaceStatsSerializer(allow_null=True)
     gid = PosixIdPoolNamespaceStatsSerializer(allow_null=True)
+    group_gid = PosixIdPoolNamespaceStatsSerializer(
+        allow_null=True,
+        help_text=_("The range reserved for provider project groups, if any."),
+    )
     utilization_threshold = serializers.IntegerField()
 
 
@@ -10391,23 +10482,45 @@ class OfferingReferralSerializer(
         )
 
 
-class ProjectPosixGroupSerializer(serializers.Serializer):
-    """One POSIX group GID assigned to a project (read-only rollup)."""
+class ServiceProviderProjectGroupOfferingSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    name = serializers.CharField()
 
-    kind = serializers.ChoiceField(choices=["project_group", "role_group"])
-    gid = serializers.IntegerField()
-    offering_uuid = serializers.CharField()
-    offering_name = serializers.CharField()
+
+class ProjectPosixGroupSerializer(serializers.Serializer):
+    """One POSIX group GID assigned to a project (read-only rollup).
+
+    ``provider_project_group`` rows are the project's groups at a service
+    provider: they belong to no single offering, may have no GID yet, and carry
+    the group fields below, which the other kinds leave empty.
+    """
+
+    kind = serializers.ChoiceField(
+        choices=["project_group", "role_group", "provider_project_group"]
+    )
+    gid = serializers.IntegerField(allow_null=True)
+    offering_uuid = serializers.CharField(allow_null=True)
+    offering_name = serializers.CharField(allow_null=True)
     provider_name = serializers.CharField()
     role = serializers.CharField(allow_null=True)
     scope_type = serializers.CharField(allow_null=True)
     scope_name = serializers.CharField(allow_null=True)
     scope_uuid = serializers.CharField(allow_null=True)
+    group_uuid = serializers.CharField(allow_null=True, default=None)
+    group_name = serializers.CharField(allow_null=True, default=None)
+    service_provider_uuid = serializers.CharField(allow_null=True, default=None)
+    in_use = serializers.BooleanField(allow_null=True, default=None)
+    offerings = ServiceProviderProjectGroupOfferingSerializer(many=True, default=list)
+    members = serializers.ListField(child=serializers.CharField(), default=list)
+    member_count = serializers.IntegerField(allow_null=True, default=None)
 
 
 class OfferingUserPosixGroupSerializer(serializers.Serializer):
     """A project group GID an offering user belongs to (read-only)."""
 
+    kind = serializers.ChoiceField(choices=["project_group", "provider_project_group"])
+    group_name = serializers.CharField(allow_null=True)
+    service_provider_name = serializers.CharField(allow_null=True)
     gid = serializers.IntegerField()
     offering_name = serializers.CharField()
     project_name = serializers.CharField(allow_null=True)
@@ -11246,6 +11359,230 @@ class AdoptProviderAccountsResponseSerializer(serializers.Serializer):
     adopted = serializers.IntegerField(help_text="Provider accounts created.")
     backed = serializers.IntegerField(
         help_text="Offering accounts now reading through a provider account."
+    )
+
+
+class ServiceProviderProjectGroupSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """A provider's POSIX group for one project, as a directory writer reads it."""
+
+    service_provider_uuid = serializers.ReadOnlyField(source="service_provider.uuid")
+    service_provider_name = serializers.ReadOnlyField(
+        source="service_provider.customer.name"
+    )
+    # Null once the project has been hard-deleted; the group stays.
+    project_uuid = serializers.UUIDField(
+        source="project.uuid", read_only=True, allow_null=True, format="hex"
+    )
+    project_name = serializers.CharField(
+        source="project.name", read_only=True, allow_null=True
+    )
+    project_slug = serializers.CharField(
+        source="project.slug", read_only=True, allow_null=True
+    )
+    customer_uuid = serializers.UUIDField(
+        source="project.customer.uuid", read_only=True, allow_null=True, format="hex"
+    )
+    customer_name = serializers.CharField(
+        source="project.customer.name", read_only=True, allow_null=True
+    )
+    in_use = serializers.SerializerMethodField(
+        help_text=_(
+            "The project has a non-terminated resource on an offering of the "
+            "provider. An unused group keeps its GID."
+        )
+    )
+    offerings = serializers.SerializerMethodField(
+        help_text=_(
+            "The provider's offerings where the project has a non-terminated resource."
+        )
+    )
+    members = serializers.SerializerMethodField(
+        help_text=_(
+            "Sorted usernames of the live accounts at the provider of the "
+            "users holding an active role in the project."
+        )
+    )
+
+    class Meta:
+        model = models.ServiceProviderProjectGroup
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "gid",
+            "in_use",
+            "service_provider_uuid",
+            "service_provider_name",
+            "project_uuid",
+            "project_name",
+            "project_slug",
+            "customer_uuid",
+            "customer_name",
+            "offerings",
+            "members",
+            "created",
+            "modified",
+        )
+        read_only_fields = fields
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-service-provider-project-group-detail",
+            },
+        }
+
+    def _details(self, group) -> dict:
+        details = self.context.get("group_details")
+        if details is None or group.pk not in details:
+            details = project_groups.describe([group])
+        return details[group.pk]
+
+    def get_in_use(self, group) -> bool:
+        in_use = getattr(group, "in_use", None)
+        if in_use is None:
+            in_use = bool(self._details(group)["offerings"])
+        return in_use
+
+    @extend_schema_field(ServiceProviderProjectGroupOfferingSerializer(many=True))
+    def get_offerings(self, group):
+        return self._details(group)["offerings"]
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_members(self, group):
+        return self._details(group)["members"]
+
+
+def _project_group_gid_field():
+    return serializers.IntegerField(
+        min_value=models.PosixIdPool.MIN_ID, max_value=models.PosixIdPool.MAX_ID
+    )
+
+
+def _allow_outside_range_field():
+    return serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Accept a GID outside the range project groups draw from, e.g. one "
+            "a directory assigned before Waldur managed it."
+        ),
+    )
+
+
+class ProjectGroupGidSerializer(serializers.Serializer):
+    gid = _project_group_gid_field()
+    allow_outside_range = _allow_outside_range_field()
+
+
+def _resolve_adopt_project(service_provider, reference, request):
+    try:
+        return project_groups.resolve_project(service_provider, reference, request.user)
+    except project_groups.ProjectNotAdoptable as exc:
+        raise serializers.ValidationError(str(exc))
+
+
+def _check_can_pin(service_provider, request):
+    # Before any project lookup, so that nobody else learns which projects
+    # exist or use the provider.
+    if not project_groups.can_pin(request.user, service_provider):
+        raise PermissionDenied()
+
+
+class ProjectGroupEntrySerializer(serializers.Serializer):
+    project = serializers.CharField(
+        help_text=_(
+            "Project UUID, or its slug when exactly one project with that slug "
+            "has a resource or order at the service provider."
+        )
+    )
+    gid = _project_group_gid_field()
+    name = serializers.CharField(
+        required=False,
+        help_text=_(
+            "Group name, matching ^[a-z_][a-z0-9_-]{0,31}$; derived from the "
+            "project slug when omitted."
+        ),
+    )
+
+    def validate_name(self, value):
+        if not project_groups.is_valid_name(value):
+            raise serializers.ValidationError(
+                _(
+                    "A group name must be 1-32 characters of lowercase letters, "
+                    "digits, '_' and '-', starting with a letter or '_'."
+                )
+            )
+        return value
+
+
+class ServiceProviderProjectGroupCreateSerializer(ProjectGroupEntrySerializer):
+    service_provider = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.ServiceProvider.objects.all()
+    )
+    allow_outside_range = _allow_outside_range_field()
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        _check_can_pin(attrs["service_provider"], request)
+        try:
+            attrs["project"] = _resolve_adopt_project(
+                attrs["service_provider"], attrs["project"], request
+            )
+        except serializers.ValidationError as exc:
+            raise serializers.ValidationError({"project": exc.detail})
+        return attrs
+
+
+class ServiceProviderProjectGroupImportSerializer(serializers.Serializer):
+    service_provider = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.ServiceProvider.objects.all()
+    )
+    groups = ProjectGroupEntrySerializer(many=True, allow_empty=False)
+    allow_outside_range = _allow_outside_range_field()
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        _check_can_pin(attrs["service_provider"], request)
+        errors = {}
+        seen_projects = {}
+        seen_gids = {}
+        for index, entry in enumerate(attrs["groups"]):
+            entry_errors = {}
+            try:
+                entry["project"] = _resolve_adopt_project(
+                    attrs["service_provider"], entry["project"], request
+                )
+            except serializers.ValidationError as exc:
+                entry_errors["project"] = exc.detail
+            else:
+                first = seen_projects.setdefault(entry["project"].pk, index)
+                if first != index:
+                    entry_errors["project"] = _(
+                        "The project is already listed in entry %(first)s."
+                    ) % {"first": first}
+            first = seen_gids.setdefault(entry["gid"], index)
+            if first != index:
+                entry_errors["gid"] = _(
+                    "GID %(gid)s is already listed in entry %(first)s."
+                ) % {"gid": entry["gid"], "first": first}
+            if entry_errors:
+                errors[index] = entry_errors
+        if errors:
+            raise serializers.ValidationError({"groups": errors})
+        return attrs
+
+
+class AdoptableProjectSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(format="hex")
+    name = serializers.CharField()
+    slug = serializers.CharField()
+    customer_uuid = serializers.UUIDField(source="customer.uuid", format="hex")
+    customer_name = serializers.CharField(source="customer.name")
+    group_name = serializers.CharField(
+        allow_null=True,
+        help_text=_("The project's group at the provider, if it has one."),
     )
 
 
@@ -17143,6 +17480,7 @@ class GlauthTreeScopeSerializer(serializers.Serializer):
 
 GLAUTH_GROUP_KIND_CHOICES = (
     ("project", "project"),
+    ("provider_project", "provider_project"),
     ("resource_role", "resource_role"),
     ("resource_project_role", "resource_project_role"),
     ("personal", "personal"),

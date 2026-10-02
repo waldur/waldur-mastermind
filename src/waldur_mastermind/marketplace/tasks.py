@@ -47,6 +47,7 @@ from waldur_mastermind.marketplace import (
     models,
     offering_merge,
     plugins,
+    project_groups,
     utils,
 )
 from waldur_mastermind.marketplace import log as marketplace_log
@@ -75,6 +76,16 @@ from waldur_mastermind.marketplace.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name="waldur_mastermind.marketplace.backfill_provider_project_groups")
+def backfill_provider_project_groups(service_provider_uuid):
+    """Create the POSIX project groups of projects already using a provider."""
+    provider = models.ServiceProvider.objects.filter(uuid=service_provider_uuid).first()
+    if provider is None or not provider.project_groups_enabled:
+        return
+    rows = project_groups.backfill(provider)
+    logger.info("Backfilled %s POSIX project group(s) for %s.", len(rows), provider)
 
 
 @shared_task(name="waldur_mastermind.marketplace.evaluate_usage_limit_restriction")

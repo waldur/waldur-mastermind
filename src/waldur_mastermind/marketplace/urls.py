@@ -138,6 +138,11 @@ def register_in(router):
         basename="marketplace-service-provider-account",
     )
     router.register(
+        r"marketplace-service-provider-project-groups",
+        views.ServiceProviderProjectGroupViewSet,
+        basename="marketplace-service-provider-project-group",
+    )
+    router.register(
         r"marketplace-offering-user-checklist-completions",
         views.OfferingUserChecklistCompletionsViewSet,
         basename="marketplace-offering-user-checklist-completion",

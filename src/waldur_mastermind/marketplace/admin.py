@@ -140,8 +140,22 @@ class PosixIdPoolAdmin(admin.ModelAdmin):
         "min_gid",
         "max_gid",
         "next_gid",
+        "min_group_gid",
+        "max_group_gid",
+        "next_group_gid",
     )
     raw_id_fields = ("service_provider", "offering")
+
+
+class ServiceProviderProjectGroupAdmin(admin.ModelAdmin):
+    model = models.ServiceProviderProjectGroup
+    list_display = ("name", "gid", "service_provider", "project", "created")
+    search_fields = ("name", "project__name")
+    raw_id_fields = ("service_provider", "project")
+    # The GID is owned by the POSIX identity ledger, and the provider, the
+    # project and the name are what the directory keys on: change the GID
+    # through the API, leave the rest alone.
+    readonly_fields = ("service_provider", "project", "name", "gid")
 
 
 class PosixIdentityAdmin(admin.ModelAdmin):
@@ -833,6 +847,9 @@ admin.site.register(models.Category)
 admin.site.register(models.CategoryGroup, CategoryGroupAdmin)
 admin.site.register(models.OfferingGroup, OfferingGroupAdmin)
 admin.site.register(models.PosixIdPool, PosixIdPoolAdmin)
+admin.site.register(
+    models.ServiceProviderProjectGroup, ServiceProviderProjectGroupAdmin
+)
 admin.site.register(models.PosixIdentity, PosixIdentityAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section, SectionAdmin)

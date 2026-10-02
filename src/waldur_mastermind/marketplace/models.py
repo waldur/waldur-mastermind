@@ -19,6 +19,7 @@ from django.db import models
 from django.db.models import Index, Q, Sum
 from django.db.models import signals as django_signals
 from django.db.models.constraints import UniqueConstraint
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.text import slugify
@@ -152,7 +153,9 @@ class ServiceProvider(
             "Account settings for this provider's offerings: account_scope, "
             "username_generation_policy, username_anonymized_prefix, "
             "homedir_prefix and login_shell. Each applies to every offering "
-            "that does not set the plugin option of the same name."
+            "that does not set the plugin option of the same name. "
+            "project_groups_enabled is the provider's own: it gives every "
+            "project using the provider's services one POSIX group."
         ),
     )
 
@@ -166,6 +169,11 @@ class ServiceProvider(
         return (self.account_options or {}).get(
             "account_scope"
         ) or AccountScopes.OFFERING
+
+    @property
+    def project_groups_enabled(self) -> bool:
+        """Whether the provider gets one POSIX group per project using it."""
+        return bool((self.account_options or {}).get("project_groups_enabled"))
 
     class Permissions:
         customer_path = "customer"
@@ -898,8 +906,11 @@ class Offering(
         ``select_related("customer__serviceprovider")`` and pay nothing here at
         all. Cached because resolve_account_setting consults it once per
         setting -- scope, username policy, homedir prefix, login shell -- which
-        was four identical queries for every offering.
+        was four identical queries for every offering. A project-scoped
+        private offering has no customer, and so no provider.
         """
+        if self.customer_id is None:
+            return None
         try:
             return self.customer.serviceprovider
         except ServiceProvider.DoesNotExist:
@@ -4269,6 +4280,13 @@ class PosixIdPool(
     min_gid = models.BigIntegerField(null=True, blank=True)
     max_gid = models.BigIntegerField(null=True, blank=True)
     next_gid = models.BigIntegerField(null=True, blank=True)
+    # Optional range reserved for provider project groups, so their GIDs do not
+    # mix with users' primary GIDs. Values are still GIDs: they are recorded in
+    # PosixIdentity.gid and must not overlap any GID range of the provider.
+    # Without it, project groups draw from the GID range.
+    min_group_gid = models.BigIntegerField(null=True, blank=True)
+    max_group_gid = models.BigIntegerField(null=True, blank=True)
+    next_group_gid = models.BigIntegerField(null=True, blank=True)
 
     class Meta:
         verbose_name = _("POSIX ID pool")
@@ -4304,6 +4322,21 @@ class PosixIdPool(
                     )
                 ),
             ),
+            models.CheckConstraint(
+                name="marketplace_posixidpool_group_gid_all_or_nothing",
+                condition=(
+                    Q(
+                        min_group_gid__isnull=True,
+                        max_group_gid__isnull=True,
+                        next_group_gid__isnull=True,
+                    )
+                    | Q(
+                        min_group_gid__isnull=False,
+                        max_group_gid__isnull=False,
+                        next_group_gid__isnull=False,
+                    )
+                ),
+            ),
             # At least one namespace must be managed.
             models.CheckConstraint(
                 name="marketplace_posixidpool_at_least_one_namespace",
@@ -4327,6 +4360,14 @@ class PosixIdPool(
                 & Q(next_gid__gte=models.F("min_gid"))
                 & Q(next_gid__lte=models.F("max_gid") + 1),
             ),
+            models.CheckConstraint(
+                name="marketplace_posixidpool_group_gid_bounds",
+                condition=Q(min_group_gid__gte=1000)
+                & Q(min_group_gid__lte=models.F("max_group_gid"))
+                & Q(max_group_gid__lte=2**32 - 2)
+                & Q(next_group_gid__gte=models.F("min_group_gid"))
+                & Q(next_group_gid__lte=models.F("max_group_gid") + 1),
+            ),
         ]
 
     def __str__(self):
@@ -4336,6 +4377,8 @@ class PosixIdPool(
             parts.append(f"uid {self.min_uid}-{self.max_uid}")
         if self.min_gid is not None:
             parts.append(f"gid {self.min_gid}-{self.max_gid}")
+        if self.min_group_gid is not None:
+            parts.append(f"group gid {self.min_group_gid}-{self.max_group_gid}")
         return f"POSIX ID pool ({', '.join(parts)}) for {scope}"
 
     @classmethod
@@ -4343,7 +4386,7 @@ class PosixIdPool(
         return "marketplace-posix-id-pool"
 
     def manages(self, namespace: str) -> bool:
-        """Whether this pool allocates the given namespace ('uid' or 'gid')."""
+        """Whether this pool has the given range ('uid', 'gid' or 'group_gid')."""
         return getattr(self, f"min_{namespace}") is not None
 
     @property
@@ -4498,6 +4541,67 @@ class PosixIdentity(
     @classmethod
     def get_url_name(cls):
         return "marketplace-posix-identity"
+
+
+class ServiceProviderProjectGroup(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    """
+    One POSIX group per project that uses a service provider's services.
+
+    The provider-level counterpart of :class:`OfferingUserGroup`, as
+    :class:`ServiceProviderAccount` is of :class:`OfferingUser`: a project with
+    resources on several offerings of the provider still gets one group and one
+    GID, which is what a shared directory needs.
+
+    ``name`` is fixed at creation (derived from the project slug by default),
+    so a later slug change does not rename a group that the directory and file
+    ownership depend on. ``gid`` is a projection of the group's
+    :class:`PosixIdentity` in the provider's pool, ``None`` while no pool can
+    supply one. A group whose project no longer has resources at the provider
+    is kept, and so is its GID: files may still carry it. Even a hard-deleted
+    project leaves its group behind, with ``project`` cleared.
+    """
+
+    NAME_PATTERN = r"[a-z_][a-z0-9_-]{0,31}"
+    NAME_MAX_LENGTH = 32
+
+    service_provider = models.ForeignKey(
+        ServiceProvider, on_delete=models.CASCADE, related_name="project_groups"
+    )
+    project = models.ForeignKey(
+        structure_models.Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="provider_project_groups",
+    )
+    name = models.CharField(max_length=NAME_MAX_LENGTH)
+    gid = models.BigIntegerField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("Service provider project group")
+        ordering = ["name", "id"]
+        unique_together = ("service_provider", "project")
+        constraints = [
+            # One name per directory; LDAP compares names case-insensitively.
+            UniqueConstraint(
+                "service_provider",
+                Lower("name"),
+                name="marketplace_spprojectgroup_unique_name",
+            ),
+        ]
+
+    class Permissions:
+        customer_path = "service_provider__customer"
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-service-provider-project-group"
+
+    def __str__(self):
+        return f"{self.service_provider}: {self.name} ({self.gid})"
 
 
 class CategoryHelpArticle(models.Model):

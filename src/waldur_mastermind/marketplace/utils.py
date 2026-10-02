@@ -105,6 +105,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace_openstack import get_mb_component_types
 
 from . import models, plugins, posix_ids
+from . import project_groups as provider_project_groups
 from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 from .enums import OrderTypes
 
@@ -1354,6 +1355,14 @@ def move_resource(resource: models.Resource, project):
     for order in resource.order_set.exclude(project=project):
         order.project = project
         order.save(update_fields=["project"])
+
+    # The target project now uses the offering's provider. The source project
+    # keeps its group, which goes out of use if this was its last resource.
+    transaction.on_commit(
+        lambda: provider_project_groups.run_safely(
+            provider_project_groups.ensure_group_for_resource, resource
+        )
+    )
 
     for invoice_item in invoice_models.InvoiceItem.objects.filter(
         resource=resource,
@@ -3522,7 +3531,42 @@ def get_project_posix_groups(project):
             }
         )
 
-    rows.sort(key=lambda r: (r["offering_name"], r["kind"], r["gid"]))
+    rows.extend(_provider_project_group_rows(project))
+    rows.sort(key=lambda r: (r["offering_name"] or "", r["kind"], r["gid"] or 0))
+    return rows
+
+
+def _provider_project_group_rows(project):
+    """The project's groups at every service provider, one row each."""
+    groups = list(
+        provider_project_groups.annotate_in_use(
+            models.ServiceProviderProjectGroup.objects.filter(project=project)
+        ).select_related("service_provider__customer")
+    )
+    details = provider_project_groups.describe(groups)
+    rows = []
+    for group in groups:
+        members = details[group.pk]["members"]
+        rows.append(
+            {
+                "kind": "provider_project_group",
+                "gid": group.gid,
+                "offering_uuid": None,
+                "offering_name": None,
+                "provider_name": group.service_provider.customer.name,
+                "role": None,
+                "scope_type": None,
+                "scope_name": None,
+                "scope_uuid": None,
+                "group_uuid": group.uuid.hex,
+                "group_name": group.name,
+                "service_provider_uuid": group.service_provider.uuid.hex,
+                "in_use": group.in_use,
+                "offerings": details[group.pk]["offerings"],
+                "members": members,
+                "member_count": len(members),
+            }
+        )
     return rows
 
 
@@ -3593,6 +3637,9 @@ def get_offering_user_posix_groups(offering_user, viewer=None):
         pool = group_pools.get(group.id)
         rows.append(
             {
+                "kind": "project_group",
+                "group_name": None,
+                "service_provider_name": None,
                 "gid": int(gid),
                 "offering_name": offering.name,
                 "project_name": project.name if project else "",
@@ -3604,7 +3651,56 @@ def get_offering_user_posix_groups(offering_user, viewer=None):
                 "pool_scope": pool.scope if pool else None,
             }
         )
+    rows.extend(
+        _offering_user_provider_group_rows(
+            offering_user,
+            project_ids,
+            viewer_sees_all,
+            viewer_project_ids,
+            viewer_customer_ids,
+        )
+    )
     rows.sort(key=lambda r: r["gid"])
+    return rows
+
+
+def _offering_user_provider_group_rows(
+    offering_user, project_ids, viewer_sees_all, viewer_project_ids, viewer_customer_ids
+):
+    """Provider project groups at the offering's provider listing this account."""
+    provider = offering_user.offering.service_provider
+    if provider is None or not offering_user.username:
+        return []
+    groups = list(
+        models.ServiceProviderProjectGroup.objects.filter(
+            service_provider=provider, project_id__in=project_ids, gid__isnull=False
+        ).select_related("project__customer", "service_provider__customer")
+    )
+    details = provider_project_groups.describe(groups)
+    pool = posix_ids.provider_pool(provider)
+    rows = []
+    for group in groups:
+        if offering_user.username not in details[group.pk]["members"]:
+            continue
+        project = group.project
+        rows.append(
+            {
+                "kind": "provider_project_group",
+                "group_name": group.name,
+                "service_provider_name": provider.customer.name,
+                "gid": group.gid,
+                "offering_name": offering_user.offering.name,
+                "project_name": project.name,
+                "project_uuid": project.uuid.hex,
+                "customer_name": project.customer.name,
+                "customer_uuid": project.customer.uuid.hex,
+                "project_accessible": viewer_sees_all
+                or project.id in viewer_project_ids
+                or project.customer_id in viewer_customer_ids,
+                "pool_uuid": pool.uuid.hex if pool else None,
+                "pool_scope": pool.scope if pool else None,
+            }
+        )
     return rows
 
 
@@ -3908,6 +4004,11 @@ def build_glauth_tree(offering, *, resource_filter=None):
             }
         )
 
+    # The provider's project groups, for projects with a live resource here.
+    provider_groups, provider_user_membership = _provider_project_groups_for_offering(
+        offering, offering_users, user_project_mappings, resource_filter
+    )
+
     # Role-aware groups.
     role_groups_raw = _compute_role_groups(offering, resource_filter=resource_filter)
 
@@ -3941,6 +4042,16 @@ def build_glauth_tree(offering, *, resource_filter=None):
         memberships = []
         for g in project_groups:
             if g["gid"] in project_user_membership.get(ou.user_id, ()):
+                memberships.append(
+                    {
+                        "gid": g["gid"],
+                        "group_name": g["name"],
+                        "kind": g["kind"],
+                        "role": g["role"],
+                    }
+                )
+        for g in provider_groups:
+            if g["gid"] in provider_user_membership.get(ou.user_id, ()):
                 memberships.append(
                     {
                         "gid": g["gid"],
@@ -4012,24 +4123,111 @@ def build_glauth_tree(offering, *, resource_filter=None):
         for ra in robot_qs
     ]
 
+    extra_gids = defaultdict(set)
+    for membership in (role_user_membership, provider_user_membership):
+        for uid, gids in membership.items():
+            extra_gids[uid] |= gids
+
     return {
         "offering": {
             "uuid": offering.uuid.hex,
             "name": offering.name,
             "slug": offering.slug or "",
         },
-        "groups": project_groups + role_groups + personal_groups,
+        "groups": project_groups + provider_groups + role_groups + personal_groups,
         "users": users,
         "robot_accounts": robot_accounts,
-        # Internal: pre-computed user_id -> set[gid] for the TOML emitter.
-        # Stripped before serialisation by the view layer.
-        "_user_role_gids": {
-            uid: gids for uid, gids in role_user_membership.items() if gids
-        },
+        # Internal: pre-computed user_id -> set[gid] for the TOML emitter's
+        # otherGroups, provider project groups included. Stripped before
+        # serialisation by the view layer.
+        "_user_role_gids": {uid: gids for uid, gids in extra_gids.items() if gids},
         # Materialised list (not queryset) — keeps prefetch cache hot and
         # avoids a second SQL round-trip when the TOML emitter iterates.
         "_offering_users": offering_users,
     }
+
+
+def _provider_project_groups_for_offering(
+    offering, offering_users, user_project_mappings, resource_filter=None
+):
+    """The provider's project groups rendered into an offering's directory.
+
+    A group appears while its project uses the offering. Its members are the
+    offering's accounts of the group's members as the provider listing defines
+    them (active users, unexpired roles, live unrestricted accounts). A group
+    whose name is also an account's personal group name is left out and
+    logged: one NSS name cannot stand for two groups. Returns the groups and
+    ``user_id -> set[gid]``.
+    """
+    groups = []
+    membership = defaultdict(set)
+    provider = offering.service_provider
+    if provider is None or not provider_project_groups.offering_qualifies(offering):
+        return groups, membership
+    resources = provider_project_groups.active_resources().filter(offering=offering)
+    if resource_filter is not None:
+        resources = resources.filter(project_id=resource_filter.project_id)
+    queryset = (
+        models.ServiceProviderProjectGroup.objects.filter(
+            service_provider=provider,
+            gid__isnull=False,
+            project_id__in=resources.values("project_id"),
+        )
+        .select_related("project", "service_provider")
+        .order_by("name", "id")
+    )
+    group_list = list(queryset)
+    if not group_list:
+        return groups, membership
+    details = provider_project_groups.describe(group_list)
+
+    # project_id -> offering accounts, built once rather than per group.
+    accounts_by_project = defaultdict(list)
+    for offering_user in offering_users:
+        for project_id in user_project_mappings.get(offering_user.user_id, ()):
+            accounts_by_project[project_id].append(offering_user)
+    personal_names = {ou.username for ou in offering_users if ou.username}
+    personal_names |= set(
+        models.RobotAccount.objects.filter(resource__offering=offering).values_list(
+            "username", flat=True
+        )
+    )
+
+    for group in group_list:
+        if group.name in personal_names:
+            logger.warning(
+                "Provider project group %s (GID %s) is not rendered for offering "
+                "%s: an account of the same name has a personal group.",
+                group.name,
+                group.gid,
+                offering.uuid.hex,
+            )
+            continue
+        allowed = set(details[group.pk]["members"])
+        members = [
+            ou
+            for ou in accounts_by_project.get(group.project_id, ())
+            if ou.username in allowed
+        ]
+        for ou in members:
+            membership[ou.user_id].add(int(group.gid))
+        groups.append(
+            {
+                "gid": int(group.gid),
+                "name": group.name,
+                "kind": "provider_project",
+                "scope": {
+                    "type": "project",
+                    "uuid": group.project.uuid.hex,
+                    "name": group.project.name,
+                    "slug": group.project.slug or "",
+                    "resource_uuid": None,
+                },
+                "role": None,
+                "members": sorted({ou.username for ou in members}),
+            }
+        )
+    return groups, membership
 
 
 def _user_project_mappings(user_ids):
@@ -6017,6 +6215,13 @@ def move_offering(
 
     offering.customer = target_customer
     offering.save(update_fields=["customer"])
+    offering.__dict__.pop("service_provider", None)
+    # The projects using the offering now use the target provider.
+    transaction.on_commit(
+        lambda: provider_project_groups.run_safely(
+            provider_project_groups.ensure_groups_for_offering, offering
+        )
+    )
 
     if not preserve_permissions:
         for permission in get_permissions(offering):

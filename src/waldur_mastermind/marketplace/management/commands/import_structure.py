@@ -8,6 +8,7 @@ from uuid import UUID
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models import F
@@ -46,6 +47,7 @@ from waldur_mastermind.invoices.models import (
     InvoiceItem,
     ProjectCredit,
 )
+from waldur_mastermind.marketplace import posix_ids
 from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     MissingUsagePolicies,
@@ -77,6 +79,7 @@ from waldur_mastermind.marketplace.models import (
     ResourceProject,
     RobotAccount,
     ServiceProvider,
+    ServiceProviderProjectGroup,
     SlurmOfferingQoS,
     SlurmPartitionQoS,
     SoftwareCatalog,
@@ -327,6 +330,12 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "posix_id_pools": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "service_provider_project_groups": {
                 "created": 0,
                 "updated": 0,
                 "skipped": 0,
@@ -1005,6 +1014,14 @@ class Command(BaseCommand):
         self._safe_import(
             "posix_id_pools",
             lambda: self.import_posix_id_pools(data.get("posix_id_pools", [])),
+        )
+
+        # Import provider project groups (depends on pools and projects)
+        self._safe_import(
+            "service_provider_project_groups",
+            lambda: self.import_service_provider_project_groups(
+                data.get("service_provider_project_groups", [])
+            ),
         )
 
         # Import resource plan periods (depends on resources and plans)
@@ -3919,6 +3936,9 @@ class Command(BaseCommand):
                         "min_gid": item.get("min_gid"),
                         "max_gid": item.get("max_gid"),
                         "next_gid": item.get("next_gid"),
+                        "min_group_gid": item.get("min_group_gid"),
+                        "max_group_gid": item.get("max_group_gid"),
+                        "next_group_gid": item.get("next_group_gid"),
                         "description": item.get("description", ""),
                     },
                 )
@@ -3927,6 +3947,62 @@ class Command(BaseCommand):
                 self.stats["posix_id_pools"]["errors"] += 1
                 self.stdout.write(
                     self.style.ERROR(f"Error importing POSIX ID pool: {e}")
+                )
+
+    def import_service_provider_project_groups(self, groups_data):
+        """Import provider project groups by uuid and pin their GIDs again.
+
+        The GID is recorded as the group's identity in the provider's pool, so
+        the allocator never hands it out; a GID another consumer already holds
+        is imported on the group but reported and left unreserved.
+        """
+        if not groups_data:
+            return
+        self.stdout.write("Importing provider project groups...")
+        stats = self.stats["service_provider_project_groups"]
+        sp_map = {str(sp.uuid): sp for sp in ServiceProvider.objects.all()}
+        for item in groups_data:
+            try:
+                provider = sp_map.get(
+                    self._normalize_uuid(item.get("service_provider_uuid") or "")
+                )
+                if provider is None or not item.get("uuid"):
+                    stats["errors"] += 1
+                    continue
+                project = None
+                if item.get("project_uuid"):
+                    project = Project.objects.filter(
+                        uuid=self._normalize_uuid(item["project_uuid"])
+                    ).first()
+                group, created = ServiceProviderProjectGroup.objects.update_or_create(
+                    uuid=self._normalize_uuid(item["uuid"]),
+                    defaults={
+                        "service_provider": provider,
+                        "project": project,
+                        "name": item["name"],
+                    },
+                )
+                stats["created" if created else "updated"] += 1
+                gid = item.get("gid")
+                if gid is None or group.gid == gid:
+                    continue
+                try:
+                    posix_ids.set_project_group_gid(
+                        group, gid, allow_outside_range=True
+                    )
+                except (posix_ids.PosixIdValueConflict, DjangoValidationError) as e:
+                    group.gid = gid
+                    group.save(update_fields=["gid"])
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Project group {group.name} imported with GID {gid} "
+                            f"but not reserved: {e}"
+                        )
+                    )
+            except Exception as e:
+                stats["errors"] += 1
+                self.stdout.write(
+                    self.style.ERROR(f"Error importing provider project group: {e}")
                 )
 
     def import_resource_projects(self, resource_projects_data):

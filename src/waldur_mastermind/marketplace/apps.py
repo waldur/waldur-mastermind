@@ -599,6 +599,42 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.create_provider_project_group_for_resource,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.create_provider_project_group_for_resource",
+        )
+
+        signals.post_delete.connect(
+            handlers.release_provider_project_group_gid,
+            sender=models.ServiceProviderProjectGroup,
+            dispatch_uid="waldur_mastermind.marketplace.release_provider_project_group_gid",
+        )
+
+        signals.post_save.connect(
+            handlers.backfill_project_groups_when_enabled,
+            sender=models.ServiceProvider,
+            dispatch_uid="waldur_mastermind.marketplace.backfill_project_groups_when_enabled",
+        )
+
+        signals.post_save.connect(
+            handlers.backfill_project_groups_when_pool_saved,
+            sender=models.PosixIdPool,
+            dispatch_uid="waldur_mastermind.marketplace.backfill_project_groups_when_pool_saved",
+        )
+
+        signals.pre_delete.connect(
+            handlers.protect_pool_holding_project_group_gids,
+            sender=models.PosixIdPool,
+            dispatch_uid="waldur_mastermind.marketplace.protect_pool_holding_project_group_gids",
+        )
+
+        signals.post_save.connect(
+            handlers.create_provider_project_group_on_order_approval,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.create_provider_project_group_on_order_approval",
+        )
+
+        signals.post_save.connect(
             handlers.update_offering_user_username_after_freeipa_profile_update,
             sender=freeipa_models.Profile,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_freeipa_profile_update",
