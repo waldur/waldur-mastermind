@@ -1,10 +1,17 @@
 from unittest.mock import patch
 
+from constance.test.unittest import override_config
 from ddt import data, ddt
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace.catalog_loaders.eessi import (
+    cpu_targets_for_catalog,
+    split_eessi_cpu_arch,
+)
 
 from . import factories
 
@@ -153,6 +160,20 @@ class SoftwareCatalogViewSetTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["package_count"], 3)
+        self.assertTrue(response.data["supports_cpu_target_restrictions"])
+
+    def test_list_reports_cpu_target_restriction_support(self):
+        factories.SoftwareCatalogFactory(
+            name="Spack", version="2026.09.30", catalog_type="source_package"
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        by_name = {row["name"]: row for row in response.data}
+        self.assertTrue(by_name["EESSI"]["supports_cpu_target_restrictions"])
+        self.assertFalse(by_name["Spack"]["supports_cpu_target_restrictions"])
 
     def test_filter_by_name(self):
         factories.SoftwareCatalogFactory(name="Other", version="1.0")
@@ -589,7 +610,9 @@ class OfferingSoftwareCatalogActionsTest(test.APITestCase):
             enabled_cpu_microarchitectures=["generic"],
         )
 
-        catalog2 = factories.SoftwareCatalogFactory(name="Custom", version="1.0")
+        catalog2 = factories.SoftwareCatalogFactory(
+            name="Spack", version="2026.09.30", catalog_type="source_package"
+        )
         factories.OfferingSoftwareCatalogFactory(
             offering=self.offering,
             catalog=catalog2,
@@ -603,6 +626,13 @@ class OfferingSoftwareCatalogActionsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("software_catalogs", response.data)
         self.assertEqual(len(response.data["software_catalogs"]), 2)
+
+        nested_by_name = {
+            row["catalog"]["name"]: row["catalog"]
+            for row in response.data["software_catalogs"]
+        }
+        self.assertTrue(nested_by_name["EESSI"]["supports_cpu_target_restrictions"])
+        self.assertFalse(nested_by_name["Spack"]["supports_cpu_target_restrictions"])
 
         # Check structure
         catalog_data = response.data["software_catalogs"][0]
@@ -1520,6 +1550,233 @@ class SoftwareTargetExtraFiltersTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         names = [t["target_name"] for t in response.data]
         self.assertEqual(names, ["linux", "x86_64"])
+
+
+class SoftwareCpuTargetFilterTest(test.APITestCase):
+    """cpu_family and cpu_microarchitecture accept several values (OR)."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2025.06")
+        self.versions = {}
+        for name, family, subtype in (
+            ("Zen3Pkg", "x86_64", "amd/zen3"),
+            ("SapphirePkg", "x86_64", "intel/sapphirerapids"),
+            ("NeoversePkg", "aarch64", "neoverse_n1"),
+        ):
+            package = factories.SoftwarePackageFactory(catalog=catalog, name=name)
+            version = factories.SoftwareVersionFactory(package=package)
+            factories.SoftwareTargetFactory(
+                version=version, target_name=family, target_subtype=subtype
+            )
+            self.versions[name] = version
+        self.client.force_authenticate(self.fixture.staff)
+
+    def _package_names(self, query):
+        response = self.client.get(
+            factories.SoftwarePackageFactory.get_list_url(), query
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return sorted(row["name"] for row in response.data)
+
+    def test_single_microarchitecture(self):
+        self.assertEqual(
+            self._package_names({"cpu_microarchitecture": "amd/zen3"}), ["Zen3Pkg"]
+        )
+
+    def test_several_microarchitectures_match_any(self):
+        self.assertEqual(
+            self._package_names(
+                {"cpu_microarchitecture": ["amd/zen3", "intel/sapphirerapids"]}
+            ),
+            ["SapphirePkg", "Zen3Pkg"],
+        )
+
+    def test_several_families_match_any(self):
+        self.assertEqual(
+            self._package_names({"cpu_family": ["x86_64", "aarch64"]}),
+            ["NeoversePkg", "SapphirePkg", "Zen3Pkg"],
+        )
+
+    def test_version_list_accepts_several_microarchitectures(self):
+        response = self.client.get(
+            factories.SoftwareVersionFactory.get_list_url(),
+            {"cpu_microarchitecture": ["amd/zen3", "neoverse_n1"]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            sorted(row["uuid"] for row in response.data),
+            sorted(self.versions[name].uuid.hex for name in ("NeoversePkg", "Zen3Pkg")),
+        )
+
+    def test_target_list_matches_any_value_case_insensitively(self):
+        response = self.client.get(
+            factories.SoftwareTargetFactory.get_list_url(),
+            {"cpu_microarchitecture": ["AMD/Zen3", "neoverse_n1"]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            sorted(row["target_subtype"] for row in response.data),
+            ["amd/zen3", "neoverse_n1"],
+        )
+
+
+class SoftwareCatalogCpuTargetsTest(test.APITestCase):
+    """CPU choices derived from architectures_map for the catalog version."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(
+            name="EESSI",
+            version="2025.06",
+            catalog_type="binary_runtime",
+            metadata={
+                "architectures_map": {
+                    "2023.06": {
+                        "x86_64/intel/haswell": "x86_64/intel/haswell",
+                    },
+                    "2025.06": {
+                        "x86_64/generic": "x86_64/generic",
+                        "x86_64/amd/zen3": "x86_64/amd/zen3",
+                        "x86_64/intel/sapphirerapids": "x86_64/intel/sapphirerapids",
+                        "x86_64/intel/icelake": "x86_64/intel/icelake",
+                        "aarch64/neoverse_n1": "aarch64/neoverse_n1",
+                        "x86_64/intel/graniterapids": "x86_64/intel/skylake_avx512",
+                    },
+                }
+            },
+        )
+        self.url = factories.SoftwareCatalogFactory.get_url(
+            self.catalog, action="cpu_targets"
+        )
+
+    def test_split_keeps_vendor_prefix_in_subtype(self):
+        self.assertEqual(
+            split_eessi_cpu_arch("x86_64/intel/sapphirerapids"),
+            ("x86_64", "intel/sapphirerapids"),
+        )
+        self.assertEqual(split_eessi_cpu_arch("x86_64/generic"), ("x86_64", "generic"))
+        self.assertEqual(split_eessi_cpu_arch("x86_64"), ("x86_64", "generic"))
+
+    def test_returns_only_the_catalog_version(self):
+        targets = cpu_targets_for_catalog(self.catalog)
+        full_arches = [target["full_arch"] for target in targets]
+        self.assertNotIn("x86_64/intel/haswell", full_arches)
+        self.assertIn("x86_64/intel/sapphirerapids", full_arches)
+
+    def test_subtype_matches_loader_not_short_token(self):
+        by_arch = {
+            target["full_arch"]: target
+            for target in cpu_targets_for_catalog(self.catalog)
+        }
+        sapphire = by_arch["x86_64/intel/sapphirerapids"]
+        self.assertEqual(sapphire["cpu_family"], "x86_64")
+        self.assertEqual(sapphire["cpu_microarchitecture"], "intel/sapphirerapids")
+
+        zen3 = by_arch["x86_64/amd/zen3"]
+        self.assertEqual(zen3["cpu_microarchitecture"], "amd/zen3")
+
+        neoverse = by_arch["aarch64/neoverse_n1"]
+        self.assertEqual(neoverse["cpu_family"], "aarch64")
+        self.assertEqual(neoverse["cpu_microarchitecture"], "neoverse_n1")
+
+    def test_remap_uses_compatible_build_as_filter_token(self):
+        by_arch = {
+            target["full_arch"]: target
+            for target in cpu_targets_for_catalog(self.catalog)
+        }
+        granite = by_arch["x86_64/intel/graniterapids"]
+        self.assertEqual(granite["full_arch"], "x86_64/intel/graniterapids")
+        self.assertEqual(granite["cpu_microarchitecture"], "intel/skylake_avx512")
+
+    def test_spack_catalog_returns_empty_list(self):
+        spack = factories.SoftwareCatalogFactory(
+            name="Spack",
+            version="2026.09.30",
+            catalog_type="source_package",
+            metadata={"format": "repology.json"},
+        )
+        self.assertEqual(cpu_targets_for_catalog(spack), [])
+
+    def test_spack_http_returns_empty_list(self):
+        spack = factories.SoftwareCatalogFactory(
+            name="Spack",
+            version="2026.09.30",
+            catalog_type="source_package",
+            metadata={"format": "repology.json"},
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            factories.SoftwareCatalogFactory.get_url(spack, action="cpu_targets")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_missing_architectures_map_returns_empty_list(self):
+        self.catalog.metadata = {}
+        self.catalog.save(update_fields=["metadata"])
+        self.assertEqual(cpu_targets_for_catalog(self.catalog), [])
+
+    def test_list_shaped_map_is_supported(self):
+        self.catalog.metadata = {
+            "architectures_map": {
+                "2025.06": ["x86_64/generic", "x86_64/amd/zen3"],
+            }
+        }
+        self.catalog.save(update_fields=["metadata"])
+        subtypes = [
+            target["cpu_microarchitecture"]
+            for target in cpu_targets_for_catalog(self.catalog)
+        ]
+        self.assertEqual(subtypes, ["amd/zen3", "generic"])
+
+    def test_authenticated_user_can_list_cpu_targets(self):
+        self.client.force_authenticate(self.fixture.owner)
+        # Constance and the request transaction add queries around the catalog
+        # read. The CPU list itself must not touch package, version, or target rows.
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        catalog_reads = [
+            query
+            for query in queries.captured_queries
+            if "marketplace_softwarecatalog" in query["sql"]
+        ]
+        scanned_tables = [
+            query
+            for query in queries.captured_queries
+            if any(
+                table in query["sql"]
+                for table in (
+                    "marketplace_softwarepackage",
+                    "marketplace_softwareversion",
+                    "marketplace_softwaretarget",
+                )
+            )
+        ]
+        self.assertEqual(len(catalog_reads), 1)
+        self.assertEqual(scanned_tables, [])
+        sapphire = next(
+            row
+            for row in response.data
+            if row["full_arch"] == "x86_64/intel/sapphirerapids"
+        )
+        self.assertEqual(sapphire["cpu_family"], "x86_64")
+        self.assertEqual(sapphire["cpu_microarchitecture"], "intel/sapphirerapids")
+        self.assertNotIn(
+            "x86_64/intel/haswell",
+            [row["full_arch"] for row in response.data],
+        )
+
+    def test_anonymous_can_list_cpu_targets_when_offerings_are_public(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_anonymous_cannot_list_cpu_targets_when_offerings_are_private(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 @ddt
