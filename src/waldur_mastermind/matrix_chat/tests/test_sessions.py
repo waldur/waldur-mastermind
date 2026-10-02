@@ -129,6 +129,24 @@ class MatrixSessionTest(test.APITestCase):
                     response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE
                 )
 
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.logout_device")
+    def test_session_racing_a_deactivation_is_signed_out(
+        self, mock_logout, mock_ensure, mock_session, mock_prune
+    ):
+        # end_web_sessions may have listed the devices before this one existed.
+        def deactivated_meanwhile(matrix_user_id):
+            type(self.user).objects.filter(pk=self.user.pk).update(is_active=False)
+            return SESSION
+
+        mock_session.side_effect = deactivated_meanwhile
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        mock_logout.assert_called_once_with("@alice:example.com", SESSION["device_id"])
+        mock_prune.delay.assert_not_called()
+
     def test_hidden_when_matrix_is_disabled(
         self, mock_ensure, mock_session, mock_prune
     ):

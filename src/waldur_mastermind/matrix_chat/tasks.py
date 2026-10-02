@@ -363,6 +363,61 @@ def prune_web_devices(matrix_user_id, keep_device_id=None):
             )
 
 
+# Revocations have to outlast a homeserver restart. retry_backoff=True would
+# start at one second and spend every retry within seconds. From 30, Celery's
+# default jitter waits up to 30, 60, ... 600 s per retry, about 25 minutes at
+# most in all, and keeps a bulk deactivation's tasks from retrying in lockstep.
+# Only transport and homeserver errors are worth retrying.
+REVOCATION_RETRY = dict(
+    autoretry_for=(matrix_client.MatrixClientError, httpx.HTTPError),
+    retry_backoff=30,
+    retry_backoff_max=600,
+    max_retries=6,
+)
+
+
+@shared_task(
+    name="waldur_mastermind.matrix_chat.sign_out_web_devices",
+    # A retry lists the devices again, so only the ones still there are retried.
+    **REVOCATION_RETRY,
+)
+def sign_out_web_devices(matrix_user_id):
+    """Sign out the web chat devices of a Matrix user whose Waldur account is gone."""
+    # Open drawers outlive switching chat off, so this does not need it on.
+    if not matrix_client.is_homeserver_configured():
+        return
+    matrix_client.logout_web_devices(matrix_user_id)
+    logger.info("Ended web chat sessions of %s", matrix_user_id)
+
+
+@shared_task(
+    name="waldur_mastermind.matrix_chat.end_web_sessions",
+    # A retry lists the devices again, so only the ones still there are retried.
+    **REVOCATION_RETRY,
+)
+def end_web_sessions(user_uuid):
+    """Sign out all web chat devices of a user, e.g. once they are deactivated."""
+    # Open drawers outlive switching chat off, so this does not need it on.
+    if not matrix_client.is_homeserver_configured():
+        return
+
+    # all_objects: the user has just been deactivated.
+    try:
+        user = User.all_objects.get(uuid=user_uuid)
+    except User.DoesNotExist:
+        logger.error("User %s not found", user_uuid)
+        return
+    # Retries run for minutes; sessions of a user reactivated meanwhile stay.
+    if user.is_active:
+        return
+
+    profile = models.MatrixUserProfile.objects.filter(user=user).first()
+    if not profile:
+        return
+    matrix_client.logout_web_devices(profile.matrix_user_id)
+    logger.info("Ended web chat sessions of %s", profile.matrix_user_id)
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.staff_leave_room")
 def staff_leave_room(room_uuid, user_uuid):
     """Remove a staff member from a Matrix room (voluntary leave) and announce it."""
@@ -430,14 +485,8 @@ def _resolve_matrix_user_id(user, member):
 
 @shared_task(
     name="waldur_mastermind.matrix_chat.kick_user_from_room",
-    # Narrow the retry surface: User.DoesNotExist is a permanent miss, not a
-    # transient one — retrying it 3x with exponential backoff hides the error
-    # for ~10 minutes. matrix_client transport / homeserver errors are the
-    # legitimate retry cases.
-    autoretry_for=(matrix_client.MatrixClientError, httpx.HTTPError),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    max_retries=3,
+    # User.DoesNotExist is a permanent miss and is not retried.
+    **REVOCATION_RETRY,
 )
 def kick_user_from_room(room_uuid, user_uuid):
     """Remove a user from a Matrix room.

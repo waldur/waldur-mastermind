@@ -10,7 +10,7 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace.enums import OrderStates
 
 from . import matrix_client, room_provisioning, tasks
-from .models import MatrixRoom, RoomStates
+from .models import MatrixRoom, MatrixUserProfile, RoomStates
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,43 @@ def on_role_revoked(sender, instance: UserRole, **kwargs):
     user_uuid = str(user.uuid)
 
     transaction.on_commit(lambda: tasks.kick_user_from_room.delay(room_uuid, user_uuid))
+
+
+def on_user_deactivated(sender, instance, created=False, **kwargs):
+    """End the user's web chat sessions so an open drawer loses access."""
+    # previous() rather than has_changed(): a receiver that re-saves a new user
+    # inside its own post_save reaches this one before the tracker is reset,
+    # so has_changed() is true for a user who was never active.
+    if created or instance.is_active or not instance.tracker.previous("is_active"):
+        return
+    # Not is_enabled(): open drawers keep refreshing with the homeserver after
+    # chat is switched off, so their devices still have to be signed out.
+    if not matrix_client.is_homeserver_configured():
+        return
+
+    user_uuid = instance.uuid.hex
+    transaction.on_commit(lambda: tasks.end_web_sessions.delay(user_uuid))
+
+
+def on_user_pre_delete(sender, instance, **kwargs):
+    """End a deleted user's web chat sessions.
+
+    The Matrix profile is deleted with the user, so its Matrix ID is read now
+    and handed to the task, which runs once the deletion has committed.
+    """
+    profile = MatrixUserProfile.objects.filter(user=instance).first()
+    if profile is None:
+        return
+    matrix_user_id = profile.matrix_user_id
+    # As on deactivation, switching chat off does not end open drawers. Once
+    # the profile is gone, nothing could find these devices again.
+    if not matrix_client.is_homeserver_configured():
+        logger.warning(
+            "Cannot sign out web chat devices of deleted %s: no homeserver",
+            matrix_user_id,
+        )
+        return
+    transaction.on_commit(lambda: tasks.sign_out_web_devices.delay(matrix_user_id))
 
 
 def on_project_created(sender, instance, created=False, raw=False, **kwargs):

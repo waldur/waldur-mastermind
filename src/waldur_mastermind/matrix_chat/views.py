@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core.models import User
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
@@ -596,6 +597,17 @@ class MatrixSessionView(views.APIView):
                 {"detail": "Chat is unavailable right now. Please try again later."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+
+        # A deactivation committed meanwhile may have listed the user's devices
+        # before this one existed, and would never sign it out.
+        if not User.all_objects.filter(pk=request.user.pk, is_active=True).exists():
+            try:
+                matrix_client.logout_device(matrix_user_id, session["device_id"])
+            except matrix_client.MatrixClientError as e:
+                logger.warning(
+                    "Could not sign out session of deactivated %s: %s", request.user, e
+                )
+            raise PermissionDenied("This account has been deactivated.")
 
         tasks.prune_web_devices.delay(matrix_user_id, session["device_id"])
         serializer = serializers.MatrixSessionSerializer(

@@ -333,3 +333,139 @@ class OnProjectCreatedTest(TestCase):
 
         self.assertEqual(self._rooms_for(project).count(), 1)
         mock_tasks.create_room.delay.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks.end_web_sessions")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
+class OnUserDeactivatedTest(TestCase):
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+
+    def _save(self, **changes):
+        for field, value in changes.items():
+            setattr(self.user, field, value)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.user.save()
+
+    def test_deactivation_ends_web_sessions(self, mock_client, mock_task):
+        mock_client.is_homeserver_configured.return_value = True
+
+        self._save(is_active=False)
+
+        mock_task.delay.assert_called_once_with(self.user.uuid.hex)
+
+    def test_other_changes_are_ignored(self, mock_client, mock_task):
+        mock_client.is_homeserver_configured.return_value = True
+
+        self._save(first_name="Renamed")
+
+        mock_task.delay.assert_not_called()
+
+    def test_reactivation_is_ignored(self, mock_client, mock_task):
+        mock_client.is_homeserver_configured.return_value = True
+        self._save(is_active=False)
+        mock_task.reset_mock()
+
+        self._save(is_active=True)
+
+        mock_task.delay.assert_not_called()
+
+    def test_creating_an_inactive_user_is_ignored(self, mock_client, mock_task):
+        # Regression: another receiver re-saves a new user (to set its token
+        # lifetime) inside its own post_save, which reaches this handler with
+        # created=False before the field tracker has been reset.
+        mock_client.is_homeserver_configured.return_value = True
+
+        with self.captureOnCommitCallbacks(execute=True):
+            user = structure_factories.UserFactory(is_active=False)
+
+        self.assertIsNotNone(user.token_lifetime)
+        mock_task.delay.assert_not_called()
+
+    def test_deactivation_saving_only_changed_fields(self, mock_client, mock_task):
+        # Most deactivation paths save with update_fields.
+        mock_client.is_homeserver_configured.return_value = True
+        self.user.is_active = False
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.user.save(update_fields=["is_active"])
+
+        mock_task.delay.assert_called_once_with(self.user.uuid.hex)
+
+    def test_saving_an_already_inactive_user_is_ignored(self, mock_client, mock_task):
+        mock_client.is_homeserver_configured.return_value = True
+        self._save(is_active=False)
+        mock_task.reset_mock()
+
+        self._save(first_name="Renamed")
+
+        mock_task.delay.assert_not_called()
+
+    def test_chat_switched_off_still_ends_web_sessions(self, mock_client, mock_task):
+        # Open drawers keep refreshing with the homeserver while MATRIX_ENABLED
+        # is off, so their devices still have to go.
+        mock_client.is_enabled.return_value = False
+        mock_client.is_homeserver_configured.return_value = True
+
+        self._save(is_active=False)
+
+        mock_task.delay.assert_called_once_with(self.user.uuid.hex)
+
+    def test_no_op_without_a_homeserver(self, mock_client, mock_task):
+        mock_client.is_homeserver_configured.return_value = False
+
+        self._save(is_active=False)
+
+        mock_task.delay.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks.sign_out_web_devices")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
+class OnUserDeletedTest(TestCase):
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+
+    def _delete(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.user.delete()
+
+    def test_deleting_a_matrix_user_ends_web_sessions(self, mock_client, mock_task):
+        # The profile goes with the user, so the task gets the Matrix ID itself.
+        mock_client.is_homeserver_configured.return_value = True
+        models.MatrixUserProfile.objects.create(
+            user=self.user, matrix_user_id="@gone:matrix.example.com", provisioned=True
+        )
+
+        self._delete()
+
+        mock_task.delay.assert_called_once_with("@gone:matrix.example.com")
+
+    def test_user_never_provisioned_has_nothing_to_end(self, mock_client, mock_task):
+        mock_client.is_homeserver_configured.return_value = True
+
+        self._delete()
+
+        mock_task.delay.assert_not_called()
+
+    def test_chat_switched_off_still_ends_web_sessions(self, mock_client, mock_task):
+        # Once the profile is gone with the user, nothing could find these
+        # devices again.
+        mock_client.is_enabled.return_value = False
+        mock_client.is_homeserver_configured.return_value = True
+        models.MatrixUserProfile.objects.create(
+            user=self.user, matrix_user_id="@gone:matrix.example.com", provisioned=True
+        )
+
+        self._delete()
+
+        mock_task.delay.assert_called_once_with("@gone:matrix.example.com")
+
+    def test_no_op_without_a_homeserver(self, mock_client, mock_task):
+        mock_client.is_homeserver_configured.return_value = False
+        models.MatrixUserProfile.objects.create(
+            user=self.user, matrix_user_id="@gone:matrix.example.com", provisioned=True
+        )
+
+        self._delete()
+
+        mock_task.delay.assert_not_called()

@@ -131,12 +131,13 @@ def get_bot_display_name():
     return f"{config.SITE_NAME} Bot"
 
 
+def is_homeserver_configured():
+    """Whether Waldur can act on the homeserver, whether or not chat is on."""
+    return bool(config.MATRIX_HOMESERVER_URL and config.MATRIX_APPSERVICE_AS_TOKEN)
+
+
 def is_enabled():
-    return bool(
-        config.MATRIX_ENABLED
-        and config.MATRIX_HOMESERVER_URL
-        and config.MATRIX_APPSERVICE_AS_TOKEN
-    )
+    return bool(config.MATRIX_ENABLED) and is_homeserver_configured()
 
 
 def get_bot_user_id():
@@ -1433,6 +1434,26 @@ def logout_device(matrix_user_id, device_id):
         raise MatrixClientError(
             f"Failed to log out {device_id} of {matrix_user_id}: "
             f"{response.status_code} {response.text}"
+        )
+
+
+def logout_web_devices(matrix_user_id):
+    """End every web chat session of the user, leaving their other devices alone.
+
+    Tries every device before reporting a failure, so one device the homeserver
+    keeps rejecting cannot shield the others.
+    """
+    failed = []
+    for device in list_devices(matrix_user_id):
+        if not device["device_id"].startswith(WEB_DEVICE_PREFIX):
+            continue
+        try:
+            logout_device(matrix_user_id, device["device_id"])
+        except MatrixClientError as e:
+            failed.append(f"{device['device_id']}: {e}")
+    if failed:
+        raise MatrixClientError(
+            f"Could not sign out web devices of {matrix_user_id}: {'; '.join(failed)}"
         )
 
 
