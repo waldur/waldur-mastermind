@@ -8,7 +8,7 @@ from ddt import data, ddt
 from django.core.exceptions import ValidationError
 from rest_framework import status, test
 
-from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.tests.helpers import create_pat, override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -879,6 +879,34 @@ class CourseAccountHandlerTest(test.APITestCase):
             self.test_user.deactivation_reason,
             f"Course account for {self.test_user.username} closed",
         )
+
+    def test_deactivation_with_local_row_gone_runs_user_deactivation_handlers(
+        self,
+    ):
+        """The deactivation is a save, so what reacts to it (here, revoking
+        personal access tokens) runs as for any other deactivation."""
+        respx.get(COURSE_ACCOUNT_URL + f"/{self.test_user.username}").mock(
+            return_value=httpx.Response(
+                200, json={"tempAccounts": [{"username": self.test_user.username}]}
+            )
+        )
+        respx.put(COURSE_ACCOUNT_URL + f"/{self.test_user.username}/close").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        pat, _ = create_pat(self.test_user)
+
+        tasks.close_course_accounts_task(
+            [
+                {
+                    "uuid": uuid.uuid4().hex,
+                    "username": self.test_user.username,
+                    "user_id": self.test_user.pk,
+                }
+            ]
+        )
+
+        pat.refresh_from_db()
+        self.assertFalse(pat.is_active)
 
     def test_course_accounts_handler_no_op_when_no_accounts(self):
         """Test that handler works correctly when project has no course accounts"""

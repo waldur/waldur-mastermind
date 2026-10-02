@@ -710,8 +710,8 @@ class MatrixWebSessionIntegrationTest(TestCase):
     def setUp(self):
         super().setUp()
         _ensure_bot()
-        user = structure_factories.UserFactory(username=_unique_name("webuser"))
-        self.matrix_user_id = matrix_client.ensure_user_exists(user)
+        self.user = structure_factories.UserFactory(username=_unique_name("webuser"))
+        self.matrix_user_id = matrix_client.ensure_user_exists(self.user)
 
     def _device_ids(self):
         return {d["device_id"] for d in matrix_client.list_devices(self.matrix_user_id)}
@@ -779,3 +779,42 @@ class MatrixWebSessionIntegrationTest(TestCase):
             if d.startswith(matrix_client.WEB_DEVICE_PREFIX)
         }
         self.assertEqual(web, {s["device_id"] for s in sessions})
+
+    def test_ending_web_sessions_leaves_other_devices(self):
+        # Deactivation dispatches this task; it is called directly here because
+        # on_commit callbacks never run inside a TestCase.
+        sessions = [
+            matrix_client.create_web_session(self.matrix_user_id) for _ in range(2)
+        ]
+        external = httpx.post(
+            f"{HOMESERVER_URL}/_matrix/client/v3/login",
+            json={
+                "type": "m.login.application_service",
+                "identifier": {"type": "m.id.user", "user": self.matrix_user_id},
+                "device_id": "EXTERNAL_CLIENT",
+            },
+            headers={"Authorization": f"Bearer {AS_TOKEN}"},
+            timeout=5,
+        )
+        self.assertEqual(external.status_code, 200, external.text)
+
+        tasks.end_web_sessions(self.user.uuid.hex)
+
+        remaining = self._device_ids()
+        self.assertIn("EXTERNAL_CLIENT", remaining)
+        self.assertFalse(
+            [d for d in remaining if d.startswith(matrix_client.WEB_DEVICE_PREFIX)]
+        )
+        for session in sessions:
+            whoami = httpx.get(
+                f"{HOMESERVER_URL}/_matrix/client/v3/account/whoami",
+                headers={"Authorization": f"Bearer {session['access_token']}"},
+                timeout=5,
+            )
+            self.assertEqual(whoami.status_code, 401)
+            refresh = httpx.post(
+                f"{HOMESERVER_URL}/_matrix/client/v3/refresh",
+                json={"refresh_token": session["refresh_token"]},
+                timeout=5,
+            )
+            self.assertNotEqual(refresh.status_code, 200)

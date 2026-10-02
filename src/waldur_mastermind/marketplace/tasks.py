@@ -266,11 +266,13 @@ def close_course_accounts_task(accounts: list[dict]):
                     exc,
                 )
                 continue
-            if user_id:
-                core_models.User.objects.filter(pk=user_id).update(
-                    is_active=False,
-                    deactivation_reason=f"Course account for {username} closed",
-                )
+            user = core_models.User.all_objects.filter(pk=user_id).first()
+            if user:
+                # A save rather than an update, so whatever reacts to a
+                # deactivation (token and chat session revocation) runs too.
+                user.is_active = False
+                user.deactivation_reason = f"Course account for {username} closed"
+                user.save(update_fields=["is_active", "deactivation_reason"])
             continue
 
         _close_course_account_and_mark_erred_on_any_failure(

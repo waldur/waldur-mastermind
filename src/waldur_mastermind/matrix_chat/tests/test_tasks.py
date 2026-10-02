@@ -975,3 +975,108 @@ class PruneWebDevicesTaskTest(TestCase):
         tasks.prune_web_devices("@alice:matrix.example.com")
 
         mock_client.list_devices.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class EndWebSessionsTaskTest(TestCase):
+    def test_signs_out_web_devices_of_deactivated_user(self, mock_client):
+        # Deactivation is the trigger, so the active manager would miss the user.
+        mock_client.is_homeserver_configured.return_value = True
+        user = structure_factories.UserFactory(is_active=False)
+        models.MatrixUserProfile.objects.create(
+            user=user, matrix_user_id="@gone:matrix.example.com", provisioned=True
+        )
+
+        tasks.end_web_sessions(user.uuid.hex)
+
+        mock_client.logout_web_devices.assert_called_once_with(
+            "@gone:matrix.example.com"
+        )
+
+    def test_user_never_provisioned_has_nothing_to_end(self, mock_client):
+        mock_client.is_homeserver_configured.return_value = True
+        user = structure_factories.UserFactory(is_active=False)
+
+        tasks.end_web_sessions(user.uuid.hex)
+
+        mock_client.logout_web_devices.assert_not_called()
+
+    def test_runs_while_chat_is_switched_off(self, mock_client):
+        mock_client.is_enabled.return_value = False
+        mock_client.is_homeserver_configured.return_value = True
+        user = structure_factories.UserFactory(is_active=False)
+        models.MatrixUserProfile.objects.create(
+            user=user, matrix_user_id="@gone:matrix.example.com", provisioned=True
+        )
+
+        tasks.end_web_sessions(user.uuid.hex)
+
+        mock_client.logout_web_devices.assert_called_once_with(
+            "@gone:matrix.example.com"
+        )
+
+    def test_skips_without_a_homeserver(self, mock_client):
+        mock_client.is_homeserver_configured.return_value = False
+        user = structure_factories.UserFactory(is_active=False)
+        models.MatrixUserProfile.objects.create(
+            user=user, matrix_user_id="@gone:matrix.example.com", provisioned=True
+        )
+
+        tasks.end_web_sessions(user.uuid.hex)
+
+        mock_client.logout_web_devices.assert_not_called()
+
+    def test_reactivated_user_keeps_sessions(self, mock_client):
+        # The task retries for minutes; a user reactivated meanwhile may have
+        # started new sessions that must survive.
+        mock_client.is_homeserver_configured.return_value = True
+        user = structure_factories.UserFactory(is_active=True)
+        models.MatrixUserProfile.objects.create(
+            user=user, matrix_user_id="@back:matrix.example.com", provisioned=True
+        )
+
+        tasks.end_web_sessions(user.uuid.hex)
+
+        mock_client.logout_web_devices.assert_not_called()
+
+
+class RevocationRetryTest(TestCase):
+    def test_revocations_keep_retrying_through_a_homeserver_restart(self):
+        # retry_backoff=True starts at 1 s, so three retries are spent within
+        # seconds; revocations must outlast a homeserver restart.
+        for task in (
+            tasks.end_web_sessions,
+            tasks.sign_out_web_devices,
+            tasks.kick_user_from_room,
+        ):
+            self.assertGreaterEqual(task.retry_backoff, 30, task.name)
+            self.assertGreaterEqual(task.max_retries, 5, task.name)
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class SignOutWebDevicesTaskTest(TestCase):
+    def test_signs_out_web_devices_by_matrix_id(self, mock_client):
+        mock_client.is_homeserver_configured.return_value = True
+
+        tasks.sign_out_web_devices("@gone:matrix.example.com")
+
+        mock_client.logout_web_devices.assert_called_once_with(
+            "@gone:matrix.example.com"
+        )
+
+    def test_runs_while_chat_is_switched_off(self, mock_client):
+        mock_client.is_enabled.return_value = False
+        mock_client.is_homeserver_configured.return_value = True
+
+        tasks.sign_out_web_devices("@gone:matrix.example.com")
+
+        mock_client.logout_web_devices.assert_called_once_with(
+            "@gone:matrix.example.com"
+        )
+
+    def test_skips_without_a_homeserver(self, mock_client):
+        mock_client.is_homeserver_configured.return_value = False
+
+        tasks.sign_out_web_devices("@gone:matrix.example.com")
+
+        mock_client.logout_web_devices.assert_not_called()

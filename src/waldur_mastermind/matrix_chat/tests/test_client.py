@@ -93,6 +93,20 @@ class IsEnabledTest(TestCase):
         mock_config.MATRIX_APPSERVICE_AS_TOKEN = ""
         self.assertFalse(matrix_client.is_enabled())
 
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_homeserver_stays_configured_when_flag_false(self, mock_config):
+        # Revocations still need the homeserver after chat is switched off.
+        mock_config.MATRIX_ENABLED = False
+        mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
+        mock_config.MATRIX_APPSERVICE_AS_TOKEN = "as_token_123"
+        self.assertTrue(matrix_client.is_homeserver_configured())
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_homeserver_not_configured_without_as_token(self, mock_config):
+        mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
+        mock_config.MATRIX_APPSERVICE_AS_TOKEN = ""
+        self.assertFalse(matrix_client.is_homeserver_configured())
+
 
 class EnsureUserExistsTest(TestCase):
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
@@ -882,6 +896,49 @@ class DeviceManagementTest(TestCase):
         self.assertEqual(
             logout.calls.last.request.headers["Authorization"], "Bearer kill"
         )
+
+
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+)
+class LogoutWebDevicesTest(TestCase):
+    @mock.patch.object(matrix_client, "logout_device")
+    @mock.patch.object(
+        matrix_client,
+        "list_devices",
+        return_value=[
+            {"device_id": "WALDUR_WEB_A"},
+            {"device_id": "ELEMENT_PHONE"},
+            {"device_id": "WALDUR_WEB_B"},
+        ],
+    )
+    def test_signs_out_only_web_devices(self, mock_list, mock_logout):
+        matrix_client.logout_web_devices("@alice:matrix.example.com")
+
+        self.assertEqual(
+            mock_logout.call_args_list,
+            [
+                mock.call("@alice:matrix.example.com", "WALDUR_WEB_A"),
+                mock.call("@alice:matrix.example.com", "WALDUR_WEB_B"),
+            ],
+        )
+
+
+class LogoutEveryWebDeviceTest(TestCase):
+    @mock.patch.object(matrix_client, "logout_device")
+    @mock.patch.object(
+        matrix_client,
+        "list_devices",
+        return_value=[{"device_id": "WALDUR_WEB_A"}, {"device_id": "WALDUR_WEB_B"}],
+    )
+    def test_one_failure_does_not_stop_the_rest(self, mock_list, mock_logout):
+        mock_logout.side_effect = [matrix_client.MatrixClientError("boom"), None]
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.logout_web_devices("@alice:matrix.example.com")
+
+        self.assertEqual(mock_logout.call_count, 2)
 
 
 class StaleWebDevicesTest(TestCase):

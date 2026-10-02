@@ -8,6 +8,7 @@ class MatrixChatConfig(AppConfig):
     def ready(self):
         from django.db.models import signals
 
+        from waldur_core.core.models import User
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.structure.models import Project
         from waldur_mastermind.marketplace.models import Order
@@ -34,6 +35,18 @@ class MatrixChatConfig(AppConfig):
             handlers.on_project_pre_delete,
             sender=Project,
             dispatch_uid="waldur_mastermind.matrix_chat.on_project_pre_delete",
+        )
+
+        signals.post_save.connect(
+            handlers.on_user_deactivated,
+            sender=User,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_user_deactivated",
+        )
+
+        signals.pre_delete.connect(
+            handlers.on_user_pre_delete,
+            sender=User,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_user_pre_delete",
         )
 
         signals.post_save.connect(
