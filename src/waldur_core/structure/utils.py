@@ -233,6 +233,23 @@ def check_project_end_date(obj):
         raise ValidationError(_("Project '%s' is expired.") % project)
 
 
+def is_service_settings_available_for_project(service_settings, project) -> bool:
+    """
+    Private service settings may back resources only in projects of their own
+    customer. Settings without a customer do not belong to any organization.
+    Settings behind a shared offering count as shared even if their own flag
+    was not updated when the offering was published.
+    """
+    if service_settings.shared or service_settings.customer_id in (
+        None,
+        project.customer_id,
+    ):
+        return True
+    return marketplace_models.Offering.objects.filter(
+        scope=service_settings, shared=True
+    ).exists()
+
+
 @transaction.atomic
 def move_project(project, customer, current_user=None, preserve_permissions=False):
     if customer.blocked:

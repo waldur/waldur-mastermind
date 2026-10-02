@@ -4,6 +4,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.utils import move_project
 from waldur_openstack import models
 
 from . import factories, fixtures
@@ -42,6 +44,19 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
         self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
+
+    def test_security_group_can_be_created_after_project_is_moved(self):
+        self.fixture.settings.shared = False
+        self.fixture.settings.save()
+        move_project(self.fixture.project, structure_factories.CustomerFactory())
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data=self.valid_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertNotEqual(
+            self.fixture.settings.customer, self.fixture.tenant.project.customer
+        )
 
     def test_security_group_name_should_be_unique(self):
         self.client.force_authenticate(self.fixture.admin)

@@ -186,6 +186,22 @@ class ProjectMoveTest(test.APITestCase):
         private_offering.refresh_from_db()
         self.assertEqual(private_offering.customer, self.new_customer)
 
+    def test_change_customer_moves_service_settings_of_private_offering(self):
+        service_settings = structure_factories.ServiceSettingsFactory(
+            customer=self.old_customer, shared=False
+        )
+        private_offering = factories.OfferingFactory(
+            project=self.project,
+            customer=self.old_customer,
+            shared=False,
+            scope=service_settings,
+        )
+        self.change_customer()
+        private_offering.refresh_from_db()
+        service_settings.refresh_from_db()
+        self.assertEqual(private_offering.customer, self.new_customer)
+        self.assertEqual(service_settings.customer, self.new_customer)
+
 
 class ProjectStartDateTest(test.APITestCase):
     def setUp(self) -> None:
