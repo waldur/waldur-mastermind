@@ -4,18 +4,6 @@ from django.conf import settings
 from django.db import migrations, models
 
 
-def backfill_pending_action(apps, schema_editor):
-    # Before this migration a key in flight could only be mid-rotation, or
-    # waiting for its initial value, so the command it awaits is known.
-    ResourceApiKey = apps.get_model("marketplace", "ResourceApiKey")
-    ResourceApiKey.objects.filter(state="Updating").update(pending_action="rotate")
-    ResourceApiKey.objects.filter(state="Creating").update(pending_action="create")
-    # Until now a key's row changed only when its value did.
-    ResourceApiKey.objects.exclude(key_ciphertext="").update(
-        issued_at=models.F("modified")
-    )
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0300_provider_project_groups"),
@@ -135,5 +123,4 @@ class Migration(migrations.Migration):
                 name="marketplace_resource_api_key_unique_client_id",
             ),
         ),
-        migrations.RunPython(backfill_pending_action, migrations.RunPython.noop),
     ]
