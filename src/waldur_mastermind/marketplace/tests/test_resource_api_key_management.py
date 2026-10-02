@@ -1418,8 +1418,6 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
         response = self.client.get(detail_url(self.key))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         for field in (
-            "user_uuid",
-            "user_full_name",
             "limits",
             "allowed_models",
             "current_usages",
@@ -1427,6 +1425,15 @@ class CapabilityGatingTest(ApiKeyManagementTestBase):
             "paused_by_limit",
         ):
             self.assertIsNone(response.data[field], field)
+
+    def test_the_assignee_stays_visible(self):
+        """Reveal still honours it, so the portal must know whose key it is."""
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(detail_url(self.key))
+        self.assertEqual(response.data["user_uuid"], self.fixture.admin.uuid)
+        self.assertEqual(response.data["user_full_name"], self.fixture.admin.full_name)
+        response = self.client.get(detail_url(self.key, "reveal"))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_managed_actions_are_refused(self):
         response, prepare = self.post(

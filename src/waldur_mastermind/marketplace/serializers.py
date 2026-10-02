@@ -8944,10 +8944,10 @@ class ResourceApiKeyStatusSerializer(serializers.ModelSerializer):
 
     # Per-key governance fields. On an offering whose backend does not support it
     # they are always null, so the portal offers neither the fields nor the
-    # actions that set them.
+    # actions that set them. The assignee is not among them: reveal still honours
+    # an assignee set while governance was on, and unassigning stays possible, so
+    # the portal has to see it to offer the one and not the other.
     MANAGED_FIELDS = (
-        "user_uuid",
-        "user_full_name",
         "limits",
         "allowed_models",
         "current_usages",
