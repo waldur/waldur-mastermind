@@ -237,6 +237,22 @@ options:
 
 ```
 
+## backfill_provider_project_groups
+
+Create POSIX project groups for projects that already have resources at a service provider with project groups enabled, and allocate missing GIDs.
+
+```bash
+
+usage: waldur backfill_provider_project_groups [--provider PROVIDER]
+                                               [--dry-run]
+
+options:
+  --provider PROVIDER  Limit the run to the service provider with the given
+                       UUID. May be given multiple times.
+  --dry-run            Report what would be done without writing anything.
+
+```
+
 ## check_provider_helpdesks
 
 Check connectivity of all active provider helpdesks.

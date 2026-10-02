@@ -467,6 +467,8 @@ td:nth-child(4) {
 | `add_service_provider_uuid` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a service provider UUID field to the serializer. |
 | `apply_campaign_to_pending_invoices` | `Django Signal (post_save)` | `promotions.Campaign` | Apply campaign discounts to pending invoices and create discounted resources. |
 | `archive_offering` | `Django Signal (pre_delete)` | `openstack.Tenant` | Archive marketplace offerings when OpenStack tenant is deleted. |
+| `backfill_project_groups_when_enabled` | `Django Signal (post_save)` | `marketplace.ServiceProvider` | Create the groups of projects already using the provider when switched on. |
+| `backfill_project_groups_when_pool_saved` | `Django Signal (post_save)` | `marketplace.PosixIdPool` | Number the provider's groups whenever the pool may be able to. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_openportal.Allocation` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `waldur_openportal.RemoteAllocation` | Change the state of an order based on resource state changes. |
 | `change_order_state` | `Django Signal (post_save)` | `openstack.Instance` | Change the state of an order based on resource state changes. |
@@ -504,6 +506,8 @@ td:nth-child(4) {
 | `create_offering_users_when_project_role_granted` | `Custom Signal (role_granted)` | `—` | Schedule task to create or restore offering users when project role is granted. |
 | `create_price_estimate` | `Django Signal (post_save)` | `structure.Project` | Create price estimate when customer or project is created. |
 | `create_price_estimate` | `Django Signal (post_save)` | `structure.Customer` | Create price estimate when customer or project is created. |
+| `create_provider_project_group_for_resource` | `Django Signal (post_save)` | `marketplace.Resource` | Give the resource's project its POSIX group at the provider on first use. |
+| `create_provider_project_group_on_order_approval` | `Django Signal (post_save)` | `marketplace.Order` | A resource starts to count once its create order has been approved. |
 | `create_public_cluster_ip_for_floating_ip` | `Django Signal (post_save)` | `openstack.FloatingIP` | No description |
 | `create_request_when_project_is_updated` | `Django Signal (post_save)` | `structure.Project` | No description |
 | `create_resource_of_volume_if_instance_created` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
@@ -597,6 +601,8 @@ td:nth-child(4) {
 | `on_order_state_changed` | `Django Signal (post_save)` | `marketplace.Order` | Notify the project's Matrix room when an order is approved, completed, or rejected. |
 | `on_project_created` | `Django Signal (post_save)` | `structure.Project` | Provision a Matrix room for a newly created project, when opted in. |
 | `on_project_pre_delete` | `Django Signal (pre_delete)` | `structure.Project` | When a project is about to be deleted, disable room (kick members, export, archive). |
+| `on_user_deactivated` | `Django Signal (post_save)` | `core.User` | End the user's web chat sessions so an open drawer loses access. |
+| `on_user_pre_delete` | `Django Signal (pre_delete)` | `core.User` | End a deleted user's web chat sessions. |
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
 | `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
@@ -607,6 +613,7 @@ td:nth-child(4) {
 | `project_credit_changed_handler` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `project_estimated_cost_policy_trigger_handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Evaluate project cost policies when invoice items are updated. |
 | `propagate_comment_to_parent` | `Django Signal (post_save)` | `support.Comment` | Propagate new public comments from child issues back to parent issues. |
+| `protect_pool_holding_project_group_gids` | `Django Signal (pre_delete)` | `marketplace.PosixIdPool` | Refuse to delete a pool on its own while project groups hold GIDs from it. |
 | `purge_offering_role_groups_on_scope_delete` | `Django Signal (post_delete)` | `marketplace.Resource` | Drop OfferingRoleGroup rows that pointed at a now-deleted scope. |
 | `purge_offering_role_groups_on_scope_delete` | `Django Signal (post_delete)` | `marketplace.ResourceProject` | Drop OfferingRoleGroup rows that pointed at a now-deleted scope. |
 | `reconcile_offering_profile_on_offering_changed` | `Django Signal (post_save)` | `marketplace.Offering` | When an Offering is saved, schedule a reconciliation task. Cheap |
@@ -619,6 +626,7 @@ td:nth-child(4) {
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.RobotAccount` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingUserGroup` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingRoleGroup` | Mark the deleted POSIX id consumer's identity as released. |
+| `release_provider_project_group_gid` | `Django Signal (post_delete)` | `marketplace.ServiceProviderProjectGroup` | Release a deleted project group's GID, never to be recycled. |
 | `request_offering_user_deletion_when_project_access_lost` | `Custom Signal (role_revoked)` | `—` | Schedule task to request offering user deletion when project access is lost. |
 | `resource_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource changes. |
 | `resource_options_have_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Handle script execution when marketplace resource options are changed. |
@@ -813,14 +821,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 734
+Total unique handlers found: 742
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 329 handlers
+- **waldur_mastermind**: 337 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
