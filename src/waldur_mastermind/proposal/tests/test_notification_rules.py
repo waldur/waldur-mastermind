@@ -335,7 +335,9 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
 
     def test_deadline_reminder_fires_once_on_lead_day(self):
         self._rule("deadline_approaching", "call_managers", days_before=2)
-        self.instance.deadline = timezone.now() + timedelta(days=2, hours=1)
+        # Whole days: the task counts calendar days, so an extra hour lands on
+        # the third day whenever the test runs in the last hour of a UTC day.
+        self.instance.deadline = timezone.now() + timedelta(days=2)
         self.instance.save()
         tasks.send_workflow_step_deadline_reminders()
         tasks.send_workflow_step_deadline_reminders()
