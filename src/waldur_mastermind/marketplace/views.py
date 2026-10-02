@@ -245,6 +245,10 @@ OFFERING_SCOPED_SOURCES = ["offering", "offering.customer"]
 # while organization owners hold theirs on its customer; accept either.
 SERVICE_PROVIDER_SOURCES = ["*", "customer"]
 
+# The same two holders, reached from an offering: the provider's organization
+# and the ServiceProvider record behind it.
+OFFERING_PROVIDER_SOURCES = ["customer", "customer.serviceprovider"]
+
 
 def readable_by_support(permission_function):
     """Let global support through a read gate otherwise held by scoped roles.
@@ -258,6 +262,11 @@ def readable_by_support(permission_function):
         if user.is_active and user.is_support and check_pat_support_scope(request):
             return
         permission_function(request, view, scope)
+
+    # Keep the wrapped permission visible to the OpenAPI x-permissions export.
+    for attribute in ("permission", "sources"):
+        if hasattr(permission_function, attribute):
+            setattr(check, attribute, getattr(permission_function, attribute))
 
     return check
 
@@ -3804,7 +3813,14 @@ class ProviderOfferingViewSet(
         page = self.paginate_queryset(serializer.data)
         return self.get_paginated_response(page)
 
-    customers_permissions = [structure_permissions.is_owner]
+    customers_permissions = [
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
+                OFFERING_PROVIDER_SOURCES,
+            )
+        )
+    ]
 
     def get_stats(self, get_queryset, serializer, serializer_context=None):
         offering: models.Offering = self.get_object()
@@ -3853,7 +3869,13 @@ class ProviderOfferingViewSet(
             utils.get_offering_costs, serializers.ProviderOfferingCostsSerializer
         )
 
-    costs_permissions = [structure_permissions.is_owner]
+    costs_permissions = [
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.GET_SERVICE_PROVIDER_REVENUE, OFFERING_PROVIDER_SOURCES
+            )
+        )
+    ]
 
     @extend_schema(
         parameters=[
@@ -3908,7 +3930,14 @@ class ProviderOfferingViewSet(
             serializer_context,
         )
 
-    component_stats_permissions = [structure_permissions.is_owner]
+    component_stats_permissions = [
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+                OFFERING_PROVIDER_SOURCES,
+            )
+        )
+    ]
 
     @extend_schema(
         summary="Get offering statistics",
@@ -3946,7 +3975,14 @@ class ProviderOfferingViewSet(
             status=status.HTTP_200_OK,
         )
 
-    stats_permissions = [structure_permissions.is_owner]
+    stats_permissions = [
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+                OFFERING_PROVIDER_SOURCES,
+            )
+        )
+    ]
 
     @extend_schema(
         summary="Get offering resource and user state counters",
@@ -3993,7 +4029,14 @@ class ProviderOfferingViewSet(
         serializer = serializers.OfferingStateCountersSerializer(instance=data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    state_counters_permissions = [structure_permissions.is_owner]
+    state_counters_permissions = [
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+                OFFERING_PROVIDER_SOURCES,
+            )
+        )
+    ]
 
     @extend_schema(
         summary="Update organization groups for offering",

@@ -1,6 +1,8 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace.enums import (
     OfferingUserStates,
     ResourceStates,
@@ -14,6 +16,9 @@ class OfferingStateCountersTest(test.APITestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.url = factories.OfferingFactory.get_url(self.offering, "state_counters")
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS
+        )
 
     # --- Permission tests ---
 

@@ -1,6 +1,7 @@
 """A service provider manager holds their role on the ServiceProvider, not on its
 customer. Provider-side reads must accept that scope, not only a customer role."""
 
+from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
@@ -11,6 +12,10 @@ from waldur_core.permissions.fixtures import (
     ServiceProviderRole,
 )
 from waldur_core.permissions.tests import factories as permission_factories
+from waldur_core.permissions.tests.test_pat_list_filtering import (
+    _auth_header,
+    _create_pat,
+)
 from waldur_core.structure.serializers import CustomerSerializer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.models import ServiceProvider
@@ -239,3 +244,118 @@ class ServiceProviderManagerOrganizationVisibilityTest(test.APITestCase):
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assert_restricted(response.data)
+
+
+class ProviderOfferingReportsAccessTest(test.APITestCase):
+    """Per-offering reports follow the provider permission behind each of them,
+    held on the offering's organization or on its ServiceProvider."""
+
+    REPORTS = {
+        "state_counters": PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+        "stats": PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+        "component_stats": PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+        "costs": PermissionEnum.GET_SERVICE_PROVIDER_REVENUE,
+        "customers": PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
+    }
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        self.offering = self.fixture.offering
+
+    def grant(self, role):
+        for permission in set(self.REPORTS.values()):
+            role.add_permission(permission)
+
+    def get_reports(self, user=None):
+        if user:
+            self.client.force_authenticate(user)
+        return {
+            action: self.client.get(
+                factories.OfferingFactory.get_url(self.offering, action)
+            ).status_code
+            for action in self.REPORTS
+        }
+
+    def assert_all(self, codes, expected):
+        self.assertEqual(codes, {action: expected for action in self.REPORTS})
+
+    def test_organization_owner_gets_reports(self):
+        self.grant(CustomerRole.OWNER)
+        self.assert_all(
+            self.get_reports(self.fixture.offering_owner), status.HTTP_200_OK
+        )
+
+    def test_service_provider_manager_gets_reports(self):
+        self.grant(ServiceProviderRole.MANAGER)
+        manager = structure_factories.UserFactory()
+        self.service_provider.add_user(manager, ServiceProviderRole.MANAGER)
+        self.assert_all(self.get_reports(manager), status.HTTP_200_OK)
+
+    def test_each_report_needs_its_own_permission(self):
+        manager = structure_factories.UserFactory()
+        self.service_provider.add_user(manager, ServiceProviderRole.MANAGER)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS
+        )
+        codes = self.get_reports(manager)
+        for action, permission in self.REPORTS.items():
+            expected = (
+                status.HTTP_200_OK
+                if permission == PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS
+                else status.HTTP_403_FORBIDDEN
+            )
+            self.assertEqual(codes[action], expected, action)
+
+    def test_provider_role_without_permission_is_denied(self):
+        user = structure_factories.UserFactory()
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(ServiceProvider)
+        )
+        self.service_provider.add_user(user, role)
+        self.assert_all(self.get_reports(user), status.HTTP_403_FORBIDDEN)
+
+    def test_manager_of_another_provider_is_denied(self):
+        self.grant(ServiceProviderRole.MANAGER)
+        other_manager = structure_factories.UserFactory()
+        factories.ServiceProviderFactory().add_user(
+            other_manager, ServiceProviderRole.MANAGER
+        )
+        # The offering is outside their provider, so it is not even found.
+        self.assert_all(self.get_reports(other_manager), status.HTTP_404_NOT_FOUND)
+
+    def test_user_without_role_is_denied(self):
+        self.assert_all(self.get_reports(self.fixture.user), status.HTTP_404_NOT_FOUND)
+
+    def test_support_gets_reports(self):
+        self.assert_all(
+            self.get_reports(self.fixture.global_support), status.HTTP_200_OK
+        )
+
+    def get_reports_with_token(self, user, scopes):
+        user.can_use_personal_access_tokens = True
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        token = _create_pat(user, scopes=scopes, bindings=[])
+        self.client.credentials(HTTP_AUTHORIZATION=_auth_header(token))
+        return self.get_reports()
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_with_report_scopes_gets_reports(self):
+        self.grant(CustomerRole.OWNER)
+        scopes = [permission.value for permission in set(self.REPORTS.values())]
+        self.assert_all(
+            self.get_reports_with_token(self.fixture.offering_owner, scopes),
+            status.HTTP_200_OK,
+        )
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_without_report_scopes_is_denied(self):
+        # Unlike the ownership check these reports used to have, the provider
+        # permission is also capped by the token's scopes.
+        self.grant(CustomerRole.OWNER)
+        self.assert_all(
+            self.get_reports_with_token(
+                self.fixture.offering_owner, [PermissionEnum.LIST_ORDERS.value]
+            ),
+            status.HTTP_403_FORBIDDEN,
+        )

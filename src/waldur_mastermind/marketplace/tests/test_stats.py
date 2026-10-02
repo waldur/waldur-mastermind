@@ -10,7 +10,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.quotas.tests import factories as quotas_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -1002,6 +1003,9 @@ class OfferingStatsTest(test.APITestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.url = factories.OfferingFactory.get_url(self.offering, "stats")
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS
+        )
 
     def test_offering_stats(self):
         self.client.force_authenticate(self.fixture.offering_owner)
