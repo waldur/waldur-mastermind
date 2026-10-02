@@ -405,6 +405,22 @@ def user_can_set_end_date_by_provider(
     raise exceptions.PermissionDenied()
 
 
+def can_link_robot_account_users(request, view, obj: models.Resource | None = None):
+    # Listing who a robot account may link is part of creating or editing one,
+    # so it takes the same permissions as RobotAccountSerializer.validate.
+    if not obj:
+        return
+    if any(
+        has_permission(request, permission, obj.offering.customer)
+        for permission in (
+            PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT,
+            PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT,
+        )
+    ):
+        return
+    raise exceptions.PermissionDenied()
+
+
 # Setting a resource end date from the consumer side takes one permission and
 # only that one. Everyone else asks, through ResourceEndDateChangeRequest, and a
 # holder of this same permission decides — so approving is never harder than

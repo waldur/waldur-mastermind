@@ -82,6 +82,7 @@ from rest_framework.serializers import Serializer
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.core import encryption
+from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
@@ -10252,6 +10253,55 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         elif request.query_params.get("has_consent", "").lower() == "true":
             users = utils.filter_users_with_active_offering_consent(users, offering)
         return utils.build_resource_team_response(resource, request, users)
+
+    @extend_schema(
+        summary="List users a robot account on this resource may link",
+        description=(
+            "Returns the project and organization users of this resource that a "
+            "robot account may link as users or as the responsible user. When "
+            "ENFORCE_USER_CONSENT_FOR_OFFERINGS is enabled and the offering has "
+            "active Terms of Service, only users with active consent are returned, "
+            "for every caller."
+        ),
+        request=None,
+        responses=structure_serializers.BasicUserSerializer(many=True),
+        filters=False,
+        parameters=[
+            OpenApiParameter(
+                name="full_name",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by full name.",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="user_keyword",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by full name, username or email.",
+                required=False,
+            ),
+        ],
+    )
+    @action(detail=True, methods=["get"], filter_backends=[])
+    def robot_account_users(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        users = utils.get_robot_account_linkable_users(resource)
+        full_name = request.query_params.get("full_name")
+        if full_name:
+            users = core_filters.filter_by_full_name(users, full_name)
+        user_keyword = request.query_params.get("user_keyword")
+        if user_keyword:
+            users = core_filters.filter_by_user_keyword(users, user_keyword)
+        page = self.paginate_queryset(
+            users.order_by("first_name", "last_name", "username")
+        )
+        serializer = structure_serializers.BasicUserSerializer(
+            page, many=True, context={"request": request}
+        )
+        return self.get_paginated_response(serializer.data)
+
+    robot_account_users_permissions = [permissions.can_link_robot_account_users]
 
     @extend_schema(
         summary="Set end date by provider",
