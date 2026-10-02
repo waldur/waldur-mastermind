@@ -1200,3 +1200,174 @@ class RobotAccountConsentWithoutTermsTest(test.APITestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+
+@override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class RobotAccountLinkableUsersTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.resource = self.fixture.resource
+        self.project_user = self.fixture.admin
+        self.organization_user = self.fixture.owner
+        # Created up front: fixture users are lazy and must exist before a request.
+        self.member_without_consent = self.fixture.member
+        self.outsider = structure_factories.UserFactory()
+        self.terms = models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test ToS",
+            version="1.0",
+            is_active=True,
+        )
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="robot_account_users"
+        )
+
+    def _grant(self, permission=PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT):
+        CustomerRole.OWNER.add_permission(permission)
+
+    def _uuids(self, response):
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return {row["uuid"] for row in response.data}
+
+    def test_provider_sees_only_users_with_active_consent(self):
+        self._grant()
+        _grant_offering_consent(self.project_user, self.offering)
+        _grant_offering_consent(self.organization_user, self.offering)
+        revoked = self.fixture.manager
+        _grant_offering_consent(revoked, self.offering, revoked=True)
+        self.client.force_authenticate(self.fixture.service_owner)
+        uuids = self._uuids(self.client.get(self.url))
+        self.assertIn(self.project_user.uuid.hex, uuids)
+        self.assertIn(self.organization_user.uuid.hex, uuids)
+        self.assertNotIn(revoked.uuid.hex, uuids)
+        self.assertNotIn(self.member_without_consent.uuid.hex, uuids)
+
+    def test_staff_sees_only_users_with_active_consent(self):
+        _grant_offering_consent(self.project_user, self.offering)
+        self.client.force_authenticate(self.fixture.staff)
+        uuids = self._uuids(self.client.get(self.url))
+        self.assertIn(self.project_user.uuid.hex, uuids)
+        self.assertNotIn(self.organization_user.uuid.hex, uuids)
+
+    def test_every_resource_user_is_returned_without_active_terms(self):
+        self._grant()
+        self.terms.is_active = False
+        self.terms.save(update_fields=["is_active"])
+        self.client.force_authenticate(self.fixture.service_owner)
+        uuids = self._uuids(self.client.get(self.url))
+        self.assertTrue(
+            {
+                self.project_user.uuid.hex,
+                self.organization_user.uuid.hex,
+                self.member_without_consent.uuid.hex,
+            }
+            <= uuids
+        )
+
+    @override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False)
+    def test_every_resource_user_is_returned_when_enforcement_is_off(self):
+        self._grant()
+        self.client.force_authenticate(self.fixture.service_owner)
+        uuids = self._uuids(self.client.get(self.url))
+        self.assertIn(self.project_user.uuid.hex, uuids)
+        self.assertIn(self.organization_user.uuid.hex, uuids)
+
+    def test_users_outside_the_resource_are_never_returned(self):
+        self._grant()
+        _grant_offering_consent(self.outsider, self.offering)
+        self.client.force_authenticate(self.fixture.service_owner)
+        self.assertNotIn(self.outsider.uuid.hex, self._uuids(self.client.get(self.url)))
+
+    def test_create_permission_is_enough(self):
+        self._grant(PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_provider_without_robot_account_permission_is_forbidden(self):
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unrelated_user_cannot_see_the_resource(self):
+        self._grant()
+        self.client.force_authenticate(self.outsider)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_full_name_search_narrows_the_list(self):
+        self._grant()
+        for user in (self.project_user, self.organization_user):
+            _grant_offering_consent(user, self.offering)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(self.url, {"full_name": self.project_user.full_name})
+        self.assertEqual({self.project_user.uuid.hex}, self._uuids(response))
+
+    def test_user_keyword_matches_email_and_username(self):
+        self._grant()
+        by_email = structure_factories.UserFactory(email="keyword-mail@example.com")
+        by_username = structure_factories.UserFactory(username="keyword-login")
+        for user in (by_email, by_username):
+            self.fixture.project.add_user(user, ProjectRole.MEMBER)
+            _grant_offering_consent(user, self.offering)
+        self.client.force_authenticate(self.fixture.service_owner)
+        self.assertEqual(
+            {by_email.uuid.hex},
+            self._uuids(self.client.get(self.url, {"user_keyword": "keyword-mail"})),
+        )
+        self.assertEqual(
+            {by_username.uuid.hex},
+            self._uuids(self.client.get(self.url, {"user_keyword": "keyword-login"})),
+        )
+        self.assertEqual(
+            set(), self._uuids(self.client.get(self.url, {"user_keyword": "no-match"}))
+        )
+
+    def test_users_are_ordered_by_name(self):
+        self._grant()
+        # Created in reverse alphabetical order so the result cannot follow ids.
+        zed = structure_factories.UserFactory(first_name="Zed", last_name="Order")
+        amy = structure_factories.UserFactory(first_name="Amy", last_name="Order")
+        for user in (zed, amy):
+            self.fixture.project.add_user(user, ProjectRole.MEMBER)
+            _grant_offering_consent(user, self.offering)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(self.url, {"user_keyword": "Order"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            [amy.uuid.hex, zed.uuid.hex], [row["uuid"] for row in response.data]
+        )
+
+    def test_response_carries_the_fields_the_picker_posts_back(self):
+        self._grant()
+        _grant_offering_consent(self.project_user, self.offering)
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        row = next(r for r in response.data if r["uuid"] == self.project_user.uuid.hex)
+        self.assertEqual(
+            structure_factories.UserFactory.get_url(self.project_user), row["url"]
+        )
+        self.assertEqual(self.project_user.full_name, row["full_name"])
+        self.assertEqual(self.project_user.email, row["email"])
+
+    def test_listed_user_can_be_linked(self):
+        self._grant(PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT)
+        _grant_offering_consent(self.project_user, self.offering)
+        self.client.force_authenticate(self.fixture.service_owner)
+        row = next(
+            r
+            for r in self.client.get(self.url).data
+            if r["uuid"] == self.project_user.uuid.hex
+        )
+        response = self.client.post(
+            factories.RobotAccountFactory.get_list_url(),
+            {
+                "resource": factories.ResourceFactory.get_url(self.resource),
+                "type": "cicd",
+                "users": [row["url"]],
+                "responsible_user": row["url"],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

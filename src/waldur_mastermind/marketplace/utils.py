@@ -7521,6 +7521,19 @@ def offering_consent_is_enforced(offering) -> bool:
     return offering.has_terms_of_service()
 
 
+def get_robot_account_linkable_users(resource):
+    """Users a robot account on ``resource`` may newly link.
+
+    The same set ``RobotAccountSerializer.validate`` accepts: project and
+    organization users of the resource, narrowed to users with active consent
+    while the offering's Terms of Service gate is on.
+    """
+    users = get_resource_users(resource)
+    if offering_consent_is_enforced(resource.offering):
+        users = filter_users_with_active_offering_consent(users, resource.offering)
+    return users
+
+
 def should_filter_provider_resource_team_by_consent(user, offering) -> bool:
     if user.is_staff or user.is_support:
         return False
