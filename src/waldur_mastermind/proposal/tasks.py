@@ -1311,8 +1311,9 @@ def notify_workflow_step_event(instance_uuid, trigger):
 def send_workflow_step_deadline_reminders():
     """Fire ``deadline_approaching`` rules for active steps whose lead time is today.
 
-    A reminder is sent when ``(deadline - now).days == days_before`` and is
-    recorded in the instance ledger so the daily beat cannot repeat it. Steps
+    A reminder is sent when the deadline falls ``days_before`` calendar days
+    after today (``deadline.date() - now.date()``) and is recorded in the
+    instance ledger so the daily beat cannot repeat it. Steps
     already past their deadline are left to ``mark_expired_workflow_steps``.
     """
     now = timezone.now()
