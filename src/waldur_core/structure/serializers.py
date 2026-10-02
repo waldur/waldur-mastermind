@@ -3294,6 +3294,32 @@ class BaseResourceSerializer(
             )
         return project
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        service_settings = attrs.get("service_settings")
+        project = attrs.get("project")
+        # Only settings chosen by the client are checked: child resources
+        # inherit settings and project from their parent, and that pair may
+        # legitimately diverge after the project or resource has been moved.
+        if (
+            not self.instance
+            and "service_settings" in getattr(self, "initial_data", {})
+            and service_settings
+            and project
+            and not utils.is_service_settings_available_for_project(
+                service_settings, project
+            )
+        ):
+            raise serializers.ValidationError(
+                {
+                    "service_settings": _(
+                        "This provider is not available to projects of this "
+                        "organization."
+                    )
+                }
+            )
+        return attrs
+
     class Meta:
         model = NotImplemented
         fields = (

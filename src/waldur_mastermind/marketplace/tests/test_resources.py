@@ -956,6 +956,23 @@ class ResourceTerminateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mocked_approve.assert_not_called()
 
+    @data("staff", "owner")
+    def test_resource_of_private_offering_of_other_customer_can_be_terminated(
+        self, user
+    ):
+        self.offering.shared = False
+        self.offering.save()
+        self.assertNotEqual(self.offering.customer, self.project.customer)
+
+        response = self.terminate(getattr(self.fixture, user))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            models.Order.objects.filter(
+                resource=self.resource, type=OrderTypes.TERMINATE
+            ).exists()
+        )
+
     def test_order_is_created_when_user_submits_termination_request(self):
         # Act
         response = self.terminate(self.fixture.owner)
@@ -1463,6 +1480,22 @@ class ResourceUpdateLimitsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         order = models.Order.objects.filter(resource=self.resource).latest("created")
         self.assertEqual(order.limits["vcpu"], 1.5)
+
+    def test_owner_can_not_update_limits_of_private_offering_of_other_customer(self):
+        self.resource.offering.shared = False
+        self.resource.offering.save()
+
+        response = self.update_limits(self.fixture.owner, self.resource)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_staff_can_update_limits_of_private_offering_of_other_customer(self):
+        self.resource.offering.shared = False
+        self.resource.offering.save()
+
+        response = self.update_limits(self.fixture.staff, self.resource)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_create_update_limits_order(self):
         response = self.update_limits(self.fixture.owner, self.resource)

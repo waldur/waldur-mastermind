@@ -7096,9 +7096,17 @@ def validate_public_offering(order: models.Order, request):
 
 def validate_private_offering(order: models.Order, request):
     """Validate that the customer is allowed to order a private offering."""
-    # Staff users can override access policy restrictions
+    # Staff users can override access policy restrictions, unless the resource
+    # would be rejected later for using private service settings of another
+    # organization.
     if request.user.is_staff:
-        return
+        scope = order.offering.scope
+        if not isinstance(
+            scope, structure_models.ServiceSettings
+        ) or structure_utils.is_service_settings_available_for_project(
+            scope, order.project
+        ):
+            return
 
     # Order is ok if consumer and provider organization is the same
     if order.offering.customer == order.project.customer:
@@ -7165,7 +7173,9 @@ def validate_order(order: models.Order, request):
 
     if order.offering.shared:
         validate_public_offering(order, request)
-    else:
+    elif order.type != OrderTypes.TERMINATE:
+        # Resources must stay terminable even if the project has left the
+        # provider organization since the resource was created.
         validate_private_offering(order, request)
 
     if check_pending_order_exists(order.resource):

@@ -112,19 +112,34 @@ class OrderCreateTest(BaseOrderCreateTest):
 
     def test_staff_can_override_private_offering_restriction(self):
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE, shared=False)
+        response = self.create_private_offering_order(self.fixture.staff, offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Order.objects.filter(created_by=self.fixture.staff).exists()
+        )
+
+    def test_staff_can_not_override_private_offering_restriction_for_private_service_settings(
+        self,
+    ):
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE, shared=False)
+        offering.scope = structure_factories.ServiceSettingsFactory(
+            customer=offering.customer, shared=False
+        )
+        offering.save()
+        response = self.create_private_offering_order(self.fixture.staff, offering)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.Order.objects.filter(created_by=self.fixture.staff).exists()
+        )
+
+    def create_private_offering_order(self, user, offering):
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
             "offering": factories.OfferingFactory.get_public_url(offering),
             "plan": factories.PlanFactory.get_public_url(plan),
             "attributes": {},
         }
-        response = self.create_order(
-            self.fixture.staff, offering, add_payload=add_payload
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(
-            models.Order.objects.filter(created_by=self.fixture.staff).exists()
-        )
+        return self.create_order(user, offering, add_payload=add_payload)
 
     def test_can_not_create_order_without_plan(self):
         offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
