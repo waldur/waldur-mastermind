@@ -26,6 +26,10 @@ class BaseVirtualMachineOrderTest(test.APITestCase):
         self.vm: vmware_models.VirtualMachine = self.fixture.virtual_machine
         # Both update and destroy are only allowed for a stopped machine.
         self.vm.runtime_state = vmware_models.VirtualMachine.RuntimeStates.POWERED_OFF
+        # The factory picks the size at random; pinned so it never already
+        # matches the limits a test orders, which would leave nothing to update.
+        self.vm.cores = 2
+        self.vm.ram = 1024
         self.vm.save()
 
         self.offering = marketplace_factories.OfferingFactory(
