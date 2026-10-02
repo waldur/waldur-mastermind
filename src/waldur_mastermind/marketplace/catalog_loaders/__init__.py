@@ -4,6 +4,14 @@ from datetime import datetime
 
 import requests
 
+from .eessi import cpu_targets_for_catalog
+
+__all__ = [
+    "cpu_targets_for_catalog",
+    "detect_eessi_version",
+    "detect_spack_version",
+]
+
 logger = logging.getLogger(__name__)
 
 

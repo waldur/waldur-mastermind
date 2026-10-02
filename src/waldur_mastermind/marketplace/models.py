@@ -4840,6 +4840,15 @@ class SoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
     def __str__(self):
         return f"{self.name} {self.version} ({self.get_catalog_type_display()})"
 
+    @property
+    def supports_cpu_target_restrictions(self) -> bool:
+        """Whether an offering link may restrict this catalog by CPU target.
+
+        Binary runtimes (EESSI) publish CPU builds. Source catalogs such as
+        Spack store other target types and do not use these restrictions.
+        """
+        return self.catalog_type == "binary_runtime"
+
 
 class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
     """

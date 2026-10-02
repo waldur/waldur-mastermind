@@ -284,6 +284,32 @@ Example response:
 
 This endpoint makes lightweight HTTP calls to the upstream sources (EESSI API, Spack repology) to detect the latest version. It does not download package data or modify the database. Requires staff permissions.
 
+### CPU targets for an offering
+
+`GET /api/marketplace-software-catalogs/{uuid}/cpu_targets/` returns the CPU choices for **that catalog's version**. It reads `metadata.architectures_map` and does not scan package targets.
+
+Use the response when linking a catalog to an offering. Store `cpu_family` in `enabled_cpu_family` and `cpu_microarchitecture` in `enabled_cpu_microarchitectures`. The microarchitecture value is `SoftwareTarget.target_subtype` (for example `intel/sapphirerapids`, `amd/zen3`, `generic`), which is also the `cpu_microarchitecture` list filter.
+
+`full_arch` is the hardware path from the map (for example `x86_64/intel/graniterapids`). When a map value points at a different build, `cpu_microarchitecture` follows that build so package filters still match imported targets.
+
+Catalogs without an architectures map, including Spack, return `[]`. The same empty list is returned when `catalog.version` is not a key in `architectures_map`.
+
+`supports_cpu_target_restrictions` on the catalog (list, retrieve, and the nested catalog inside an offering) is `true` only for `binary_runtime`. Spack (`source_package`) is `false`. Use that flag to show or hide the CPU fields. An empty `cpu_targets` list on a catalog where the flag is `true` means this version has no map entries, not that CPU restrictions do not apply.
+
+```bash
+curl "https://your-waldur.example.com/api/marketplace-software-catalogs/<catalog_uuid>/cpu_targets/"
+```
+
+```json
+[
+  {
+    "cpu_family": "x86_64",
+    "cpu_microarchitecture": "intel/sapphirerapids",
+    "full_arch": "x86_64/intel/sapphirerapids"
+  }
+]
+```
+
 ### Software Catalog Management Actions
 
 Offering-software catalog associations are managed through offering actions:
@@ -476,7 +502,12 @@ curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_fami
 
 # Filter by CPU microarchitecture
 curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_microarchitecture=generic"
+
+# Repeat a CPU filter to match any of several values
+curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_microarchitecture=amd/zen3&cpu_microarchitecture=intel/sapphirerapids"
 ```
+
+`cpu_family` and `cpu_microarchitecture` take several values on the package, version and target lists; a row matches if it has a target for any of them.
 
 ### GPU Architecture Filtering
 
@@ -570,7 +601,7 @@ curl -X PATCH "https://your-waldur.example.com/api/marketplace-provider-offering
   -d '{
     "offering_catalog_uuid": "offering-catalog-uuid",
     "enabled_cpu_family": ["x86_64", "aarch64"],
-    "enabled_cpu_microarchitectures": ["generic", "zen3"]
+    "enabled_cpu_microarchitectures": ["generic", "amd/zen3"]
   }'
 ```
 

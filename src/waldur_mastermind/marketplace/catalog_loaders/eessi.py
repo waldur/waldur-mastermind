@@ -5,10 +5,16 @@ Loads EESSI (European Environment for Scientific Software Installations)
 catalog data from the new API format into the generic software catalog models.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import requests
+
+if TYPE_CHECKING:
+    from waldur_mastermind.marketplace.models import SoftwareCatalog
 
 from .base import (
     BaseCatalogLoader,
@@ -47,6 +53,65 @@ def _get_eessi_version(version_info: dict) -> str | None:
             return first_module.get("module_version")
 
     return None
+
+
+def split_eessi_cpu_arch(full_arch: str) -> tuple[str, str]:
+    """Split an EESSI cpu_arch path into family and target subtype.
+
+    This is the same split used when writing SoftwareTarget rows:
+    - ``x86_64/generic`` → ``("x86_64", "generic")``
+    - ``x86_64/intel/sapphirerapids`` → ``("x86_64", "intel/sapphirerapids")``
+    - ``x86_64`` → ``("x86_64", "generic")``
+    """
+    if "/" in full_arch:
+        cpu_family, cpu_microarch = full_arch.split("/", 1)
+        return cpu_family, cpu_microarch
+    return full_arch, "generic"
+
+
+def cpu_targets_for_catalog(catalog: SoftwareCatalog) -> list[dict[str, str]]:
+    """CPU choices for one catalog version, without scanning package targets.
+
+    EESSI stores ``architectures_map`` on catalog metadata. Keys are hardware
+    paths; values are the compatible EESSI build (today usually the same path).
+    Returned ``cpu_microarchitecture`` matches ``SoftwareTarget.target_subtype``
+    and the ``cpu_microarchitecture`` list filter. Other catalog types return
+    an empty list.
+    """
+    if catalog.catalog_type != "binary_runtime":
+        return []
+
+    metadata = catalog.metadata or {}
+    architectures_map = metadata.get("architectures_map") or {}
+    if not isinstance(architectures_map, dict):
+        return []
+
+    version_entry = architectures_map.get(catalog.version)
+    pairs: list[tuple[str, str]] = []
+    if isinstance(version_entry, dict):
+        for hardware, compatible in version_entry.items():
+            if not isinstance(hardware, str) or not hardware:
+                continue
+            build = (
+                compatible if isinstance(compatible, str) and compatible else hardware
+            )
+            pairs.append((hardware, build))
+    elif isinstance(version_entry, list):
+        for hardware in version_entry:
+            if isinstance(hardware, str) and hardware:
+                pairs.append((hardware, hardware))
+
+    targets = []
+    for full_arch, compatible_arch in sorted(pairs, key=lambda item: item[0]):
+        cpu_family, cpu_microarchitecture = split_eessi_cpu_arch(compatible_arch)
+        targets.append(
+            {
+                "cpu_family": cpu_family,
+                "cpu_microarchitecture": cpu_microarchitecture,
+                "full_arch": full_arch,
+            }
+        )
+    return targets
 
 
 def _get_eessi_version_key(version_info: dict) -> str:
@@ -335,11 +400,7 @@ class EESSICatalogLoader(BaseCatalogLoader):
         targets = []
         cpu_architectures = version_info.get("cpu_arch", [])
         for arch in cpu_architectures:
-            # Parse architecture string (e.g., "x86_64/zen3")
-            if "/" in arch:
-                cpu_family, cpu_microarch = arch.split("/", 1)
-            else:
-                cpu_family, cpu_microarch = arch, "generic"
+            cpu_family, cpu_microarch = split_eessi_cpu_arch(arch)
 
             # Build target path
             location = f"/cvmfs/software.eessi.io/versions/{self.catalog_version}/software/linux/{arch}"

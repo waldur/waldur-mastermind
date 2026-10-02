@@ -164,6 +164,7 @@ from waldur_mastermind.marketplace import (
 )
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.catalog_loaders import (
+    cpu_targets_for_catalog,
     detect_eessi_version,
     detect_spack_version,
 )
@@ -457,16 +458,18 @@ class BaseMarketplaceView(core_views.ActionsViewSet):
 class PublicViewsetMixin:
     """Mixin to allow anonymous access to offerings when configured."""
 
+    public_actions = ("list", "retrieve")
+
     def get_permissions(self):
         # Check if this is schema generation context (drf-spectacular)
         # When generating schema, we want to include all fields
         if getattr(self, "swagger_fake_view", False):
             return super().get_permissions()
 
-        if config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS and self.action in [
-            "list",
-            "retrieve",
-        ]:
+        if (
+            config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS
+            and self.action in self.public_actions
+        ):
             return [rf_permissions.AllowAny()]
         else:
             return super().get_permissions()
@@ -18409,6 +18412,8 @@ class SoftwareCatalogViewSet(
     filterset_class = filters.SoftwareCatalogFilter
 
     unsafe_methods_permissions = [structure_permissions.is_staff]
+    # cpu_targets has the same visibility as catalog retrieve.
+    public_actions = ("list", "retrieve", "cpu_targets")
 
     @extend_schema(
         summary="Discover available software catalog versions",
@@ -18477,6 +18482,29 @@ class SoftwareCatalogViewSet(
         return Response(response_serializer.data)
 
     discover_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        summary="List CPU targets for a software catalog",
+        description=(
+            "Returns CPU family and microarchitecture choices for this catalog's "
+            "version, taken from metadata.architectures_map. "
+            "cpu_microarchitecture matches SoftwareTarget.target_subtype and the "
+            "cpu_microarchitecture package filter, including vendor-prefixed "
+            "paths such as intel/sapphirerapids. Does not scan package targets. "
+            "Catalogs without an architectures map (for example Spack) return "
+            "an empty list."
+        ),
+        responses={200: serializers.SoftwareCatalogCpuTargetSerializer(many=True)},
+        filters=False,
+    )
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    def cpu_targets(self, request, uuid=None):
+        catalog = self.get_object()
+        targets = cpu_targets_for_catalog(catalog)
+        serializer = self.get_serializer(targets, many=True)
+        return Response(serializer.data)
+
+    cpu_targets_serializer_class = serializers.SoftwareCatalogCpuTargetSerializer
 
     @extend_schema(
         summary="Import a new software catalog",

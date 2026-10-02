@@ -4492,9 +4492,17 @@ class SoftwareCatalogUUIDSerializer(serializers.Serializer):
 class CatalogSummarySerializer(serializers.ModelSerializer):
     """Summary serializer for SoftwareCatalog used in nested context."""
 
+    supports_cpu_target_restrictions = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = models.SoftwareCatalog
-        fields = ("uuid", "name", "version", "description")
+        fields = (
+            "uuid",
+            "name",
+            "version",
+            "description",
+            "supports_cpu_target_restrictions",
+        )
 
 
 class PartitionSummarySerializer(serializers.ModelSerializer):
@@ -15367,6 +15375,7 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
     catalog_type_display = serializers.CharField(
         source="get_catalog_type_display", read_only=True
     )
+    supports_cpu_target_restrictions = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = models.SoftwareCatalog
@@ -15379,6 +15388,7 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
             "version",
             "catalog_type",
             "catalog_type_display",
+            "supports_cpu_target_restrictions",
             "source_url",
             "description",
             "metadata",
@@ -15396,6 +15406,7 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
             "created",
             "modified",
             "catalog_type_display",
+            "supports_cpu_target_restrictions",
             "last_update_attempt",
             "last_successful_update",
             "package_count",
@@ -15442,6 +15453,19 @@ class SoftwareCatalogDiscoverSerializer(serializers.Serializer):
     existing = serializers.BooleanField()
     existing_version = serializers.CharField(allow_null=True)
     update_available = serializers.BooleanField()
+
+
+class SoftwareCatalogCpuTargetSerializer(serializers.Serializer):
+    """CPU choice for linking a catalog to an offering.
+
+    ``cpu_microarchitecture`` is the value to store in
+    ``enabled_cpu_microarchitectures`` and to send as the
+    ``cpu_microarchitecture`` filter. It matches ``SoftwareTarget.target_subtype``.
+    """
+
+    cpu_family = serializers.CharField()
+    cpu_microarchitecture = serializers.CharField()
+    full_arch = serializers.CharField()
 
 
 class NestedSoftwareTargetSerializer(serializers.ModelSerializer):
