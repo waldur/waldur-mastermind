@@ -45,6 +45,19 @@ class MatrixCredentialsSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False)
 
 
+class MatrixSessionSerializer(serializers.Serializer):
+    homeserver_url = serializers.CharField()
+    matrix_user_id = serializers.CharField()
+    device_id = serializers.CharField()
+    access_token = serializers.CharField()
+    refresh_token = serializers.CharField(allow_null=True)
+    expires_in_ms = serializers.IntegerField(allow_null=True)
+
+
+class MatrixRoomOpenSerializer(serializers.Serializer):
+    room_id = serializers.CharField()
+
+
 class MatrixRoomMemberSummarySerializer(serializers.Serializer):
     user_full_name = serializers.CharField()
     matrix_user_id = serializers.CharField()

@@ -11,10 +11,10 @@ from django.db import transaction
 from django.http import FileResponse, Http404
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import permissions, status, views
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
@@ -337,6 +337,60 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
     reactivate_permissions = [structure_permissions.is_owner]
 
     @extend_schema(
+        summary="Open a chat room's conversation",
+        request=None,
+        responses={
+            200: serializers.MatrixRoomOpenSerializer,
+            403: OpenApiResponse(description="The caller is not a member of the room."),
+            409: OpenApiResponse(description="The room is not active."),
+        },
+        description="Returns the Matrix room ID to a current member of the room, "
+        "accepting their pending invite. Other callers get 403; a room that is "
+        "not active gets 409.",
+    )
+    @action(detail=True, methods=["post"])
+    def open(self, request, uuid=None):
+        room = self.get_object()
+        member = models.MatrixRoomMember.objects.filter(
+            room=room,
+            user=request.user,
+            membership_state__in=[
+                models.MembershipStates.INVITED,
+                models.MembershipStates.JOINED,
+            ],
+        ).first()
+        # Role-based access to the room (staff, a customer owner who is not a
+        # project member) grants managing it, not reading the conversation.
+        if member is None:
+            raise PermissionDenied("You are not a member of this room.")
+        if room.state != models.RoomStates.ACTIVE or not room.room_id:
+            return Response(
+                {"detail": "Only active rooms can be opened."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        if member.membership_state == models.MembershipStates.INVITED:
+            try:
+                matrix_client.join_room_as_user(room.room_id, member.matrix_user_id)
+            except (matrix_client.MatrixClientError, httpx.HTTPError):
+                # The drawer joins on its own once synced, so a homeserver
+                # hiccup here should not block opening the room.
+                logger.warning(
+                    "Failed to accept invite of %s to %s",
+                    member.matrix_user_id,
+                    room.room_id,
+                )
+            else:
+                # Only an invite still pending: a sync or leave may have moved
+                # the row on while the join was in flight.
+                models.MatrixRoomMember.objects.filter(
+                    pk=member.pk, membership_state=models.MembershipStates.INVITED
+                ).update(membership_state=models.MembershipStates.JOINED)
+
+        serializer = serializers.MatrixRoomOpenSerializer({"room_id": room.room_id})
+        return Response(serializer.data)
+
+    @extend_schema(
         summary="Join a chat room as staff",
         request=None,
         responses={202: serializers.MatrixRoomSerializer},
@@ -503,6 +557,55 @@ class MatrixCredentialsView(views.APIView):
                     ).update(membership_state=models.MembershipStates.JOINED)
 
         return Response(credentials)
+
+
+class MatrixSessionView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    # Called when the chat drawer connects and when its Matrix refresh is
+    # rejected; each call is an appservice login and a new device.
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_session"
+
+    @extend_schema(
+        summary="Start a Matrix web chat session",
+        request=None,
+        responses={
+            200: serializers.MatrixSessionSerializer,
+            404: OpenApiResponse(description="Matrix chat is not enabled."),
+            503: OpenApiResponse(
+                description="The homeserver could not start a session; try again later."
+            ),
+        },
+        description="Signs the caller in to Matrix on a new web device and returns "
+        "short-lived tokens for the chat drawer. The tokens are not stored.",
+    )
+    def post(self, request):
+        if not matrix_client.is_enabled():
+            raise Http404
+        try:
+            matrix_user_id = matrix_client.ensure_user_exists(request.user)
+            session = matrix_client.create_web_session(matrix_user_id)
+        except (matrix_client.MatrixClientError, httpx.HTTPError, ValueError) as e:
+            # An upstream or configuration fault; 503 marks it as temporary and
+            # the homeserver's own text stays in the log. Provisioning parses
+            # success bodies itself, so a garbled one surfaces as a ValueError.
+            logger.warning(
+                "Could not start a Matrix web session for %s: %s", request.user, e
+            )
+            return Response(
+                {"detail": "Chat is unavailable right now. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        tasks.prune_web_devices.delay(matrix_user_id, session["device_id"])
+        serializer = serializers.MatrixSessionSerializer(
+            {
+                "homeserver_url": matrix_client.get_public_homeserver_url(),
+                "matrix_user_id": matrix_user_id,
+                **session,
+            }
+        )
+        return Response(serializer.data)
 
 
 class MatrixAppserviceWebhookView(views.APIView):

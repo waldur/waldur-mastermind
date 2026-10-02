@@ -4,6 +4,8 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import secrets
+from datetime import timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
@@ -1316,6 +1318,144 @@ def get_access_token_for_user(waldur_user):
         f"Cannot obtain access token for {matrix_user_id}. "
         f"Tried: {'; '.join(errors)}; re-provision (no token returned)"
     )
+
+
+# Devices the chat drawer signs in on. Every web session gets its own: Tuwunel
+# keeps one refresh token per device, so two browser tabs sharing a device
+# revoke it as soon as their refreshes interleave.
+WEB_DEVICE_PREFIX = "WALDUR_WEB_"
+# Bounds how many web devices a user accumulates. Nothing on the homeserver
+# removes a device whose tab was closed, so new sessions sign out the oldest.
+MAX_WEB_DEVICES = 10
+# Matches the default refresh_token_ttl that Helm and docker-compose set: a web
+# device unseen for longer can no longer refresh, so signing it out loses
+# nothing. A homeserver configured with a longer refresh lifetime loses
+# sessions idle past this one, which only means a new session.
+WEB_DEVICE_IDLE = timedelta(hours=24)
+# A device seen this recently belongs to an open tab, so the cap never evicts
+# it: more open tabs than the cap would otherwise sign each other out in turn.
+# Covers the 5-minute access token lifetime plus the homeserver's lag in
+# updating last_seen_ts.
+RECENT_WEB_DEVICE = timedelta(minutes=10)
+
+
+def _homeserver_call(method, path, token, **kwargs):
+    """Call the homeserver, reporting transport failures as MatrixClientError."""
+    try:
+        return httpx.request(
+            method,
+            f"{config.MATRIX_HOMESERVER_URL}{path}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+            **kwargs,
+        )
+    except httpx.HTTPError as e:
+        raise MatrixClientError(f"Homeserver unreachable: {e}") from e
+
+
+def _json_body(response):
+    try:
+        return response.json()
+    except ValueError as e:
+        raise MatrixClientError(
+            f"Homeserver returned no JSON ({response.status_code})"
+        ) from e
+
+
+def _appservice_login(matrix_user_id, device_id, refresh_token=False):
+    # Whatever ID reached here, a login as the bot would hand out its power
+    # level in every Waldur room.
+    if matrix_user_id == get_bot_user_id():
+        raise MatrixClientError("Refusing to sign in as the bot")
+    body = {
+        "type": "m.login.application_service",
+        "identifier": {"type": "m.id.user", "user": matrix_user_id},
+        "device_id": device_id,
+    }
+    if refresh_token:
+        body["refresh_token"] = True
+        body["initial_device_display_name"] = f"{config.SITE_NAME} web chat"
+    response = _homeserver_call(
+        "POST", "/_matrix/client/v3/login", _get_as_token(), json=body
+    )
+    if response.status_code != 200:
+        raise MatrixClientError(
+            f"Failed to log in as {matrix_user_id}: "
+            f"{response.status_code} {response.text}"
+        )
+    data = _json_body(response)
+    if not data.get("access_token"):
+        raise MatrixClientError(f"Login as {matrix_user_id} returned no token")
+    return data
+
+
+def create_web_session(matrix_user_id):
+    """Sign the user in on a new web device and return its tokens.
+
+    The tokens are handed to the browser and never stored. With refresh tokens
+    the access token expires after the homeserver's access_token_ttl; a
+    homeserver without refresh support returns neither expiry nor refresh token.
+    """
+    device_id = WEB_DEVICE_PREFIX + secrets.token_hex(6).upper()
+    data = _appservice_login(matrix_user_id, device_id, refresh_token=True)
+    return {
+        "device_id": data.get("device_id", device_id),
+        "access_token": data["access_token"],
+        "refresh_token": data.get("refresh_token"),
+        "expires_in_ms": data.get("expires_in_ms"),
+    }
+
+
+def list_devices(matrix_user_id):
+    response = _homeserver_call(
+        "GET",
+        "/_matrix/client/v3/devices",
+        _get_as_token(),
+        params={"user_id": matrix_user_id},
+    )
+    if response.status_code != 200:
+        raise MatrixClientError(
+            f"Failed to list devices of {matrix_user_id}: "
+            f"{response.status_code} {response.text}"
+        )
+    return _json_body(response).get("devices", [])
+
+
+def logout_device(matrix_user_id, device_id):
+    """Remove a device and every token on it.
+
+    The appservice cannot delete a device without user-interactive auth, but a
+    token issued on the device can log it out, which removes the device.
+    """
+    token = _appservice_login(matrix_user_id, device_id)["access_token"]
+    response = _homeserver_call("POST", "/_matrix/client/v3/logout", token, json={})
+    if response.status_code != 200:
+        raise MatrixClientError(
+            f"Failed to log out {device_id} of {matrix_user_id}: "
+            f"{response.status_code} {response.text}"
+        )
+
+
+def stale_web_devices(devices, now_ms, keep_device_id=None):
+    """IDs of web devices to sign out: idle past the refresh window, or beyond
+    the newest MAX_WEB_DEVICES and not in use. Never `keep_device_id`."""
+    web = sorted(
+        (d for d in devices if d["device_id"].startswith(WEB_DEVICE_PREFIX)),
+        key=lambda d: d.get("last_seen_ts") or 0,
+        reverse=True,
+    )
+    stale = []
+    for rank, device in enumerate(web):
+        seen = device.get("last_seen_ts")
+        # Some homeservers fill last_seen_ts only on a device's first request,
+        # so a device never seen is not idle, though it still counts to the cap.
+        age = None if seen is None else timedelta(milliseconds=now_ms - seen)
+        idle = age is not None and age > WEB_DEVICE_IDLE
+        in_use = age is not None and age <= RECENT_WEB_DEVICE
+        over_cap = rank >= MAX_WEB_DEVICES and not in_use
+        if device["device_id"] != keep_device_id and (idle or over_cap):
+            stale.append(device["device_id"])
+    return stale
 
 
 def get_user_matrix_credentials(waldur_user):

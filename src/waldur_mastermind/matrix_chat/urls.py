@@ -23,6 +23,11 @@ urlpatterns = [
         name="matrix-credentials",
     ),
     path(
+        "api/matrix/session/",
+        views.MatrixSessionView.as_view(),
+        name="matrix-session",
+    ),
+    path(
         "_matrix/app/v1/transactions/<str:txn_id>",
         views.MatrixAppserviceWebhookView.as_view(),
         name="matrix-appservice-transactions",
