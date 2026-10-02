@@ -428,6 +428,23 @@ class PlanManager(MixinManager):
         return PlanQuerySet(self.model, using=self._db)
 
 
+class ResourceApiKeyQuerySet(django_models.QuerySet):
+    def usage_totals(self) -> dict[str, float]:
+        """Sum the agent-reported usage of these keys per component type.
+
+        Deleted keys are counted: a key is soft-deleted precisely so that the
+        usage it reported stays part of its resource's total. Summed in Python
+        because current_usages is a JSON map whose keys differ per offering.
+        """
+        totals: dict[str, float] = {}
+        for usages in self.exclude(current_usages__isnull=True).values_list(
+            "current_usages", flat=True
+        ):
+            for component_type, value in usages.items():
+                totals[component_type] = totals.get(component_type, 0) + value
+        return totals
+
+
 def get_connected_offerings(user, role=None):
     content_type = ContentType.objects.get_for_model(models.Offering)
     return get_scope_ids(user, content_type, role)

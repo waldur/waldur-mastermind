@@ -359,8 +359,14 @@
 - marketplace_order_rejected
 - marketplace_order_terminated
 - marketplace_order_unlinked
+- marketplace_resource_api_key_deleted
+- marketplace_resource_api_key_failed
+- marketplace_resource_api_key_paused
+- marketplace_resource_api_key_requested
+- marketplace_resource_api_key_resumed
 - marketplace_resource_api_key_revealed
 - marketplace_resource_api_key_rotated
+- marketplace_resource_api_key_updated
 - marketplace_resource_create_canceled
 - marketplace_resource_create_failed
 - marketplace_resource_create_requested

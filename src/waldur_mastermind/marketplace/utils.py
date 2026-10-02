@@ -93,6 +93,7 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     OfferingUserStates,
     OrderStates,
+    ResourceApiKeyActions,
     ResourceStates,
     RobotAccountStates,
     UsageLimitAction,
@@ -6714,14 +6715,15 @@ def publish_offering_resources_sync_request(offering: models.Offering, user) -> 
     return True
 
 
-def _log_api_key_rotation(api_key: models.ResourceApiKey) -> None:
-    """Log a rotation command with the identifiers useful for support triage."""
+def _log_api_key_command(api_key: models.ResourceApiKey, action: str) -> None:
+    """Log a key command with the identifiers useful for support triage."""
     resource = api_key.resource
     project = resource.project
     customer = project.customer
     logger.info(
-        "API key rotation requested for key %s of resource %s (%s), "
+        "API key %s requested for key %s of resource %s (%s), "
         "project %s (%s), organization %s (%s)",
+        action,
         api_key.uuid.hex,
         resource.name,
         resource.uuid.hex,
@@ -6732,26 +6734,31 @@ def _log_api_key_rotation(api_key: models.ResourceApiKey) -> None:
     )
 
 
-def publish_api_key_event(api_key: models.ResourceApiKey) -> bool:
-    """Ask connected site agents to rotate a resource API key.
+def publish_api_key_event(api_key: models.ResourceApiKey, action: str) -> bool:
+    """Ask connected site agents to carry out a command on a resource API key.
 
     The agent owns key generation: this only sends a slim command (no key
-    material). Rotation is the only command — the key count is fixed at
-    provisioning and a rotation replaces a value in place — so the action is not
-    a parameter. The agent performs the backend change and reports back via the
-    provider endpoints. Returns True if at least one agent subscription received
+    material). The agent performs the backend change and reports back via the
+    provider endpoints. Commands that configure the key also carry its limits and
+    model allowlist. Returns True if at least one agent subscription received
     the command.
     """
+    if action not in ResourceApiKeyActions.VALUES:
+        raise ValueError(f"Unknown API key action: {action}")
     resource = api_key.resource
-    _log_api_key_rotation(api_key)
+    _log_api_key_command(api_key, action)
     payload = {
         "resource_uuid": resource.uuid.hex,
         "resource_backend_id": resource.backend_id,
         "api_key_uuid": api_key.uuid.hex,
         "client_id": api_key.client_id,
-        # Still on the wire: the agent dispatches on it and rejects anything else.
-        "action": "rotate",
+        "action": action,
     }
+    if action in ResourceApiKeyActions.CARRY_SETTINGS:
+        payload["limits"] = api_key.limits
+        payload["allowed_models"] = api_key.allowed_models
+    # The observable type predates the other commands; agents subscribe to it by
+    # name, so it keeps its rotation-era name.
     messages = prepare_messages(
         resource.offering,
         payload,

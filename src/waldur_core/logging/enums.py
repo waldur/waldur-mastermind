@@ -117,7 +117,13 @@ class EventType(StrEnum):
     MARKETPLACE_RESOURCE_UPDATE_END_DATE_SUCCEEDED = (
         "marketplace_resource_update_end_date_succeeded"
     )
+    MARKETPLACE_RESOURCE_API_KEY_REQUESTED = "marketplace_resource_api_key_requested"
     MARKETPLACE_RESOURCE_API_KEY_ROTATED = "marketplace_resource_api_key_rotated"
+    MARKETPLACE_RESOURCE_API_KEY_PAUSED = "marketplace_resource_api_key_paused"
+    MARKETPLACE_RESOURCE_API_KEY_RESUMED = "marketplace_resource_api_key_resumed"
+    MARKETPLACE_RESOURCE_API_KEY_UPDATED = "marketplace_resource_api_key_updated"
+    MARKETPLACE_RESOURCE_API_KEY_DELETED = "marketplace_resource_api_key_deleted"
+    MARKETPLACE_RESOURCE_API_KEY_FAILED = "marketplace_resource_api_key_failed"
     MARKETPLACE_RESOURCE_API_KEY_REVEALED = "marketplace_resource_api_key_revealed"
     MARKETPLACE_RESOURCE_UPDATE_FAILED = "marketplace_resource_update_failed"
     MARKETPLACE_RESOURCE_UPDATE_LIMITS_FAILED = (
@@ -718,8 +724,14 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_RESOURCE_TERMINATE_REQUESTED,
         EventType.MARKETPLACE_RESOURCE_TERMINATE_SUCCEEDED,
         EventType.MARKETPLACE_RESOURCE_UNLINKED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_DELETED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_FAILED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_PAUSED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_REQUESTED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_RESUMED,
         EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED,
         EventType.MARKETPLACE_RESOURCE_API_KEY_ROTATED,
+        EventType.MARKETPLACE_RESOURCE_API_KEY_UPDATED,
         EventType.MARKETPLACE_RESOURCE_UPDATE_CANCELED,
         EventType.MARKETPLACE_RESOURCE_UPDATE_END_DATE_SUCCEEDED,
         EventType.MARKETPLACE_RESOURCE_UPDATE_FAILED,

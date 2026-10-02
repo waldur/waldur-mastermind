@@ -4,6 +4,7 @@ import datetime
 import logging
 import textwrap
 import traceback
+from collections.abc import Mapping
 from typing import cast
 from urllib.parse import urlparse
 
@@ -72,6 +73,7 @@ from rest_framework import (
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.fields import empty
 from rest_framework.filters import OrderingFilter
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import SAFE_METHODS
@@ -224,6 +226,7 @@ from . import (
     posix_ids,
     posix_maintenance,
     project_groups,
+    resource_api_keys,
     serializers,
     tasks,
     utils,
@@ -16431,6 +16434,10 @@ PROVIDER_API_KEY_SOURCES = [
     "offering.customer.serviceprovider",
 ]
 
+# Scopes, relative to the resource, at which RESOURCE.MANAGE_USERS lets a
+# consumer request and govern the resource's API keys.
+CONSUMER_API_KEY_SOURCES = ["project", "project.customer"]
+
 
 def check_provider_api_key_permissions(request, view, obj=None):
     serializer = view.get_serializer(data=request.data)
@@ -16452,25 +16459,31 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
 
     A resource owns many keys. The site agent generates each key, applies it to
     the backend, then reports it here (encrypted). Members reveal keys; managers
-    rotate them. Portal actions are commands — the agent does the backend change
-    and reports back through the provider actions.
+    rotate them and, where the offering supports it, request, edit, pause,
+    resume and delete them. Portal actions are commands — the agent does the
+    backend change and reports back through the provider actions.
     """
 
     queryset = models.ResourceApiKey.objects.select_related(
         "resource__project__customer",
         "resource__offering__customer",
+        "user",
     ).order_by("created")
     lookup_field = "uuid"
     serializer_class = serializers.ResourceApiKeyStatusSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ResourceApiKeyFilter
-    # No destroy: the key count is fixed at provisioning, so nothing needs one, and
-    # an ungated delete could drop a row whose key still serves at the backend.
-    # Termination cleanup deletes the rows directly (callbacks.py).
-    disabled_actions = ["create", "update", "partial_update", "destroy"]
+    # PUT is not offered: every setting is optional, so an edit is a PATCH.
+    disabled_actions = ["update"]
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # A deleted key is kept for the usage it reported, but a listing shows
+        # it only when asked for by state.
+        if self.action == "list" and models.ResourceApiKey.States.DELETED not in (
+            self.request.query_params.getlist("state")
+        ):
+            qs = qs.exclude(state=models.ResourceApiKey.States.DELETED)
         user = self.request.user
         if user.is_staff or user.is_support:
             return qs
@@ -16492,9 +16505,78 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     # --- consumer actions ------------------------------------------------------
 
     @extend_schema(
+        summary="Request an API key",
+        description="Asks the site agent to create a key for the resource. Waldur "
+        "generates nothing: the key appears as Creating and turns OK once the "
+        "agent reports it. Only on offerings with enable_api_key_provisioning.",
+        request=serializers.ResourceApiKeyCreateSerializer,
+        responses={status.HTTP_201_CREATED: serializers.ResourceApiKeyStatusSerializer},
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        # The permission is checked on the resource alone before the rest is
+        # validated: those errors would otherwise tell anyone whether a user
+        # belongs to a resource's project, or which components it has.
+        if not isinstance(request.data, Mapping):
+            raise ValidationError(_("Expected an object."))
+        try:
+            resource = serializer.fields["resource"].run_validation(
+                request.data.get("resource", empty)
+            )
+        except ValidationError as error:
+            raise ValidationError({"resource": error.detail})
+        if not has_permission_on_any_source(
+            request,
+            PermissionEnum.MANAGE_RESOURCE_USERS,
+            resource,
+            CONSUMER_API_KEY_SOURCES,
+        ):
+            raise PermissionDenied()
+        resource_api_keys.require_managed(resource)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        data.pop("resource")
+        api_key = resource_api_keys.request_key(resource, request.user, **data)
+        return Response(
+            serializers.ResourceApiKeyStatusSerializer(api_key).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    create_serializer_class = serializers.ResourceApiKeyCreateSerializer
+
+    @extend_schema(
+        summary="Edit an API key",
+        description="Changes the key's assignee, limits or model allowlist. A change "
+        "to limits or models is sent to the site agent as an update command, "
+        "unless the key is paused: resuming it applies them. Only on offerings "
+        "with enable_api_key_provisioning, except for unassigning the key "
+        '({"user": null}).',
+        request=serializers.ResourceApiKeyUpdateSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
+    )
+    def partial_update(self, request, *args, **kwargs):
+        obj = self.get_object()
+        # Unassigning needs no governance: reveal still honours an assignee set
+        # while it was on, and only this lets anyone but staff lift it.
+        unassign = isinstance(request.data, Mapping) and dict(request.data) == {
+            "user": None
+        }
+        if not unassign:
+            resource_api_keys.require_managed(obj.resource)
+        serializer = self.get_serializer(obj, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        api_key = resource_api_keys.update_settings(
+            obj, request.user, serializer.validated_data
+        )
+        return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
+
+    partial_update_serializer_class = serializers.ResourceApiKeyUpdateSerializer
+
+    @extend_schema(
         summary="Reveal an API key",
         description="Returns the decrypted key value. Available to users with "
-        "resource access (except minimal-visibility viewers). Audit-logged.",
+        "resource access (except minimal-visibility viewers); a key with an "
+        "assignee only to the assignee. Staff and support always. Audit-logged.",
         responses={status.HTTP_200_OK: serializers.ResourceApiKeySerializer},
     )
     @action(detail=True, methods=["get"])
@@ -16520,6 +16602,13 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
             raise PermissionDenied(
                 "Minimal-visibility viewers cannot reveal the resource API key."
             )
+        # An assigned key is personal: its usage is attributed to the assignee.
+        if (
+            api_key.user_id
+            and api_key.user_id != user.id
+            and not (user.is_staff or user.is_support)
+        ):
+            raise PermissionDenied("Only the assignee can reveal this API key.")
         # Only an OK key is guaranteed live at the backend; a transitional key's
         # stored value may not match the gateway.
         if api_key.state != models.ResourceApiKey.States.OK:
@@ -16540,36 +16629,12 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         response["Cache-Control"] = "no-store"
         return response
 
-    @staticmethod
-    def _require_resource_live(resource):
-        """Reject key commands on a resource that is not live.
-
-        Rotating a key makes no sense once the resource is on its way out; a
-        command emitted for a terminating resource races the termination cleanup
-        (which deletes the key rows) at the agent.
-        """
-        dead = (
-            models.Resource.States.TERMINATING,
-            models.Resource.States.TERMINATED,
-        )
-        if resource.state in dead:
-            raise IncorrectStateException(
-                f"The resource is {resource.get_state_display()}; its API keys "
-                f"can no longer be managed."
-            )
-
-    @staticmethod
-    def _locked_transition(obj, transition: str, **updates):
-        """Lock the row, apply an FSM transition plus field updates, save —
-        atomic against a concurrent duplicate command that would otherwise both
-        read the same source state."""
-        with transaction.atomic():
-            api_key = models.ResourceApiKey.objects.select_for_update().get(pk=obj.pk)
-            getattr(api_key, transition)()
-            for field, value in updates.items():
-                setattr(api_key, field, value)
-            api_key.save()
-        return api_key
+    def _command(self, request, action_name, message):
+        # Whether the command needs governance is decided with the key locked:
+        # a retry only knows its command then.
+        obj = self.get_object()
+        resource_api_keys.issue_command(obj, action_name, request.user)
+        return Response({"status": message}, status=status.HTTP_202_ACCEPTED)
 
     @extend_schema(
         summary="Rotate an API key",
@@ -16580,38 +16645,121 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def rotate(self, request, uuid=None):
-        obj = self.get_object()
-        self._require_resource_live(obj.resource)
-        try:
-            api_key = self._locked_transition(obj, "set_updating")
-        except TransitionNotAllowed:
-            raise IncorrectStateException(
-                "An API key can only be rotated from the OK state."
-            )
-        utils.publish_api_key_event(api_key)
-        log.log_resource_api_key_rotated(api_key, request.user)
-        return Response(
-            {"status": _("API key rotation has been requested.")},
-            status=status.HTTP_202_ACCEPTED,
+        # Rotation predates per-key governance; every key-carrying backend has it.
+        return self._command(
+            request,
+            models.ResourceApiKey.Actions.ROTATE,
+            _("API key rotation has been requested."),
         )
 
-    rotate_permissions = [
+    @extend_schema(
+        summary="Pause an API key",
+        description="Asks the site agent to stop the backend accepting this key. "
+        "The key keeps its value; the resource and its other keys keep serving.",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def pause(self, request, uuid=None):
+        return self._command(
+            request,
+            models.ResourceApiKey.Actions.PAUSE,
+            _("API key pause has been requested."),
+        )
+
+    @extend_schema(
+        summary="Resume an API key",
+        description="Asks the site agent to accept a paused key again, with the "
+        "limits and models it has now. Available without governance too, so a key "
+        "paused before the provider switched it off can come back.",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def resume(self, request, uuid=None):
+        return self._command(
+            request,
+            models.ResourceApiKey.Actions.RESUME,
+            _("API key resume has been requested."),
+        )
+
+    @extend_schema(
+        summary="Delete an API key",
+        description="Asks the site agent to revoke the key at the backend. Once "
+        "it has, the key is Deleted: it no longer lists by default, but its row "
+        "and reported usage are kept. A requested key the agent has not created "
+        "yet, or failed to create, is Deleted at once.",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    def destroy(self, request, *args, **kwargs):
+        return self._command(
+            request,
+            models.ResourceApiKey.Actions.DELETE,
+            _("API key deletion has been requested."),
+        )
+
+    @extend_schema(
+        summary="Retry a failed API key command",
+        description="Sends the command that left the key Erred to the site agent "
+        "again, with the key's current limits and models. An Erred key accepts only "
+        "this, the same command, or a delete.",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def retry(self, request, uuid=None):
+        return self._command(request, None, _("API key retry has been requested."))
+
+    consumer_command_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_RESOURCE_USERS,
-            ["resource.project", "resource.project.customer"],
+            [f"resource.{source}" for source in CONSUMER_API_KEY_SOURCES],
         )
     ]
+    rotate_permissions = consumer_command_permissions
+    retry_permissions = consumer_command_permissions
+    pause_permissions = consumer_command_permissions
+    resume_permissions = consumer_command_permissions
+    destroy_permissions = consumer_command_permissions
+    partial_update_permissions = consumer_command_permissions
 
-    # There is deliberately no revoke: the key count is fixed at provisioning and
-    # rotation replaces a value in place, so a resource can never be left without
-    # a way to authenticate. See docs/resource-api-keys.md.
+    @extend_schema(
+        summary="Total API key usage of a resource",
+        description="Sums the usage the site agent reported for the resource's "
+        "keys in the current month, per component type. Deleted keys are "
+        "included, so deleting a key leaves the total unchanged.",
+        parameters=[
+            OpenApiParameter(
+                "resource_uuid",
+                OpenApiTypes.UUID,
+                OpenApiParameter.QUERY,
+                required=True,
+            )
+        ],
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyUsageTotalsSerializer},
+        filters=False,
+    )
+    @action(detail=False, methods=["get"])
+    def usage_totals(self, request):
+        if not request.query_params.get("resource_uuid"):
+            raise ValidationError({"resource_uuid": _("This parameter is required.")})
+        queryset = self.filter_queryset(self.get_queryset()).filter(
+            usage_period=models.ResourceApiKey.current_period()
+        )
+        return Response(
+            serializers.ResourceApiKeyUsageTotalsSerializer(
+                {"usages": queryset.usage_totals()}
+            ).data
+        )
 
     # --- provider (site-agent) actions -----------------------------------------
 
     @extend_schema(
         summary="Report a freshly-applied API key",
         description="Used by the site agent after it generated and applied a key "
-        "to the backend. Stores the value encrypted and marks the key OK.",
+        "to the backend at provisioning. Stores the value encrypted and marks the "
+        "key OK. A requested key is reported through set_key instead.",
         request=serializers.ResourceApiKeyReportCreatedSerializer,
         responses={status.HTTP_201_CREATED: serializers.ResourceApiKeyStatusSerializer},
     )
@@ -16620,28 +16768,11 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        resource = data["resource"]
-        # A late report against a terminating/terminated resource must not
-        # recreate rows the termination cleanup deletes.
-        self._require_resource_live(resource)
-        plaintext = data["api_key"]
-        # Idempotent upsert on (resource, client_id): a retried or duplicated
-        # report must not 500 on the unique constraint, and a re-applied key just
-        # overwrites the stored value. New rows land OK (the agent already applied
-        # the key to the backend before reporting). No row lock is needed: there is
-        # no transitional state a stale duplicate could resurrect, and
-        # update_or_create already handles a concurrent insert through the unique
-        # constraint.
-        with transaction.atomic():
-            api_key, _ = models.ResourceApiKey.objects.update_or_create(
-                resource=resource,
-                client_id=data["client_id"],
-                defaults={
-                    "key_ciphertext": encryption.encrypt_value(plaintext),
-                    "state": models.ResourceApiKey.States.OK,
-                    "error_message": "",
-                },
-            )
+        api_key = resource_api_keys.record_created_key(
+            data["resource"],
+            data["client_id"],
+            encryption.encrypt_value(data["api_key"]),
+        )
         return Response(
             serializers.ResourceApiKeyStatusSerializer(api_key).data,
             status=status.HTTP_201_CREATED,
@@ -16651,9 +16782,10 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     report_created_serializer_class = serializers.ResourceApiKeyReportCreatedSerializer
 
     @extend_schema(
-        summary="Report a rotated API key value",
-        description="Used by the site agent after it applied a rotated key. "
-        "Replaces the stored value and marks the key OK.",
+        summary="Report a created or rotated API key value",
+        description="Used by the site agent after it applied a requested or "
+        "rotated key. Replaces the stored value and marks the key OK. A requested "
+        "key carries the client_id the agent gave it.",
         request=serializers.ResourceApiKeySetKeySerializer,
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
     )
@@ -16665,12 +16797,14 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         plaintext = serializer.validated_data["api_key"]
         updates = {
             "key_ciphertext": encryption.encrypt_value(plaintext),
+            "issued_at": timezone.now(),
             "error_message": "",
         }
         # A backend whose public identifier rotates together with the secret (an S3
-        # access key) reports the new one; one with a stable client_id omits it. The
-        # collision check runs before the transition so a rejected rename leaves the
-        # key exactly as it was.
+        # access key) reports the new one; one with a stable client_id omits it,
+        # except on a requested key, which gets its first one here. The collision
+        # check runs before the transition so a rejected rename leaves the key
+        # exactly as it was.
         client_id = serializer.validated_data.get("client_id")
         if client_id and client_id != obj.client_id:
             if (
@@ -16684,14 +16818,23 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
                     f"Another API key of this resource already uses client_id {client_id}."
                 )
             updates["client_id"] = client_id
+        elif not obj.client_id:
+            raise ValidationError(
+                {"client_id": _("A requested key must be reported with its client_id.")}
+            )
         # Transition under lock, persist only if it is legal: a late or duplicated
-        # report must never overwrite an already applied OK key.
+        # report must never overwrite an already applied OK key, nor settle a
+        # command other than the creation or rotation it answers.
         try:
-            api_key = self._locked_transition(obj, "set_ok", **updates)
-        except TransitionNotAllowed:
-            raise IncorrectStateException(
-                f"A key value can only be applied to a Creating or Updating key, "
-                f"not {obj.state}."
+            api_key = resource_api_keys.acknowledge(
+                obj,
+                "set_ok",
+                (
+                    "",
+                    models.ResourceApiKey.Actions.CREATE,
+                    models.ResourceApiKey.Actions.ROTATE,
+                ),
+                **updates,
             )
         except IntegrityError:
             # The collision check above runs outside the row lock, so a concurrent
@@ -16722,19 +16865,98 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         obj = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            api_key = self._locked_transition(
-                obj,
-                "set_erred",
-                error_message=serializer.validated_data["error_message"],
-            )
-        except TransitionNotAllowed:
-            # A newer set_key already landed the key OK; ignore the stale erred.
-            raise IncorrectStateException(f"Cannot mark a {obj.state} key erred.")
+        # Any pending command may fail. A newer acknowledgement that already
+        # settled the key makes this report stale, and it is refused.
+        api_key = resource_api_keys.acknowledge(
+            obj,
+            "set_erred",
+            None,
+            error_message=serializer.validated_data["error_message"],
+        )
+        log.log_resource_api_key_command_failed(api_key)
         return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
 
     set_erred_permissions = set_key_permissions
     set_erred_serializer_class = serializers.ResourceApiKeySetErredSerializer
+
+    def _acknowledge(self, transition, awaited):
+        # Not gated on the capability: a command already in flight must still be
+        # able to settle if the provider switches governance off meanwhile.
+        obj = self.get_object()
+        api_key = resource_api_keys.acknowledge(
+            obj, transition, awaited, error_message=""
+        )
+        return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
+
+    @extend_schema(
+        summary="Report an API key paused",
+        description="Used by the site agent once the backend refuses the key.",
+        request=None,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_paused(self, request, uuid=None):
+        return self._acknowledge("set_paused", (models.ResourceApiKey.Actions.PAUSE,))
+
+    @extend_schema(
+        summary="Report an API key resumed or updated",
+        description="Used by the site agent once the backend accepts a resumed "
+        "key again, or has applied a key's new limits and models.",
+        request=None,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_ok(self, request, uuid=None):
+        return self._acknowledge(
+            "set_ok",
+            (
+                models.ResourceApiKey.Actions.RESUME,
+                models.ResourceApiKey.Actions.UPDATE,
+            ),
+        )
+
+    @extend_schema(
+        summary="Report an API key deleted",
+        description="Used by the site agent once the backend has revoked the key. "
+        "The stored value is dropped; the row and its usage are kept.",
+        request=None,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_deleted(self, request, uuid=None):
+        return self._acknowledge("set_deleted", (models.ResourceApiKey.Actions.DELETE,))
+
+    @extend_schema(
+        summary="Report API key usage",
+        description="Used by the site agent to report a key's usage so far in a "
+        "month, per component type. Merged into the key's usage for that month; "
+        "a later month replaces it, and an earlier one is refused. A key whose "
+        "usage reaches its limit is paused, and a key paused for its limit is resumed "
+        "once under it again. Accepted for a deleted key too.",
+        request=serializers.ResourceApiKeyUsageSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def report_usage(self, request, uuid=None):
+        obj = self.get_object()
+        resource_api_keys.require_managed(obj.resource)
+        serializer = self.get_serializer(
+            data=request.data, context={"api_key": obj, "request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        api_key = resource_api_keys.record_usage(
+            obj,
+            serializer.validated_data["usages"],
+            serializer.validated_data.get("billing_period")
+            or models.ResourceApiKey.current_period(),
+        )
+        return Response(serializers.ResourceApiKeyStatusSerializer(api_key).data)
+
+    set_paused_permissions = set_key_permissions
+    set_ok_permissions = set_key_permissions
+    set_deleted_permissions = set_key_permissions
+    report_usage_permissions = set_key_permissions
+    report_usage_serializer_class = serializers.ResourceApiKeyUsageSerializer
 
 
 @extend_schema_view(
