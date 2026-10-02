@@ -143,14 +143,14 @@ def get_bot_user_id():
     return f"@{localpart}:{config.MATRIX_HOMESERVER_DOMAIN}"
 
 
-def _get_access_token():
-    """Return the appservice access token."""
+def _get_as_token():
+    """Return the appservice token Waldur authenticates to the homeserver with."""
     return config.MATRIX_APPSERVICE_AS_TOKEN
 
 
 def _get_client_params():
     """Read config values synchronously (safe from sync context) and return them."""
-    return config.MATRIX_HOMESERVER_URL, get_bot_user_id(), _get_access_token()
+    return config.MATRIX_HOMESERVER_URL, get_bot_user_id(), _get_as_token()
 
 
 def get_public_homeserver_url():
@@ -169,7 +169,7 @@ def get_public_homeserver_url():
 def ensure_bot_user_exists():
     """Register the appservice bot user on the homeserver if it doesn't exist."""
     homeserver_url = config.MATRIX_HOMESERVER_URL
-    as_token = _get_access_token()
+    as_token = _get_as_token()
     localpart = config.MATRIX_APPSERVICE_SENDER_LOCALPART or "waldur-bot"
     bot_user_id = get_bot_user_id()
 
@@ -393,21 +393,18 @@ def invite_user(room_id, user_id):
     )
 
 
-async def _join_room_as_self_async(homeserver_url, room_id, access_token):
+async def _join_room_as_user_async(homeserver_url, as_token, room_id, matrix_user_id):
     url = f"{homeserver_url}/_matrix/client/v3/join/{room_id}"
     async with httpx.AsyncClient() as http_client:
         response = await http_client.post(
             url,
             json={},
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={"Authorization": f"Bearer {as_token}"},
+            params={"user_id": matrix_user_id},
         )
         if response.status_code == 200:
             return True
-        data = (
-            response.json()
-            if response.headers.get("content-type", "").startswith("application/json")
-            else {}
-        )
+        data = _parse_json_response(response)
         errcode = data.get("errcode", "")
         if errcode in ("M_FORBIDDEN", "M_BAD_STATE") and (
             "already joined" in data.get("error", "").lower()
@@ -420,27 +417,31 @@ async def _join_room_as_self_async(homeserver_url, room_id, access_token):
         )
 
 
-def join_room_as_self(room_id, access_token):
-    """Join a Matrix room using the user's own access token (accepts their pending invite)."""
-    homeserver_url = config.MATRIX_HOMESERVER_URL
-    return _run_async(_join_room_as_self_async(homeserver_url, room_id, access_token))
+def join_room_as_user(room_id, matrix_user_id):
+    """Join a Matrix room as the user, accepting their pending invite.
+
+    Acts through the appservice token with ?user_id= rather than logging in as
+    the user, so the join creates no Matrix device or access token.
+    """
+    return _run_async(
+        _join_room_as_user_async(
+            config.MATRIX_HOMESERVER_URL, _get_as_token(), room_id, matrix_user_id
+        )
+    )
 
 
-async def _leave_room_as_self_async(homeserver_url, room_id, access_token):
+async def _leave_room_as_user_async(homeserver_url, as_token, room_id, matrix_user_id):
     url = f"{homeserver_url}/_matrix/client/v3/rooms/{room_id}/leave"
     async with httpx.AsyncClient() as http_client:
         response = await http_client.post(
             url,
             json={},
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={"Authorization": f"Bearer {as_token}"},
+            params={"user_id": matrix_user_id},
         )
         if response.status_code == 200:
             return True
-        data = (
-            response.json()
-            if response.headers.get("content-type", "").startswith("application/json")
-            else {}
-        )
+        data = _parse_json_response(response)
         errcode = data.get("errcode", "")
         # Already out of the room — treat as success so leave is idempotent.
         if errcode in ("M_FORBIDDEN", "M_BAD_STATE") and (
@@ -454,10 +455,17 @@ async def _leave_room_as_self_async(homeserver_url, room_id, access_token):
         )
 
 
-def leave_room_as_self(room_id, access_token):
-    """Leave a Matrix room using the user's own access token."""
-    homeserver_url = config.MATRIX_HOMESERVER_URL
-    return _run_async(_leave_room_as_self_async(homeserver_url, room_id, access_token))
+def leave_room_as_user(room_id, matrix_user_id):
+    """Leave a Matrix room as the user, through the appservice like join_room_as_user."""
+    # A stored member ID can map onto the bot, and the bot leaving would cost
+    # Waldur control of the room.
+    if matrix_user_id == get_bot_user_id():
+        raise MatrixClientError(f"Refusing to take the bot out of {room_id}")
+    return _run_async(
+        _leave_room_as_user_async(
+            config.MATRIX_HOMESERVER_URL, _get_as_token(), room_id, matrix_user_id
+        )
+    )
 
 
 async def _kick_user_async(
@@ -480,6 +488,11 @@ async def _kick_user_async(
 
 def kick_user(room_id, user_id, reason=""):
     """Kick a user from a Matrix room."""
+    # As in leave_room_as_user: a stored member ID can map onto the bot. Skipped
+    # rather than raised, so revocation retries don't spin on it.
+    if user_id == get_bot_user_id():
+        logger.warning("Not kicking the bot %s out of %s", user_id, room_id)
+        return False
     homeserver_url, bot_user_id, access_token = _get_client_params()
     return _run_async(
         _kick_user_async(
@@ -885,6 +898,7 @@ async def _try_registration_token_flow(http_client, url, username, password, tok
     response = await http_client.post(
         url, json={"username": username, "password": password}
     )
+    _raise_for_server_error(response)
     data = _parse_json_response(response)
     if data.get("errcode") == "M_USER_IN_USE":
         return {}
@@ -907,6 +921,7 @@ async def _try_registration_token_flow(http_client, url, username, password, tok
             "password": password,
         },
     )
+    _raise_for_server_error(response)
     if response.status_code == 200:
         return response.json()
     data = _parse_json_response(response)
@@ -933,6 +948,7 @@ async def _try_appservice_registration(http_client, url, username, password, as_
         },
         headers={"Authorization": f"Bearer {as_token}"},
     )
+    _raise_for_server_error(response)
     if response.status_code == 200:
         return response.json()
     data = _parse_json_response(response)
@@ -947,6 +963,7 @@ async def _try_dummy_registration(http_client, url, username, password):
     response = await http_client.post(
         url, json={"username": username, "password": password}
     )
+    _raise_for_server_error(response)
     data = _parse_json_response(response)
     if data.get("errcode") == "M_USER_IN_USE":
         return {}
@@ -967,6 +984,7 @@ async def _try_dummy_registration(http_client, url, username, password):
             "password": password,
         },
     )
+    _raise_for_server_error(response)
     if response.status_code == 200:
         return response.json()
     data = _parse_json_response(response)
@@ -975,10 +993,25 @@ async def _try_dummy_registration(http_client, url, username, password):
     return None
 
 
+def _raise_for_server_error(response):
+    # A 5xx, often a proxy's error page, says nothing about which flows the
+    # homeserver offers. Read as "not offered", it would fall through to
+    # appservice registration, which sets no password on Tuwunel.
+    if response.status_code >= 500:
+        raise MatrixClientError(
+            f"Homeserver error {response.status_code} during registration"
+        )
+
+
 def _parse_json_response(response):
-    if response.headers.get("content-type", "").startswith("application/json"):
-        return response.json()
-    return {}
+    if not response.headers.get("content-type", "").startswith("application/json"):
+        return {}
+    try:
+        data = response.json()
+    except ValueError:
+        # A proxy's error page can claim to be JSON.
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def ensure_user_exists(waldur_user):
@@ -992,11 +1025,24 @@ def ensure_user_exists(waldur_user):
     try:
         profile = MatrixUserProfile.objects.get(user=waldur_user)
         if profile.provisioned:
+            # Rows mapped onto the bot predate its reservation below, or appear
+            # when the bot's localpart is changed to one a user already holds.
+            if profile.matrix_user_id == get_bot_user_id():
+                raise MatrixClientError(
+                    f"Matrix profile {profile.uuid.hex} of {waldur_user} maps to the "
+                    f"bot {profile.matrix_user_id}; delete it to provision the user again"
+                )
             return profile.matrix_user_id
     except MatrixUserProfile.DoesNotExist:
         profile = None
 
     matrix_user_id = generate_matrix_user_id(waldur_user)
+    # The appservice acts for whatever ID a user maps to, so a user whose
+    # username sanitises to the bot's localpart would act as the bot.
+    if matrix_user_id == get_bot_user_id():
+        raise MatrixClientError(
+            f"{matrix_user_id} is reserved for the bot and cannot be provisioned"
+        )
 
     # Extract localpart from the full matrix user ID (@localpart:domain)
     localpart = matrix_user_id.split(":")[0].lstrip("@")
@@ -1053,7 +1099,7 @@ def ensure_user_exists(waldur_user):
 def set_display_name(matrix_user_id, display_name):
     """Set the Matrix display name for a user via the appservice token."""
     homeserver_url = config.MATRIX_HOMESERVER_URL
-    as_token = config.MATRIX_APPSERVICE_AS_TOKEN
+    as_token = _get_as_token()
     if not as_token:
         return
 

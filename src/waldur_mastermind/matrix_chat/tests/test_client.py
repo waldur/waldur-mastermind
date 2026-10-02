@@ -1,5 +1,8 @@
 from unittest import mock
 
+import httpx
+import respx
+from constance.test import override_config
 from django.test import TestCase
 from nio import (
     CallHangupEvent,
@@ -537,3 +540,193 @@ class DownloadMediaTest(TestCase):
         mock_run_async.side_effect = matrix_client.MatrixClientError("Download failed")
         with self.assertRaises(matrix_client.MatrixClientError):
             matrix_client.download_media("mxc://example.com/bad")
+
+
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+)
+class RoomMembershipAsUserTest(TestCase):
+    """Joins and leaves go through the appservice so they mint no device or token."""
+
+    room_id = "!room:matrix.example.com"
+    user_id = "@alice:matrix.example.com"
+
+    @respx.mock
+    def test_join_uses_appservice_token_for_user(self):
+        route = respx.post(
+            f"https://matrix.example.com/_matrix/client/v3/join/{self.room_id}"
+        ).mock(return_value=httpx.Response(200, json={"room_id": self.room_id}))
+
+        self.assertTrue(matrix_client.join_room_as_user(self.room_id, self.user_id))
+
+        request = route.calls.last.request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-as-token")
+        self.assertEqual(request.url.params["user_id"], self.user_id)
+
+    @respx.mock
+    def test_join_without_invite_raises(self):
+        respx.post(
+            f"https://matrix.example.com/_matrix/client/v3/join/{self.room_id}"
+        ).mock(
+            return_value=httpx.Response(
+                403,
+                json={
+                    "errcode": "M_FORBIDDEN",
+                    "error": "cannot join a room that is not `public`",
+                },
+            )
+        )
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.join_room_as_user(self.room_id, self.user_id)
+
+    @respx.mock
+    def test_leave_uses_appservice_token_for_user(self):
+        route = respx.post(
+            f"https://matrix.example.com/_matrix/client/v3/rooms/{self.room_id}/leave"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        self.assertTrue(matrix_client.leave_room_as_user(self.room_id, self.user_id))
+
+        request = route.calls.last.request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-as-token")
+        self.assertEqual(request.url.params["user_id"], self.user_id)
+
+    @respx.mock
+    def test_leave_when_not_in_room_succeeds(self):
+        respx.post(
+            f"https://matrix.example.com/_matrix/client/v3/rooms/{self.room_id}/leave"
+        ).mock(
+            return_value=httpx.Response(
+                403, json={"errcode": "M_FORBIDDEN", "error": "User is not in the room"}
+            )
+        )
+
+        self.assertTrue(matrix_client.leave_room_as_user(self.room_id, self.user_id))
+
+    @respx.mock
+    def test_join_through_a_failing_proxy_raises(self):
+        respx.post(
+            f"https://matrix.example.com/_matrix/client/v3/join/{self.room_id}"
+        ).mock(
+            return_value=httpx.Response(
+                502,
+                text="<html>Bad Gateway</html>",
+                headers={"content-type": "text/html"},
+            )
+        )
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.join_room_as_user(self.room_id, self.user_id)
+
+    @respx.mock
+    def test_garbled_json_error_bodies_raise_client_errors(self):
+        # A proxy error page labelled as JSON, or a body that is not an object.
+        for body in [b"", b"<html>Bad Gateway</html>", b"null", b"\xe9\xe9"]:
+            for call, path in [
+                (matrix_client.join_room_as_user, f"join/{self.room_id}"),
+                (matrix_client.leave_room_as_user, f"rooms/{self.room_id}/leave"),
+            ]:
+                with self.subTest(body=body, call=call.__name__):
+                    respx.post(
+                        f"https://matrix.example.com/_matrix/client/v3/{path}"
+                    ).mock(
+                        return_value=httpx.Response(
+                            502,
+                            content=body,
+                            headers={"content-type": "application/json"},
+                        )
+                    )
+
+                    with self.assertRaises(matrix_client.MatrixClientError):
+                        call(self.room_id, self.user_id)
+
+    @mock.patch.object(matrix_client, "_run_async")
+    def test_bot_is_not_kicked(self, mock_run_async):
+        # As with leaving: a stored member ID mapped onto the bot must not
+        # remove the bot from a room it administers.
+        self.assertFalse(
+            matrix_client.kick_user(self.room_id, matrix_client.get_bot_user_id())
+        )
+
+        mock_run_async.assert_not_called()
+
+    @mock.patch.object(matrix_client, "_run_async")
+    def test_bot_is_not_made_to_leave(self, mock_run_async):
+        # A stored ID that maps onto the bot must not take the bot out of a room
+        # it administers.
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.leave_room_as_user(
+                self.room_id, matrix_client.get_bot_user_id()
+            )
+
+        mock_run_async.assert_not_called()
+
+
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+    MATRIX_USER_REGISTRATION_SECRET="test-secret",
+    MATRIX_USER_ID_FORMAT="username",
+)
+class BotIdentityIsReservedTest(TestCase):
+    @mock.patch.object(matrix_client, "_run_async")
+    def test_user_whose_id_would_be_the_bot_is_not_provisioned(self, mock_run_async):
+        # The appservice acts for any ID Waldur maps a user to, so a user mapped
+        # onto the bot would act as the bot in every room.
+        user = structure_factories.UserFactory(username="Waldur-Bot")
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.ensure_user_exists(user)
+
+        mock_run_async.assert_not_called()
+        self.assertFalse(
+            matrix_client.MatrixUserProfile.objects.filter(user=user).exists()
+        )
+
+    @respx.mock
+    def test_homeserver_errors_fail_registration_instead_of_falling_through(self):
+        # A proxy error page would otherwise read as "flow not offered" and fall
+        # through to appservice registration, which sets no password on Tuwunel.
+        user = structure_factories.UserFactory()
+        for body, content_type in [
+            (b"<html>Bad Gateway</html>", "text/html"),
+            (b"<html>Bad Gateway</html>", "application/json"),
+        ]:
+            with self.subTest(content_type=content_type):
+                route = respx.post(
+                    "https://matrix.example.com/_matrix/client/v3/register"
+                ).mock(
+                    return_value=httpx.Response(
+                        502, content=body, headers={"content-type": content_type}
+                    )
+                )
+                calls_before = route.call_count
+
+                with self.assertRaises(matrix_client.MatrixClientError):
+                    matrix_client.ensure_user_exists(user)
+
+                self.assertEqual(route.call_count - calls_before, 1)
+                self.assertFalse(
+                    matrix_client.MatrixUserProfile.objects.filter(
+                        user=user, provisioned=True
+                    ).exists()
+                )
+
+    @mock.patch.object(matrix_client, "_run_async")
+    def test_provisioned_profile_mapped_to_the_bot_is_refused(self, mock_run_async):
+        # Rows like this predate the reservation, or appear when the bot's
+        # localpart is changed to one a user already holds.
+        user = structure_factories.UserFactory()
+        matrix_client.MatrixUserProfile.objects.create(
+            user=user, matrix_user_id=matrix_client.get_bot_user_id(), provisioned=True
+        )
+
+        with self.assertRaises(matrix_client.MatrixClientError) as cm:
+            matrix_client.ensure_user_exists(user)
+
+        self.assertIn("profile", str(cm.exception))
+        mock_run_async.assert_not_called()

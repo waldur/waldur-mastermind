@@ -484,17 +484,23 @@ class MatrixCredentialsView(views.APIView):
                     )
 
                 credentials["room_id"] = room.room_id
-                # join_room_as_self both accepts a pending invite (INVITED → JOINED)
+                # join_room_as_user both accepts a pending invite (INVITED → JOINED)
                 # and no-ops when already joined; the membership row is the source
                 # of truth, so no extra invite call is needed here. Drift recovery
                 # belongs in sync_project_members_to_room, not this endpoint.
-                if credentials.get("access_token"):
-                    try:
-                        matrix_client.join_room_as_self(
-                            room.room_id, credentials["access_token"]
-                        )
-                    except matrix_client.MatrixClientError:
-                        pass
+                try:
+                    matrix_client.join_room_as_user(
+                        room.room_id, credentials["matrix_user_id"]
+                    )
+                except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+                    # Best effort: the drawer joins on its own once synced.
+                    logger.info("Could not accept invite to %s: %s", room.room_id, e)
+                else:
+                    models.MatrixRoomMember.objects.filter(
+                        room=room,
+                        user=request.user,
+                        membership_state=models.MembershipStates.INVITED,
+                    ).update(membership_state=models.MembershipStates.JOINED)
 
         return Response(credentials)
 
