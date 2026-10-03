@@ -611,6 +611,24 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.send_project_group_saved_message,
+            sender=models.ServiceProviderProjectGroup,
+            dispatch_uid="waldur_mastermind.marketplace.send_project_group_saved_message",
+        )
+
+        signals.post_delete.connect(
+            handlers.send_project_group_deleted_message,
+            sender=models.ServiceProviderProjectGroup,
+            dispatch_uid="waldur_mastermind.marketplace.send_project_group_deleted_message",
+        )
+
+        signals.post_save.connect(
+            handlers.send_project_groups_switch_message,
+            sender=models.ServiceProvider,
+            dispatch_uid="waldur_mastermind.marketplace.send_project_groups_switch_message",
+        )
+
+        signals.post_save.connect(
             handlers.backfill_project_groups_when_enabled,
             sender=models.ServiceProvider,
             dispatch_uid="waldur_mastermind.marketplace.backfill_project_groups_when_enabled",

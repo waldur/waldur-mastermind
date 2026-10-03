@@ -1072,6 +1072,11 @@ class ObservableObjectType(Enum):
     # knows the older type keeps working -- and one that does not recognise this
     # one drops it with a warning rather than mis-handling it.
     SERVICE_PROVIDER_ACCOUNT = "service_provider_account"
+    # A provider project group created, numbered or deleted, or project groups
+    # switched on or off for the provider. Delivered to every offering of the
+    # provider, so the agent writing a shared directory hears it at once rather
+    # than on its next periodic pass.
+    SERVICE_PROVIDER_PROJECT_GROUP = "service_provider_project_group"
     # Proposal-domain state changes, scoped to the call and its organiser so
     # consumers bound to a call or a proposal receive them.
     CALL = "call"
