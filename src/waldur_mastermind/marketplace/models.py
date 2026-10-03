@@ -4580,6 +4580,7 @@ class ServiceProviderProjectGroup(
     )
     name = models.CharField(max_length=NAME_MAX_LENGTH)
     gid = models.BigIntegerField(null=True, blank=True)
+    tracker = cast(FieldInstanceTracker, FieldTracker(fields=["name", "gid"]))
 
     class Meta:
         verbose_name = _("Service provider project group")

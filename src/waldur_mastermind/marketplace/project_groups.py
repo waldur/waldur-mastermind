@@ -21,14 +21,21 @@ and the project itself is not (soft-)deleted.
 
 import logging
 import re
+import uuid
 from collections import defaultdict
+from functools import partial
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Q, QuerySet
 from django.utils import timezone
 
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.logging import event_dispatch
+from waldur_core.logging import tasks as logging_tasks
+from waldur_core.logging.enums import ObservableObjectType
+from waldur_core.permissions import utils as permission_utils
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
@@ -294,6 +301,82 @@ def get_or_create_group(service_provider, project, name=None):
     )
 
 
+def build_messages(service_provider, payload: dict) -> list[dict]:
+    """``service_provider_project_group`` messages for one provider.
+
+    A project group belongs to the provider, so the event is anchored on the
+    provider's customer **and** on each of its live offerings with offering
+    users. Site agents bind their queue to their offering, not to the
+    customer, and a group is written to a directory those offerings share:
+    anchoring on the customer alone would reach none of them.
+    """
+    customer = service_provider.customer
+    offering_ct = ContentType.objects.get_for_model(models.Offering)
+    scope_keys = permission_utils.scope_keys_for(customer) + [
+        (offering_ct.id, offering_id)
+        for offering_id in models.Offering.objects.filter(
+            customer=customer, type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES
+        )
+        .exclude(state=models.Offering.States.ARCHIVED)
+        .values_list("id", flat=True)
+    ]
+
+    def _build_payload():
+        message = dict(payload)
+        message["service_provider_uuid"] = service_provider.uuid.hex
+        message["customer_uuid"] = customer.uuid.hex
+        message["object_type"] = (
+            ObservableObjectType.SERVICE_PROVIDER_PROJECT_GROUP.value
+        )
+        return message
+
+    return event_dispatch.build_messages(
+        scope_keys,
+        _build_payload,
+        ObservableObjectType.SERVICE_PROVIDER_PROJECT_GROUP,
+        include_global=True,
+    ).messages
+
+
+def publish(service_provider, payload: dict) -> None:
+    """Send a project group event once the current transaction commits.
+
+    The messages are built now, while the provider's offerings can still be
+    read; nothing is sent if the transaction rolls back.
+    """
+    if get_skip_side_effects():
+        return
+    messages = build_messages(service_provider, payload)
+    if messages:
+        transaction.on_commit(partial(logging_tasks.publish_messages.delay, messages))
+
+
+def change_payload(group, action: str, changed_fields=None) -> dict:
+    """The wire payload for one project group change.
+
+    ``create`` means the group became writable -- it has a GID for the first
+    time, whether it was created with one or numbered later; ``update`` that
+    a numbered group's name or GID changed (``gid`` is None when the GID was
+    cleared by hand); ``delete`` that it is gone.
+    """
+    # An importer may save a group with its UUID still a string.
+    payload = {
+        "action": action,
+        "project_group_uuid": uuid.UUID(str(group.uuid)).hex,
+        "project_uuid": group.project.uuid.hex if group.project_id else None,
+        "name": group.name,
+        "gid": group.gid,
+    }
+    if changed_fields is not None:
+        payload["changed_fields"] = sorted(changed_fields)
+    return payload
+
+
+def publish_change(group, action: str, changed_fields=None) -> None:
+    """Announce a change to ``group`` to its provider's offerings."""
+    publish(group.service_provider, change_payload(group, action, changed_fields))
+
+
 def allocate_gid(group) -> int | None:
     """Give ``group`` a GID from the provider's pool if it has none yet."""
     if group.gid is not None:
@@ -321,6 +404,9 @@ def allocate_gid(group) -> int | None:
     ).update(gid=gid, modified=timezone.now())
     if updated:
         group.gid = gid
+        group.tracker.set_saved_fields(fields=["gid"])
+        # Numbered without a save, so no post_save announces it.
+        publish_change(group, "create")
     else:
         group.refresh_from_db(fields=["gid", "modified"])
     return group.gid

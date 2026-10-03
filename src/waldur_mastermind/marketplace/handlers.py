@@ -3482,6 +3482,78 @@ def release_provider_project_group_gid(sender, instance, **kwargs):
     posix_ids.release_project_group_gid(instance)
 
 
+def send_project_group_saved_message(
+    sender, instance: models.ServiceProviderProjectGroup, created=False, **kwargs
+):
+    """Announce a project group a directory can write, or a change to one.
+
+    A group without a GID is not announced: a directory cannot write it, and
+    the allocation that numbers it announces it then (see
+    ``project_groups.allocate_gid``, which numbers it without a save).
+    """
+    if instance.gid is None:
+        if not created and instance.tracker.previous("gid") is not None:
+            # A GID cleared by hand: the directory still carries the old one.
+            project_groups.publish_change(instance, "update", ["gid"])
+        return
+    if created or instance.tracker.previous("gid") is None:
+        project_groups.publish_change(instance, "create")
+        return
+    changed = [
+        field for field in ("name", "gid") if instance.tracker.has_changed(field)
+    ]
+    if changed:
+        project_groups.publish_change(instance, "update", changed)
+
+
+def send_project_group_deleted_message(
+    sender, instance: models.ServiceProviderProjectGroup, origin=None, **kwargs
+):
+    """Announce a deleted project group that a directory could have written.
+
+    Nothing is sent for a group that never had a GID (it was never announced),
+    nor for groups going with their provider or its organization in a cascade:
+    the provider's listing is then empty, and a directory writer leaves its
+    entries alone on an empty listing rather than acting on it.
+    """
+    if instance.gid is None:
+        return
+    deleting_group_itself = isinstance(origin, models.ServiceProviderProjectGroup) or (
+        isinstance(origin, QuerySet)
+        and origin.model is models.ServiceProviderProjectGroup
+    )
+    if not deleting_group_itself:
+        return
+    try:
+        service_provider = instance.service_provider
+    except models.ServiceProvider.DoesNotExist:
+        return
+    project_groups.publish(
+        service_provider, project_groups.change_payload(instance, "delete")
+    )
+
+
+def send_project_groups_switch_message(
+    sender, instance: models.ServiceProvider, created=False, **kwargs
+):
+    """Announce project groups being switched on or off for the provider.
+
+    A consumer reconciles every group then: switched on, the existing groups
+    become its to write; switched off, no new group is created.
+    """
+    enabled = instance.project_groups_enabled
+    if created:
+        if not enabled:
+            return
+    else:
+        previous = instance.tracker.previous("account_options") or {}
+        if bool(previous.get("project_groups_enabled")) == enabled:
+            return
+    project_groups.publish(
+        instance, {"action": "switch", "project_groups_enabled": enabled}
+    )
+
+
 def backfill_project_groups_when_enabled(
     sender, instance: models.ServiceProvider, created=False, **kwargs
 ):
