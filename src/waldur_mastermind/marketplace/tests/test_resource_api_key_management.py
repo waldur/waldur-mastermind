@@ -29,7 +29,7 @@ LAST_MONTH = (THIS_MONTH - datetime.timedelta(days=1)).replace(day=1)
 NEXT_MONTH = (THIS_MONTH + datetime.timedelta(days=31)).replace(day=1)
 
 migration = import_module(
-    "waldur_mastermind.marketplace.migrations.0301_resource_api_key_management"
+    "waldur_mastermind.marketplace.migrations.0302_resource_api_key_backfill"
 )
 
 
