@@ -647,6 +647,9 @@ td:nth-child(4) {
 | `send_offering_user_updated_message` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Send OfferingUser update message to message queue for external systems. |
 | `send_offering_user_username_message` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
 | `send_order_state_change_to_message_queue` | `Django Signal (post_save)` | `marketplace.Order` | Emit an order event on every state transition, for any offering type. |
+| `send_project_group_deleted_message` | `Django Signal (post_delete)` | `marketplace.ServiceProviderProjectGroup` | Announce a deleted project group that a directory could have written. |
+| `send_project_group_saved_message` | `Django Signal (post_save)` | `marketplace.ServiceProviderProjectGroup` | Announce a project group a directory can write, or a change to one. |
+| `send_project_groups_switch_message` | `Django Signal (post_save)` | `marketplace.ServiceProvider` | Announce project groups being switched on or off for the provider. |
 | `send_project_service_account_deletion_info` | `Django Signal (post_save)` | `marketplace.ProjectServiceAccount` | No description |
 | `send_project_service_account_info` | `Django Signal (post_save)` | `marketplace.ProjectServiceAccount` | No description |
 | `send_provider_account_created_message` | `Django Signal (post_save)` | `marketplace.ServiceProviderAccount` | Announce a new provider-level account. |
@@ -821,14 +824,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 742
+Total unique handlers found: 745
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 337 handlers
+- **waldur_mastermind**: 340 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
