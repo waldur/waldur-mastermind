@@ -3350,6 +3350,29 @@ class ComponentQuota(TimeStampedModel):
         return f"resource: {self.resource.name}, component: {self.component.name}"
 
 
+def filter_by_usage_reporter_permission(user, prefix):
+    """Usage rows of offerings the user may report usage for.
+
+    Organization roles already see these through customer_path. This adds the
+    provider-side roles held elsewhere: an offering manager on the offering, a
+    service provider manager on the ServiceProvider. Either can write usage
+    for the offering, so either may read it back. Matched on the permission
+    itself, as has_permission does; staff and global support never reach this.
+    """
+    permission = PermissionEnum.SET_RESOURCE_USAGE
+    provider_ids = get_scope_ids(
+        user,
+        ContentType.objects.get_for_model(ServiceProvider),
+        permission=permission,
+    )
+    offering_ids = get_scope_ids(
+        user, ContentType.objects.get_for_model(Offering), permission=permission
+    )
+    return Q(**{f"{prefix}offering__customer__serviceprovider__in": provider_ids}) | Q(
+        **{f"{prefix}offering__in": offering_ids}
+    )
+
+
 class ComponentUsage(
     TimeStampedModel,
     core_models.DescribableMixin,
@@ -3396,6 +3419,10 @@ class ComponentUsage(
     class Permissions:
         customer_path = ["resource__project__customer", "resource__offering__customer"]
         project_path = "resource__project"
+
+        @staticmethod
+        def build_query(user):
+            return filter_by_usage_reporter_permission(user, "resource__")
 
     class Meta:
         constraints = [
@@ -3627,6 +3654,12 @@ class ComponentUserUsage(
             "component_usage__resource__offering__customer",
         ]
         project_path = "component_usage__resource__project"
+
+        @staticmethod
+        def build_query(user):
+            return filter_by_usage_reporter_permission(
+                user, "component_usage__resource__"
+            )
 
     class Meta:
         unique_together = ("username", "component_usage")

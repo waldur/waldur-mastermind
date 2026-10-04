@@ -9,7 +9,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import ServiceProviderRole
+from waldur_core.permissions.fixtures import OfferingRole, ServiceProviderRole
 from waldur_core.permissions.tests.test_system_role_descriptions import (
     permissions_yaml_rows,
 )
@@ -19,7 +19,9 @@ from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import BillingTypes, OrderStates, OrderTypes
 from waldur_mastermind.marketplace.tests import factories
 
-SET_USAGE_URL = "/api/marketplace-component-usages/set_usage/"
+USAGES_URL = "/api/marketplace-component-usages/"
+USER_USAGES_URL = "/api/marketplace-component-user-usages/"
+SET_USAGE_URL = USAGES_URL + "set_usage/"
 
 
 @freeze_time("2026-06-19")
@@ -48,6 +50,7 @@ class ServiceProviderManagerUsageTest(test.APITestCase):
         self.plan_period = models.ResourcePlanPeriod.objects.get(resource=self.resource)
         # Tests run without permissions.yaml; this mirrors the shipped role.
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
         self.manager = structure_factories.UserFactory()
         self.service_provider.add_user(self.manager, ServiceProviderRole.MANAGER)
 
@@ -90,3 +93,61 @@ class ServiceProviderManagerUsageTest(test.APITestCase):
         response = self.set_usage(outsider)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def usage(self):
+        self.set_usage(self.manager)
+        return models.ComponentUsage.objects.get(resource=self.resource)
+
+    def set_user_usage(self, user, usage):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            f"{USAGES_URL}{usage.uuid.hex}/set_user_usage/",
+            {"usage": 2, "username": "user_00"},
+            format="json",
+        )
+
+    def listed(self, user, url=USAGES_URL):
+        self.client.force_authenticate(user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {item["uuid"] for item in response.data}
+
+    def test_manager_reports_user_usage_and_reads_it_back(self):
+        usage = self.usage()
+
+        response = self.set_user_usage(self.manager, usage)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertIn(usage.uuid.hex, self.listed(self.manager))
+        user_usage = models.ComponentUserUsage.objects.get(component_usage=usage)
+        self.assertIn(user_usage.uuid.hex, self.listed(self.manager, USER_USAGES_URL))
+
+    def test_offering_manager_reports_user_usage(self):
+        usage = self.usage()
+        offering_manager = structure_factories.UserFactory()
+        self.resource.offering.add_user(offering_manager, OfferingRole.MANAGER)
+
+        response = self.set_user_usage(offering_manager, usage)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_other_providers_and_consumers_see_nothing_new(self):
+        usage = self.usage()
+        other_manager = structure_factories.UserFactory()
+        factories.ServiceProviderFactory().add_user(
+            other_manager, ServiceProviderRole.MANAGER
+        )
+        other_project_member = structure_fixtures.ProjectFixture().admin
+
+        for user in (other_manager, other_project_member):
+            self.assertNotIn(usage.uuid.hex, self.listed(user))
+            self.assertEqual(
+                self.set_user_usage(user, usage).status_code,
+                status.HTTP_404_NOT_FOUND,
+            )
+
+    def test_a_manager_without_the_permission_sees_nothing(self):
+        usage = self.usage()
+        ServiceProviderRole.MANAGER.delete_permission(PermissionEnum.SET_RESOURCE_USAGE)
+
+        self.assertNotIn(usage.uuid.hex, self.listed(self.manager))
