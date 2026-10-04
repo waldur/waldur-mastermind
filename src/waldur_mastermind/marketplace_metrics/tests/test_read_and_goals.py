@@ -446,3 +446,109 @@ class ServiceProviderManagerTest(Scenario):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         listed = self.client.get(GOALS).data
         self.assertIn(response.data["uuid"], {goal["uuid"] for goal in listed})
+
+
+class ResourceDrillDownTest(Scenario):
+    """Per resource: completions are linux 3 + gpu 1 and linux 4 + gpu 1."""
+
+    def breakdown(self, user, **params):
+        self.client.force_authenticate(user)
+        return self.client.get(
+            "/api/marketplace-metric-breakdown/",
+            {
+                "offering_metric_uuid": self.completions.uuid.hex,
+                "start": (self.now - datetime.timedelta(days=1)).isoformat(),
+                **params,
+            },
+        )
+
+    def summary(self, user, resource):
+        self.client.force_authenticate(user)
+        return self.client.get(
+            "/api/marketplace-resource-metrics/",
+            {"resource_uuid": resource.uuid.hex},
+        )
+
+    def test_a_project_figure_breaks_down_by_resource(self):
+        response = self.breakdown(
+            self.fixture.member,
+            project_uuid=self.fixture.project.uuid.hex,
+            group_by="resource",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        figures = {item["resource_uuid"]: item["figure"] for item in response.data}
+        self.assertEqual(
+            figures,
+            {
+                str(self.resources[0].uuid): 4,
+                str(self.resources[1].uuid): 5,
+            },
+        )
+        names = {item["resource_name"] for item in response.data}
+        self.assertEqual(names, {r.name for r in self.resources})
+
+    def test_a_resource_figure_breaks_down_by_attribute(self):
+        response = self.breakdown(
+            self.fixture.member,
+            resource_uuid=self.resources[1].uuid.hex,
+            group_by="course",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        figures = {item["value"]: item["figure"] for item in response.data}
+        self.assertEqual(figures, {"linux": 4, "gpu": 1})
+
+    def test_a_resource_figure_does_not_break_down_by_resource(self):
+        response = self.breakdown(
+            self.fixture.member,
+            resource_uuid=self.resources[1].uuid.hex,
+            group_by="resource",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_resource_reports_its_own_figures(self):
+        response = self.summary(self.fixture.member, self.resources[1])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        figures = {
+            item["offering_metric"]["key"]: item["current"] for item in response.data
+        }
+        self.assertEqual(
+            figures, {"education.completions": 5, "support.response_time": 6}
+        )
+        self.assertNotIn("goal", response.data[0])
+
+    def test_the_provider_sees_a_consumers_resource(self):
+        response = self.summary(self.provider.owner, self.resources[0])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_an_outsider_sees_neither(self):
+        outsider = structure_factories.UserFactory()
+
+        self.assertEqual(
+            self.summary(outsider, self.resources[0]).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(
+            self.breakdown(
+                outsider,
+                resource_uuid=self.resources[0].uuid.hex,
+                group_by="course",
+            ).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_a_resource_of_another_offering_is_not_found(self):
+        other = marketplace_factories.ResourceFactory(
+            project=self.fixture.project, state=ResourceStates.OK
+        )
+
+        response = self.breakdown(
+            self.fixture.member, resource_uuid=other.uuid.hex, group_by="course"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
