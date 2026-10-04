@@ -5037,9 +5037,16 @@ def get_provider_approvers(order):
     if config.NOTIFY_STAFF_ABOUT_APPROVALS:
         users |= User.objects.filter(is_staff=True, is_active=True)
 
-    users |= get_users_with_permission(
-        order.offering.customer, PermissionEnum.APPROVE_ORDER
-    )
+    provider_customer = order.offering.customer
+    users |= get_users_with_permission(provider_customer, PermissionEnum.APPROVE_ORDER)
+
+    service_provider = models.ServiceProvider.objects.filter(
+        customer=provider_customer
+    ).first()
+    if service_provider:
+        users |= get_users_with_permission(
+            service_provider, PermissionEnum.APPROVE_ORDER
+        )
 
     users |= get_users_with_permission(order.offering, PermissionEnum.APPROVE_ORDER)
 

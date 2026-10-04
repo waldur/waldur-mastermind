@@ -1440,10 +1440,10 @@ class OrderFilter(
         queryset = queryset.filter(state=OrderStates.PENDING_PROVIDER)
 
         if value and not user.is_staff:
-            connected_customers = get_connected_customers_by_permission(
+            provider_customers = get_connected_provider_customers_by_permission(
                 user, PermissionEnum.APPROVE_ORDER
             )
-            queryset = queryset.filter(offering__customer__in=connected_customers)
+            queryset = queryset.filter(offering__customer__in=provider_customers)
 
         return queryset
 

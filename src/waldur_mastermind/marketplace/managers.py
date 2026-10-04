@@ -485,13 +485,18 @@ def filter_orders_for_user(queryset, user):
     connected_customers = get_connected_customers_by_permission(
         user, PermissionEnum.LIST_ORDERS
     )
+    # A ServiceProvider-scoped grant counts for the provider side only, never
+    # for orders the provider organization places as a consumer.
+    provider_customers = get_connected_provider_customers_by_permission(
+        user, PermissionEnum.LIST_ORDERS
+    )
     connected_offerings = get_connected_offerings_by_permission(
         user, PermissionEnum.LIST_ORDERS
     )
     return queryset.filter(
         Q(project__in=connected_projects)
         | Q(project__customer__in=connected_customers)
-        | Q(offering__customer__in=connected_customers)
+        | Q(offering__customer__in=provider_customers)
         | Q(offering__in=connected_offerings)
     )
 

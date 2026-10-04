@@ -722,7 +722,14 @@ class OrderApprovalByProviderNotificationTest(test.APITestCase):
 
     def test_service_manager(self):
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
-        self.check_notification(self.fixture.service_manager)
+        manager = structure_factories.UserFactory()
+        self.fixture.service_provider.add_user(manager, ServiceProviderRole.MANAGER)
+        self.check_notification(manager)
+
+    def test_organization_without_service_provider(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.fixture.service_provider.delete()
+        self.check_notification(self.fixture.offering_owner)
 
     def check_notification(self, user):
         structure_factories.NotificationFactory(
