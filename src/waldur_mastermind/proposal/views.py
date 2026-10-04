@@ -242,6 +242,12 @@ def validate_purchase_orders_present(proposal):
         )
 
 
+def validate_proposal_manager_present(proposal):
+    """A proposal is submitted with at least one proposal manager."""
+    if not proposal.has_proposal_manager():
+        raise exceptions.ValidationError(models.MISSING_PROPOSAL_MANAGER_MESSAGE)
+
+
 def validate_requested_amounts_present(proposal):
     """No requested resource may ask for an offering without naming an amount.
 
@@ -3097,6 +3103,8 @@ class ProposalViewSet(
                     )
                 ),
                 _latest_step_status=Subquery(latest_step_status),
+                # Read by can_submit.
+                _has_proposal_manager=models.has_proposal_manager_expression(),
             )
             # ProposalSerializer.can_submit reads every requested resource, its
             # call entry and the offering's components. Prefetched here for the
@@ -3108,6 +3116,13 @@ class ProposalViewSet(
             )
             .order_by("created")
         )
+
+    def can_manage_role_by_oversight(self, scope, role, request):
+        # Those overseeing the call manage the proposal team as an
+        # organisation owner manages a project team, without a role on it.
+        # The proposal's state and the roles only its managers may hand out
+        # are decided by guard_proposal_team_change.
+        return proposal_permissions.oversees_proposal_call(request, scope)
 
     def can_view_scope_team(self, user, proposal):
         # Core walks the proposal's customer/project tree, which misses users
@@ -3188,7 +3203,7 @@ class ProposalViewSet(
             return
 
         if permissions_utils.has_permission(
-            request, PermissionEnum.MANAGE_PROPOSAL, obj
+            request, PermissionEnum.UPDATE_PROPOSAL, obj
         ):
             return
 
@@ -3211,9 +3226,9 @@ class ProposalViewSet(
         )
 
     checklist_permissions = [_checklist_view_permission]
-    completion_status_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
-    # Only proposal managers can submit answers
-    submit_answers_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
+    completion_status_permissions = [permission_factory(PermissionEnum.UPDATE_PROPOSAL)]
+    # Only those who may edit the proposal (managers, administrators) answer it
+    submit_answers_permissions = [permission_factory(PermissionEnum.UPDATE_PROPOSAL)]
 
     # ReviewerChecklistMixin permissions - for proposal reviewers
     # Custom permission for compliance checklists (call managers only) or regular proposal review permissions
@@ -3244,15 +3259,8 @@ class ProposalViewSet(
     checklist_review_permissions = [_compliance_checklist_permission]
     completion_review_status_permissions = [_compliance_checklist_permission]
 
-    def is_creator(request, view, obj=None):
-        if not obj:
-            return
-        user = request.user
-        if obj.created_by == user or user.is_staff:
-            return
-        raise exceptions.PermissionDenied()
-
-    destroy_permissions = update_project_details_permissions = [is_creator]
+    destroy_permissions = [proposal_permissions.can_manage_proposal]
+    update_project_details_permissions = [proposal_permissions.can_update_proposal]
 
     destroy_validators = update_project_details_validators = [
         core_validators.StateValidator(ProposalStates.DRAFT)
@@ -3349,9 +3357,10 @@ class ProposalViewSet(
         validate_project_details_complete,
         validate_requested_amounts_present,
         validate_purchase_orders_present,
+        validate_proposal_manager_present,
     ]
 
-    submit_permissions = [is_creator]
+    submit_permissions = [proposal_permissions.can_manage_proposal]
 
     def perform_create(self, serializer):
         # Validate user eligibility against call restrictions before creating proposal
@@ -3387,6 +3396,7 @@ class ProposalViewSet(
         return self.action_list_method("requestedresource_set")(self, request, uuid)
 
     resources_serializer_class = serializers.RequestedResourceSerializer
+    resources_permissions = [proposal_permissions.can_update_proposal_attachments]
 
     @extend_schema(
         responses={status.HTTP_200_OK: serializers.RequestedResourceSerializer}
@@ -3405,6 +3415,7 @@ class ProposalViewSet(
         )(self, request, uuid, obj_uuid)
 
     resource_detail_serializer_class = serializers.RequestedResourceSerializer
+    resource_detail_permissions = [proposal_permissions.can_update_proposal_attachments]
 
     @extend_schema(
         methods=["post"],
@@ -3455,6 +3466,9 @@ class ProposalViewSet(
     resource_purchase_order_serializer_class = (
         serializers.RequestedResourcePurchaseOrderSerializer
     )
+    resource_purchase_order_permissions = [
+        proposal_permissions.can_update_proposal_attachments
+    ]
 
     @extend_schema(
         description="Attach document to proposal.",
@@ -3480,6 +3494,7 @@ class ProposalViewSet(
         return response.Response(status=status.HTTP_200_OK)
 
     attach_document_serializer_class = serializers.ProposalDocumentationSerializer
+    attach_document_permissions = [proposal_permissions.can_update_proposal_attachments]
 
     # Workflow Step Endpoints
 
@@ -3875,6 +3890,9 @@ class ProposalViewSet(
         )
 
     detach_documents_serializer_class = serializers.ProposalDetachDocumentsSerializer
+    detach_documents_permissions = [
+        proposal_permissions.can_update_proposal_attachments
+    ]
 
     # NOTE: the legacy one-click `approve`/`reject` actions were removed — every
     # proposal is now driven through the workflow engine (complete/advance/reject

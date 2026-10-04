@@ -338,6 +338,15 @@
   scope: proposal
   permissions:
     - PROPOSAL.MANAGE
+    - PROPOSAL.UPDATE
+    - PROPOSAL.UPDATE_PERMISSION
+    - PROPOSAL.DELETE_PERMISSION
+
+- role: PROPOSAL.ADMIN
+  description: Proposal administrator
+  scope: proposal
+  permissions:
+    - PROPOSAL.UPDATE
 
 - role: PROPOSAL.MEMBER
   description: Proposal member

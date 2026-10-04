@@ -24,7 +24,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.mixins import PermissionMixin
-from waldur_core.permissions.models import Role
+from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -70,6 +70,11 @@ from waldur_mastermind.proposal.enums import (
 from . import managers
 
 logger = logging.getLogger(__name__)
+
+MISSING_PROPOSAL_MANAGER_MESSAGE = _(
+    "A proposal needs at least one proposal manager to be submitted. Grant the "
+    "proposal manager role to one of the team members."
+)
 
 EVALUATION_START_LOCKED_MESSAGE = _(
     "Cannot change when evaluation starts while the call has proposals that "
@@ -656,6 +661,16 @@ class CallWorkflowStepNotificationRule(
         ),
     )
     is_enabled = models.BooleanField(default=True)
+    notified_proposal_roles = models.ManyToManyField(
+        Role,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "Only for an applicant audience: the proposal roles whose holders "
+            "are notified. Empty notifies the proposal creator and every "
+            "member of the proposal team."
+        ),
+    )
 
     class Meta:
         unique_together = ("workflow_step", "trigger", "recipient")
@@ -952,6 +967,25 @@ class ProposalDocumentation(
     )
 
 
+def has_proposal_manager_expression():
+    """``Exists`` over a proposal's active proposal manager grants.
+
+    For querysets that serialise ``can_submit`` for many proposals at once;
+    ``Proposal.has_proposal_manager`` reads the annotation when present.
+    """
+    return models.Exists(
+        UserRole.objects.filter(
+            # Matched by natural key rather than a ContentType lookup, so
+            # building the queryset touches no database (schema generation).
+            content_type__app_label="proposal",
+            content_type__model="proposal",
+            object_id=models.OuterRef("pk"),
+            is_active=True,
+            role__name=RoleEnum.PROPOSAL_MANAGER,
+        )
+    )
+
+
 def filter_proposals(user):
     return (
         Q(created_by=user)
@@ -1150,6 +1184,14 @@ class Proposal(
                 missing.add(offering.name)
         return sorted(missing)
 
+    def has_proposal_manager(self) -> bool:
+        annotated = getattr(self, "_has_proposal_manager", None)
+        if annotated is not None:
+            return annotated
+        return UserRole.objects.filter(
+            scope=self, is_active=True, role__name=RoleEnum.PROPOSAL_MANAGER
+        ).exists()
+
     def can_submit(self):
         """Whether the proposal may leave draft, and why not when it may not.
 
@@ -1171,6 +1213,9 @@ class Proposal(
                 "A purchase order is required for the following offerings: "
                 "%(offerings)s."
             ) % {"offerings": ", ".join(missing_orders)}
+
+        if not self.has_proposal_manager():
+            return False, MISSING_PROPOSAL_MANAGER_MESSAGE
 
         return True, None
 

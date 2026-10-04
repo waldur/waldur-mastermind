@@ -9,7 +9,11 @@ class ProposalConfig(AppConfig):
     def ready(self):
         from waldur_core.logging import event_dispatch
         from waldur_core.permissions import signals as permission_signals
-        from waldur_core.permissions.utils import register_expiration_guard
+        from waldur_core.permissions.utils import (
+            register_expiration_guard,
+            register_role_change_guard,
+        )
+        from waldur_core.users.utils import register_invitation_scope_overseer
 
         from . import event_publishing, handlers, models
 
@@ -17,6 +21,20 @@ class ProposalConfig(AppConfig):
             handlers.clear_panel_chair_on_role_revoked,
             dispatch_uid="waldur_mastermind.proposal.clear_panel_chair_on_role_revoked",
         )
+
+        register_role_change_guard(handlers.guard_proposal_team_change)
+        register_invitation_scope_overseer(handlers.oversees_proposal_invitations)
+        # A proposal never loses its last manager to expiry either.
+        register_expiration_guard(handlers.is_last_proposal_manager_role)
+        for signal, handler in (
+            (permission_signals.role_granted, handlers.log_team_role_granted),
+            (permission_signals.role_updated, handlers.log_team_role_updated),
+            (permission_signals.role_revoked, handlers.log_team_role_revoked),
+        ):
+            signal.connect(
+                handler,
+                dispatch_uid=f"waldur_mastermind.proposal.{handler.__name__}",
+            )
 
         # Submitted-proposal team roles must not be auto-revoked on expiration.
         register_expiration_guard(handlers.is_submitted_proposal_role)
@@ -36,6 +54,11 @@ class ProposalConfig(AppConfig):
             handlers.seed_workflow_steps,
             sender=models.Call,
             dispatch_uid="waldur_mastermind.proposal.seed_workflow_steps",
+        )
+        signals.post_save.connect(
+            handlers.seed_project_role_mappings,
+            sender=models.Call,
+            dispatch_uid="waldur_mastermind.proposal.seed_project_role_mappings",
         )
         signals.post_save.connect(
             handlers.seed_proposal_field_config,

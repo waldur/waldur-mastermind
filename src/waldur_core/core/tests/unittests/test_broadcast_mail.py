@@ -1,10 +1,12 @@
 from smtplib import SMTPRecipientsRefused
 from unittest import mock
 
+from django.core import mail
 from django.test import TestCase
 
 from waldur_core.core import utils
 from waldur_core.core.models import Notification
+from waldur_core.logging.models import EmailLog
 
 
 @mock.patch("waldur_core.core.utils.render_to_string", return_value="html")
@@ -77,3 +79,86 @@ class DroppedNotificationIsLoggedTest(TestCase):
         mock_send_mail.assert_not_called()
         self.assertTrue(any("app.event" in line for line in logs.output))
         self.assertTrue(any("not registered" in line for line in logs.output))
+
+
+@mock.patch("waldur_core.core.utils.render_to_string", return_value="html")
+@mock.patch("waldur_core.core.utils.format_text", return_value="text")
+@mock.patch("waldur_core.core.utils.find_template_from_registry", return_value="path")
+class BroadcastMailSingleMessageTest(TestCase):
+    """single_message turns the broadcast into one message everyone can see."""
+
+    def setUp(self):
+        Notification.objects.create(key="app.event", enabled=True)
+        mail.outbox = []
+
+    def test_by_default_every_recipient_gets_a_private_copy(self, *mocks):
+        utils.broadcast_mail("app", "event", {}, ["a@example.com", "b@example.com"])
+
+        self.assertEqual(
+            [message.to for message in mail.outbox],
+            [["a@example.com"], ["b@example.com"]],
+        )
+
+    def test_by_default_non_string_recipients_still_work(self, *mocks):
+        # Some callers pass objects rather than address strings; the default
+        # path hands them on without inspecting them.
+        recipient = type("User", (), {"__str__": lambda self: "u@example.com"})()
+        with mock.patch.object(utils, "send_mail") as send_mail:
+            utils.broadcast_mail("app", "event", {}, [recipient, recipient])
+        self.assertEqual(send_mail.call_count, 2)
+
+    def test_single_message_addresses_everyone_in_to(self, *mocks):
+        utils.broadcast_mail(
+            "app",
+            "event",
+            {},
+            ["a@example.com", "b@example.com"],
+            single_message=True,
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["a@example.com", "b@example.com"])
+        self.assertEqual(mail.outbox[0].cc, [])
+
+    def test_single_message_lists_each_mailbox_once(self, *mocks):
+        utils.broadcast_mail(
+            "app",
+            "event",
+            {},
+            ["a@example.com", "A@Example.com", "b@example.com", ""],
+            single_message=True,
+        )
+
+        self.assertEqual(mail.outbox[0].to, ["a@example.com", "b@example.com"])
+
+    def test_single_message_is_logged_with_every_recipient(self, *mocks):
+        utils.broadcast_mail(
+            "app",
+            "event",
+            {},
+            ["a@example.com", "b@example.com"],
+            single_message=True,
+        )
+
+        log = EmailLog.objects.get()
+        self.assertEqual(log.emails, ["a@example.com", "b@example.com"])
+
+    def test_single_message_with_non_string_recipients(self, *mocks):
+        # Recipients that are not address strings are compared by their
+        # string form, as the mail backend renders them.
+        recipient = type("User", (), {"__str__": lambda self: "u@example.com"})()
+        with mock.patch.object(utils, "send_mail") as send_mail:
+            utils.broadcast_mail(
+                "app",
+                "event",
+                {},
+                [recipient, "U@example.com", "c@example.com"],
+                single_message=True,
+            )
+        send_mail.assert_called_once()
+        self.assertEqual(send_mail.call_args.kwargs["to"], [recipient, "c@example.com"])
+
+    def test_single_message_without_recipients_sends_nothing(self, *mocks):
+        utils.broadcast_mail("app", "event", {}, [], single_message=True)
+
+        self.assertEqual(mail.outbox, [])

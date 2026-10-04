@@ -17,8 +17,10 @@ from waldur_core.core import models as core_models
 from waldur_core.core.mixins import ProjectNameTemplateMixin
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import (
+    RoleChange,
     add_user,
     has_user,
+    validate_role_change,
     validate_role_grant,
 )
 from waldur_core.structure.models import Customer, Project
@@ -206,6 +208,11 @@ class Invitation(
         )
 
     def accept(self, user):
+        # The role is granted on the inviter's authority, so the change is
+        # checked as theirs.
+        validate_role_change(
+            self.scope, self.role, self.created_by, RoleChange.GRANT, user=user
+        )
         validate_role_grant(self.scope, user, self.role)
         add_user(self.scope, user, self.role, self.created_by)
 
@@ -297,6 +304,7 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         if has_user(scope, self.created_by, role, match_clones=False):
             return {"project": created_project, "project_created": project_created}
 
+        validate_role_change(scope, role, user, RoleChange.GRANT, user=self.created_by)
         validate_role_grant(scope, self.created_by, role)
 
         permission = add_user(

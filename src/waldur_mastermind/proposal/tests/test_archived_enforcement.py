@@ -121,6 +121,7 @@ class ArchivedCallEnforcementTest(test.APITestCase):
     # --- role mappings ----------------------------------------------------
 
     def test_add_role_mapping_rejected_when_archived(self):
+        self.call.proposalprojectrolemapping_set.all().delete()
         self.archive()
         url = factories.ProposalProjectRoleMappingFactory.get_list_url()
         payload = {
@@ -134,6 +135,7 @@ class ArchivedCallEnforcementTest(test.APITestCase):
         )
 
     def test_delete_role_mapping_rejected_when_archived(self):
+        self.call.proposalprojectrolemapping_set.all().delete()
         mapping = factories.ProposalProjectRoleMappingFactory(
             call=self.call,
             proposal_role=ProposalRole.MEMBER,

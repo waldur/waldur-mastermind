@@ -67,6 +67,7 @@ class AllocateProposalTest(test.APITestCase):
         return has_user(self.proposal.project, user, project_role)
 
     def test_mapped_roles_are_added_to_the_project_on_allocation(self):
+        self.fixture.call.proposalprojectrolemapping_set.all().delete()
         models.ProposalProjectRoleMapping.objects.create(
             call=self.fixture.call,
             project_role=ProjectRole.MEMBER,
@@ -77,6 +78,7 @@ class AllocateProposalTest(test.APITestCase):
         )
 
     def test_unmapped_roles_are_not_added_to_the_project_on_allocation(self):
+        self.fixture.call.proposalprojectrolemapping_set.all().delete()
         models.ProposalProjectRoleMapping.objects.create(
             call=self.fixture.call,
             proposal_role=ProposalRole.MANAGER,

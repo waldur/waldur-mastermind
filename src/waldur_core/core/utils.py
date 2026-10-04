@@ -292,6 +292,32 @@ def send_mail(
     return result
 
 
+def _unique_recipients(recipient_list) -> list:
+    """Recipients without blanks or repeats, compared case-insensitively.
+
+    Recipients are compared by their string form, which is what the mail
+    backend makes of a recipient that is not an address string.
+    """
+    seen = set()
+    result = []
+    for recipient in recipient_list:
+        key = str(recipient).lower() if recipient else ""
+        if key and key not in seen:
+            seen.add(key)
+            result.append(recipient)
+    return result
+
+
+def _send_single_message(event_type, subject, text_message, html_message, to, **kwargs):
+    if not to:
+        return
+    logger.info(f"About to send {event_type} notification to {to} in one message")
+    try:
+        send_mail(subject, text_message, to=to, html_message=html_message, **kwargs)
+    except Exception:
+        logger.exception(f"Failed to send {event_type} notification to {to}")
+
+
 def broadcast_mail(
     app,
     event_type,
@@ -303,6 +329,7 @@ def broadcast_mail(
     bcc=None,
     template_variant=None,
     headers=None,
+    single_message=False,
 ):
     """
     Shorthand to format email message from template file and sent it to all recipients.
@@ -332,6 +359,9 @@ def broadcast_mail(
         The notification, and therefore the operator's on/off switch, is still
         the one named by ``event_type``.
     :param headers: extra message headers passed on to every recipient's copy.
+    :param single_message: send one message with every recipient in To, so
+        each sees who else received it, instead of a private copy each. Each
+        mailbox is addressed once, compared case-insensitively.
     """
     from .models import Notification
 
@@ -366,6 +396,21 @@ def broadcast_mail(
         subject = format_text(subject_template_name, context)
         text_message = format_text(text_template_name, context)
         html_message = render_to_string(html_template_name, context)
+
+        if single_message:
+            _send_single_message(
+                event_type,
+                subject,
+                text_message,
+                html_message,
+                _unique_recipients(recipient_list),
+                filename=filename,
+                attachment=attachment,
+                content_type=content_type,
+                bcc=bcc,
+                headers=headers,
+            )
+            return
 
         # One shared SMTP connection for the whole batch (a fresh connection
         # per recipient can trip relay rate limits), and per-recipient error

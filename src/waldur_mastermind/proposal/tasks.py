@@ -1274,7 +1274,12 @@ def _step_event_context(instance, trigger, audience_is_applicant, days_before=No
 
 
 def _send_step_event(instance, trigger, rules, days_before=None):
-    """One mail per rule audience. Recipients addressed by several rules get one copy."""
+    """One mail per rule audience. Recipients addressed by several rules get one copy.
+
+    An applicant audience gets one message with every recipient in To, so the
+    proposal team sees who was told; any other audience gets a private copy
+    each.
+    """
     already_addressed = set()
     for rule in rules:
         users = notification_rules.resolve_recipients(rule, instance.proposal)
@@ -1282,13 +1287,17 @@ def _send_step_event(instance, trigger, rules, days_before=None):
         if not emails:
             continue
         already_addressed.update(emails)
+        is_applicant = notification_rules.is_applicant_audience(rule, instance.proposal)
         context = _step_event_context(
-            instance,
-            trigger,
-            notification_rules.is_applicant_audience(rule, instance.proposal),
-            days_before=days_before,
+            instance, trigger, is_applicant, days_before=days_before
         )
-        core_utils.broadcast_mail("proposal", "workflow_step_event", context, emails)
+        core_utils.broadcast_mail(
+            "proposal",
+            "workflow_step_event",
+            context,
+            emails,
+            single_message=is_applicant,
+        )
 
 
 @shared_task(name="waldur_mastermind.proposal.notify_workflow_step_event")

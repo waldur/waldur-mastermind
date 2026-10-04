@@ -116,3 +116,10 @@ class ProposalRole:
             RoleEnum.PROPOSAL_MANAGER,
             content_type=ContentType.objects.get_by_natural_key("proposal", "proposal"),
         )
+
+    @classproperty
+    def ADMIN(self):
+        return Role.objects.get_system_role(
+            RoleEnum.PROPOSAL_ADMIN,
+            content_type=ContentType.objects.get_by_natural_key("proposal", "proposal"),
+        )

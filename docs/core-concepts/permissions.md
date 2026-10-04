@@ -100,8 +100,35 @@ The platform includes several predefined system roles:
 
 - `CALL.REVIEWER` - Review proposals in calls
 - `CALL.MANAGER` - Manage calls for proposals
-- `PROPOSAL.MEMBER` - Proposal team member
-- `PROPOSAL.MANAGER` - Proposal management
+- `PROPOSAL.MANAGER` - Proposal manager: the principal investigator. Edits,
+  submits and deletes the proposal and adds, re-roles and removes its team
+  members (`PROPOSAL.MANAGE`, `PROPOSAL.UPDATE`, `PROPOSAL.UPDATE_PERMISSION`,
+  `PROPOSAL.DELETE_PERMISSION`)
+- `PROPOSAL.ADMIN` - Proposal administrator: a co-investigator who edits the
+  proposal (details, requested resources, documents, checklist answers) but
+  neither submits it nor changes its team (`PROPOSAL.UPDATE`)
+- `PROPOSAL.MEMBER` - Proposal team member, read-only
+
+The proposal team follows a few rules:
+
+- A proposal needs at least one active `PROPOSAL.MANAGER` to be submitted, and
+  the last one cannot be revoked. Nor does it expire: the expiry sweep keeps
+  the grant and logs a warning.
+- Those who may update the proposal's call (`CALL.MANAGER` on the call,
+  `CUSTOMER.CALL_ORGANIZER` on its managing organisation) manage the proposal
+  team without a role on it, as an organisation owner manages a project team.
+  This includes inviting people to the proposal by email.
+- `PROPOSAL.MANAGER` and `PROPOSAL.ADMIN` are granted and revoked (directly,
+  by invitation or through a permission request) only by the proposal's
+  managers, by call managers and organisers, and by staff. A custom role
+  carrying the team permissions may manage the other roles only.
+- Nobody changes their own proposal role, staff included (on other scopes staff
+  and organisation owners may). Creating a proposal still makes its author a
+  `PROPOSAL.MANAGER`.
+- Once the proposal leaves draft, its team is frozen: the applicant can no
+  longer change it. Staff, call managers and call organisers may still change
+  any role, and every such change is recorded as a
+  `proposal_team_changed_after_submission` event on the proposal.
 
 ### Role Features
 

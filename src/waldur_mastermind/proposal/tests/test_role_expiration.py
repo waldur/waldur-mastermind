@@ -33,6 +33,10 @@ class ProposalRoleExpirationTest(TestCase):
         self.assertTrue(permission.is_active)
 
     def test_draft_proposal_role_is_auto_revoked(self):
+        # Another manager remains, so the proposal does not lose its last one.
+        self.fixture.proposal.add_user(
+            structure_factories.UserFactory(), ProposalRole.MANAGER
+        )
         permission = self._grant_expired(self.fixture.proposal, ProposalRole.MANAGER)
 
         check_expired_permissions()

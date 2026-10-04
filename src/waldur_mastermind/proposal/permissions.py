@@ -6,6 +6,7 @@ from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import (
     check_pat_support_scope,
     get_users,
+    has_permission,
     has_permission_on_any_source,
     permission_factory,
 )
@@ -28,6 +29,77 @@ user_can_accept_requested_offering = permission_factory(
 # accept either, so the traversal is named once here rather than restated (and
 # forgotten) per call site.
 CALL_PERMISSION_SOURCES = ["*", "manager"]
+
+
+def oversees_proposal_call(request_or_user, proposal) -> bool:
+    """Whether the user may update the proposal's call.
+
+    Staff, a call manager on the call or a call organiser on its managing
+    organisation. These may change who manages a proposal at any time, and
+    are the only ones besides staff who may once the proposal is submitted.
+    """
+    if request_or_user is None:
+        return False
+    return has_permission_on_any_source(
+        request_or_user,
+        PermissionEnum.UPDATE_CALL,
+        proposal.round.call,
+        CALL_PERMISSION_SOURCES,
+    )
+
+
+def _holds_on_proposal(request, permission, proposal) -> bool:
+    user = request.user
+    return (
+        user.is_staff
+        or proposal.created_by_id == user.id
+        or has_permission(request, permission, proposal)
+    )
+
+
+def can_update_proposal(request, view, obj=None):
+    """Edit a proposal's own content: its creator, its managers and
+    administrators (PROPOSAL.UPDATE), and staff."""
+    if obj is None:
+        return
+    if not _holds_on_proposal(request, PermissionEnum.UPDATE_PROPOSAL, obj):
+        raise exceptions.PermissionDenied()
+
+
+def can_update_proposal_attachments(request, view, obj=None):
+    """Change a proposal's requested resources and documents.
+
+    As ``can_update_proposal``, and those overseeing the call may also adjust
+    them. Reads stay open to everyone who can see the proposal.
+    """
+    if obj is None or request.method in permissions.SAFE_METHODS:
+        return
+    if _holds_on_proposal(
+        request, PermissionEnum.UPDATE_PROPOSAL, obj
+    ) or oversees_proposal_call(request, obj):
+        return
+    raise exceptions.PermissionDenied()
+
+
+def can_manage_proposal(request, view, obj=None):
+    """Submit or delete a proposal: its creator, its managers
+    (PROPOSAL.MANAGE), and staff."""
+    if obj is None:
+        return
+    if not _holds_on_proposal(request, PermissionEnum.MANAGE_PROPOSAL, obj):
+        raise exceptions.PermissionDenied()
+
+
+def is_active_proposal_manager(user, proposal) -> bool:
+    """Whether ``user`` holds the proposal manager role on ``proposal``."""
+    if user is None:
+        return False
+    return permissions_models.UserRole.objects.filter(
+        scope=proposal,
+        user=user,
+        is_active=True,
+        role__name=RoleEnum.PROPOSAL_MANAGER,
+    ).exists()
 
 
 def support_can_read(check):

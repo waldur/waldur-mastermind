@@ -119,6 +119,16 @@ def _role_ref(role):
     return {"name": role.name}
 
 
+def _dump_rule(rule):
+    return {
+        **_dump(rule),
+        "notified_proposal_roles": [
+            _role_ref(role)
+            for role in sorted(rule.notified_proposal_roles.all(), key=lambda r: r.name)
+        ],
+    }
+
+
 def _export_document(document, warnings):
     if not document.file:
         return None
@@ -212,7 +222,7 @@ def export_call(call, sections=None):
             {
                 **_dump(step),
                 "checklist": _checklist_ref(step.checklist),
-                "notification_rules": [_dump(r) for r in step.ordered_rules],
+                "notification_rules": [_dump_rule(r) for r in step.ordered_rules],
                 "criteria": [_dump(c) for c in step.ordered_criteria],
             }
             for step in call.workflow_steps.select_related("checklist")
@@ -221,7 +231,7 @@ def export_call(call, sections=None):
                     "notification_rules",
                     queryset=models.CallWorkflowStepNotificationRule.objects.order_by(
                         "trigger", "recipient", "id"
-                    ),
+                    ).prefetch_related("notified_proposal_roles"),
                     to_attr="ordered_rules",
                 ),
                 Prefetch(
@@ -614,6 +624,22 @@ class _Importer:
                 )
                 self._validate(rule, r_context)
                 rule.save()
+                roles = []
+                for role_index, ref in enumerate(
+                    self._list(
+                        rule_values.get("notified_proposal_roles"),
+                        f"{r_context}.notified_proposal_roles",
+                    )
+                ):
+                    role = self._role(
+                        ref,
+                        models.Proposal,
+                        "Proposal",
+                        f"{r_context}.notified_proposal_roles[{role_index}]",
+                    )
+                    if role:
+                        roles.append(role)
+                rule.notified_proposal_roles.set(roles)
 
             step.criteria.all().delete()
             criteria = self._list(values.get("criteria"), f"{context}.criteria")
@@ -647,6 +673,8 @@ class _Importer:
         self.mark_imported(section, count)
 
     def _import_role_mappings(self, call):
+        # The document's mappings replace the defaults the call was seeded with.
+        call.proposalprojectrolemapping_set.all().delete()
         count = 0
         for index, values in enumerate(
             self._list(self.data["role_mappings"], "role_mappings")
@@ -688,6 +716,7 @@ _NESTED_KEYS = frozenset(
         "resource_templates",
         "checklist",
         "notification_rules",
+        "notified_proposal_roles",
         "criteria",
         _CALL_REFERENCE_CODE,
     }

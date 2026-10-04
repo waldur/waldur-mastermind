@@ -3,6 +3,7 @@ import uuid
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Value
 from django.db.models.functions import Coalesce, Lower, NullIf
 from django.utils.translation import gettext_lazy as _
@@ -654,6 +655,15 @@ class UserRoleMixin:
         """
         return _user_can_view_scope_team(user, scope)
 
+    def can_manage_role_by_oversight(self, scope, role, request) -> bool:
+        """Whether the requester may grant, update or revoke ``role`` in
+        ``scope`` without the scope's team permission, because they oversee
+        the scope.
+
+        Refused everywhere by default.
+        """
+        return False
+
     @extend_schema(
         summary="List users and their roles in a scope",
         description="Retrieves a list of users who have a role within a specific scope (e.g., a project or an organization). The list can be filtered by user details or role.",
@@ -873,7 +883,8 @@ class UserRoleMixin:
         validate_scope_not_soft_deleted(scope)
 
         serializer = serializers.UserRoleCreateSerializer(
-            data=request.data, context={"scope": scope, "request": request}
+            data=request.data,
+            context={"scope": scope, "request": request, "view": self},
         )
         serializer.is_valid(raise_exception=True)
 
@@ -931,7 +942,8 @@ class UserRoleMixin:
         validate_scope_not_soft_deleted(scope)
 
         serializer = serializers.UserRoleUpdateSerializer(
-            data=request.data, context={"scope": scope, "request": request}
+            data=request.data,
+            context={"scope": scope, "request": request, "view": self},
         )
         serializer.is_valid(raise_exception=True)
 
@@ -972,20 +984,25 @@ class UserRoleMixin:
         validate_scope_not_soft_deleted(scope)
 
         serializer = serializers.UserRoleDeleteSerializer(
-            data=request.data, context={"scope": scope, "request": request}
+            data=request.data,
+            context={"scope": scope, "request": request, "view": self},
         )
-        serializer.is_valid(raise_exception=True)
+        # One transaction for check and write, so a guard that locks the scope
+        # while validating (e.g. to keep a last holder) holds it until the
+        # revocation is stored.
+        with transaction.atomic():
+            serializer.is_valid(raise_exception=True)
 
-        target_user = serializer.validated_data["user"]
-        role = serializer.validated_data["role"]
+            target_user = serializer.validated_data["user"]
+            role = serializer.validated_data["role"]
 
-        delete_user(
-            scope,
-            target_user,
-            role,
-            request.user,
-            reason="Manual user removal via delete_user API endpoint",
-        )
+            delete_user(
+                scope,
+                target_user,
+                role,
+                request.user,
+                reason="Manual user removal via delete_user API endpoint",
+            )
         return Response(status=status.HTTP_200_OK)
 
 

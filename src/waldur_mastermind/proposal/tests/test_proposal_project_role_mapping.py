@@ -14,6 +14,8 @@ class ProposalProjectRoleMappingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.call = self.fixture.call
+        # Start without the mappings a new call is seeded with.
+        self.call.proposalprojectrolemapping_set.all().delete()
         self.url = factories.ProposalProjectRoleMappingFactory.get_list_url()
         self.call_protected_url = factories.CallFactory.get_protected_url(self.call)
 
@@ -104,6 +106,8 @@ class ProposalProjectRoleMappingVisibilityTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.other_fixture = fixtures.ProposalFixture()
+        # Start without the mappings a new call is seeded with.
+        models.ProposalProjectRoleMapping.objects.all().delete()
         self.url = factories.ProposalProjectRoleMappingFactory.get_list_url()
         self.mapping = models.ProposalProjectRoleMapping.objects.create(
             call=self.fixture.call,

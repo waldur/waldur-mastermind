@@ -502,6 +502,7 @@ class CanSubmitReportingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
+        self.proposal.add_user(self.proposal.created_by, ProposalRole.MANAGER)
         self.requested_offering = factories.RequestedOfferingFactory(
             call=self.fixture.call, offering=self.fixture.offering
         )
@@ -575,9 +576,10 @@ class CanSubmitQueryCountTest(test.APITestCase):
             )
 
     def _queries_now(self):
+        # As ProposalViewSet.get_queryset prepares it.
         queryset = models.Proposal.objects.prefetch_related(
             "requestedresource_set__requested_offering__offering__components"
-        )
+        ).annotate(_has_proposal_manager=models.has_proposal_manager_expression())
         with CaptureQueriesContext(connection) as captured:
             for proposal in queryset:
                 proposal.can_submit()
