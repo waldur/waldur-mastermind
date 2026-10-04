@@ -399,6 +399,7 @@ class _MergeContext:
         self._check_plan_mapping()
         self._check_component_mapping()
         self._map_plan_components()
+        self._check_metric_data()
         self._check_pending_orders()
         self._check_creation_issues()
         self._plan_writes()
@@ -480,6 +481,41 @@ class _MergeContext:
             )
 
     # --- Mappings -----------------------------------------------------------
+
+    def _check_metric_data(self):
+        """Custom metrics stay with the source offering for now.
+
+        A moved resource's series would point at an adoption on an offering it
+        no longer belongs to. Until metrics are mapped by definition key the
+        way components are, a merge that would strand reported data is
+        blocked.
+        """
+        from waldur_mastermind.marketplace_metrics import models as metrics_models
+
+        stranded = metrics_models.MetricSeries.objects.filter(
+            offering_metric__offering__in=self.sources
+        ).count()
+        if stranded:
+            self.blockers.append(
+                _issue(
+                    "metric_data_present",
+                    "Source offering has reported custom metric data; merging "
+                    "would detach it from the offering's metrics.",
+                    count=stranded,
+                )
+            )
+        goals = metrics_models.MetricGoal.objects.filter(
+            offering_metric__offering__in=self.sources
+        ).count()
+        if goals:
+            self.blockers.append(
+                _issue(
+                    "metric_goals_present",
+                    "Source offering's custom metrics have goals; merging would "
+                    "leave them on metrics the moved resources no longer report.",
+                    count=goals,
+                )
+            )
 
     def _check_plan_mapping(self):
         raw = self.merge.plan_mapping

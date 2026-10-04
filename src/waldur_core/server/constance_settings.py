@@ -1714,6 +1714,31 @@ CONSTANCE_CONFIG = {
         6,
         "Billing export check interval in hours for reconciliation",
     ),
+    # Custom metrics
+    "METRICS_LATE_DATA_DAYS": (
+        7,
+        "How many days back a reported metric point may be timestamped.",
+    ),
+    "METRICS_MAX_SERIES_PER_RESOURCE_METRIC": (
+        500,
+        "Most attribute combinations one resource may report for one metric.",
+    ),
+    "METRICS_MAX_POINTS_PER_REQUEST": (
+        10000,
+        "Most metric points accepted in a single report request.",
+    ),
+    "METRICS_MAX_OTLP_BODY_BYTES": (
+        20 * 1024 * 1024,
+        "Largest OTLP metrics body accepted, after decompression, in bytes.",
+    ),
+    "METRICS_DEFAULT_RETENTION_POLICY": (
+        "standard",
+        "Name of the retention policy used by metric definitions that set none.",
+    ),
+    "METRICS_ARCHIVE_GRACE_DAYS": (
+        30,
+        "Days an archived offering metric keeps its data before it is purged.",
+    ),
     # Usage polling settings
     "USAGE_POLL_RECORD_RETENTION_MONTHS": (
         3,
@@ -2287,6 +2312,14 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "SLURM Policy": ("SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS",),
     "Usage Polling": ("USAGE_POLL_RECORD_RETENTION_MONTHS",),
+    "Custom Metrics": (
+        "METRICS_LATE_DATA_DAYS",
+        "METRICS_MAX_SERIES_PER_RESOURCE_METRIC",
+        "METRICS_MAX_POINTS_PER_REQUEST",
+        "METRICS_MAX_OTLP_BODY_BYTES",
+        "METRICS_DEFAULT_RETENTION_POLICY",
+        "METRICS_ARCHIVE_GRACE_DAYS",
+    ),
     "Identity Bridge": (
         "FEDERATED_IDENTITY_SYNC_ENABLED",
         "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES",

@@ -17,7 +17,6 @@ from waldur_mastermind.marketplace.enums import (
     SUPPORT_OFFERING,
     BillingTypes,
     ImpactLevel,
-    KpiCadences,
     OfferingStates,
     ResourceStates,
 )
@@ -1344,36 +1343,3 @@ class ResourceLimitChangeRequestFactory(
         return "http://testserver" + reverse(
             "marketplace-resource-limit-change-request-list"
         )
-
-
-class OfferingKpiFactory(
-    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.OfferingKpi]
-):
-    class Meta:
-        model = models.OfferingKpi
-
-    offering = factory.SubFactory(OfferingFactory)
-    # Sequenced: ResourceKpiValueFactory declares a KPI per datapoint, and a
-    # fixed type would collide on (type, offering) for a second value.
-    type = factory.Sequence(lambda n: "course_completions_%s" % n)
-    name = "Course completions"
-    measured_unit = "courses"
-    cadence = KpiCadences.WEEKLY
-    attribute = "course"
-
-
-class ResourceKpiValueFactory(
-    factory.django.DjangoModelFactory,
-    metaclass=BaseMetaFactory[models.ResourceKpiValue],
-):
-    class Meta:
-        model = models.ResourceKpiValue
-
-    resource = factory.SubFactory(ResourceFactory)
-    # Default to a KPI the resource's own offering declares, so the factory
-    # produces rows that pass ResourceKpiValue.clean().
-    kpi = factory.LazyAttribute(
-        lambda o: OfferingKpiFactory(offering=o.resource.offering)
-    )
-    value = 1
-    timestamp = factory.LazyFunction(timezone.now)

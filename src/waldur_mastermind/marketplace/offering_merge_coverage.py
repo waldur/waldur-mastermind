@@ -531,9 +531,9 @@ MERGE_COVERAGE: dict[str, CoverageEntry] = _entries(
         area=AREA_ACCOUNTS_AND_ACCESS,
     ),
     E(
-        "marketplace.OfferingKpi.offering",
+        "marketplace_metrics.OfferingMetric.offering",
         KEEP_ON_SOURCE,
-        "KPIs the source offering declares; the target declares its own.",
+        "Custom metrics the source adopts; a merge with reported data is blocked.",
         area=AREA_OFFERING_CONFIGURATION,
     ),
     E(

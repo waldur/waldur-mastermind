@@ -401,6 +401,7 @@ class ProjectListSerializer(serializers.ListSerializer):
             "billing_estimates": {},
             "project_credits": {},
             "project_metadata": {},
+            "project_has_metrics": set(),
         }
 
         # 1. Bulk fetch resource counts
@@ -428,6 +429,14 @@ class ProjectListSerializer(serializers.ListSerializer):
             bulk_data["project_metadata"] = self._bulk_fetch_project_metadata(
                 project_ids
             )
+
+        # 6. Bulk fetch which projects use an offering that reports metrics
+        if not requested_fields or "has_metrics" in requested_fields:
+            from waldur_mastermind.marketplace_metrics.handlers import (
+                projects_with_metrics,
+            )
+
+            bulk_data["project_has_metrics"] = projects_with_metrics(project_ids)
 
         self.context["bulk_data"] = bulk_data
         return super().to_representation(data)
