@@ -253,6 +253,16 @@ SERVICE_PROVIDER_SOURCES = ["*", "customer"]
 # and the ServiceProvider record behind it.
 OFFERING_PROVIDER_SOURCES = ["customer", "customer.serviceprovider"]
 
+# Who may report usage for an offering's resources: an offering manager on the
+# offering, an owner on its organization, a service provider manager on the
+# ServiceProvider record.
+USAGE_REPORTER_SOURCES = ["*", *OFFERING_PROVIDER_SOURCES]
+# The same, reached from a component usage.
+USER_USAGE_REPORTER_SOURCES = [
+    "resource.offering",
+    *(f"resource.offering.{source}" for source in OFFERING_PROVIDER_SOURCES),
+]
+
 # Provider side of an order: a role on the offering, on the provider
 # organization, or on its ServiceProvider (a service provider manager). The
 # consumer side (project, project.customer) is deliberately absent, so a
@@ -11519,10 +11529,11 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
             and serializer.validated_data["plan_period"].resource
             or serializer.validated_data["resource"]
         )
-        if not has_permission(
-            request, PermissionEnum.SET_RESOURCE_USAGE, resource.offering.customer
-        ) and not has_permission(
-            request, PermissionEnum.SET_RESOURCE_USAGE, resource.offering
+        if not has_permission_on_any_source(
+            request,
+            PermissionEnum.SET_RESOURCE_USAGE,
+            resource.offering,
+            USAGE_REPORTER_SOURCES,
         ):
             raise PermissionDenied()
         serializer.save()
@@ -11613,7 +11624,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     set_user_usage_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_USAGE,
-            ["resource.offering", "resource.offering.customer"],
+            USER_USAGE_REPORTER_SOURCES,
         )
     ]
 
@@ -11711,7 +11722,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     set_user_usages_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_USAGE,
-            ["resource.offering", "resource.offering.customer"],
+            USER_USAGE_REPORTER_SOURCES,
         )
     ]
 
