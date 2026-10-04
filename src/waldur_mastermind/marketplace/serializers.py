@@ -62,6 +62,7 @@ from waldur_core.permissions.utils import (
     count_users,
     get_permissions,
     has_permission,
+    has_permission_on_any_source,
 )
 from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
@@ -2028,8 +2029,13 @@ class OfferingGroupSerializer(
                 raise serializers.ValidationError(
                     {"customer": _("Customer should be a service provider.")}
                 )
-            if not has_permission(
-                self.context["request"], PermissionEnum.CREATE_OFFERING, customer
+            # A role on the organization's ServiceProvider counts as well, as it
+            # does for updating and deleting a group.
+            if not has_permission_on_any_source(
+                self.context["request"],
+                PermissionEnum.CREATE_OFFERING,
+                customer,
+                ["*", "serviceprovider"],
             ):
                 raise PermissionDenied()
         return attrs
@@ -11476,8 +11482,11 @@ class OfferingUserSerializer(
         request = self.context["request"]
         offering: models.Offering = validated_data["offering"]
 
-        if not has_permission(
-            request, PermissionEnum.CREATE_OFFERING_USER, offering.customer
+        if not has_permission_on_any_source(
+            request,
+            PermissionEnum.CREATE_OFFERING_USER,
+            offering,
+            ["customer", "customer.serviceprovider"],
         ):
             raise rf_exceptions.PermissionDenied()
 

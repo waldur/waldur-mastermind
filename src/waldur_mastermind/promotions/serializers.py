@@ -6,7 +6,8 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
-from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission_on_any_source
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.promotions import models
@@ -82,9 +83,12 @@ class CampaignSerializer(
         if (
             not user.is_staff
             and not user.is_support
-            and not service_provider.customer.has_user(user, CustomerRole.OWNER)
-            and not service_provider.customer.has_user(
-                user, ServiceProviderRole.MANAGER
+            and not has_permission_on_any_source(
+                self.context["request"],
+                PermissionEnum.MANAGE_CAMPAIGN,
+                service_provider,
+                # The same sources as the viewset's update and lifecycle checks.
+                ["customer", "*"],
             )
         ):
             raise serializers.ValidationError(

@@ -25,7 +25,8 @@ class CampaignViewSet(core_views.ActionsViewSet):
         terminate_permissions
     ) = [
         permission_factory(
-            PermissionEnum.MANAGE_CAMPAIGN, ["service_provider.customer"]
+            PermissionEnum.MANAGE_CAMPAIGN,
+            ["service_provider.customer", "service_provider"],
         )
     ]
     destroy_validators = [validators.check_resources]

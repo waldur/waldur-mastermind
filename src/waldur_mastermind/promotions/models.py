@@ -9,6 +9,7 @@ from model_utils.tracker import FieldInstanceTracker
 
 from waldur_core.core.models import DescribableMixin, NameMixin
 from waldur_core.logging.models import UuidMixin
+from waldur_mastermind.marketplace import managers as marketplace_managers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 
@@ -76,6 +77,16 @@ class Campaign(UuidMixin, DescribableMixin, NameMixin):
 
     class Permissions:
         customer_path = "service_provider__customer"
+
+        @staticmethod
+        def build_query(user):
+            # A service provider manager holds their role on the
+            # ServiceProvider, which customer_path does not reach.
+            return django_models.Q(
+                service_provider__in=marketplace_managers.get_connected_serviceproviders(
+                    user
+                )
+            )
 
     @classmethod
     def get_url_name(cls):

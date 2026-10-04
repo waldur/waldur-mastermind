@@ -8,10 +8,12 @@ Covers:
 - ?offering_group_uuid filter on the offering list endpoint.
 """
 
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.tests import factories as permission_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
@@ -109,6 +111,39 @@ class OfferingGroupCreateTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.list_url, self._payload(self.customer))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_service_provider_manager_can_create(self):
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.CREATE_OFFERING)
+        manager = structure_factories.UserFactory()
+        service_provider.add_user(manager, ServiceProviderRole.MANAGER)
+        self.client.force_authenticate(manager)
+        response = self.client.post(self.list_url, self._payload(self.customer))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_service_provider_role_without_permission_cannot_create(self):
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(models.ServiceProvider)
+        )
+        role.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS)
+        user = structure_factories.UserFactory()
+        service_provider.add_user(user, role)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.list_url, self._payload(self.customer))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_customer_role_without_permission_cannot_create(self):
+        factories.ServiceProviderFactory(customer=self.customer)
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(self.customer)
+        )
+        role.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS)
+        user = structure_factories.UserFactory()
+        self.customer.add_user(user, role)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.list_url, self._payload(self.customer))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_unrelated_user_cannot_create(self):
         factories.ServiceProviderFactory(customer=self.customer)

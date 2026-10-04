@@ -197,6 +197,7 @@ from waldur_mastermind.marketplace.managers import (
     filter_offering_permissions,
     filter_orders_for_user,
     get_connected_offerings,
+    get_connected_serviceproviders,
     get_user_resource_project_ids,
 )
 from waldur_mastermind.marketplace.utils import (
@@ -323,6 +324,12 @@ def get_allowed_offering_users_for_user(
 
     # Build base visibility conditions
     managed_offerings = get_connected_offerings(request_user)
+    # A service provider manager holds their role on the ServiceProvider, not
+    # on its customer, so managed_customers misses them. Resolved to customer
+    # ids so the outer query needs no join through the reverse one-to-one.
+    managed_provider_customers = models.ServiceProvider.objects.filter(
+        id__in=get_connected_serviceproviders(request_user)
+    ).values("customer_id")
 
     base_visibility_q = (
         Q(user=request_user)
@@ -342,6 +349,7 @@ def get_allowed_offering_users_for_user(
             # offering managers can see all offering users on offerings they manage
             Q(offering__id__in=managed_offerings)
         )
+        | Q(offering__customer_id__in=managed_provider_customers)
     )
 
     # Identity managers can see OfferingUsers whose linked user's active_isds

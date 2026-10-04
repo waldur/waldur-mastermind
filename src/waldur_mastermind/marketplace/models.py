@@ -282,6 +282,16 @@ class OfferingGroup(
     class Permissions:
         customer_path = "customer"
 
+        @staticmethod
+        def build_query(user):
+            # A service provider manager holds their role on the
+            # ServiceProvider, which customer_path does not reach.
+            return Q(
+                customer__serviceprovider__in=managers.get_connected_serviceproviders(
+                    user
+                )
+            )
+
     class Meta:
         verbose_name = _("Offering group")
         verbose_name_plural = _("Offering groups")

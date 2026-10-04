@@ -21,6 +21,7 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.permissions.tests import factories as permission_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models, serializers, utils
@@ -220,6 +221,39 @@ class CreateOfferingUsersTest(test.APITestCase):
     @data("admin", "manager")
     def test_unauthorized_user_can_not_create_offering_user(self, user):
         response = self.create_offering_user(user)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+    def _post_as(self, user):
+        self.client.force_authenticate(user=user)
+        payload = {
+            "offering": factories.OfferingFactory.get_url(self.offering),
+            "user": UserFactory.get_url(self.fixture.user),
+        }
+        return self.client.post(OfferingUserFactory.get_list_url(), payload)
+
+    def test_service_provider_manager_can_create_offering_user(self):
+        service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.CREATE_OFFERING_USER)
+        manager = UserFactory()
+        service_provider.add_user(manager, ServiceProviderRole.MANAGER)
+        response = self._post_as(manager)
+        self.assertEqual(status.HTTP_201_CREATED, response.status_code, response.data)
+
+    def test_service_provider_role_without_permission_can_not_create_offering_user(
+        self,
+    ):
+        service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(models.ServiceProvider)
+        )
+        role.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS)
+        user = UserFactory()
+        service_provider.add_user(user, role)
+        response = self._post_as(user)
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
     def test_create_offering_user_with_uuid_fields(self):
