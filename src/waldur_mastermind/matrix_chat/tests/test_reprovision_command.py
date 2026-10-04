@@ -45,14 +45,10 @@ class ReprovisionMatrixRoomsTest(TestCase):
         self.assertEqual(self.room.room_alias, "")
 
     def test_provisioned_profiles_are_reset(self):
-        self.profile.access_token = "syt_old_homeserver_token"
-        self.profile.save()
-
         run(yes=True)
 
         self.profile.refresh_from_db()
         self.assertFalse(self.profile.provisioned)
-        self.assertEqual(self.profile.access_token, "")
         self.assertIsNone(self.profile.provisioned_at)
 
     def test_each_reset_room_is_queued_for_creation(self):

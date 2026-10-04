@@ -118,6 +118,14 @@ SERVICE_ACCESS_MODE_CHOICES = [
     ("both", "Marketplace and calls"),
 ]
 
+# How users sign in to a Matrix client outside Waldur. Waldur's own chat drawer
+# signs in through the appservice and needs none of these.
+MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES = [
+    ("none", "None: Waldur offers no external sign-in"),
+    ("password", "Password derived for each user"),
+    ("oidc", "Single sign-on through the homeserver"),
+]
+
 AI_ASSISTANT_ENABLED_ROLES_CHOICES = [
     ("disabled", "Disabled"),
     ("staff", "Staff users"),
@@ -355,6 +363,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
     "ENABLED_REPORTING_SCREENS": REPORTING_SCREEN_CHOICES,
     "AI_ASSISTANT_ENABLED_ROLES": AI_ASSISTANT_ENABLED_ROLES_CHOICES,
+    "MATRIX_EXTERNAL_LOGIN_METHOD": MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES,
 }
 
 CONSTANCE_CONFIG = {
@@ -1873,14 +1882,14 @@ CONSTANCE_CONFIG = {
         "username",
         "Format for generating Matrix user IDs: username, uuid, or email_local.",
     ),
-    "MATRIX_LOGIN_METHOD": (
-        "token",
-        "Login method for Matrix credentials: password, token, or oidc.",
-    ),
-    "MATRIX_OIDC_PROVIDER_URL": (
-        "",
-        "OIDC provider URL for Matrix SSO login.",
-        "url_field",
+    "MATRIX_EXTERNAL_LOGIN_METHOD": (
+        "none",
+        "How users sign in to an external Matrix client such as Element: "
+        "'none' (Waldur offers no external sign-in), 'password' (a password "
+        "Waldur derives for each user), or 'oidc' (single sign-on configured on "
+        "the homeserver). Switching away from 'password' does not revoke "
+        "passwords already shown or sign out external clients.",
+        "choice_field",
     ),
     "MATRIX_LIVEKIT_KEY": (
         "",
@@ -2349,8 +2358,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MATRIX_EXPORT_MEDIA",
         "MATRIX_USER_REGISTRATION_SECRET",
         "MATRIX_USER_ID_FORMAT",
-        "MATRIX_LOGIN_METHOD",
-        "MATRIX_OIDC_PROVIDER_URL",
+        "MATRIX_EXTERNAL_LOGIN_METHOD",
         "MATRIX_LIVEKIT_KEY",
         "MATRIX_LIVEKIT_SECRET",
         "MATRIX_LIVEKIT_URL",
@@ -2423,6 +2431,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "AI_ASSISTANT_ENABLED_ROLES",
     "AI_ASSISTANT_NAME",
     "MATRIX_ENABLED",
+    "MATRIX_EXTERNAL_LOGIN_METHOD",
     "AFFILIATES_ENABLED",
     "SRAM_INTEGRATION_ENABLED",
     # Support plugin

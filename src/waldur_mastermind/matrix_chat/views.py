@@ -483,15 +483,16 @@ class MatrixHistoryExportViewSet(ActionsViewSet):
 class MatrixCredentialsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
     # Per-user rate limit: a malicious authenticated user can otherwise flood
-    # the homeserver with auto-provisioning calls. 30/hour fits any legitimate
-    # workflow (drawer open, room switch) and bounds the abuse surface.
+    # the homeserver with auto-provisioning calls.
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "matrix_credentials"
 
     @extend_schema(
         summary="Get Matrix login credentials",
         responses={200: serializers.MatrixCredentialsSerializer},
-        description="Returns Matrix login credentials for the authenticated user based on the configured login method.",
+        description="Returns what an external Matrix client needs to sign the "
+        "authenticated user in, per MATRIX_EXTERNAL_LOGIN_METHOD: a password "
+        "only in password mode, and never an access token.",
     )
     def get(self, request):
         # Don't auto-provision a Matrix account for callers when the integration
@@ -499,63 +500,21 @@ class MatrixCredentialsView(views.APIView):
         # see "Not Found" too, matching the homeport behavior on the flag.
         if not matrix_client.is_enabled():
             raise Http404
+        # Provisioning on demand fails on the homeserver's side, as in the
+        # session view, so it is answered the same way; the homeserver's own
+        # text stays in the log.
+        try:
+            matrix_client.ensure_user_exists(request.user)
+        except (matrix_client.MatrixClientError, httpx.HTTPError, ValueError) as e:
+            logger.warning("Could not provision %s on Matrix: %s", request.user, e)
+            return Response(
+                {"detail": "Chat is unavailable right now. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         try:
             credentials = matrix_client.get_user_matrix_credentials(request.user)
         except matrix_client.MatrixClientError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        # If room_uuid is provided and the user is an active member of that
-        # room, include the internal room_id and an access_token for embedded
-        # chat (works regardless of configured login method). Role-based access
-        # alone — e.g. staff or customer owners who are not project members —
-        # grants room management but not the conversation itself.
-        room_uuid = request.query_params.get("room_uuid")
-        if room_uuid:
-            try:
-                room = models.MatrixRoom.objects.get(uuid=room_uuid)
-            except models.MatrixRoom.DoesNotExist:
-                room = None
-
-            is_member = (
-                room is not None
-                and models.MatrixRoomMember.objects.filter(
-                    room=room,
-                    user=request.user,
-                    membership_state__in=[
-                        models.MembershipStates.INVITED,
-                        models.MembershipStates.JOINED,
-                    ],
-                ).exists()
-            )
-
-            if is_member:
-                try:
-                    credentials["access_token"] = (
-                        matrix_client.get_access_token_for_user(request.user)
-                    )
-                except matrix_client.MatrixClientError as e:
-                    logger.warning(
-                        "Failed to get access token for embedded chat: %s", e
-                    )
-
-                credentials["room_id"] = room.room_id
-                # join_room_as_user both accepts a pending invite (INVITED → JOINED)
-                # and no-ops when already joined; the membership row is the source
-                # of truth, so no extra invite call is needed here. Drift recovery
-                # belongs in sync_project_members_to_room, not this endpoint.
-                try:
-                    matrix_client.join_room_as_user(
-                        room.room_id, credentials["matrix_user_id"]
-                    )
-                except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
-                    # Best effort: the drawer joins on its own once synced.
-                    logger.info("Could not accept invite to %s: %s", room.room_id, e)
-                else:
-                    models.MatrixRoomMember.objects.filter(
-                        room=room,
-                        user=request.user,
-                        membership_state=models.MembershipStates.INVITED,
-                    ).update(membership_state=models.MembershipStates.JOINED)
 
         return Response(credentials)
 

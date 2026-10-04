@@ -266,7 +266,8 @@ def close_course_accounts_task(accounts: list[dict]):
                     exc,
                 )
                 continue
-            user = core_models.User.all_objects.filter(pk=user_id).first()
+            # Active users only: one already deactivated keeps its reason.
+            user = core_models.User.objects.filter(pk=user_id).first()
             if user:
                 # A save rather than an update, so whatever reacts to a
                 # deactivation (token and chat session revocation) runs too.

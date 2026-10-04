@@ -11,9 +11,9 @@ from urllib.parse import quote
 
 import httpx
 from constance import config
+from django.conf import settings
 from markdown_it import MarkdownIt
 
-from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.clean_html import clean_html
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
@@ -205,6 +205,9 @@ async def _register_bot_user_async(homeserver_url, as_token, localpart):
             json={
                 "auth": {"type": "m.login.application_service"},
                 "username": localpart,
+                # Waldur acts as the bot with the appservice token, never a
+                # session of its own.
+                "inhibit_login": True,
             },
             headers={"Authorization": f"Bearer {as_token}"},
         )
@@ -899,7 +902,8 @@ async def _try_registration_token_flow(http_client, url, username, password, tok
     """Try m.login.registration_token UIA flow. Returns response dict, empty dict
     for M_USER_IN_USE, or None if this flow is not available."""
     response = await http_client.post(
-        url, json={"username": username, "password": password}
+        url,
+        json={"username": username, "password": password, "inhibit_login": True},
     )
     _raise_for_server_error(response)
     data = _parse_json_response(response)
@@ -922,6 +926,7 @@ async def _try_registration_token_flow(http_client, url, username, password, tok
             },
             "username": username,
             "password": password,
+            "inhibit_login": True,
         },
     )
     _raise_for_server_error(response)
@@ -948,6 +953,7 @@ async def _try_appservice_registration(http_client, url, username, password, as_
             "auth": {"type": "m.login.application_service"},
             "username": username,
             "password": password,
+            "inhibit_login": True,
         },
         headers={"Authorization": f"Bearer {as_token}"},
     )
@@ -964,7 +970,8 @@ async def _try_dummy_registration(http_client, url, username, password):
     """Try m.login.dummy UIA flow. Returns response dict, empty dict for
     M_USER_IN_USE, or None if not available."""
     response = await http_client.post(
-        url, json={"username": username, "password": password}
+        url,
+        json={"username": username, "password": password, "inhibit_login": True},
     )
     _raise_for_server_error(response)
     data = _parse_json_response(response)
@@ -985,6 +992,7 @@ async def _try_dummy_registration(http_client, url, username, password):
             "auth": {"type": "m.login.dummy", "session": session},
             "username": username,
             "password": password,
+            "inhibit_login": True,
         },
     )
     _raise_for_server_error(response)
@@ -1064,7 +1072,7 @@ def ensure_user_exists(waldur_user):
         raise MatrixClientError(
             "MATRIX_APPSERVICE_AS_TOKEN must be configured for user provisioning"
         )
-    result = _run_async(
+    _run_async(
         _register_user_async(
             homeserver_url, bot_user_id, localpart, password, as_token, secret
         )
@@ -1078,11 +1086,6 @@ def ensure_user_exists(waldur_user):
             user=waldur_user,
             defaults={"matrix_user_id": matrix_user_id},
         )
-
-    # Save access_token from successful registration
-    if result and result.get("access_token"):
-        profile.access_token = result["access_token"]
-        profile.save(update_fields=["access_token"])
 
     profile.mark_provisioned()
 
@@ -1192,133 +1195,6 @@ def get_power_level_for_scope(user, scope):
             return 50
 
     return 0
-
-
-async def _login_as_user_async(homeserver_url, as_token, matrix_user_id):
-    """Log in as a Matrix user via appservice login and return an access_token.
-
-    Uses POST /_matrix/client/v3/login with m.login.application_service
-    auth type, which is part of the standard Matrix spec.
-    """
-    url = f"{homeserver_url}/_matrix/client/v3/login"
-
-    async with httpx.AsyncClient() as http_client:
-        response = await http_client.post(
-            url,
-            json={
-                "type": "m.login.application_service",
-                "identifier": {
-                    "type": "m.id.user",
-                    "user": matrix_user_id,
-                },
-            },
-            headers={"Authorization": f"Bearer {as_token}"},
-        )
-        if response.status_code == 200:
-            return response.json().get("access_token")
-        raise MatrixClientError(
-            f"Failed to login as {matrix_user_id}: "
-            f"{response.status_code} {response.text}"
-        )
-
-
-def _generate_login_token(matrix_user_id):
-    """Generate an access token for a Matrix user via appservice login."""
-    as_token = config.MATRIX_APPSERVICE_AS_TOKEN
-    if not as_token:
-        raise MatrixClientError(
-            "MATRIX_APPSERVICE_AS_TOKEN must be configured for token login"
-        )
-    homeserver_url = config.MATRIX_HOMESERVER_URL
-    return _run_async(_login_as_user_async(homeserver_url, as_token, matrix_user_id))
-
-
-async def _login_with_password_async(homeserver_url, matrix_user_id, password):
-    """Log in as a Matrix user with password and return an access_token."""
-    url = f"{homeserver_url}/_matrix/client/v3/login"
-
-    async with httpx.AsyncClient() as http_client:
-        response = await http_client.post(
-            url,
-            json={
-                "type": "m.login.password",
-                "identifier": {
-                    "type": "m.id.user",
-                    "user": matrix_user_id,
-                },
-                "password": password,
-            },
-        )
-        if response.status_code == 200:
-            return response.json().get("access_token")
-        raise MatrixClientError(
-            f"Failed to login as {matrix_user_id}: "
-            f"{response.status_code} {response.text}"
-        )
-
-
-def get_access_token_for_user(waldur_user):
-    """Obtain a Matrix access_token for a Waldur user.
-
-    Tries strategies in order:
-    0. Stored token from registration
-    1. Appservice login
-    2. Password login
-    3. Re-provision (delete profile + re-register to get a fresh token)
-    """
-    try:
-        profile = MatrixUserProfile.objects.get(user=waldur_user, provisioned=True)
-    except MatrixUserProfile.DoesNotExist:
-        ensure_user_exists(waldur_user)
-        profile = MatrixUserProfile.objects.get(user=waldur_user, provisioned=True)
-
-    # 0. Use stored access_token from registration
-    if profile.access_token:
-        return profile.access_token
-
-    matrix_user_id = profile.matrix_user_id
-    homeserver_url = config.MATRIX_HOMESERVER_URL
-    errors = []
-
-    # 1. Appservice login (user must be in the AS namespace)
-    as_token = config.MATRIX_APPSERVICE_AS_TOKEN
-    if as_token:
-        try:
-            return _run_async(
-                _login_as_user_async(homeserver_url, as_token, matrix_user_id)
-            )
-        except MatrixClientError as e:
-            errors.append(f"appservice login: {e}")
-            logger.debug("Appservice login failed for %s: %s", matrix_user_id, e)
-
-    # 2. Password login
-    secret = config.MATRIX_USER_REGISTRATION_SECRET
-    if secret:
-        password = _derive_password(secret, waldur_user.uuid)
-        try:
-            return _run_async(
-                _login_with_password_async(homeserver_url, matrix_user_id, password)
-            )
-        except MatrixClientError as e:
-            errors.append(f"password login: {e}")
-            logger.debug("Password login failed for %s: %s", matrix_user_id, e)
-
-    # 3. Re-provision: delete the stale profile and re-register.
-    #    This handles pre-existing users whose password doesn't match.
-    logger.info(
-        "All login strategies failed for %s, attempting re-provision",
-        matrix_user_id,
-    )
-    profile.delete()
-    ensure_user_exists(waldur_user)
-    profile = MatrixUserProfile.objects.get(user=waldur_user, provisioned=True)
-    if profile.access_token:
-        return profile.access_token
-
-    raise MatrixClientError(
-        f"Cannot obtain access token for {matrix_user_id}. "
-        f"Tried: {'; '.join(errors)}; re-provision (no token returned)"
-    )
 
 
 # Devices the chat drawer signs in on. Every web session gets its own: Tuwunel
@@ -1480,9 +1356,16 @@ def stale_web_devices(devices, now_ms, keep_device_id=None):
 
 
 def get_user_matrix_credentials(waldur_user):
-    """Return Matrix login credentials for a Waldur user based on configured login method."""
+    """Return what an external Matrix client needs to sign the user in.
 
-    method = config.MATRIX_LOGIN_METHOD
+    A password only in `password` mode; no access or refresh tokens in any mode,
+    as Waldur's chat drawer gets its own short-lived session instead.
+    """
+    method = config.MATRIX_EXTERNAL_LOGIN_METHOD
+    if method not in dict(
+        settings.CONSTANCE_CONFIG_CHOICES["MATRIX_EXTERNAL_LOGIN_METHOD"]
+    ):
+        raise MatrixClientError(f"Unknown login method: {method}")
 
     try:
         profile = MatrixUserProfile.objects.get(user=waldur_user, provisioned=True)
@@ -1494,44 +1377,14 @@ def get_user_matrix_credentials(waldur_user):
         except MatrixUserProfile.DoesNotExist:
             raise MatrixClientError("User has not been provisioned on Matrix yet")
 
+    credentials = {
+        "method": method,
+        "homeserver_url": get_public_homeserver_url(),
+        "matrix_user_id": profile.matrix_user_id,
+    }
     if method == "password":
         secret = config.MATRIX_USER_REGISTRATION_SECRET
         if not secret:
             raise MatrixClientError("MATRIX_USER_REGISTRATION_SECRET not configured")
-        password = _derive_password(secret, waldur_user.uuid)
-        return {
-            "method": "password",
-            "homeserver_url": get_public_homeserver_url(),
-            "matrix_user_id": profile.matrix_user_id,
-            "password": password,
-        }
-    elif method == "token":
-        token = _generate_login_token(profile.matrix_user_id)
-        return {
-            "method": "token",
-            "homeserver_url": get_public_homeserver_url(),
-            "matrix_user_id": profile.matrix_user_id,
-            "login_token": token,
-        }
-    elif method == "oidc":
-        try:
-            idp = IdentityProvider.objects.get(is_active=True)
-            oidc_provider_url = idp.auth_url
-        except IdentityProvider.DoesNotExist:
-            raise MatrixClientError("No active identity provider configured")
-        except IdentityProvider.MultipleObjectsReturned:
-            # If multiple active IDPs, fall back to the constance setting
-            oidc_provider_url = config.MATRIX_OIDC_PROVIDER_URL
-            if not oidc_provider_url:
-                raise MatrixClientError(
-                    "Multiple active identity providers found. "
-                    "Set MATRIX_OIDC_PROVIDER_URL to specify which one to use."
-                )
-        return {
-            "method": "oidc",
-            "homeserver_url": get_public_homeserver_url(),
-            "matrix_user_id": profile.matrix_user_id,
-            "oidc_provider_url": oidc_provider_url,
-        }
-    else:
-        raise MatrixClientError(f"Unknown login method: {method}")
+        credentials["password"] = _derive_password(secret, waldur_user.uuid)
+    return credentials

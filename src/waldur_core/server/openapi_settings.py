@@ -4,6 +4,7 @@ from waldur_core.logging.enums import ObservableObjectType, QueueKind
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.server.constance_settings import (
+    MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES,
     NOTIFY_SYSTEM_CHOICES,
     OFFERING_TYPE_CHOICES,
     ONBOARDING_VALIDATION_CHOICES,
@@ -89,6 +90,9 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
         "MetricKindEnum": metrics_enums.MetricKinds.CHOICES,
+        # Shared by the Constance setting and the credentials response, so the
+        # SDK gets one named type instead of a generic MethodEnum.
+        "MatrixExternalLoginMethodEnum": MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES,
         # A rule's "project_field" would otherwise take ProjectFieldEnum, the
         # name of the projects endpoints' field selector.
         "SramProjectRuleField": sram_enums.ProjectField.choices,

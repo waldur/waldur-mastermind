@@ -1056,7 +1056,6 @@ def reprovision_rooms():
 
         user_count = models.MatrixUserProfile.objects.filter(provisioned=True).update(
             provisioned=False,
-            access_token="",
             provisioned_at=None,
         )
 
