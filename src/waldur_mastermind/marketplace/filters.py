@@ -2366,6 +2366,16 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     is_restricted = django_filters.BooleanFilter(
         field_name="is_restricted", label="Is restricted"
     )
+    service_provider_account_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-service-provider-account-detail",
+        field_name="service_provider_account__uuid",
+        label="Service provider account UUID",
+    )
+    is_provider_backed = django_filters.BooleanFilter(
+        method="filter_is_provider_backed",
+        label="Backed by a service provider account",
+        widget=BooleanWidget,
+    )
     state = core_filters.MappedMultipleChoiceFilter(
         OfferingUserStates.CHOICES, label="Offering user state"
     )
@@ -2416,6 +2426,9 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
             | Q(backend_metadata__uidnumber__icontains=value)
             | Q(backend_metadata__primarygroup__icontains=value)
         )
+
+    def filter_is_provider_backed(self, queryset, name, value):
+        return queryset.filter(service_provider_account__isnull=not value)
 
     def filter_has_consent(self, queryset, name, value):
         if value is None:

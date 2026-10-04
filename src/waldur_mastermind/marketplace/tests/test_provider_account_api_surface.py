@@ -6,6 +6,8 @@ Both were reachable only in principle before these tests: the per-offering
 account endpoint carried no write permissions at all.
 """
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -297,3 +299,96 @@ class ServiceProviderAccountUsernameFilterTest(test.APITestCase):
         self.assertEqual(self.usernames("hpc_1"), ["hpc_1"])
         self.assertEqual(self.usernames("HPC_1"), [])
         self.assertEqual(self.usernames("hpc_2"), [])
+
+
+class OfferingUserProviderAccountLinkTest(test.APITestCase):
+    """An offering user says which provider account, if any, it reads through."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.provider = self.fixture.service_provider
+        self.offering = self.fixture.offering
+        self.person = structure_factories.UserFactory()
+        self.account = models.ServiceProviderAccount.objects.create(
+            service_provider=self.provider,
+            user=self.person,
+            username="jsmith",
+            state=OfferingUserStates.OK,
+        )
+        self.backed = models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.person,
+            username="jsmith",
+            service_provider_account=self.account,
+        )
+        self.own = models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=structure_factories.UserFactory(),
+            username="alone",
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def _list(self, **params):
+        response = self.client.get(factories.OfferingUserFactory.get_list_url(), params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return {row["uuid"]: row for row in response.data}
+
+    def test_a_backed_offering_user_names_its_provider_account(self):
+        row = self._list()[self.backed.uuid.hex]
+        self.assertEqual(row["service_provider_account_uuid"], str(self.account.uuid))
+        self.assertEqual(row["service_provider_account_username"], "jsmith")
+
+    def test_a_per_offering_user_has_no_provider_account(self):
+        row = self._list()[self.own.uuid.hex]
+        self.assertIsNone(row["service_provider_account_uuid"])
+        self.assertIsNone(row["service_provider_account_username"])
+
+    def test_the_link_is_shown_whatever_the_offering_exposes(self):
+        config = models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering
+        )
+        for field in config._meta.get_fields():
+            if field.name.startswith("expose_"):
+                setattr(config, field.name, False)
+        config.save()
+
+        response = self.client.get(factories.OfferingUserFactory.get_url(self.backed))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertNotIn("user_email", response.data)
+        self.assertEqual(
+            response.data["service_provider_account_uuid"], str(self.account.uuid)
+        )
+
+    def test_filter_by_provider_account(self):
+        rows = self._list(service_provider_account_uuid=self.account.uuid.hex)
+        self.assertEqual(list(rows), [self.backed.uuid.hex])
+
+    def test_filter_backed_and_per_offering(self):
+        self.assertEqual(
+            list(self._list(is_provider_backed=True)), [self.backed.uuid.hex]
+        )
+        self.assertEqual(
+            list(self._list(is_provider_backed=False)), [self.own.uuid.hex]
+        )
+
+    def test_the_link_costs_no_query_per_row(self):
+        url = factories.OfferingUserFactory.get_list_url()
+        self.client.get(url)  # warm caches
+        with CaptureQueriesContext(connection) as baseline:
+            self.client.get(url)
+        for index in range(4):
+            person = structure_factories.UserFactory()
+            account = models.ServiceProviderAccount.objects.create(
+                service_provider=self.provider,
+                user=person,
+                username=f"user{index}",
+                state=OfferingUserStates.OK,
+            )
+            models.OfferingUser.objects.create(
+                offering=self.offering,
+                user=person,
+                username=f"user{index}",
+                service_provider_account=account,
+            )
+        with self.assertNumQueries(len(baseline)):
+            self.client.get(url)
