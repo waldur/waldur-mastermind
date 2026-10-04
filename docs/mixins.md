@@ -114,8 +114,11 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`OfferingPolicySerializerMixin`](#offeringpolicyserializermixin) | `waldur_mastermind.policy.serializers` | This mixin provides several extensions to stock Serializer class:  1 |
 | [`CallNotArchivedCreateMixin`](#callnotarchivedcreatemixin) | `waldur_mastermind.proposal.serializers` | Provide the ``validate_call_not_archived`` hook used by ``ActionMethodMixin |
 | [`AssignmentBatchTestMixin`](#assignmentbatchtestmixin) | `waldur_mastermind.proposal.tests.test_assignment_batch_notifications` | No description available |
+| [`ApplicantRolesMixin`](#applicantrolesmixin) | `waldur_mastermind.proposal.tests.test_notification_roles` | No description available |
 | [`ManagerSetupMixin`](#managersetupmixin) | `waldur_mastermind.proposal.tests.test_pool_invitation_expiry` | No description available |
+| [`ProposalAdminMixin`](#proposaladminmixin) | `waldur_mastermind.proposal.tests.test_proposal_admin` | No description available |
 | [`ProposalComplianceTestMixin`](#proposalcompliancetestmixin) | `waldur_mastermind.proposal.tests.test_proposal_compliance` | Common setup for proposal compliance tests |
+| [`ProposalTeamMixin`](#proposalteammixin) | `waldur_mastermind.proposal.tests.test_proposal_team` | No description available |
 | [`InvitationAcceptanceMixin`](#invitationacceptancemixin) | `waldur_mastermind.proposal.views` | Mixin providing common logic for accepting/declining reviewer pool invitations |
 | [`BackendNameMixin`](#backendnamemixin) | `waldur_mastermind.support.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`FileMixin`](#filemixin) | `waldur_mastermind.support.models` | Mixin to provide file-related functionality and properties |
@@ -1632,9 +1635,21 @@ Call. It keeps archived calls read-only across their nested-create surface
 
 **Description:** No description available.
 
+### ApplicantRolesMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_notification_roles`
+
+**Description:** No description available.
+
 ### ManagerSetupMixin
 
 **Module:** `waldur_mastermind.proposal.tests.test_pool_invitation_expiry`
+
+**Description:** No description available.
+
+### ProposalAdminMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_proposal_admin`
 
 **Description:** No description available.
 
@@ -1645,6 +1660,12 @@ Call. It keeps archived calls read-only across their nested-create surface
 **Description:**
 
 Common setup for proposal compliance tests.
+
+### ProposalTeamMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_proposal_team`
+
+**Description:** No description available.
 
 ### InvitationAcceptanceMixin
 

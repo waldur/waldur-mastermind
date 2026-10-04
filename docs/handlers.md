@@ -416,6 +416,7 @@ td:nth-child(4) {
 | `add_google_calendar_link` | `Custom Signal (pre_serializer_fields)` | `PublicOfferingDetailsSerializer` | Add a Google Calendar link field to the serializer. |
 | `add_has_active_helpdesk` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a flag telling whether the customer's provider has an active helpdesk. |
 | `add_has_affiliate_links` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a flag telling whether the organization is an affiliate on any link. |
+| `add_has_metrics` | `Custom Signal (pre_serializer_fields)` | `ProjectSerializer` | The project Metrics tab is shown only where this is true. |
 | `add_integration_status` | `Custom Signal (pre_serializer_fields)` | `ProviderOfferingDetailsSerializer` | Add an integration status field to the serializer. |
 | `add_issue` | `Custom Signal (pre_serializer_fields)` | `OrderDetailsSerializer` | Add an issue field to the serializer. |
 | `add_maintenance_fields_to_admin_announcement_serializer` | `Custom Signal (pre_serializer_fields)` | `AdminAnnouncementSerializer` | Add maintenance-related fields to AdminAnnouncementSerializer when maintenance is scheduled. |
@@ -486,6 +487,7 @@ td:nth-child(4) {
 | `create_carried_over_usage_if_invoice_has_been_created` | `Django Signal (post_save)` | `invoices.Invoice` | Materialize usage for the new billing period from the previous one. |
 | `create_checklist_completion` | `Django Signal (post_save)` | `proposal.Proposal` | Create checklist completion tracking when proposal is created. |
 | `create_checklist_completions_for_existing_users` | `Django Signal (post_save)` | `marketplace.Offering` | Manage checklist completions for existing OfferingUsers when compliance changes. |
+| `create_default_retention_policy` | `Unknown Signal` | `—` | The policy definitions without one fall back to. |
 | `create_feedback_if_issue_has_been_resolved` | `Django Signal (post_save)` | `support.Issue` | Create feedback request when support issue transitions to resolved state. |
 | `create_issue_for_pending_support_order` | `Django Signal (post_save)` | `marketplace.Order` | Create a support ticket in the background when a support offering order |
 | `create_issue_if_membership_changed` | `Django Signal (post_save)` | `permissions.UserRole` | Create support issue when user role membership changes in organization. |
@@ -634,6 +636,7 @@ td:nth-child(4) {
 | `revoke_roles_on_offering_deletion` | `Django Signal (pre_delete)` | `marketplace.Offering` | Revoke active user roles bound to an offering before it is deleted. |
 | `run_reset_actions_upon_cost_policy_deletion` | `Django Signal (pre_delete)` | `policy.ProjectEstimatedCostPolicy` | Execute reset actions when a cost policy is deleted. |
 | `schedule_component_usage_billing` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Thin post_save handler — schedules the async billing+policy task on commit. |
+| `seed_project_role_mappings` | `Django Signal (post_save)` | `proposal.Call` | Give a new call the default proposal-to-project role mappings. |
 | `seed_proposal_field_config` | `Django Signal (post_save)` | `proposal.Call` | Materialise a call's Project details field configuration at creation. |
 | `seed_workflow_steps` | `Django Signal (post_save)` | `proposal.Call` | Seed catalog workflow steps on call creation. |
 | `send_comment_added_notification` | `Django Signal (post_save)` | `support.Comment` | No description |
@@ -824,14 +827,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 745
+Total unique handlers found: 748
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 340 handlers
+- **waldur_mastermind**: 343 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

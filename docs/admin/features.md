@@ -192,6 +192,10 @@ Enable science domain/sub-domain selection for projects.
 
 Show credit field in project create dialog.
 
+## project.show_custom_metrics
+
+Show custom metrics: the project Metrics tab and the offering metrics a provider adopts.
+
 ## project.show_description_in_create_dialog
 
 Show description field in project create dialog.

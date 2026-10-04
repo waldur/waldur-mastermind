@@ -3403,6 +3403,56 @@ Number of days to retain SLURM policy evaluation log entries before automatic cl
 
 Number of months to retain usage poll records before automatic cleanup.
 
+### Custom Metrics
+
+#### METRICS_LATE_DATA_DAYS
+
+**Type:** int
+
+**Default value:** 7
+
+How many days back a reported metric point may be timestamped.
+
+#### METRICS_MAX_SERIES_PER_RESOURCE_METRIC
+
+**Type:** int
+
+**Default value:** 500
+
+Most attribute combinations one resource may report for one metric.
+
+#### METRICS_MAX_POINTS_PER_REQUEST
+
+**Type:** int
+
+**Default value:** 10000
+
+Most metric points accepted in a single report request.
+
+#### METRICS_MAX_OTLP_BODY_BYTES
+
+**Type:** int
+
+**Default value:** 20971520
+
+Largest OTLP metrics body accepted, after decompression, in bytes.
+
+#### METRICS_DEFAULT_RETENTION_POLICY
+
+**Type:** str
+
+**Default value:** standard
+
+Name of the retention policy used by metric definitions that set none.
+
+#### METRICS_ARCHIVE_GRACE_DAYS
+
+**Type:** int
+
+**Default value:** 30
+
+Days an archived offering metric keeps its data before it is purged.
+
 ### Identity Bridge
 
 #### FEDERATED_IDENTITY_SYNC_ENABLED
