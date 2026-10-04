@@ -8,7 +8,8 @@ Waldur integrates with the [Matrix](https://matrix.org/) open communication prot
 - **Automatic member sync** — project members are invited to rooms based on their roles
 - **Bot commands** — operational queries (resource status, orders, members) from within the chat
 - **History export** — manual, scheduled, or on-deletion export of chat messages and media
-- **User credentials** — authenticated users can retrieve their Matrix login details
+- **Web chat sessions** — Waldur's chat drawer gets short-lived Matrix tokens that live only in the browser's memory
+- **External clients** — optionally, users can sign in to Element or another Matrix client
 - **Room lifecycle** — disable, reactivate, and reprovision rooms
 
 The integration works with any Matrix homeserver that supports the Application Service API (Synapse, Dendrite, Conduit/Tuwunel, etc.).
@@ -160,8 +161,9 @@ waldur reprovision_matrix_rooms             # prompts before writing
 waldur reprovision_matrix_rooms -y          # no prompt, for scripts
 ```
 
-It prompts by default because it discards every stored room id, room alias and
-user access token, and only a working homeserver can issue replacements. With no
+It prompts by default because it discards every stored room id and room alias and
+resets every user's provisioning state, and only a working homeserver can issue
+replacements. With no
 terminal attached, as in a Kubernetes Job or a cron run, it refuses and tells you
 to pass `-y`. It refuses to run when Matrix chat is disabled or the homeserver is
 unconfigured: the room-creation tasks it queues would have nothing to talk to,
@@ -297,6 +299,7 @@ Permissions vary per action (demo policy: owners manage day-to-day membership an
 | --- | --- |
 | `sync_members`, `export_history`, `retry`, `reactivate` | Customer owner (`is_owner`) |
 | `disable`, `DELETE`, `join`, `leave` | Staff or support (`is_staff_or_support`) |
+| `open` | A current member of the room (`invited` or `joined`) |
 
 **POST /api/matrix/rooms/{uuid}/sync_members/**
 
@@ -328,6 +331,10 @@ Re-enables an archived room. Sets the room back to `active` state and triggers a
 
 Lets a staff or support user join or leave a room they are not a project member of (e.g. to moderate). On join, the user is added with a moderator power level (50). Returns `202 Accepted`.
 
+**POST /api/matrix/rooms/{uuid}/open/**
+
+Returns `{"room_id": ...}` to a member whose membership is `invited` or `joined`, and accepts a pending invite on the way; if accepting fails, the room ID is still returned and the invite stays pending. Everyone else who can see the room — staff, support, a customer owner who is not a project member — gets `403`: managing a room does not grant reading its conversation. Callers who cannot see the room get `404`, a room that is not active gets `409`, and with Matrix chat disabled the action answers `400`. The chat drawer calls this when it opens a room.
+
 **DELETE /api/matrix/rooms/{uuid}/**
 
 Deletes a room record. Only rooms in `error`, `creating`, or `archived` state can be deleted. Returns `204 No Content` or `409 Conflict`.
@@ -343,13 +350,15 @@ When a room is created or a manual sync is triggered:
 1. All active project members (direct and via customer) are enumerated
 2. Each user is provisioned on the homeserver if needed (via `MatrixUserProfile`)
 3. Display names are set to the user's full name
-4. Users are invited to the room
+4. Users are invited to the room, and the invite is accepted on their behalf
 5. Power levels are set based on roles:
    - Project admin or customer owner: power level 50
    - Regular member: power level 0
    - The bot account: power level 100
 
 Member records are stored in `MatrixRoomMember` with membership states: `invited`, `joined`, `left`, `banned`.
+
+Joins and leaves act as the user through the appservice token with `?user_id=`. They never log in as the user, so they create no Matrix device or access token.
 
 ### Automatic member management
 
@@ -359,6 +368,7 @@ The integration automatically responds to role changes:
 - **Role revoked** — if the user has no remaining roles in the project or its customer, they are kicked from the room; a notification is posted regardless
 - **Project deleted** — the room is disabled (members kicked, history exported, room archived)
 - **Order state changed** — notifications are posted when orders are approved, completed, rejected, canceled, or errored
+- **User deactivated or deleted** — every `WALDUR_WEB_` device of the user is signed out by a background task, which revokes those devices' access and refresh tokens. An open chat drawer then asks Waldur for a new session, gets none, and the user is returned to the login page. Devices are signed out even while chat is switched off (`MATRIX_ENABLED`): switching chat off does not end drawers that are already open, because they renew their tokens with the homeserver directly. A user reactivated before the task runs keeps their new sessions. Other Matrix devices, such as Element, are left alone; in `password` mode the derived password keeps working, so deactivate the account on the homeserver to cut external access
 
 ## History Exports
 
@@ -399,31 +409,58 @@ Returns exports accessible to the user based on room access. Staff and support s
 | `state` | string | Filter by export state |
 | `export_type` | string | Filter by type: `manual`, `periodic`, `on_deletion` |
 
-## User Credentials
+## Web Chat Sessions
+
+**POST /api/matrix/session/**
+
+Starts a Matrix session for Waldur's chat drawer. Waldur signs the user in through the appservice on a new device, `WALDUR_WEB_` followed by 12 hexadecimal characters and named "<site name> web chat", asking for a refresh token. It returns the tokens without storing them:
+
+| Field | Description |
+| --- | --- |
+| `homeserver_url` | Public homeserver URL (`MATRIX_HOMESERVER_PUBLIC_URL`, falling back to `MATRIX_HOMESERVER_URL`) |
+| `matrix_user_id` | The user's Matrix ID |
+| `device_id` | The session's device |
+| `access_token` | Expires after the homeserver's `access_token_ttl` |
+| `refresh_token` | Renews the access token through Matrix `/refresh`; idle-expires after `refresh_token_ttl`. `null` if the homeserver issues no refresh tokens, and then the access token does not expire |
+| `expires_in_ms` | Lifetime of `access_token`; `null` without refresh tokens |
+
+| Status | When |
+| --- | --- |
+| `200` | Session started |
+| `403` | The account was deactivated while the session was being started; the new device is signed out again |
+| `404` | Matrix chat is disabled |
+| `429` | The per-user `matrix_session` rate limit (default 120/hour) is exhausted |
+| `503` | The homeserver failed or Matrix is misconfigured; the details are logged, not returned |
+
+The drawer keeps both tokens in memory only. It renews the access token through Matrix `/refresh`, and asks Waldur for a new session when a refresh is rejected or when the homeserver signs its device out, for example from Element's session list or through the device cleanup described below. Waldur is therefore consulted when the drawer connects, when a refresh is rejected and when the device is signed out, not while refreshes succeed: switching chat off or signing out of Waldur in another tab does not cut an open drawer, which keeps working until it next needs a new session. Whether the user may still chat is decided then: a deactivated, deleted or signed-out user gets no new session and is returned to the login page. The drawer shows that the chat session has ended when chat was switched off, or when the new session is signed out again within a minute. A rate-limited connect asks the user to try again later.
+
+Every session has its own device. Tuwunel keeps one refresh token per device, so two browser tabs sharing a device would invalidate each other's refresh token. A session starts on every page load for a room member, because the drawer connects in the background for unread counts, so each load is one device and one call against the rate limit. After each new session Waldur signs out the user's web devices not seen for 24 hours, a window fixed in Waldur that matches the default `refresh_token_ttl`. Beyond the 10 most recently seen devices it signs out the rest, except devices seen in the last ten minutes: those belong to open tabs. It never signs out the session that triggered the cleanup.
+
+The homeserver sets the lifetimes. The Helm chart and docker-compose configure Tuwunel with `access_token_ttl = 300` (5 minutes) and `refresh_token_ttl = 86400` (24 hours, idle); another homeserver needs its own equivalent settings. Logins without a refresh token, such as Element with a password, keep non-expiring tokens and are unaffected.
+
+## External Clients
+
+`MATRIX_EXTERNAL_LOGIN_METHOD` decides whether users can open their rooms in Element or another Matrix client:
+
+| Method | What the user gets |
+| --- | --- |
+| `none` (default) | Waldur offers no external sign-in: "Open in external Matrix client" and "Connect to Matrix…" are hidden. This hides the password; it does not disable password login on the homeserver |
+| `password` | The room, the homeserver, their Matrix user ID and a password Waldur derives for them. Needs `MATRIX_USER_REGISTRATION_SECRET` |
+| `oidc` | The room, the homeserver and an instruction to sign in with single sign-on, which must be configured on the homeserver |
+
+Switching away from `password` does not revoke passwords users have already seen or sign out their external clients; reset those passwords on the homeserver to cut that access.
 
 **GET /api/matrix/credentials/**
 
-Returns Matrix login credentials for the authenticated user. If the user has not been provisioned on the homeserver yet, provisioning happens on-demand.
-
-The response varies based on the configured `MATRIX_LOGIN_METHOD`:
+Returns what the external client dialog shows. If the user has not been provisioned on the homeserver yet, provisioning happens on demand.
 
 | Method | Response fields |
 | --- | --- |
-| `password` | `matrix_user_id`, `homeserver_url`, `password` |
-| `token` | `matrix_user_id`, `homeserver_url`, `login_token` |
-| `oidc` | `matrix_user_id`, `homeserver_url`, `oidc_provider_url` |
+| `none` | `method`, `matrix_user_id`, `homeserver_url` |
+| `password` | `method`, `matrix_user_id`, `homeserver_url`, `password` |
+| `oidc` | `method`, `matrix_user_id`, `homeserver_url` |
 
-**Optional query parameter:**
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `room_uuid` | UUID | Auto-invite and join the user into this room. The user must have access to the room's project. Returns additional `room_id` and `access_token` fields for embedded chat. |
-
-When `room_uuid` is provided:
-
-- The user is invited to the Matrix room and automatically joined
-- An `access_token` is returned for direct homeserver communication (embedded chat)
-- If the user does not have access to the room's project, the room parameters are silently ignored
+The endpoint never returns an access token. Waldur's chat drawer gets its tokens from `POST /api/matrix/session/`. It answers `400` with the reason when Matrix is misconfigured for the chosen method, and `503` when provisioning the user on the homeserver fails; the details are logged, not returned.
 
 ## Webhook
 
@@ -460,8 +497,7 @@ These Constance settings control the integration:
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
 | `MATRIX_USER_REGISTRATION_SECRET` | `""` | Shared secret for registering users on the homeserver |
 | `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local` |
-| `MATRIX_LOGIN_METHOD` | `token` | User login method: `password`, `token`, or `oidc` |
-| `MATRIX_OIDC_PROVIDER_URL` | `""` | OIDC provider URL (fallback when multiple active IDPs exist) |
+| `MATRIX_EXTERNAL_LOGIN_METHOD` | `none` | How users sign in to an external Matrix client: `none`, `password`, or `oidc`. See [External clients](#external-clients) |
 
 ## Feature Flag
 
@@ -471,7 +507,7 @@ The Matrix chat UI is gated on the project feature flag `project.show_matrix_cha
 
 | Model | Description |
 | --- | --- |
-| `MatrixUserProfile` | Links a Waldur user to their Matrix user ID. Tracks provisioning state and access token. |
+| `MatrixUserProfile` | Links a Waldur user to their Matrix user ID and tracks provisioning state. It stores no Matrix token. |
 | `MatrixRoom` | A Matrix room linked to a project via generic FK. One room per project. Manages state via FSM transitions. |
 | `MatrixRoomMember` | Tracks room membership, power levels, and membership state per user. |
 | `MatrixHistoryExport` | A chat history export with state, message/media counts, and file references. |

@@ -3577,19 +3577,13 @@ Shared secret for Matrix user registration.
 
 Format for generating Matrix user IDs: username, uuid, or email_local.
 
-#### MATRIX_LOGIN_METHOD
+#### MATRIX_EXTERNAL_LOGIN_METHOD
 
-**Type:** str
+**Type:** choice_field
 
-**Default value:** token
+**Default value:** none
 
-Login method for Matrix credentials: password, token, or oidc.
-
-#### MATRIX_OIDC_PROVIDER_URL
-
-**Type:** url_field
-
-OIDC provider URL for Matrix SSO login.
+How users sign in to an external Matrix client such as Element: 'none' (Waldur offers no external sign-in), 'password' (a password Waldur derives for each user), or 'oidc' (single sign-on configured on the homeserver). Switching away from 'password' does not revoke passwords already shown or sign out external clients.
 
 #### MATRIX_LIVEKIT_KEY
 
