@@ -30,14 +30,6 @@ class MatrixUserProfile(core_models.UuidMixin, TimeStampedModel):
     )
     provisioned_at = models.DateTimeField(null=True, blank=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
-    # TODO(WAL-9740): encrypt at rest via the field-level encryption
-    # infrastructure that ticket builds. Until then the token lives in
-    # plaintext alongside the rest of the row.
-    access_token = models.CharField(
-        max_length=512,
-        blank=True,
-        help_text="Matrix access token obtained during registration",
-    )
 
     class Meta:
         verbose_name = "Matrix user profile"

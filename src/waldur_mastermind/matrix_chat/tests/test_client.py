@@ -206,6 +206,99 @@ class EnsureUserExistsTest(TestCase):
             matrix_client.ensure_user_exists(user)
 
 
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+    MATRIX_USER_REGISTRATION_SECRET="test-secret",
+    MATRIX_USER_ID_FORMAT="username",
+)
+class RegistrationCreatesNoSessionTest(TestCase):
+    """Registration only creates the account: sessions come from /session/."""
+
+    @respx.mock
+    @mock.patch.object(matrix_client, "set_display_name")
+    def test_every_registration_request_inhibits_login(self, mock_display_name):
+        route = respx.post(
+            "https://matrix.example.com/_matrix/client/v3/register"
+        ).mock(
+            side_effect=[
+                httpx.Response(
+                    401,
+                    json={
+                        "session": "uia",
+                        "flows": [{"stages": ["m.login.registration_token"]}],
+                    },
+                ),
+                httpx.Response(200, json={"user_id": "@alice:matrix.example.com"}),
+            ]
+        )
+        user = structure_factories.UserFactory(username="alice")
+
+        matrix_client.ensure_user_exists(user)
+
+        bodies = [json.loads(call.request.content) for call in route.calls]
+        self.assertEqual(len(bodies), 2)
+        self.assertTrue(all(body["inhibit_login"] for body in bodies))
+
+    @respx.mock
+    @mock.patch.object(matrix_client, "set_display_name")
+    def test_appservice_registration_inhibits_login(self, mock_display_name):
+        # Without the registration-token flow, the appservice registers the user.
+        route = respx.post(
+            "https://matrix.example.com/_matrix/client/v3/register"
+        ).mock(
+            side_effect=[
+                httpx.Response(401, json={"session": "uia", "flows": []}),
+                httpx.Response(200, json={"user_id": "@alice:matrix.example.com"}),
+            ]
+        )
+
+        matrix_client.ensure_user_exists(
+            structure_factories.UserFactory(username="alice")
+        )
+
+        bodies = [json.loads(call.request.content) for call in route.calls]
+        self.assertEqual(bodies[-1]["auth"]["type"], "m.login.application_service")
+        self.assertTrue(all(body["inhibit_login"] for body in bodies))
+
+    @respx.mock
+    @mock.patch.object(matrix_client, "set_display_name")
+    def test_dummy_registration_inhibits_login(self, mock_display_name):
+        route = respx.post(
+            "https://matrix.example.com/_matrix/client/v3/register"
+        ).mock(
+            side_effect=[
+                httpx.Response(401, json={"session": "uia", "flows": []}),
+                httpx.Response(400, json={"errcode": "M_EXCLUSIVE"}),
+                httpx.Response(
+                    401,
+                    json={"session": "uia", "flows": [{"stages": ["m.login.dummy"]}]},
+                ),
+                httpx.Response(200, json={"user_id": "@alice:matrix.example.com"}),
+            ]
+        )
+
+        matrix_client.ensure_user_exists(
+            structure_factories.UserFactory(username="alice")
+        )
+
+        bodies = [json.loads(call.request.content) for call in route.calls]
+        self.assertEqual(bodies[-1]["auth"]["type"], "m.login.dummy")
+        self.assertTrue(all(body["inhibit_login"] for body in bodies))
+
+    @respx.mock
+    @mock.patch.object(matrix_client, "set_display_name")
+    def test_bot_registration_inhibits_login(self, mock_display_name):
+        route = respx.post(
+            "https://matrix.example.com/_matrix/client/v3/register"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        matrix_client.ensure_bot_user_exists()
+
+        self.assertTrue(json.loads(route.calls.last.request.content)["inhibit_login"])
+
+
 class EnsureBotUserExistsTest(TestCase):
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client.set_display_name")
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")

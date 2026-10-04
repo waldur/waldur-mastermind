@@ -172,7 +172,6 @@ class InviteUserTaskTest(TestCase):
         mock_client.join_room_as_user.assert_called_once_with(
             "!test:matrix.example.com", "@alice:matrix.example.com"
         )
-        mock_client.get_access_token_for_user.assert_not_called()
         member = models.MatrixRoomMember.objects.get(room=room, user=user)
         self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
 
@@ -700,7 +699,6 @@ class StaffJoinRoomTaskTest(TestCase):
         mock_client.join_room_as_user.assert_called_once_with(
             "!staff:matrix.example.com", "@staff:matrix.example.com"
         )
-        mock_client.get_access_token_for_user.assert_not_called()
         mock_client.set_power_level.assert_called_once_with(
             "!staff:matrix.example.com", "@staff:matrix.example.com", 50
         )
@@ -768,7 +766,6 @@ class StaffLeaveRoomTaskTest(TestCase):
         mock_client.leave_room_as_user.assert_called_once_with(
             "!staff:matrix.example.com", "@staff:matrix.example.com"
         )
-        mock_client.get_access_token_for_user.assert_not_called()
         member.refresh_from_db()
         self.assertEqual(member.membership_state, models.MembershipStates.LEFT)
 
@@ -804,7 +801,6 @@ class SyncProjectMembersJoinTest(TestCase):
         mock_client.join_room_as_user.assert_any_call(
             room.room_id, "@admin:matrix.example.com"
         )
-        mock_client.get_access_token_for_user.assert_not_called()
         member = models.MatrixRoomMember.objects.get(room=room, user=admin)
         self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
 

@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = (
         "Reset every active Matrix room and provisioned user profile so the "
         "homeserver rebuilds them. Use after moving to a new homeserver, whose "
-        "room ids and user tokens are different from the old one's. Do not run "
+        "room ids and user accounts are different from the old one's. Do not run "
         "it against the homeserver the rooms already live on: old rooms are not "
         "deleted, so each one keeps its history while Waldur replaces it with "
         "an empty room. "
@@ -58,11 +58,11 @@ class Command(BaseCommand):
             return
 
         if not options["yes"]:
-            # The room ids, aliases and user access tokens are dropped, and only
-            # a working homeserver can mint replacements.
+            # The room ids and aliases are dropped and every user is provisioned
+            # again, which only a working homeserver can do.
             self.stdout.write(
                 f"This resets {rooms} room(s) and {users} user profile(s), "
-                "discarding their homeserver ids and access tokens. Only run it "
+                "discarding their homeserver ids. Only run it "
                 "after moving to a new homeserver: on the one the rooms already "
                 "live on, each old room stays behind with its history and is "
                 "replaced by an empty one."

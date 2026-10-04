@@ -1,5 +1,6 @@
 import re
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -35,14 +36,12 @@ def validate_homeserver_domain(value):
 
 
 class MatrixCredentialsSerializer(serializers.Serializer):
-    method = serializers.CharField()
+    method = serializers.ChoiceField(
+        choices=settings.CONSTANCE_CONFIG_CHOICES["MATRIX_EXTERNAL_LOGIN_METHOD"]
+    )
     homeserver_url = serializers.CharField()
     matrix_user_id = serializers.CharField()
     password = serializers.CharField(required=False)
-    login_token = serializers.CharField(required=False)
-    oidc_provider_url = serializers.CharField(required=False)
-    room_id = serializers.CharField(required=False)
-    access_token = serializers.CharField(required=False)
 
 
 class MatrixSessionSerializer(serializers.Serializer):

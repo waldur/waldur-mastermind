@@ -908,6 +908,32 @@ class CourseAccountHandlerTest(test.APITestCase):
         pat.refresh_from_db()
         self.assertFalse(pat.is_active)
 
+    def test_closing_keeps_the_reason_of_a_user_already_deactivated(self):
+        respx.get(COURSE_ACCOUNT_URL + f"/{self.test_user.username}").mock(
+            return_value=httpx.Response(
+                200, json={"tempAccounts": [{"username": self.test_user.username}]}
+            )
+        )
+        respx.put(COURSE_ACCOUNT_URL + f"/{self.test_user.username}/close").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        self.test_user.is_active = False
+        self.test_user.deactivation_reason = "Left the organisation"
+        self.test_user.save(update_fields=["is_active", "deactivation_reason"])
+
+        tasks.close_course_accounts_task(
+            [
+                {
+                    "uuid": uuid.uuid4().hex,
+                    "username": self.test_user.username,
+                    "user_id": self.test_user.pk,
+                }
+            ]
+        )
+
+        self.test_user.refresh_from_db()
+        self.assertEqual(self.test_user.deactivation_reason, "Left the organisation")
+
     def test_course_accounts_handler_no_op_when_no_accounts(self):
         """Test that handler works correctly when project has no course accounts"""
         # No course accounts created for this project

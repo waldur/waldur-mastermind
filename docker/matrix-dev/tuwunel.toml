@@ -27,6 +27,13 @@ registration_shared_secret = "devregistrationsecret"
 # Max upload size (100 MB for dev)
 max_request_size = 104857600
 
+# The same token lifetimes as Helm and Docker Compose, so the chat drawer's
+# token refresh runs in dev too; without them its tokens last 7 days and the
+# refresh path never runs. Only logins that ask for a refresh token expire.
+# Lower access_token_ttl to 60 to watch refreshes in the browser.
+access_token_ttl = 300
+refresh_token_ttl = 86400
+
 # Federation must be ON: lk-jwt-service verifies the user's Matrix OpenID token
 # via the federation endpoint /_matrix/federation/v1/openid/userinfo before
 # issuing a LiveKit JWT. With federation off, Element Call token exchange fails.

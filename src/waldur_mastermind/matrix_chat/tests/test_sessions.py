@@ -4,6 +4,7 @@ from unittest import mock
 import httpx
 from constance.test import override_config
 from django.conf import settings
+from django.forms.models import model_to_dict
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -83,7 +84,9 @@ class MatrixSessionTest(test.APITestCase):
         self.client.post(self.url)
 
         profile.refresh_from_db()
-        self.assertEqual(profile.access_token, "")
+        stored = model_to_dict(profile).values()
+        self.assertNotIn(SESSION["access_token"], stored)
+        self.assertNotIn(SESSION["refresh_token"], stored)
 
     def test_homeserver_error_is_unavailable(
         self, mock_ensure, mock_session, mock_prune

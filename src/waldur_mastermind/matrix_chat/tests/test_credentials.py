@@ -1,3 +1,4 @@
+import json
 from unittest import mock
 
 import httpx
@@ -31,13 +32,16 @@ class MatrixCredentialsAuthTest(MatrixCredentialsBaseTest):
 
     @mock.patch(
         "waldur_mastermind.matrix_chat.matrix_client.ensure_user_exists",
-        side_effect=MatrixClientError("Provisioning failed"),
+        side_effect=MatrixClientError("Failed to register user x: all strategies"),
     )
-    def test_user_without_profile_gets_error(self, mock_ensure):
+    def test_failed_provisioning_is_unavailable(self, mock_ensure):
+        # Registration fails on the homeserver's side, e.g. behind a proxy's
+        # error page, so it is a fault to retry, not the caller's to fix.
         user = structure_factories.UserFactory()
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertNotIn("strategies", str(response.data))
 
     @mock.patch(
         "waldur_mastermind.matrix_chat.matrix_client.ensure_user_exists",
@@ -54,11 +58,36 @@ class MatrixCredentialsAuthTest(MatrixCredentialsBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("not been provisioned", response.data["detail"])
 
+    def test_unreachable_homeserver_is_unavailable(self):
+        # Provisioning on demand talks to the homeserver, as the session
+        # endpoint does, and answers the same way when it can't.
+        user = structure_factories.UserFactory()
+        self.client.force_authenticate(user)
+        for error in [
+            httpx.ConnectError("Connection refused"),
+            json.JSONDecodeError("Expecting value", "<html>", 0),
+        ]:
+            with self.subTest(error=type(error).__name__):
+                with mock.patch(
+                    "waldur_mastermind.matrix_chat.matrix_client.ensure_user_exists",
+                    side_effect=error,
+                ):
+                    response = self.client.get(self.url)
+
+                self.assertEqual(
+                    response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+                self.assertNotIn("Connection refused", str(response.data))
+
+
+# Secrets the endpoint used to hand to the browser; none may come back.
+TOKEN_FIELDS = ("access_token", "refresh_token", "login_token")
+
 
 @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
 class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
     def test_password_method_returns_credentials(self, mock_config):
-        mock_config.MATRIX_LOGIN_METHOD = "password"
+        mock_config.MATRIX_EXTERNAL_LOGIN_METHOD = "password"
         mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
         # Empty public URL exercises the fallback path used by deployments
         # where the same URL works server-side and browser-side.
@@ -74,14 +103,14 @@ class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
         self.assertEqual(response.data["homeserver_url"], "https://matrix.example.com")
         self.assertEqual(response.data["matrix_user_id"], profile.matrix_user_id)
         self.assertIn("password", response.data)
-        self.assertNotIn("login_token", response.data)
-        self.assertNotIn("oidc_provider_url", response.data)
+        for field in TOKEN_FIELDS + ("oidc_provider_url",):
+            self.assertNotIn(field, response.data)
 
     def test_public_url_overrides_internal_in_credentials(self, mock_config):
         # When the public URL is set distinctly, the credentials response
         # returns that — backend bot code continues to call the internal
         # URL but the browser is told the Caddy-proxied address.
-        mock_config.MATRIX_LOGIN_METHOD = "password"
+        mock_config.MATRIX_EXTERNAL_LOGIN_METHOD = "password"
         mock_config.MATRIX_HOMESERVER_URL = "http://tuwunel.internal:6167"
         mock_config.MATRIX_HOMESERVER_PUBLIC_URL = "https://waldur.example.com"
         mock_config.MATRIX_USER_REGISTRATION_SECRET = "test-secret"
@@ -94,7 +123,7 @@ class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
         self.assertEqual(response.data["homeserver_url"], "https://waldur.example.com")
 
     def test_password_method_without_secret_returns_error(self, mock_config):
-        mock_config.MATRIX_LOGIN_METHOD = "password"
+        mock_config.MATRIX_EXTERNAL_LOGIN_METHOD = "password"
         mock_config.MATRIX_USER_REGISTRATION_SECRET = ""
 
         self.fixture.matrix_user_profile
@@ -106,221 +135,61 @@ class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
 
 
 @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
-class MatrixCredentialsTokenTest(MatrixCredentialsBaseTest):
-    @mock.patch(
-        "waldur_mastermind.matrix_chat.matrix_client._run_async",
-        return_value="mocked_access_token_123",
-    )
-    def test_token_method_returns_access_token(self, mock_run_async, mock_config):
-        mock_config.MATRIX_LOGIN_METHOD = "token"
+class MatrixCredentialsWithoutPasswordTest(MatrixCredentialsBaseTest):
+    def _get(self, mock_config, method):
+        mock_config.MATRIX_EXTERNAL_LOGIN_METHOD = method
         mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
         mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
-        mock_config.MATRIX_APPSERVICE_AS_TOKEN = "as_token_123"
-
-        profile = self.fixture.matrix_user_profile
-        self.client.force_authenticate(self.fixture.admin)
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["method"], "token")
-        self.assertEqual(response.data["homeserver_url"], "https://matrix.example.com")
-        self.assertEqual(response.data["matrix_user_id"], profile.matrix_user_id)
-        self.assertEqual(response.data["login_token"], "mocked_access_token_123")
-        self.assertNotIn("password", response.data)
-        self.assertNotIn("oidc_provider_url", response.data)
-
-    def test_token_method_without_as_token_returns_error(self, mock_config):
-        # An empty AS_TOKEN makes matrix_client.is_enabled() False, so the
-        # view 404s before the per-method validation can produce a 400.
-        # Pin AS_TOKEN here so we still exercise the original error path —
-        # the integration is gated separately at the base-class level via
-        # @override_config.
-        mock_config.MATRIX_LOGIN_METHOD = "token"
-        mock_config.MATRIX_APPSERVICE_AS_TOKEN = ""
-        mock_config.MATRIX_ENABLED = True
-        mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
-        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
-
+        mock_config.MATRIX_USER_REGISTRATION_SECRET = "test-secret"
         self.fixture.matrix_user_profile
         self.client.force_authenticate(self.fixture.admin)
-        response = self.client.get(self.url)
+        return self.client.get(self.url)
 
-        # The integration check runs against the mocked matrix_client.config
-        # (which is_enabled() reads through), and an empty AS_TOKEN there
-        # makes the gate close — 404 is now the correct response.
-        self.assertIn(
-            response.status_code,
-            (status.HTTP_400_BAD_REQUEST, status.HTTP_404_NOT_FOUND),
-        )
-
-
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
-class MatrixCredentialsOidcTest(MatrixCredentialsBaseTest):
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.IdentityProvider")
-    def test_oidc_method_returns_provider_url(self, mock_idp_model, mock_config):
-        mock_config.MATRIX_LOGIN_METHOD = "oidc"
-        mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
-        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
-        mock_config.MATRIX_OIDC_PROVIDER_URL = (
-            "https://keycloak.example.com/realms/main"
-        )
-
-        mock_idp = mock.MagicMock()
-        mock_idp.auth_url = "https://keycloak.example.com/realms/main"
-        mock_idp_model.objects.get.return_value = mock_idp
-
-        profile = self.fixture.matrix_user_profile
-        self.client.force_authenticate(self.fixture.admin)
-        response = self.client.get(self.url)
+    def test_oidc_method_returns_identity_only(self, mock_config):
+        response = self._get(mock_config, "oidc")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["method"], "oidc")
-        self.assertEqual(response.data["homeserver_url"], "https://matrix.example.com")
-        self.assertEqual(response.data["matrix_user_id"], profile.matrix_user_id)
         self.assertEqual(
-            response.data["oidc_provider_url"],
-            "https://keycloak.example.com/realms/main",
+            response.data,
+            {
+                "method": "oidc",
+                "homeserver_url": "https://matrix.example.com",
+                "matrix_user_id": self.fixture.matrix_user_profile.matrix_user_id,
+            },
         )
+
+    def test_none_method_returns_no_secret(self, mock_config):
+        response = self._get(mock_config, "none")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["method"], "none")
         self.assertNotIn("password", response.data)
-        self.assertNotIn("login_token", response.data)
+        for field in TOKEN_FIELDS:
+            self.assertNotIn(field, response.data)
 
-
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
-class MatrixCredentialsUnknownMethodTest(MatrixCredentialsBaseTest):
-    def test_unknown_method_returns_error(self, mock_config):
-        mock_config.MATRIX_LOGIN_METHOD = "invalid"
-
-        self.fixture.matrix_user_profile
-        self.client.force_authenticate(self.fixture.admin)
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Unknown login method", response.data["detail"])
-
-
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client.join_room_as_user")
-@mock.patch(
-    "waldur_mastermind.matrix_chat.matrix_client.get_access_token_for_user",
-    return_value="access_token_123",
-)
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client.get_user_matrix_credentials")
-class MatrixCredentialsRoomAccessTest(MatrixCredentialsBaseTest):
-    """Conversation access via ?room_uuid= is limited to current room members.
-
-    A user enters a room's live conversation only if they hold an active
-    MatrixRoomMember row (created solely from project membership). Role-based
-    access alone — e.g. staff or a customer owner who is not a project member —
-    grants room management but not the conversation.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.room = self.fixture.matrix_room
-
-    def _credentials(self):
-        return {
-            "method": "token",
-            "matrix_user_id": "@admin:matrix.example.com",
-            "homeserver_url": "https://matrix.example.com",
-        }
-
-    def _get(self, user, mock_get_creds):
-        mock_get_creds.return_value = self._credentials()
-        self.client.force_authenticate(user)
-        return self.client.get(self.url, {"room_uuid": self.room.uuid.hex})
-
-    def test_room_member_receives_room_credentials(
-        self, mock_get_creds, mock_token, mock_join
-    ):
+    def test_room_uuid_no_longer_hands_out_room_or_token(self, mock_config):
         models.MatrixRoomMember.objects.create(
-            room=self.room,
+            room=self.fixture.matrix_room,
             user=self.fixture.admin,
             matrix_user_id="@admin:matrix.example.com",
             membership_state=models.MembershipStates.JOINED,
         )
-        response = self._get(self.fixture.admin, mock_get_creds)
+        mock_config.MATRIX_EXTERNAL_LOGIN_METHOD = "none"
+        mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
+        mock_config.MATRIX_HOMESERVER_PUBLIC_URL = ""
+        self.fixture.matrix_user_profile
+        self.client.force_authenticate(self.fixture.admin)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["room_id"], self.room.room_id)
-        self.assertEqual(response.data["access_token"], "access_token_123")
-        mock_join.assert_called_once_with(
-            self.room.room_id, "@admin:matrix.example.com"
+        response = self.client.get(
+            self.url, {"room_uuid": self.fixture.matrix_room.uuid.hex}
         )
 
-    def test_room_member_is_joined_even_without_access_token(
-        self, mock_get_creds, mock_token, mock_join
-    ):
-        # The join goes through the appservice, so a failed user login must
-        # not leave the member stuck on a pending invite.
-        mock_token.side_effect = MatrixClientError("login failed")
-        models.MatrixRoomMember.objects.create(
-            room=self.room,
-            user=self.fixture.admin,
-            matrix_user_id="@admin:matrix.example.com",
-            membership_state=models.MembershipStates.INVITED,
-        )
-        response = self._get(self.fixture.admin, mock_get_creds)
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["room_id"], self.room.room_id)
+        self.assertNotIn("room_id", response.data)
         self.assertNotIn("access_token", response.data)
-        mock_join.assert_called_once_with(
-            self.room.room_id, "@admin:matrix.example.com"
-        )
-        member = models.MatrixRoomMember.objects.get(
-            room=self.room, user=self.fixture.admin
-        )
-        self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
 
-    def test_unreachable_homeserver_does_not_fail_the_request(
-        self, mock_get_creds, mock_token, mock_join
-    ):
-        mock_join.side_effect = httpx.ConnectTimeout("homeserver down")
-        models.MatrixRoomMember.objects.create(
-            room=self.room,
-            user=self.fixture.admin,
-            matrix_user_id="@admin:matrix.example.com",
-            membership_state=models.MembershipStates.INVITED,
-        )
-        response = self._get(self.fixture.admin, mock_get_creds)
+    def test_unknown_method_returns_error(self, mock_config):
+        response = self._get(mock_config, "token")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        member = models.MatrixRoomMember.objects.get(
-            room=self.room, user=self.fixture.admin
-        )
-        self.assertEqual(member.membership_state, models.MembershipStates.INVITED)
-
-    def test_customer_owner_without_membership_is_denied_convo(
-        self, mock_get_creds, mock_token, mock_join
-    ):
-        # The customer owner has role-based access to the room but is not a
-        # project member, so no MatrixRoomMember row exists for them.
-        response = self._get(self.fixture.owner, mock_get_creds)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn("room_id", response.data)
-        mock_join.assert_not_called()
-
-    def test_staff_without_membership_is_denied_convo(
-        self, mock_get_creds, mock_token, mock_join
-    ):
-        response = self._get(self.fixture.staff, mock_get_creds)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn("room_id", response.data)
-        mock_join.assert_not_called()
-
-    def test_member_who_left_is_denied_convo(
-        self, mock_get_creds, mock_token, mock_join
-    ):
-        models.MatrixRoomMember.objects.create(
-            room=self.room,
-            user=self.fixture.admin,
-            matrix_user_id="@admin:matrix.example.com",
-            membership_state=models.MembershipStates.LEFT,
-        )
-        response = self._get(self.fixture.admin, mock_get_creds)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn("room_id", response.data)
-        mock_join.assert_not_called()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Unknown login method", response.data["detail"])
