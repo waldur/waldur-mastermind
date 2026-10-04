@@ -359,3 +359,75 @@ class ProviderOfferingReportsAccessTest(test.APITestCase):
             ),
             status.HTTP_403_FORBIDDEN,
         )
+
+
+class ServiceProviderManagerListsTest(test.APITestCase):
+    """Offering groups, campaigns and offering users a service provider manager
+    can create are also listed to them, for their own provider only."""
+
+    def setUp(self):
+        from waldur_mastermind.promotions.tests import (
+            factories as promotions_factories,
+        )
+
+        self.promotions_factories = promotions_factories
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        self.customer = self.service_provider.customer
+        self.other_provider = factories.ServiceProviderFactory()
+
+        self.manager = structure_factories.UserFactory()
+        self.service_provider.add_user(self.manager, ServiceProviderRole.MANAGER)
+        self.owner = structure_factories.UserFactory()
+        self.customer.add_user(self.owner, CustomerRole.OWNER)
+
+        self.rows = self._create_rows(self.service_provider)
+        self.other_rows = self._create_rows(self.other_provider)
+
+    def _create_rows(self, service_provider):
+        offering = factories.OfferingFactory(
+            customer=service_provider.customer,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        return {
+            "groups": factories.OfferingGroupFactory(
+                customer=service_provider.customer
+            ).uuid.hex,
+            "campaigns": self.promotions_factories.CampaignFactory(
+                service_provider=service_provider
+            ).uuid.hex,
+            "offering_users": factories.OfferingUserFactory(offering=offering).uuid.hex,
+        }
+
+    def _list(self, user):
+        self.client.force_authenticate(user)
+        urls = {
+            "groups": factories.OfferingGroupFactory.get_list_url(),
+            "campaigns": self.promotions_factories.CampaignFactory.get_list_url(),
+            "offering_users": factories.OfferingUserFactory.get_list_url(),
+        }
+        result = {}
+        for key, url in urls.items():
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            result[key] = {row["uuid"] for row in response.data}
+        return result
+
+    def test_manager_lists_own_provider_rows_only(self):
+        listed = self._list(self.manager)
+        for key, uuid in self.rows.items():
+            self.assertIn(uuid, listed[key], key)
+        for key, uuid in self.other_rows.items():
+            self.assertNotIn(uuid, listed[key], key)
+
+    def test_owner_lists_own_provider_rows_only(self):
+        listed = self._list(self.owner)
+        for key, uuid in self.rows.items():
+            self.assertIn(uuid, listed[key], key)
+        for key, uuid in self.other_rows.items():
+            self.assertNotIn(uuid, listed[key], key)
+
+    def test_user_without_role_lists_none(self):
+        listed = self._list(structure_factories.UserFactory())
+        for key in self.rows:
+            self.assertEqual(listed[key], set(), key)

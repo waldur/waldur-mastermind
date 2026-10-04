@@ -1,11 +1,14 @@
 import datetime
 
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.tests import factories as permission_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.promotions import models
@@ -19,6 +22,8 @@ class CreateCampaignTest(test.APITestCase):
         self.offering = self.fixture.offering
         self.url = factories.CampaignFactory.get_list_url()
         self.other_sp = marketplace_factories.ServiceProviderFactory()
+        CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
 
     def _get_payload(self, **kwargs):
         payload = {
@@ -57,6 +62,36 @@ class CreateCampaignTest(test.APITestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, data=self._get_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_service_provider_manager_can_create_campaign(self):
+        manager = structure_factories.UserFactory()
+        self.fixture.service_provider.add_user(manager, ServiceProviderRole.MANAGER)
+        self.client.force_authenticate(manager)
+        response = self.client.post(self.url, data=self._get_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_owner_without_manage_campaign_can_not_create_campaign(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.MANAGE_CAMPAIGN)
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(self.url, data=self._get_payload())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("service_provider", response.data)
+
+    @data("service_provider", "offering_customer")
+    def test_custom_role_without_manage_campaign_can_not_create_campaign(
+        self, scope_name
+    ):
+        scope = getattr(self.fixture, scope_name)
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(scope)
+        )
+        role.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS)
+        user = structure_factories.UserFactory()
+        scope.add_user(user, role)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url, data=self._get_payload())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("service_provider", response.data)
 
     @data("staff", "offering_owner", "service_manager")
     # can access campaign but not create for a service provider
@@ -311,3 +346,99 @@ class DeleteCampaignTest(test.APITestCase):
 
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class ServiceProviderManagerCampaignLifecycleTest(test.APITestCase):
+    """A manager holding their role on the ServiceProvider itself, rather than
+    on its organization, manages that provider's campaigns and no others."""
+
+    def setUp(self):
+        self.fixture = fixtures.PromotionsFixture()
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
+        self.campaign = factories.CampaignFactory(
+            service_provider=self.fixture.service_provider
+        )
+        self.campaign.offerings.add(self.fixture.offering)
+        self.manager = structure_factories.UserFactory()
+        self.fixture.service_provider.add_user(
+            self.manager, ServiceProviderRole.MANAGER
+        )
+        self.other_manager = structure_factories.UserFactory()
+        marketplace_factories.ServiceProviderFactory().add_user(
+            self.other_manager, ServiceProviderRole.MANAGER
+        )
+
+    def _update(self, user):
+        self.client.force_authenticate(user)
+        payload = {
+            "name": "Renamed",
+            "start_date": self.campaign.start_date,
+            "end_date": self.campaign.end_date,
+            "discount_type": self.campaign.discount_type,
+            "discount": self.campaign.discount,
+            "service_provider": marketplace_factories.ServiceProviderFactory.get_url(
+                self.fixture.service_provider
+            ),
+            "offerings": [self.fixture.offering.uuid.hex],
+        }
+        return self.client.put(
+            factories.CampaignFactory.get_url(self.campaign), payload
+        )
+
+    def _post(self, user, action):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            factories.CampaignFactory.get_url(self.campaign, action)
+        )
+
+    def test_manager_can_update_campaign(self):
+        response = self._update(self.manager)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.name, "Renamed")
+
+    def test_manager_can_activate_and_terminate_campaign(self):
+        response = self._post(self.manager, "activate")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.state, models.Campaign.States.ACTIVE)
+
+        response = self._post(self.manager, "terminate")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.state, models.Campaign.States.TERMINATED)
+
+    def test_manager_can_delete_campaign(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.delete(factories.CampaignFactory.get_url(self.campaign))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.Campaign.objects.filter(id=self.campaign.id).exists())
+
+    def test_manager_of_another_provider_can_not_manage_campaign(self):
+        self.assertEqual(
+            self._update(self.other_manager).status_code, status.HTTP_404_NOT_FOUND
+        )
+        for action in ("activate", "terminate"):
+            self.assertEqual(
+                self._post(self.other_manager, action).status_code,
+                status.HTTP_404_NOT_FOUND,
+                action,
+            )
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.state, models.Campaign.States.DRAFT)
+
+    @data("activate", "terminate")
+    def test_provider_role_without_manage_campaign_can_not_run_action(self, action):
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(
+                self.fixture.service_provider
+            )
+        )
+        role.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS)
+        user = structure_factories.UserFactory()
+        self.fixture.service_provider.add_user(user, role)
+        response = self._post(user, action)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.state, models.Campaign.States.DRAFT)
