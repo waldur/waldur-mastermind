@@ -14,6 +14,7 @@ from waldur_core.logging.middleware import get_event_context
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
     build_org_role_name,
+    describe_role_event,
     ensure_unique_role_name,
     get_active_roles,
     get_role_customers,
@@ -268,6 +269,18 @@ def log(
         event_context["role_source"] = source
         if is_quiet_grant_source(source):
             event_context["suppress_email"] = True
+
+    details = describe_role_event(instance)
+    if details:
+        event_context.update(details.context)
+        if details.role_label:
+            event_context["role_description"] = details.role_label
+            message = message.replace("{role_name}", "{role_description}")
+        if details.scope_note:
+            # The note is fixed text, but the message is formatted against
+            # the context, so any braces in it must not act as placeholders.
+            note = details.scope_note.replace("{", "{{").replace("}", "}}")
+            message = message.replace("{scope_name}", "{scope_name} " + note, 1)
 
     event_logger.emit(
         message,

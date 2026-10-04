@@ -127,8 +127,10 @@ The proposal team follows a few rules:
   `PROPOSAL.MANAGER`.
 - Once the proposal leaves draft, its team is frozen: the applicant can no
   longer change it. Staff, call managers and call organisers may still change
-  any role, and every such change is recorded as a
-  `proposal_team_changed_after_submission` event on the proposal.
+  any role. Every team change is recorded once, as the generic `role_granted`,
+  `role_updated` or `role_revoked` event, whose context on a proposal also
+  carries `proposal_state` and `after_submission`; a change made after
+  submission says so in the message.
 
 ### Role Features
 

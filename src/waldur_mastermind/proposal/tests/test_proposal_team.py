@@ -445,62 +445,60 @@ class TeamFrozenAfterSubmissionTest(ProposalTeamMixin, test.APITestCase):
         self.assertTrue(self.proposal.has_user(self.member, ProposalRole.MEMBER))
 
 
-class TeamChangeAfterSubmissionAuditTest(ProposalTeamMixin, test.APITestCase):
+class TeamChangeEventTest(ProposalTeamMixin, test.APITestCase):
+    """Each team change is logged once, as the generic role event.
+
+    On a proposal the event also says which state the proposal was in and
+    whether the change happened after submission.
+    """
+
     def setUp(self):
         super().setUp()
         self.call_manager = self.fixture.call_manager
         self._submit_proposal()
+        self.since = timezone.now()
 
     def _events(self):
-        return Event.objects.filter(
-            event_type=EventType.PROPOSAL_TEAM_CHANGED_AFTER_SUBMISSION
-        ).order_by("created")
+        return Event.objects.filter(created__gte=self.since).order_by("created")
 
-    def test_call_manager_change_is_logged(self):
+    def test_call_manager_grant_and_revoke_log_one_event_each(self):
         response = self._grant(self.member, MANAGER, as_user=self.call_manager)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         response = self._revoke(self.applicant, MANAGER, as_user=self.call_manager)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         granted, revoked = self._events()
-        context = granted.context
-        self.assertEqual(context["change"], "granted")
-        self.assertEqual(context["role_name"], MANAGER)
-        self.assertEqual(context["proposal_uuid"], self.proposal.uuid.hex)
-        self.assertEqual(context["proposal_state"], ProposalStates.SUBMITTED)
-        self.assertEqual(context["affected_user_uuid"], self.member.uuid.hex)
-        self.assertEqual(context["actor_uuid"], self.call_manager.uuid.hex)
-        self.assertIn(self.proposal.name, granted.message)
-        self.assertIn("Proposal manager", granted.message)
-        self.assertNotIn(MANAGER, granted.message)
-        self.assertEqual(revoked.context["change"], "revoked")
+        self.assertEqual(granted.event_type, EventType.ROLE_GRANTED)
+        self.assertEqual(revoked.event_type, EventType.ROLE_REVOKED)
+        for event in (granted, revoked):
+            self.assertTrue(event.context["after_submission"])
+            self.assertEqual(event.context["proposal_state"], ProposalStates.SUBMITTED)
+            self.assertEqual(event.context["scope_uuid"], self.proposal.uuid.hex)
+            self.assertEqual(event.context["role_name"], MANAGER)
+            self.assertEqual(event.context["user_uuid"], self.call_manager.uuid.hex)
+            self.assertIn(f"in {self.proposal.name} (after submission).", event.message)
+            self.assertIn("Proposal manager", event.message)
+            self.assertNotIn(MANAGER, event.message)
+        self.assertEqual(granted.context["affected_user_uuid"], self.member.uuid.hex)
         self.assertEqual(revoked.context["affected_user_uuid"], self.applicant.uuid.hex)
 
     def test_event_is_filed_on_the_proposal_feed(self):
         self._grant(self.member, MANAGER, as_user=self.call_manager)
         (event,) = self._events()
-        self.assertEqual(
-            [feed.scope for feed in Feed.objects.filter(event=event)],
-            [self.proposal],
+        self.assertIn(
+            self.proposal, [feed.scope for feed in Feed.objects.filter(event=event)]
         )
 
-    def test_call_manager_removing_a_member_is_logged(self):
-        response = self._revoke(self.member, MEMBER, as_user=self.call_manager)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        (event,) = self._events()
-        self.assertEqual(event.context["change"], "revoked")
-        self.assertEqual(event.context["role_name"], MEMBER)
-        self.assertEqual(event.context["affected_user_uuid"], self.member.uuid.hex)
-        self.assertEqual(event.context["actor_uuid"], self.call_manager.uuid.hex)
-
-    def test_staff_member_changes_are_logged(self):
+    def test_staff_expiry_update_and_revoke_log_one_event_each(self):
         self._update(self.member, MEMBER, as_user=self.staff)
         self._revoke(self.member, MEMBER, as_user=self.staff)
         updated, revoked = self._events()
-        self.assertEqual(updated.context["change"], "updated")
-        self.assertEqual(revoked.context["change"], "revoked")
+        self.assertEqual(updated.event_type, EventType.ROLE_UPDATED)
+        self.assertTrue(updated.context["after_submission"])
+        self.assertIn(f"in {self.proposal.name} (after submission) is", updated.message)
+        self.assertEqual(revoked.event_type, EventType.ROLE_REVOKED)
         self.assertEqual(revoked.context["role_name"], MEMBER)
-        self.assertEqual(revoked.context["actor_uuid"], self.staff.uuid.hex)
+        self.assertEqual(revoked.context["user_uuid"], self.staff.uuid.hex)
 
     def test_accepted_invitation_is_logged_on_the_inviters_authority(self):
         invitee = structure_factories.UserFactory(email="late@example.com")
@@ -517,9 +515,10 @@ class TeamChangeAfterSubmissionAuditTest(ProposalTeamMixin, test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        (event,) = self._events()
+        (event,) = self._events().filter(event_type=EventType.ROLE_GRANTED)
         self.assertEqual(event.context["affected_user_uuid"], invitee.uuid.hex)
-        self.assertEqual(event.context["actor_uuid"], self.call_manager.uuid.hex)
+        self.assertEqual(event.context["user_uuid"], self.call_manager.uuid.hex)
+        self.assertTrue(event.context["after_submission"])
 
     def test_approved_permission_request_is_logged_with_the_approver(self):
         requester = structure_factories.UserFactory()
@@ -534,17 +533,24 @@ class TeamChangeAfterSubmissionAuditTest(ProposalTeamMixin, test.APITestCase):
         )
         permission_request.approve(self.call_manager, "")
 
-        (event,) = self._events()
+        (event,) = self._events().filter(event_type=EventType.ROLE_GRANTED)
         self.assertEqual(event.context["affected_user_uuid"], requester.uuid.hex)
-        self.assertEqual(event.context["actor_uuid"], self.call_manager.uuid.hex)
+        self.assertEqual(event.context["user_uuid"], self.call_manager.uuid.hex)
+        self.assertTrue(event.context["after_submission"])
 
-    def test_draft_changes_are_not_logged(self):
+    def test_draft_change_logs_one_event_not_after_submission(self):
         self.proposal.state = ProposalStates.DRAFT
         self.proposal.save()
+        self.since = timezone.now()
         self.assertEqual(
             self._grant(self.member, MANAGER).status_code, status.HTTP_201_CREATED
         )
-        self.assertFalse(self._events().exists())
+        (event,) = self._events()
+        self.assertEqual(event.event_type, EventType.ROLE_GRANTED)
+        self.assertFalse(event.context["after_submission"])
+        self.assertEqual(event.context["proposal_state"], ProposalStates.DRAFT)
+        self.assertNotIn("after submission", event.message)
+        self.assertIn(f"in {self.proposal.name}.", event.message)
 
 
 class ExpiryKeepsLastManagerTest(ProposalTeamMixin, test.APITestCase):

@@ -12,6 +12,7 @@ class ProposalConfig(AppConfig):
         from waldur_core.permissions.utils import (
             register_expiration_guard,
             register_role_change_guard,
+            register_role_event_describer,
         )
         from waldur_core.users.utils import register_invitation_scope_overseer
 
@@ -26,15 +27,11 @@ class ProposalConfig(AppConfig):
         register_invitation_scope_overseer(handlers.oversees_proposal_invitations)
         # A proposal never loses its last manager to expiry either.
         register_expiration_guard(handlers.is_last_proposal_manager_role)
-        for signal, handler in (
-            (permission_signals.role_granted, handlers.log_team_role_granted),
-            (permission_signals.role_updated, handlers.log_team_role_updated),
-            (permission_signals.role_revoked, handlers.log_team_role_revoked),
-        ):
-            signal.connect(
-                handler,
-                dispatch_uid=f"waldur_mastermind.proposal.{handler.__name__}",
-            )
+        # Team changes are logged once, by the generic role event, which
+        # this enriches with the proposal's state.
+        register_role_event_describer(
+            models.Proposal, handlers.describe_proposal_role_event
+        )
 
         # Submitted-proposal team roles must not be auto-revoked on expiration.
         register_expiration_guard(handlers.is_submitted_proposal_role)
