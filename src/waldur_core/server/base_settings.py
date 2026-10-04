@@ -144,6 +144,11 @@ REST_FRAMEWORK = {
         # third-party relay and the test send delivers a real message, so both
         # are cheap to abuse and rare in legitimate use.
         "email_diagnostics": "20/hour",
+        # Custom metric ingestion, native and OTLP together, per reporting
+        # user. A guard against a runaway reporter, not a storage budget: a
+        # request carries up to METRICS_MAX_POINTS_PER_REQUEST points, and a
+        # collector or site agent batching every minute stays far below this.
+        "metrics_ingest": "600/min",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
     "DEFAULT_SCHEMA_CLASS": "waldur_core.core.openapi_inspector.WaldurOpenApiInspector",

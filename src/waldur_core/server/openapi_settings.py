@@ -31,6 +31,7 @@ from waldur_mastermind.marketplace.enums import (
     ServiceAccountState,
     SwitchBillingModes,
 )
+from waldur_mastermind.marketplace_metrics import enums as metrics_enums
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS_CHOICES,
@@ -87,6 +88,7 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
+        "MetricKindEnum": metrics_enums.MetricKinds.CHOICES,
         # A rule's "project_field" would otherwise take ProjectFieldEnum, the
         # name of the projects endpoints' field selector.
         "SramProjectRuleField": sram_enums.ProjectField.choices,

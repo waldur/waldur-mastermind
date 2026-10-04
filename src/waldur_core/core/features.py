@@ -105,6 +105,11 @@ class ProjectSection(FeatureSection):
         "separately on the MATRIX_ENABLED Constance setting."
     )
 
+    show_custom_metrics = Feature(
+        "Show custom metrics: the project Metrics tab and the offering metrics "
+        "a provider adopts."
+    )
+
 
 class UserSection(FeatureSection):
     class Meta:

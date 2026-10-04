@@ -88,6 +88,7 @@ dependencies = [
   "jsonschema>=4.0.0",
   "aiohttp>=3.14",
   "regex>=2024.11.6",
+  "opentelemetry-proto>=1.37,<2",
 ]
 
 [project.urls]
@@ -109,6 +110,7 @@ waldur_digitalocean = "waldur_digitalocean.extension:DigitalOceanExtension"
 waldur_freeipa = "waldur_freeipa.extension:FreeIPAExtension"
 waldur_invoices = "waldur_mastermind.invoices.extension:InvoicesExtension"
 waldur_marketplace = "waldur_mastermind.marketplace.extension:MarketplaceExtension"
+waldur_marketplace_metrics = "waldur_mastermind.marketplace_metrics.extension:MarketplaceMetricsExtension"
 waldur_marketplace_openportal = "waldur_mastermind.marketplace_openportal.extension:MarketplaceOpenPortalExtension"
 waldur_marketplace_openportal_remote = "waldur_mastermind.marketplace_openportal_remote.extension:MarketplaceOpenPortalRemoteExtension"
 waldur_marketplace_openstack = "waldur_mastermind.marketplace_openstack.extension:MarketplaceOpenStackExtension"

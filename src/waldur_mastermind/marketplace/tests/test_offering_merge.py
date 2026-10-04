@@ -32,6 +32,8 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace.offering_merge import OfferingMergeError
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace_metrics import models as metrics_models
+from waldur_mastermind.marketplace_metrics.tests import factories as metrics_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 
@@ -630,6 +632,24 @@ class OfferingMergePreviewTest(TestCase):
     def test_unmapped_component_is_blocked(self):
         self.component_mapping = {}
         self.assertIn("unmapped_component", codes(self.preview()["blockers"]))
+
+    def test_reported_metric_data_blocks_the_merge(self):
+        metrics_factories.MetricSeriesFactory(
+            resource=self.resource,
+            offering_metric=metrics_factories.OfferingMetricFactory(
+                offering=self.source
+            ),
+        )
+        self.assertIn("metric_data_present", codes(self.preview()["blockers"]))
+
+    def test_metric_goals_block_the_merge(self):
+        metrics_models.MetricGoal.objects.create(
+            offering_metric=metrics_factories.OfferingMetricFactory(
+                offering=self.source
+            ),
+            value=1,
+        )
+        self.assertIn("metric_goals_present", codes(self.preview()["blockers"]))
 
     def test_plan_mapped_to_foreign_plan_is_blocked(self):
         self.plan_mapping = {self.source_plans["plan"]: factories.PlanFactory()}

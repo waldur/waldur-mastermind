@@ -1750,6 +1750,18 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-proto"
+version = "1.45.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/72/28/67c38cfb7e2bdfdd0cde7dcdd0424aed0291fbd64aa4ea3e7e913734711a/opentelemetry_proto-1.45.0.tar.gz", hash = "sha256:96ee414f24bc3f61ea8e17dc56b4348d4049d73db3eb17c6b3edf75b5b403300", size = 46489, upload-time = "2026-09-25T12:32:41.409Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6b/45/814d55714507c7ce9c9cd86a4f83ceb5a74ab0bffcc63ff493943f138de2/opentelemetry_proto-1.45.0-py3-none-any.whl", hash = "sha256:9731566359d7b8e1ee1e149d8e4ad6865bab965e657ad3387ec2784d16927666", size = 72486, upload-time = "2026-09-25T12:32:23.36Z" },
+]
+
+[[package]]
 name = "orjson"
 version = "3.11.7"
 source = { registry = "https://pypi.org/simple" }
@@ -3237,6 +3249,7 @@ dependencies = [
     { name = "openai" },
     { name = "openportal" },
     { name = "openstacksdk" },
+    { name = "opentelemetry-proto" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -3332,6 +3345,7 @@ requires-dist = [
     { name = "openai", specifier = ">=2.26.0" },
     { name = "openportal", specifier = ">=0.91.0" },
     { name = "openstacksdk", specifier = ">=4.7.1" },
+    { name = "opentelemetry-proto", specifier = ">=1.37,<2" },
     { name = "pillow", specifier = ">=12.2.0,<13.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.6,<4.0.0" },
     { name = "pydantic", specifier = ">=2.10.6,<3.0.0" },
