@@ -10053,6 +10053,11 @@ class ComponentUserUsageSerializer(
 # so it is safe to accept, including when backfilling a past billing period.
 DISPLAY_ONLY_BILLING_TYPES = (BillingTypes.LIMIT, BillingTypes.ONE_TIME)
 
+# Who counts as the service provider when a usage report carries a date: the
+# owner holds the permission on the organization, a service provider manager
+# on its ServiceProvider record.
+PROVIDER_USAGE_SOURCES = ["customer", "customer.serviceprovider"]
+
 
 class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
     user = serializers.HyperlinkedRelatedField(
@@ -10079,10 +10084,11 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
         resource = component_usage.resource
 
         # Check if user is service provider for the resource's offering
-        if has_permission(
+        if has_permission_on_any_source(
             self.context["request"],
             PermissionEnum.SET_RESOURCE_USAGE,
-            resource.offering.customer,
+            resource.offering,
+            PROVIDER_USAGE_SOURCES,
         ):
             # Check if date is in the current billing period
             current_billing_period = core_utils.month_start(timezone.now())
@@ -10504,10 +10510,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
 
         if date_value and not self.context["request"].user.is_staff:
             # Check if user is service provider for the resource's offering
-            if has_permission(
+            if has_permission_on_any_source(
                 self.context["request"],
                 PermissionEnum.SET_RESOURCE_USAGE,
-                resource.offering.customer,
+                resource.offering,
+                PROVIDER_USAGE_SOURCES,
             ):
                 # Check if date is in the current billing period
                 current_billing_period = core_utils.month_start(timezone.now())
