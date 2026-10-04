@@ -67,6 +67,12 @@ class MetricDefinitionTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_resource_is_a_reserved_attribute_name(self):
+        response = self.create(self.fixture.staff, attribute_keys=["resource"])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attribute_keys", response.data)
+
     def test_outsider_cannot_create_a_private_definition_for_a_provider(self):
         response = self.create(
             structure_factories.UserFactory(),

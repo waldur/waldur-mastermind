@@ -48,4 +48,9 @@ urlpatterns = [
         views.ProjectMetricsView.as_view(),
         name="marketplace-project-metrics",
     ),
+    re_path(
+        r"^api/marketplace-resource-metrics/$",
+        views.ResourceMetricsView.as_view(),
+        name="marketplace-resource-metrics",
+    ),
 ]

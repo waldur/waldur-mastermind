@@ -15,6 +15,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.permissions.utils import get_scope_ids
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
@@ -289,27 +290,103 @@ def period_figure(offering_metric, series_ids, start, end):
     return combine(per_series.values(), offering_metric.project_aggregation)
 
 
-def breakdown(user, offering_metric, project, group_by, start, end):
-    """A project's figure for a period, per value of one attribute.
+# Breaks a figure down by resource rather than by an attribute; reserved as an
+# attribute name, so it cannot mean both.
+GROUP_BY_RESOURCE = "resource"
 
-    Each value's figure is computed like the project's own: every series'
-    total or latest level first, then combined. Taking the newest bucket of
-    already combined series instead would drop the series that did not
-    report in that bucket.
+
+def visible_resource(user, uuid):
+    """The resource, if the user may see its metrics: the consumer or the provider."""
+    resource = (
+        marketplace_models.Resource.objects.filter(uuid=uuid or None)
+        .select_related("offering", "project")
+        .first()
+    )
+    if resource is None or user.is_staff or user.is_support:
+        return resource
+    consumer = (
+        structure_models.Project.objects.filter(pk=resource.project_id)
+        .filter(
+            Q(id__in=get_connected_projects(user))
+            | Q(customer__in=get_connected_customers(user))
+        )
+        .exists()
+    )
+    if consumer or is_provider(user, resource.offering):
+        return resource
+    return None
+
+
+def breakdown(user, offering_metric, group_by, start, end, project=None, resource=None):
+    """A figure for a period, per value of one attribute or per resource.
+
+    The figure is a project's, or one resource's. Each value's figure is
+    computed like the whole: every series' total or latest level first, then
+    combined. Taking the newest bucket of already combined series instead
+    would drop the series that did not report in that bucket.
     """
+    series = visible_series(user, offering_metric)
+    if resource is not None:
+        series = series.filter(resource=resource)
+    else:
+        series = series.filter(resource__project=project)
     groups = collections.defaultdict(list)
-    for series_id, attributes in (
-        visible_series(user, offering_metric)
-        .filter(resource__project=project)
-        .values_list("id", "attributes")
+    names = {}
+    for series_id, attributes, resource_uuid, resource_name in series.values_list(
+        "id", "attributes", "resource__uuid", "resource__name"
     ):
-        groups[attributes.get(group_by)].append(series_id)
-    result = [
-        {"value": value, "figure": period_figure(offering_metric, ids, start, end)}
-        for value, ids in groups.items()
-    ]
+        if group_by == GROUP_BY_RESOURCE:
+            names[resource_uuid] = resource_name
+            groups[resource_uuid].append(series_id)
+        else:
+            groups[attributes.get(group_by)].append(series_id)
+    result = []
+    for value, ids in groups.items():
+        item = {"figure": period_figure(offering_metric, ids, start, end)}
+        if group_by == GROUP_BY_RESOURCE:
+            item.update(
+                value=names[value], resource_uuid=value, resource_name=names[value]
+            )
+        else:
+            item.update(value=value, resource_uuid=None, resource_name=None)
+        result.append(item)
     result.sort(key=lambda item: -(item["figure"] or 0))
     return result
+
+
+def resource_summary(user, resource):
+    """Each metric the resource's offering reports, this month and last month.
+
+    Goals apply to a project's combined figure, so a resource has none.
+    """
+    if resource.state == ResourceStates.TERMINATED:
+        return []
+    offering_metrics = (
+        visible_offering_metrics(user)
+        .filter(offering=resource.offering)
+        .exclude(state=enums.OfferingMetricStates.ARCHIVED)
+        .select_related("definition__retention_policy", "offering")
+    )
+    start, end, previous_start, previous_end = period_bounds(enums.GoalPeriods.MONTH)
+    summary = []
+    for offering_metric in offering_metrics:
+        series_ids = list(
+            visible_series(user, offering_metric)
+            .filter(resource=resource)
+            .values_list("id", flat=True)
+        )
+        summary.append(
+            {
+                "offering_metric": offering_metric,
+                "period": enums.GoalPeriods.MONTH,
+                "period_start": start,
+                "current": period_figure(offering_metric, series_ids, start, end),
+                "previous": period_figure(
+                    offering_metric, series_ids, previous_start, previous_end
+                ),
+            }
+        )
+    return summary
 
 
 def project_summary(user, project):

@@ -595,12 +595,15 @@ class ProjectMetricsView(views.APIView):
 
 
 class MetricBreakdownView(views.APIView):
-    """A project's figure for a metric, per value of one of its attributes."""
+    """A figure for a metric, per value of one of its attributes or per resource.
+
+    The figure is a project's or, with resource_uuid, one resource's.
+    """
 
     permission_classes = (permissions.IsAuthenticated,)
 
     @extend_schema(
-        summary="Break a project's metric figure down by an attribute",
+        summary="Break a metric figure down by an attribute or by resource",
         parameters=[
             OpenApiParameter(
                 "offering_metric_uuid",
@@ -613,10 +616,24 @@ class MetricBreakdownView(views.APIView):
             OpenApiParameter(
                 "project_uuid",
                 OpenApiTypes.UUID,
-                required=True,
+                description="The project whose figure to break down. Either this or resource_uuid.",
                 extensions={"x-waldur-operation-id": "projects_retrieve"},
             ),
-            OpenApiParameter("group_by", str, required=True),
+            OpenApiParameter(
+                "resource_uuid",
+                OpenApiTypes.UUID,
+                description="The resource whose figure to break down. Either this or project_uuid.",
+                extensions={"x-waldur-operation-id": "marketplace_resources_retrieve"},
+            ),
+            OpenApiParameter(
+                "group_by",
+                str,
+                required=True,
+                description=(
+                    "An attribute the metric declares, or 'resource' to break a "
+                    "project's figure down by its resources."
+                ),
+            ),
             OpenApiParameter("start", OpenApiTypes.DATETIME, required=True),
             OpenApiParameter("end", OpenApiTypes.DATETIME),
         ],
@@ -624,26 +641,45 @@ class MetricBreakdownView(views.APIView):
     )
     def get(self, request):
         params = request.query_params
+        user = request.user
         offering_metric = (
-            query.visible_offering_metrics(request.user)
+            query.visible_offering_metrics(user)
             .filter(uuid=params.get("offering_metric_uuid") or None)
             .select_related("definition", "offering")
             .first()
         )
-        user = request.user
-        projects = structure_models.Project.objects.filter(
-            uuid=params.get("project_uuid") or None
-        )
-        if not (user.is_staff or user.is_support):
-            projects = projects.filter(
-                Q(id__in=get_connected_projects(user))
-                | Q(customer__in=get_connected_customers(user))
+        project = resource = None
+        if params.get("resource_uuid"):
+            resource = query.visible_resource(user, params["resource_uuid"])
+            if resource is None or (
+                offering_metric and resource.offering_id != offering_metric.offering_id
+            ):
+                raise exceptions.NotFound()
+        else:
+            projects = structure_models.Project.objects.filter(
+                uuid=params.get("project_uuid") or None
             )
-        project = projects.first()
-        if offering_metric is None or project is None:
+            if not (user.is_staff or user.is_support):
+                projects = projects.filter(
+                    Q(id__in=get_connected_projects(user))
+                    | Q(customer__in=get_connected_customers(user))
+                )
+            project = projects.first()
+            if project is None:
+                raise exceptions.NotFound()
+        if offering_metric is None:
             raise exceptions.NotFound()
         group_by = params.get("group_by")
-        if group_by not in (offering_metric.definition.attribute_keys or []):
+        if group_by == query.GROUP_BY_RESOURCE:
+            if resource is not None:
+                raise exceptions.ValidationError(
+                    {
+                        "group_by": _(
+                            "A resource's figure cannot be broken down by resource."
+                        )
+                    }
+                )
+        elif group_by not in (offering_metric.definition.attribute_keys or []):
             raise exceptions.ValidationError(
                 {"group_by": _("The metric declares no such attribute.")}
             )
@@ -658,11 +694,43 @@ class MetricBreakdownView(views.APIView):
         result = query.breakdown(
             user,
             offering_metric,
-            project,
             group_by,
             window.validated_data["start"],
             window.validated_data["end"],
+            project=project,
+            resource=resource,
         )
         return Response(
             serializers.MetricBreakdownItemSerializer(result, many=True).data
         )
+
+
+class ResourceMetricsView(views.APIView):
+    """Each metric a resource reports, with this month's and last month's figure."""
+
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @extend_schema(
+        summary="Get a resource's metric figures",
+        description=(
+            "Figures for the current and the previous calendar month. A resource "
+            "has no goals: they apply to a project's combined figure."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "resource_uuid",
+                OpenApiTypes.UUID,
+                required=True,
+                extensions={"x-waldur-operation-id": "marketplace_resources_retrieve"},
+            ),
+        ],
+        responses=serializers.ResourceMetricSerializer(many=True),
+    )
+    def get(self, request):
+        resource = query.visible_resource(
+            request.user, request.query_params.get("resource_uuid")
+        )
+        if resource is None:
+            raise exceptions.NotFound()
+        summary = query.resource_summary(request.user, resource)
+        return Response(serializers.ResourceMetricSerializer(summary, many=True).data)

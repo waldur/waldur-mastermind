@@ -7,7 +7,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
 
-from . import enums, models
+from . import enums, models, query
 from .models import ATTRIBUTE_KEY_VALIDATOR
 
 
@@ -130,6 +130,15 @@ class MetricDefinitionSerializer(serializers.ModelSerializer):
         if keys is not None and len(set(keys)) != len(keys):
             raise serializers.ValidationError(
                 {"attribute_keys": _("Attribute names must be unique.")}
+            )
+        if keys is not None and query.GROUP_BY_RESOURCE in keys:
+            raise serializers.ValidationError(
+                {
+                    "attribute_keys": _(
+                        "'%s' is reserved: figures are broken down by resource under that name."
+                    )
+                    % query.GROUP_BY_RESOURCE
+                }
             )
         if instance is None:
             owner = attrs.get("owner_customer")
@@ -380,6 +389,19 @@ class ProjectMetricSerializer(serializers.Serializer):
     goal_met = serializers.BooleanField(allow_null=True)
 
 
+class ResourceMetricSerializer(serializers.Serializer):
+    offering_metric = OfferingMetricSerializer()
+    period = serializers.CharField()
+    period_start = serializers.DateTimeField()
+    current = serializers.FloatField(allow_null=True)
+    previous = serializers.FloatField(allow_null=True)
+
+
 class MetricBreakdownItemSerializer(serializers.Serializer):
-    value = serializers.JSONField(allow_null=True)
+    value = serializers.JSONField(
+        allow_null=True,
+        help_text="The attribute's value, or the resource's name when broken down by resource.",
+    )
     figure = serializers.FloatField(allow_null=True)
+    resource_uuid = serializers.UUIDField(allow_null=True)
+    resource_name = serializers.CharField(allow_null=True)
