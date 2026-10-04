@@ -1480,7 +1480,7 @@ Remove Django event log records with stale content types.
 
 ## reprovision_matrix_rooms
 
-Reset every active Matrix room and provisioned user profile so the homeserver rebuilds them. Use after moving to a new homeserver, whose room ids and user tokens are different from the old one's. Do not run it against the homeserver the rooms already live on: old rooms are not deleted, so each one keeps its history while Waldur replaces it with an empty room. Equivalent to POST /api/admin/matrix/reprovision/, for deployments where reaching the API as staff is harder than reaching a shell.
+Reset every active Matrix room and provisioned user profile so the homeserver rebuilds them. Use after moving to a new homeserver, whose room ids and user accounts are different from the old one's. Do not run it against the homeserver the rooms already live on: old rooms are not deleted, so each one keeps its history while Waldur replaces it with an empty room. Equivalent to POST /api/admin/matrix/reprovision/, for deployments where reaching the API as staff is harder than reaching a shell.
 
 ```bash
 
