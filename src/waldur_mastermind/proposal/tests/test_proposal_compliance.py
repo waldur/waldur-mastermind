@@ -32,6 +32,7 @@ class ProposalComplianceTestMixin:
 
         # Configure proposal role permissions
         ProposalRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL)
+        ProposalRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROPOSAL)
 
         # Create a proposal compliance checklist first
         self.compliance_checklist = checklist_factories.ChecklistFactory(
@@ -606,6 +607,9 @@ class ProposalSubmissionWithComplianceTest(
         )
         proposal_without_checklist = proposal_factories.ProposalFactory(
             round=round_without_checklist, created_by=self.fixture.proposal_creator
+        )
+        proposal_without_checklist.add_user(
+            self.fixture.proposal_creator, ProposalRole.MANAGER
         )
 
         can_submit, error = proposal_without_checklist.can_submit()

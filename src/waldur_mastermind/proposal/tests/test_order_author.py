@@ -71,6 +71,7 @@ class OrderAuthorTest(test.APITestCase):
     def test_call_can_attribute_orders_to_the_project_manager(self):
         # The role mapping runs before the orders are placed, so the project
         # already has its people by the time the author is resolved.
+        self.call.proposalprojectrolemapping_set.all().delete()
         models.ProposalProjectRoleMapping.objects.create(
             call=self.call,
             proposal_role=ProposalRole.MEMBER,
@@ -201,6 +202,7 @@ class AllocatedOrderTicketTest(test.APITestCase):
         self.offering.save()
         self.member = structure_factories.UserFactory()
         self.proposal.add_user(self.member, ProposalRole.MEMBER)
+        self.fixture.call.proposalprojectrolemapping_set.all().delete()
         models.ProposalProjectRoleMapping.objects.create(
             call=self.fixture.call,
             proposal_role=ProposalRole.MEMBER,

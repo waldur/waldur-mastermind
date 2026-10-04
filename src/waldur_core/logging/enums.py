@@ -274,6 +274,7 @@ class EventType(StrEnum):
     PROPOSAL_CANCELED = "proposal_canceled"
     PROPOSAL_DOCUMENT_ADDED = "proposal_document_added"
     PROPOSAL_DOCUMENT_REMOVED = "proposal_document_removed"
+    PROPOSAL_TEAM_CHANGED_AFTER_SUBMISSION = "proposal_team_changed_after_submission"
     PROPOSAL_WORKFLOW_ADVANCED = "proposal_workflow_advanced"
     QUERY_EXECUTED = "query_executed"
     INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE = (
@@ -657,6 +658,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PROPOSAL_CANCELED,
         EventType.PROPOSAL_DOCUMENT_ADDED,
         EventType.PROPOSAL_DOCUMENT_REMOVED,
+        EventType.PROPOSAL_TEAM_CHANGED_AFTER_SUBMISSION,
         EventType.PROPOSAL_WORKFLOW_ADVANCED,
     ],
     EventGroup.PROVIDERS: [

@@ -1594,8 +1594,8 @@ class Proposal(models.Model):
 # proposals/views.py
 class ProposalViewSet(UserChecklistMixin, ReviewerChecklistMixin, ActionsViewSet):
     # User permissions
-    checklist_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
-    submit_answers_permissions = [permission_factory(PermissionEnum.MANAGE_PROPOSAL)]
+    checklist_permissions = [permission_factory(PermissionEnum.UPDATE_PROPOSAL)]
+    submit_answers_permissions = [permission_factory(PermissionEnum.UPDATE_PROPOSAL)]
 
     # Reviewer permissions
     checklist_review_permissions = [permission_factory(PermissionEnum.REVIEW_PROPOSALS)]

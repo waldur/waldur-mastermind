@@ -751,6 +751,8 @@ def duplicate_call(
             src_template.save()
 
     if opts["copy_role_mappings"]:
+        # The source's mappings replace the defaults the new call was seeded with.
+        new_call.proposalprojectrolemapping_set.all().delete()  # type: ignore
         for src_mapping in source.proposalprojectrolemapping_set.all():  # type: ignore
             _prepare_clone(src_mapping)
             src_mapping.call = new_call

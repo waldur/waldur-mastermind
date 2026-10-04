@@ -19,6 +19,7 @@ class RoleEnum(StrEnum):
 
     PROPOSAL_MEMBER = "PROPOSAL.MEMBER"
     PROPOSAL_MANAGER = "PROPOSAL.MANAGER"
+    PROPOSAL_ADMIN = "PROPOSAL.ADMIN"
 
 
 # Descriptions for every system role, keyed by role name. get_system_role()
@@ -41,6 +42,7 @@ ROLE_DESCRIPTIONS: dict[str, str] = {
     RoleEnum.CALL_PANEL_MEMBER: "Call panel member",
     RoleEnum.PROPOSAL_MEMBER: "Proposal member",
     RoleEnum.PROPOSAL_MANAGER: "Proposal manager",
+    RoleEnum.PROPOSAL_ADMIN: "Proposal administrator",
     # Declared in permissions.yaml but deliberately absent from RoleEnum:
     # adding a member there would extend the role choices published in the
     # OpenAPI schema, so it is keyed by name here instead.
@@ -195,6 +197,7 @@ class PermissionEnum(StrEnum):
     CREATE_OFFERING_PERMISSION = "OFFERING.CREATE_PERMISSION"
     CREATE_CALL_PERMISSION = "CALL.CREATE_PERMISSION"
     MANAGE_PROPOSAL = "PROPOSAL.MANAGE"
+    UPDATE_PROPOSAL = "PROPOSAL.UPDATE"
     MANAGE_PROPOSAL_REVIEW = "PROPOSAL.MANAGE_REVIEW"
 
     UPDATE_PROJECT_PERMISSION = "PROJECT.UPDATE_PERMISSION"
@@ -345,6 +348,7 @@ SYSTEM_ROLE_SCOPES: dict[str, tuple[str, str]] = {
     RoleEnum.CALL_PANEL_MEMBER: TYPE_MAP["call"],
     RoleEnum.PROPOSAL_MEMBER: TYPE_MAP["proposal"],
     RoleEnum.PROPOSAL_MANAGER: TYPE_MAP["proposal"],
+    RoleEnum.PROPOSAL_ADMIN: TYPE_MAP["proposal"],
     # Shipped in permissions.yaml with a migration of its own, but never given
     # a RoleEnum member. Keyed by the name it is imported under, which is all
     # this table is looked up by.

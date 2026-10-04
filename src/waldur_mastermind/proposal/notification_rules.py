@@ -92,8 +92,17 @@ def _responsible_role_users(call_step, proposal=None):
     return get_users(call, role_name=role_name)
 
 
-def _applicant_users(proposal):
-    """The proposal creator plus everyone holding a role on the proposal."""
+def _applicant_users(proposal, roles=()):
+    """The applicant side of a proposal.
+
+    Holders of ``roles`` on the proposal when given; otherwise the proposal
+    creator plus everyone holding a role on the proposal.
+    """
+    if roles:
+        ids = permissions_models.UserRole.objects.filter(
+            scope=proposal, is_active=True, role__in=roles
+        ).values_list("user_id", flat=True)
+        return User.objects.filter(id__in=ids)
     ids = set(get_users(proposal).values_list("id", flat=True))
     if proposal.created_by_id:
         ids.add(proposal.created_by_id)
@@ -126,8 +135,8 @@ def resolve_recipients(rule, proposal):
     recipient = rule.recipient
     call_step = rule.workflow_step
     call = call_step.call
-    if recipient == NotificationRuleRecipients.APPLICANT:
-        users = _applicant_users(proposal)
+    if is_applicant_audience(rule, proposal):
+        users = _applicant_users(proposal, list(rule.notified_proposal_roles.all()))
     elif recipient == NotificationRuleRecipients.RESPONSIBLE_ROLE:
         users = _responsible_role_users(call_step, proposal)
     elif recipient == NotificationRuleRecipients.ASSIGNED_REVIEWERS:
@@ -149,24 +158,37 @@ def resolve_recipients(rule, proposal):
     )
 
 
-def is_applicant_audience(rule, proposal):
-    """True when the mail goes to the applicant side and must stay status-only."""
-    if rule.recipient == NotificationRuleRecipients.APPLICANT:
+def is_applicant_recipient(recipient, call_step):
+    """True when ``recipient`` on ``call_step`` is the applicant side."""
+    if recipient == NotificationRuleRecipients.APPLICANT:
         return True
     return (
-        rule.recipient == NotificationRuleRecipients.RESPONSIBLE_ROLE
-        and rule.workflow_step.responsible_role == ResponsibleRoles.APPLICANT
+        recipient == NotificationRuleRecipients.RESPONSIBLE_ROLE
+        and call_step.responsible_role == ResponsibleRoles.APPLICANT
     )
+
+
+def is_applicant_audience(rule, proposal):
+    """True when the mail goes to the applicant side and must stay status-only.
+
+    Such a rule reaches the proposal roles it names (all of the team and the
+    creator by default), every recipient in one message.
+    """
+    return is_applicant_recipient(rule.recipient, rule.workflow_step)
 
 
 def enabled_rules(instance, trigger):
     """Enabled rules of the proposal's call matching this instance's step + trigger."""
-    return models.CallWorkflowStepNotificationRule.objects.filter(
-        workflow_step__call=instance.proposal.round.call,
-        workflow_step__step=instance.step,
-        trigger=trigger,
-        is_enabled=True,
-    ).select_related("workflow_step", "workflow_step__call")
+    return (
+        models.CallWorkflowStepNotificationRule.objects.filter(
+            workflow_step__call=instance.proposal.round.call,
+            workflow_step__step=instance.step,
+            trigger=trigger,
+            is_enabled=True,
+        )
+        .select_related("workflow_step", "workflow_step__call")
+        .prefetch_related("notified_proposal_roles")
+    )
 
 
 def dispatch_step_event(instance, trigger):

@@ -1,10 +1,228 @@
 """Signal handlers for proposal application."""
 
+import logging
+
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.checklist import models as checklist_models
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import Role, UserRole
+from waldur_core.permissions.utils import RoleChange
 from waldur_mastermind.proposal import enums, models
+from waldur_mastermind.proposal import permissions as proposal_permissions
+
+logger = logging.getLogger(__name__)
+
+TEAM_FROZEN_MESSAGE = (
+    "The proposal team cannot be changed once the proposal is submitted. "
+    "Ask a call manager to change it."
+)
+ONLY_MANAGERS_MESSAGE = (
+    "Only a proposal manager or a call manager may grant or revoke the "
+    "proposal manager and proposal administrator roles."
+)
+OWN_ROLE_MESSAGE = "Nobody can change their own role on a proposal."
+LAST_MANAGER_MESSAGE = (
+    "A proposal must keep at least one proposal manager. Grant the role to "
+    "someone else first."
+)
+
+
+# Roles that only the proposal's managers, those overseeing its call and staff
+# may grant or revoke: the manager role itself and the administrator role,
+# which edits the proposal.
+TEAM_ROLES_MANAGED_BY_MANAGERS = frozenset(
+    {RoleEnum.PROPOSAL_MANAGER, RoleEnum.PROPOSAL_ADMIN}
+)
+
+
+def _is_manager_role(role) -> bool:
+    return role.name == RoleEnum.PROPOSAL_MANAGER
+
+
+def _lock_proposal(proposal):
+    """Serialise concurrent revocations of a proposal's managers.
+
+    Two requests each revoking a different one of the last two managers
+    would otherwise both see the other still active.
+    """
+    if transaction.get_connection().in_atomic_block:
+        list(
+            models.Proposal.objects.select_for_update()
+            .filter(pk=proposal.pk)
+            .values_list("pk", flat=True)
+        )
+
+
+def _would_lose_last_manager(proposal, user) -> bool:
+    _lock_proposal(proposal)
+    return (
+        not UserRole.objects.filter(
+            scope=proposal, is_active=True, role__name=RoleEnum.PROPOSAL_MANAGER
+        )
+        .exclude(user=user)
+        .exists()
+    )
+
+
+def oversees_proposal_invitations(request, scope) -> bool:
+    """Call managers and organisers invite to the proposals of their call.
+
+    Which roles they may offer, and when, is up to
+    ``guard_proposal_team_change``, as for direct grants.
+    """
+    return isinstance(
+        scope, models.Proposal
+    ) and proposal_permissions.oversees_proposal_call(request, scope)
+
+
+def is_last_proposal_manager_role(user_role) -> bool:
+    """Expiration-sweep guard: a proposal keeps its last manager.
+
+    Expiry is not a decision anyone made, so instead of leaving the proposal
+    without anyone to manage it the grant stays and the lapse is logged.
+    """
+    scope = user_role.scope
+    if not isinstance(scope, models.Proposal) or not _is_manager_role(user_role.role):
+        return False
+    others = (
+        UserRole.objects.filter(
+            scope=scope, is_active=True, role__name=RoleEnum.PROPOSAL_MANAGER
+        )
+        .exclude(pk=user_role.pk)
+        .exists()
+    )
+    if others:
+        return False
+    logger.warning(
+        "Not expiring the role of %s as the last manager of proposal %s.",
+        user_role.user,
+        scope.uuid.hex,
+    )
+    return True
+
+
+def guard_proposal_team_change(scope, role, acting_user, change, user=None):
+    """Who may change a proposal's team, and when.
+
+    - Nobody changes their own proposal role, staff included.
+    - A proposal keeps at least one proposal manager: revoking the last one
+      is refused, whoever asks.
+    - The proposal manager and administrator roles are granted and revoked
+      by the proposal's managers and by whoever oversees its call (call
+      managers, call organisers), or staff. Other roles carrying the team
+      permissions may still manage the rest of the team.
+    - Once the proposal leaves draft, the team is part of what was submitted
+      and is frozen for the applicant: only staff and those overseeing the
+      call may change it. Each such change is
+      logged (see ``log_team_change_after_submission``).
+    """
+    if not isinstance(scope, models.Proposal):
+        return
+    # Unlike other scopes, where staff and organisation owners may, nobody
+    # changes their own proposal role: the team is part of the application.
+    # Creating a proposal makes its author a manager outside this path.
+    if acting_user is not None and user is not None and acting_user.pk == user.pk:
+        raise ValidationError(OWN_ROLE_MESSAGE)
+    if (
+        change == RoleChange.REVOKE
+        and _is_manager_role(role)
+        and user is not None
+        and _would_lose_last_manager(scope, user)
+    ):
+        raise ValidationError(LAST_MANAGER_MESSAGE)
+
+    if acting_user is not None and acting_user.is_staff:
+        return
+
+    managed_by_managers = role.name in TEAM_ROLES_MANAGED_BY_MANAGERS
+    oversees = proposal_permissions.oversees_proposal_call(acting_user, scope)
+    if scope.state != enums.ProposalStates.DRAFT:
+        if oversees:
+            return
+        raise ValidationError(TEAM_FROZEN_MESSAGE)
+
+    if (
+        managed_by_managers
+        and not oversees
+        and not proposal_permissions.is_active_proposal_manager(acting_user, scope)
+    ):
+        raise ValidationError(ONLY_MANAGERS_MESSAGE)
+
+
+# Placeholders only: user-controlled names must not be interpolated into the
+# template, which the emitter formats against the context.
+_AFFECTED_USER = "{affected_user_full_name} ({affected_user_username})"
+_TEAM_CHANGE_MESSAGES = {
+    "granted": _AFFECTED_USER
+    + " was given role {role_description} on submitted proposal {proposal_name}.",
+    "updated": "The expiration of role {role_description} of "
+    + _AFFECTED_USER
+    + " on submitted proposal {proposal_name} was changed.",
+    "revoked": _AFFECTED_USER
+    + " lost role {role_description} on submitted proposal {proposal_name}.",
+}
+
+
+def log_team_change_after_submission(user_role, current_user, change):
+    """Record a change to a submitted proposal's team.
+
+    The generic role events already record every grant, update and
+    revocation; this one is the explicit record that the team of a proposal
+    that left draft changed, who changed it and in which state. Only staff
+    and those overseeing the call get past the freeze, so each such event is
+    an override. Draft-time changes are the team's own
+    business and are not logged here. An invitation or a permission request
+    is attributed to the inviter or the approver, on whose authority it was
+    admitted.
+    """
+    proposal = user_role.scope
+    if not isinstance(proposal, models.Proposal):
+        return
+    if proposal.state == enums.ProposalStates.DRAFT:
+        return
+
+    actor = current_user
+    context = {
+        "proposal": proposal,
+        "proposal_state": proposal.state,
+        "role_name": user_role.role.name,
+        "role_description": user_role.role.description or user_role.role.name,
+        "change": change,
+        "affected_user": user_role.user,
+        "initiated_by": (
+            f"{actor.full_name} ({actor.username})" if actor else "System"
+        ),
+    }
+    if actor is not None:
+        context["actor"] = actor
+
+    message = _TEAM_CHANGE_MESSAGES[change] + " Changed by: {initiated_by}."
+    # The proposal's own feed only: its readers are the ones allowed to see
+    # the team, and a wider feed (the call's, read by its reviewers, or the
+    # organisation's) would bypass any guard on who reads proposal events.
+    event_logger.emit(
+        message,
+        event_type=EventType.PROPOSAL_TEAM_CHANGED_AFTER_SUBMISSION,
+        event_context=context,
+        scopes=[proposal],
+    )
+
+
+def log_team_role_granted(sender, instance, current_user=None, **kwargs):
+    log_team_change_after_submission(instance, current_user, "granted")
+
+
+def log_team_role_updated(sender, instance, current_user=None, **kwargs):
+    log_team_change_after_submission(instance, current_user, "updated")
+
+
+def log_team_role_revoked(sender, instance, current_user=None, **kwargs):
+    log_team_change_after_submission(instance, current_user, "revoked")
 
 
 def is_submitted_proposal_role(user_role) -> bool:
@@ -159,6 +377,39 @@ def seed_notification_rules(call_step):
             trigger=trigger,
             recipient=recipient,
             defaults={"days_before": days_before},
+        )
+
+
+# Proposal role -> project role a new call starts with: who the allocated
+# project's team is made of. A call manager edits them per call afterwards.
+DEFAULT_PROJECT_ROLE_MAPPINGS = (
+    (RoleEnum.PROPOSAL_MANAGER, RoleEnum.PROJECT_MANAGER),
+    (RoleEnum.PROPOSAL_ADMIN, RoleEnum.PROJECT_ADMIN),
+    (RoleEnum.PROPOSAL_MEMBER, RoleEnum.PROJECT_MEMBER),
+)
+
+
+def seed_project_role_mappings(sender, instance, created, **kwargs):
+    """Give a new call the default proposal-to-project role mappings.
+
+    Only at creation, so calls that exist already keep theirs. A duplicate
+    or an import that brings its own mappings replaces these.
+    """
+    if not created:
+        return
+    proposal_type = ContentType.objects.get_for_model(models.Proposal)
+    project_type = ContentType.objects.get_by_natural_key("structure", "project")
+    for proposal_role, project_role in DEFAULT_PROJECT_ROLE_MAPPINGS:
+        models.ProposalProjectRoleMapping.objects.get_or_create(
+            call=instance,
+            proposal_role=Role.objects.get_system_role(
+                proposal_role, content_type=proposal_type
+            ),
+            defaults={
+                "project_role": Role.objects.get_system_role(
+                    project_role, content_type=project_type
+                )
+            },
         )
 
 

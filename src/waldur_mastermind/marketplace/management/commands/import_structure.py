@@ -10366,6 +10366,11 @@ class Command(BaseCommand):
                             self.stats["role_mappings"]["skipped"] += 1
                     else:
                         with transaction.atomic():
+                            # A new call is seeded with default mappings; the
+                            # imported one replaces the default for its role.
+                            ProposalProjectRoleMapping.objects.filter(
+                                call=call, proposal_role=proposal_role
+                            ).delete()
                             ProposalProjectRoleMapping.objects.create(
                                 uuid=uuid, **defaults
                             )

@@ -241,6 +241,17 @@ def get_scope_link(scope_type, scope_uuid):
     )
 
 
+# Predicates ``predicate(request, scope) -> bool`` that admit someone to manage
+# invitations for a scope they oversee without holding its team permission,
+# e.g. a call manager over a proposal of the call. Apps register theirs in
+# ``AppConfig.ready``; role-specific rules stay with the role change guards.
+_invitation_scope_overseers: list = []
+
+
+def register_invitation_scope_overseer(predicate) -> None:
+    _invitation_scope_overseers.append(predicate)
+
+
 def can_manage_invitation_with(request, scope, role_index=None):
     """Whether the user may manage an invitation whose scope is ``scope``.
 
@@ -269,7 +280,15 @@ def can_manage_invitation_with(request, scope, role_index=None):
     if project is not None and has_permission(request, permission, project, role_index):
         return True
 
-    customer = get_customer(scope)
+    if any(overseer(request, scope) for overseer in _invitation_scope_overseers):
+        return True
+
+    try:
+        customer = get_customer(scope)
+    except AttributeError:
+        # A scope with no organisation of its own (a proposal) has no
+        # organisation-level authority to fall back to.
+        return False
     if has_permission(request, permission, customer, role_index):
         return True
 

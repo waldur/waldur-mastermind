@@ -64,6 +64,8 @@ class CallTransferTest(test.APITestCase):
         factories.CallResourceTemplateFactory(
             call=self.call, requested_offering=self.requested_offering
         )
+        # Replace the mappings a new call is seeded with.
+        self.call.proposalprojectrolemapping_set.all().delete()
         factories.ProposalProjectRoleMappingFactory(call=self.call)
 
         document = models.CallDocument(call=self.call, description="Guidelines")

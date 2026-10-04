@@ -5293,6 +5293,21 @@ class CallWorkflowStepNotificationRuleSerializer(
     call_uuid = serializers.UUIDField(
         source="workflow_step.call.uuid", read_only=True, format="hex"
     )
+    notified_proposal_roles = serializers.SlugRelatedField(
+        slug_field="name",
+        many=True,
+        required=False,
+        queryset=Role.objects.filter(
+            is_active=True,
+            content_type__app_label="proposal",
+            content_type__model="proposal",
+        ),
+        help_text=(
+            "Only for an applicant audience: names of the proposal roles whose "
+            "holders are notified. Empty notifies the proposal creator and "
+            "every member of the proposal team."
+        ),
+    )
 
     class Meta:
         model = models.CallWorkflowStepNotificationRule
@@ -5309,6 +5324,7 @@ class CallWorkflowStepNotificationRuleSerializer(
             "recipient",
             "days_before",
             "is_enabled",
+            "notified_proposal_roles",
         ]
         read_only_fields = ("uuid", "created", "modified")
         extra_kwargs = {
@@ -5369,15 +5385,46 @@ class CallWorkflowStepNotificationRuleSerializer(
                 }
             )
 
+        if "notified_proposal_roles" in attrs:
+            roles = attrs["notified_proposal_roles"]
+        elif self.instance:
+            roles = list(self.instance.notified_proposal_roles.all())
+        else:
+            roles = []
+        if (
+            roles
+            and workflow_step is not None
+            and not notification_rules.is_applicant_recipient(recipient, workflow_step)
+        ):
+            raise serializers.ValidationError(
+                {
+                    "notified_proposal_roles": _(
+                        "Proposal roles can only be chosen for a rule that "
+                        "notifies the applicant."
+                    )
+                }
+            )
+
         # Uniqueness of (workflow_step, trigger, recipient) is enforced by the
         # model's unique_together via DRF's UniqueTogetherValidator.
         return attrs
 
 
 class CallWorkflowStepNotificationRuleNestedSerializer(serializers.ModelSerializer):
+    notified_proposal_roles = serializers.SlugRelatedField(
+        slug_field="name", many=True, read_only=True
+    )
+
     class Meta:
         model = models.CallWorkflowStepNotificationRule
-        fields = ["uuid", "trigger", "recipient", "days_before", "is_enabled"]
+        fields = [
+            "uuid",
+            "trigger",
+            "recipient",
+            "days_before",
+            "is_enabled",
+            "notified_proposal_roles",
+        ]
         read_only_fields = fields
 
 

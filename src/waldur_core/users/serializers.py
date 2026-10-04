@@ -12,9 +12,11 @@ from waldur_core.core.validators import get_project_name_regex_error
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import (
+    RoleChange,
     check_grant_policy,
     get_valid_models,
     validate_only_one_project_manager,
+    validate_role_change,
     validate_scope_available,
 )
 from waldur_core.structure.models import Customer, Project
@@ -173,6 +175,9 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
         validate_scope_available(scope)
         _enforce_role_available_for_scope(scope, role)
         validate_only_one_project_manager(scope, role)
+        validate_role_change(
+            scope, role, self.context["request"].user, RoleChange.GRANT
+        )
         return attrs
 
     def create(self, validated_data):
@@ -651,9 +656,14 @@ class InvitationUpdateSerializer(serializers.ModelSerializer):
         ]:
             raise serializers.ValidationError("Only pending invitations can be edited.")
 
+        user = self.context["request"].user
+        # Editing an invitation is checked like withdrawing its role and
+        # offering the new one.
+        validate_role_change(invitation.scope, invitation.role, user, RoleChange.GRANT)
         new_role = attrs.get("role")
         if new_role:
             validate_only_one_project_manager(invitation.scope, new_role)
+            validate_role_change(invitation.scope, new_role, user, RoleChange.GRANT)
             _enforce_role_available_for_scope(invitation.scope, new_role)
 
         return attrs

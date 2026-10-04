@@ -16,12 +16,14 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions import hygiene
 from waldur_core.permissions.enums import TYPE_KEYS, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import (
+    RoleChange,
     build_org_role_name,
     ensure_unique_role_name,
     get_create_permission,
     get_delete_permission,
     get_update_permission,
     has_permission,
+    validate_role_change,
     validate_role_grant,
 )
 from waldur_core.structure import models as structure_models
@@ -719,26 +721,32 @@ class UserRoleMutateSerializer(serializers.Serializer):
         if customer.blocked or customer.archived:
             raise ValidationError("Customer is not available.")
 
-        if has_permission(
-            request,
-            permission,
-            customer,
-        ):
-            return data
+        if not has_permission(request, permission, customer):
+            if not has_permission(request, permission, scope):
+                # UserRoleMixin views may admit someone without the scope's
+                # team permission for particular roles, e.g. those overseeing
+                # the scope.
+                can_manage_by_oversight = getattr(
+                    self.context.get("view"), "can_manage_role_by_oversight", None
+                )
+                if not (
+                    can_manage_by_oversight
+                    and can_manage_by_oversight(scope, data["role"], request)
+                ):
+                    raise PermissionDenied()
 
-        if not has_permission(
-            request,
-            permission,
-            scope,
-        ):
-            raise PermissionDenied()
+            if target_user == request.user and scope != customer:
+                raise ValidationError("User can not manage own role.")
 
-        if target_user == request.user and scope != customer:
-            raise ValidationError("User can not manage own role.")
+        validate_role_change(
+            scope, data["role"], request.user, self.change, user=target_user
+        )
         return data
 
 
 class UserRoleCreateSerializer(UserRoleMutateSerializer):
+    change = RoleChange.GRANT
+
     def get_permission(self, scope):
         return get_create_permission(scope)
 
@@ -760,11 +768,15 @@ class UserRoleCreateSerializer(UserRoleMutateSerializer):
 
 
 class UserRoleUpdateSerializer(UserRoleMutateSerializer):
+    change = RoleChange.UPDATE
+
     def get_permission(self, scope):
         return get_update_permission(scope)
 
 
 class UserRoleDeleteSerializer(UserRoleMutateSerializer):
+    change = RoleChange.REVOKE
+
     def get_permission(self, scope):
         return get_delete_permission(scope)
 

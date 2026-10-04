@@ -163,6 +163,15 @@ Review and allocation policy is configured per call, on its workflow steps
 The step catalogue, in order: `administrative_check`, `technical_assessment`,
 `expert_review`, `panel_review`, `allocation_decision`, `award_response`.
 
+Each step also carries notification rules (`CallWorkflowStepNotificationRule`):
+on a trigger (`step_started`, `step_completed`, `step_rejected`,
+`step_expired`, `deadline_approaching`) mail an audience. A rule addressed to
+the applicant (or to the responsible role of a step the applicant is
+responsible for) lists in `notified_proposal_roles` the proposal roles whose
+holders are told, for example only `PROPOSAL.MANAGER`. Left empty, it reaches
+the proposal's creator and its whole team. The applicant side gets one message
+with every recipient in To; other audiences get a private copy each.
+
 ```mermaid
 graph LR
     subgraph "Round (scheduling)"
@@ -443,16 +452,17 @@ sequenceDiagram
 
 ### Role Mapping System
 
-The `ProposalProjectRoleMapping` enables automatic role assignment:
+The `ProposalProjectRoleMapping` enables automatic role assignment. A new
+call starts with these mappings, which its call manager can change:
 
-```python
-# Example: Map proposal PI to project manager
-ProposalProjectRoleMapping.objects.create(
-    call=call,
-    proposal_role=Role.objects.get(name="Principal Investigator"),
-    project_role=Role.objects.get(name="Project Manager")
-)
-```
+| Proposal role | Project role |
+| --- | --- |
+| `PROPOSAL.MANAGER` | `PROJECT.MANAGER` |
+| `PROPOSAL.ADMIN` | `PROJECT.ADMIN` |
+| `PROPOSAL.MEMBER` | `PROJECT.MEMBER` |
+
+A duplicated or imported call takes the source's mappings instead, when they
+are copied.
 
 When proposals are accepted:
 

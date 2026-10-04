@@ -311,6 +311,7 @@
 - proposal_canceled
 - proposal_document_added
 - proposal_document_removed
+- proposal_team_changed_after_submission
 - proposal_workflow_advanced
 
 ## Providers
