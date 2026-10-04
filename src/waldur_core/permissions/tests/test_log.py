@@ -81,6 +81,40 @@ class LogRoleEventTest(TestCase):
         )
 
 
+class ProjectRoleEventShapeTest(TestCase):
+    def test_project_role_events_carry_no_proposal_details(self):
+        fixture = fixtures.ProjectFixture()
+        owner = fixture.owner
+        user = fixture.user
+        since = timezone.now()
+
+        fixture.project.add_user(user, ProjectRole.MANAGER, owner)
+        fixture.project.remove_user(user, ProjectRole.MANAGER, owner)
+
+        granted, revoked = logging_models.Event.objects.filter(
+            created__gte=since,
+            event_type__in=[EventType.ROLE_GRANTED, EventType.ROLE_REVOKED],
+        ).order_by("created")
+        self.assertEqual(
+            granted.message,
+            f"User {user.full_name} ({user.username}) has gained role of "
+            f"{ProjectRole.MANAGER.name} in {fixture.project.name}. "
+            f"Initiated by: {owner.full_name} ({owner.username}). "
+            "Reason: Manual role assignment via API",
+        )
+        self.assertEqual(
+            revoked.message,
+            f"User {user.full_name} ({user.username}) has lost role of "
+            f"{ProjectRole.MANAGER.name} in {fixture.project.name}. "
+            f"Initiated by: {owner.full_name} ({owner.username}). "
+            "Reason: User removed from scope",
+        )
+        for event in (granted, revoked):
+            self.assertNotIn("after_submission", event.context)
+            self.assertNotIn("proposal_state", event.context)
+            self.assertNotIn("role_description", event.context)
+
+
 class AccessSubnetCreateModifyDelete(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()

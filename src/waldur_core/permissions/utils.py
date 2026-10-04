@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from constance import config
@@ -640,6 +641,36 @@ def validate_role_change(scope, role, acting_user, change, user=None):
     """Run the registered role change guards."""
     for guard in _role_change_guards:
         guard(scope, role, acting_user, change, user)
+
+
+@dataclass(frozen=True)
+class RoleEventDetails:
+    """What a scope adds to the generic role granted/updated/revoked event.
+
+    ``context`` is merged into the event context. ``role_label``, when set,
+    stands in for the role's name in the message (and is recorded as
+    ``role_description``); ``scope_note`` is appended after the scope's name.
+    """
+
+    context: dict = field(default_factory=dict)
+    role_label: str = ""
+    scope_note: str = ""
+
+
+# Describers enrich the generic role event for one scope model, so the event
+# can carry what that scope knows without the permissions app importing it.
+# Each is ``describer(user_role) -> RoleEventDetails | None``; apps register
+# theirs in ``AppConfig.ready``.
+_role_event_describers: dict = {}
+
+
+def register_role_event_describer(model, describer) -> None:
+    _role_event_describers[model] = describer
+
+
+def describe_role_event(user_role) -> RoleEventDetails | None:
+    describer = _role_event_describers.get(type(user_role.scope))
+    return describer(user_role) if describer else None
 
 
 def build_org_role_name(template, slug):

@@ -7,11 +7,9 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.checklist import models as checklist_models
-from waldur_core.logging import event_logger
-from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role, UserRole
-from waldur_core.permissions.utils import RoleChange
+from waldur_core.permissions.utils import RoleChange, RoleEventDetails
 from waldur_mastermind.proposal import enums, models
 from waldur_mastermind.proposal import permissions as proposal_permissions
 
@@ -119,7 +117,7 @@ def guard_proposal_team_change(scope, role, acting_user, change, user=None):
     - Once the proposal leaves draft, the team is part of what was submitted
       and is frozen for the applicant: only staff and those overseeing the
       call may change it. Each such change is
-      logged (see ``log_team_change_after_submission``).
+      logged by the generic role event (see ``describe_proposal_role_event``).
     """
     if not isinstance(scope, models.Proposal):
         return
@@ -154,75 +152,26 @@ def guard_proposal_team_change(scope, role, acting_user, change, user=None):
         raise ValidationError(ONLY_MANAGERS_MESSAGE)
 
 
-# Placeholders only: user-controlled names must not be interpolated into the
-# template, which the emitter formats against the context.
-_AFFECTED_USER = "{affected_user_full_name} ({affected_user_username})"
-_TEAM_CHANGE_MESSAGES = {
-    "granted": _AFFECTED_USER
-    + " was given role {role_description} on submitted proposal {proposal_name}.",
-    "updated": "The expiration of role {role_description} of "
-    + _AFFECTED_USER
-    + " on submitted proposal {proposal_name} was changed.",
-    "revoked": _AFFECTED_USER
-    + " lost role {role_description} on submitted proposal {proposal_name}.",
-}
+def describe_proposal_role_event(user_role):
+    """Enrich the generic role event of a proposal team change.
 
-
-def log_team_change_after_submission(user_role, current_user, change):
-    """Record a change to a submitted proposal's team.
-
-    The generic role events already record every grant, update and
-    revocation; this one is the explicit record that the team of a proposal
-    that left draft changed, who changed it and in which state. Only staff
-    and those overseeing the call get past the freeze, so each such event is
-    an override. Draft-time changes are the team's own
-    business and are not logged here. An invitation or a permission request
-    is attributed to the inviter or the approver, on whose authority it was
-    admitted.
+    A team change is logged once, as the generic role granted/updated/revoked
+    event; on a proposal it also records the proposal's state and whether the
+    change came after submission. Only staff and those overseeing the call get
+    past the freeze, so each post-submission change is an override. An
+    invitation or a permission request is attributed to the inviter or the
+    approver, on whose authority it was admitted.
     """
     proposal = user_role.scope
-    if not isinstance(proposal, models.Proposal):
-        return
-    if proposal.state == enums.ProposalStates.DRAFT:
-        return
-
-    actor = current_user
-    context = {
-        "proposal": proposal,
-        "proposal_state": proposal.state,
-        "role_name": user_role.role.name,
-        "role_description": user_role.role.description or user_role.role.name,
-        "change": change,
-        "affected_user": user_role.user,
-        "initiated_by": (
-            f"{actor.full_name} ({actor.username})" if actor else "System"
-        ),
-    }
-    if actor is not None:
-        context["actor"] = actor
-
-    message = _TEAM_CHANGE_MESSAGES[change] + " Changed by: {initiated_by}."
-    # The proposal's own feed only: its readers are the ones allowed to see
-    # the team, and a wider feed (the call's, read by its reviewers, or the
-    # organisation's) would bypass any guard on who reads proposal events.
-    event_logger.emit(
-        message,
-        event_type=EventType.PROPOSAL_TEAM_CHANGED_AFTER_SUBMISSION,
-        event_context=context,
-        scopes=[proposal],
+    after_submission = proposal.state != enums.ProposalStates.DRAFT
+    return RoleEventDetails(
+        context={
+            "proposal_state": proposal.state,
+            "after_submission": after_submission,
+        },
+        role_label=user_role.role.description or user_role.role.name,
+        scope_note="(after submission)" if after_submission else "",
     )
-
-
-def log_team_role_granted(sender, instance, current_user=None, **kwargs):
-    log_team_change_after_submission(instance, current_user, "granted")
-
-
-def log_team_role_updated(sender, instance, current_user=None, **kwargs):
-    log_team_change_after_submission(instance, current_user, "updated")
-
-
-def log_team_role_revoked(sender, instance, current_user=None, **kwargs):
-    log_team_change_after_submission(instance, current_user, "revoked")
 
 
 def is_submitted_proposal_role(user_role) -> bool:
