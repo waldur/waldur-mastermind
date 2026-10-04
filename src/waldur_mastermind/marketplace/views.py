@@ -252,6 +252,16 @@ SERVICE_PROVIDER_SOURCES = ["*", "customer"]
 # and the ServiceProvider record behind it.
 OFFERING_PROVIDER_SOURCES = ["customer", "customer.serviceprovider"]
 
+# Provider side of an order: a role on the offering, on the provider
+# organization, or on its ServiceProvider (a service provider manager). The
+# consumer side (project, project.customer) is deliberately absent, so a
+# provider-scoped grant never reaches orders the organization places itself.
+ORDER_PROVIDER_SOURCES = [
+    "offering",
+    "offering.customer",
+    "offering.customer.serviceprovider",
+]
+
 
 def readable_by_support(permission_function):
     """Let global support through a read gate otherwise held by scoped roles.
@@ -7963,15 +7973,16 @@ class OrderViewSet(
 
     # A site agent runs as OFFERING.MANAGER (offering-scoped role), and every
     # order of a site-agent offering waits for provider approval, so accept the
-    # offering scope alongside the owning customer. This applies to every
-    # offering type: OFFERING.MANAGER already carried ORDER.APPROVE, so any
-    # offering manager may review provider orders through the API. Homeport
-    # does not surface this to people yet: filter_can_approve_as_provider and
-    # the provider action buttons still match customer-scoped roles only.
+    # offering scope alongside the owning customer and its ServiceProvider.
+    # This applies to every offering type: OFFERING.MANAGER already carried
+    # ORDER.APPROVE, so any offering manager may review provider orders through
+    # the API. Homeport does not surface this to offering managers yet:
+    # filter_can_approve_as_provider matches organization and ServiceProvider
+    # roles only.
     approve_by_provider_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            OFFERING_SCOPED_SOURCES,
+            ORDER_PROVIDER_SOURCES,
         )
     ]
     approve_by_provider_serializer_class = serializers.OrderApproveByProviderSerializer
@@ -8112,7 +8123,7 @@ class OrderViewSet(
     set_provider_info_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            OFFERING_SCOPED_SOURCES,
+            ORDER_PROVIDER_SOURCES,
         )
     ]
     set_provider_info_serializer_class = serializers.OrderProviderInfoSerializer
@@ -8257,7 +8268,7 @@ class OrderViewSet(
     reject_by_provider_permissions = [
         permission_factory(
             PermissionEnum.REJECT_ORDER,
-            OFFERING_SCOPED_SOURCES,
+            ORDER_PROVIDER_SOURCES,
         )
     ]
 
@@ -8332,7 +8343,7 @@ class OrderViewSet(
     set_state_executing_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer", "offering"],
+            ORDER_PROVIDER_SOURCES,
         )
     ]
 
@@ -8360,7 +8371,7 @@ class OrderViewSet(
     set_state_done_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer", "offering"],
+            ORDER_PROVIDER_SOURCES,
         )
     ]
 
@@ -8383,7 +8394,7 @@ class OrderViewSet(
     set_state_erred_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer", "offering.customer.serviceprovider", "offering"],
+            ORDER_PROVIDER_SOURCES,
         )
     ]
 
@@ -8451,7 +8462,7 @@ class OrderViewSet(
     retry_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer", "offering"],
+            ORDER_PROVIDER_SOURCES,
         )
     ]
 
@@ -8668,7 +8679,7 @@ class OrderViewSet(
     set_backend_id_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_ID,
-            ["offering", "offering.customer"],
+            ORDER_PROVIDER_SOURCES,
         )
     ]
 
