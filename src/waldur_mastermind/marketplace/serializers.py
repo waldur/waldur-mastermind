@@ -10973,6 +10973,16 @@ class OfferingUserSerializer(
     )
     service_provider_comment = serializers.ReadOnlyField()
     service_provider_comment_url = serializers.ReadOnlyField()
+    # The provider account this one reads through, when the provider shares
+    # accounts across its offerings; null for a per-offering account. Facts
+    # about the account, not personal data, so never hidden by the offering's
+    # user attribute configuration.
+    service_provider_account_uuid = serializers.UUIDField(
+        source="service_provider_account.uuid", read_only=True, allow_null=True
+    )
+    service_provider_account_username = serializers.CharField(
+        source="service_provider_account.username", read_only=True, allow_null=True
+    )
     has_consent = serializers.SerializerMethodField()
     requires_reconsent = serializers.SerializerMethodField()
     offering_has_active_tos = serializers.SerializerMethodField()
@@ -11074,6 +11084,8 @@ class OfferingUserSerializer(
             "runtime_state",
             "service_provider_comment",
             "service_provider_comment_url",
+            "service_provider_account_uuid",
+            "service_provider_account_username",
             "has_consent",
             "requires_reconsent",
             "offering_has_active_tos",

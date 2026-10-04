@@ -12247,6 +12247,7 @@ class OfferingUsersViewSet(
                 "offering__user_attribute_config",
                 "user",
                 "offering__customer",
+                "service_provider_account",
             )
             .prefetch_related(
                 "offering__user_consents", "offering__terms_of_service_configs"
