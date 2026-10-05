@@ -11,7 +11,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.models import User
 from waldur_core.permissions.mixins import PermissionMixin
-from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_scope_ids, get_user_ids
 from waldur_core.structure import models as structure_models
 
@@ -297,28 +296,26 @@ def get_connected_projects(user, role=None) -> QuerySet[int]:
     return get_scope_ids(user, ctype, role)
 
 
-def get_connected_customers_by_permission(user, permission):
+def get_connected_customers_by_permission(user, permission) -> QuerySet[int]:
+    """Customer **ids** on which the user holds ``permission``.
+
+    Each grant is matched on its own role's permissions, as ``has_permission``
+    does. Matching role names instead would let an organization clone that
+    staff narrowed keep a permission its template still holds. A disabled role
+    still counts: disabling only stops new assignments.
+    """
     ctype = ContentType.objects.get_for_model(structure_models.Customer)
-    roles = list(
-        Role.objects.filter(
-            content_type=ctype, is_active=True, permissions__permission=permission
-        ).values_list("name", flat=True)
-    )
-    if not roles:
-        return structure_models.Customer.objects.none()
-    return get_connected_customers(user, roles)
+    return get_scope_ids(user, ctype, permission=permission)
 
 
-def get_connected_projects_by_permission(user, permission):
+def get_connected_projects_by_permission(user, permission) -> QuerySet[int]:
+    """Project **ids** on which the user holds ``permission``.
+
+    Matched on each grant's own role permissions, as for
+    :func:`get_connected_customers_by_permission`.
+    """
     ctype = ContentType.objects.get_for_model(structure_models.Project)
-    roles = list(
-        Role.objects.filter(
-            content_type=ctype, is_active=True, permissions__permission=permission
-        ).values_list("name", flat=True)
-    )
-    if not roles:
-        return structure_models.Project.objects.none()
-    return get_connected_projects(user, roles)
+    return get_scope_ids(user, ctype, permission=permission)
 
 
 def get_customer_users(scope_ids, role=None):
