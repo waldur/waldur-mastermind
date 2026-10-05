@@ -144,15 +144,22 @@ class ResourceHistoryEndpointTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["serialized_data"]["name"], "Name v1")
 
-    def test_history_at_returns_404_for_timestamp_before_any_version(self):
-        """history/at should return 404 if no version exists before timestamp."""
+    def test_history_at_returns_validation_error_before_first_version(self):
+        """history/at should explain when the timestamp predates version history."""
         self.client.force_authenticate(self.fixture.staff)
 
-        # Query for state before any versions exist
+        first_version = Version.objects.get_for_object(self.resource).earliest(
+            "revision__date_created"
+        )
         past_time = timezone.now() - timedelta(days=365)
         url = self._get_history_at_url()
         response = self.client.get(url, {"timestamp": past_time.isoformat()})
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["timestamp"],
+            "Timestamp predates the first recorded version at "
+            f"{first_version.revision.date_created.isoformat().replace('+00:00', 'Z')}.",
+        )
 
     def test_history_at_requires_timestamp_parameter(self):
         """history/at should require timestamp parameter."""

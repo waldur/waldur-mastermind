@@ -36,6 +36,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
+from rest_framework.utils.encoders import JSONEncoder
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 from reversion.models import Version
@@ -1113,22 +1114,23 @@ class HistoryViewSetMixin:
         except (ValueError, TypeError):
             raise ValidationError({"timestamp": "Invalid timestamp format."})
 
-        content_type = self._get_content_type_for_model()
-        version = (
-            Version.objects.filter(
-                content_type=content_type,
-                object_id=str(obj.pk),
-                revision__date_created__lte=timestamp,
-            )
-            .select_related("revision", "revision__user")
-            .order_by("-revision__date_created")
-            .first()
-        )
+        versions = self._get_versions_queryset(obj)
+        version = versions.filter(revision__date_created__lte=timestamp).first()
 
         if not version:
-            return Response(
-                {"detail": "No version found before the specified timestamp."},
-                status=status.HTTP_404_NOT_FOUND,
+            first_version = versions.last()
+            if not first_version:
+                raise ValidationError(
+                    {"timestamp": "No version history exists for this object."}
+                )
+            first_version_date = JSONEncoder().default(
+                first_version.revision.date_created
+            )
+            raise ValidationError(
+                {
+                    "timestamp": "Timestamp predates the first recorded version "
+                    f"at {first_version_date}."
+                }
             )
 
         serializer_class = self._get_history_serializer_class()

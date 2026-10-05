@@ -294,17 +294,40 @@ class HistoryAtEndpointTest(HistoryViewSetMixinTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["serialized_data"]["name"], "Name v1")
 
-    def test_history_at_returns_404_for_timestamp_before_any_version(self):
-        """history_at should return 404 if no version exists before timestamp."""
+    def test_history_at_returns_400_when_object_has_no_versions(self):
+        """history_at should return 400, not 404, for an object without history."""
+        self.client.force_authenticate(self.fixture.staff)
+        Version.objects.get_for_object(self.customer).delete()
+
+        response = self.client.get(
+            self._get_history_at_url(),
+            {"timestamp": timezone.now().isoformat()},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["timestamp"],
+            "No version history exists for this object.",
+        )
+
+    def test_history_at_returns_400_for_timestamp_before_first_version(self):
+        """history_at should name the first version date for a too-early timestamp."""
         self.client.force_authenticate(self.fixture.staff)
 
-        # Query for state before any versions exist
+        first_version = Version.objects.get_for_object(self.customer).earliest(
+            "revision__date_created"
+        )
+
         past_time = timezone.now() - timedelta(days=365)
         response = self.client.get(
             self._get_history_at_url(),
             {"timestamp": past_time.isoformat()},
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["timestamp"],
+            "Timestamp predates the first recorded version at "
+            f"{first_version.revision.date_created.isoformat().replace('+00:00', 'Z')}.",
+        )
 
     def test_history_at_requires_timestamp_parameter(self):
         """history_at should require timestamp parameter."""
