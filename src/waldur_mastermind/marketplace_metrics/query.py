@@ -212,6 +212,12 @@ def series_data(
 
 
 def period_bounds(period, now=None):
+    """The current period so far and the same stretch of the previous one.
+
+    Returns ``(start, end, previous_start, previous_end)``. A rolling window
+    compares two whole windows; a calendar month or quarter compares the time
+    elapsed so far with as much of the previous month or quarter.
+    """
     now = now or timezone.now()
     if period == enums.GoalPeriods.ROLLING_30_DAYS:
         start = now - datetime.timedelta(days=30)
@@ -226,7 +232,11 @@ def period_bounds(period, now=None):
     else:
         start = month_start
         previous_start = (start - datetime.timedelta(days=1)).replace(day=1)
-    return start, now, previous_start, start
+    # Compare like with like: the previous period up to the same point, so
+    # five days into a month are measured against the first five days of the
+    # last one, not against all of it. Never past the previous period's end.
+    previous_end = min(previous_start + (now - start), start)
+    return start, now, previous_start, previous_end
 
 
 def _hourly_from(policy, now=None):
