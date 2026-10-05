@@ -91,7 +91,10 @@ class WebhookAuthTest(test.APITestCase):
 class IdempotencyTest(test.APITestCase):
     @mock.patch("waldur_mastermind.matrix_chat.tasks.process_appservice_events.delay")
     def test_same_txn_id_processed_once(self, mock_delay):
-        events = [{"type": "m.room.message", "content": {"body": "hello"}}]
+        room_id = fixtures.MatrixChatFixture().matrix_room.room_id
+        events = [
+            {"type": "m.room.message", "room_id": room_id, "content": {"body": "hi"}}
+        ]
         url = f"{WEBHOOK_URL}txn-dedup"
 
         response1 = self.client.put(
@@ -122,6 +125,84 @@ class IdempotencyTest(test.APITestCase):
         )
         txn = models.MatrixAppserviceTransaction.objects.get(txn_id="txn-record")
         self.assertEqual(txn.event_count, 1)
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+@mock.patch("waldur_mastermind.matrix_chat.tasks.process_appservice_events.delay")
+class WebhookRoomFilterTest(test.APITestCase):
+    # The appservice namespace covers every local user, so the homeserver sends
+    # Waldur every message they see: direct messages, the #admins room with
+    # the passwords its commands echo. None of it may reach the task queue.
+
+    def _put(self, txn_id, events):
+        return self.client.put(
+            f"{WEBHOOK_URL}{txn_id}",
+            data={"events": events},
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
+        )
+
+    def _message(self, room_id, body):
+        return {
+            "type": "m.room.message",
+            "room_id": room_id,
+            "sender": "@alice:matrix.example.com",
+            "content": {"msgtype": "m.text", "body": body},
+        }
+
+    def test_only_events_of_rooms_waldur_manages_are_queued(self, mock_delay):
+        managed = fixtures.MatrixChatFixture().matrix_room.room_id
+        command = self._message(managed, "!status")
+
+        response = self._put(
+            "txn-mixed",
+            [
+                self._message("!dm:matrix.example.com", "a private message"),
+                command,
+                self._message("!admins:matrix.example.com", "!admin users ..."),
+            ],
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_delay.assert_called_once_with("txn-mixed", [command])
+
+    def test_nothing_is_queued_without_a_managed_room(self, mock_delay):
+        response = self._put(
+            "txn-unmanaged",
+            [self._message("!dm:matrix.example.com", "a private message")],
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_delay.assert_not_called()
+        # Still recorded, so a retried transaction is not looked at again.
+        self.assertTrue(
+            models.MatrixAppserviceTransaction.objects.filter(
+                txn_id="txn-unmanaged"
+            ).exists()
+        )
+
+    def test_malformed_events_are_dropped(self, mock_delay):
+        # The transaction is recorded before the events are looked at, so an
+        # error here would also drop the homeserver's retry.
+        response = self._put(
+            "txn-garbage",
+            [
+                "not an event",
+                {"room_id": None},
+                {"room_id": ["x"]},
+                {"room_id": {"a": 1}},
+            ],
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_delay.assert_not_called()
 
 
 @override_config(

@@ -616,6 +616,21 @@ class MatrixAppserviceWebhookView(views.APIView):
         if not created:
             return Response({}, status=status.HTTP_200_OK)
 
+        # The namespace covers every local user, so the homeserver sends the
+        # direct messages and #admins traffic of people Waldur has nothing to
+        # do with. Only events of Waldur's own rooms may reach the task queue.
+        events = [
+            e
+            for e in events
+            if isinstance(e, dict) and isinstance(e.get("room_id"), str)
+        ]
+        managed = set(
+            models.MatrixRoom.objects.filter(
+                room_id__in={e["room_id"] for e in events}
+            ).values_list("room_id", flat=True)
+        )
+        events = [e for e in events if e["room_id"] in managed]
+
         # Dispatch Celery task
         if events:
             tasks.process_appservice_events.delay(txn_id, events)
