@@ -17,6 +17,7 @@ from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.marketplace_site_agent import utils
 from waldur_mastermind.marketplace_site_agent.tests import factories
 
 
@@ -70,6 +71,41 @@ class LimitPrecisionAdvisoryTest(test.APITestCase):
         self.assertIn("slurm", advisory)
         self.assertIn("harbor", advisory)
 
+    def test_the_class_path_an_agent_reports_is_recognised(self):
+        """What a deployed agent actually stores: module and class, not a name."""
+        self._report_backend("waldur_site_agent_slurm.backend.SlurmBackend")
+        advisory = self._advisory()
+        self.assertIsNotNone(advisory)
+        self.assertIn("slurm", str(advisory))
+        self.assertNotIn("SlurmBackend", str(advisory))
+
+    def test_a_class_path_of_a_backend_that_holds_fractions_says_nothing(self):
+        self._report_backend("waldur_site_agent_litellm.backend.LiteLLMBackend")
+        self.assertIsNone(self._advisory())
+
+    def test_class_paths_and_names_mixed_name_each_backend_once(self):
+        self._report_backend(
+            "waldur_site_agent_slurm.backend.SlurmBackend",
+            "slurm",
+            "waldur_site_agent_digitalocean.backend.DigitalOceanBackend",
+        )
+        advisory = str(self._advisory())
+        self.assertEqual(advisory.count("slurm"), 1)
+        self.assertIn("digitalocean", advisory)
+
+    def test_package_underscores_match_dashed_backend_names(self):
+        self.assertEqual(
+            utils.reported_backend_name(
+                "waldur_site_agent_k8s_ut_namespace.backend.K8sUtNamespaceBackend"
+            ),
+            "k8s-ut-namespace",
+        )
+        self.assertEqual(
+            utils.reported_backend_name("k8s_ut_namespace"), "k8s-ut-namespace"
+        )
+        self.assertEqual(utils.reported_backend_name("SLURM"), "slurm")
+        self.assertIsNone(utils.reported_backend_name(""))
+
     def test_a_plugin_that_declares_no_advisory_says_nothing(self):
         """Every other offering type answers through max_limit_decimal_places,
         so the hook is absent and the accessor must not reach for it."""
@@ -99,6 +135,18 @@ class LimitPrecisionAdvisoryApiTest(test.APITestCase):
         identity = factories.AgentIdentityFactory(offering=self.offering)
         service = factories.AgentServiceFactory(identity=identity)
         factories.AgentProcessorFactory(service=service, backend_type="slurm")
+
+        advisory = self._get()["limit_precision_advisory"]
+        self.assertIsNotNone(advisory)
+        self.assertIn("slurm", advisory)
+
+    def test_the_offering_carries_the_advisory_for_a_reported_class_path(self):
+        identity = factories.AgentIdentityFactory(offering=self.offering)
+        service = factories.AgentServiceFactory(identity=identity)
+        factories.AgentProcessorFactory(
+            service=service,
+            backend_type="waldur_site_agent_slurm.backend.SlurmBackend",
+        )
 
         advisory = self._get()["limit_precision_advisory"]
         self.assertIsNotNone(advisory)

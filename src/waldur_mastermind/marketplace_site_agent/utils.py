@@ -35,6 +35,32 @@ WHOLE_NUMBER_BACKEND_TYPES = frozenset(
 )
 
 
+#: Prefix of every site-agent plugin package (``waldur_site_agent_slurm``, …).
+_PLUGIN_PACKAGE_PREFIX = "waldur_site_agent_"
+
+
+def reported_backend_name(reported: str | None) -> str | None:
+    """The backend name behind what an agent reported as its ``backend_type``.
+
+    Deployed agents report the backend's class path
+    (``waldur_site_agent_slurm.backend.SlurmBackend``), not the entry-point
+    name; an older or hand-registered agent may report a bare name. Both map to
+    the name used in ``WHOLE_NUMBER_BACKEND_TYPES``: the plugin package without
+    its prefix, lower-cased, with underscores read as dashes so the package
+    ``waldur_site_agent_k8s_ut_namespace`` matches ``k8s-ut-namespace``.
+    """
+    if not reported:
+        return None
+    name = reported.strip().split(".", 1)[0].lower()
+    name = name.removeprefix(_PLUGIN_PACKAGE_PREFIX)
+    return name.replace("_", "-") or None
+
+
+_WHOLE_NUMBER_BACKEND_NAMES = frozenset(
+    name.replace("_", "-") for name in WHOLE_NUMBER_BACKEND_TYPES
+)
+
+
 def get_limit_precision_advisory(offering) -> str | None:
     """Warn a provider whose agent cannot hold the precision they are setting.
 
@@ -56,16 +82,11 @@ def get_limit_precision_advisory(offering) -> str | None:
     """
     from waldur_mastermind.marketplace_site_agent import models
 
-    reported = set(
-        models.AgentProcessor.objects.filter(
-            service__identity__offering=offering
-        ).values_list("backend_type", flat=True)
-    )
-    truncating = sorted(
-        backend_type
-        for backend_type in reported
-        if backend_type and backend_type.lower() in WHOLE_NUMBER_BACKEND_TYPES
-    )
+    reported = models.AgentProcessor.objects.filter(
+        service__identity__offering=offering
+    ).values_list("backend_type", flat=True)
+    names = {reported_backend_name(backend_type) for backend_type in reported}
+    truncating = sorted(name for name in names if name in _WHOLE_NUMBER_BACKEND_NAMES)
     if not truncating:
         return None
     return _(
