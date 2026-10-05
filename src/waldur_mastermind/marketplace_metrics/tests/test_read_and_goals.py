@@ -2,6 +2,7 @@ import datetime
 from unittest import mock
 
 from django.utils import timezone
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -552,3 +553,78 @@ class ResourceDrillDownTest(Scenario):
         )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+def _utc(*args):
+    return datetime.datetime(*args, tzinfo=datetime.UTC)
+
+
+class PeriodBoundsTest(test.APITestCase):
+    def test_a_month_so_far_is_compared_with_the_same_days_of_the_last(self):
+        now = _utc(2026, 10, 5, 6)
+
+        start, end, previous_start, previous_end = query.period_bounds(
+            enums.GoalPeriods.MONTH, now
+        )
+
+        self.assertEqual((start, end), (_utc(2026, 10, 1), now))
+        self.assertEqual(
+            (previous_start, previous_end), (_utc(2026, 9, 1), _utc(2026, 9, 5, 6))
+        )
+
+    def test_a_long_month_never_reads_past_a_short_one(self):
+        _, _, previous_start, previous_end = query.period_bounds(
+            enums.GoalPeriods.MONTH, _utc(2026, 3, 31, 12)
+        )
+
+        self.assertEqual(
+            (previous_start, previous_end), (_utc(2026, 2, 1), _utc(2026, 3, 1))
+        )
+
+    def test_a_quarter_so_far(self):
+        _, _, previous_start, previous_end = query.period_bounds(
+            enums.GoalPeriods.QUARTER, _utc(2026, 10, 15)
+        )
+
+        self.assertEqual(
+            (previous_start, previous_end), (_utc(2026, 7, 1), _utc(2026, 7, 15))
+        )
+
+    def test_a_rolling_window_compares_two_whole_windows(self):
+        now = _utc(2026, 10, 5)
+
+        start, end, previous_start, previous_end = query.period_bounds(
+            enums.GoalPeriods.ROLLING_30_DAYS, now
+        )
+
+        self.assertEqual(end - start, previous_end - previous_start)
+        self.assertEqual(previous_end, start)
+
+
+@freeze_time("2026-10-05 06:00:00")
+class PeriodComparisonTest(Scenario):
+    def test_previous_figure_covers_the_same_days_of_the_last_month(self):
+        jobs = factories.OfferingMetricFactory(
+            offering=self.offering,
+            definition=factories.MetricDefinitionFactory(key="hpc.jobs"),
+        )
+        resource = self.resources[0]
+        for when, value in (
+            (_utc(2026, 9, 3, 12), 4),  # inside 1-5 September, 06:00
+            (_utc(2026, 9, 20), 100),  # later in September: not compared
+            (_utc(2026, 10, 2), 6),  # this month
+        ):
+            self.add(
+                jobs, resource, {}, value, seconds=(self.now - when).total_seconds()
+            )
+        rollups.roll_up(since=_utc(2026, 8, 1))
+        self.client.force_authenticate(self.fixture.member)
+
+        response = self.client.get(
+            PROJECT_METRICS, {"project_uuid": self.fixture.project.uuid.hex}
+        )
+
+        item = next(
+            i for i in response.data if i["offering_metric"]["key"] == "hpc.jobs"
+        )
+        self.assertEqual((item["current"], item["previous"]), (6, 4))
