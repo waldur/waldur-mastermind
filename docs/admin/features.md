@@ -78,11 +78,11 @@ Allow display of images in markdown format.
 
 ## marketplace.call_only
 
-Allow marketplace to serve only as aggregator of call info.
+List calls that are run outside Waldur: each call links to an external URL where applications are made, and rounds, proposals and reviews are hidden.
 
 ## marketplace.catalogue_only
 
-Allow marketplace to function as a catalogue only.
+Run the marketplace as a catalogue: offerings can be browsed but not ordered, order lists and pricing are hidden, and anonymous visitors land on the marketplace instead of the login page.
 
 ## marketplace.conceal_audit_log_from_end_users
 
@@ -142,7 +142,7 @@ Enable push-driven UI updates over the event-consumer WebSocket (experimental). 
 
 ## marketplace.show_call_management_functionality
 
-Enabled display of call management functionality.
+Show call management: the call-managing organization's workspace, providers' requests for offerings, and proposal reports. Independent of SERVICE_ACCESS_MODE, which governs how applicants reach services.
 
 ## marketplace.show_experimental_ui_components
 
