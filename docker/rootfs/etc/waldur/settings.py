@@ -156,7 +156,12 @@ if sentry_dsn:
     from sentry_sdk.integrations.celery import CeleryIntegration
     from sentry_sdk.integrations.django import DjangoIntegration
 
+    from waldur_core.logging.sentry import (
+        before_breadcrumb as sentry_before_breadcrumb,
+    )
     from waldur_core.logging.sentry import before_send as sentry_before_send
+    from waldur_core.logging.sentry import event_scrubber as sentry_event_scrubber
+    from waldur_core.logging.sentry import redact_secrets as sentry_redact_secrets
     from waldur_core.server.sentry_crons import (
         build_monitor_config_defaults,
         patch_monitor_config_defaults,
@@ -184,6 +189,9 @@ if sentry_dsn:
         # sentry-sdk reads is the repr of the event dict. Without this hook the
         # variable data inside it splits one bug across many issue groups.
         before_send=sentry_before_send,
+        before_breadcrumb=sentry_before_breadcrumb,
+        before_send_transaction=sentry_redact_secrets,
+        event_scrubber=sentry_event_scrubber(),
         # https://docs.sentry.io/platforms/python/guides/django/performance/
         traces_sampler=_traces_sampler,
         # Profiles fill the gap between instrumented spans and wall-clock
