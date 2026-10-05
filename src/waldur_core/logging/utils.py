@@ -5,6 +5,8 @@ import re
 import threading
 import time
 import uuid as uuid_mod
+from collections.abc import Callable
+from typing import Any
 
 import stomp
 from django.apps import apps
@@ -483,6 +485,30 @@ def get_scope_types_mapping():
 
 def get_reverse_scope_types_mapping():
     return {m: str(m._meta) for m in get_loggable_models()}
+
+
+# Per-model guards on reading a scope's event feed, registered by apps from
+# their AppConfig.ready(). Being able to read an object does not always mean
+# being able to read the audit trail about it.
+_scope_event_guards: dict[type, Callable[[Any, Any], bool]] = {}
+
+
+def register_scope_event_guard(model: type, guard: Callable[[Any, Any], bool]):
+    """Register ``guard(user, scope) -> bool``; returning ``False`` hides the
+    events logged against ``scope`` from ``user``."""
+    _scope_event_guards[model] = guard
+
+
+def can_view_scope_events(user, scope) -> bool:
+    guard = _scope_event_guards.get(type(scope))
+    return guard is None or guard(user, scope)
+
+
+def has_scope_event_guard(scope) -> bool:
+    """Whether ``scope`` restricts who reads its events. Such a scope's events
+    must not also be filed on a wider feed (its organization's, say), whose
+    readers the guard would never be asked about."""
+    return type(scope) in _scope_event_guards
 
 
 def delete_stale_subscriptions(

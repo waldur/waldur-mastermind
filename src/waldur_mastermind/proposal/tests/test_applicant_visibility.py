@@ -2,7 +2,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CallRole, CustomerRole, ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import factories, fixtures
@@ -413,3 +413,98 @@ class ProposalApplicantVisibilityConsumptionTest(test.APITestCase):
         self.assertIn("created_by_name", response.data)
         self.assertIn("created_by", response.data)
         self.assertIn("applicant_full_name", response.data)
+
+
+class PanelMemberApplicantVisibilityTest(test.APITestCase):
+    """Panel members evaluate proposals, so the call's applicant visibility
+    config applies to them exactly as to reviewers."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal_submitted
+        self.applicant = self.proposal.created_by
+        self.applicant.civil_number = "38001010000"
+        self.applicant.email = "applicant@example.com"
+        self.applicant.save()
+        self.panel_member = self.fixture.panel_member
+        models.CallApplicantVisibilityConfig.objects.create(
+            call=self.call,
+            expose_email=False,
+            expose_civil_number=False,
+            expose_full_name=True,
+        )
+        self.detail_url = factories.ProposalFactory.get_url(self.proposal)
+        self.team_url = factories.ProposalFactory.get_url(
+            self.proposal, action="list_users"
+        )
+        self.proposal.add_user(self.applicant, ProposalRole.MANAGER)
+
+    def _get(self, user, url):
+        self.client.force_authenticate(user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return response.data
+
+    def _team_rows(self, user):
+        data = self._get(user, self.team_url)
+        return data["results"] if isinstance(data, dict) else data
+
+    def test_panel_member_does_not_see_concealed_applicant_attributes(self):
+        data = self._get(self.panel_member, self.detail_url)
+        self.assertNotIn("applicant_email", data)
+        self.assertNotIn("applicant_civil_number", data)
+        # What the call exposes is still there.
+        self.assertIn("applicant_full_name", data)
+
+    def test_panel_member_team_list_is_filtered(self):
+        rows = self._team_rows(self.panel_member)
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertNotIn("user_email", row)
+            self.assertNotIn("expiration_time", row)
+            self.assertIn("user_full_name", row)
+
+    def test_call_manager_who_is_also_panel_member_keeps_full_data(self):
+        user = self.fixture.call_manager
+        self.call.add_user(user, CallRole.PANEL_MEMBER)
+        data = self._get(user, self.detail_url)
+        self.assertEqual(data["applicant_email"], "applicant@example.com")
+        self.assertEqual(data["applicant_civil_number"], "38001010000")
+        for row in self._team_rows(user):
+            self.assertIn("user_email", row)
+
+    def test_call_organiser_who_is_also_panel_member_keeps_full_data(self):
+        user = self.fixture.call_organizer_user
+        self.call.add_user(user, CallRole.PANEL_MEMBER)
+        data = self._get(user, self.detail_url)
+        self.assertEqual(data["applicant_email"], "applicant@example.com")
+        self.assertEqual(data["applicant_civil_number"], "38001010000")
+        for row in self._team_rows(user):
+            self.assertIn("user_email", row)
+
+    def test_team_member_who_is_also_reviewer_keeps_full_data_on_own_proposal(self):
+        user = structure_factories.UserFactory()
+        self.proposal.add_user(user, ProposalRole.MEMBER, created_by=self.applicant)
+        self.call.add_user(user, CallRole.REVIEWER)
+        data = self._get(user, self.detail_url)
+        self.assertEqual(data["applicant_email"], "applicant@example.com")
+        self.assertEqual(data["applicant_civil_number"], "38001010000")
+        for row in self._team_rows(user):
+            self.assertIn("user_email", row)
+
+    def test_team_member_is_still_an_evaluator_on_other_proposals(self):
+        user = structure_factories.UserFactory()
+        self.proposal.add_user(user, ProposalRole.MEMBER, created_by=self.applicant)
+        self.call.add_user(user, CallRole.REVIEWER)
+        other = factories.ProposalFactory(
+            round=self.proposal.round, state=self.proposal.state
+        )
+        data = self._get(user, factories.ProposalFactory.get_url(other))
+        self.assertNotIn("applicant_email", data)
+        self.assertNotIn("applicant_civil_number", data)
+
+    def test_panel_member_and_reviewer_see_the_same_applicant_fields(self):
+        panel_view = self._get(self.panel_member, self.detail_url)
+        reviewer_view = self._get(self.fixture.reviewer_1, self.detail_url)
+        self.assertEqual(set(panel_view), set(reviewer_view))

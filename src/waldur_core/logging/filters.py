@@ -132,12 +132,22 @@ class EventFilterBackend(filters.BaseFilterBackend):
             visible = scope._meta.model.get_permitted_objects(request.user)
             if not visible.filter(pk=scope.pk).exists():
                 return queryset.none()
+            if not utils.can_view_scope_events(request.user, scope):
+                return queryset.none()
 
             content_type = ContentType.objects.get_for_model(scope)
             subquery = Q(feed__content_type=content_type, feed__object_id=scope.id)
 
-            # Include scope if it exists:
-            if isinstance(scope, ScopeMixin) and scope.content_type and scope.object_id:
+            # Include scope if it exists, unless its feed is closed to the user:
+            if (
+                isinstance(scope, ScopeMixin)
+                and scope.content_type
+                and scope.object_id
+                and (
+                    scope.scope is None
+                    or utils.can_view_scope_events(request.user, scope.scope)
+                )
+            ):
                 subquery |= Q(
                     feed__content_type=scope.content_type,
                     feed__object_id=scope.object_id,

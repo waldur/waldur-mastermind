@@ -50,7 +50,6 @@ from waldur_core.logging.enums import EventType
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
-from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
@@ -3185,6 +3184,14 @@ class ProposalViewSet(
             item.pop("expiration_time", None)
         return serializers.filter_team_member_fields(data, concealed)
 
+    def filter_checklist_response(self, data, obj, request):
+        # Each answer names its author, a member of the applicant team: an
+        # evaluator sees them only as far as the call's config exposes them.
+        concealed = serializers.get_concealed_applicant_attributes(request.user, obj)
+        if concealed:
+            serializers.filter_checklist_answer_fields(data["questions"], concealed)
+        return data
+
     # Both mixins use the default implementation (obj.checklist_completion)
     # UserChecklistMixin permissions - for proposal managers only
     # Checklist viewing: same permission as viewing proposal
@@ -3221,6 +3228,13 @@ class ProposalViewSet(
         if obj.round.call_id in get_connected_calls(user, CallRole.MANAGER):
             return
 
+        # A reviewer holding a live review of this proposal but no call role
+        # (an accepted assignment grants none) reads the answers the same way
+        # a call reviewer does. Read-only: answering stays behind
+        # UPDATE_PROPOSAL, and access ends once the review is rejected.
+        if holds_live_review(user, obj):
+            return
+
         raise exceptions.PermissionDenied(
             "You do not have permission to view proposal checklist."
         )
@@ -3232,29 +3246,40 @@ class ProposalViewSet(
 
     # ReviewerChecklistMixin permissions - for proposal reviewers
     # Custom permission for compliance checklists (call managers only) or regular proposal review permissions
-    def _compliance_checklist_permission(self, request, view, obj=None):
-        """Custom permission that restricts compliance checklist access to call managers only."""
-        if not obj:
-            return False
-
-        completion = self.get_checklist_completion(obj)
-        if completion and completion.checklist:
-            if (
-                completion.checklist.checklist_type
-                == ChecklistTypes.PROPOSAL_COMPLIANCE
-            ):
-                # For compliance checklists, only call managers can access
-                return UserRole.objects.filter(
-                    user=request.user,
-                    role=CallRole.MANAGER,
-                    scope=obj.round.call,
-                    is_active=True,
-                ).exists()
-
-        # For non-compliance checklists, use regular proposal review permissions
-        return permissions_utils.has_permission(
-            request, PermissionEnum.MANAGE_PROPOSAL_REVIEW, obj.round.call
+    _compliance_review_check = staticmethod(
+        proposal_permissions.support_can_read(
+            permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
         )
+    )
+
+    def _compliance_checklist_permission(request, view, obj=None):
+        """Restrict the review view of a checklist -- the answers that trigger
+        a review, the review triggers and notes -- to whoever manages the call
+        for compliance checklists (a call manager, or an organiser through the
+        managing organisation, as for compliance_overview; support may read),
+        and to MANAGE_PROPOSAL_REVIEW holders on the call otherwise.
+
+        Permission checks deny by raising: a returned value is ignored.
+        """
+        if not obj:
+            return
+
+        call = obj.round.call
+        completion = view.get_checklist_completion(obj)
+        if (
+            completion
+            and completion.checklist
+            and completion.checklist.checklist_type
+            == ChecklistTypes.PROPOSAL_COMPLIANCE
+        ):
+            # The same gate as compliance_overview, applied to the call.
+            ProposalViewSet._compliance_review_check(request, view, call)
+        elif not permissions_utils.has_permission(
+            request, PermissionEnum.MANAGE_PROPOSAL_REVIEW, call
+        ):
+            raise exceptions.PermissionDenied(
+                "You do not have permission to review proposal checklist."
+            )
 
     checklist_review_permissions = [_compliance_checklist_permission]
     completion_review_status_permissions = [_compliance_checklist_permission]
@@ -3559,6 +3584,14 @@ class ProposalViewSet(
                 "can_view_review_content": (
                     can_view_internal_notes
                     or proposal.round.call.reviews_visible_to_submitters
+                ),
+                # An evaluator passes the step actor gate as part of the call
+                # team, but sees an applicant-side completer only as far as
+                # the call's applicant visibility config exposes it.
+                "concealed_applicant_attributes": (
+                    serializers.get_concealed_applicant_attributes(
+                        request.user, proposal
+                    )
                 ),
             },
         )

@@ -138,7 +138,14 @@ class UserChecklistMixin(BaseChecklistMixin):
         response_serializer = checklist_serializers.ChecklistResponseSerializer(
             response_data, context={"request": request, "completion": completion}
         )
-        return response.Response(response_serializer.data)
+        return response.Response(
+            self.filter_checklist_response(response_serializer.data, obj, request)
+        )
+
+    def filter_checklist_response(self, data, obj, request):
+        """Hook: adjust the serialized checklist before it is returned, e.g. to
+        drop answer fields a particular viewer of ``obj`` may not see."""
+        return data
 
     @extend_schema(
         description="Get checklist completion status.",
