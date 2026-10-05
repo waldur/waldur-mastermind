@@ -940,3 +940,122 @@ class ProposalComplianceSignalsTest(ProposalComplianceTestMixin, test.APITestCas
             completion_exists,
             "ChecklistCompletion should be deleted when Proposal is deleted",
         )
+
+
+class AssignedReviewerComplianceAccessTest(
+    ProposalComplianceTestMixin, test.APITestCase
+):
+    """A reviewer who reads the proposal through a review they hold (an
+    accepted assignment grants no call role) reads its compliance answers,
+    but cannot answer them or see the review logic."""
+
+    def setUp(self):
+        super().setUp()
+        self.proposal = self.fixture.proposal
+        self.completion = self.proposal.checklist_completion
+        self._create_checklist_answer(
+            self.completion,
+            self.required_question,
+            self.fixture.proposal_creator,
+            True,
+        )
+        self.reviewer = structure_factories.UserFactory()
+        self.review = proposal_factories.ReviewFactory(
+            proposal=self.proposal, reviewer=self.reviewer
+        )
+        self.base_url = proposal_factories.ProposalFactory.get_url(self.proposal)
+
+    def _get_checklist(self, user):
+        self.client.force_authenticate(user)
+        return self.client.get(self.base_url + "checklist/", {"include_all": "true"})
+
+    def test_live_review_holder_reads_compliance_answers(self):
+        response = self._get_checklist(self.reviewer)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        answers = {
+            question["uuid"]: question["existing_answer"]
+            for question in response.data["questions"]
+        }
+        self.assertTrue(answers[self.required_question.uuid.hex]["answer_data"])
+
+    def test_submitted_review_still_grants_read_access(self):
+        self.review.state = proposal_models.Review.States.SUBMITTED
+        self.review.save()
+        response = self._get_checklist(self.reviewer)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_rejected_review_ends_access(self):
+        self.review.state = proposal_models.Review.States.REJECTED
+        self.review.save()
+        response = self._get_checklist(self.reviewer)
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_review_of_another_proposal_grants_no_access(self):
+        other_reviewer = structure_factories.UserFactory()
+        proposal_factories.ReviewFactory(
+            proposal=self.fixture.proposal_submitted, reviewer=other_reviewer
+        )
+        response = self._get_checklist(other_reviewer)
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_live_review_holder_cannot_answer(self):
+        self.client.force_authenticate(self.reviewer)
+        response = self.client.post(
+            self.base_url + "submit_answers/",
+            [
+                {
+                    "question_uuid": str(self.required_question.uuid),
+                    "answer_data": False,
+                }
+            ],
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(
+            self.completion.answers.get(question=self.required_question).answer_data
+        )
+        self.assertFalse(self.completion.answers.filter(user=self.reviewer).exists())
+
+    def test_live_review_holder_cannot_read_review_logic_or_status(self):
+        self.client.force_authenticate(self.reviewer)
+        for action in (
+            "checklist_review/",
+            "completion_review_status/",
+            "completion_status/",
+        ):
+            with self.subTest(action=action):
+                response = self.client.get(self.base_url + action)
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_applicant_call_manager_and_staff_unchanged(self):
+        for user in (
+            self.fixture.proposal_creator,
+            self.fixture.call_manager,
+            self.fixture.staff,
+        ):
+            with self.subTest(user=user):
+                response = self._get_checklist(user)
+                self.assertEqual(
+                    response.status_code, status.HTTP_200_OK, response.data
+                )
+
+    def test_review_view_of_compliance_checklist_is_for_call_managers(self):
+        for user, expected in (
+            (self.fixture.call_manager, status.HTTP_200_OK),
+            (self.fixture.call_organizer_user, status.HTTP_200_OK),
+            (self.fixture.global_support, status.HTTP_200_OK),
+            (self.fixture.staff, status.HTTP_200_OK),
+            (self.fixture.proposal_creator, status.HTTP_403_FORBIDDEN),
+            (self.fixture.reviewer_1, status.HTTP_403_FORBIDDEN),
+        ):
+            self.client.force_authenticate(user)
+            for action in ("checklist_review/", "completion_review_status/"):
+                with self.subTest(user=user, action=action):
+                    response = self.client.get(self.base_url + action)
+                    self.assertEqual(response.status_code, expected, response.data)
