@@ -272,7 +272,17 @@ class Call(
         ),
     )
 
+    carry_over_drafts = models.BooleanField(
+        default=True,
+        help_text=(
+            "Whether a draft still open when its round's cut-off passes moves "
+            "on to the call's next round instead of being cancelled. Without a "
+            "later round the draft is cancelled either way."
+        ),
+    )
+
     coi_configuration: "CallCOIConfiguration"
+    round_set: models.Manager["Round"]
 
     objects = managers.CallManager()
     tracker = cast(FieldInstanceTracker, FieldTracker())

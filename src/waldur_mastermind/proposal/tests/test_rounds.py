@@ -288,6 +288,10 @@ class RoundCloseTest(test.APITestCase):
     def test_user_can_close_round(self, user):
         """Closing a round cancels draft proposals but does not auto-create reviews.
         Reviews are created through the assignment batch workflow."""
+        # The fixture's other round is open, so a call carrying drafts over
+        # would move the draft there instead (covered in test_draft_carry_over).
+        self.fixture.call.carry_over_drafts = False
+        self.fixture.call.save(update_fields=["carry_over_drafts"])
         response = self.close_round(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Draft proposals are canceled

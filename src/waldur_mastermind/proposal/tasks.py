@@ -32,16 +32,37 @@ logger = logging.getLogger(__name__)
     name="waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled"
 )
 def proposals_for_ended_rounds_should_be_cancelled():
-    """Cancel draft proposals for rounds that have ended."""
+    """Move drafts of ended rounds on to their call's next round, or cancel them."""
     # Only drafts: a proposal submitted before the cutoff is reviewed after it,
     # so submitted and in-review proposals are left to the review workflow.
     date = timezone.now()
+    ended_rounds = proposal_models.Round.objects.filter(
+        cutoff_time__lt=date, proposal__state=ProposalStates.DRAFT
+    ).distinct()
+    failed_round_ids = set()
+    for call_round in ended_rounds.select_related("call"):
+        try:
+            utils.carry_over_drafts(call_round, announce=announce_carried_over_drafts)
+        except Exception:
+            # The move, its events and the announcement share one transaction,
+            # so nothing moved. Cancelling here would throw away drafts the
+            # call may carry over; they wait for the next sweep instead.
+            logger.exception(
+                "Failed to move the drafts of round %s on; retrying on the next run",
+                call_round.uuid,
+            )
+            failed_round_ids.add(call_round.pk)
+
     cancellation_date = date.strftime("%Y-%m-%d %H:%M:%S")
-    for proposal in proposal_models.Proposal.objects.filter(
-        state=ProposalStates.DRAFT, round__cutoff_time__lt=date
-    ).select_related(
-        # Each save publishes a proposal event whose scope chain walks these.
-        "round__call__manager__customer"
+    for proposal in (
+        proposal_models.Proposal.objects.filter(
+            state=ProposalStates.DRAFT, round__cutoff_time__lt=date
+        )
+        .exclude(round_id__in=failed_round_ids)
+        .select_related(
+            # Each save publishes a proposal event whose scope chain walks these.
+            "round__call__manager__customer"
+        )
     ):
         proposal.state = ProposalStates.CANCELED
         proposal.save(update_fields=["state"])
@@ -59,6 +80,60 @@ def proposals_for_ended_rounds_should_be_cancelled():
             args=(proposal.uuid, cancellation_date),
             countdown=10,  # 10 second delay
         )
+
+
+def announce_carried_over_drafts(moved, previous_round):
+    """Tell each applicant once that their draft now targets another cut-off."""
+    for proposal in moved:
+        transaction.on_commit(
+            lambda proposal_uuid=proposal.uuid: (
+                notify_proposal_creator_about_carried_over_draft.delay(
+                    proposal_uuid, previous_round.uuid
+                )
+            )
+        )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.notify_proposal_creator_about_carried_over_draft"
+)
+def notify_proposal_creator_about_carried_over_draft(
+    proposal_uuid, previous_round_uuid
+):
+    proposal = proposal_models.Proposal.objects.select_related(
+        "round__call", "created_by"
+    ).get(uuid=proposal_uuid)
+    if not proposal.created_by or not proposal.created_by.email:
+        logger.warning(
+            "Cannot tell the creator of proposal %s that it moved to another "
+            "round: they have no email.",
+            proposal.uuid,
+        )
+        return
+    previous_round = proposal_models.Round.objects.filter(
+        uuid=previous_round_uuid
+    ).first()
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "proposal_creator_name": proposal.created_by.full_name,
+        "proposal_name": proposal.name,
+        "call_name": proposal.round.call.name,
+        "previous_round_name": previous_round.name if previous_round else "",
+        "round_name": proposal.round.name,
+        "round_start_date": proposal.round.start_time,
+        "deadline_date": proposal.round.cutoff_time,
+        "proposal_url": core_utils.format_homeport_link(
+            "proposals/{proposal_uuid}/",
+            proposal_uuid=proposal.uuid,
+        ),
+    }
+    core_utils.broadcast_mail(
+        "proposal",
+        "proposal_draft_carried_over",
+        context,
+        [proposal.created_by.email],
+    )
 
 
 @shared_task(name="waldur_mastermind.proposal.expired_reviews_should_be_cancelled")
@@ -671,6 +746,7 @@ def notify_proposal_creator_on_submission_deadline_approaching():
         round__cutoff_time__gt=now,
     ).select_related("round", "round__call", "created_by")
 
+    carries_over: dict[int, bool] = {}
     for proposal in proposals:
         time_remaining = proposal.round.cutoff_time - now
         if time_remaining.total_seconds() <= 0:
@@ -690,6 +766,11 @@ def notify_proposal_creator_on_submission_deadline_approaching():
 
         remaining_hours = remainder // (60 * 60)
 
+        if proposal.round.pk not in carries_over:
+            carries_over[proposal.round.pk] = (
+                utils.next_round_for_drafts(proposal.round) is not None
+            )
+
         proposal_url = core_utils.format_homeport_link(
             "proposals/{proposal_uuid}/",
             proposal_uuid=proposal.uuid,
@@ -705,6 +786,7 @@ def notify_proposal_creator_on_submission_deadline_approaching():
             "time_remaining_days": remaining_days,
             "time_remaining_hours": remaining_hours,
             "proposal_url": proposal_url,
+            "draft_carries_over": carries_over[proposal.round.pk],
         }
 
         core_utils.broadcast_mail(

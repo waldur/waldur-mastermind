@@ -20,7 +20,7 @@
 
     <p>Complete and submit proposal: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
 
-    <p>Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.</p>
+    <p>{% if draft_carries_over %}A proposal left in draft state after the deadline moves on to the call's next round and is considered only once it has been submitted there.{% else %}Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.{% endif %}</p>
 
     <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
 </body>
