@@ -1463,6 +1463,12 @@ def _force_approve_pending_terminate_order(pending_order):
     )
 
 
+# Where TERMINATE_RESOURCE may be held for a resource: project manager/admin,
+# customer owner, or the service provider. Shared by the terminate endpoint and
+# the scheduled termination, which must pick an actor the endpoint accepts.
+TERMINATE_RESOURCE_SOURCES = ["project", "project.customer", "offering.customer"]
+
+
 def terminate_resource(
     resource, user, termination_comment=None, scheduled=False, order_author=None
 ):
@@ -1575,10 +1581,12 @@ def schedule_resources_termination(resources, termination_comment=None, user=Non
         # `user` would short-circuit the fallback chain on the next iteration
         # and attribute every later resource to the first resource's actor.
         #
-        # Inactive candidates are skipped: the actor authenticates the internal
-        # termination request, and an inactive user is rejected with HTTP 401
-        # "User inactive or deleted.", so the resource would never be
-        # terminated.
+        # The actor authenticates the internal termination request, so a
+        # candidate the terminate endpoint would refuse is skipped: an inactive
+        # user gets HTTP 401 "User inactive or deleted.", and one who can no
+        # longer terminate the resource -- removed from the project after
+        # requesting its end date, say -- gets HTTP 403. Either way the
+        # resource would never be terminated.
         actor = next(
             (
                 candidate
@@ -1587,7 +1595,14 @@ def schedule_resources_termination(resources, termination_comment=None, user=Non
                     resource.end_date_requested_by,
                     resource.project.end_date_requested_by,
                 )
-                if candidate is not None and candidate.is_active
+                if candidate is not None
+                and candidate.is_active
+                and permission_utils.has_permission_on_any_source(
+                    candidate,
+                    PermissionEnum.TERMINATE_RESOURCE,
+                    resource,
+                    TERMINATE_RESOURCE_SOURCES,
+                )
             ),
             None,
         )

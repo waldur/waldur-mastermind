@@ -779,6 +779,50 @@ class ResourceEndDateTest(test.APITestCase):
             )
             self.assertEqual(order.created_by, self.system_robot)
 
+    def test_terminate_resource_when_end_date_requested_by_lost_access(self):
+        # Regression: the requester is still active but no longer holds a role
+        # that may terminate the resource (removed from the project after
+        # ordering it, say). The termination request made as them is refused
+        # with HTTP 403 and the resource would never be terminated, so the
+        # chain must fall through past them just as for an inactive user.
+        with freeze_time("2020-01-01"):
+            self.resource.end_date_requested_by = structure_factories.UserFactory()
+            self.resource.save()
+
+            tasks.terminate_expired_resources()
+
+            order = models.Order.objects.get(
+                resource=self.fixture.resource, type=OrderTypes.TERMINATE
+            )
+            self.assertEqual(order.created_by, self.system_robot)
+
+    def test_terminate_resource_when_project_end_date_requested_by_lost_access(
+        self,
+    ):
+        self.resource.project.end_date_requested_by = structure_factories.UserFactory()
+        self.resource.project.save()
+
+        with freeze_time("2020-01-01"):
+            tasks.terminate_expired_resources()
+
+        order = models.Order.objects.get(
+            resource=self.fixture.resource, type=OrderTypes.TERMINATE
+        )
+        self.assertEqual(order.created_by, self.system_robot)
+
+    def test_requester_who_may_still_terminate_stays_the_author(self):
+        ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        self.resource.end_date_requested_by = self.fixture.admin
+        self.resource.save()
+
+        with freeze_time("2020-01-01"):
+            tasks.terminate_expired_resources()
+
+        order = models.Order.objects.get(
+            resource=self.fixture.resource, type=OrderTypes.TERMINATE
+        )
+        self.assertEqual(order.created_by, self.fixture.admin)
+
     def test_author_of_a_creation_order_they_placed_themselves_is_not_named(self):
         # Whoever ordered the resource decided nothing about who its later
         # orders are for, and may have left the project since. Naming them
