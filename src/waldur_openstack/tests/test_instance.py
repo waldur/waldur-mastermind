@@ -690,6 +690,48 @@ class InstanceCreateTest(test.APITestCase):
         ][0]
         self.assertEqual(serialized_volume["type_name"], volume_type.name)
 
+    def test_volume_without_type_has_null_type_name_in_instance_serializer(self):
+        instance = factories.InstanceFactory()
+        factories.VolumeFactory(
+            service_settings=instance.service_settings,
+            project=instance.project,
+            instance=instance,
+            type=None,
+            name="untyped-volume",
+        )
+        url = factories.InstanceFactory.get_url(instance)
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        serialized_volume = [
+            volume
+            for volume in response.data["volumes"]
+            if volume["name"] == "untyped-volume"
+        ][0]
+        self.assertIn("type_name", serialized_volume)
+        self.assertIsNone(serialized_volume["type_name"])
+
+    def test_instance_without_availability_zone_has_null_zone_name(self):
+        instance = factories.InstanceFactory(availability_zone=None)
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+        response = self.client.get(factories.InstanceFactory.get_url(instance))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("availability_zone_name", response.data)
+        self.assertIsNone(response.data["availability_zone_name"])
+
+    def test_instance_with_availability_zone_shows_zone_name(self):
+        zone = self.fixture.instance_availability_zone
+        instance = factories.InstanceFactory(
+            tenant=self.fixture.tenant, availability_zone=zone
+        )
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+        response = self.client.get(factories.InstanceFactory.get_url(instance))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["availability_zone_name"], zone.name)
+
     def test_user_can_define_instance_availability_zone(self):
         zone = self.fixture.instance_availability_zone
         data = self.get_valid_data(
