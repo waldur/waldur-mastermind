@@ -149,6 +149,15 @@ class IssueSerializer(
     sla_status = serializers.SerializerMethodField()
     is_routed = serializers.SerializerMethodField()
     provider_ticket_info = serializers.SerializerMethodField()
+    first_comment = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        help_text=_(
+            "Opening message, posted as the first public comment of an issue "
+            "reported on behalf of another user."
+        ),
+    )
 
     class Meta:
         model = models.Issue
@@ -213,6 +222,7 @@ class IssueSerializer(
             "escalation_reason",
             "is_routed",
             "provider_ticket_info",
+            "first_comment",
         )
         read_only_fields = (
             "key",
@@ -466,6 +476,16 @@ class IssueSerializer(
         request_user = self.context["request"].user
         if attrs.pop("is_reported_manually"):
             attrs["caller"] = request_user
+            if attrs.get("first_comment"):
+                # The opening message is staff addressing the caller. Someone
+                # reporting their own issue writes it in the description.
+                raise serializers.ValidationError(
+                    {
+                        "first_comment": _(
+                            "Only available when reporting an issue on behalf of another user."
+                        )
+                    }
+                )
             if attrs.get("assignee"):
                 raise serializers.ValidationError(
                     {
@@ -492,6 +512,16 @@ class IssueSerializer(
                 raise serializers.ValidationError(
                     {"caller": _("This field is required.")}
                 )
+            if attrs.get("first_comment") and attrs["caller"] == request_user:
+                # The opening message addresses someone else; on one's own
+                # request it belongs in the description.
+                raise serializers.ValidationError(
+                    {
+                        "first_comment": _(
+                            "Only available when the caller is another user."
+                        )
+                    }
+                )
             # if change of reporter is supported, use it
             if config.ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS:
                 reporter = models.SupportUser.objects.filter(
@@ -514,6 +544,18 @@ class IssueSerializer(
                 )
 
         return attrs
+
+    def validate_first_comment(self, first_comment):
+        if self.instance is not None:
+            raise serializers.ValidationError(
+                _("Only available when creating an issue.")
+            )
+        # Checked before rendering: the impersonation note would otherwise turn
+        # a blank message into a comment that holds nothing else.
+        if not first_comment.strip():
+            return ""
+        # Becomes a Comment, so it is formatted the way every comment is.
+        return render_comment_description(first_comment, self.context["request"].user)
 
     def validate_summary(self, summary):
         """
@@ -685,6 +727,22 @@ class RequestTypeReorderSerializer(serializers.Serializer):
     items = RequestTypeReorderItemSerializer(many=True)
 
 
+def render_comment_description(description: str, user) -> str:
+    """Format a comment body for the active backend and mark impersonation."""
+    impersonator = getattr(user, "impersonator", None)
+
+    if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
+        description = text2html(description)
+
+        if impersonator:
+            description += f"<br/><br/>Impersonator: {impersonator}"
+    else:
+        if impersonator:
+            description += f" /n/n/n/nImpersonator: {impersonator}"
+
+    return clean_html(description)
+
+
 class CommentSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -778,20 +836,7 @@ class CommentSerializer(
         return attrs
 
     def validate_description(self, description):
-        impersonator = getattr(self.context["request"].user, "impersonator", None)
-
-        if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
-            description = text2html(description)
-
-            if impersonator:
-                description += f"<br/><br/>Impersonator: {impersonator}"
-        else:
-            if impersonator:
-                description += f" /n/n/n/nImpersonator: {impersonator}"
-
-        description = clean_html(description)
-
-        return description
+        return render_comment_description(description, self.context["request"].user)
 
     @transaction.atomic()
     def create(self, validated_data):

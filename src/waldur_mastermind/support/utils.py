@@ -73,7 +73,18 @@ def get_helpdesk_stats():
     """Compute comprehensive helpdesk statistics."""
     from datetime import date
 
-    from django.db.models import Avg, Count, ExpressionWrapper, F, fields
+    from django.db.models import (
+        Avg,
+        Case,
+        Count,
+        ExpressionWrapper,
+        F,
+        OuterRef,
+        Subquery,
+        When,
+        fields,
+    )
+    from django.db.models.functions import Coalesce
 
     from waldur_mastermind.support import models
 
@@ -100,14 +111,31 @@ def get_helpdesk_stats():
         "sla_breach_count": models.Issue.objects.filter(sla_breached=True).count(),
     }
 
-    # Average first response time
+    # Average first response time. On a ticket staff opened for a user (it
+    # has a reporter) the desk is asked nothing until the caller replies, so
+    # the clock runs from that reply; counting from creation would charge the
+    # desk for however long the caller took to answer.
+    first_caller_comment = (
+        models.Comment.objects.filter(
+            issue=OuterRef("pk"), author__user=OuterRef("caller")
+        )
+        .order_by("created")
+        .values("created")[:1]
+    )
     responded = models.Issue.objects.filter(
         first_response_at__isnull=False,
     ).annotate(
+        asked_at=Case(
+            When(
+                reporter__isnull=False,
+                then=Coalesce(Subquery(first_caller_comment), F("created")),
+            ),
+            default=F("created"),
+        ),
         response_time=ExpressionWrapper(
-            F("first_response_at") - F("created"),
+            F("first_response_at") - F("asked_at"),
             output_field=fields.DurationField(),
-        )
+        ),
     )
     avg_response = responded.aggregate(avg=Avg("response_time"))["avg"]
     stats["avg_first_response_hours"] = (

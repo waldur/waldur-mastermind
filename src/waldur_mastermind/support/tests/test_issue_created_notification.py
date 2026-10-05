@@ -123,6 +123,9 @@ class StaffNewIssueNotificationHandlerTest(TestCase):
 
     def create_issue(self, **kwargs):
         """Create an issue the way the API does — a blank save, then the backend."""
+        # IssueFactory fills in a reporter, which on this desk means staff
+        # opened the ticket for someone else. A plain request has none.
+        kwargs.setdefault("reporter", None)
         issue = factories.IssueFactory(backend_id="", key="", status="", **kwargs)
         models.Issue.objects.filter(pk=issue.pk).update(
             backend_id="", key="", status=""
@@ -153,6 +156,12 @@ class StaffNewIssueNotificationHandlerTest(TestCase):
         # Jira, Zammad and SMAX alert their agents themselves; announcing the
         # ticket from Waldur as well would double up.
         self.create_issue()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_a_ticket_staff_opened_for_a_user_does_not_notify_staff(self):
+        # The sender made this request; telling them about it is noise.
+        self.create_issue(reporter=factories.SupportUserFactory())
 
         self.assertEqual(len(mail.outbox), 0)
 

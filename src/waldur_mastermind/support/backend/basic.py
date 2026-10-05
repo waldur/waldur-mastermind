@@ -75,7 +75,35 @@ class BasicBackend(SupportBackend):
 
         # Track first response time
         issue = comment.issue
+        if (
+            issue.reporter_id
+            and comment.author.user == issue.caller
+            and issue.resolution_deadline is None
+            and config.WALDUR_SUPPORT_SLA_ENABLED
+        ):
+            # The caller's first reply to a ticket staff opened is the first
+            # thing the desk has been asked, so the SLA clocks it was created
+            # without start here.
+            now = timezone.now()
+            issue.first_response_deadline = now + timedelta(
+                hours=config.WALDUR_SUPPORT_SLA_RESPONSE_HOURS
+            )
+            issue.resolution_deadline = now + timedelta(
+                hours=config.WALDUR_SUPPORT_SLA_RESOLUTION_HOURS
+            )
+            issue.save(update_fields=["first_response_deadline", "resolution_deadline"])
+
         if issue.first_response_at is None and comment.author.user != issue.caller:
+            # On this desk a reporter means staff opened the ticket for the
+            # caller to start a conversation (IssueViewSet.perform_create).
+            # Nothing has been asked yet, so staff comments only count as a
+            # response once the caller has spoken.
+            if (
+                issue.reporter_id
+                and not issue.comments.filter(author__user=issue.caller).exists()
+            ):
+                return
+
             issue.first_response_at = timezone.now()
             issue.save(update_fields=["first_response_at"])
 
@@ -186,6 +214,12 @@ class BasicBackend(SupportBackend):
         return sorted(candidates - {issue.status})
 
     def _set_sla_deadlines(self, issue):
+        # A ticket staff opened for someone else waits on the caller, not on
+        # the desk, and may never be answered: an informational message needs
+        # no reply. Deadlines set now could only ever mark the desk as
+        # breaching, so create_comment sets both when the caller first replies.
+        if issue.reporter_id:
+            return
         response_hours = config.WALDUR_SUPPORT_SLA_RESPONSE_HOURS
         resolution_hours = config.WALDUR_SUPPORT_SLA_RESOLUTION_HOURS
         now = timezone.now()

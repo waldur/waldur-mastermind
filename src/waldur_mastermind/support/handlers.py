@@ -205,6 +205,12 @@ def send_issue_created_notification(
         # instead — the operator's staff should not be told twice.
         return
 
+    if instance.reporter_id:
+        # Staff opened this for the caller with an opening message
+        # (IssueViewSet.perform_create stamps the reporter on this desk); the
+        # sender, its assignee, does not need telling about it.
+        return
+
     issue_id = instance.id
     transaction.on_commit(lambda: tasks.notify_staff_new_issue.delay(issue_id))
 
