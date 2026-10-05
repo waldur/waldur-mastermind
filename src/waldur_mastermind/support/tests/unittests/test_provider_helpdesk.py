@@ -216,7 +216,7 @@ class TestBasicBackendCreateIssue(TestCase):
 
     @override_config(WALDUR_SUPPORT_SLA_ENABLED=True)
     def test_create_issue_sets_sla_deadlines(self):
-        issue = self._create_unsaved_issue()
+        issue = self._create_unsaved_issue(reporter=None)
         self.backend.create_issue(issue)
         issue.refresh_from_db()
         self.assertIsNotNone(issue.first_response_deadline)
@@ -237,12 +237,22 @@ class TestBasicBackendCreateIssue(TestCase):
     )
     @freeze_time("2025-01-15 12:00:00")
     def test_create_issue_sla_deadlines_use_config_values(self):
-        issue = self._create_unsaved_issue()
+        issue = self._create_unsaved_issue(reporter=None)
         self.backend.create_issue(issue)
         issue.refresh_from_db()
         now = timezone.now()
         self.assertEqual(issue.first_response_deadline, now + timedelta(hours=8))
         self.assertEqual(issue.resolution_deadline, now + timedelta(hours=48))
+
+    @override_config(WALDUR_SUPPORT_SLA_ENABLED=True)
+    def test_staff_initiated_issue_gets_no_deadlines(self):
+        # It waits on the caller and may never be answered; a deadline set now
+        # could only breach.
+        issue = self._create_unsaved_issue(reporter=factories.SupportUserFactory())
+        self.backend.create_issue(issue)
+        issue.refresh_from_db()
+        self.assertIsNone(issue.first_response_deadline)
+        self.assertIsNone(issue.resolution_deadline)
 
 
 @override_config(
@@ -259,7 +269,8 @@ class TestBasicBackendCreateComment(TestCase):
         )
 
     def test_create_comment_sets_first_response_at_for_non_caller_author(self):
-        issue = factories.IssueFactory(backend_name="basic")
+        # A ticket the caller raised themselves: on this desk, no reporter.
+        issue = factories.IssueFactory(backend_name="basic", reporter=None)
         staff_support_user = factories.SupportUserFactory()
         comment = factories.CommentFactory(
             issue=issue,
@@ -283,6 +294,47 @@ class TestBasicBackendCreateComment(TestCase):
         self.backend.create_comment(comment)
         issue.refresh_from_db()
         self.assertIsNone(issue.first_response_at)
+
+    def _staff_initiated_issue(self):
+        """A ticket staff opened for the caller: the sender is its reporter."""
+        staff = factories.SupportUserFactory()
+        issue = factories.IssueFactory(backend_name="basic", reporter=staff)
+        caller = factories.SupportUserFactory(user=issue.caller)
+        return issue, staff, caller
+
+    def _comment(self, issue, author):
+        comment = factories.CommentFactory(
+            issue=issue, author=author, backend_id="", backend_name="basic"
+        )
+        self.backend.create_comment(comment)
+        issue.refresh_from_db()
+
+    def test_staff_initiated_opening_message_does_not_set_first_response_at(self):
+        issue, staff, _ = self._staff_initiated_issue()
+
+        self._comment(issue, staff)
+
+        self.assertIsNone(issue.first_response_at)
+
+    def test_staff_initiated_follow_up_before_reply_does_not_set_first_response_at(
+        self,
+    ):
+        issue, staff, _ = self._staff_initiated_issue()
+
+        self._comment(issue, staff)
+        self._comment(issue, staff)
+
+        self.assertIsNone(issue.first_response_at)
+
+    def test_staff_initiated_answer_after_caller_reply_sets_first_response_at(self):
+        issue, staff, caller = self._staff_initiated_issue()
+
+        self._comment(issue, staff)
+        self._comment(issue, caller)
+        self.assertIsNone(issue.first_response_at)
+        self._comment(issue, staff)
+
+        self.assertIsNotNone(issue.first_response_at)
 
     def test_create_comment_does_not_overwrite_existing_first_response_at(self):
         original_time = timezone.now() - timedelta(hours=1)

@@ -124,14 +124,61 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_create(self, serializer):
-        issue: models.Issue = serializer.save()
+        # Not an Issue column: taken off before save() builds Issue(**data).
+        first_comment = serializer.validated_data.pop("first_comment", "")
+        # Validation only lets an opening message through when the caller is
+        # someone other than the sender, so its presence is what marks a ticket
+        # staff opened to start a conversation. One logged on a user's behalf
+        # without a message is the user's own request and stays as it was.
+        sender = None
+        if first_comment:
+            sender, _created = models.SupportUser.objects.get_or_create_from_user(
+                self.request.user
+            )
+        if (
+            sender
+            and config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
+            == backend.SupportBackendType.BASIC
+        ):
+            # Only the built-in desk records the sender. On Atlassian, Zammad and
+            # SMAX the reporter is who the remote ticket is filed *as*, so
+            # stamping it would move the caller's ticket under the staff
+            # member's identity in the remote desk. The sender also becomes the
+            # assignee unless one was named, so the caller's reply goes back to
+            # them rather than to the whole desk or whoever auto-assign picks.
+            issue: models.Issue = serializer.save(
+                reporter=sender,
+                assignee=serializer.validated_data.get("assignee") or sender,
+            )
+        else:
+            issue = serializer.save()
         try:
             backend.get_active_backend().create_issue(issue)
             backend.get_active_backend().create_confirmation_comment(issue)
+            if first_comment:
+                comment = self._create_first_comment(issue, first_comment, sender)
+                # Pushes it to the remote desk; a failure raises and the whole
+                # create rolls back, so no issue is left without its message.
+                # On a remote desk the ticket created above is already there by
+                # then, and the rollback cannot take it back.
+                backend.get_active_backend().create_comment(comment)
         except exceptions.SupportUserInactive:
             raise rf_exceptions.ValidationError({"caller": _("Caller is inactive.")})
         except structure_exceptions.ServiceBackendError as e:
             raise rf_exceptions.ValidationError(e)
+
+    def _create_first_comment(
+        self, issue: models.Issue, description: str, author: models.SupportUser
+    ):
+        """The opening message of an issue staff opened for someone else."""
+        return models.Comment.objects.create(
+            issue=issue,
+            author=author,
+            description=description,
+            # The caller only sees public comments, and only a public comment
+            # sends them the comment_added notification.
+            is_public=True,
+        )
 
     create_permissions = [can_create_user]
 
