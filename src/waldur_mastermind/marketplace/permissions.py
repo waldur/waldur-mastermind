@@ -273,11 +273,9 @@ def user_can_list_importable_resources(
         raise exceptions.PermissionDenied()
 
 
-# Project manager/admin and customer owner are allowed to terminate resource.
-# Service provider is allowed to terminate resource too.
 user_can_terminate_resource = permission_factory(
     PermissionEnum.TERMINATE_RESOURCE,
-    ["project", "project.customer", "offering.customer"],
+    utils.TERMINATE_RESOURCE_SOURCES,
 )
 
 
