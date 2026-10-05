@@ -95,11 +95,17 @@ def check_event(event: models.Event, hook):
     if event.event_type not in hook.all_event_types:
         return False
 
-    # Check permissions
+    # Check permissions: the hook owner must be able to read the scope and
+    # its event feed, exactly as through the events API.
     for feed in Feed.objects.filter(event=event):
         qs = feed.content_type.model_class().get_permitted_objects(hook.user)
-        if qs.filter(id=feed.object_id).exists():
-            return True
+        if not qs.filter(id=feed.object_id).exists():
+            continue
+        if feed.scope is not None and not utils.can_view_scope_events(
+            hook.user, feed.scope
+        ):
+            continue
+        return True
 
     return False
 

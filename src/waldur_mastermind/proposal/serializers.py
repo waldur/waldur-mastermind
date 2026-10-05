@@ -60,6 +60,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalFieldStates,
     ProposalStates,
     RequestedOfferingStates,
+    ResponsibleRoles,
     ReviewerPoolInvitationStatuses,
     RoundStatuses,
     WorkflowStepInstanceStatuses,
@@ -250,11 +251,24 @@ def get_concealed_applicant_attributes(user, proposal) -> set[str] | None:
     return ApplicantVisibility(user).concealed_attributes(proposal)
 
 
-def filter_applicant_fields_for_reviewer(data: dict, proposal, user) -> dict:
+def get_applicant_visibility(context: dict, user) -> ApplicantVisibility:
+    """The viewer's ApplicantVisibility, shared through a serializer context
+    so that every row of one response reuses its lookups."""
+    visibility = context.get("_applicant_visibility")
+    if visibility is None or visibility.user != user:
+        visibility = ApplicantVisibility(user)
+        context["_applicant_visibility"] = visibility
+    return visibility
+
+
+def filter_applicant_fields_for_reviewer(
+    data: dict, proposal, user, visibility: ApplicantVisibility | None = None
+) -> dict:
     """Mutate the serialized representation to drop applicant fields that
     are not exposed by the call's visibility config when the user is a
     reviewer-only viewer."""
-    concealed = get_concealed_applicant_attributes(user, proposal)
+    visibility = visibility or ApplicantVisibility(user)
+    concealed = visibility.concealed_attributes(proposal)
     for attr in concealed or ():
         for field_name in APPLICANT_FIELD_MAP.get(attr, []):
             data.pop(field_name, None)
@@ -268,6 +282,44 @@ def filter_team_member_fields(rows, concealed: set[str]):
             for row in rows:
                 row.pop(field_name, None)
     return rows
+
+
+# Maps applicant attribute name to the keys of a checklist answer
+# (AnswerSerializer) that identify the answer's author, a member of the
+# applicant team. ``user`` is the author's primary key: an identity link, so it
+# follows username like the other user identifiers.
+CHECKLIST_ANSWER_FIELD_MAP: dict[str, list[str]] = {
+    "full_name": ["user_name"],
+    "username": ["user"],
+}
+
+
+def filter_checklist_answer_fields(questions, concealed: set[str]):
+    """Drop the answer author keys carrying a concealed applicant attribute
+    from each question's existing answer."""
+    for question in questions:
+        answer = question.get("existing_answer")
+        if not answer:
+            continue
+        for attr in concealed:
+            for field_name in CHECKLIST_ANSWER_FIELD_MAP.get(attr, []):
+                answer.pop(field_name, None)
+    return questions
+
+
+def can_view_proposal_event_feed(user, proposal) -> bool:
+    """Whether the user may read the events logged against the proposal.
+
+    The proposal feed is the applicant team's administration trail: role
+    grants, revocations and expiry changes, and invitations. Its messages are
+    rendered at emit time with the member's and the granter's names, and every
+    event's context carries the acting user's name, username, uuid, IP address
+    and user agent. None of that can be dropped field by field, none of it is
+    governed by the call's applicant visibility config, and none of it is
+    needed to evaluate the proposal -- so evaluators do not read the feed at
+    all, whatever the config exposes.
+    """
+    return not _is_reviewer_only_view(user, proposal)
 
 
 def get_concealed_team_member_query(query_params, concealed: set[str]) -> list[str]:
@@ -1395,6 +1447,20 @@ class RequestedResourceSerializer(
     requested_offering_uuid = serializers.UUIDField(write_only=True, required=False)
     call_resource_template_uuid = serializers.UUIDField(write_only=True, required=False)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # The request's creator is a member of the applicant team: an
+        # evaluator sees them only as far as the call's config exposes them.
+        request = self.context.get("request")
+        if request is not None:
+            filter_applicant_fields_for_reviewer(
+                data,
+                instance.proposal,
+                request.user,
+                get_applicant_visibility(self.context, request.user),
+            )
+        return data
+
     class Meta(NestedRequestedResourceSerializer.Meta):
         fields = NestedRequestedResourceSerializer.Meta.fields + [
             "requested_offering_uuid",
@@ -2095,9 +2161,7 @@ class ProtectedRoundSerializer(
     core_serializers.AugmentedSerializerMixin, NestedRoundSerializer
 ):
     url = serializers.SerializerMethodField()
-    proposals = ProtectedProposalListSerializer(
-        many=True, read_only=True, source="proposal_set"
-    )
+    proposals = serializers.SerializerMethodField()
     review_duration_in_days = serializers.IntegerField(required=False)
 
     class Meta(NestedRoundSerializer.Meta):
@@ -2113,6 +2177,34 @@ class ProtectedRoundSerializer(
                 fields["slug"].read_only = True
 
         return fields
+
+    @extend_schema_field(ProtectedProposalListSerializer(many=True))
+    def get_proposals(self, call_round):
+        """The round's proposals as this viewer may see them.
+
+        Every call role lists the round, evaluators included. An evaluator
+        (see ``get_concealed_applicant_attributes``) is not shown other
+        applicants' drafts -- an unsubmitted proposal is nothing to evaluate --
+        and sees the creator only as far as the call's applicant visibility
+        config exposes it.
+        """
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        visibility = get_applicant_visibility(self.context, user)
+        rows = []
+        proposals = call_round.proposal_set.select_related(
+            "round__call", "created_by", "approved_by"
+        )
+        for proposal in proposals:
+            concealed = visibility.concealed_attributes(proposal)
+            if concealed is not None and proposal.state == ProposalStates.DRAFT:
+                continue
+            data = ProtectedProposalListSerializer(proposal, context=self.context).data
+            for attr in concealed or ():
+                for field_name in APPLICANT_FIELD_MAP.get(attr, []):
+                    data.pop(field_name, None)
+            rows.append(data)
+        return rows
 
     def get_url(self, call_round) -> str:
         return self.context["request"].build_absolute_uri(
@@ -5766,6 +5858,16 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
         # reviewer_identity_visible_to_submitters gate.
         if not self.context.get("can_view_step_actors"):
             data["completed_by"] = None
+        elif data["completed_by"] is not None and self._completed_by_applicant(
+            instance
+        ):
+            # The step actor gate admits the whole call team, evaluators
+            # included; an applicant-side completer (award_response, or the
+            # author wherever they acted) is applicant identity, which an
+            # evaluator sees only if the call exposes it.
+            concealed = self.context.get("concealed_applicant_attributes") or ()
+            if "username" in concealed:
+                data["completed_by"] = None
         # Hide the reviewer/panel verdict and free-text commentary on the peer
         # review steps from submitters when the call keeps reviews private. This
         # must strip *every* field that surfaces the reviewer's words:
@@ -5782,6 +5884,11 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             data["outcome_reason"] = ""
             data["rejection_reason"] = None
         return data
+
+    def _completed_by_applicant(self, obj) -> bool:
+        if obj.completed_by_id == obj.proposal.created_by_id:
+            return True
+        return self.get_responsible_role(obj) == ResponsibleRoles.APPLICANT
 
     def _get_call_step(self, obj):
         """Resolve the per-call ``CallWorkflowStep`` for this instance.

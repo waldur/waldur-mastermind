@@ -15,7 +15,7 @@ from waldur_mastermind.proposal.enums import (
     ResponsibleRoles,
 )
 
-from . import models
+from . import models, serializers
 from .managers import (
     get_connected_call_organizers,
     get_connected_calls,
@@ -148,7 +148,7 @@ class ProposalFilter(django_filters.FilterSet):
         view_name="customer-detail", field_name="round__call__manager__customer__uuid"
     )
     created_by_uuid = core_filters.RelatedUUIDFilter(
-        view_name="user-detail", field_name="created_by__uuid"
+        view_name="user-detail", method="filter_created_by_uuid"
     )
     my_proposals = django_filters.BooleanFilter(
         method="filter_my_proposals",
@@ -169,6 +169,24 @@ class ProposalFilter(django_filters.FilterSet):
             "slug",
         )
     )
+
+    def filter_created_by_uuid(self, queryset, name, value):
+        """Proposals created by the given user, among those whose author the
+        viewer may know.
+
+        An evaluator from whom the call conceals the applicant's username does
+        not get those proposals back: a match would confirm who wrote them.
+        They are left out rather than the request refused, because a refusal
+        that depended on the matches would confirm the same thing.
+        """
+        queryset = queryset.filter(created_by__uuid=value)
+        visibility = serializers.ApplicantVisibility(self.request.user)
+        attributed = [
+            proposal.pk
+            for proposal in queryset.select_related("round__call")
+            if "username" not in (visibility.concealed_attributes(proposal) or ())
+        ]
+        return queryset.filter(pk__in=attributed)
 
     def filter_my_proposals(self, queryset, name, value):
         """Filter to show only proposals created by the current user."""

@@ -3184,6 +3184,14 @@ class ProposalViewSet(
             item.pop("expiration_time", None)
         return serializers.filter_team_member_fields(data, concealed)
 
+    def filter_checklist_response(self, data, obj, request):
+        # Each answer names its author, a member of the applicant team: an
+        # evaluator sees them only as far as the call's config exposes them.
+        concealed = serializers.get_concealed_applicant_attributes(request.user, obj)
+        if concealed:
+            serializers.filter_checklist_answer_fields(data["questions"], concealed)
+        return data
+
     # Both mixins use the default implementation (obj.checklist_completion)
     # UserChecklistMixin permissions - for proposal managers only
     # Checklist viewing: same permission as viewing proposal
@@ -3576,6 +3584,14 @@ class ProposalViewSet(
                 "can_view_review_content": (
                     can_view_internal_notes
                     or proposal.round.call.reviews_visible_to_submitters
+                ),
+                # An evaluator passes the step actor gate as part of the call
+                # team, but sees an applicant-side completer only as far as
+                # the call's applicant visibility config exposes it.
+                "concealed_applicant_attributes": (
+                    serializers.get_concealed_applicant_attributes(
+                        request.user, proposal
+                    )
                 ),
             },
         )
