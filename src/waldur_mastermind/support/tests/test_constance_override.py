@@ -74,6 +74,36 @@ class OverrideConstanceSettingsTest(SettingsFileMixin, TestCase):
         for key, value in settings.items():
             self.assertIn(f"{key} has been set to {value}", output.getvalue())
 
+    def test_secret_settings_are_not_printed(self):
+        # Deployments print this output to container logs on every start;
+        # docker-compose's Matrix init seeds the registration secret with it.
+        settings = {
+            "MATRIX_USER_REGISTRATION_SECRET": "registration-secret-value",
+            "MATRIX_LIVEKIT_SECRET": "livekit-secret-value",
+            # Marked secret_field, with nothing secret-sounding in its name.
+            "SCIM_API_KEY": "scim-key-value",
+            "MATRIX_HOMESERVER_DOMAIN": "chat.example.com",
+        }
+        settings_file = self.create_settings_file(settings)
+
+        output = StringIO()
+        call_command("override_constance_settings", settings_file, stdout=output)
+
+        self.assertNotIn("registration-secret-value", output.getvalue())
+        self.assertNotIn("livekit-secret-value", output.getvalue())
+        self.assertNotIn("scim-key-value", output.getvalue())
+        self.assertIn(
+            "MATRIX_USER_REGISTRATION_SECRET has been set to <redacted>",
+            output.getvalue(),
+        )
+        self.assertIn(
+            "MATRIX_HOMESERVER_DOMAIN has been set to chat.example.com",
+            output.getvalue(),
+        )
+        self.assertEqual(
+            config.MATRIX_USER_REGISTRATION_SECRET, "registration-secret-value"
+        )
+
     def test_basic_support_backend_is_a_valid_choice(self):
         """
         Test that the basic support backend passes choice validation.

@@ -2,6 +2,7 @@ import os
 
 import yaml
 from constance.models import Constance
+from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand
@@ -139,7 +140,7 @@ class Command(BaseCommand):
             )
 
         for setting_key, setting_value in constance_settings.items():
-            if "password" in setting_key.lower() or "token" in setting_key.lower():
+            if _is_secret(setting_key):
                 setting_value = "<redacted>"
 
             self.stdout.write(
@@ -147,3 +148,13 @@ class Command(BaseCommand):
                     f"{setting_key.upper()} has been set to {setting_value}."
                 )
             )
+
+
+def _is_secret(setting_key):
+    # This output lands in container logs. Constance marks secrets with
+    # secret_field; names catch the ones declared before that type existed.
+    field = settings.CONSTANCE_CONFIG.get(setting_key.upper(), ())
+    if len(field) > 2 and field[2] == "secret_field":
+        return True
+    key = setting_key.lower()
+    return any(part in key for part in ("password", "token", "secret"))

@@ -20,6 +20,8 @@ Django models or anything that needs the app registry.
 import ast
 import re
 
+from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
+
 # Keys that may carry the human-readable message, in order of preference.
 # "event" is structlog's default; celery task failures land under "error".
 _MESSAGE_KEYS = ("event", "message", "error")
@@ -78,7 +80,12 @@ def normalize_for_fingerprint(message):
 
 
 def before_send(event, hint):
-    """Normalise structlog-rendered log events before they are sent to Sentry."""
+    """Normalise structlog-rendered log events and redact secrets before they
+    are sent to Sentry."""
+    return redact_secrets(_normalise_log_event(event, hint), hint)
+
+
+def _normalise_log_event(event, hint):
     record = hint.get("log_record")
     if record is None:
         return event
@@ -92,17 +99,119 @@ def before_send(event, hint):
     logentry = event.get("logentry")
     if isinstance(logentry, dict):
         logentry["message"] = message
-        # Params belong to the dict repr we just discarded.
+        # sentry-sdk formats the record as the dict repr we just discarded,
+        # context and secrets included. Params belong to it too.
+        logentry["formatted"] = message
         logentry.pop("params", None)
 
     if context:
-        extra = event.setdefault("extra", {})
-        if isinstance(extra, dict):
-            for key, value in context.items():
-                extra.setdefault(key, value)
+        _add_context(event.setdefault("extra", {}), context)
 
     event["fingerprint"] = [
         getattr(record, "name", "") or "",
         normalize_for_fingerprint(message),
     ]
     return event
+
+
+def before_breadcrumb(crumb, hint):
+    """Unwrap structlog-rendered log breadcrumbs as before_send does events.
+
+    Lines below the event level become breadcrumbs of the next event, and
+    sentry-sdk gives them the dict repr as their message, context included.
+    """
+    record = hint.get("log_record")
+    if record is None:
+        return crumb
+
+    parsed = parse_structlog_message(getattr(record, "msg", None))
+    if parsed is None:
+        return crumb
+
+    message, context = parsed
+    crumb["message"] = message
+    if context:
+        _add_context(crumb.setdefault("data", {}), context)
+    return crumb
+
+
+def _add_context(target, context):
+    if isinstance(target, dict):
+        for key, value in _filter_secret_names(context).items():
+            target.setdefault(key, value)
+
+
+# Names of locals and fields that hold Matrix and SSO secrets. Sentry's default
+# denylist matches whole names such as "token" and "secret", so these were sent
+# in frame locals, e.g. the appservice token in every homeserver call.
+_SECRET_NAMES = [
+    "access_token",
+    "refresh_token",
+    "login_token",
+    "as_token",
+    "hs_token",
+    "registration_secret",
+    "registration_token",
+    "client_secret",
+    "api_secret",
+    "auth_token",
+    "raw_token",
+]
+
+
+def event_scrubber():
+    # Recursive: httpx and nio keep the Authorization header, and registration
+    # keeps passwords, inside dicts.
+    return EventScrubber(denylist=DEFAULT_DENYLIST + _SECRET_NAMES, recursive=True)
+
+
+_SECRET_KEYS = frozenset(event_scrubber().denylist)
+
+
+def _filter_secret_names(value):
+    """Filter by name what reaches the event after the scrubber has run.
+
+    Not with the scrubber itself: the event is serialized by then, and the
+    AnnotatedValue markers it leaves would make the send fail.
+    """
+    if isinstance(value, dict):
+        return {
+            key: (
+                "[Filtered]"
+                if isinstance(key, str) and key.lower() in _SECRET_KEYS
+                else _filter_secret_names(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_filter_secret_names(item) for item in value]
+    return value
+
+
+# Secrets inside values that no name gives away: nio puts the appservice token
+# into every request path, and auth headers end up in plain strings. The scheme
+# names also start ordinary text ("basic support backend", "Bearer token
+# expired"), so after them only a token-shaped value is taken: one with a digit,
+# or longer than a word.
+_SECRET_VALUES = re.compile(
+    r"((?:access_token=)|(?:\b(?:Bearer|Basic)\s+(?=[^\s&'\"]*\d|[^\s&'\"]{20})))"
+    r"[^\s&'\"]+",
+    re.IGNORECASE,
+)
+
+
+def _redact(value):
+    if isinstance(value, str):
+        return _SECRET_VALUES.sub(r"\1[Filtered]", value)
+    if isinstance(value, dict):
+        return {key: _redact(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    return value
+
+
+def redact_secrets(event, hint):
+    """Replace token-shaped values anywhere in the event, transactions too."""
+    if event is None:
+        return None
+    return _redact(event)

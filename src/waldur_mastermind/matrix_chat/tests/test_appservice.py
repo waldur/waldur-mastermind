@@ -1,12 +1,16 @@
 import io
+import json
 import re
 from unittest import mock
 
+import sentry_sdk
 import yaml
 from constance.test import override_config
 from django.core.management import call_command
 from rest_framework import status, test
+from sentry_sdk.transport import Transport
 
+from waldur_core.logging import sentry
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.matrix_chat import models, tasks
 from waldur_mastermind.matrix_chat.tests import fixtures
@@ -44,6 +48,47 @@ class WebhookAuthTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_non_ascii_hs_token_returns_403(self):
+        # compare_digest raises on non-ASCII text, which turned anyone's bad
+        # header into a 500 with the real token in the failing frame.
+        response = self.client.put(
+            f"{WEBHOOK_URL}txn-non-ascii",
+            data={"events": []},
+            format="json",
+            HTTP_AUTHORIZATION="Bearer \xe9" + HS_TOKEN[1:],
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_body_that_is_not_an_object_returns_400(self):
+        response = self.client.put(
+            f"{WEBHOOK_URL}txn-list",
+            data=[{"type": "m.room.message"}],
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.MatrixAppserviceTransaction.objects.filter(
+                txn_id="txn-list"
+            ).exists()
+        )
+
+    def test_events_that_are_not_a_list_return_400(self):
+        for i, events in enumerate([None, 1, "m.room.message", {"type": "x"}]):
+            with self.subTest(events=events):
+                response = self.client.put(
+                    f"{WEBHOOK_URL}txn-events-{i}",
+                    data={"events": events},
+                    format="json",
+                    HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertFalse(
+                    models.MatrixAppserviceTransaction.objects.filter(
+                        txn_id=f"txn-events-{i}"
+                    ).exists()
+                )
+
     def test_missing_auth_header_returns_403(self):
         response = self.client.put(
             f"{WEBHOOK_URL}txn3",
@@ -78,6 +123,60 @@ class WebhookAuthTest(test.APITestCase):
                     txn_id="txn-disabled"
                 ).exists()
             )
+
+
+class _CaptureEvents(Transport):
+    def __init__(self):
+        super().__init__()
+        self.events = []
+
+    def capture_envelope(self, envelope):
+        event = envelope.get_event()
+        if event:
+            self.events.append(event)
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class WebhookErrorReportTest(test.APITestCase):
+    # The first call after the token check, so the error does not depend on
+    # which events later steps let through.
+    @mock.patch(
+        "waldur_mastermind.matrix_chat.models.MatrixAppserviceTransaction.objects.get_or_create",
+        side_effect=RuntimeError("database down"),
+    )
+    def test_an_error_after_the_token_check_does_not_report_the_token(self, _):
+        # Sentry records the locals of every frame, and the view held the
+        # homeserver token in two of them.
+        transport = _CaptureEvents()
+        client = sentry_sdk.Client(
+            dsn="https://key@sentry.invalid/1",
+            transport=transport,
+            event_scrubber=sentry.event_scrubber(),
+            before_send=sentry.before_send,
+        )
+        with sentry_sdk.isolation_scope() as scope:
+            scope.set_client(client)
+            try:
+                self.client.put(
+                    f"{WEBHOOK_URL}txn-error",
+                    data={"events": [{"type": "m.room.message"}]},
+                    format="json",
+                    HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
+                )
+            except RuntimeError:
+                scope.capture_exception()
+        client.flush()
+
+        # The exception, and Django's error log of the request.
+        self.assertTrue(transport.events)
+        self.assertNotIn(HS_TOKEN, json.dumps(transport.events))
 
 
 @override_config(

@@ -579,6 +579,21 @@ class MatrixSessionView(views.APIView):
         return Response(serializer.data)
 
 
+def _is_from_homeserver(request):
+    """Check the homeserver token in the Authorization header.
+
+    A function of its own, so the token is not among the view's locals that
+    Sentry records for an error raised later in the request.
+    """
+    hs_token = config.MATRIX_APPSERVICE_HS_TOKEN
+    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+    provided = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+    # Constant-time, as a naive `!=` leaks the token byte by byte. Bytes,
+    # because compare_digest raises on non-ASCII text and anyone can send this
+    # header.
+    return bool(hs_token) and hmac.compare_digest(provided.encode(), hs_token.encode())
+
+
 class MatrixAppserviceWebhookView(views.APIView):
     authentication_classes = ()
     permission_classes = ()
@@ -598,17 +613,16 @@ class MatrixAppserviceWebhookView(views.APIView):
         if not matrix_client.is_enabled():
             return Response({}, status=status.HTTP_200_OK)
 
-        # Validate hs_token from Authorization header using a constant-time
-        # comparison: a naive `!=` leaks the token byte-by-byte to a network-
-        # adjacent attacker.
-        hs_token = config.MATRIX_APPSERVICE_HS_TOKEN
-        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-        provided = auth_header[7:] if auth_header.startswith("Bearer ") else ""
-        if not hs_token or not hmac.compare_digest(provided, hs_token):
+        if not _is_from_homeserver(request):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
+        events = (
+            request.data.get("events", []) if isinstance(request.data, dict) else None
+        )
+        if not isinstance(events, list):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
         # Idempotency check
-        events = request.data.get("events", [])
         _, created = models.MatrixAppserviceTransaction.objects.get_or_create(
             txn_id=txn_id,
             defaults={"event_count": len(events)},
