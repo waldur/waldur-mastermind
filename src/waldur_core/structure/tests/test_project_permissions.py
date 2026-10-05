@@ -85,8 +85,10 @@ class ProjectPermissionListQueryTest(ProjectPermissionBaseTest):
 
         The list_users action also runs a single combined SQL EXISTS to
         check that the caller has a role on the scope tree (see
-        ``_user_can_view_scope_team`` in waldur_core.permissions.views) —
-        that adds two queries on top of the original 8-query budget.
+        ``_user_can_view_scope_team`` in waldur_core.permissions.views). The
+        project lookup matches grants on their role's permissions in a
+        subquery rather than first fetching the names of roles holding
+        PROJECT.LIST, which keeps the total at 8.
         """
         owner = factories.UserFactory()
         customer = factories.CustomerFactory()
@@ -100,7 +102,7 @@ class ProjectPermissionListQueryTest(ProjectPermissionBaseTest):
         self.client.force_authenticate(user=owner)
         url = factories.ProjectFactory.get_url(project) + "list_users/"
 
-        with self.assertNumQueries(10):
+        with self.assertNumQueries(8):
             response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
