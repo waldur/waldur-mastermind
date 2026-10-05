@@ -13,6 +13,6 @@ Please ensure you have completed all required sections and finalized your resour
 
 Complete and submit proposal: {{ proposal_url }}
 
-Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.
+{% if draft_carries_over %}A proposal left in draft state after the deadline moves on to the call's next round and is considered only once it has been submitted there.{% else %}Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.{% endif %}
 
 This is an automated message from the {{ site_name }}. Please do not reply to this email.

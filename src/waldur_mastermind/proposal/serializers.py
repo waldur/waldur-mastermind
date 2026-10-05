@@ -1831,6 +1831,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "order_author_user",
             "order_author_user_uuid",
             "order_author_user_name",
+            "carry_over_drafts",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)

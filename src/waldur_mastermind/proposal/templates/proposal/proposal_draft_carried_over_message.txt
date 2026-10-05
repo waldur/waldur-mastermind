@@ -1,0 +1,12 @@
+Dear {{ proposal_creator_name }},
+
+Your draft proposal "{{ proposal_name }}" in call "{{ call_name }}" was not submitted before the cut-off of {{ previous_round_name }}.
+
+It has not been cancelled. It has moved on to the call's next round, with its content, team, documents and requested resources unchanged:
+- Round: {{ round_name }}
+- Opens for submissions: {{ round_start_date }}
+- Submission deadline: {{ deadline_date }}
+
+Your proposal is still in DRAFT state. Submit it before the new deadline to have it considered: {{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

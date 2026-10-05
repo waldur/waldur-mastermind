@@ -1,0 +1,21 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Draft proposal moved to the next round</title>
+</head>
+<body>
+    <p>Dear {{ proposal_creator_name }},</p>
+
+    <p>Your draft proposal "{{ proposal_name }}" in call "{{ call_name }}" was not submitted before the cut-off of {{ previous_round_name }}.</p>
+
+    <p>It has not been cancelled. It has moved on to the call's next round, with its content, team, documents and requested resources unchanged:<br>
+        - Round: {{ round_name }}<br>
+        - Opens for submissions: {{ round_start_date }}<br>
+        - Submission deadline: {{ deadline_date }}
+    </p>
+
+    <p>Your proposal is still in <strong>DRAFT</strong> state. Submit it before the new deadline to have it considered: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+</body>
+</html>

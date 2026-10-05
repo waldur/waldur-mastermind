@@ -1,0 +1,1 @@
+Your draft proposal {{ proposal_name }} now targets the next cut-off of {{ call_name }}

@@ -2,12 +2,14 @@ import datetime
 import logging
 import uuid
 from collections import Counter
+from collections.abc import Callable
 from typing import cast
 
 from constance import config
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -15,9 +17,12 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.models import NAME_LENGTH
 from waldur_core.core.utils import get_system_robot
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -31,6 +36,7 @@ from waldur_mastermind.proposal.enums import (
     CallStates,
     OrderAuthors,
     ProposalDisclosureLevels,
+    ProposalStates,
     RequestedOfferingStates,
 )
 
@@ -571,9 +577,99 @@ def allocate_proposal(proposal: proposal_models.Proposal, approved_by=None):
             )
 
 
-def process_closed_round(call_round: proposal_models.Round):
-    """Process a closed round: cancel draft proposals."""
-    from waldur_mastermind.proposal.enums import ProposalStates
+def next_round_for_drafts(
+    call_round: proposal_models.Round,
+) -> proposal_models.Round | None:
+    """The round a draft of ``call_round`` moves on to at its cut-off, if any.
+
+    The earliest round of the same call that has not ended and either starts
+    at or after ``call_round``'s cut-off or is open now. None when the call
+    does not carry drafts over, is not active, or has no such round -- the
+    draft is then cancelled.
+    """
+    call = call_round.call
+    if not call.carry_over_drafts or call.state != CallStates.ACTIVE:
+        return None
+    now = timezone.now()
+    return (
+        call.round_set.exclude(pk=call_round.pk)
+        .filter(cutoff_time__gt=now)
+        .filter(Q(start_time__gte=call_round.cutoff_time) | Q(start_time__lte=now))
+        .order_by("start_time", "id")
+        .first()
+    )
+
+
+def carry_over_drafts(
+    call_round: proposal_models.Round,
+    announce: Callable[[list, proposal_models.Round], None] | None = None,
+) -> list[proposal_models.Proposal]:
+    """Move the drafts of an ended round to the call's next round.
+
+    Returns the drafts moved, with ``round`` already pointing at the new round.
+    Nothing moves when there is no next round; the caller cancels what is left.
+    Content, team, documents and requested resources all hang off the proposal
+    (and requested offerings off the call), so the round is the only thing
+    that changes -- the slug too stays as it is.
+
+    ``announce(moved, call_round)`` runs in the same transaction as the move
+    and its events, so a failure anywhere leaves every draft where it was and
+    nobody told: the drafts are either moved and announced, or not moved.
+    """
+    target = next_round_for_drafts(call_round)
+    if target is None:
+        return []
+
+    # Same lock as the cancellation below: a concurrent submit, a second sweep
+    # or a close holding a draft wins, and the row is re-checked against the
+    # filter once the lock is ours, so no draft is moved twice or moved after
+    # it was submitted or cancelled.
+    with transaction.atomic():
+        drafts = list(
+            call_round.proposal_set.select_for_update(of=("self",))
+            .filter(state=ProposalStates.DRAFT)
+            .select_related("round__call__manager__customer")
+            # One lock order for every multi-row lock on proposals.
+            .order_by("pk")
+        )
+        # State is unchanged, so no post_save consumer has anything to say
+        # about the move; the caller announces it.
+        proposal_models.Proposal.objects.filter(
+            pk__in=[proposal.pk for proposal in drafts]
+        ).update(round=target, modified=timezone.now())
+        for proposal in drafts:
+            proposal.round = target
+
+        for proposal in drafts:
+            # Placeholders, not an f-string: emit() formats the message with
+            # the context, and a proposal name is free text that may hold
+            # braces.
+            event_logger.emit(
+                "Draft proposal {proposal_name} has been moved from "
+                "{previous_round_name} to {round_name}.",
+                event_type=EventType.PROPOSAL_DRAFT_CARRIED_OVER,
+                event_context={
+                    "proposal": proposal,
+                    "previous_round_name": call_round.name,
+                    "round_name": target.name,
+                },
+                scopes=[_get_customer(proposal)],
+            )
+        if announce is not None:
+            announce(drafts, call_round)
+    return drafts
+
+
+def process_closed_round(
+    call_round: proposal_models.Round,
+    announce: Callable[[list, proposal_models.Round], None] | None = None,
+) -> list[proposal_models.Proposal]:
+    """Process a closed round: move its drafts on, or cancel them.
+
+    Returns the drafts moved to the call's next round; ``announce`` tells
+    their applicants, see ``carry_over_drafts``.
+    """
+    moved = carry_over_drafts(call_round, announce=announce)
 
     # Lock the drafts while reading them, so the proposals announced are exactly
     # the rows updated: a concurrent submit holds the same row lock, and if it
@@ -584,6 +680,7 @@ def process_closed_round(call_round: proposal_models.Round):
             call_round.proposal_set.select_for_update(of=("self",))
             .filter(state=ProposalStates.DRAFT)
             .select_related("round__call__manager__customer")
+            .order_by("pk")
         )
         # A bulk update skips post_save, so announce each cancellation explicitly.
         proposal_models.Proposal.objects.filter(
@@ -603,6 +700,7 @@ def process_closed_round(call_round: proposal_models.Round):
     event_publishing.publish_proposal_state_changes(
         (proposal, ProposalStates.DRAFT) for proposal in drafts
     )
+    return moved
 
 
 def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:

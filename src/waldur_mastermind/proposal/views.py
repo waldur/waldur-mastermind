@@ -1343,7 +1343,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             call_round.cutoff_time = timezone.now()
             call_round.save(update_fields=["cutoff_time"])
 
-        utils.process_closed_round(call_round)
+        utils.process_closed_round(
+            call_round, announce=tasks.announce_carried_over_drafts
+        )
 
         return response.Response(
             "Round has been closed.",
@@ -3341,6 +3343,9 @@ class ProposalViewSet(
                 )
             proposal = locked
             previous_state = proposal.state
+            # Checked again under the lock: the round may have ended since the
+            # validators ran, and the draft moved on to a round not yet open.
+            validate_round_is_open(proposal)
 
             # A proposal must have a project team before it can be submitted.
             # (The creator is normally auto-added, so a solo-PI proposal passes;

@@ -1202,6 +1202,29 @@ class ProposalSubmissionDeadlineApproachingContext(BaseModel):
         description="Whole number of hours remaining after remaining days are excluded."
     )
     proposal_url: str = Field(description="A URL to the proposal details page.")
+    draft_carries_over: bool = Field(
+        default=False,
+        description=(
+            "True when a draft left at the cut-off moves on to the call's next "
+            "round rather than being cancelled."
+        ),
+    )
+
+
+class ProposalDraftCarriedOverContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    proposal_creator_name: str = Field(description="Full name of the proposal creator.")
+    proposal_name: str = Field(description="Name of the draft proposal.")
+    call_name: str = Field(description="Name of the call for proposals.")
+    previous_round_name: str = Field(
+        description="Name of the round whose cut-off the draft missed."
+    )
+    round_name: str = Field(description="Name of the round the draft now belongs to.")
+    round_start_date: Any = Field(
+        description="When the new round opens for submissions."
+    )
+    deadline_date: Any = Field(description="Submission deadline of the new round.")
+    proposal_url: str = Field(description="A URL to the proposal details page.")
 
 
 class ReviewsCompleteContext(BaseModel):
@@ -1379,6 +1402,14 @@ class ProposalSection(NotificationSection):
             )
             for suffix in ("subject.txt", "message.txt", "message.html")
         ],
+    )
+    proposal_draft_carried_over = Notification(
+        key="proposal_draft_carried_over",
+        description=(
+            "Tells a proposal creator that their draft, still open when its "
+            "round's cut-off passed, has moved on to the call's next round."
+        ),
+        context_model=ProposalDraftCarriedOverContext,
     )
     proposal_submission_deadline_approaching = Notification(
         key="proposal_submission_deadline_approaching",
