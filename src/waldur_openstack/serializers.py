@@ -4415,9 +4415,11 @@ class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
     instance_marketplace_uuid = serializers.UUIDField(
         read_only=True, source="instance.marketplace_uuid"
     )
-    type_name = serializers.CharField(source="type.name", read_only=True)
+    type_name = serializers.CharField(
+        source="type.name", read_only=True, allow_null=True
+    )
     availability_zone_name = serializers.CharField(
-        source="availability_zone.name", read_only=True
+        source="availability_zone.name", read_only=True, allow_null=True
     )
     tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
@@ -4832,7 +4834,9 @@ class OpenStackNestedVolumeSerializer(
     structure_serializers.BasicResourceSerializer,
 ):
     state = serializers.CharField(read_only=True, source="get_state_display")
-    type_name = serializers.CharField(source="type.name", read_only=True)
+    type_name = serializers.CharField(
+        source="type.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = models.Volume
@@ -5349,6 +5353,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
     availability_zone_name = serializers.CharField(
         source="availability_zone.name",
         read_only=True,
+        allow_null=True,
         help_text=_("Name of the availability zone where instance is located"),
     )
     tenant_uuid = serializers.UUIDField(

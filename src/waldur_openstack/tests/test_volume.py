@@ -577,6 +577,49 @@ class VolumeFilterTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class VolumeNullableNamesTest(test.APITestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.OpenStackFixture()
+        self.volume = self.fixture.volume
+        self.url = factories.VolumeFactory.get_url(self.volume)
+        self.client.force_authenticate(user=self.fixture.owner)
+
+    def test_type_name_is_shown_for_volume_with_type(self):
+        self.volume.type = self.fixture.volume_type
+        self.volume.save()
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["type_name"], self.fixture.volume_type.name)
+
+    def test_type_name_is_null_for_volume_without_type(self):
+        self.volume.type = None
+        self.volume.save()
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("type_name", response.data)
+        self.assertIsNone(response.data["type_name"])
+
+    def test_availability_zone_name_is_shown_for_volume_with_zone(self):
+        zone = self.fixture.volume_availability_zone
+        self.volume.availability_zone = zone
+        self.volume.save()
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["availability_zone_name"], zone.name)
+
+    def test_availability_zone_name_is_null_for_volume_without_zone(self):
+        self.volume.availability_zone = None
+        self.volume.save()
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("availability_zone_name", response.data)
+        self.assertIsNone(response.data["availability_zone_name"])
+
+
 class VolumeDisabledActionsTest(test.APITestCase):
     """Tests to verify that create and destroy actions are disabled for the volume endpoint."""
 
