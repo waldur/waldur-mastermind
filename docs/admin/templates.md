@@ -5242,7 +5242,11 @@ Comment:
 
 Hello!
 
-The issue you have created has a new comment. Please go to {{issue_url}} to see it.
+{% if is_system_comment %}A new comment was added{% else %}{{ comment.author.name }} commented{% endif %} on your support request "{{ issue.summary }}":
+
+{{ description }}
+
+To reply, go to {{ issue_url }}.
 
 ```
 
@@ -5291,7 +5295,7 @@ Open the request: {{ issue_url }}
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>The issue you have created ({{ issue.key }}) has a new comment</title>
+    <title>Your support request ({{ issue.key }}) has a new comment</title>
 </head>
 <body>
 <p>
@@ -5445,7 +5449,7 @@ Please take action to avoid an SLA breach.
 
 ```txt
 
-The issue you have created has a new comment
+Your support request has a new comment
 
 ```
 

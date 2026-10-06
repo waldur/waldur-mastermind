@@ -677,8 +677,10 @@ POST /api/support-issues/
 - Send no `customer`, `project` or `resource`: the caller can only see an
   unscoped issue they did not create.
 - The recipient is notified through `support.notification_comment_added`, the
-  same notification as any other comment on their ticket. Notifications ship
-  disabled, so the key must be enabled for the message to reach them.
+  same notification as any other comment on their ticket; the mail carries the
+  message and a link to reply. Their reply reaches the desk through
+  `support.notification_comment_added_staff`. Notifications ship disabled, so
+  both keys must be enabled for the conversation to go by mail.
 - On the built-in desk the sender is recorded as `reporter` and, unless an
   `assignee` is given, as `assignee`, so the recipient's reply is mailed to
   them. Such an issue does not trigger the new-request notification to
@@ -687,6 +689,9 @@ POST /api/support-issues/
   first-response and resolution deadlines when SLA tracking is enabled, so a
   message the recipient never answers is never an SLA breach. The average
   first-response time in the helpdesk statistics counts from that reply too.
+  The issue's description is only what the sender wrote: the "Reported by"
+  mark and the `description.txt` template are for a desk's agents, and the
+  opening message already names its author.
 - On Atlassian, Zammad and SMAX neither field is set: there the reporter is
   who the remote ticket is filed as, and it must stay the caller.
 - Without `first_comment`, an on-behalf request is the user's own request

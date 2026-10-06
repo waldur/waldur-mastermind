@@ -124,8 +124,9 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @transaction.atomic()
     def perform_create(self, serializer):
-        # Not an Issue column: taken off before save() builds Issue(**data).
-        first_comment = serializer.validated_data.pop("first_comment", "")
+        # Not an Issue column: IssueSerializer.create takes it off before
+        # building Issue(**data), after deciding how to render the description.
+        first_comment = serializer.validated_data.get("first_comment", "")
         # Validation only lets an opening message through when the caller is
         # someone other than the sender, so its presence is what marks a ticket
         # staff opened to start a conversation. One logged on a user's behalf

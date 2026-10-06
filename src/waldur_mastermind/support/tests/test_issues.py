@@ -636,7 +636,7 @@ class IssueCreateTest(IssueCreateBaseTest):
         )
         issue = models.Issue.objects.get(customer=self.fixture.customer)
         self.assertEqual(
-            issue.summary, "%s: test_issue\n" % self.fixture.customer.abbreviation
+            issue.summary, "%s: test_issue" % self.fixture.customer.abbreviation
         )
 
     def test_site_name_included_in_description(self):
