@@ -192,7 +192,8 @@ To let project managers create rooms too, grant them the permission in
 ```
 
 The grant also lets them manage the room and download its history exports, see
-[Room actions](#room-actions).
+[Room actions](#room-actions). Whoever may create a project's room is also an
+admin in it (power level 50), so it makes project managers room admins as well.
 
 If you replaced `CUSTOMER.OWNER` wholesale in `custom-roles.yaml`, add
 `MATRIX_ROOM.CREATE` to that list yourself, or owners lose room creation.
@@ -371,7 +372,7 @@ When a room is created or a manual sync is triggered:
 3. Display names are set to the user's full name
 4. Users are invited to the room, and the invite is accepted on their behalf
 5. Power levels are set based on roles:
-   - Project admin or customer owner: power level 50
+   - Project admin, or anyone who may create the project's room (`MATRIX_ROOM.CREATE` on the project or its organization, held by organization owners by default): power level 50, shown as Admin in the chat
    - Regular member: power level 0
    - The bot account: power level 100
 

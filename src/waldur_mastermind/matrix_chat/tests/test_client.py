@@ -17,6 +17,8 @@ from nio import (
     StickerEvent,
 )
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import matrix_client
 
@@ -1129,3 +1131,51 @@ class StaleWebDevicesTest(TestCase):
         ]
 
         self.assertEqual(matrix_client.stale_web_devices(devices, self.now_ms), [])
+
+
+class PowerLevelForScopeTest(TestCase):
+    # Whoever may create a project's room is an admin in it, as the project
+    # admin is. Staff become moderators by joining a room, not through this.
+
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.user = structure_factories.UserFactory()
+
+    def _level(self):
+        return matrix_client.get_power_level_for_scope(self.user, self.project)
+
+    def test_customer_role_that_can_create_rooms_is_admin(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        self.project.customer.add_user(self.user, CustomerRole.OWNER)
+
+        self.assertEqual(self._level(), 50)
+
+    def test_owner_who_cannot_create_rooms_is_not_admin(self):
+        self.project.customer.add_user(self.user, CustomerRole.OWNER)
+
+        self.assertEqual(self._level(), 0)
+
+    def test_project_role_that_can_create_rooms_is_admin(self):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        self.project.add_user(self.user, ProjectRole.MANAGER)
+
+        self.assertEqual(self._level(), 50)
+
+    def test_project_admin_is_admin(self):
+        self.project.add_user(self.user, ProjectRole.ADMIN)
+
+        self.assertEqual(self._level(), 50)
+
+    def test_room_creation_on_another_customer_does_not_count(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        structure_factories.CustomerFactory().add_user(self.user, CustomerRole.OWNER)
+        self.project.add_user(self.user, ProjectRole.MEMBER)
+
+        self.assertEqual(self._level(), 0)
+
+    def test_staff_project_member_is_not_admin(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        self.project.add_user(self.user, ProjectRole.MEMBER)
+
+        self.assertEqual(self._level(), 0)
