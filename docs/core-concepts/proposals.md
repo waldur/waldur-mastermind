@@ -19,6 +19,8 @@ graph TB
         C --> R[Round]
         R --> P[Proposal]
         P --> RR[RequestedResource]
+        P --> AR[AwardedResource]
+        RR --> AR
         P --> PD[ProposalDocumentation]
         P --> MP[Waldur Project]
     end
@@ -31,7 +33,7 @@ graph TB
 
     subgraph "Resource Allocation"
         P --> RA[ResourceAllocator]
-        RR --> MR[Marketplace Resource]
+        AR --> MR[Marketplace Resource]
         RA --> MR
         PPRM[ProposalProjectRoleMapping] --> MP
     end
@@ -41,10 +43,11 @@ graph TB
 
 - **`CallManagingOrganisation`**: Organizations that create and manage calls for proposals
 - **`Call`**: Main entity representing calls with configuration for review settings and duration
-- **`Round`**: Time-bounded submission periods; a round holds scheduling only
+- **`Round`**: Time-bounded submission periods, with a lifecycle after the cut-off (evaluating → deciding → results published → closed)
 - **`CallWorkflowStep`**: Per-call evaluation policy — which steps run and how each is gated
 - **`Proposal`**: Individual proposals with project details and resource requests
 - **`RequestedResource`**: Specific resource requests within proposals linked to marketplace
+- **`AwardedResource`**: What the allocation decision grants; starts as a copy of the requests and is what allocation provisions
 - **`Review`**: Peer review system with scoring, comments, and field-specific feedback
 
 ## Call Lifecycle and State Management
@@ -96,6 +99,11 @@ stateDiagram-v2
     CANCELED --> [*] : Process terminated
 ```
 
+A decision held for its round's publication (see
+[Held decisions](#publishing-results-and-held-decisions)) does not change the
+state: the proposal stays `IN_REVIEW` with `decision_held=True` until the round's
+results are published, and only then moves on as the decision says.
+
 #### Proposal State Descriptions
 
 | State | Description | Triggers | Actions Available |
@@ -126,7 +134,7 @@ stateDiagram-v2
 
 ### What a round holds
 
-A round is a submission window and nothing more. Its fields are scheduling only:
+A round is a submission window. Its scheduling fields are:
 
 | Field | Meaning |
 | --- | --- |
@@ -137,11 +145,23 @@ A round is a submission window and nothing more. Its fields are scheduling only:
 
 A round's status (`scheduled`, `open`, `ended`) is derived from `start_time` and
 `cutoff_time`; it is not stored. Proposals can be created and submitted only while
-their round is open.
+their round is open. After the cut-off the round has a stored lifecycle, described
+in [Round lifecycle after the cut-off](#round-lifecycle-after-the-cut-off).
 
-Evaluation starts **per proposal, at submission**: submitting creates the
-proposal's workflow step instances and activates the first enabled step. There is
-no batch evaluation of a round after its cut-off.
+When evaluation starts is the call's `evaluation_start`:
+
+- `on_submission` (default) — submitting creates the proposal's workflow step
+  instances and activates the first enabled step at once.
+- `at_cutoff` — every proposal stays `submitted` until its round's cut-off; an
+  hourly task (`start_evaluation_for_closed_rounds`) then starts them together,
+  so a round is evaluated as one batch. It cannot be changed while the call has
+  proposals that are submitted or in review.
+
+A round can be deleted only while it has **no proposals at all**, in any state.
+Rejected and cancelled proposals are outcomes of the round and keep it; deleting
+the round would delete them with it. `ProtectedRoundSerializer.has_proposals`
+tells clients whether deletion is possible; it counts every proposal, including
+those the viewer cannot see.
 
 ### Where evaluation policy lives
 
@@ -194,9 +214,147 @@ When a proposal is allocated, the project's end date is decided in this order:
 1. **The call's fixed duration** (`Call.fixed_duration_in_days`), whenever it is set.
    Prepaid subscription lengths requested under the call are capped to fit inside
    it, and resource end dates are clamped to the project's.
-2. **The longest requested prepaid subscription**, when the call sets no fixed
-   duration.
+2. **The longest awarded prepaid subscription**, when the call sets no fixed
+   duration — measured over the proposal's `AwardedResource` rows once the award
+   exists (see [Awarded resources](#awarded-resources)), and over its requests
+   before that.
 3. **No end date**, when neither applies: the project runs until someone sets one.
+
+## Round Lifecycle and Results Publication
+
+### Round lifecycle after the cut-off
+
+Before its cut-off a round has no stored state. Once the cut-off has passed,
+`Round.lifecycle_state` (`RoundLifecycleStates`) records where the round stands:
+
+```mermaid
+stateDiagram-v2
+    [*] --> evaluating : cutoff passed
+    evaluating --> deciding : start_deciding
+    evaluating --> results_published : publish_results
+    deciding --> results_published : publish_results
+    results_published --> results_published : publish_results again
+    results_published --> closed : complete
+    closed --> [*]
+```
+
+`evaluating` is entered by `utils.start_round_evaluation`, a conditional update
+that exactly one caller wins: the hourly tasks
+`proposals_for_ended_rounds_should_be_cancelled` and
+`start_evaluation_for_closed_rounds`, closing a round early (`close_round`), and
+the first lifecycle action on an ended round that the sweep has not reached yet.
+The other transitions are call-manager actions in `round_lifecycle.py`, exposed
+on `ProtectedCallViewSet`:
+
+| Action | Endpoint (POST) | Transition |
+| --- | --- | --- |
+| Start deciding | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/start_deciding/` | `evaluating` → `deciding` |
+| Publish results | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/publish_results/` | `evaluating`/`deciding` → `results_published`; retries held decisions in `results_published` |
+| Complete | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/complete/` | `results_published` → `closed` |
+| Record adoption | `/api/proposal-protected-calls/{uuid}/rounds/{round_uuid}/record_adoption/` | No transition; any time after the cut-off |
+
+All four take the permissions of `close_round` (`CLOSE_ROUNDS` on the call or
+its managing organisation) and require an active call. Each transition records
+its timestamp (`evaluation_started_at`, `deciding_started_at`,
+`results_published_at` with `results_published_by`, `closed_at`) and emits an
+event (`round_evaluation_started`, `round_decision_started`,
+`round_results_published`, `round_closed`) against the managing organisation.
+These fields are the round's own history: duplicating, exporting or importing a
+call starts its rounds without them (`Round.LIFECYCLE_FIELDS`).
+
+### Publishing results and held decisions
+
+`Call.publish_results` (`ResultsPublication`) decides when an applicant learns
+the allocation decision:
+
+- `immediately` (default) — each decision is announced and carried out as it is
+  made.
+- `with_round` — a decision on `allocation_decision` (completion, rejection or
+  expiry) is recorded on its step instance, but `Proposal.decision_held` is set
+  and nothing else happens: no step notification, no state change, no award
+  response step, no allocation. `Round.withholds_results` is true while the call
+  is `with_round` and the round is neither `results_published` nor `closed`.
+  The decision locks the round row, so a decision and the round's publication
+  serialise.
+
+`publish_results` releases every held decision of the round through
+`workflow_service.release_held_decision`, as if it had just been made:
+negative outcomes reject the proposal, a lapse goes where an unheld lapse goes,
+an approval continues to `award_response` or, at the end of the workflow,
+accepts and provisions. The applicant gets the notification an immediate
+decision would have sent. A manual `transition_mode` does not park a released
+decision again: publication is the call manager's confirmation.
+
+- **Undecided proposals.** On a `with_round` call, publishing is refused with
+  `400` and `undecided_count` while a proposal of the round is under evaluation
+  with neither a held nor a taken decision. Sending `force: true` with a
+  non-empty `reason` publishes anyway; the reason is stored as
+  `Round.results_forced_reason`, and the undecided proposals are announced as
+  they are decided.
+- **Partial failure.** Each decision is released in its own savepoint. One that
+  fails (an allocation that cannot be provisioned, say) is rolled back, stays
+  held and is listed in `failed_proposals`; publishing again retries it.
+- On an `immediately` call nothing is held, so publishing only records the
+  lifecycle.
+
+`publish_results` cannot change while the call holds decisions
+(`Call.has_held_decisions()`); switching would not release them.
+
+**Reopening.** `POST /api/proposal-proposals/{uuid}/reopen_decision/` with a
+required `reason` and an optional future `deadline` takes a held decision back
+(`workflow_service.reopen_held_decision`). The decision step becomes active
+again with its outcome cleared, `decision_held` is unset, and the proposal
+counts as undecided when the round publishes. Without a `deadline`, one that
+has passed is cleared and one still ahead is kept. It is refused with `409` once
+the round's results are published or when there is no held decision. Allowed
+for staff and holders of `UPDATE_CALL` on the call or its managing organisation,
+but never for the proposal's own applicant (`user_can_manage_held_decision`).
+Nothing is sent. A `proposal_decision_reopened` event is filed on the
+proposal's feed only, carrying the actor and the deadline but neither the
+reason nor the outcome taken back; those go to the server log.
+
+**Who sees a held decision.** `user_can_view_held_decision`: staff, support,
+and holders of `UPDATE_CALL` on the call or its managing organisation who are
+not the proposal's applicant. For everyone else:
+
+- `ProposalSerializer.decision_held` and `ProtectedRoundSerializer.held_decisions_count` are `null`;
+- the decision step instance is serialised as still `active`, without outcome,
+  reason or completer;
+- the `proposal_decision_reopened` event is hidden, through an event-type guard
+  (`logging.utils.register_event_type_guard`) that applies to event listings and
+  hook delivery alike, until the round's results are published. Evaluators never
+  read the proposal feed at all.
+
+`held_decisions_count` counts the round's held decisions; after publication it
+counts only those whose release failed.
+
+### Completing a round
+
+`complete` closes a `results_published` round. It is refused with `400` and
+`held_decisions_count` while a decision of the round is still held (its release
+failed; publish again). Proposals still without a decision follow
+`Round.undecided_at_completion_rule` — the round's own
+`undecided_at_round_completion`, or else the call's (`UndecidedAtRoundCompletion`):
+
+- `refuse` (default) — completing is refused with `400` and `undecided_count`.
+- `reject` — `workflow_service.reject_undecided` rejects each at the step it
+  stands in, with the reason "Not decided when the round was completed." and the
+  step's rejection notifications. A proposal parked on a completed step waiting
+  for a manual advance is rejected on the step it was waiting to enter; one whose
+  workflow has not started is rejected outright. Each rejection emits
+  `proposal_rejected_at_round_completion`, and the batch emits
+  `round_undecided_proposals_rejected`. The response lists `rejected_proposals`;
+  a rejection that fails is listed in `failed_proposals`, and the round stays
+  open until completing again rejects what is left.
+
+### Adoption record
+
+`record_adoption` (multipart) stores `adopted_at` (required), `adoption_note`
+and an optional `adoption_document` — for results that a board or another body
+must adopt. While the round withholds its results, `adoption_note`,
+`adoption_document` and `results_forced_reason` serialise as `null` for anyone
+who may not see held decisions (`user_can_view_round_adoption`), and the media
+endpoint applies the same rule to the document.
 
 ## Resource Template System
 
@@ -430,7 +588,8 @@ media endpoint, which applies its own access rules.
 
 ### Resource Provisioning Flow
 
-Accepted proposals automatically trigger marketplace resource creation:
+Accepted proposals automatically trigger marketplace resource creation. What is
+provisioned is the proposal's award (`AwardedResource`), not its requests:
 
 ```mermaid
 sequenceDiagram
@@ -449,6 +608,60 @@ sequenceDiagram
     Note over Proj: Automatic role mapping
     RA->>Proj: Apply ProposalProjectRoleMapping
 ```
+
+### Awarded resources
+
+`AwardedResource` is what the allocation decision grants, which may differ from
+the request. `utils.prefill_awarded_resources` copies each `RequestedResource`
+(offering, limits, attributes, description; not the plan) when the
+`allocation_decision` step is activated, once per proposal:
+`Proposal.awarded_resources_prefilled_at` records it, so an award the call
+manager emptied is not refilled. Allocation prefills it too if the proposal
+reached allocation without one, which provisions exactly what was requested.
+
+| Field | Meaning |
+| --- | --- |
+| `requested_resource` | The request the item was copied from; empty for an item the call manager added |
+| `requested_offering` | The call offering the item is awarded on |
+| `plan` | A plan the call manager chose; empty follows the call offering's plan at allocation (`effective_plan`) |
+| `limits`, `attributes`, `description` | What is ordered |
+| `created_by` | Who added the item |
+| `resource` | The marketplace resource allocation provisioned |
+
+Endpoints: `GET`/`POST /api/proposal-proposals/{uuid}/awarded_resources/` and
+`GET`/`PATCH`/`PUT`/`DELETE /api/proposal-proposals/{uuid}/awarded_resources/{obj_uuid}/`.
+
+- **Editing** is for staff and users with the `CALL.MANAGER` role on the call,
+  and only while the `allocation_decision` step is active. Otherwise the view
+  answers `409`; a decision held for publication is not active, so it must be
+  reopened first.
+- **Validation.** `requested_offering_uuid` must be an offering of the call that
+  its provider has accepted (required when adding). The plan must belong to that
+  offering and not be archived; moving an item to another offering without
+  naming a plan resets it to the call offering's plan. Limits must name an
+  amount for an offering sold by amount (`names_an_amount`) and pass the
+  component bounds and precision checks an order would. Prepaid duration
+  attributes are validated as for a request.
+- **Approval gate.** Completing `allocation_decision` with a positive outcome is
+  refused while an awarded item on an accepted offering names no amount.
+  Declining is never blocked.
+- **Allocation** orders each awarded item on an accepted offering, in creation
+  order, on its `effective_plan`, and links the resource to the item and to its
+  request. A purchase order on the request is carried only while the item stays
+  on the requested offering. The managers of an offering that was only awarded,
+  never requested, see the proposal like those of a requested one.
+
+**Who reads the award** (`user_can_view_awarded_resources`):
+
+- staff and support, the call's managers and the managing organisation's call
+  organisers, and managers of the offerings requested or awarded — at any time
+  (an offering manager who is the applicant waits like an applicant);
+- the applicant team (creator, proposal members, members of the granted project)
+  once the award is released (`awarded_resources_released`): the proposal is
+  accepted, or the decision is an approval and the award response step has
+  started or the allocation step is `applicant_visible` — never while the
+  decision is held for the round's publication;
+- nobody else; reviewers and panel members judge the proposal, not the award.
 
 ### Role Mapping System
 
@@ -587,7 +800,7 @@ call = Call.objects.create(
     fixed_duration_in_days=365  # 1-year allocations
 )
 
-# Round: scheduling only
+# Round: scheduling fields; the lifecycle after the cut-off is not set here
 round = Round.objects.create(
     call=call,
     start_time=datetime(2024, 1, 1),
