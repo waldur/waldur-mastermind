@@ -959,9 +959,17 @@ def terminate_resources_if_project_end_date_has_been_reached():
     """Terminate resources when their project has reached its end date (including grace period).
 
     Also pauses resources for projects currently in the grace period,
-    if the offering has supports_pausing=True in plugin_options.
+    if the offering has supports_pausing=True in plugin_options, and lifts that
+    pause from resources whose project has left the grace period without
+    expiring (its end date was extended or cleared).
     """
-    today = timezone.datetime.today().date()
+    today = timezone.localdate()
+
+    # Recover grace-period pauses missing their marker, then lift the ones whose
+    # project left the grace period. A safety net for the release done when a
+    # project is saved: also covers end dates changed without a save signal.
+    utils.adopt_grace_period_pauses()
+    utils.release_project_grace_pauses(models.Resource.objects.all())
 
     # Single pass over projects with an end date: pause resources that are inside
     # the grace period, and terminate resources whose offering opts out of the
@@ -992,23 +1000,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
                 )
             )
             for resource in resources_to_pause:
-                resource.paused = True
-                resource.save(update_fields=["paused"])
-                logger.info(
-                    "Resource %s paused due to project %s entering grace period",
-                    resource.uuid,
-                    project.uuid,
-                )
-                event_logger.emit(
-                    "Resource {resource_name} has been paused because "
-                    "project {project_name} has entered the grace period.",
-                    event_type=EventType.MARKETPLACE_RESOURCE_PAUSED,
-                    event_context={
-                        "resource": resource,
-                        "project": project,
-                    },
-                    scopes=[resource, project, project.customer],
-                )
+                utils.pause_for_project_grace(resource)
 
         # Terminate resources whose offering disables the grace period as soon as
         # the project end date is reached, ignoring the grace window. Projects
@@ -1031,7 +1023,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
             # schedule_resources_termination is a no-op on an empty queryset, so
             # no explicit emptiness guard is needed here.
             termination_comment = (
-                f"Project end date has been reached on {timezone.datetime.today()}; "
+                f"Project end date has been reached on {today}; "
                 "grace period disabled for this offering."
             )
             utils.schedule_resources_termination(
@@ -1075,7 +1067,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
         )
         project.get_effective_end_date()
         grace_days = project.get_grace_period_days()
-        termination_comment = f"Project effective end date (including {grace_days} day grace period) has been reached on {timezone.datetime.today()}"
+        termination_comment = f"Project effective end date (including {grace_days} day grace period) has been reached on {today}"
         utils.schedule_resources_termination(
             terminatable_resources,
             termination_comment=termination_comment,
@@ -1308,7 +1300,7 @@ def terminate_expired_resources():
     """Terminate marketplace resources that have reached their end date."""
     expired_resources = models.Resource.objects.filter(
         _ready_for_scheduled_termination_filter(),
-        end_date__lte=timezone.datetime.today(),
+        end_date__lte=timezone.localdate(),
     ).distinct()
     logger.info(
         "About to terminate expired resources: %s",
@@ -1316,7 +1308,7 @@ def terminate_expired_resources():
     )
     utils.schedule_resources_termination(
         expired_resources,
-        termination_comment=f"Resource expired on {timezone.datetime.today()}",
+        termination_comment=f"Resource expired on {timezone.localdate()}",
     )
 
 
@@ -1422,10 +1414,10 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
 @shared_task(name="waldur_mastermind.marketplace.notification_about_project_ending")
 def notification_about_project_ending():
     """Send notifications about projects ending in 1 day and 7 days."""
-    date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
+    date_1 = timezone.localdate() + datetime.timedelta(days=1)
     utils.notification_about_project_ending(date_1)
 
-    date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
+    date_7 = timezone.localdate() + datetime.timedelta(days=7)
     utils.notification_about_project_ending(date_7)
 
 
@@ -1441,7 +1433,7 @@ def notification_about_resource_ending():
     an own end date — but only when the project has an actual grace window,
     otherwise raw == effective and the project-ending notice already covers them.
     """
-    today = timezone.datetime.today().date()
+    today = timezone.localdate()
     date_1 = today + datetime.timedelta(days=1)
     date_7 = today + datetime.timedelta(days=7)
 

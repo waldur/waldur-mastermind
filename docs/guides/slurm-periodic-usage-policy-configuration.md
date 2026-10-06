@@ -74,6 +74,27 @@ fully in parallel.
     re-running an evaluation is safe and idempotent. If usage has not changed,
     the re-run is a no-op and emits no STOMP message.
 
+### Interaction with the Project Grace Period
+
+A project past its end date but still inside its grace period has the resources
+of offerings with `supports_pausing` paused by the daily end-date task (unless
+the offering sets `disable_grace_period`). The policy never lifts such a pause:
+while the project is in its grace period, a resource stays paused even when its
+usage is below the grace limit, whether the pause came from the grace period or
+from the policy itself.
+
+Once the project leaves the grace period because its end date was extended or
+cleared, the pause set for the grace period is lifted unless usage is still over
+the grace limit, and a pause the policy set itself is lifted by the next
+evaluation as usual. When the grace period runs out instead, the resources stay
+paused until they are terminated.
+
+Outside the grace period the policy lifts a pause once usage is below the grace
+limit, except while a usage-limit restriction or a firing cost policy with
+`request_pausing` still holds the resource. A pause set manually by staff is not
+recorded as such, so on a SLURM offering the next evaluation (at the latest the
+daily period-boundary run) lifts it when usage is below the limit.
+
 ## Configuration Examples
 
 ### 1. Basic Notification Policy

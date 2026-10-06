@@ -390,6 +390,25 @@ def close_customer_service_accounts_on_customer_deletion(
             continue
 
 
+def release_grace_pauses_when_project_end_date_changes(
+    sender, instance: structure_models.Project, created=False, **kwargs
+):
+    """Lift grace-period pauses once a project's end date moves it out of the grace period.
+
+    Only the end date can do that: a changed grace period length either keeps
+    the project in grace or lets it expire, and expired projects keep their
+    resources paused until they are terminated.
+    """
+    if created or not instance.tracker.has_changed("end_date"):
+        return
+    project_id = instance.pk
+    transaction.on_commit(
+        lambda: utils.release_project_grace_pauses(
+            models.Resource.objects.filter(project_id=project_id)
+        )
+    )
+
+
 def process_invitations_and_orders_when_project_start_date_is_unset(
     sender, instance: Project, created=False, **kwargs
 ):

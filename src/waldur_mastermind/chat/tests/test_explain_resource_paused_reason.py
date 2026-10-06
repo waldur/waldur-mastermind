@@ -99,7 +99,8 @@ class ExplainResourcePausedReasonToolTest(TestCase):
 
     def test_slurm_grace_attribution(self):
         attribution = _attribution_blob(
-            "SlurmPeriodicPolicy",
+            # type(policy).__name__ as written by _save_resource_with_reversion
+            "SlurmPeriodicUsagePolicy",
             "93000000000000000000000000000002",
             self.fixture.project.name,
             limit_cost="0",
@@ -117,6 +118,29 @@ class ExplainResourcePausedReasonToolTest(TestCase):
         self.assertEqual(result["data"]["primary_cause"], "slurm_grace")
         self.assertEqual(result["data"]["policy_details"]["grace_ratio"], "0.2")
         self.assertIn("SLURM", result["summary"])
+
+    def test_project_grace_period_pause(self):
+        self.fixture.project.end_date = date.today() - timedelta(days=1)
+        self.fixture.project.grace_period_days = 30
+        self.fixture.project.save()
+        attribution = _attribution_blob(
+            "SlurmPeriodicUsagePolicy",
+            "93000000000000000000000000000002",
+            self.fixture.project.name,
+            limit_cost="0",
+        )
+        resource = self._make_resource(
+            name="Grace VM",
+            paused=True,
+            paused_by_grace_period=True,
+            attributes={"_policy_attribution": {"paused": attribution}},
+        )
+
+        result = self.tool.execute(
+            self.fixture.staff, {"resource_uuid": str(resource.uuid)}
+        )
+        self.assertEqual(result["data"]["primary_cause"], "project_grace_period")
+        self.assertIn("grace period", result["summary"])
 
     def test_manual_pause_no_attribution(self):
         resource = self._make_resource(
