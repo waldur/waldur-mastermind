@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import re
 import secrets
 
 import httpx
@@ -589,7 +590,23 @@ def _is_from_homeserver(request):
     # Constant-time, as a naive `!=` leaks the token byte by byte. Bytes,
     # because compare_digest raises on non-ASCII text and anyone can send this
     # header.
-    return bool(hs_token) and hmac.compare_digest(provided.encode(), hs_token.encode())
+    if hs_token and hmac.compare_digest(provided.encode(), hs_token.encode()):
+        return True
+
+    # A homeserver holding another hs_token gets a 403 on every call, and bot
+    # commands and invites just stop; without this nothing on Waldur's side
+    # says why.
+    if not hs_token:
+        reason = "MATRIX_APPSERVICE_HS_TOKEN is not set"
+    elif not provided:
+        reason = "no token"
+    else:
+        reason = (
+            "the token is not MATRIX_APPSERVICE_HS_TOKEN; if this is the "
+            "homeserver, register the appservice there again"
+        )
+    logger.warning("Rejected a homeserver call to %s: %s", request.path, reason)
+    return False
 
 
 class MatrixAppserviceWebhookView(views.APIView):
@@ -813,6 +830,120 @@ class MatrixAppserviceStatusView(views.APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
 
+def _latest_spec_version(versions):
+    """The newest numbered Matrix spec version in a /versions list, e.g. v1.19.
+    Homeservers list them in no guaranteed order, and v1.10 sorts before v1.9
+    as text."""
+    numbered = [v for v in versions if re.fullmatch(r"v\d+\.\d+", v)]
+    if not numbered:
+        return versions[-1] if versions else "unknown"
+    return max(numbered, key=lambda v: tuple(int(n) for n in v[1:].split(".")))
+
+
+def _get_json_object(url):
+    """GET a JSON object; {} on any failure, as the caller only adds detail."""
+    try:
+        resp = httpx.get(url, timeout=DIAGNOSTICS_TIMEOUT)
+        body = resp.json() if resp.status_code == 200 else {}
+    except (httpx.HTTPError, ValueError):
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _homeserver_software(homeserver_url):
+    """The homeserver's name and version, e.g. "Tuwunel 1.9.0", or "".
+
+    The standard endpoint belongs to the federation API, which a homeserver
+    with federation switched off refuses, so Tuwunel's own one is asked next.
+    """
+    standard = _get_json_object(f"{homeserver_url}/_matrix/federation/v1/version")
+    server = standard.get("server")
+    if not isinstance(server, dict) or not server.get("name"):
+        server = _get_json_object(f"{homeserver_url}/_tuwunel/server_version")
+    if not server.get("name"):
+        return ""
+    return f"{server['name']} {server.get('version', '')}".strip()
+
+
+def _bot_rooms(homeserver_url, auth_headers):
+    """How many rooms the bot is in, as an addition to the bot check's detail.
+    The listing uses the same token as the check, so it gets no row of its
+    own."""
+    try:
+        resp = httpx.get(
+            f"{homeserver_url}/_matrix/client/v3/joined_rooms",
+            headers=auth_headers,
+            timeout=DIAGNOSTICS_TIMEOUT,
+        )
+    except httpx.HTTPError as e:
+        return f"; could not list its rooms ({e})"
+    if resp.status_code != 200:
+        return f"; could not list its rooms (HTTP {resp.status_code})"
+    return f", in {len(resp.json().get('joined_rooms', []))} room(s)"
+
+
+def _matrix_errcode(response):
+    try:
+        body = response.json()
+    except ValueError:
+        # A proxy's error page.
+        return ""
+    return body.get("errcode", "") if isinstance(body, dict) else ""
+
+
+def _check_appservice_acts_for_users(user, homeserver_url, auth_headers):
+    """Diagnostics: can the appservice act as `user`? Returns (ok, detail).
+
+    Chat sessions, device pruning and room joins all act as the user with the
+    AS token, and the homeserver refuses each with M_EXCLUSIVE when the
+    appservice's user namespace does not cover them. The bot check cannot see
+    that, as the bot is always covered. The ID need not exist: the homeserver
+    answers on the namespace alone.
+    """
+    profile = models.MatrixUserProfile.objects.filter(
+        user=user, provisioned=True
+    ).first()
+    user_id = (
+        profile.matrix_user_id
+        if profile
+        else matrix_client.generate_matrix_user_id(user)
+    )
+
+    try:
+        resp = httpx.get(
+            f"{homeserver_url}/_matrix/client/v3/account/whoami",
+            params={"user_id": user_id},
+            headers=auth_headers,
+            timeout=DIAGNOSTICS_TIMEOUT,
+        )
+    except httpx.ConnectError:
+        return False, "Connection refused"
+    except httpx.TimeoutException:
+        return False, "Timed out"
+    except httpx.HTTPError as e:
+        return False, str(e)
+
+    if resp.status_code == 200:
+        return True, f"OK — can act as {user_id}"
+    if _matrix_errcode(resp) == "M_EXCLUSIVE":
+        detail = (
+            f"{user_id} is outside the user namespace of the homeserver's "
+            "appservice registration, so chat sessions and room joins fail; "
+            "register the appservice on the homeserver again with Waldur's "
+            "registration"
+        )
+    else:
+        detail = f"HTTP {resp.status_code}: {resp.text[:200]}"
+
+    invited = models.MatrixRoomMember.objects.filter(
+        room__state=models.RoomStates.ACTIVE,
+        membership_state=models.MembershipStates.INVITED,
+    ).count()
+    if invited:
+        detail += f" ({invited} room member(s) recorded as invited, not joined)"
+    return False, detail
+
+
 class MatrixDiagnosticsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
 
@@ -852,7 +983,6 @@ class MatrixDiagnosticsView(views.APIView):
 
         # Check 3: Homeserver reachable (/_matrix/client/versions)
         server_reachable = False
-        server_name = ""
         if homeserver_url:
             try:
                 resp = httpx.get(
@@ -861,11 +991,13 @@ class MatrixDiagnosticsView(views.APIView):
                 )
                 server_reachable = resp.status_code == 200
                 if server_reachable:
-                    versions = resp.json().get("versions", [])
-                    server_name = resp.json().get("server", {}).get("name", "")
-                    detail = f"OK — versions: {', '.join(versions[-3:])}"
-                    if server_name:
-                        detail += f" (server: {server_name})"
+                    spec = _latest_spec_version(resp.json().get("versions", []))
+                    software = _homeserver_software(homeserver_url)
+                    detail = (
+                        f"OK — {software}, Matrix up to {spec}"
+                        if software
+                        else f"OK — Matrix up to {spec}"
+                    )
                 else:
                     detail = f"HTTP {resp.status_code}"
             except httpx.ConnectError:
@@ -987,7 +1119,9 @@ class MatrixDiagnosticsView(views.APIView):
                 if resp.status_code == 200:
                     bot_user_id = resp.json().get("user_id", "")
                     bot_ok = True
-                    detail = f"OK — authenticated as {bot_user_id}"
+                    detail = f"OK — authenticated as {bot_user_id}" + _bot_rooms(
+                        homeserver_url, auth_headers
+                    )
                 elif resp.status_code == 403:
                     detail = "403 Forbidden — AS token not recognized by homeserver (check appservice registration)"
                 elif resp.status_code == 401:
@@ -1012,35 +1146,18 @@ class MatrixDiagnosticsView(views.APIView):
             }
         )
 
-        # Check 8: Bot can operate (list joined rooms)
-        bot_functional = False
-        if bot_ok and bot_user_id:
-            try:
-                resp = httpx.get(
-                    f"{homeserver_url}/_matrix/client/v3/joined_rooms",
-                    headers=auth_headers,
-                    timeout=DIAGNOSTICS_TIMEOUT,
-                )
-                if resp.status_code == 200:
-                    bot_functional = True
-                    rooms = resp.json().get("joined_rooms", [])
-                    detail = f"OK — {bot_user_id} is in {len(rooms)} room(s)"
-                else:
-                    detail = f"HTTP {resp.status_code}: {resp.text[:200]}"
-            except httpx.ConnectError:
-                detail = "Connection refused"
-            except httpx.TimeoutException:
-                detail = "Timed out"
-            except Exception as e:
-                detail = str(e)
+        # Check 7b: the appservice can act for users, not only for the bot.
+        if bot_ok:
+            users_ok, detail = _check_appservice_acts_for_users(
+                request.user, homeserver_url, auth_headers
+            )
         else:
-            detail = "Skipped — bot authentication failed"
-
+            users_ok, detail = False, "Skipped — bot authentication failed"
         checks.append(
             {
-                "name": "bot_functional",
-                "label": "Bot can operate",
-                "ok": bot_functional,
+                "name": "appservice_user_namespace",
+                "label": "Appservice can act for users",
+                "ok": users_ok,
                 "detail": detail,
             }
         )

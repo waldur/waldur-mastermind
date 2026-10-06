@@ -1041,3 +1041,265 @@ class AppserviceDiagnosticsTest(test.APITestCase):
         by_name = {c["name"]: c for c in response.data["checks"]}
         self.assertFalse(by_name["livekit_configured"]["ok"])
         self.assertIn("No LiveKit focus", by_name["livekit_configured"]["detail"])
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="http://tuwunel.internal:6167",
+    MATRIX_HOMESERVER_DOMAIN="waldur.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class HomeserverVersionDiagnosticsTest(test.APITestCase):
+    VERSIONS = {"versions": ["r0.6.1", "v1.9", "v1.10", "v1.2"]}
+
+    def _detail(self, answers):
+        # `answers` maps a URL path to (status, body); anything else answers
+        # 200 with the spec versions.
+        def get(url, **kwargs):
+            path = url.removeprefix("http://tuwunel.internal:6167")
+            status_code, body = answers.get(path, (200, self.VERSIONS))
+            response = mock.MagicMock()
+            response.status_code = status_code
+            response.json.return_value = body
+            return response
+
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.views.httpx.get", side_effect=get
+        ):
+            self.client.force_authenticate(fixtures.MatrixChatFixture().staff)
+            response = self.client.get(DIAGNOSTICS_URL)
+        by_name = {c["name"]: c for c in response.data["checks"]}
+        return by_name["homeserver_reachable"]["detail"]
+
+    def test_names_the_homeserver_and_its_newest_spec_version(self):
+        detail = self._detail(
+            {
+                "/_matrix/federation/v1/version": (
+                    200,
+                    {"server": {"name": "Tuwunel", "version": "1.9.0"}},
+                )
+            }
+        )
+
+        # v1.10 is newer than v1.9, whatever order the homeserver lists them in.
+        self.assertEqual(detail, "OK — Tuwunel 1.9.0, Matrix up to v1.10")
+
+    def test_asks_tuwunel_when_federation_is_switched_off(self):
+        detail = self._detail(
+            {
+                "/_matrix/federation/v1/version": (
+                    403,
+                    {"errcode": "M_FORBIDDEN", "error": "Federation is disabled."},
+                ),
+                "/_tuwunel/server_version": (
+                    200,
+                    {"name": "Tuwunel", "version": "1.9.0"},
+                ),
+            }
+        )
+
+        self.assertEqual(detail, "OK — Tuwunel 1.9.0, Matrix up to v1.10")
+
+    def test_leaves_the_name_out_when_no_endpoint_gives_it(self):
+        detail = self._detail(
+            {
+                "/_matrix/federation/v1/version": (404, {}),
+                "/_tuwunel/server_version": (404, {}),
+            }
+        )
+
+        self.assertEqual(detail, "OK — Matrix up to v1.10")
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="http://tuwunel.internal:6167",
+    MATRIX_HOMESERVER_DOMAIN="waldur.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class BotAuthenticationDiagnosticsTest(test.APITestCase):
+    def _checks(self, joined_rooms_status=200):
+        def get(url, **kwargs):
+            response = mock.MagicMock()
+            response.status_code = 200
+            if url.endswith("/account/whoami"):
+                response.json.return_value = {"user_id": BOT_USER_ID}
+            elif url.endswith("/joined_rooms"):
+                response.status_code = joined_rooms_status
+                response.json.return_value = {"joined_rooms": ["!a:x", "!b:x"]}
+            else:
+                response.json.return_value = {"versions": ["v1.16"]}
+            return response
+
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.views.httpx.get", side_effect=get
+        ):
+            self.client.force_authenticate(fixtures.MatrixChatFixture().staff)
+            response = self.client.get(DIAGNOSTICS_URL)
+        return {c["name"]: c for c in response.data["checks"]}
+
+    def test_reports_the_bot_and_its_rooms_in_one_row(self):
+        # Listing rooms uses the same token as whoami, so a row of its own only
+        # repeated this one.
+        checks = self._checks()
+
+        self.assertTrue(checks["bot_whoami"]["ok"])
+        self.assertEqual(
+            checks["bot_whoami"]["detail"],
+            f"OK — authenticated as {BOT_USER_ID}, in 2 room(s)",
+        )
+        self.assertNotIn("bot_functional", checks)
+
+    def test_says_so_when_the_rooms_cannot_be_listed(self):
+        checks = self._checks(joined_rooms_status=500)
+
+        self.assertTrue(checks["bot_whoami"]["ok"])
+        self.assertEqual(
+            checks["bot_whoami"]["detail"],
+            f"OK — authenticated as {BOT_USER_ID}; could not list its rooms (HTTP 500)",
+        )
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="http://tuwunel.internal:6167",
+    MATRIX_HOMESERVER_DOMAIN="waldur.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class AppserviceUserNamespaceDiagnosticsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MatrixChatFixture()
+        self.staff = self.fixture.staff
+        self.acted_as = []
+
+    def _response(self, status_code, body):
+        response = mock.MagicMock()
+        response.status_code = status_code
+        response.json.return_value = body
+        response.text = json.dumps(body)
+        return response
+
+    def _homeserver(self, user_status=200, user_body=None, bot_status=200):
+        # Answers whoami as a user per the arguments, and every other probe OK.
+        def get(url, params=None, **kwargs):
+            if url.endswith("/account/whoami") and params:
+                self.acted_as.append(params["user_id"])
+                return self._response(user_status, user_body or {})
+            if url.endswith("/account/whoami"):
+                return self._response(bot_status, {"user_id": BOT_USER_ID})
+            return self._response(200, {"versions": ["v1.16"], "joined_rooms": []})
+
+        return get
+
+    def _check(self, **homeserver):
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.views.httpx.get",
+            side_effect=self._homeserver(**homeserver),
+        ):
+            self.client.force_authenticate(self.staff)
+            response = self.client.get(DIAGNOSTICS_URL)
+        by_name = {c["name"]: c for c in response.data["checks"]}
+        return by_name["appservice_user_namespace"]
+
+    def test_passes_when_the_appservice_can_act_for_users(self):
+        check = self._check()
+
+        self.assertTrue(check["ok"])
+        # The ID Waldur would give the staff user; it need not exist yet.
+        self.assertEqual(self.acted_as, [f"@{self.staff.username}:waldur.example.com"])
+
+    def test_acts_as_the_provisioned_id_when_there_is_one(self):
+        models.MatrixUserProfile.objects.create(
+            user=self.staff,
+            matrix_user_id="@an-older-id:waldur.example.com",
+            provisioned=True,
+        )
+
+        self._check()
+
+        self.assertEqual(self.acted_as, ["@an-older-id:waldur.example.com"])
+
+    def test_fails_when_the_registration_does_not_cover_users(self):
+        # Tuwunel's answer for a user outside the appservice's namespace.
+        check = self._check(
+            user_status=400,
+            user_body={
+                "errcode": "M_EXCLUSIVE",
+                "error": "M_EXCLUSIVE: User is not in namespace.",
+            },
+        )
+
+        self.assertFalse(check["ok"])
+        self.assertIn("namespace", check["detail"])
+        self.assertIn("register", check["detail"])
+
+    def test_reports_other_errors_as_they_are(self):
+        check = self._check(user_status=502, user_body={"error": "bad gateway"})
+
+        self.assertFalse(check["ok"])
+        self.assertIn("502", check["detail"])
+
+    def test_is_skipped_when_the_bot_cannot_authenticate(self):
+        check = self._check(bot_status=401)
+
+        self.assertFalse(check["ok"])
+        self.assertIn("Skipped", check["detail"])
+        self.assertEqual(self.acted_as, [])
+
+    def test_counts_room_members_left_as_invited(self):
+        member = self.fixture.matrix_room_member
+        member.membership_state = models.MembershipStates.INVITED
+        member.save(update_fields=["membership_state"])
+
+        check = self._check(
+            user_status=400,
+            user_body={"errcode": "M_EXCLUSIVE", "error": "User is not in namespace."},
+        )
+
+        self.assertIn("1 room member", check["detail"])
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class WebhookRejectionLogTest(test.APITestCase):
+    def _put(self, **headers):
+        with self.assertLogs("waldur_mastermind.matrix_chat.views", "WARNING") as logs:
+            response = self.client.put(
+                f"{WEBHOOK_URL}txn-rejected",
+                data={"events": []},
+                format="json",
+                **headers,
+            )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        return "\n".join(logs.output)
+
+    def test_a_wrong_token_is_logged_without_either_token(self):
+        log = self._put(HTTP_AUTHORIZATION="Bearer wrong-token")
+
+        self.assertIn(f"{WEBHOOK_URL}txn-rejected", log)
+        self.assertIn("MATRIX_APPSERVICE_HS_TOKEN", log)
+        self.assertNotIn("wrong-token", log)
+        self.assertNotIn(HS_TOKEN, log)
+
+    def test_a_missing_token_is_logged(self):
+        log = self._put()
+
+        self.assertIn("no token", log)
+
+    def test_an_unset_hs_token_is_logged(self):
+        with override_config(MATRIX_APPSERVICE_HS_TOKEN=""):
+            log = self._put(HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}")
+
+        self.assertIn("not set", log)
