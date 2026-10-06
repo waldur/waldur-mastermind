@@ -28,6 +28,9 @@ from waldur_mastermind.marketplace.enums import (
     OrderTypes,
     ResourceStates,
 )
+from waldur_mastermind.marketplace.management.commands.rebill_historical_usage import (
+    Command,
+)
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.policy import models as policy_models
 from waldur_mastermind.policy import policy_actions
@@ -426,3 +429,46 @@ class CreditExhaustionOnlyCountsTheUncoveredOverageTest(BasePolicyPreviewTest):
 
         self.assertEqual(cost_windows[-1], decimal.Decimal("130"))
         self.assertIn("WOULD FIRE", output)
+
+
+class ReportedCreditGateAgreesWithVerdictTest(BasePolicyPreviewTest):
+    """Gate 2 compares the live credit balance -- net of the month's usage --
+    not the stored value, which only falls when the month's compensations are
+    written. The preview must print the same balance, or a policy about to
+    fire is reported with a closed gate 2 on the same line.
+    """
+
+    def test_spent_allocation_reports_gate_2_open(self):
+        # June, before any credit exists: uncovered cost keeps gate 1 open.
+        self._bill_usage(2024, 6, 500)
+        invoice_models.CustomerCredit.objects.create(
+            customer=self.fixture.customer,
+            value=decimal.Decimal("100000"),
+            end_date=datetime.date(2030, 1, 1),
+        )
+        invoice_models.ProjectCredit.objects.create(
+            project=self.fixture.project, value=decimal.Decimal("2900")
+        )
+        # July: 3050 of usage spends the 2900 allocation; nothing is written yet.
+        self._bill_usage(2024, 7, 305)
+        policy = policy_models.ProjectEstimatedCostPolicy.objects.create(
+            scope=self.fixture.project,
+            limit_cost=100,
+            actions="request_pausing",
+            use_credit=True,
+            period=invoice_models.PeriodMixin.Periods.TOTAL,
+            has_fired=False,
+        )
+
+        out = io.StringIO()
+        Command(stdout=out)._report_policy_impact(
+            self.resource, [(policy, False)], dry_run=True
+        )
+        output = out.getvalue()
+        print("\n--- live credit balance ---")
+        print(output.rstrip())
+
+        self.assertIn("WOULD FIRE", output)
+        self.assertIn("(gate 2: open)", output)
+        # The stored allocation is still 2900; the live balance is spent.
+        self.assertNotIn("credit_balance=2900", output)

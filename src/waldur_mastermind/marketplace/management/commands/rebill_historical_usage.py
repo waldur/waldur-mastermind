@@ -534,36 +534,27 @@ class Command(BaseCommand):
             policy.refresh_from_db()
             scope_label = self._POLICY_SCOPE_LABELS[type(policy)]
 
-            invoice_items, deduction = policy._cost_inputs()
+            # One simulation for both gates, as is_triggered() itself does.
+            compensation = (
+                policy._new_compensation() if policy.uses_credit_compensation else None
+            )
+            invoice_items, deduction = policy._cost_inputs(compensation)
             cost_total = policy._scoped_cost(invoice_items)
             net_cost = policy._evaluated_cost(invoice_items, deduction)
             # Match _is_triggered's strict `>`: cost exactly on limit_cost is
             # not triggered, so gate 1 must read closed there too.
             gate1 = "open" if net_cost > policy.limit_cost else "closed"
 
-            credit_balance = None
-            if isinstance(policy, policy_models.ProjectEstimatedCostPolicy):
-                if policy.use_credit:
-                    project_credit = invoice_models.ProjectCredit.objects.filter(
-                        project=policy.scope
-                    ).first()
-                    if project_credit:
-                        credit_balance = project_credit.value
-                    else:
-                        customer_credit = invoice_models.CustomerCredit.objects.filter(
-                            customer=policy.scope.customer
-                        ).first()
-                        credit_balance = (
-                            customer_credit.value if customer_credit else None
-                        )
-            elif isinstance(policy, policy_models.CustomerEstimatedCostPolicy):
-                customer_credit = invoice_models.CustomerCredit.objects.filter(
-                    customer=policy.scope
-                ).first()
-                credit_balance = customer_credit.value if customer_credit else None
-            # OfferingEstimatedCostPolicy: no single customer's credit applies
-            # (_cost_inputs always returns deduction=0), so credit_balance
-            # stays None -- there is no gate 2 for this policy type.
+            # Gate 2 reads the live balance, net of this month's usage, through
+            # the policy's own method -- the stored value only falls at month
+            # end. None where no credit applies: a use_credit=False project
+            # policy, no credit configured, or an OfferingEstimatedCostPolicy,
+            # which no single customer's credit covers.
+            credit_balance = (
+                policy._live_credit_balance(compensation)
+                if policy.uses_credit_compensation
+                else None
+            )
 
             credit_note = ""
             if credit_balance is not None:

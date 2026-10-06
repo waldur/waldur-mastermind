@@ -26,8 +26,20 @@ class MonthlyCompensation:
     consumption requirements are met.
     """
 
-    def __init__(self, customer, invoice=None):
+    def __init__(self, customer, invoice=None, restore_written=False):
+        """`restore_written` simulates the open month from the balance it
+        started with: what this month's applies already took (staff can apply
+        mid-month) is added back to the in-memory credits first, as the credit
+        ledger records it (see `_restore_written_draw`). Without it the
+        re-simulation draws the month's whole usage again from a balance the
+        write already lowered, so the draw is capped there. Such a simulation
+        is read-only and refuses to `save`.
+        """
         self.customer = customer
+        self._restore_written = restore_written
+        self._restored = False
+        self._customer_restored_draw = decimal.Decimal(0)
+        self._project_restored_draws: dict[int, decimal.Decimal] = {}
         if invoice is not None:
             self.invoice = invoice
         else:
@@ -59,6 +71,10 @@ class MonthlyCompensation:
         if self._calculated:
             return
 
+        # Before the empty-balance check: a write may have drawn it to zero.
+        if self._restore_written and not self._restored:
+            self._restore_written_draw()
+
         if not self.credit or not self.credit.value or not self.invoice:
             return
 
@@ -72,6 +88,10 @@ class MonthlyCompensation:
                 project_id__in=items_projects_ids
             ).select_related("project")
         }
+        for project_credit in projects_credits.values():
+            project_credit.value += self._project_restored_draws.get(
+                project_credit.project_id, decimal.Decimal(0)
+            )
         chargeable_items, discount_by_item = models.creditable_items(
             self.invoice, self.credit
         )
@@ -210,6 +230,84 @@ class MonthlyCompensation:
         self.calculate_current_compensations()
         return self._tail
 
+    # Ledger rows that move a balance for the month being compensated: what an
+    # apply took (usage and floor) and what a clear gave back.
+    _MONTH_DRAW_TYPES = (
+        models.CreditTransaction.Types.COMPENSATION,
+        models.CreditTransaction.Types.MINIMAL_DRAW,
+        models.CreditTransaction.Types.ROLLBACK,
+    )
+
+    def _restore_written_draw(self):
+        """Add what this month's applies took back to the in-memory credits;
+        see `__init__`.
+
+        Read from the credit ledger, which records each apply's movement per
+        credit and billing period, not from the invoice items. The minimal
+        consumption floor writes no item, and when the balance left is smaller
+        than the floor the apply takes only what is left, so neither the items
+        nor the floor itself say how much was taken; the ledger does, for the
+        organization credit and for each project allocation's own floor. A
+        clear's rollback is dated to the same month and nets out here.
+        """
+        self._restored = True
+        if not self.credit or not self.invoice:
+            return
+        rows = models.CreditTransaction.objects.filter(
+            billing_period=self.billing_period,
+            transaction_type__in=self._MONTH_DRAW_TYPES,
+        )
+        customer_net = rows.filter(credit=self.credit).aggregate(total=Sum("amount"))[
+            "total"
+        ]
+        self._customer_restored_draw = max(
+            decimal.Decimal(0), -decimal.Decimal(customer_net or 0)
+        )
+        self.credit.value += self._customer_restored_draw
+        self._project_restored_draws = {
+            row["project_credit__project_id"]: max(
+                decimal.Decimal(0), -decimal.Decimal(row["total"] or 0)
+            )
+            for row in rows.filter(project_credit__project__customer=self.customer)
+            .values("project_credit__project_id")
+            .annotate(total=Sum("amount"))
+        }
+
+    @property
+    def customer_restored_draw(self) -> decimal.Decimal:
+        """What `restore_written` added back to the organization credit."""
+        self.calculate_current_compensations()
+        return self._customer_restored_draw
+
+    def get_project_restored_draw(self, project) -> decimal.Decimal:
+        """What `restore_written` added back to `project`'s allocation."""
+        self.calculate_current_compensations()
+        return self._project_restored_draws.get(project.id, decimal.Decimal(0))
+
+    @property
+    def customer_usage_draw(self) -> decimal.Decimal:
+        """What usage takes off the organization credit this month.
+
+        Usage only: the minimal-consumption tail is left out. It is in balance
+        units, so the last partial draw of an exhausted credit counts in full
+        rather than net of tax as its compensation item does.
+        """
+        self.calculate_current_compensations()
+        return self._customer_usage_draw
+
+    def get_project_usage_draw(self, project) -> decimal.Decimal:
+        """What usage takes off `project`'s allocation this month; see
+        `customer_usage_draw`."""
+        self.calculate_current_compensations()
+        return sum(
+            (
+                draw
+                for project_credit, draw in self._project_usage_draws.items()
+                if project_credit.project_id == project.id
+            ),
+            decimal.Decimal(0),
+        )
+
     @property
     def billing_period(self) -> datetime.date | None:
         """First day of the month under compensation.
@@ -347,6 +445,11 @@ class MonthlyCompensation:
 
     @transaction.atomic
     def save(self):
+        if self._restore_written:
+            # Its in-memory balances include draws that are already written;
+            # saving them would hand that credit back.
+            raise RuntimeError("A restore_written simulation is read-only.")
+
         if not self.credit:
             return
 

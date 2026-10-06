@@ -303,7 +303,12 @@ class EstimatedCostPolicySerializer(
         customer = getattr(instance.scope, "customer", instance.scope)
         cache = self.context.setdefault("_monthly_compensations", {})
         if customer.id not in cache:
-            cache[customer.id] = invoices_compensations.MonthlyCompensation(customer)
+            # Restored, as the policy's own simulation is (see
+            # `EstimatedCostPolicyMixin._live_balance`), so the figures served
+            # here match what `is_triggered` evaluates.
+            cache[customer.id] = invoices_compensations.MonthlyCompensation(
+                customer, restore_written=True
+            )
         return cache[customer.id]
 
 
