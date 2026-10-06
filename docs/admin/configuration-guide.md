@@ -3613,6 +3613,14 @@ Enable periodic history export of Matrix rooms.
 
 Include media files when exporting Matrix room history.
 
+#### MATRIX_HISTORY_EXPORT_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Days to keep Matrix room history exports, files included, before they are deleted. Each room's newest completed export is kept regardless of age. Set to 0 or less to keep them forever.
+
 #### MATRIX_USER_REGISTRATION_SECRET
 
 **Type:** secret_field

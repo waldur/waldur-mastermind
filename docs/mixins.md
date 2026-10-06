@@ -133,7 +133,10 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`TenantQuotaMixin`](#tenantquotamixin) | `waldur_openstack.models` | It allows to update both service settings and shared tenant quotas |
 | [`LimitedPerTypeThrottleMixin`](#limitedpertypethrottlemixin) | `waldur_openstack.tasks` | No description available |
 | [`TenantMixin`](#tenantmixin) | `waldur_openstack.tests.factories` | No description available |
+| [`SharedSubnetMixin`](#sharedsubnetmixin) | `waldur_openstack.tests.test_rbac_shared_subnet_actions` | No description available |
+| [`UnmanagedOwnerShareMixin`](#unmanagedownersharemixin) | `waldur_openstack.tests.test_unmanaged_owner_share` | No description available |
 | [`LBaaSAuditMixin`](#lbaasauditmixin) | `waldur_openstack.views` | Emit lifecycle audit events for LBaaS resources on create/update/delete |
+| [`UnmanagedOwnerReadOnlyMixin`](#unmanagedownerreadonlymixin) | `waldur_openstack.views` | Refuse write actions on a tenant Waldur does not manage, and on its networks |
 | [`DataciteMixin`](#datacitemixin) | `waldur_pid.mixins` | A marker model for models that can be registered with PIDs and referred to in... |
 | [`RoleMixin`](#rolemixin) | `waldur_rancher.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`SettingsMixin`](#settingsmixin) | `waldur_rancher.models` | Make subclasses preserve the alters_data attribute on overridden methods |
@@ -1790,6 +1793,18 @@ It allows to update both service settings and shared tenant quotas.
 
 **Description:** No description available.
 
+### SharedSubnetMixin
+
+**Module:** `waldur_openstack.tests.test_rbac_shared_subnet_actions`
+
+**Description:** No description available.
+
+### UnmanagedOwnerShareMixin
+
+**Module:** `waldur_openstack.tests.test_unmanaged_owner_share`
+
+**Description:** No description available.
+
 ### LBaaSAuditMixin
 
 **Module:** `waldur_openstack.views`
@@ -1801,6 +1816,18 @@ Emit lifecycle audit events for LBaaS resources on create/update/delete.
 Designed to be mixed into ViewSets that also use ExecutorMixin. The events
 fire from the API request thread, so they carry actor context (user, IP,
 request id) auto-attached by CaptureEventContextMiddleware.
+
+### UnmanagedOwnerReadOnlyMixin
+
+**Module:** `waldur_openstack.views`
+
+**Description:**
+
+Refuse write actions on a tenant Waldur does not manage, and on its networks.
+
+Such a tenant is an OpenStack project that only shares networks with
+managed tenants. Waldur holds no credentials for it, and the project and its
+networks are not Waldur's to change, so it is only ever read.
 
 ### DataciteMixin
 

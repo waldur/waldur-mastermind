@@ -967,7 +967,7 @@ Sent to users to notify them about their upcoming bookings.
 
 ### invoices.notification
 
-Sent to organization owners with a new invoice. Includes the invoice as an HTML attachment.
+Sent to organization owners with a new invoice. Includes the invoice as a PDF attachment.
 
 #### Templates
 
@@ -975,7 +975,7 @@ Sent to organization owners with a new invoice. Includes the invoice as an HTML 
 
 ```txt
 
-    {{ customer }}'s invoice for {{ month }}/{{ year }}
+    Invoice for {{ customer }}, {{ month }}/{{ year }}
 
 ```
 
@@ -983,9 +983,9 @@ Sent to organization owners with a new invoice. Includes the invoice as an HTML 
 
 ```txt
 
-    Hello,
+    Hi,
 
-    Please follow the link below to see {{ customer }}'s accounting information for {{ month }}/{{ year }}:
+    Here is the {{ month }}/{{ year }} invoice for {{ customer }}.{% if attached %} It is attached as a PDF, and you can also view it online:{% else %} You can view it online:{% endif %}
     {{ link }}
 
 ```
@@ -997,14 +997,15 @@ Sent to organization owners with a new invoice. Includes the invoice as an HTML 
     <html xmlns="http://www.w3.org/1999/html">
     <head lang="en">
         <meta charset="UTF-8">
-        <title>{{ customer }}'s invoice for {{ month }}/{{ year }}</title>
+        <title>Invoice for {{ customer }}, {{ month }}/{{ year }}</title>
     </head>
     <body>
     <p>
-        Dear Sir or Madam,
+        Hi,
     </p>
     <p>
-        Attached is invoice for services consumed by {{ customer }}'s during {{ month }}/{{ year }}.
+        Here is the {{ month }}/{{ year }} invoice for {{ customer }}.
+        {% if attached %}It is attached as a PDF, and you can also <a href="{{ link }}">view it online</a>.{% else %}You can <a href="{{ link }}">view it online</a>.{% endif %}
     </p>
     </body>
     </html>

@@ -309,10 +309,17 @@
 ## Proposal
 
 - proposal_canceled
+- proposal_decision_reopened
 - proposal_document_added
 - proposal_document_removed
 - proposal_draft_carried_over
+- proposal_rejected_at_round_completion
 - proposal_workflow_advanced
+- round_closed
+- round_decision_started
+- round_evaluation_started
+- round_results_published
+- round_undecided_proposals_rejected
 
 ## Providers
 

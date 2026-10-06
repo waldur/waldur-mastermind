@@ -600,11 +600,14 @@ td:nth-child(4) {
 | `offering_component_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Log offering component creation and updates. |
 | `offering_component_has_been_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingComponent` | Log offering component deletion. |
 | `offering_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Offering` | Log offering creation and updates. |
+| `on_history_export_deleted` | `Django Signal (post_delete)` | `matrix_chat.MatrixHistoryExport` | No description |
 | `on_order_state_changed` | `Django Signal (post_save)` | `marketplace.Order` | Notify the project's Matrix room when an order is approved, completed, or rejected. |
 | `on_project_created` | `Django Signal (post_save)` | `structure.Project` | Provision a Matrix room for a newly created project, when opted in. |
 | `on_project_pre_delete` | `Django Signal (pre_delete)` | `structure.Project` | When a project is about to be deleted, disable room (kick members, export, archive). |
-| `on_user_deactivated` | `Django Signal (post_save)` | `core.User` | End the user's web chat sessions so an open drawer loses access. |
-| `on_user_pre_delete` | `Django Signal (pre_delete)` | `core.User` | End a deleted user's web chat sessions. |
+| `on_user_deactivated` | `Django Signal (post_save)` | `core.User` | Sign out every Matrix device of a deactivated user and remove them from their rooms. |
+| `on_user_demoted` | `Django Signal (post_save)` | `core.User` | Take former staff and support out of the rooms they joined with the |
+| `on_user_pre_delete` | `Django Signal (pre_delete)` | `core.User` | End a deleted user's Matrix sessions and room memberships. |
+| `on_user_reactivated` | `Django Signal (post_save)` | `core.User` | Bring a reactivated user back into the rooms deactivation removed them from. |
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
 | `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
@@ -623,6 +626,7 @@ td:nth-child(4) {
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.CustomerCredit` | Write ledger rows for every credit value change, organization or project. |
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.ProjectCredit` | Write ledger rows for every credit value change, organization or project. |
 | `refund_project_credit_on_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
+| `release_grace_pauses_when_project_end_date_changes` | `Django Signal (post_save)` | `structure.Project` | Lift grace-period pauses once a project's end date moves it out of the grace period. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.ServiceProviderAccount` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.RobotAccount` | Mark the deleted POSIX id consumer's identity as released. |
@@ -772,6 +776,7 @@ td:nth-child(4) {
 |--------------|-------------|--------|-------------|
 | `add_instance_fields` | `Custom Signal (pre_serializer_fields)` | `OpenStackFloatingIPSerializer` | Add instance-related fields to the serializer. |
 | `delete_state_service_properties` | `Django Signal (post_delete)` | `openstack.Tenant` | Delete state service properties. |
+| `drop_networks_of_unmanaged_owner_when_unshared` | `Django Signal (post_delete)` | `openstack.NetworkRBACPolicy` | Sweep an unmanaged owner's networks once a share of theirs is gone. |
 | `log_action` | `Django Signal (post_save)` | `openstack.Instance` | Log any resource action. |
 | `log_action` | `Django Signal (post_save)` | `openstack.Volume` | Log any resource action. |
 | `log_action` | `Django Signal (post_save)` | `openstack.Snapshot` | Log any resource action. |
@@ -827,16 +832,16 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 748
+Total unique handlers found: 753
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 343 handlers
+- **waldur_mastermind**: 347 handlers
 - **waldur_openportal**: 10 handlers
-- **waldur_openstack**: 13 handlers
+- **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers
 - **waldur_rancher**: 12 handlers
 - **waldur_sram**: 6 handlers

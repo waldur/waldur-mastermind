@@ -1345,128 +1345,10 @@ Waldur accounting report for {{ month }}/{{ year }}
 
 ```txt
 
-Hello,
+Hi,
 
-Please follow the link below to see {{ customer }}'s accounting information for {{ month }}/{{ year }}:
+Here is the {{ month }}/{{ year }} invoice for {{ customer }}.{% if attached %} It is attached as a PDF, and you can also view it online:{% else %} You can view it online:{% endif %}
 {{ link }}
-
-```
-
-### invoice.html (waldur_mastermind.invoices)
-
-```html
-
-{% load i18n %}
-{% load humanize %}
-
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title>Invoice</title>
-    <style type="text/css">
-      {% include "waldur_core/font.css" %}
-      {% include "./style.css" %}
-    </style>
-  </head>
-  <body>
-      <h1>{% trans "Invoice No." %} {{ invoice.number|upper }}</h1>
-      <br>
-      <div class="text-right">
-          <strong>{% trans "Invoice date" %}:</strong> {% if invoice.invoice_date %}
-        {{ invoice.invoice_date|date:"Y-m-d" }} {% else %} {% trans "Pending" %} {% endif %}<br/>
-          {% if invoice.due_date %}<strong>{% trans "Due date" %}:</strong> {{ invoice.due_date|date:"Y-m-d" }}<br/>{% endif %}
-          <strong>{% trans "Invoice period" %}:</strong> {{ invoice.year }}-{{ invoice.month }}<br/>
-      </div>
-
-      <div>
-        <h3 class="name">From</h3>
-        <div><strong>{{ issuer_details.company }}</strong></div>
-        <div>{{ issuer_details.address }}</div>
-        <div>{{ issuer_details.country }}, {{ issuer_details.postal }}</div>
-        <div><abbr>P:</abbr> ({{ issuer_details.phone.country_code }}) {{ issuer_details.phone.national_number }}</div>
-        <div>{{ issuer_details.bank }}, {{ issuer_details.account }}</div>
-        <div><abbr>{% trans "VAT" %}:</abbr>{{ issuer_details.vat_code }}</div>
-        <div>{{ issuer_details.email }}</div>
-      </div>
-      <div>
-        <h3 class="name">To</h3>
-        <div><strong>{{ invoice.customer.name }}</strong></div>
-
-        {% if invoice.customer.address %}
-          <div>{{ invoice.customer.address }}</div>
-        {% endif %}
-
-        {% if invoice.customer.country and invoice.customer.postal %}
-          <div>{{ invoice.customer.country }}, {{ invoice.customer.postal }}</div>
-        {% endif %}
-
-        {% if invoice.customer.phone_number %}
-          <div><abbr>P:</abbr> {{ invoice.customer.phone_number }}</div>
-        {% endif %}
-
-        {% if invoice.customer.bank_name and invoice.customer.bank_account %}
-          <div>{{ invoice.customer.bank_name }}, {{ invoice.customer.bank_account }}</div>
-        {% endif %}
-
-        {% if customer.vat_code %}
-          <div><abbr>{% trans "VAT" %}:</abbr> {{ customer.vat_code }}</div>
-        {% endif %}
-
-        <div>{{ invoice.customer.email }}</div>
-
-      </div>
-      <div class="m-t">
-        <table class="invoice-table">
-          <tr>
-            <th>Item</th>
-            <th>Quantity</th>
-            <th>Unit price</th>
-            <th>Total price</th>
-          </tr>
-
-          {% regroup items|dictsort:"project_name" by project_name as project_list %}
-          {% for project in project_list %}
-          <tr>
-              <td colspan="4"><h3>{{ project.grouper }}</h3></td>
-          </tr>
-            {% for item in project.list %}
-              <tr>
-                <td>
-                  <strong>{{ item.name }}</strong>
-                  <div>
-                    <small>
-                      {% trans "Start time" %}: {{ item.start | date:"Y-m-d H:i" }}.
-                      {% trans "End time" %}: {{ item.end | date:"Y-m-d H:i" }}.
-                    </small>
-                  </div>
-                </td>
-                <td>{{ item.quantity }}</td>
-                <td>{{ currency }} {{ item.unit_price | floatformat:2 | intcomma }}</td>
-                <td>{{ currency }} {{ item.total | floatformat:2 | intcomma }}</td>
-              </tr>
-            {% endfor %}
-          {% endfor %}
-        </table>
-      </div>
-      <table class="m-t invoice-total">
-        <tr>
-          <td><strong>{% trans "Subtotal" %}</strong></td>
-          <td>{{ currency }} {{ invoice.price | floatformat:2 | intcomma}}</td>
-        </tr>
-        {% if invoice.tax %}
-          <tr>
-            <td><strong>{% trans "VAT" %}</strong></td>
-            <td>{{ currency }} {{ invoice.tax | floatformat:2 | intcomma}}</td>
-          </tr>
-        {% endif %}
-        <tr>
-          <td><strong>{% trans "TOTAL" %}</strong></td>
-          <td>{{ currency }} {{ invoice.total | floatformat:2 | intcomma}}</td>
-      </tr>
-      </table>
-  </body>
-</html>
 
 ```
 
@@ -1474,7 +1356,7 @@ Please follow the link below to see {{ customer }}'s accounting information for 
 
 ```txt
 
-{{ customer }}'s invoice for {{ month }}/{{ year }}
+Invoice for {{ customer }}, {{ month }}/{{ year }}
 
 ```
 
@@ -1575,14 +1457,15 @@ Please follow the link below to see {{ customer }}'s accounting information for 
 <html xmlns="http://www.w3.org/1999/html">
 <head lang="en">
     <meta charset="UTF-8">
-    <title>{{ customer }}'s invoice for {{ month }}/{{ year }}</title>
+    <title>Invoice for {{ customer }}, {{ month }}/{{ year }}</title>
 </head>
 <body>
 <p>
-    Dear Sir or Madam,
+    Hi,
 </p>
 <p>
-    Attached is invoice for services consumed by {{ customer }}'s during {{ month }}/{{ year }}.
+    Here is the {{ month }}/{{ year }} invoice for {{ customer }}.
+    {% if attached %}It is attached as a PDF, and you can also <a href="{{ link }}">view it online</a>.{% else %}You can <a href="{{ link }}">view it online</a>.{% endif %}
 </p>
 </body>
 </html>
