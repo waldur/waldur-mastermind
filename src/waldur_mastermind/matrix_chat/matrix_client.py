@@ -12,6 +12,7 @@ from urllib.parse import quote
 import httpx
 from constance import config
 from django.conf import settings
+from django.utils import timezone
 from markdown_it import MarkdownIt
 
 from waldur_core.core.clean_html import clean_html
@@ -1230,6 +1231,15 @@ def _homeserver_call(method, path, token, **kwargs):
         raise MatrixClientError(f"Homeserver unreachable: {e}") from e
 
 
+def is_homeserver_reachable():
+    """Whether the homeserver responds at all."""
+    try:
+        response = _homeserver_call("GET", "/_matrix/client/versions", _get_as_token())
+    except MatrixClientError:
+        return False
+    return response.status_code == 200
+
+
 def _json_body(response):
     try:
         return response.json()
@@ -1239,7 +1249,9 @@ def _json_body(response):
         ) from e
 
 
-def _appservice_login(matrix_user_id, device_id, refresh_token=False):
+def _appservice_login(
+    matrix_user_id, device_id, refresh_token=False, display_name=None
+):
     # Whatever ID reached here, a login as the bot would hand out its power
     # level in every Waldur room.
     if matrix_user_id == get_bot_user_id():
@@ -1251,7 +1263,8 @@ def _appservice_login(matrix_user_id, device_id, refresh_token=False):
     }
     if refresh_token:
         body["refresh_token"] = True
-        body["initial_device_display_name"] = f"{config.SITE_NAME} web chat"
+    if display_name:
+        body["initial_device_display_name"] = display_name
     response = _homeserver_call(
         "POST", "/_matrix/client/v3/login", _get_as_token(), json=body
     )
@@ -1266,6 +1279,40 @@ def _appservice_login(matrix_user_id, device_id, refresh_token=False):
     return data
 
 
+# The daily prune only asks the homeserver about users who may still have a web
+# device. Waldur marks a user whenever it creates one for them, and the prune
+# unmarks them once none is left.
+
+
+def mark_web_session(matrix_user_id):
+    """Mark the user as having a web device. Call once the device exists, so a
+    prune that unmarks the user before this write has already seen it."""
+    MatrixUserProfile.objects.filter(matrix_user_id=matrix_user_id).update(
+        last_web_session_at=timezone.now()
+    )
+
+
+def get_web_session_mark(matrix_user_id):
+    return (
+        MatrixUserProfile.objects.filter(matrix_user_id=matrix_user_id)
+        .values_list("last_web_session_at", flat=True)
+        .first()
+    )
+
+
+def clear_web_session_mark(matrix_user_id, marked_at):
+    """Unmark the user, unless the mark has changed since it read `marked_at`.
+
+    A session started meanwhile has set a newer mark, and its device must keep
+    the user marked. Read `marked_at` before listing the devices.
+    """
+    if marked_at is None:
+        return
+    MatrixUserProfile.objects.filter(
+        matrix_user_id=matrix_user_id, last_web_session_at=marked_at
+    ).update(last_web_session_at=None)
+
+
 def create_web_session(matrix_user_id):
     """Sign the user in on a new web device and return its tokens.
 
@@ -1274,13 +1321,55 @@ def create_web_session(matrix_user_id):
     homeserver without refresh support returns neither expiry nor refresh token.
     """
     device_id = WEB_DEVICE_PREFIX + secrets.token_hex(6).upper()
-    data = _appservice_login(matrix_user_id, device_id, refresh_token=True)
+    data = _appservice_login(
+        matrix_user_id,
+        device_id,
+        refresh_token=True,
+        display_name=f"{config.SITE_NAME} web chat",
+    )
+    mark_web_session(matrix_user_id)
     return {
         "device_id": data.get("device_id", device_id),
         "access_token": data["access_token"],
         "refresh_token": data.get("refresh_token"),
         "expires_in_ms": data.get("expires_in_ms"),
     }
+
+
+# A web device, so pruning and deactivation remove it if signing it out fails.
+DIAGNOSTICS_DEVICE_ID = WEB_DEVICE_PREFIX + "DIAGNOSTICS"
+
+
+def probe_web_token_lifetime(matrix_user_id):
+    """Milliseconds a chat drawer access token lives on the homeserver, None if
+    it never expires. Signs in like the drawer on a throwaway device, then signs
+    it out again."""
+    data = _appservice_login(matrix_user_id, DIAGNOSTICS_DEVICE_ID, refresh_token=True)
+    mark_web_session(matrix_user_id)
+    lifetime_ms = data.get("expires_in_ms")
+    # The measurement stands whatever the logout does; the device is left to
+    # pruning.
+    try:
+        response = _homeserver_call(
+            "POST", "/_matrix/client/v3/logout", data["access_token"], json={}
+        )
+    except MatrixClientError as e:
+        logger.warning(
+            "Failed to sign out %s of %s: %s",
+            DIAGNOSTICS_DEVICE_ID,
+            matrix_user_id,
+            e,
+        )
+    else:
+        if response.status_code != 200:
+            logger.warning(
+                "Failed to sign out %s of %s: %s %s",
+                DIAGNOSTICS_DEVICE_ID,
+                matrix_user_id,
+                response.status_code,
+                response.text,
+            )
+    return lifetime_ms
 
 
 def list_devices(matrix_user_id):
@@ -1298,13 +1387,27 @@ def list_devices(matrix_user_id):
     return _json_body(response).get("devices", [])
 
 
+def list_web_devices(matrix_user_id):
+    """The user's devices that Waldur's web chat signed in on. Element and other
+    clients the user signed in to are left out."""
+    return [
+        device
+        for device in list_devices(matrix_user_id)
+        if device["device_id"].startswith(WEB_DEVICE_PREFIX)
+    ]
+
+
 def logout_device(matrix_user_id, device_id):
     """Remove a device and every token on it.
 
     The appservice cannot delete a device without user-interactive auth, but a
     token issued on the device can log it out, which removes the device.
     """
-    token = _appservice_login(matrix_user_id, device_id)["access_token"]
+    # With a refresh token the helper token expires on the homeserver's
+    # access_token_ttl, so a failed /logout does not leave it valid for good.
+    token = _appservice_login(matrix_user_id, device_id, refresh_token=True)[
+        "access_token"
+    ]
     response = _homeserver_call("POST", "/_matrix/client/v3/logout", token, json={})
     if response.status_code != 200:
         raise MatrixClientError(

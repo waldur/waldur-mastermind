@@ -985,7 +985,11 @@ class DeviceManagementTest(TestCase):
 
         login_body = json.loads(login.calls.last.request.content)
         self.assertEqual(login_body["device_id"], "WALDUR_WEB_A")
-        self.assertNotIn("refresh_token", login_body)
+        # Expires on the homeserver's access_token_ttl should /logout fail; it
+        # replaces the device's own refresh token, which is going anyway.
+        self.assertTrue(login_body["refresh_token"])
+        # The device keeps its name: it may be someone's Element session.
+        self.assertNotIn("initial_device_display_name", login_body)
         self.assertEqual(
             logout.calls.last.request.headers["Authorization"], "Bearer kill"
         )

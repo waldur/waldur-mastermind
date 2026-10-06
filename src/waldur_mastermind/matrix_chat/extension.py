@@ -32,6 +32,11 @@ class MatrixChatExtension(WaldurExtension):
                 "schedule": crontab(minute=0, hour=2),
                 "args": (),
             },
+            "waldur-matrix-chat-prune-web-devices": {
+                "task": "waldur_mastermind.matrix_chat.prune_all_web_devices",
+                "schedule": crontab(minute=45, hour=3),
+                "args": (),
+            },
             "waldur-matrix-chat-cleanup-appservice-transactions": {
                 "task": "waldur_mastermind.matrix_chat.cleanup_old_appservice_transactions",
                 "schedule": crontab(minute=15, hour=3),

@@ -938,8 +938,8 @@ class CleanupAppserviceTransactionsTest(TestCase):
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
 class PruneWebDevicesTaskTest(TestCase):
     def test_logs_out_stale_web_devices(self, mock_client):
-        mock_client.is_enabled.return_value = True
-        mock_client.list_devices.return_value = [{"device_id": "WALDUR_WEB_A"}]
+        mock_client.is_homeserver_configured.return_value = True
+        mock_client.list_web_devices.return_value = [{"device_id": "WALDUR_WEB_A"}]
         mock_client.stale_web_devices.return_value = ["WALDUR_WEB_A", "WALDUR_WEB_B"]
 
         tasks.prune_web_devices("@alice:matrix.example.com", "WALDUR_WEB_NEW")
@@ -957,7 +957,7 @@ class PruneWebDevicesTaskTest(TestCase):
         )
 
     def test_one_failed_logout_does_not_stop_the_rest(self, mock_client):
-        mock_client.is_enabled.return_value = True
+        mock_client.is_homeserver_configured.return_value = True
         mock_client.stale_web_devices.return_value = ["WALDUR_WEB_A", "WALDUR_WEB_B"]
         mock_client.logout_device.side_effect = [RuntimeError("boom"), None]
 
@@ -965,12 +965,23 @@ class PruneWebDevicesTaskTest(TestCase):
 
         self.assertEqual(mock_client.logout_device.call_count, 2)
 
-    def test_skips_when_disabled(self, mock_client):
+    def test_runs_while_chat_is_switched_off(self, mock_client):
         mock_client.is_enabled.return_value = False
+        mock_client.is_homeserver_configured.return_value = True
+        mock_client.stale_web_devices.return_value = ["WALDUR_WEB_A"]
 
         tasks.prune_web_devices("@alice:matrix.example.com")
 
-        mock_client.list_devices.assert_not_called()
+        mock_client.logout_device.assert_called_once_with(
+            "@alice:matrix.example.com", "WALDUR_WEB_A"
+        )
+
+    def test_skips_without_a_homeserver(self, mock_client):
+        mock_client.is_homeserver_configured.return_value = False
+
+        tasks.prune_web_devices("@alice:matrix.example.com")
+
+        mock_client.list_web_devices.assert_not_called()
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
