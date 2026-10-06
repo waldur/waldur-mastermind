@@ -6,11 +6,17 @@ from django.db import transaction
 from django_fsm import TransitionNotAllowed
 
 from waldur_core.permissions.models import UserRole
-from waldur_core.structure.models import Project
+from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.enums import OrderStates
 
 from . import matrix_client, room_provisioning, tasks
-from .models import MatrixRoom, MatrixUserProfile, RoomStates
+from .models import (
+    MatrixRoom,
+    MatrixUserProfile,
+    RoomStates,
+    get_customer_roles_in_project_rooms,
+    has_room_role,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +47,34 @@ def _format_role_name(role):
 
 
 def on_role_granted(sender, instance: UserRole, **kwargs):
-    """When a role is granted, invite the user to the project's Matrix room."""
+    """When a role is granted, invite the user to the rooms it gives access to."""
     if not matrix_client.is_enabled():
         return
 
     scope = instance.scope
+    if isinstance(scope, Customer):
+        # The same rule as member sync, which only runs on demand; without
+        # this the user stays out of each room until someone syncs it.
+        if (
+            not get_customer_roles_in_project_rooms(scope)
+            .filter(pk=instance.pk)
+            .exists()
+        ):
+            return
+        rooms = MatrixRoom.objects.filter(
+            content_type=ContentType.objects.get_for_model(Project),
+            object_id__in=Project.objects.filter(customer=scope).values("id"),
+            state=RoomStates.ACTIVE,
+        )
+        room_uuids = [str(room.uuid) for room in rooms]
+        user_uuid = str(instance.user.uuid)
+
+        def _invite():
+            for room_uuid in room_uuids:
+                tasks.invite_user_to_room.delay(room_uuid, user_uuid)
+
+        transaction.on_commit(_invite)
+        return
     if not isinstance(scope, Project):
         return
 
@@ -92,21 +121,9 @@ def on_role_revoked(sender, instance: UserRole, **kwargs):
         f"{full_name} has lost the {role_name} role.",
     )
 
-    # Check if user has any remaining active roles in this project
-    has_project_roles = UserRole.objects.filter(
-        user=user,
-        scope=scope,
-        is_active=True,
-    ).exists()
-
-    # Check if user has customer-level roles (which also grant project access)
-    has_customer_roles = UserRole.objects.filter(
-        user=user,
-        scope=scope.customer,
-        is_active=True,
-    ).exists()
-
-    if has_project_roles or has_customer_roles:
+    # A remaining role keeps the user in only if member sync would put them
+    # in for it; otherwise the next sync would kick them anyway.
+    if has_room_role(user, room):
         return
 
     room_uuid = str(room.uuid)
