@@ -11607,6 +11607,9 @@ class ServiceProviderProjectGroupSerializer(
     customer_name = serializers.CharField(
         source="project.customer.name", read_only=True, allow_null=True
     )
+    customer_slug = serializers.CharField(
+        source="project.customer.slug", read_only=True, allow_null=True
+    )
     in_use = serializers.SerializerMethodField(
         help_text=_(
             "The project has a non-terminated resource on an offering of the "
@@ -11640,6 +11643,7 @@ class ServiceProviderProjectGroupSerializer(
             "project_slug",
             "customer_uuid",
             "customer_name",
+            "customer_slug",
             "offerings",
             "members",
             "created",

@@ -457,6 +457,7 @@ class ListTest(ProjectGroupsTestCase):
         self.assertEqual(item["project_slug"], self.project.slug)
         self.assertEqual(str(item["customer_uuid"]), self.project.customer.uuid.hex)
         self.assertEqual(item["customer_name"], self.project.customer.name)
+        self.assertEqual(item["customer_slug"], self.project.customer.slug)
         self.assertEqual(
             item["offerings"],
             [{"uuid": self.offering.uuid.hex, "name": self.offering.name}],
@@ -464,6 +465,14 @@ class ListTest(ProjectGroupsTestCase):
         self.assertIn("url", item)
         self.assertIn("created", item)
         self.assertIn("modified", item)
+
+    def test_a_group_whose_project_is_gone_has_no_organization(self):
+        models.ServiceProviderProjectGroup.objects.create(
+            service_provider=self.provider, project=None, name="orphan", gid=20150
+        )
+        [item] = self.list_groups()
+        self.assertIsNone(item["customer_uuid"])
+        self.assertIsNone(item["customer_slug"])
 
     def test_members_are_the_live_provider_accounts_of_project_members(self):
         self.make_resource()
