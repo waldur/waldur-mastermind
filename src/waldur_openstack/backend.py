@@ -31,6 +31,7 @@ from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.logging import event_logger
 from waldur_core.logging.diff import compute_collection_diff
 from waldur_core.logging.enums import EventType
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.backend import ServiceBackend, log_backend_action
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.registry import get_resource_type
@@ -65,7 +66,11 @@ from waldur_openstack.session import (
     get_placement_client,
     get_verify_ssl,
 )
-from waldur_openstack.utils import get_external_network_id, is_valid_volume_type_name
+from waldur_openstack.utils import (
+    drop_unshared_networks_of_unmanaged_owners,
+    get_external_network_id,
+    is_valid_volume_type_name,
+)
 
 from . import audit, models, signals
 
@@ -77,6 +82,13 @@ def parse_comma_separated_list(value):
 
 
 def get_tenant_session(tenant: models.Tenant):
+    if not tenant.is_managed:
+        # Without this the call goes out with blank credentials and comes back
+        # as a 401 that reads like a broken password rather than a misuse.
+        raise OpenStackBackendError(
+            f"Tenant {tenant.name} is not managed by Waldur, so there are no "
+            "credentials to open a session for it."
+        )
     return get_keystone_session(tenant.service_settings, tenant)
 
 
@@ -1789,22 +1801,28 @@ class OpenStackBackend(ServiceBackend):
 
     def pull_tenant_networks(self, tenant: models.Tenant):
         """
-        Synchronize networks visible to a tenant, handling RBAC shared networks.
+        Synchronize the networks a tenant owns.
 
-        For RBAC environments, this method correctly identifies the true owner
-        of each network using the tenant_id from the OpenStack API response,
-        preventing incorrect ownership assignment and cyclic deletion issues.
+        The listing is an admin call filtered by project, and Neutron applies
+        that filter to the owner column only: RBAC visibility is added for
+        project-scoped tokens, never for admin. So networks shared *with* the
+        tenant do not come back here; they are found from their RBAC policies
+        in `pull_tenant_network_rbac_policies`.
+
+        Each network is still assigned to the owner its `tenant_id` names,
+        rather than to the tenant being pulled. Against real Neutron the two are
+        the same; the lookup keeps a listing that does include shares (the
+        OpenStack emulator's does) from re-parenting them, and lets the owner's
+        pull repair a network that was assigned to the wrong tenant.
 
         Args:
             tenant: The tenant to synchronize networks for
 
         Returns:
-            List of networks visible to the tenant
+            List of networks returned by the listing
         """
         if not tenant.backend_id:
             return []
-        # list_networks for a specific tenant returns all networks *visible* to it,
-        # including its own and those shared with it via RBAC.
         backend_networks = self.list_networks(tenant.backend_id)
         visible_networks = []
 
@@ -1826,6 +1844,12 @@ class OpenStackBackend(ServiceBackend):
                         backend_network.get("id", "unknown"),
                         owner_tenant_backend_id,
                     )
+                    continue
+
+                if not owner_tenant.is_managed:
+                    # Such a network is imported, refreshed and dropped through
+                    # its share alone; taking it from here as well would import
+                    # what the owner shares with nobody in Waldur.
                     continue
 
                 imported_network = self._backend_network_to_network(
@@ -7308,13 +7332,29 @@ class OpenStackBackend(ServiceBackend):
                 "Deleted %d stale NetworkRBACPolicy objects", stale_incoming_count
             )
 
+        refreshed_network_ids = set()
         for backend_policy in incoming_policies:
             network = models.Network.objects.filter(
                 backend_id=backend_policy["object_id"]
             ).first()
 
             if not network:
+                if (
+                    backend_policy["action"]
+                    == models.NetworkRBACPolicy.NetworkShareType.SHARED
+                ):
+                    self._import_shared_network_of_unmanaged_owner(
+                        tenant, backend_policy
+                    )
                 continue
+
+            if (
+                not network.tenant.is_managed
+                and network.id not in refreshed_network_ids
+            ):
+                # Nothing else pulls a network whose owner Waldur does not manage.
+                self._pull_network_of_unmanaged_owner(network)
+                refreshed_network_ids.add(network.id)
 
             if network.tenant.service_settings != tenant.service_settings:
                 # Skip policies whose source tenant exists in other service
@@ -7355,6 +7395,8 @@ class OpenStackBackend(ServiceBackend):
                     network.name,
                     network.tenant.name,
                 )
+
+        drop_unshared_networks_of_unmanaged_owners(self.settings.id)
 
         # Process OUTGOING policies only if tenant has networks
         tenant_networks = tenant.networks.all()
@@ -7431,6 +7473,160 @@ class OpenStackBackend(ServiceBackend):
                     network.name,
                     target_tenant.name,
                 )
+
+    def _import_shared_network_of_unmanaged_owner(
+        self, consumer: models.Tenant, backend_policy: dict
+    ):
+        """Import a network shared with `consumer` by a project Waldur does not manage.
+
+        The listing that `pull_tenant_networks` relies on returns only the
+        networks a project owns -- Neutron applies RBAC visibility to
+        project-scoped tokens, never to an admin filter -- so a share is only
+        ever discovered here, from the policy. A share from a managed tenant is
+        left to that tenant's own pull, as before.
+        """
+        neutron = get_neutron_client(self.admin_session)
+        try:
+            backend_network = neutron.show_network(backend_policy["object_id"])[
+                "network"
+            ]
+        except neutron_exceptions.NotFound:
+            return
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        owner_backend_id = backend_network.get("project_id") or backend_network.get(
+            "tenant_id"
+        )
+        owner = models.Tenant.objects.filter(
+            service_settings=self.settings, backend_id=owner_backend_id
+        ).first()
+        if owner and owner.is_managed:
+            return
+
+        with transaction.atomic():
+            if not owner:
+                owner = self._create_unmanaged_owner(owner_backend_id)
+                if not owner:
+                    return
+
+            network = self._backend_network_to_network(
+                backend_network,
+                tenant=owner,
+                service_settings=self.settings,
+                project=owner.project,
+            )
+            network.save()
+            event_logger.emit(
+                "Network %s has been imported to local cache." % network.name,
+                event_type=EventType.OPENSTACK_NETWORK_IMPORTED,
+                event_context={"network": network},
+                scopes=[network, network.tenant],
+            )
+            self.pull_subnets(network=network)
+            # Created together with the network, so that another tenant's pull
+            # never sees it unshared and drops it again.
+            models.NetworkRBACPolicy.objects.update_or_create(
+                backend_id=backend_policy["id"],
+                defaults={
+                    "network": network,
+                    "target_tenant": consumer,
+                    "policy_type": backend_policy["action"],
+                },
+            )
+        logger.info(
+            "Imported network %s shared with tenant %s by unmanaged project %s.",
+            network.backend_id,
+            consumer.backend_id,
+            owner_backend_id,
+        )
+
+    def _create_unmanaged_owner(self, backend_id: str):
+        customer = self.settings.customer
+        if not customer:
+            logger.warning(
+                "Network shared by OpenStack project %s is skipped: service settings "
+                "%s have no organization to hold a project for it.",
+                backend_id,
+                self.settings,
+            )
+            return None
+
+        keystone = get_keystone_client(self.admin_session)
+        try:
+            name = keystone.projects.get(backend_id).name
+        except keystone_exceptions.ClientException:
+            name = backend_id
+
+        tenant, _created = models.Tenant.objects.get_or_create(
+            service_settings=self.settings,
+            backend_id=backend_id,
+            defaults={
+                "name": name[: core_models.NAME_LENGTH],
+                "description": _(
+                    "OpenStack project that shares networks with tenants in Waldur. "
+                    "It is not managed by Waldur."
+                ),
+                "project": self._get_unmanaged_owners_project(),
+                # Created directly in OK, so that nothing that reacts to a
+                # tenant finishing provisioning (marketplace offerings for its
+                # instances and volumes) runs for it.
+                "state": CoreStates.OK,
+                "is_managed": False,
+            },
+        )
+        return tenant
+
+    def _get_unmanaged_owners_project(self):
+        existing = (
+            models.Tenant.objects.filter(
+                service_settings=self.settings, is_managed=False
+            )
+            .select_related("project")
+            .first()
+        )
+        if existing:
+            return existing.project
+
+        name = f"{self.settings.name} provider networks"[
+            : structure_models.PROJECT_NAME_LENGTH
+        ]
+        project = structure_models.Project.available_objects.filter(
+            customer=self.settings.customer, name=name
+        ).first()
+        if project:
+            return project
+        return structure_models.Project.objects.create(
+            customer=self.settings.customer,
+            name=name,
+            description=_(
+                "Automatically created to hold the OpenStack projects that share "
+                "networks with tenants in Waldur but are not managed by Waldur."
+            ),
+        )
+
+    def _pull_network_of_unmanaged_owner(self, network: models.Network):
+        neutron = get_neutron_client(self.admin_session)
+        try:
+            backend_network = neutron.show_network(network.backend_id)["network"]
+        except neutron_exceptions.NotFound:
+            # Its policies go with it, and the sweep below then drops the row.
+            return
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        imported_network = self._backend_network_to_network(backend_network)
+        modified = update_pulled_fields(
+            network, imported_network, models.Network.get_backend_fields()
+        )
+        if modified:
+            event_logger.emit(
+                "Network %s has been pulled from backend." % network.name,
+                event_type=EventType.OPENSTACK_NETWORK_PULLED,
+                event_context={"network": network},
+                scopes=[network, network.tenant],
+            )
+        self.pull_subnets(network=network)
 
     @reraise_exceptions
     def create_network_rbac_policy(

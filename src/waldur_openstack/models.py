@@ -148,6 +148,15 @@ class Tenant(
         default=False,
         help_text=_("If True, default router will not be created for this tenant"),
     )
+    is_managed = models.BooleanField(
+        default=True,
+        help_text=_(
+            "False for an OpenStack project that Waldur does not manage but that "
+            "shares networks with managed tenants. Waldur only reads such a "
+            "project: it holds no credentials for it and never provisions, "
+            "pulls with tenant credentials, bills or deletes it."
+        ),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 

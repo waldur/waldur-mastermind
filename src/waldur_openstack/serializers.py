@@ -1414,10 +1414,12 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             "security_groups",
             "skip_creation_of_default_subnet",
             "skip_creation_of_default_router",
+            "is_managed",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
+                "is_managed",
                 "internal_network_id",
                 "external_network_id",
                 "external_network_ref_uuid",
@@ -2376,7 +2378,9 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
     target_tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
-        queryset=models.Tenant.objects.filter(state=CoreStates.OK).all(),
+        queryset=models.Tenant.objects.filter(
+            state=CoreStates.OK, is_managed=True
+        ).all(),
         write_only=True,
         required=False,
         help_text="Target tenant for shared network port creation. If not specified, defaults to network's tenant.",
@@ -2519,6 +2523,15 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
 
             attrs["tenant"] = target_tenant
             attrs["project"] = target_tenant.project
+        elif not network.tenant.is_managed:
+            raise serializers.ValidationError(
+                {
+                    "target_tenant": _(
+                        "The network belongs to an OpenStack project that Waldur "
+                        "does not manage. Choose the tenant the port is for."
+                    )
+                }
+            )
         else:
             attrs["tenant"] = network.tenant
 
@@ -2563,7 +2576,9 @@ class NetworkRBACPolicySerializer(
     target_tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
-        queryset=models.Tenant.objects.filter(state=CoreStates.OK).all(),
+        queryset=models.Tenant.objects.filter(
+            state=CoreStates.OK, is_managed=True
+        ).all(),
     )
     url = serializers.HyperlinkedIdentityField(
         view_name="openstack-network-rbac-policy-detail", lookup_field="uuid"
@@ -2643,6 +2658,16 @@ class NetworkRBACPolicySerializer(
         if not network or not target_tenant:
             return attrs
 
+        if not network.tenant.is_managed:
+            raise serializers.ValidationError(
+                {
+                    "network": _(
+                        "The network belongs to an OpenStack project that Waldur "
+                        "does not manage, so it can only be shared in OpenStack."
+                    )
+                }
+            )
+
         if target_tenant.service_settings != network.tenant.service_settings:
             # Neutron will not catch this for us: target_tenant is an opaque
             # string to it, and a real deployment answers 201 for a project id
@@ -2686,6 +2711,14 @@ class OpenStackNetworkSerializer(
     subnets = OpenStackNestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
+    tenant_is_managed = serializers.BooleanField(
+        source="tenant.is_managed",
+        read_only=True,
+        help_text=_(
+            "False when the network belongs to an OpenStack project that Waldur "
+            "does not manage and only reaches tenants through an RBAC share."
+        ),
+    )
     rbac_policies = NetworkRBACPolicySerializer(many=True, read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -2694,6 +2727,7 @@ class OpenStackNetworkSerializer(
             "tenant",
             "tenant_name",
             "tenant_uuid",
+            "tenant_is_managed",
             "is_external",
             "type",
             "segmentation_id",
@@ -3300,7 +3334,9 @@ class OpenStackCreatePortSerializer(serializers.HyperlinkedModelSerializer):
     tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
-        queryset=models.Tenant.objects.filter(state=CoreStates.OK).all(),
+        queryset=models.Tenant.objects.filter(
+            state=CoreStates.OK, is_managed=True
+        ).all(),
         write_only=True,
         required=False,
         help_text="Target tenant for port creation. If not specified, uses subnet's tenant.",
@@ -4424,7 +4460,7 @@ class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
     tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
-        queryset=models.Tenant.objects.all(),
+        queryset=models.Tenant.objects.filter(is_managed=True),
     )
     service_settings = serializers.HyperlinkedRelatedField(
         read_only=True,
@@ -5197,11 +5233,15 @@ def _connect_floating_ip_to_instance(
             gettext("Service provider does not have valid value of external_network_id")
         )
 
+    # The floating IP is the instance's, not the subnet's: on a subnet shared
+    # over RBAC the subnet belongs to another tenant -- possibly one Waldur does
+    # not manage -- while the address is allocated in, and billed to, the project
+    # whose port it is associated with.
     if not floating_ip:
         floating_ip = (
             models.FloatingIP.objects.filter(
                 port__isnull=True,
-                tenant=subnet.tenant,
+                tenant=instance.tenant,
                 backend_network_id=external_network_id,
             )
             .exclude(backend_id="")
@@ -5209,10 +5249,10 @@ def _connect_floating_ip_to_instance(
         )
         if not floating_ip:
             floating_ip = models.FloatingIP(
-                tenant=subnet.tenant,
+                tenant=instance.tenant,
                 backend_network_id=external_network_id,
-                service_settings=subnet.service_settings,
-                project=subnet.project,
+                service_settings=instance.service_settings,
+                project=instance.project,
             )
             floating_ip.increase_backend_quotas_usage(validate=True)
     if floating_ip.backend_id:
@@ -5315,7 +5355,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
     tenant = serializers.HyperlinkedRelatedField(
         view_name="openstack-tenant-detail",
         lookup_field="uuid",
-        queryset=models.Tenant.objects.all(),
+        queryset=models.Tenant.objects.filter(is_managed=True),
         help_text=_("The OpenStack tenant to create the instance in"),
     )
 
