@@ -97,7 +97,10 @@ class NotificationTest(TestCase):
         structure_factories.NotificationFactory(key="invoices.notification")
         tasks.send_invoice_notification(self.invoice.uuid)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(len(mail.outbox[0].attachments), 1)
+        [(filename, content, mimetype)] = mail.outbox[0].attachments
+        self.assertTrue(filename.endswith(".pdf"))
+        self.assertEqual(mimetype, "application/pdf")
+        self.assertTrue(content.startswith(b"%PDF-"))
 
 
 @override_settings(TIME_ZONE="Europe/Tallinn")

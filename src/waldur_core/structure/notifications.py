@@ -352,6 +352,10 @@ class InvoiceNotificationContext(BaseModel):
     year: int = Field(description="The year of the invoice as an integer.")
     customer: str = Field(description="The name of the customer the invoice is for.")
     link: str = Field(description="A URL to view the invoice in the portal.")
+    attached: bool = Field(
+        default=True,
+        description="Whether the invoice PDF is attached; false if it failed to render.",
+    )
 
 
 class InvoiceSection(NotificationSection):
@@ -360,7 +364,7 @@ class InvoiceSection(NotificationSection):
 
     notification = Notification(
         key="notification",
-        description="Sent to organization owners with a new invoice. Includes the invoice as an HTML attachment.",
+        description="Sent to organization owners with a new invoice. Includes the invoice as a PDF attachment.",
         context_model=InvoiceNotificationContext,
     )
     upcoming_ends_notification = Notification(

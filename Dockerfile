@@ -15,6 +15,13 @@ ENV WALDUR_WEB_SHELL_ASSETS_DIR=/usr/share/waldur/web-shell
 ENV LD_PRELOAD=libjemalloc.so.2
 
 # Install necessary system packages.
+#
+# No font packages are installed. Invoice PDFs (invoices/pdf/invoice.typ) bundle
+# Source Sans 3, which covers Latin, Greek and Cyrillic, and fall back to host
+# fonts for other scripts. With none here, customer, project and item names in
+# Arabic, Hebrew, Thai, CJK, ... print as blank boxes. To render them, add
+# fonts-noto-core (~30 MB; Arabic, Hebrew, Thai, Indic, ...) and fonts-noto-cjk
+# (~60 MB more; Chinese, Japanese, Korean) below.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     git \

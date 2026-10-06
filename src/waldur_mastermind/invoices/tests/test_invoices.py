@@ -101,7 +101,7 @@ class InvoiceSendNotificationTest(test.APITestCase):
 
         # Assert
         self.assertEqual(len(mail.outbox), 1)
-        self.assertTrue("invoice" in mail.outbox[0].subject)
+        self.assertIn("Invoice", mail.outbox[0].subject)
         self.assertEqual(self.fixture.owner.email, mail.outbox[0].to[0])
 
     def test_user_cannot_send_invoice_notification_in_invalid_state(self):

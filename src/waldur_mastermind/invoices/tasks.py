@@ -170,22 +170,28 @@ def send_invoice_notification(invoice_uuid):
     """Sends email notification with invoice link to customer owners"""
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
 
+    emails = invoice.customer.get_owner_mails()
+
+    filename = "{}_{}_{}.pdf".format(
+        config.SITE_NAME.replace(" ", "_"),
+        invoice.year,
+        invoice.month,
+    )
+    # The email carries a link to the invoice too, so a PDF that fails to
+    # render must not cost the owners the notification itself.
+    try:
+        attachment = utils.create_invoice_pdf(invoice)
+    except Exception:
+        logger.exception(f"Failed to render PDF for invoice {invoice}")
+        filename = attachment = None
+
     context = {
         "month": invoice.month,
         "year": invoice.year,
         "customer": invoice.customer.name,
         "link": core_utils.format_homeport_link("invoice/{uuid}", uuid=invoice_uuid),
+        "attached": attachment is not None,
     }
-
-    emails = invoice.customer.get_owner_mails()
-
-    filename = "{}_{}_{}.html".format(
-        config.SITE_NAME.replace(" ", "_"),
-        invoice.year,
-        invoice.month,
-    )
-    attachment = utils.create_invoice_html(invoice)
-    content_type = "text/html"
 
     logger.info(f"About to send invoice {invoice} notification to {emails}")
     core_utils.broadcast_mail(
@@ -195,7 +201,7 @@ def send_invoice_notification(invoice_uuid):
         emails,
         filename=filename,
         attachment=attachment,
-        content_type=content_type,
+        content_type="application/pdf",
     )
 
 
