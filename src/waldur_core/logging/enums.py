@@ -275,7 +275,14 @@ class EventType(StrEnum):
     PROPOSAL_DOCUMENT_ADDED = "proposal_document_added"
     PROPOSAL_DRAFT_CARRIED_OVER = "proposal_draft_carried_over"
     PROPOSAL_DOCUMENT_REMOVED = "proposal_document_removed"
+    PROPOSAL_DECISION_REOPENED = "proposal_decision_reopened"
+    PROPOSAL_REJECTED_AT_ROUND_COMPLETION = "proposal_rejected_at_round_completion"
     PROPOSAL_WORKFLOW_ADVANCED = "proposal_workflow_advanced"
+    ROUND_CLOSED = "round_closed"
+    ROUND_DECISION_STARTED = "round_decision_started"
+    ROUND_EVALUATION_STARTED = "round_evaluation_started"
+    ROUND_RESULTS_PUBLISHED = "round_results_published"
+    ROUND_UNDECIDED_PROPOSALS_REJECTED = "round_undecided_proposals_rejected"
     QUERY_EXECUTED = "query_executed"
     INCREASE_OF_CUSTOMER_CREDIT_DUE_TO_AFFILIATE_FEE = (
         "increase_of_customer_credit_due_to_affiliate_fee"
@@ -659,7 +666,14 @@ EVENT_GROUP_MAPPING = {
         EventType.PROPOSAL_DOCUMENT_ADDED,
         EventType.PROPOSAL_DOCUMENT_REMOVED,
         EventType.PROPOSAL_DRAFT_CARRIED_OVER,
+        EventType.PROPOSAL_DECISION_REOPENED,
+        EventType.PROPOSAL_REJECTED_AT_ROUND_COMPLETION,
         EventType.PROPOSAL_WORKFLOW_ADVANCED,
+        EventType.ROUND_CLOSED,
+        EventType.ROUND_DECISION_STARTED,
+        EventType.ROUND_EVALUATION_STARTED,
+        EventType.ROUND_RESULTS_PUBLISHED,
+        EventType.ROUND_UNDECIDED_PROPOSALS_REJECTED,
     ],
     EventGroup.PROVIDERS: [
         EventType.MARKETPLACE_PROVIDER_PROJECT_GROUP_GID_UPDATED,

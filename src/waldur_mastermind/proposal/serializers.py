@@ -61,6 +61,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalStates,
     RequestedOfferingStates,
     ResponsibleRoles,
+    ResultsPublication,
     ReviewerPoolInvitationStatuses,
     RoundStatuses,
     WorkflowStepInstanceStatuses,
@@ -964,6 +965,18 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
             "status",
             "allocation_date",
             "review_duration_in_days",
+            "lifecycle_state",
+            "evaluation_started_at",
+            "deciding_started_at",
+            "results_published_at",
+            "closed_at",
+        ]
+        read_only_fields = [
+            "lifecycle_state",
+            "evaluation_started_at",
+            "deciding_started_at",
+            "results_published_at",
+            "closed_at",
         ]
         extra_kwargs = {
             "slug": {"required": False},
@@ -1226,6 +1239,8 @@ class PublicCallSerializer(
             # Public so an applicant can be told their evaluation waits for
             # the cut-off.
             "evaluation_start",
+            # Public so an applicant can be told results come with the round.
+            "publish_results",
         )
         view_name = "proposal-public-call-detail"
         extra_kwargs = {
@@ -1709,6 +1724,16 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "changed while the call has proposals submitted or in review."
         ),
     )
+    publish_results = serializers.ChoiceField(
+        choices=ResultsPublication.CHOICES,
+        required=False,
+        help_text=(
+            "When applicants learn the allocation decision: immediately, or "
+            "for every proposal of a round together when a call manager "
+            "publishes the round's results. Cannot be changed while decisions "
+            "are held."
+        ),
+    )
     # The queryset is narrowed to the call's own people in get_fields(); what
     # stands here is only the schema's view of the field.
     order_author_user = serializers.SlugRelatedField(
@@ -1832,6 +1857,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "order_author_user_uuid",
             "order_author_user_name",
             "carry_over_drafts",
+            "undecided_at_round_completion",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -1892,6 +1918,22 @@ class ProtectedCallSerializer(PublicCallSerializer):
             and call.has_proposals_under_evaluation()
         ):
             raise serializers.ValidationError(models.EVALUATION_START_LOCKED_MESSAGE)
+        return value
+
+    def validate_publish_results(self, value):
+        """Refuse a switch while decisions wait for publication.
+
+        Held decisions are released by publishing their round; switching to
+        ``immediately`` would not release them, it would only change what
+        the next decision does.
+        """
+        call = self.instance
+        if (
+            isinstance(call, models.Call)
+            and value != call.publish_results
+            and call.has_held_decisions()
+        ):
+            raise serializers.ValidationError(models.PUBLISH_RESULTS_LOCKED_MESSAGE)
         return value
 
     def _validate_order_author(self, attrs):
@@ -2164,9 +2206,88 @@ class ProtectedRoundSerializer(
     url = serializers.SerializerMethodField()
     proposals = serializers.SerializerMethodField()
     review_duration_in_days = serializers.IntegerField(required=False)
+    results_published_by_name = serializers.CharField(
+        source="results_published_by.full_name", read_only=True, allow_null=True
+    )
+    held_decisions_count = serializers.SerializerMethodField(
+        help_text=(
+            "Proposals of the round whose decision is recorded but not yet "
+            "published. After publication, decisions that could not be "
+            "carried out; publishing the results again retries them. Null "
+            "for anyone who may not see held decisions."
+        )
+    )
+    has_proposals = serializers.SerializerMethodField(
+        help_text=(
+            "Whether the round holds any proposal, in any state. A round with "
+            "proposals cannot be deleted. Unlike the proposals list, which "
+            "leaves out what the viewer may not see, this counts every one."
+        )
+    )
 
     class Meta(NestedRoundSerializer.Meta):
-        fields = NestedRoundSerializer.Meta.fields + ["url", "proposals"]
+        fields = NestedRoundSerializer.Meta.fields + [
+            "url",
+            "proposals",
+            "results_published_by_name",
+            "held_decisions_count",
+            "has_proposals",
+            "results_forced_reason",
+            "adopted_at",
+            "adoption_note",
+            "adoption_document",
+            "undecided_at_round_completion",
+        ]
+        # The adoption is recorded through the round's record_adoption action.
+        read_only_fields = NestedRoundSerializer.Meta.read_only_fields + [
+            "results_forced_reason",
+            "adopted_at",
+            "adoption_note",
+            "adoption_document",
+        ]
+        # Null for whoever may not read the adoption yet; see to_representation.
+        extra_kwargs = {
+            **getattr(NestedRoundSerializer.Meta, "extra_kwargs", {}),
+            **{
+                field: {"allow_null": True}
+                for field in (
+                    "results_forced_reason",
+                    "adoption_note",
+                    "adoption_document",
+                )
+            },
+        }
+
+    ADOPTION_FIELDS = ("results_forced_reason", "adoption_note", "adoption_document")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not self._can_view_adoption(instance):
+            for field in self.ADOPTION_FIELDS:
+                if field in data:
+                    data[field] = None
+        return data
+
+    def _can_view_adoption(self, call_round) -> bool:
+        """Whether the viewer may read the round's adoption record yet.
+
+        Until the results are published the record states the outcome, which
+        only those who may see held decisions know; evaluators on the call
+        learn it with everyone else. Checked once per call.
+        """
+        if not call_round.withholds_results:
+            return True
+        request = self.context.get("request")
+        if not request:
+            return False
+        cache = self.context.setdefault("_held_decisions_visible", {})
+        if call_round.call_id not in cache:
+            cache[call_round.call_id] = (
+                proposal_permissions.user_can_view_held_decisions_of_call(
+                    request.user, call_round.call
+                )
+            )
+        return cache[call_round.call_id]
 
     def get_fields(self):
         fields = super().get_fields()
@@ -2178,6 +2299,36 @@ class ProtectedRoundSerializer(
                 fields["slug"].read_only = True
 
         return fields
+
+    def get_has_proposals(self, call_round) -> bool:
+        # Round lists annotate the count; a single round asks here.
+        count = getattr(call_round, "proposals_count", None)
+        if count is None:
+            return call_round.proposal_set.exists()
+        return count > 0
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_held_decisions_count(self, call_round) -> int | None:
+        # Null for anyone but the call managers (and staff and support): to
+        # everyone else a held decision is still being made, see
+        # ProposalSerializer.get_decision_held. Checked once per call.
+        request = self.context.get("request")
+        if not request:
+            return None
+        cache = self.context.setdefault("_held_decisions_visible", {})
+        if call_round.call_id not in cache:
+            cache[call_round.call_id] = (
+                proposal_permissions.user_can_view_held_decisions_of_call(
+                    request.user, call_round.call
+                )
+            )
+        if not cache[call_round.call_id]:
+            return None
+        # Round lists annotate the count; a single round counts it here.
+        count = getattr(call_round, "held_decisions_count", None)
+        if count is None:
+            count = call_round.proposal_set.filter(decision_held=True).count()
+        return count
 
     @extend_schema_field(ProtectedProposalListSerializer(many=True))
     def get_proposals(self, call_round):
@@ -2193,9 +2344,13 @@ class ProtectedRoundSerializer(
         user = getattr(request, "user", None)
         visibility = get_applicant_visibility(self.context, user)
         rows = []
-        proposals = call_round.proposal_set.select_related(
-            "round__call", "created_by", "approved_by"
-        )
+        if "proposal_set" in getattr(call_round, "_prefetched_objects_cache", {}):
+            # A round list prefetches them for every row at once.
+            proposals = call_round.proposal_set.all()
+        else:
+            proposals = call_round.proposal_set.select_related(
+                "round__call", "created_by", "approved_by"
+            )
         for proposal in proposals:
             concealed = visibility.concealed_attributes(proposal)
             if concealed is not None and proposal.state == ProposalStates.DRAFT:
@@ -2406,6 +2561,7 @@ class ProposalSerializer(
     compliance_status = serializers.SerializerMethodField()
     can_submit = serializers.SerializerMethodField()
     awaiting_manual_advance = serializers.SerializerMethodField()
+    decision_held = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Proposal
@@ -2468,6 +2624,7 @@ class ProposalSerializer(
             "compliance_status",
             "can_submit",
             "awaiting_manual_advance",
+            "decision_held",
             "workflow_step",
         ]
         read_only_fields = (
@@ -2608,10 +2765,32 @@ class ProposalSerializer(
         if hasattr(obj, "_awaiting_manual_step"):
             return bool(
                 obj.workflow_step
+                and not obj.decision_held
                 and obj._awaiting_manual_step
                 and obj._latest_step_status == WorkflowStepInstanceStatuses.COMPLETED
             )
         return workflow_service.is_awaiting_manual_advance(obj)
+
+    @extend_schema_field(serializers.BooleanField(allow_null=True))
+    def get_decision_held(self, obj) -> bool | None:
+        """Whether the allocation decision is made but held for the round.
+
+        Null for anyone but the call managers (and staff and support): to
+        everyone else a held decision is still being made, and a false here
+        would tell them apart.
+        """
+        request = self.context.get("request")
+        if not request:
+            return None
+        # The answer depends on the call and on whether the user is the
+        # applicant, so a list checks once per call, not per proposal.
+        cache = self.context.setdefault("_held_decision_visible", {})
+        key = (obj.round.call_id, obj.created_by_id == request.user.id)
+        if key not in cache:
+            cache[key] = proposal_permissions.user_can_view_held_decision(
+                request.user, obj
+            )
+        return obj.decision_held if cache[key] else None
 
 
 class RoundReviewerSerializer(serializers.Serializer):
@@ -5878,6 +6057,17 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
         # the mask exists to hide. The applicant still learns the *decision* from
         # the proposal's own state and the call manager's allocation comment;
         # what stays private here is the reviewer's step-level reasoning.
+        # A decision held for the round's publication is still being made,
+        # as far as the applicant side can tell.
+        if instance.step == workflow_service.DECISION_STEP and self.context.get(
+            "decision_withheld"
+        ):
+            data["status"] = WorkflowStepInstanceStatuses.ACTIVE
+            data["outcome"] = None
+            data["outcome_reason"] = ""
+            data["rejection_reason"] = None
+            data["completed_at"] = None
+            data["completed_by"] = None
         if instance.step in self.REVIEW_STEPS and not self.context.get(
             "can_view_review_content"
         ):
@@ -6080,6 +6270,32 @@ class RejectWorkflowStepSerializer(serializers.Serializer):
     )
 
 
+class ReopenDecisionSerializer(serializers.Serializer):
+    reason = serializers.CharField(
+        required=True,
+        help_text=(
+            "Why the held decision is taken back, e.g. the board changed the "
+            "outcome when adopting the list. Never sent to the applicant and "
+            "kept out of the proposal's event feed, which the applicant team "
+            "reads; recorded in the server log."
+        ),
+    )
+    deadline = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text=(
+            "New deadline for the decision. Without one, a deadline that has "
+            "passed is cleared and one still ahead is kept."
+        ),
+    )
+
+    def validate_deadline(self, value):
+        if value is not None and value <= timezone.now():
+            raise serializers.ValidationError(_("The deadline must be in the future."))
+        return value
+
+
 class CompleteWorkflowStepResponseSerializer(serializers.Serializer):
     detail = serializers.CharField()
     proposal_state = serializers.CharField(
@@ -6143,3 +6359,109 @@ class DashboardSubmitterStatsSerializer(serializers.Serializer):
     accepted = serializers.IntegerField(read_only=True)
     rejected = serializers.IntegerField(read_only=True)
     canceled = serializers.IntegerField(read_only=True)
+
+
+class PublishRoundResultsSerializer(serializers.Serializer):
+    force = serializers.BooleanField(
+        default=False,
+        help_text="Publish although some proposals of the round have no decision.",
+    )
+    reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="Why results are published early. Required with force.",
+    )
+
+    def validate(self, attrs):
+        if attrs["force"] and not attrs["reason"].strip():
+            raise serializers.ValidationError(
+                {"reason": _("A reason is required to publish with force.")}
+            )
+        return attrs
+
+
+class PublishRoundResultsRefusalSerializer(serializers.Serializer):
+    detail = serializers.CharField(read_only=True)
+    undecided_count = serializers.IntegerField(
+        read_only=True,
+        help_text=(
+            "Proposals of the round without a decision. Present when publishing "
+            "is refused because of them; publish with force and a reason to go "
+            "ahead anyway."
+        ),
+    )
+
+
+class PublishRoundResultsFailureSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+
+
+class PublishRoundResultsResponseSerializer(ProtectedRoundSerializer):
+    failed_proposals = PublishRoundResultsFailureSerializer(
+        many=True,
+        read_only=True,
+        help_text=(
+            "Proposals whose held decision could not be carried out. They stay "
+            "held; publishing the round's results again retries them."
+        ),
+    )
+
+    class Meta(ProtectedRoundSerializer.Meta):
+        fields = ProtectedRoundSerializer.Meta.fields + ["failed_proposals"]
+
+
+class CompleteRoundRefusalSerializer(serializers.Serializer):
+    detail = serializers.CharField(read_only=True)
+    held_decisions_count = serializers.IntegerField(
+        read_only=True,
+        required=False,
+        help_text=(
+            "Decisions of the round whose release failed at publication and "
+            "that were never announced. Present when completing is refused "
+            "because of them; publish the results again to retry them."
+        ),
+    )
+    undecided_count = serializers.IntegerField(
+        read_only=True,
+        required=False,
+        help_text=(
+            "Proposals of the round without a decision. Present when "
+            "completing is refused because of them under the refuse rule."
+        ),
+    )
+
+
+class CompleteRoundResponseSerializer(ProtectedRoundSerializer):
+    rejected_proposals = PublishRoundResultsFailureSerializer(
+        many=True,
+        read_only=True,
+        help_text=("Proposals without a decision that completing the round rejected."),
+    )
+    failed_proposals = PublishRoundResultsFailureSerializer(
+        many=True,
+        read_only=True,
+        help_text=(
+            "Proposals without a decision whose rejection failed. The round "
+            "stays open; completing it again retries them."
+        ),
+    )
+
+    class Meta(ProtectedRoundSerializer.Meta):
+        fields = ProtectedRoundSerializer.Meta.fields + [
+            "rejected_proposals",
+            "failed_proposals",
+        ]
+
+
+class RoundAdoptionSerializer(serializers.ModelSerializer):
+    """The adoption of a round's results by the body entitled to adopt them."""
+
+    class Meta:
+        model = models.Round
+        fields = ["adopted_at", "adoption_note", "adoption_document"]
+        extra_kwargs = {
+            "adopted_at": {"required": True},
+            "adoption_document": {"validators": [DocumentValidator]},
+        }

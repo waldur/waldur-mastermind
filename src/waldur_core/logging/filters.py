@@ -164,7 +164,7 @@ class EventFilterBackend(filters.BaseFilterBackend):
             # events related to particular scope only.
             queryset = queryset.none()
 
-        return queryset
+        return utils.exclude_hidden_events(request.user, queryset)
 
     def _filter_related_user(self, request, queryset, related_user_uuid):
         """

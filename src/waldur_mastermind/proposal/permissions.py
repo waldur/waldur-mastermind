@@ -1,10 +1,12 @@
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from rest_framework import exceptions, permissions
 
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import (
     check_pat_support_scope,
+    get_scope_ids,
     get_users,
     has_permission,
     has_permission_on_any_source,
@@ -15,6 +17,8 @@ from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ResponsibleRoles,
+    ResultsPublication,
+    RoundLifecycleStates,
     WorkflowStepInstanceStatuses,
 )
 
@@ -259,6 +263,107 @@ def user_can_view_internal_notes(user, proposal):
         content_type=call_ct,
         object_id=proposal.round.call_id,
     ).exists()
+
+
+def user_can_manage_held_decision(user, proposal):
+    """True iff the user may change a decision held for the round's publication.
+
+    Staff, and whoever holds CALL.UPDATE on the call or on its managing
+    organisation. Not support, who only read. The applicant is refused even
+    when they also manage the call, as for internal notes.
+    """
+    if user.is_staff:
+        return True
+    if user.id == proposal.created_by_id:
+        return False
+    return oversees_proposal_call(user, proposal)
+
+
+def user_can_view_held_decisions_of_call(user, call):
+    """True iff the user may learn which decisions of the call are held.
+
+    The call-level counterpart of ``user_can_view_held_decision`` for what a
+    round reports about all its proposals: staff, support and whoever holds
+    CALL.UPDATE on the call or on its managing organisation.
+    """
+    if user.is_staff or user.is_support:
+        return True
+    return has_permission_on_any_source(
+        user, PermissionEnum.UPDATE_CALL, call, CALL_PERMISSION_SOURCES
+    )
+
+
+def user_can_view_round_adoption(user, call_round):
+    """True iff the user may read how the round's outcome was adopted.
+
+    The adoption note and document, and the reason results were published
+    with decisions missing, state the round's outcome. While the round holds
+    its decisions back only those who may see held decisions read them; once
+    its results are out (or for a call announcing each decision as it is
+    made) everyone who sees the round does.
+    """
+    return not call_round.withholds_results or user_can_view_held_decisions_of_call(
+        user, call_round.call
+    )
+
+
+def user_can_view_held_decision(user, proposal):
+    """True iff the user may see a decision held for the round's publication.
+
+    Narrower than ``user_can_view_internal_notes``: until the round publishes,
+    the outcome is the call managers' alone -- reviewers, panel members and
+    offering managers on the call learn it with everyone else. Staff and
+    support see it, as they see everything of a call. The applicant is denied
+    even when they also manage the call, as for internal notes.
+    """
+    return user.is_support or user_can_manage_held_decision(user, proposal)
+
+
+def proposals_with_held_decisions_hidden_from(user):
+    """Proposals whose round still withholds its results from the user.
+
+    ``user_can_view_held_decision`` over every proposal at once, in SQL: those
+    of a round that holds its decisions back, unless the user is staff or
+    support, or holds CALL.UPDATE on the call or its managing organisation
+    without being the proposal's applicant. ``None`` when nothing is hidden.
+    """
+    if user.is_active and (user.is_staff or user.is_support):
+        return None
+    withheld = proposal_models.Proposal.objects.filter(
+        round__call__publish_results=ResultsPublication.WITH_ROUND
+    ).exclude(round__lifecycle_state__in=RoundLifecycleStates.PUBLISHED)
+    if not user.is_active:
+        return withheld
+    managed_calls = get_scope_ids(
+        user,
+        ContentType.objects.get_for_model(proposal_models.Call),
+        permission=PermissionEnum.UPDATE_CALL,
+    )
+    organised_calls = get_scope_ids(
+        user,
+        ContentType.objects.get_for_model(proposal_models.CallManagingOrganisation),
+        permission=PermissionEnum.UPDATE_CALL,
+    )
+    return withheld.exclude(
+        ~Q(created_by=user)
+        & (
+            Q(round__call_id__in=managed_calls)
+            | Q(round__call__manager_id__in=organised_calls)
+        )
+    )
+
+
+def can_reopen_held_decision(request, view, obj=None):
+    """ActionsPermission check for reopening a held allocation decision."""
+    if obj is None:
+        return
+    if not user_can_manage_held_decision(request.user, obj):
+        raise exceptions.PermissionDenied(
+            "Only the call's managers can reopen a held decision."
+        )
+
+
+can_reopen_held_decision.sources = ["*"]
 
 
 def can_act_on_active_workflow_step(request, view, obj=None):

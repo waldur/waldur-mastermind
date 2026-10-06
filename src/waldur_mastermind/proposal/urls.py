@@ -166,6 +166,16 @@ urlpatterns += [
         views.ProtectedCallViewSet.as_view({"post": "close_round"}),
         name="proposal-call-close_round",
     ),
+]
+urlpatterns += [
+    re_path(
+        rf"^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/rounds/(?P<obj_uuid>[a-f0-9]+)/{action}/$",
+        views.ProtectedCallViewSet.as_view({"post": f"{action}_round"}),
+        name=f"proposal-call-{action}_round",
+    )
+    for action in ("start_deciding", "publish_results", "complete", "record_adoption")
+]
+urlpatterns += [
     re_path(
         r"^api/proposal-proposals/(?P<uuid>[a-f0-9]+)/resources/(?P<obj_uuid>[a-f0-9]+)/purchase_order/$",
         views.ProposalViewSet.as_view(

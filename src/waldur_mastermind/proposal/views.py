@@ -16,6 +16,7 @@ from django.db.models import (
     F,
     Max,
     OuterRef,
+    Prefetch,
     ProtectedError,
     Q,
     Subquery,
@@ -72,6 +73,7 @@ from waldur_mastermind.proposal import (
     filters,
     models,
     orcid_service,
+    round_lifecycle,
     serializers,
     tasks,
     utils,
@@ -113,6 +115,11 @@ from .models import Proposal
 from .serializers import ReviewSubmitSerializer
 
 logger = logging.getLogger(__name__)
+
+
+HELD_DECISION_DETAIL = (
+    "Decision recorded. It is announced when the round's results are published."
+)
 
 
 def validate_round_is_open(proposal):
@@ -1239,7 +1246,26 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                     serializer.data,
                     status=status.HTTP_201_CREATED,
                 )
-        queryset = call.round_set.all().order_by("-start_time")
+        queryset = (
+            call.round_set.all()
+            .select_related("results_published_by")
+            .prefetch_related(
+                # What ProtectedRoundSerializer.get_proposals reads per row.
+                Prefetch(
+                    "proposal_set",
+                    queryset=models.Proposal.objects.select_related(
+                        "round__call", "created_by", "approved_by"
+                    ),
+                )
+            )
+            .annotate(
+                held_decisions_count=Count(
+                    "proposal", filter=Q(proposal__decision_held=True)
+                ),
+                proposals_count=Count("proposal"),
+            )
+            .order_by("-start_time")
+        )
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(
@@ -1296,13 +1322,13 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 raise IncorrectStateException()
 
         def validate_existing_of_proposals(call_round):
-            if call_round.proposal_set.exclude(
-                state__in=[
-                    ProposalStates.CANCELED,
-                    ProposalStates.REJECTED,
-                ]
-            ).exists():
-                raise IncorrectStateException()
+            # Deleting a round deletes its proposals with it. Rejected and
+            # cancelled ones are outcomes of the round (a published rejection,
+            # a draft its closing cancelled), so they keep the round as well.
+            if call_round.proposal_set.exists():
+                raise IncorrectStateException(
+                    _("A round that has proposals cannot be deleted.")
+                )
 
         return self.action_detail_method(
             "round_set",
@@ -1346,6 +1372,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         utils.process_closed_round(
             call_round, announce=tasks.announce_carried_over_drafts
         )
+        utils.start_round_evaluation(call_round)
 
         return response.Response(
             "Round has been closed.",
@@ -1357,6 +1384,148 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     close_round_permissions = [
         permission_factory(PermissionEnum.CLOSE_ROUNDS, CALL_PERMISSION_SOURCES)
     ]
+
+    def _get_round(self, obj_uuid):
+        call: models.Call = self.get_object()
+        call_round = get_object_or_404(call.round_set, uuid=obj_uuid)
+        if call.state != CallStates.ACTIVE:
+            raise exceptions.ValidationError(_("Call is not active."))
+        return call_round
+
+    def _round_response(self, call_round):
+        call_round.refresh_from_db()
+        return response.Response(
+            serializers.ProtectedRoundSerializer(
+                call_round, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        request=None,
+        responses={status.HTTP_200_OK: serializers.ProtectedRoundSerializer},
+        description=(
+            "Move an ended round from evaluating to deciding: its proposals "
+            "have been evaluated and go to the decision body."
+        ),
+    )
+    def start_deciding_round(self, request, uuid=None, obj_uuid=None):
+        call_round = round_lifecycle.start_deciding(self._get_round(obj_uuid))
+        return self._round_response(call_round)
+
+    @extend_schema(
+        request=serializers.PublishRoundResultsSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.PublishRoundResultsResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: serializers.PublishRoundResultsRefusalSerializer,
+        },
+        description=(
+            "Publish all allocation decisions of an ended round at once: "
+            "announce every held decision to its applicant and carry it out. "
+            "Refused while a proposal of the round has no decision, unless "
+            "forced with a reason; that refusal carries undecided_count. A "
+            "decision that cannot be carried out stays held and is listed in "
+            "failed_proposals; publishing again retries it."
+        ),
+    )
+    def publish_results_round(self, request, uuid=None, obj_uuid=None):
+        call_round = self._get_round(obj_uuid)
+        serializer = serializers.PublishRoundResultsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            call_round, failed = round_lifecycle.publish_results(
+                call_round,
+                request.user,
+                force=serializer.validated_data["force"],
+                reason=serializer.validated_data["reason"],
+            )
+        except round_lifecycle.UndecidedProposalsError as e:
+            return response.Response(
+                {"detail": e.detail[0], "undecided_count": e.undecided_count},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        call_round.refresh_from_db()
+        call_round.failed_proposals = failed
+        return response.Response(
+            serializers.PublishRoundResultsResponseSerializer(
+                call_round, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.CompleteRoundResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: serializers.CompleteRoundRefusalSerializer,
+        },
+        description=(
+            "Close a round whose results have been published. Refused while "
+            "a decision of the round is still held because its release "
+            "failed (the refusal carries held_decisions_count; publish the "
+            "results again to retry it). Every proposal "
+            "of the round must have a decision. What happens to those that "
+            "have none follows the round's undecided_at_round_completion, or "
+            "else the call's: refuse (the refusal carries undecided_count) or "
+            "reject each at its current step, listed in rejected_proposals. "
+            "A rejection that fails is listed in failed_proposals and the "
+            "round stays open; completing again retries it."
+        ),
+    )
+    def complete_round(self, request, uuid=None, obj_uuid=None):
+        try:
+            call_round, rejected, failed = round_lifecycle.complete(
+                self._get_round(obj_uuid), request.user
+            )
+        except round_lifecycle.UndecidedAtCompletionError as e:
+            return response.Response(
+                {"detail": e.detail[0], "undecided_count": e.undecided_count},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except round_lifecycle.HeldDecisionsAtCompletionError as e:
+            return response.Response(
+                {
+                    "detail": e.detail[0],
+                    "held_decisions_count": e.held_decisions_count,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        call_round.refresh_from_db()
+        call_round.rejected_proposals = rejected
+        call_round.failed_proposals = failed
+        return response.Response(
+            serializers.CompleteRoundResponseSerializer(
+                call_round, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        request={"multipart/form-data": serializers.RoundAdoptionSerializer},
+        responses={status.HTTP_200_OK: serializers.ProtectedRoundSerializer},
+        description=(
+            "Record that the round's results were adopted: the date, a note "
+            "and optionally the adopting document."
+        ),
+    )
+    def record_adoption_round(self, request, uuid=None, obj_uuid=None):
+        call_round = self._get_round(obj_uuid)
+        if call_round.status != RoundStatuses.ENDED:
+            raise exceptions.ValidationError(
+                _("The round has not reached its cut-off yet.")
+            )
+        serializer = serializers.RoundAdoptionSerializer(call_round, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return self._round_response(call_round)
+
+    # The round's lifecycle is round management, like closing it.
+    start_deciding_round_permissions = close_round_permissions
+    publish_results_round_permissions = close_round_permissions
+    complete_round_permissions = close_round_permissions
+    record_adoption_round_permissions = close_round_permissions
+    record_adoption_round_serializer_class = serializers.RoundAdoptionSerializer
+    publish_results_round_serializer_class = serializers.PublishRoundResultsSerializer
 
     @extend_schema(
         request=serializers.CallAttachDocumentsSerializer,
@@ -3590,6 +3759,15 @@ class ProposalViewSet(
                     can_view_internal_notes
                     or proposal.round.call.reviews_visible_to_submitters
                 ),
+                # Only the call managers see a decision before the round's
+                # results are published; the rest of the call team learns it
+                # with the applicant.
+                "decision_withheld": (
+                    proposal.decision_held
+                    and not proposal_permissions.user_can_view_held_decision(
+                        request.user, proposal
+                    )
+                ),
                 # An evaluator passes the step actor gate as part of the call
                 # team, but sees an applicant-side completer only as far as
                 # the call's applicant visibility config exposes it.
@@ -3690,6 +3868,14 @@ class ProposalViewSet(
             # Re-introducing them requires a debounce/digest policy first.
 
         if next_instance is None:
+            proposal.refresh_from_db()
+            if proposal.decision_held:
+                return response.Response(
+                    serializers.CompleteWorkflowStepResponseSerializer(
+                        {"detail": HELD_DECISION_DETAIL}
+                    ).data,
+                    status=status.HTTP_200_OK,
+                )
             if workflow_service.is_awaiting_manual_advance(proposal):
                 response_serializer = (
                     serializers.CompleteWorkflowStepResponseSerializer(
@@ -3790,6 +3976,14 @@ class ProposalViewSet(
                 internal_notes=internal_notes,
             )
 
+        proposal.refresh_from_db()
+        if proposal.decision_held:
+            response_serializer = serializers.RejectWorkflowStepResponseSerializer(
+                {"detail": HELD_DECISION_DETAIL, "proposal_state": proposal.state}
+            )
+            return response.Response(
+                response_serializer.data, status=status.HTTP_200_OK
+            )
         response_serializer = serializers.RejectWorkflowStepResponseSerializer(
             {"detail": "Proposal rejected.", "proposal_state": ProposalStates.REJECTED}
         )
@@ -3891,6 +4085,53 @@ class ProposalViewSet(
         return response.Response(response_serializer.data, status=status.HTTP_200_OK)
 
     advance_workflow_step_permissions = [proposal_permissions.can_advance_workflow_step]
+
+    @extend_schema(
+        description=(
+            "Reopen an allocation decision held for the round's publication: "
+            "the decision step becomes active again with its outcome cleared, "
+            "and the proposal counts as undecided until it is decided anew. "
+            "Only before the round's results are published. Nothing is sent "
+            "to the applicant. The reopen is logged on the proposal's event "
+            "feed, which the applicant team reads, so the event carries "
+            "neither the reason nor the outcome taken back."
+        ),
+        request=serializers.ReopenDecisionSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.ProposalWorkflowStepInstanceSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def reopen_decision(self, request, uuid=None):
+        proposal = self.get_object()
+        input_serializer = serializers.ReopenDecisionSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        try:
+            instance = workflow_service.reopen_held_decision(
+                proposal,
+                request.user,
+                reason=input_serializer.validated_data["reason"],
+                deadline=input_serializer.validated_data["deadline"],
+            )
+        except workflow_service.DecisionNotReopenable as e:
+            return response.Response(
+                {"detail": str(e)}, status=status.HTTP_409_CONFLICT
+            )
+
+        # Only the call's managers get here, so the step is shown whole.
+        output = serializers.ProposalWorkflowStepInstanceSerializer(
+            instance,
+            context={
+                "can_view_internal_notes": True,
+                "can_view_step_actors": True,
+                "can_view_review_content": True,
+            },
+        )
+        return response.Response(output.data, status=status.HTTP_200_OK)
+
+    reopen_decision_serializer_class = serializers.ReopenDecisionSerializer
+    reopen_decision_permissions = [proposal_permissions.can_reopen_held_decision]
 
     @extend_schema(
         request=serializers.ProposalDetachDocumentsSerializer,

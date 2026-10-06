@@ -32,7 +32,10 @@ logger = logging.getLogger(__name__)
     name="waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled"
 )
 def proposals_for_ended_rounds_should_be_cancelled():
-    """Move drafts of ended rounds on to their call's next round, or cancel them."""
+    """Move drafts of ended rounds on to their call's next round, or cancel them.
+
+    Also starts the post-cut-off lifecycle (``evaluating``) of every ended round.
+    """
     # Only drafts: a proposal submitted before the cutoff is reviewed after it,
     # so submitted and in-review proposals are left to the review workflow.
     date = timezone.now()
@@ -80,6 +83,8 @@ def proposals_for_ended_rounds_should_be_cancelled():
             args=(proposal.uuid, cancellation_date),
             countdown=10,  # 10 second delay
         )
+
+    utils.start_evaluation_of_ended_rounds()
 
 
 def announce_carried_over_drafts(moved, previous_round):
@@ -878,7 +883,11 @@ def start_evaluation_for_closed_rounds():
     proposal held just before a manager switched the call back is still
     started rather than stranded. Idempotent: a started proposal is
     ``in_review`` and is not picked up again.
+
+    The rounds whose cut-off has passed enter ``evaluating`` first, so the
+    batch starts under a round that says it is being evaluated.
     """
+    utils.start_evaluation_of_ended_rounds()
     now = timezone.now()
     held_ids = list(
         proposal_models.Proposal.objects.filter(
@@ -941,6 +950,20 @@ def mark_expired_workflow_steps():
     for instance_id in overdue_ids:
         try:
             with transaction.atomic():
+                # The proposal first, then the step: the order the step
+                # actions and the round's publication take, so an expiry
+                # cannot deadlock against them (the decision step goes on to
+                # lock the round).
+                proposal_id = (
+                    proposal_models.ProposalWorkflowStepInstance.objects.filter(
+                        id=instance_id
+                    )
+                    .values_list("proposal_id", flat=True)
+                    .first()
+                )
+                if proposal_id is None:
+                    continue
+                proposal_models.Proposal.objects.select_for_update().get(pk=proposal_id)
                 instance = (
                     proposal_models.ProposalWorkflowStepInstance.objects.select_for_update()
                     .filter(

@@ -9,6 +9,7 @@ class ProposalConfig(AppConfig):
     def ready(self):
         from waldur_core.logging import event_dispatch
         from waldur_core.logging import utils as logging_utils
+        from waldur_core.logging.enums import EventType
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.permissions.utils import (
             register_expiration_guard,
@@ -17,7 +18,7 @@ class ProposalConfig(AppConfig):
         )
         from waldur_core.users.utils import register_invitation_scope_overseer
 
-        from . import event_publishing, handlers, models, serializers
+        from . import event_publishing, handlers, models, permissions, serializers
 
         permission_signals.role_revoked.connect(
             handlers.clear_panel_chair_on_role_revoked,
@@ -67,6 +68,12 @@ class ProposalConfig(AppConfig):
         # Evaluators read the proposal but not its team administration trail.
         logging_utils.register_scope_event_guard(
             models.Proposal, serializers.can_view_proposal_event_feed
+        )
+        # That a held decision was reopened tells that one had been made: only
+        # those who may see held decisions learn it before the round publishes.
+        logging_utils.register_event_type_guard(
+            EventType.PROPOSAL_DECISION_REOPENED,
+            permissions.proposals_with_held_decisions_hidden_from,
         )
 
         event_dispatch.register_event_chain(models.Call, event_publishing.call_chain)
