@@ -71,6 +71,12 @@ class OpenStackConfig(AppConfig):
         )
 
         signals.post_delete.connect(
+            handlers.drop_networks_of_unmanaged_owner_when_unshared,
+            sender=self.get_model("NetworkRBACPolicy"),
+            dispatch_uid="openstack.handlers.drop_networks_of_unmanaged_owner_when_unshared",
+        )
+
+        signals.post_delete.connect(
             handlers.log_security_group_cleaned,
             sender=SecurityGroup,
             dispatch_uid="openstack.handlers.log_security_group_cleaned",

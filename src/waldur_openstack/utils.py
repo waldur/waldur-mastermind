@@ -1,9 +1,13 @@
+import logging
 from ipaddress import ip_network
 
+from django.db import IntegrityError, transaction
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core.utils import stable_topological_sort
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_openstack.models import (
     CustomerOpenStack,
@@ -12,6 +16,7 @@ from waldur_openstack.models import (
     Flavor,
     Image,
     Instance,
+    Network,
     SecurityGroup,
     SecurityGroupRule,
     SubNet,
@@ -261,3 +266,43 @@ def reorder_security_groups_topologically(security_groups: list[SecurityGroup]):
     graph = build_security_groups_dependency_graph(security_groups)
     sorted_ids = stable_topological_sort(ids, graph)
     return [sg_by_id[i] for i in sorted_ids]
+
+
+logger = logging.getLogger(__name__)
+
+
+def drop_unshared_networks_of_unmanaged_owners(settings_id):
+    """Forget what an unmanaged project no longer shares with any tenant.
+
+    Only the local rows go: the network belongs to that project, not to
+    Waldur. A network that still has ports is kept: Neutron refuses to drop
+    a share while the target has ports on it, so local ports mean the share
+    is only missing from a listing, and deleting the network would take the
+    consumer's port rows with it.
+    """
+    unshared_networks = Network.objects.filter(
+        service_settings_id=settings_id,
+        tenant__is_managed=False,
+        rbac_policies__isnull=True,
+        ports__isnull=True,
+    )
+    for network in unshared_networks:
+        event_logger.emit(
+            "Network %s has been cleaned from cache." % network.name,
+            event_type=EventType.OPENSTACK_NETWORK_CLEANED,
+            event_context={"network": network},
+            scopes=[network, network.tenant],
+        )
+        network.delete()
+
+    for owner in Tenant.objects.filter(
+        service_settings_id=settings_id, is_managed=False, networks__isnull=True
+    ):
+        try:
+            with transaction.atomic():
+                owner.delete()
+        except IntegrityError:
+            # A tenant's pull has just imported a network for it.
+            logger.info(
+                "Keeping unmanaged tenant %s: it shares a network again.", owner
+            )

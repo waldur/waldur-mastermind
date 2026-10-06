@@ -57,6 +57,37 @@ from . import permissions as openstack_permissions
 logger = logging.getLogger(__name__)
 
 
+class UnmanagedOwnerReadOnlyMixin:
+    """Refuse write actions on a tenant Waldur does not manage, and on its networks.
+
+    Such a tenant is an OpenStack project that only shares networks with
+    managed tenants. Waldur holds no credentials for it, and the project and its
+    networks are not Waldur's to change, so it is only ever read.
+    """
+
+    def validate_object_action(self, action_name, obj=None):
+        super().validate_object_action(action_name, obj)
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return
+        action_method = getattr(self, action_name)
+        if not getattr(action_method, "detail", False) and action_name not in (
+            "update",
+            "partial_update",
+            "destroy",
+        ):
+            return
+        obj = obj or self.get_object()
+        tenant = obj if isinstance(obj, models.Tenant) else obj.tenant
+        if not tenant.is_managed:
+            raise exceptions.ValidationError(
+                _(
+                    "Tenant %s is not managed by Waldur. It and its networks "
+                    "can only be changed in OpenStack."
+                )
+                % tenant.name
+            )
+
+
 class LBaaSAuditMixin:
     """Emit lifecycle audit events for LBaaS resources on create/update/delete.
 
@@ -741,7 +772,9 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
     ),
 )
 class TenantViewSet(
-    structure_views.ResourceViewSet, structure_views.AvailabilityCheckViewMixin
+    UnmanagedOwnerReadOnlyMixin,
+    structure_views.ResourceViewSet,
+    structure_views.AvailabilityCheckViewMixin,
 ):
     queryset = models.Tenant.objects.all().order_by("name")
     serializer_class = serializers.OpenStackTenantSerializer
@@ -2410,7 +2443,24 @@ class PortViewSet(structure_views.ResourceViewSet):
         old_pairs = list(port.allowed_address_pairs or [])
 
         backend = port.get_backend()
-        backend.set_port_allowed_address_pairs(port, new_pairs)
+        try:
+            backend.set_port_allowed_address_pairs(port, new_pairs)
+        except OpenStackBackendError as e:
+            # Neutron's default policy lets only the network's owner or an admin
+            # set address pairs, so on a network shared over RBAC the consumer's
+            # own port is refused -- a 400 the caller can act on, not a 500.
+            if port.network and port.network.tenant_id != port.tenant_id:
+                message = (
+                    _(
+                        "OpenStack refused the change: the port is on a network shared "
+                        "by another project, and its policy may reserve allowed "
+                        "address pairs to that project. Details: %s"
+                    )
+                    % e
+                )
+            else:
+                message = str(e)
+            raise exceptions.ValidationError({"allowed_address_pairs": message})
         port.allowed_address_pairs = new_pairs
         port.save(update_fields=["allowed_address_pairs"])
 
@@ -2458,7 +2508,7 @@ class PortViewSet(structure_views.ResourceViewSet):
         description="Delete a network.",
     ),
 )
-class NetworkViewSet(structure_views.ResourceViewSet):
+class NetworkViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSet):
     queryset = Network.objects.all().order_by("name")
     serializer_class = serializers.OpenStackNetworkSerializer
     filter_backends = [DjangoFilterBackend]
@@ -2699,7 +2749,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         description="Delete a subnet.",
     ),
 )
-class SubNetViewSet(structure_views.ResourceViewSet):
+class SubNetViewSet(UnmanagedOwnerReadOnlyMixin, structure_views.ResourceViewSet):
     queryset = models.SubNet.objects.all().order_by("network")
     serializer_class = serializers.OpenStackSubNetSerializer
     filter_backends = [DjangoFilterBackend]
@@ -3972,6 +4022,16 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
         self._check_rbac_policy_permissions(
             request.user, policy.network, policy.target_tenant
         )
+
+        if not policy.network.tenant.is_managed:
+            # Revoking it would change a project Waldur does not manage, and
+            # the next pull would drop the policy anyway once OpenStack does.
+            raise exceptions.ValidationError(
+                _(
+                    "The network belongs to an OpenStack project that Waldur does "
+                    "not manage, so its sharing can only be changed in OpenStack."
+                )
+            )
 
         network = policy.network
         target_tenant = policy.target_tenant

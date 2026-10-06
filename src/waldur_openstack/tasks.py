@@ -143,7 +143,9 @@ class TenantPullQuotas(core_tasks.BackgroundTask):
     def run(self):
         from . import executors
 
-        for tenant in models.Tenant.objects.filter(state=CoreStates.OK):
+        for tenant in models.Tenant.objects.filter(
+            state=CoreStates.OK, is_managed=True
+        ):
             executors.TenantPullQuotasExecutor.execute(tenant)
 
 
@@ -331,6 +333,16 @@ class ThrottleProvisionStateTask(
     pass
 
 
+class ManagedTenantListPullTask(structure_tasks.BackgroundListPullTask):
+    """Pulls only the tenants Waldur manages: an unmanaged one has no
+    credentials, and its shared networks are pulled through their shares."""
+
+    model = models.Tenant
+
+    def get_pulled_objects(self):
+        return super().get_pulled_objects().filter(is_managed=True)
+
+
 class TenantResourcesPullTask(structure_tasks.BackgroundPullTask):
     def pull(self, tenant: models.Tenant):
         backend = OpenStackBackend(tenant.service_settings)
@@ -339,12 +351,11 @@ class TenantResourcesPullTask(structure_tasks.BackgroundPullTask):
         backend.pull_tenant_instances(tenant)
 
 
-class TenantResourcesListPullTask(structure_tasks.BackgroundListPullTask):
+class TenantResourcesListPullTask(ManagedTenantListPullTask):
     """Pull OpenStack tenant resources like instances, volumes, and snapshots from backend."""
 
     name = "openstack.tenant_resources_list_pull_task"
     pull_task = TenantResourcesPullTask
-    model = models.Tenant
 
 
 class TenantSubresourcesPullTask(structure_tasks.BackgroundPullTask):
@@ -365,12 +376,11 @@ class TenantSubresourcesPullTask(structure_tasks.BackgroundPullTask):
         backend.pull_tenant_network_rbac_policies(tenant)
 
 
-class TenantSubresourcesListPullTask(structure_tasks.BackgroundListPullTask):
+class TenantSubresourcesListPullTask(ManagedTenantListPullTask):
     """Pull OpenStack tenant subresources like security groups, networks, subnets, and ports from backend."""
 
     name = "openstack.tenant_subresources_list_pull_task"
     pull_task = TenantSubresourcesPullTask
-    model = models.Tenant
 
 
 class TenantPropertiesPullTask(structure_tasks.BackgroundPullTask):
@@ -383,12 +393,11 @@ class TenantPropertiesPullTask(structure_tasks.BackgroundPullTask):
         backend.pull_tenant_images(tenant)
 
 
-class TenantPropertiesListPullTask(structure_tasks.BackgroundListPullTask):
+class TenantPropertiesListPullTask(ManagedTenantListPullTask):
     """Pull OpenStack tenant properties like flavors, images, and volume types from backend."""
 
     name = "openstack.tenant_properties_list_pull_task"
     pull_task = TenantPropertiesPullTask
-    model = models.Tenant
 
 
 @shared_task

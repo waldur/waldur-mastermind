@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
@@ -14,14 +15,14 @@ from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_openstack import models
+from waldur_openstack import models, utils
 
 logger = logging.getLogger(__name__)
 
 
 def remove_ssh_key_from_tenants(sender, instance, **kwargs):
     """Delete user ssh keys from tenants that he does not have access now."""
-    tenants = models.Tenant.objects.all()
+    tenants = models.Tenant.objects.filter(is_managed=True)
     if isinstance(instance.scope, structure_models.Customer):
         tenants = tenants.filter(project__customer=instance.scope)
     elif isinstance(instance.scope, structure_models.Project):
@@ -50,7 +51,7 @@ def remove_ssh_key_from_all_tenants_on_it_deletion(
     ssh_key: core_models.SshPublicKey = instance
     user = ssh_key.user
     tenants = structure_filters.filter_queryset_for_user(
-        models.Tenant.objects.all(), user
+        models.Tenant.objects.filter(is_managed=True), user
     )
     for tenant in tenants:
         if not structure_permissions._has_admin_access(user, tenant.project):
@@ -276,3 +277,24 @@ def find_instance_by_internal_ip(ip_address: str) -> list[tuple[int, int]]:
     return [
         (content_type.id, instance_id) for instance_id in instance_ids if instance_id
     ]
+
+
+def drop_networks_of_unmanaged_owner_when_unshared(
+    sender, instance: models.NetworkRBACPolicy, **kwargs
+):
+    """Sweep an unmanaged owner's networks once a share of theirs is gone.
+
+    The pull sweeps them as well, but only a consumer's pull: when the last
+    consumer itself is deleted its shares go with it, no pull of it runs
+    again, and the owner's networks would stay forever. Run after commit, so
+    that within a tenant's deletion its ports are already gone.
+    """
+    settings_id = (
+        models.Network.objects.filter(pk=instance.network_id, tenant__is_managed=False)
+        .values_list("service_settings_id", flat=True)
+        .first()
+    )
+    if settings_id:
+        transaction.on_commit(
+            lambda: utils.drop_unshared_networks_of_unmanaged_owners(settings_id)
+        )
