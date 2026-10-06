@@ -295,6 +295,32 @@ def readable_by_support(permission_function):
     return check
 
 
+def any_permission(*permission_functions):
+    """Pass if any of the given object-scoped permission checks passes.
+
+    `sources` must stay set: ActionsPermission hands the object only to checks
+    that carry it, and a permission_factory check called without one lets
+    everybody through. `permission` is left unset, because x-permissions lists
+    checks that must all pass and has no way to say "either".
+    """
+
+    def check(request, view, scope=None):
+        for permission_function in permission_functions[:-1]:
+            try:
+                permission_function(request, view, scope)
+                return
+            except PermissionDenied:
+                pass
+        permission_functions[-1](request, view, scope)
+
+    check.sources = [
+        source
+        for permission_function in permission_functions
+        for source in permission_function.sources
+    ]
+    return check
+
+
 def get_allowed_offering_users_for_user(
     request_user, include_consent_filtering=False, action=None
 ):
@@ -3925,7 +3951,12 @@ class ProviderOfferingViewSet(
         ],
         responses=serializers.OfferingComponentStatSerializer(many=True),
         summary="Get statistics for offering components",
-        description="Returns monthly usage statistics for the components of an offering within a specified date range.",
+        description=(
+            "Returns monthly usage statistics for the components of an offering "
+            "within a specified date range. Requires SERVICE_PROVIDER.GET_STATISTICS "
+            "on the offering's customer or its service provider, or ORDER.LIST on "
+            "the offering, its customer, or that customer's service provider."
+        ),
     )
     @action(detail=True)
     def component_stats(self, *args, **kwargs):
@@ -3960,15 +3991,6 @@ class ProviderOfferingViewSet(
             serializers.OfferingComponentStatSerializer,
             serializer_context,
         )
-
-    component_stats_permissions = [
-        readable_by_support(
-            permission_factory(
-                PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
-                OFFERING_PROVIDER_SOURCES,
-            )
-        )
-    ]
 
     @extend_schema(
         summary="Get offering statistics",
@@ -4017,7 +4039,12 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         summary="Get offering resource and user state counters",
-        description="Returns resource and offering-user counts grouped by state for the given offering.",
+        description=(
+            "Returns resource and offering-user counts grouped by state for the "
+            "given offering. Requires SERVICE_PROVIDER.GET_STATISTICS on the "
+            "offering's customer or its service provider, or ORDER.LIST on the "
+            "offering, its customer, or that customer's service provider."
+        ),
         responses=serializers.OfferingStateCountersSerializer,
     )
     @action(detail=True)
@@ -4060,11 +4087,23 @@ class ProviderOfferingViewSet(
         serializer = serializers.OfferingStateCountersSerializer(instance=data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    state_counters_permissions = [
+    # Provider statistics, as for `stats`, or the right to list this
+    # offering's orders: held on the offering (OFFERING.MANAGER and custom
+    # offering roles), its customer, or that customer's service provider.
+    # Either one is enough, so offering managers get in and no role or token
+    # that could read these before loses them. Staff pass through the
+    # permission checks themselves.
+    component_stats_permissions = state_counters_permissions = [
         readable_by_support(
-            permission_factory(
-                PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
-                OFFERING_PROVIDER_SOURCES,
+            any_permission(
+                permission_factory(
+                    PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+                    OFFERING_PROVIDER_SOURCES,
+                ),
+                permission_factory(
+                    PermissionEnum.LIST_ORDERS,
+                    marketplace_permissions.OFFERING_ADMIN_SOURCES,
+                ),
             )
         )
     ]
