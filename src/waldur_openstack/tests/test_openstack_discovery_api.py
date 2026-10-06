@@ -321,7 +321,8 @@ class TestOpenStackDiscoveryPreview(test.APITestCase):
             response.data["service_attributes"]["backend_url"]
             == "https://cloud.example.com:5000/v3"
         )
-        assert response.data["plugin_options"]["external_network_id"] == "net-1"
+        assert response.data["service_attributes"]["external_network_id"] == "net-1"
+        assert response.data["plugin_options"] == {}
 
     def test_preview_service_attributes_invalid_credentials(self):
         with mock.patch(

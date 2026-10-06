@@ -316,9 +316,17 @@ class TestOpenStackDiscoveryServiceBuildAttributes:
         assert result["service_attributes"]["password"] == creds.password
         assert result["service_attributes"]["domain"] == creds.user_domain_name
         assert result["service_attributes"]["tenant_name"] == creds.project_name
-        assert result["plugin_options"]["external_network_id"] == "net-1"
-        assert result["plugin_options"]["valid_availability_zones"] == {"nova": "nova"}
-        assert result["plugin_options"]["volume_availability_zone_name"] == "cinder-az1"
+        # Service attributes, not plugin options: the offering declares no
+        # such plugin options, so they were dropped on the way to the settings.
+        assert result["service_attributes"]["external_network_id"] == "net-1"
+        assert result["service_attributes"]["valid_availability_zones"] == {
+            "nova": "nova"
+        }
+        assert (
+            result["service_attributes"]["volume_availability_zone_name"]
+            == "cinder-az1"
+        )
+        assert result["plugin_options"] == {}
 
     def test_build_service_attributes_minimal(self):
         creds = _make_credentials()
@@ -327,9 +335,10 @@ class TestOpenStackDiscoveryServiceBuildAttributes:
         result = service.build_service_attributes()
 
         assert result["service_attributes"]["backend_url"] == creds.auth_url
-        assert result["plugin_options"]["external_network_id"] == ""
-        assert "valid_availability_zones" not in result["plugin_options"]
-        assert "volume_availability_zone_name" not in result["plugin_options"]
+        # No choice, no key: re-running the wizard keeps the stored network.
+        assert "external_network_id" not in result["service_attributes"]
+        assert "valid_availability_zones" not in result["service_attributes"]
+        assert "volume_availability_zone_name" not in result["service_attributes"]
 
     def test_build_service_attributes_with_certificate(self):
         creds = OpenStackTemporaryCredentials(
@@ -342,4 +351,4 @@ class TestOpenStackDiscoveryServiceBuildAttributes:
 
         result = service.build_service_attributes()
 
-        assert "certificate" in result["plugin_options"]
+        assert "certificate" in result["service_attributes"]

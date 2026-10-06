@@ -5995,9 +5995,11 @@ def update_or_create_service_settings_for_offering(
         )
         offering.save()
 
+    # None leaves the certificate alone: the integration form edits one field
+    # at a time, and an edit of any other field used to clear it.
     if certificate:
         offering.scope.options["certificate"] = certificate
-    else:
+    elif certificate is not None:
         offering.scope.options.pop("certificate", None)
 
     offering.scope.save()
@@ -6079,7 +6081,27 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         self._joining_offerings = self._validate_account_scope_switch(
             attrs.get("plugin_options", {})
         )
+        self._move_certificate_to_secret_options(attrs)
         return attrs
+
+    def _move_certificate_to_secret_options(self, attrs):
+        """The OpenStack discovery wizard sends the API certificate with the
+        other service attributes; it belongs with the secret option, which is
+        validated and kept in step with the service settings."""
+        service_attributes = attrs.get("service_attributes") or {}
+        if "certificate" not in service_attributes:
+            return
+        certificate = service_attributes.pop("certificate") or ""
+        if certificate:
+            try:
+                core_validators.validate_x509_certificate(certificate)
+            except ValidationError as e:
+                raise rf_exceptions.ValidationError(
+                    {"service_attributes": {"certificate": e.messages}}
+                )
+        attrs.setdefault("secret_options", {}).setdefault(
+            "openstack_api_tls_certificate", certificate
+        )
 
     def _validate_account_scope_switch(self, plugin_options) -> list | None:
         """Refuse moving this offering into provider scope while usernames disagree.
@@ -6142,6 +6164,7 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
 
     def _update_service_attributes(self, instance, validated_data):
         service_attributes = validated_data.pop("service_attributes", {})
+        # Only a request that names the certificate changes it; see validate().
         certificate = validated_data.get("secret_options", {}).get(
             "openstack_api_tls_certificate"
         )

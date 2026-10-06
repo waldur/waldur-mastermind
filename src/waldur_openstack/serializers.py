@@ -46,6 +46,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.enums import VALID_ROUTER_INTERFACE_OWNERS
 from waldur_openstack.utils import (
+    get_external_network_id,
     get_no_ipv4_external_network_message,
     get_tenant_external_networks,
     get_valid_availability_zones,
@@ -171,7 +172,8 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         required=False,
     )
 
-    valid_availability_zones = serializers.CharField(
+    valid_availability_zones = serializers.DictField(
+        child=serializers.CharField(),
         source="options.valid_availability_zones",
         help_text=_(
             "Optional dictionary where key is Nova availability "
@@ -5129,10 +5131,7 @@ def _validate_floating_ip_can_be_allocated(tenant: models.Tenant, field=None):
 def _validate_instance_floating_ips(
     floating_ips_with_subnets: FloatingIPSpec, tenant: models.Tenant, instance_subnets
 ):
-    if (
-        floating_ips_with_subnets
-        and "external_network_id" not in tenant.service_settings.options
-    ):
+    if floating_ips_with_subnets and not get_external_network_id(tenant):
         raise serializers.ValidationError(
             gettext(
                 "Please specify tenant external network to perform floating IP operations."
@@ -5227,7 +5226,9 @@ def _connect_floating_ip_to_instance(
     """Connect floating IP to instance via specified subnet.
     If floating IP is not defined - take existing free one or create a new one.
     """
-    external_network_id = instance.service_settings.options.get("external_network_id")
+    # Resolved as tenant creation resolves it: the tenant's own network, then
+    # the organization's on this provider, then the provider default.
+    external_network_id = get_external_network_id(instance.tenant)
     if not core_utils.is_uuid_like(external_network_id):
         raise serializers.ValidationError(
             gettext("Service provider does not have valid value of external_network_id")
