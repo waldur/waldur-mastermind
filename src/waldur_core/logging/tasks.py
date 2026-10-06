@@ -94,6 +94,8 @@ def check_event(event: models.Event, hook):
     # Check that event matches with hook
     if event.event_type not in hook.all_event_types:
         return False
+    if not utils.can_view_event(hook.user, event):
+        return False
 
     # Check permissions: the hook owner must be able to read the scope and
     # its event feed, exactly as through the events API.

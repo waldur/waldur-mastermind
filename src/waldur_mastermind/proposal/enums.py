@@ -237,6 +237,64 @@ class RoundStatuses:
     VALUES = [val for (val, _) in CHOICES]
 
 
+class RoundLifecycleStates:
+    """Where a round stands after its cut-off.
+
+    Before the cut-off a round has no stored state: ``scheduled`` and ``open``
+    are derived from its times (``RoundStatuses``). At the cut-off it enters
+    ``evaluating``; the rest are call manager actions.
+    """
+
+    EVALUATING = "evaluating"
+    DECIDING = "deciding"
+    RESULTS_PUBLISHED = "results_published"
+    CLOSED = "closed"
+
+    CHOICES = (
+        (EVALUATING, "Evaluating"),
+        (DECIDING, "Deciding"),
+        (RESULTS_PUBLISHED, "Results published"),
+        (CLOSED, "Closed"),
+    )
+
+    # Decisions made in these states are announced as they are made.
+    PUBLISHED = frozenset({RESULTS_PUBLISHED, CLOSED})
+
+
+class ResultsPublication:
+    """When applicants learn the outcome of the allocation decision.
+
+    ``immediately`` announces each decision as it is made. ``with_round``
+    records decisions but holds them until a call manager publishes the
+    round's results, which announces them all at once.
+    """
+
+    IMMEDIATELY = "immediately"
+    WITH_ROUND = "with_round"
+
+    CHOICES = (
+        (IMMEDIATELY, "Immediately"),
+        (WITH_ROUND, "With the round"),
+    )
+
+
+class UndecidedAtRoundCompletion:
+    """What completing a round does with proposals still without a decision.
+
+    ``refuse`` refuses to complete the round until every proposal of it is
+    decided. ``reject`` rejects each of them at the step it stands in, then
+    completes the round.
+    """
+
+    REFUSE = "refuse"
+    REJECT = "reject"
+
+    CHOICES = (
+        (REFUSE, "Refuse to complete the round"),
+        (REJECT, "Reject them"),
+    )
+
+
 class EvaluationStart:
     """When a submitted proposal's review workflow starts.
 

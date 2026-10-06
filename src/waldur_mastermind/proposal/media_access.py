@@ -6,12 +6,15 @@ See :mod:`waldur_core.media.access`.
 from waldur_core.media import access
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.marketplace.models import Offering
+from waldur_mastermind.proposal import permissions as proposal_permissions
 from waldur_mastermind.proposal.models import (
+    Call,
     CallDocument,
     CallManagingOrganisation,
     Proposal,
     ProposalDocumentation,
     RequestedResource,
+    Round,
 )
 
 # CallManagingOrganisationViewSet is a PublicViewsetMixin listing.
@@ -55,6 +58,26 @@ def user_can_access_requested_resource_attachment(file, user) -> bool:
     return queryset.filter(requested_offering__offering_id__in=offering_ids).exists()
 
 
+def user_can_access_round_adoption_document(file, user) -> bool:
+    """Mirror ProtectedRoundSerializer: the round is served by
+    ProtectedCallViewSet.get_queryset, and its adoption record only to those
+    who may read it yet."""
+    if not user.is_authenticated:
+        return False
+    calls = filter_queryset_for_user(Call.objects.all(), user)
+    rounds = Round.objects.filter(
+        adoption_document=file.name, call__in=calls
+    ).select_related("call")
+    return any(
+        proposal_permissions.user_can_view_round_adoption(user, call_round)
+        for call_round in rounds
+    )
+
+
+access.register(
+    access.upload_prefix(Round, "adoption_document"),
+    user_can_access_round_adoption_document,
+)
 access.register(
     access.upload_prefix(ProposalDocumentation, "file"),
     user_can_access_proposal_documentation,

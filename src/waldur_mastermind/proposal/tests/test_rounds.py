@@ -253,6 +253,49 @@ class RoundDeleteTest(test.APITestCase):
         response = self.delete_round("owner")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @data(
+        ProposalStates.DRAFT,
+        ProposalStates.SUBMITTED,
+        ProposalStates.ACCEPTED,
+        # A decided round keeps its rejected proposals and the drafts its
+        # closing cancelled; deleting the round would erase them with it.
+        ProposalStates.REJECTED,
+        ProposalStates.CANCELED,
+    )
+    def test_round_with_a_proposal_in_any_state_is_not_deleted(self, state):
+        proposal = factories.ProposalFactory(
+            round=self.round,
+            state=state,
+            project=self.fixture.proposal_project,
+        )
+        response = self.delete_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(models.Round.objects.filter(pk=self.round.pk).exists())
+        self.assertTrue(models.Proposal.objects.filter(pk=proposal.pk).exists())
+
+    def test_round_reports_whether_it_has_proposals_whoever_views_it(self):
+        # The flag gates deletion, so it counts every proposal, including the
+        # drafts an evaluator is not shown in the round's proposal list.
+        factories.ProposalFactory(
+            round=self.round,
+            state=ProposalStates.DRAFT,
+            project=self.fixture.proposal_project,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        rounds_url = factories.CallFactory.get_protected_url(
+            self.fixture.call, "rounds"
+        )
+        response = self.client.get(rounds_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        by_uuid = {row["uuid"]: row for row in response.data}
+        self.assertTrue(by_uuid[self.round.uuid.hex]["has_proposals"])
+
+    def test_empty_round_reports_no_proposals(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["has_proposals"])
+
     def delete_round(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)

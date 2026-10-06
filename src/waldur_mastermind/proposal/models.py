@@ -59,12 +59,15 @@ from waldur_mastermind.proposal.enums import (
     ProposalStates,
     PublicationVenueTypes,
     RequestedOfferingStates,
+    ResultsPublication,
     ReviewerAffiliationTypes,
     ReviewerBidChoices,
     ReviewerPoolInvitationStatuses,
     ReviewerSuggestionStatuses,
+    RoundLifecycleStates,
     RoundStatuses,
     SuggestionSourceTypes,
+    UndecidedAtRoundCompletion,
 )
 
 from . import managers
@@ -79,6 +82,10 @@ MISSING_PROPOSAL_MANAGER_MESSAGE = _(
 EVALUATION_START_LOCKED_MESSAGE = _(
     "Cannot change when evaluation starts while the call has proposals that "
     "are submitted or in review."
+)
+PUBLISH_RESULTS_LOCKED_MESSAGE = _(
+    "Cannot change when results are published while the call holds decisions "
+    "that have not been published yet."
 )
 
 
@@ -281,6 +288,29 @@ class Call(
         ),
     )
 
+    publish_results = models.CharField(
+        max_length=20,
+        choices=ResultsPublication.CHOICES,
+        default=ResultsPublication.IMMEDIATELY,
+        help_text=(
+            "When applicants learn the allocation decision: as soon as it is "
+            "made, or for every proposal of a round together when a call "
+            "manager publishes the round's results. Cannot be changed while "
+            "decisions are held."
+        ),
+    )
+
+    undecided_at_round_completion = models.CharField(
+        max_length=20,
+        choices=UndecidedAtRoundCompletion.CHOICES,
+        default=UndecidedAtRoundCompletion.REFUSE,
+        help_text=(
+            "What completing a round does with its proposals that still have "
+            "no decision: refuse to complete the round, or reject them. A "
+            "round may override it."
+        ),
+    )
+
     coi_configuration: "CallCOIConfiguration"
     round_set: models.Manager["Round"]
 
@@ -307,6 +337,9 @@ class Call(
     def customer(self):
         return self.manager.customer
 
+    def has_held_decisions(self):
+        return Proposal.objects.filter(round__call=self, decision_held=True).exists()
+
     def has_proposals_under_evaluation(self):
         return Proposal.objects.filter(
             round__call=self,
@@ -332,6 +365,12 @@ class Call(
             and self.has_proposals_under_evaluation()
         ):
             raise ValidationError({"evaluation_start": EVALUATION_START_LOCKED_MESSAGE})
+        if (
+            self.pk
+            and self.tracker.has_changed("publish_results")
+            and self.has_held_decisions()
+        ):
+            raise ValidationError({"publish_results": PUBLISH_RESULTS_LOCKED_MESSAGE})
         if self.pk and self.proposal_set.exists():
             if self.tracker.has_changed("compliance_checklist"):
                 raise ValidationError(
@@ -917,6 +956,58 @@ class Round(
     call = models.ForeignKey(Call, on_delete=models.PROTECT)
     proposal_set: models.Manager["Proposal"]
 
+    # Stored lifecycle after the cut-off; null until the cut-off is processed.
+    # scheduled/open/ended stay derived from the times (``status``).
+    lifecycle_state = models.CharField(
+        max_length=20,
+        choices=RoundLifecycleStates.CHOICES,
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "Where the round stands after its cut-off: evaluating, deciding, "
+            "results_published or closed. Empty before the cut-off."
+        ),
+    )
+    evaluation_started_at = models.DateTimeField(null=True, blank=True, editable=False)
+    deciding_started_at = models.DateTimeField(null=True, blank=True, editable=False)
+    results_published_at = models.DateTimeField(null=True, blank=True, editable=False)
+    results_published_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name="+",
+    )
+    results_forced_reason = models.TextField(
+        blank=True,
+        editable=False,
+        help_text=(
+            "Why results were published while some proposals of the round "
+            "still had no decision."
+        ),
+    )
+    closed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    undecided_at_round_completion = models.CharField(
+        max_length=20,
+        choices=UndecidedAtRoundCompletion.CHOICES,
+        null=True,
+        blank=True,
+        help_text=(
+            "Overrides the call's rule for proposals still without a decision "
+            "when the round is completed. Empty: the call's rule applies."
+        ),
+    )
+    # Adoption of the round's results by the body entitled to (e.g. a board).
+    adopted_at = models.DateField(
+        null=True, blank=True, help_text="When the round's results were adopted."
+    )
+    adoption_note = models.TextField(blank=True)
+    adoption_document = models.FileField(
+        upload_to="proposal_round_adoption", null=True, blank=True
+    )
+
     class Permissions:
         customer_path = "call__manager__customer"
         list_permission = PermissionEnum.LIST_ROUNDS
@@ -939,6 +1030,41 @@ class Round(
             return self.Statuses.ENDED
         else:
             return self.Statuses.OPEN
+
+    # Where the round stands after its cut-off belongs to this round alone: a
+    # duplicated or exported call starts its rounds without it.
+    LIFECYCLE_FIELDS = (
+        "lifecycle_state",
+        "evaluation_started_at",
+        "deciding_started_at",
+        "results_published_at",
+        "results_published_by",
+        "results_forced_reason",
+        "closed_at",
+        "adopted_at",
+        "adoption_note",
+        "adoption_document",
+    )
+
+    def reset_lifecycle(self):
+        for name in self.LIFECYCLE_FIELDS:
+            setattr(self, name, self._meta.get_field(name).get_default())
+
+    @property
+    def undecided_at_completion_rule(self) -> str:
+        """The rule for undecided proposals when the round is completed."""
+        return (
+            self.undecided_at_round_completion
+            or self.call.undecided_at_round_completion
+        )
+
+    @property
+    def withholds_results(self) -> bool:
+        """Whether an allocation decision made now is held for publication."""
+        return (
+            self.call.publish_results == ResultsPublication.WITH_ROUND
+            and self.lifecycle_state not in RoundLifecycleStates.PUBLISHED
+        )
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -1078,6 +1204,15 @@ class Proposal(
         null=True,
         on_delete=models.SET_NULL,
         related_name="proposals",
+    )
+
+    decision_held = models.BooleanField(
+        default=False,
+        editable=False,
+        help_text=(
+            "The allocation decision is recorded but held until the round's "
+            "results are published; the applicant is not told yet."
+        ),
     )
 
     # Workflow tracking

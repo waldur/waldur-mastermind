@@ -5,6 +5,7 @@ completed, rejected, or expires. Callers must hold a row-level lock on the
 active step instance (via select_for_update) before invoking these helpers.
 """
 
+import logging
 from datetime import timedelta
 
 from django.db import transaction
@@ -12,6 +13,8 @@ from django.db.models import Avg
 from django.utils import timezone
 
 from waldur_core.core.utils import get_system_robot
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_mastermind.proposal import models, notification_rules, utils
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS,
@@ -22,6 +25,8 @@ from waldur_mastermind.proposal.enums import (
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _step_label(step_key):
@@ -92,6 +97,36 @@ def _activate_next_step(proposal, next_step_def):
         instance, NotificationRuleTriggers.STEP_STARTED
     )
     return instance
+
+
+DECISION_STEP = "allocation_decision"
+
+
+def _decision_is_withheld(proposal, step):
+    """Whether the outcome of ``step`` must be held until the round publishes.
+
+    Locks the round row, so a decision and the round's publication serialise:
+    a decision either lands before publication and is released by it, or
+    after and is announced at once. Publication locks the round's proposals
+    before the round, and every caller here holds the proposal's row lock
+    before it gets here (the step actions in views, the expiry sweep in
+    tasks), so the order is proposal, then round everywhere and the two
+    cannot deadlock.
+    """
+    if step != DECISION_STEP:
+        return False
+    call_round = (
+        models.Round.objects.select_for_update()
+        .select_related("call")
+        .get(pk=proposal.round.pk)
+    )
+    return call_round.withholds_results
+
+
+def _hold_decision(proposal):
+    """Keep a decided proposal ``in_review`` until its round publishes."""
+    proposal.decision_held = True
+    proposal.save(update_fields=["decision_held"])
 
 
 def create_step_instances(proposal):
@@ -198,6 +233,12 @@ def complete_step(
             "completed_by",
         ]
     )
+    if _decision_is_withheld(proposal, current_instance.step):
+        # Recorded on the instance; the step's notifications, the proposal's
+        # final state and anything that follows wait for publication.
+        _hold_decision(proposal)
+        return None
+
     # A negative outcome ends the workflow, so it is a rejection for
     # notification purposes even though it arrives through complete_step.
     notification_rules.dispatch_step_event(
@@ -321,7 +362,7 @@ def is_awaiting_manual_advance(proposal) -> bool:
     ProposalViewSet.get_queryset replicates this predicate as queryset
     annotations to avoid an N+1 on list; keep the two in sync.
     """
-    if not proposal.workflow_step:
+    if not proposal.workflow_step or proposal.decision_held:
         return False
     instance = (
         proposal.workflow_step_instances.filter(step=proposal.workflow_step)
@@ -346,6 +387,10 @@ def advance_step(proposal, acting_user=None):
     advance; it is recorded as ``approved_by`` if this advance reaches the
     terminal (allocation) step.
     """
+    if proposal.decision_held:
+        raise ValueError(
+            "The decision is held until the round's results are published."
+        )
     if not is_awaiting_manual_advance(proposal):
         raise ValueError("Workflow is not awaiting manual advance.")
     return _advance_to_next(proposal, proposal.workflow_step, acting_user=acting_user)
@@ -377,12 +422,90 @@ def reject_at_step(proposal, current_instance, reason, completed_by, internal_no
             "completed_by",
         ]
     )
+    if _decision_is_withheld(proposal, current_instance.step):
+        _hold_decision(proposal)
+        return
     notification_rules.dispatch_step_event(
         current_instance, NotificationRuleTriggers.STEP_REJECTED
     )
     proposal.state = ProposalStates.REJECTED
     proposal.workflow_step = None
     proposal.save(update_fields=["state", "workflow_step"])
+
+
+def _enter_parked_step(proposal):
+    """Start the step a proposal parked on a completed step waits to enter.
+
+    Only so that a rejection can be recorded on it: no start notification is
+    sent, the step ends as it begins. Returns the started instance, or None
+    when no step follows.
+    """
+    next_step_def = _next_enabled_step(proposal, proposal.workflow_step)
+    if next_step_def is None:
+        return None
+    instance = proposal.workflow_step_instances.select_for_update().get(
+        step=next_step_def.id
+    )
+    instance.status = WorkflowStepInstanceStatuses.ACTIVE
+    instance.started_at = timezone.now()
+    instance.save(update_fields=["status", "started_at"])
+    proposal.workflow_step = next_step_def.id
+    proposal.save(update_fields=["workflow_step"])
+    return instance
+
+
+UNDECIDED_AT_COMPLETION_REASON = "Not decided when the round was completed."
+
+
+@transaction.atomic
+def reject_undecided(proposal, completed_by):
+    """Reject a proposal left without a decision when its round is completed.
+
+    The rejection is recorded on the step the proposal stands in, as if the
+    step's actor had rejected it, and sends that step's rejection
+    notifications. A proposal parked on a completed step, waiting to be moved
+    on by hand, stands in the step it was waiting to enter: that step starts
+    and is rejected at once, the completed one keeps its outcome. A proposal
+    whose workflow has not started yet is rejected outright. Returns the
+    state the proposal was in. The caller holds the proposal's row lock, then
+    the round's, inside a transaction, and the round's results are published,
+    so nothing is held back.
+    """
+    previous_state = proposal.state
+    instance = (
+        proposal.workflow_step_instances.select_for_update()
+        .filter(
+            step=proposal.workflow_step,
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+        )
+        .first()
+        if proposal.workflow_step
+        else None
+    )
+    if instance is None and proposal.workflow_step:
+        instance = _enter_parked_step(proposal)
+    if instance is not None:
+        reject_at_step(proposal, instance, UNDECIDED_AT_COMPLETION_REASON, completed_by)
+        if proposal.decision_held:
+            raise ValueError("The round still holds its decisions back.")
+    else:
+        proposal.state = ProposalStates.REJECTED
+        proposal.workflow_step = None
+        proposal.save(update_fields=["state", "workflow_step"])
+
+    event_logger.emit(
+        "Proposal {proposal_name} was rejected by {actor}: it had no decision "
+        "when its round was completed.",
+        event_type=EventType.PROPOSAL_REJECTED_AT_ROUND_COMPLETION,
+        event_context={
+            "proposal": proposal,
+            "actor": completed_by.full_name or completed_by.username,
+            "rejected_at_step": instance.step if instance else None,
+            "previous_state": previous_state,
+        },
+        scopes=[proposal.round.call.manager.customer],
+    )
+    return previous_state
 
 
 @transaction.atomic
@@ -398,11 +521,21 @@ def expire_step(current_instance):
     current_instance.outcome = WorkflowStepOutcomes.EXPIRED
     current_instance.completed_at = timezone.now()
     current_instance.save(update_fields=["status", "outcome", "completed_at"])
+    if _decision_is_withheld(proposal, current_instance.step):
+        # A lapsed decision is an outcome like any other: whether it ends the
+        # workflow or moves on to the award response, the move and the
+        # expiry notice both tell the applicant, so both wait for the round.
+        _hold_decision(proposal)
+        return None, False
     notification_rules.dispatch_step_event(
         current_instance, NotificationRuleTriggers.STEP_EXPIRED
     )
+    return _continue_after_expiry(proposal, current_instance.step)
 
-    next_step_def = _next_enabled_step(proposal, current_instance.step)
+
+def _continue_after_expiry(proposal, step):
+    """Move past a lapsed step: on to the next step, or reject at the end."""
+    next_step_def = _next_enabled_step(proposal, step)
     if next_step_def is None:
         proposal.state = ProposalStates.REJECTED
         proposal.workflow_step = None
@@ -412,3 +545,135 @@ def expire_step(current_instance):
     proposal.workflow_step = next_step_def.id
     proposal.save(update_fields=["workflow_step"])
     return _activate_next_step(proposal, next_step_def), False
+
+
+def release_held_decision(proposal):
+    """Carry out a held allocation decision as if it had just been made.
+
+    Negative outcomes (declined, rejected) reject the proposal; a lapse goes
+    where an unheld lapse goes -- the next step, or a rejection at the end;
+    an approval continues to the next step (``award_response``) or, at the
+    end of the workflow, accepts and provisions it. Every notification the
+    decision would have sent -- the expiry notice included -- is sent here.
+    Publication is the call manager's confirmation, so a manual transition
+    mode does not park it again. Returns the proposal's new state when the
+    workflow ended, None when it continues to another step. The caller holds
+    the proposal's row lock inside a transaction.
+    """
+    instance = proposal.workflow_step_instances.get(step=DECISION_STEP)
+    proposal.decision_held = False
+    if instance.outcome == WorkflowStepOutcomes.EXPIRED:
+        proposal.save(update_fields=["decision_held"])
+        notification_rules.dispatch_step_event(
+            instance, NotificationRuleTriggers.STEP_EXPIRED
+        )
+        next_instance, _ = _continue_after_expiry(proposal, DECISION_STEP)
+        return proposal.state if next_instance is None else None
+    if instance.outcome in (
+        WorkflowStepOutcomes.NEGATIVE_OUTCOMES | {WorkflowStepOutcomes.REJECTED}
+    ):
+        notification_rules.dispatch_step_event(
+            instance, NotificationRuleTriggers.STEP_REJECTED
+        )
+        proposal.state = ProposalStates.REJECTED
+        proposal.workflow_step = None
+        proposal.save(update_fields=["decision_held", "state", "workflow_step"])
+        return proposal.state
+
+    proposal.save(update_fields=["decision_held"])
+    notification_rules.dispatch_step_event(
+        instance, NotificationRuleTriggers.STEP_COMPLETED
+    )
+    next_instance = _advance_to_next(
+        proposal, DECISION_STEP, acting_user=instance.completed_by
+    )
+    return proposal.state if next_instance is None else None
+
+
+class DecisionNotReopenable(ValueError):
+    """The proposal has no held decision that can still be taken back."""
+
+
+@transaction.atomic
+def reopen_held_decision(proposal, user, reason, deadline=None):
+    """Take a held allocation decision back so it can be made again.
+
+    Only while the round withholds its results: once they are published the
+    decision has been (or is being) announced. The decision step becomes
+    active again with its recorded outcome cleared, and the proposal counts
+    as undecided for the round's publication. The deadline is ``deadline``
+    when given; otherwise one that has already passed is dropped, so the
+    step does not lapse again at the next sweep, and one still ahead is kept.
+    Nothing is sent to anyone: the outcome was never announced. The reopen
+    is logged on the proposal's feed without the reason or the outcome it
+    undid: the applicant team reads that feed, and both would tell them the
+    decision. Those two go to the server log only. Returns the reactivated
+    step instance.
+
+    Locks the proposal, then the round, the order every decision and the
+    round's publication take.
+    """
+    proposal = (
+        models.Proposal.objects.select_for_update(of=("self",))
+        .select_related("round__call__manager__customer")
+        .get(pk=proposal.pk)
+    )
+    if not proposal.decision_held or proposal.workflow_step != DECISION_STEP:
+        raise DecisionNotReopenable("The proposal has no held decision to reopen.")
+    call_round = models.Round.objects.select_for_update().get(pk=proposal.round_id)
+    call_round.call = proposal.round.call
+    if not call_round.withholds_results:
+        raise DecisionNotReopenable(
+            "The round's results are published; the decision can no longer be reopened."
+        )
+    instance = proposal.workflow_step_instances.select_for_update().get(
+        step=DECISION_STEP
+    )
+    previous_outcome = instance.outcome
+
+    instance.status = WorkflowStepInstanceStatuses.ACTIVE
+    instance.outcome = None
+    instance.outcome_reason = ""
+    instance.completed_at = None
+    instance.completed_by = None
+    if deadline is not None:
+        instance.deadline = deadline
+    elif instance.deadline is not None and instance.deadline <= timezone.now():
+        instance.deadline = None
+    instance.save(
+        update_fields=[
+            "status",
+            "outcome",
+            "outcome_reason",
+            "completed_at",
+            "completed_by",
+            "deadline",
+        ]
+    )
+    proposal.decision_held = False
+    proposal.save(update_fields=["decision_held"])
+
+    # Filed on the proposal's feed alone. Its scope guard keeps evaluators out
+    # but lets the applicant team in, so the event names neither the outcome
+    # taken back nor the free-text reason, which may well state it. The
+    # managing organisation's feed is no place for it either: its owners need
+    # not manage the call, and an applicant may be one of them.
+    event_logger.emit(
+        "Allocation decision on proposal {proposal_name} was reopened by {actor}.",
+        event_type=EventType.PROPOSAL_DECISION_REOPENED,
+        event_context={
+            "proposal": proposal,
+            "actor": user.full_name or user.username,
+            "deadline": instance.deadline.isoformat() if instance.deadline else None,
+        },
+        scopes=[proposal],
+    )
+    logger.info(
+        "Held decision on proposal %s reopened by user %s; previous outcome %s; "
+        "reason: %s",
+        proposal.uuid.hex,
+        user.uuid.hex,
+        previous_outcome,
+        reason,
+    )
+    return instance

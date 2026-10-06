@@ -67,6 +67,9 @@ _CALL_REFERENCE_CODE = "reference_code"
 # import must not either. State restarts at requested on the new portal.
 _REQUESTED_OFFERING_EXCLUDED = frozenset({"state", "require_purchase_order"})
 
+# A round's lifecycle after its cut-off is what happened to it on this portal.
+_ROUND_EXCLUDED = frozenset(models.Round.LIFECYCLE_FIELDS)
+
 _ONE_TO_ONE_CONFIGS = {
     "field_configs": (
         ("proposal_field_config", models.CallProposalFieldConfig),
@@ -188,7 +191,10 @@ def export_call(call, sections=None):
         ]
 
     if sections["rounds"]:
-        data["rounds"] = [_dump(r) for r in call.round_set.order_by("start_time", "id")]
+        data["rounds"] = [
+            _dump(r, _ROUND_EXCLUDED)
+            for r in call.round_set.order_by("start_time", "id")
+        ]
 
     if sections["offerings"]:
         data["requested_offerings"] = [
@@ -529,7 +535,9 @@ class _Importer:
         created = []
         for index, values in enumerate(self._list(self.data["rounds"], "rounds")):
             context = f"rounds[{index}]"
-            round_obj = self._assign(models.Round(call=call), values, context)
+            round_obj = self._assign(
+                models.Round(call=call), values, context, _ROUND_EXCLUDED
+            )
             self._validate(round_obj, context)
             # The rules ProtectedRoundSerializer applies to a round created
             # through the API.

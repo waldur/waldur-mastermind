@@ -38,6 +38,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalDisclosureLevels,
     ProposalStates,
     RequestedOfferingStates,
+    RoundLifecycleStates,
 )
 
 logger = logging.getLogger(__name__)
@@ -703,6 +704,60 @@ def process_closed_round(
     return moved
 
 
+def emit_round_event(
+    call_round: proposal_models.Round, message: str, event_type, **context
+):
+    """Log a round lifecycle transition against the call it belongs to.
+
+    ``message`` is a template formatted with the context (``round_name``,
+    ``call_name``, ``lifecycle_state``, and whatever ``context`` adds), never
+    an f-string of names.
+    """
+    event_logger.emit(
+        message,
+        event_type=event_type,
+        event_context={
+            "call": call_round.call,
+            "round_uuid": call_round.uuid.hex,
+            "round_name": call_round.name,
+            "lifecycle_state": call_round.lifecycle_state,
+            **context,
+        },
+        scopes=[call_round.call.manager.customer],
+    )
+
+
+def start_round_evaluation(call_round: proposal_models.Round) -> bool:
+    """Move a round whose cut-off has passed into ``evaluating``.
+
+    A conditional update, so the sweep, a close and the evaluation-start task
+    can all call it and exactly one of them records the transition. Returns
+    whether this call did.
+    """
+    now = timezone.now()
+    updated = proposal_models.Round.objects.filter(
+        pk=call_round.pk, lifecycle_state__isnull=True, cutoff_time__lte=now
+    ).update(lifecycle_state=RoundLifecycleStates.EVALUATING, evaluation_started_at=now)
+    if not updated:
+        return False
+    call_round.lifecycle_state = RoundLifecycleStates.EVALUATING
+    call_round.evaluation_started_at = now
+    emit_round_event(
+        call_round,
+        "Evaluation of {round_name} of call {call_name} has started.",
+        EventType.ROUND_EVALUATION_STARTED,
+    )
+    return True
+
+
+def start_evaluation_of_ended_rounds() -> int:
+    """Start the lifecycle of every round whose cut-off has passed."""
+    ended = proposal_models.Round.objects.filter(
+        lifecycle_state__isnull=True, cutoff_time__lte=timezone.now()
+    ).select_related("call__manager__customer")
+    return sum(start_round_evaluation(call_round) for call_round in ended)
+
+
 def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:
     base_queryset = proposal_models.Review.objects.filter(proposal=proposal)
 
@@ -821,6 +876,7 @@ def duplicate_call(
             _prepare_clone(src_round)
             src_round.slug = ""
             src_round.call = new_call
+            src_round.reset_lifecycle()
             src_round.save()
 
     if opts["copy_workflow_steps"]:
