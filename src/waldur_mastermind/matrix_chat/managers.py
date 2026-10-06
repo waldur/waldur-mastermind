@@ -30,9 +30,12 @@ def get_accessible_room_ids(user):
     connected_projects = get_connected_projects(user)
     connected_customers = get_connected_customers(user)
 
-    # Include projects that belong to user's connected customers
+    # A customer role reaches the customer's project rooms on the same rule
+    # as member sync, so the list holds no room the user would be kept out of.
     projects_via_customer = Project.objects.filter(
-        customer__in=connected_customers
+        customer__in=get_scope_ids(
+            user, customer_ct, permission=PermissionEnum.CREATE_MATRIX_ROOM
+        )
     ).values_list("id", flat=True)
 
     return models.MatrixRoom.objects.filter(

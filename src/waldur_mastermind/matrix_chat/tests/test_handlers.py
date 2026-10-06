@@ -4,7 +4,8 @@ from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import handlers, models
@@ -52,6 +53,80 @@ class OnRoleGrantedTest(TestCase):
             handlers.on_role_granted(sender=UserRole, instance=role_instance)
 
 
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
+class OnCustomerRoleGrantedTest(TestCase):
+    # Member sync puts customer-level role holders into every room of the
+    # customer's projects, but only runs on demand: a new owner would stay
+    # out of the rooms until someone happened to sync each of them.
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.user = structure_factories.UserFactory()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+    def _room(self, customer, state=models.RoomStates.ACTIVE):
+        project = structure_factories.ProjectFactory(customer=customer)
+        return models.MatrixRoom.objects.create(
+            room_id=f"!{project.uuid.hex}:matrix.example.com",
+            room_name=project.name,
+            state=state,
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+        )
+
+    def _grant(self, role=None):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.customer.add_user(self.user, role or CustomerRole.OWNER)
+
+    def test_invites_to_every_active_room_of_the_customers_projects(
+        self, mock_client, mock_tasks
+    ):
+        mock_client.is_enabled.return_value = True
+        rooms = [self._room(self.customer), self._room(self.customer)]
+
+        self._grant()
+
+        self.assertCountEqual(
+            mock_tasks.invite_user_to_room.delay.call_args_list,
+            [mock.call(str(room.uuid), str(self.user.uuid)) for room in rooms],
+        )
+
+    def test_leaves_out_a_role_that_cannot_create_rooms(self, mock_client, mock_tasks):
+        mock_client.is_enabled.return_value = True
+        self._room(self.customer)
+        # Seeing the customer's projects is not enough.
+        CustomerRole.READER.add_permission(PermissionEnum.LIST_PROJECTS)
+
+        self._grant(CustomerRole.READER)
+
+        mock_tasks.invite_user_to_room.delay.assert_not_called()
+
+    def test_leaves_out_rooms_that_are_not_active(self, mock_client, mock_tasks):
+        mock_client.is_enabled.return_value = True
+        self._room(self.customer, state=models.RoomStates.ARCHIVED)
+
+        self._grant()
+
+        mock_tasks.invite_user_to_room.delay.assert_not_called()
+
+    def test_leaves_out_rooms_of_other_customers(self, mock_client, mock_tasks):
+        mock_client.is_enabled.return_value = True
+        self._room(structure_factories.CustomerFactory())
+
+        self._grant()
+
+        mock_tasks.invite_user_to_room.delay.assert_not_called()
+
+    def test_no_op_when_disabled(self, mock_client, mock_tasks):
+        mock_client.is_enabled.return_value = False
+        self._room(self.customer)
+
+        self._grant()
+
+        mock_tasks.invite_user_to_room.delay.assert_not_called()
+
+
 @mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
 class OnRoleRevokedTest(TestCase):
     def test_no_op_when_disabled(self, mock_client):
@@ -76,6 +151,79 @@ class OnRoleRevokedTest(TestCase):
         if role_instance:
             handlers.on_role_revoked(sender=UserRole, instance=role_instance)
             # Should NOT dispatch kick because user still has ADMIN role
+
+
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
+class ProjectRoleRevokedCustomerRoleTest(TestCase):
+    # A remaining customer role keeps the user in only if member sync would
+    # put them in the room for it.
+
+    def setUp(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        self.project = structure_factories.ProjectFactory()
+        self.room = _create_room_for_project(self.project)
+        self.user = structure_factories.UserFactory()
+        self.project.add_user(self.user, ProjectRole.MEMBER)
+
+    def _revoke_project_role(self):
+        role = UserRole.objects.get(user=self.user, scope=self.project)
+        role.is_active = False
+        role.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.on_role_revoked(sender=UserRole, instance=role)
+
+    def test_a_remaining_reader_role_does_not_keep_the_user_in(
+        self, mock_client, mock_tasks
+    ):
+        mock_client.is_enabled.return_value = True
+        self.project.customer.add_user(self.user, CustomerRole.READER)
+
+        self._revoke_project_role()
+
+        mock_tasks.kick_user_from_room.delay.assert_called_once_with(
+            str(self.room.uuid), str(self.user.uuid)
+        )
+
+    def test_a_remaining_owner_role_keeps_the_user_in(self, mock_client, mock_tasks):
+        mock_client.is_enabled.return_value = True
+        self.project.customer.add_user(self.user, CustomerRole.OWNER)
+
+        self._revoke_project_role()
+
+        mock_tasks.kick_user_from_room.delay.assert_not_called()
+
+
+class HasRoomRoleTest(TestCase):
+    def test_project_rooms_follow_the_member_sync_rule(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        project = structure_factories.ProjectFactory()
+        room = _create_room_for_project(project)
+        owner = structure_factories.UserFactory()
+        project.customer.add_user(owner, CustomerRole.OWNER)
+        reader = structure_factories.UserFactory()
+        project.customer.add_user(reader, CustomerRole.READER)
+        member = structure_factories.UserFactory()
+        project.add_user(member, ProjectRole.MEMBER)
+
+        self.assertTrue(models.has_room_role(owner, room))
+        self.assertTrue(models.has_room_role(member, room))
+        self.assertFalse(models.has_room_role(reader, room))
+
+    def test_customer_rooms_follow_any_customer_role(self):
+        customer = structure_factories.CustomerFactory()
+        room = models.MatrixRoom.objects.create(
+            room_id="!c:matrix.example.com",
+            room_name="customer",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(customer),
+            object_id=customer.id,
+        )
+        reader = structure_factories.UserFactory()
+        customer.add_user(reader, CustomerRole.READER)
+
+        self.assertTrue(models.has_room_role(reader, room))
+        self.assertFalse(models.has_room_role(structure_factories.UserFactory(), room))
 
 
 @mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")

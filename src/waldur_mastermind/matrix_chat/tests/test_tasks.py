@@ -6,6 +6,8 @@ from unittest import mock
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import models, tasks
 from waldur_mastermind.matrix_chat.tests import fixtures
@@ -836,6 +838,93 @@ class SyncDoesNotKickStaffTest(TestCase):
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class SyncCustomerRoleHoldersTest(TestCase):
+    # A customer role only reaches the project rooms if it may create the
+    # customer's chat rooms; seeing the customer's projects is not enough.
+
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.room = models.MatrixRoom.objects.create(
+            room_id="!sync:matrix.example.com",
+            room_name="Sync Room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(self.project),
+            object_id=self.project.id,
+        )
+        self.user = structure_factories.UserFactory()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+    def _enable(self, mock_client):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.side_effect = (
+            lambda user: f"@{user.username}:matrix.example.com"
+        )
+        mock_client.get_power_level_for_scope.return_value = 0
+
+    def test_syncs_a_role_that_can_create_rooms(self, mock_client):
+        self._enable(mock_client)
+        self.project.customer.add_user(self.user, CustomerRole.OWNER)
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        self.assertTrue(
+            models.MatrixRoomMember.objects.filter(
+                room=self.room, user=self.user
+            ).exists()
+        )
+
+    def test_leaves_out_a_role_that_cannot_create_rooms(self, mock_client):
+        self._enable(mock_client)
+        CustomerRole.READER.add_permission(PermissionEnum.LIST_PROJECTS)
+        self.project.customer.add_user(self.user, CustomerRole.READER)
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        mock_client.invite_user.assert_not_called()
+        self.assertFalse(
+            models.MatrixRoomMember.objects.filter(
+                room=self.room, user=self.user
+            ).exists()
+        )
+
+    def test_kicks_a_member_whose_customer_role_cannot_create_rooms(self, mock_client):
+        self._enable(mock_client)
+        self.project.customer.add_user(self.user, CustomerRole.READER)
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=self.user,
+            matrix_user_id=f"@{self.user.username}:matrix.example.com",
+            membership_state=models.MembershipStates.JOINED,
+        )
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        mock_client.kick_user.assert_called_once_with(
+            self.room.room_id,
+            f"@{self.user.username}:matrix.example.com",
+            reason="Role removed in Waldur",
+        )
+
+    def test_keeps_a_reader_who_also_holds_a_project_role(self, mock_client):
+        self._enable(mock_client)
+        self.project.customer.add_user(self.user, CustomerRole.READER)
+        self.project.add_user(self.user, ProjectRole.MEMBER)
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=self.user,
+            matrix_user_id=f"@{self.user.username}:matrix.example.com",
+            membership_state=models.MembershipStates.JOINED,
+        )
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        mock_client.kick_user.assert_not_called()
+        mock_client.invite_user.assert_called_once_with(
+            self.room.room_id, f"@{self.user.username}:matrix.example.com"
+        )
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
 class BotCommandSenderAuthTest(TestCase):
     """!status/!orders/!members surface project-scoped data; dispatch must be
     gated on the sender mapping to a Waldur user with an active project role."""
@@ -901,6 +990,27 @@ class BotCommandSenderAuthTest(TestCase):
         mock_dispatch.assert_not_called()
         # Friendly reply rather than silence — the sender should know why.
         mock_client.send_reply.assert_called_once()
+
+    def test_command_from_customer_reader_is_denied(self, mock_client):
+        # Readers are left out of the customer's project rooms, so they get
+        # none of the project data the commands show either.
+        mock_client.is_enabled.return_value = True
+        mock_client.get_bot_user_id.return_value = "@waldur-bot:matrix.example.com"
+        project, _, event = self._build_room_and_event(
+            sender_id="@reader:matrix.example.com"
+        )
+        user = structure_factories.UserFactory()
+        models.MatrixUserProfile.objects.create(
+            user=user, matrix_user_id="@reader:matrix.example.com"
+        )
+        project.customer.add_user(user, CustomerRole.READER)
+
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay"
+        ) as mock_dispatch:
+            tasks.process_appservice_events("txn3", [event])
+
+        mock_dispatch.assert_not_called()
 
 
 class CleanupAppserviceTransactionsTest(TestCase):

@@ -43,6 +43,26 @@ class MatrixRoomListTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_customer_reader_does_not_list_project_rooms(self):
+        # Member sync leaves readers out of the customer's project rooms, so
+        # listing them would offer rooms the reader cannot open.
+        self.fixture.matrix_room
+        reader = structure_factories.UserFactory()
+        self.fixture.customer.add_user(reader, CustomerRole.READER)
+
+        self.client.force_authenticate(reader)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(list(response.data), [])
+
+    def test_customer_owner_lists_project_rooms(self):
+        room = self.fixture.matrix_room
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual([r["room_id"] for r in response.data], [room.room_id])
+
     def test_member_summary_includes_matrix_user_id(self):
         member = self.fixture.matrix_room_member
         self.client.force_authenticate(self.fixture.owner)

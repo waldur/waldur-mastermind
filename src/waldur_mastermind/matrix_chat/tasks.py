@@ -124,9 +124,8 @@ def sync_project_members_to_room(room_uuid):
         is_active=True,
     ).select_related("user")
 
-    customer_roles = UserRole.objects.filter(
-        scope=project.customer,
-        is_active=True,
+    customer_roles = models.get_customer_roles_in_project_rooms(
+        project.customer
     ).select_related("user")
 
     seen_users = set()
@@ -996,13 +995,7 @@ def _sender_has_project_access(sender, room_id):
     if not project:
         return None
 
-    has_project_role = UserRole.objects.filter(
-        user=user, scope=project, is_active=True
-    ).exists()
-    has_customer_role = UserRole.objects.filter(
-        user=user, scope=project.customer, is_active=True
-    ).exists()
-    if not (has_project_role or has_customer_role):
+    if not models.has_room_role(user, room):
         return None
     return user
 

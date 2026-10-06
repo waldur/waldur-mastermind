@@ -9,6 +9,8 @@ from django_fsm import FSMField, transition
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +210,34 @@ class MatrixRoomMember(core_models.UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return f"{self.matrix_user_id} in {self.room}"
+
+
+def get_customer_roles_in_project_rooms(customer):
+    """Active roles on the customer whose holders belong in its project rooms."""
+    # Whoever may create the customer's chat rooms runs its chat, so they sit
+    # in every room; other customer roles (support, reader) stay out.
+    # Taking the permission away from a role takes its holders out at the
+    # next member sync of each room.
+    return UserRole.objects.filter(
+        scope=customer,
+        is_active=True,
+        role__permissions__permission=PermissionEnum.CREATE_MATRIX_ROOM,
+    )
+
+
+def has_room_role(user, room):
+    """Whether a role puts the user in the room, by the member sync rule."""
+    project = room.project
+    if not project:
+        return UserRole.objects.filter(
+            user=user, scope=room.scope, is_active=True
+        ).exists()
+    return (
+        UserRole.objects.filter(user=user, scope=project, is_active=True).exists()
+        or get_customer_roles_in_project_rooms(project.customer)
+        .filter(user=user)
+        .exists()
+    )
 
 
 class ExportTypes:

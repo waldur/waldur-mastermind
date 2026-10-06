@@ -197,6 +197,16 @@ The grant also lets them manage the room and download its history exports, see
 If you replaced `CUSTOMER.OWNER` wholesale in `custom-roles.yaml`, add
 `MATRIX_ROOM.CREATE` to that list yourself, or owners lose room creation.
 
+The same permission on an organization also puts its holders in every room of
+the organization's projects (see [Member Sync](#member-sync)). Taking it away
+from organization owners therefore takes them out of those rooms as well, and
+giving it to another organization role brings that role's holders in. Neither
+happens when the role changes: each room catches up at its next member sync,
+so sync every room of the affected organizations
+(`POST /api/matrix/rooms/{uuid}/sync_members/`). The room list follows the new
+permissions at once. A grant on a single project does not: project roles
+already put their holders in that project's room.
+
 To give every project a room without anyone asking for one:
 
 - **New projects:** turn on `MATRIX_AUTO_CREATE_PROJECT_ROOMS` (off by default).
@@ -354,7 +364,7 @@ Lists room members with their user UUID, full name, Matrix user ID, power level,
 
 When a room is created or a manual sync is triggered:
 
-1. All active project members (direct and via customer) are enumerated
+1. Everyone with an active project role is enumerated, plus everyone whose customer role may create the customer's chat rooms (`MATRIX_ROOM.CREATE`, held by customer owners by default). Other customer roles, such as organization support and reader, are left out
 2. Each user is provisioned on the homeserver if needed (via `MatrixUserProfile`)
 3. Display names are set to the user's full name
 4. Users are invited to the room, and the invite is accepted on their behalf
@@ -365,14 +375,16 @@ When a room is created or a manual sync is triggered:
 
 Member records are stored in `MatrixRoomMember` with membership states: `invited`, `joined`, `left`, `banned`.
 
+The same rule decides who else sees a room. A user sees a project's room in the room list, and reaches its members, media and history exports or answers to bot commands, only if a role would put them in it in step 1; each action may ask for more on top. Organization support and readers therefore do not see the rooms of the organization's projects. Staff and support users list every room.
+
 Joins and leaves act as the user through the appservice token with `?user_id=`. They never log in as the user, so they create no Matrix device or access token.
 
 ### Automatic member management
 
 The integration automatically responds to role changes:
 
-- **Role granted** — user is invited to the room and a notification is posted
-- **Role revoked** — if the user has no remaining roles in the project or its customer, they are kicked from the room; a notification is posted regardless
+- **Role granted** — a project role invites the user to the project's room and posts a notification; a customer role that passes the member sync rule above invites the user to every active room of the customer's projects, without a notification
+- **Role revoked** — a project role posts a notification, and the user is kicked from the room unless a remaining role still puts them in it by the member sync rule above
 - **Project deleted** — the room is disabled (members kicked, history exported, room archived)
 - **Order state changed** — notifications are posted when orders are approved, completed, rejected, canceled, or errored
 - **User deactivated or deleted** — every `WALDUR_WEB_` device of the user is signed out by a background task, which revokes those devices' access and refresh tokens. An open chat drawer then asks Waldur for a new session, gets none, and the user is returned to the login page. Devices are signed out even while chat is switched off (`MATRIX_ENABLED`): switching chat off does not end drawers that are already open, because they renew their tokens with the homeserver directly. A user reactivated before the task runs keeps their new sessions. Other Matrix devices, such as Element, are left alone; in `password` mode the derived password keeps working, so deactivate the account on the homeserver to cut external access
