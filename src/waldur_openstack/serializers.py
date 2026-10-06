@@ -2844,6 +2844,14 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         lookup_field="uuid",
     )
     tenant_name = serializers.CharField(source="network.tenant.name", read_only=True)
+    tenant_is_managed = serializers.BooleanField(
+        source="network.tenant.is_managed",
+        read_only=True,
+        help_text=_(
+            "False when the subnet's network belongs to an OpenStack project that "
+            "Waldur does not manage and only reaches tenants through an RBAC share."
+        ),
+    )
     dns_nameservers = DnsNameserversField(required=False)
     host_routes = OpenStackStaticRouteSerializer(many=True, required=False)
     # Projected from the parent Network; Neutron owns this flag at the network level.
@@ -2885,6 +2893,7 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             "tenant",
             "tenant_name",
+            "tenant_is_managed",
             "network",
             "network_name",
             "cidr",

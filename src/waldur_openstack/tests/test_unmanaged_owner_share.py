@@ -368,6 +368,26 @@ class ApiTest(UnmanagedOwnerShareMixin, test.APITestCase):
         self.assertEqual([n["backend_id"] for n in networks], [NETWORK_ID])
         self.assertFalse(networks[0]["tenant_is_managed"])
         self.assertEqual([s["backend_id"] for s in subnets], [SUBNET_ID])
+        # The subnet says so too, so its actions can be explained as well.
+        self.assertFalse(subnets[0]["tenant_is_managed"])
+
+    def test_an_own_subnet_is_managed(self):
+        own = factories.SubNetFactory(
+            network=factories.NetworkFactory(
+                tenant=self.consumer,
+                service_settings=self.settings,
+                project=self.consumer_project,
+            ),
+            tenant=self.consumer,
+            service_settings=self.settings,
+            project=self.consumer_project,
+        )
+        self.client.force_authenticate(self.consumer_admin)
+
+        response = self.client.get(factories.SubNetFactory.get_url(own))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["tenant_is_managed"])
 
     def test_consumer_does_not_see_the_owner_tenant(self):
         tenants = self.list_for(self.consumer_admin, factories.TenantFactory)
