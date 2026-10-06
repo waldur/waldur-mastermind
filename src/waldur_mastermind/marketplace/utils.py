@@ -2218,10 +2218,197 @@ def evaluate_usage_limit_restriction(resource):
             locked.save(update_fields=list(update_fields))
             _emit_usage_limit_event(locked, flag, applied=True)
         elif not over_limit and locked.usage_limit_restriction == flag:
+            if flag == "paused" and is_held_by_project_grace(locked):
+                # The project grace period still wants the resource paused. The
+                # restriction is kept, so the periodic re-evaluation lifts it
+                # once the grace period no longer holds the resource.
+                return
             setattr(locked, flag, False)
             locked.usage_limit_restriction = ""
             locked.save(update_fields=[flag, "usage_limit_restriction"])
             _emit_usage_limit_event(locked, flag, applied=False)
+
+
+def is_held_by_project_grace(resource) -> bool:
+    """Whether the project grace period keeps ``resource`` paused.
+
+    A project past its end date but still inside its grace period has its
+    resources paused, on offerings that support pausing and do not opt out of
+    the grace period (those are terminated on the raw end date instead). Every
+    mechanism that lifts a pause automatically must leave such a resource
+    paused, whoever set the flag first.
+    """
+    plugin_options = resource.offering.plugin_options or {}
+    return bool(
+        plugin_options.get("supports_pausing")
+        and not plugin_options.get("disable_grace_period")
+        and resource.project.is_in_grace_period
+    )
+
+
+def pause_for_project_grace(resource) -> bool:
+    """Pause ``resource`` because its project is in the grace period.
+
+    Marks the pause as the grace period's own (``paused_by_grace_period``) so it
+    can be lifted when the project leaves the grace period. A resource that is
+    already paused is left alone and not claimed: that pause belongs to whoever
+    set it. Returns True if the resource was paused.
+    """
+    if resource.paused:
+        return False
+    resource.paused = True
+    resource.paused_by_grace_period = True
+    resource.save(update_fields=["paused", "paused_by_grace_period"])
+    logger.info(
+        "Resource %s paused due to project %s entering grace period",
+        resource.uuid,
+        resource.project.uuid,
+    )
+    event_logger.emit(
+        "Resource {resource_name} has been paused because "
+        "project {project_name} has entered the grace period.",
+        event_type=EventType.MARKETPLACE_RESOURCE_PAUSED,
+        event_context={"resource": resource, "project": resource.project},
+        scopes=[resource, resource.project, resource.project.customer],
+    )
+    return True
+
+
+# Events after which a pause can no longer be attributed to the grace period: a
+# policy paused or unpaused the resource, or its paused flag was changed by
+# anything else (staff, per-resource policy evaluation) -- such saves are logged
+# as a resource update naming the field.
+_LATER_PAUSE_CHANGE = Q(
+    event__event_type__in=(
+        EventType.RESET_PAUSING,
+        EventType.REQUEST_PAUSING,
+        EventType.REQUEST_SLURM_RESOURCE_PAUSING,
+    )
+) | Q(
+    event__event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_SUCCEEDED,
+    # "Field 'paused'" when it is the first changed field, "field 'paused'" after
+    event__message__icontains="field 'paused'",
+)
+
+
+def adopt_grace_period_pauses() -> int:
+    """Mark grace-period pauses that do not carry ``paused_by_grace_period``.
+
+    A resource still paused whose last pause-related change is the grace-period
+    pause event (only ``pause_for_project_grace`` emits it) was paused by the
+    grace period, even if the marker is missing -- pauses from before the marker
+    existed, or a marker lost on the way. Marking them lets
+    ``release_project_grace_pauses`` lift them once their project leaves the
+    grace period, including projects whose end date was already extended.
+    Returns the number of resources marked.
+    """
+    feed = logging_models.Feed.objects.filter(
+        content_type=ContentType.objects.get_for_model(models.Resource),
+        object_id=OuterRef("pk"),
+    )
+    last_grace_pause = (
+        feed.filter(event__event_type=EventType.MARKETPLACE_RESOURCE_PAUSED)
+        .order_by("-event__created")
+        .values("event__created")[:1]
+    )
+    unmarked = (
+        models.Resource.objects.filter(
+            paused=True,
+            paused_by_grace_period=False,
+            offering__plugin_options__supports_pausing=True,
+        )
+        .exclude(state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING))
+        .exclude(usage_limit_restriction=UsageLimitAction.FLAG[UsageLimitAction.PAUSE])
+        .annotate(last_grace_pause=Subquery(last_grace_pause))
+        .filter(last_grace_pause__isnull=False)
+    )
+    later_change = feed.filter(
+        _LATER_PAUSE_CHANGE, event__created__gt=OuterRef("last_grace_pause")
+    )
+    adopted = list(
+        unmarked.annotate(changed_since=Exists(later_change))
+        .filter(changed_since=False)
+        .values_list("pk", flat=True)
+    )
+    if adopted:
+        models.Resource.objects.filter(pk__in=adopted).update(
+            paused_by_grace_period=True
+        )
+        logger.info("Marked %s resources as paused by grace period", len(adopted))
+    return len(adopted)
+
+
+# Checks (resource -> bool) telling whether a mechanism that pauses resources
+# on its own still wants a resource paused. Apps that pause resources register
+# theirs in AppConfig.ready() -- the policy app does -- so marketplace does not
+# depend on them.
+PAUSE_KEEPERS = []
+
+
+def another_reason_keeps_paused(resource) -> bool:
+    """Whether a usage-limit restriction or a registered keeper still wants ``resource`` paused.
+
+    Checked before an automatic mechanism lifts a pause it does not own alone:
+    the grace-period release, and SLURM policies lifting pauses under their limit.
+    """
+    return resource.usage_limit_restriction == UsageLimitAction.FLAG[
+        UsageLimitAction.PAUSE
+    ] or any(keeper(resource) for keeper in PAUSE_KEEPERS)
+
+
+def release_project_grace_pauses(resources) -> list:
+    """Lift the grace-period pause from resources whose project left the grace period.
+
+    Only pauses the grace period set itself (``paused_by_grace_period``) are
+    considered. A project that is now expired keeps its resources paused until
+    they are terminated. The marker is always cleared, but ``paused`` stays set
+    while another automatic reason still applies: a usage-limit restriction, or
+    any registered keeper (``PAUSE_KEEPERS``: a firing cost policy,
+    usage over a SLURM policy's grace limit). Returns the resources that were
+    unpaused.
+    """
+    candidate_ids = list(
+        resources.filter(paused_by_grace_period=True)
+        .exclude(state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING))
+        .values_list("pk", flat=True)
+    )
+    if not candidate_ids:
+        return []
+
+    unpaused = []
+    with transaction.atomic():
+        for resource in (
+            models.Resource.objects.filter(pk__in=candidate_ids)
+            .select_related("offering", "project__customer")
+            .select_for_update(of=("self",))
+            .order_by("pk")
+        ):
+            if not resource.paused_by_grace_period:
+                continue
+            if is_held_by_project_grace(resource) or resource.project.is_expired:
+                continue
+            resource.paused_by_grace_period = False
+            update_fields = ["paused_by_grace_period"]
+            if resource.paused and not another_reason_keeps_paused(resource):
+                resource.paused = False
+                update_fields.append("paused")
+                unpaused.append(resource)
+            resource.save(update_fields=update_fields)
+
+    for resource in unpaused:
+        logger.info(
+            "Resource %s unpaused because project %s is no longer in grace period",
+            resource.uuid,
+            resource.project.uuid,
+        )
+        event_logger.emit(
+            "Resource {resource_name} has been unpaused because "
+            "project {project_name} is no longer in the grace period.",
+            event_type=EventType.RESET_PAUSING,
+            event_context={"resource": resource, "project": resource.project},
+            scopes=[resource, resource.project, resource.project.customer],
+        )
+    return unpaused
 
 
 def get_components_usage_data(resources, for_current_month=False):
@@ -5644,7 +5831,7 @@ def notification_about_project_ending(end_date):
             "user": user,
             "end_date": end_date,
             "count_projects": len(projects),
-            "delta": (end_date - timezone.datetime.today().date()).days,
+            "delta": (end_date - timezone.localdate()).days,
         }
         logger.info(
             "Sending notification to user %s about %d projects",

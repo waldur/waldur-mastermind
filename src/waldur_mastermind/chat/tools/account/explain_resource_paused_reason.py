@@ -5,7 +5,7 @@ unavailable, in priority order:
 
   1. Cost-policy pausing (ProjectEstimatedCostPolicy fired,
      limit_cost exceeded by project spend).
-  2. SLURM grace-ratio pausing (SlurmPeriodicPolicy: usage% over
+  2. SLURM grace-ratio pausing (SlurmPeriodicUsagePolicy: usage% over
      (1+grace_ratio)*100).
   3. Project end-date / grace-period expiry (independent of policy
      machinery — included as compounding context even when 1 or 2 is
@@ -196,7 +196,11 @@ class ExplainResourcePausedReasonTool(BaseTool):
         primary_cause = "manual"
         policy_details: dict = {}
 
-        if attribution and attribution.get("policy_class"):
+        if resource.paused_by_grace_period:
+            # Set only by the grace-period lifecycle; any attribution blob is
+            # left over from an earlier policy write.
+            primary_cause = "project_grace_period"
+        elif attribution and attribution.get("policy_class"):
             klass = attribution.get("policy_class", "")
             if klass == "ProjectEstimatedCostPolicy":
                 primary_cause = "cost_policy"
@@ -219,7 +223,7 @@ class ExplainResourcePausedReasonTool(BaseTool):
                     )
                 except (ValueError, TypeError):
                     policy_details["exceeded_by"] = None
-            elif klass == "SlurmPeriodicPolicy":
+            elif klass == "SlurmPeriodicUsagePolicy":
                 primary_cause = "slurm_grace"
                 policy_details["policy_kind"] = klass
                 policy_details["grace_ratio"] = attribution.get("grace_ratio")
@@ -246,6 +250,13 @@ class ExplainResourcePausedReasonTool(BaseTool):
                 f"{resource.name} is paused{timestamp_part} by SLURM grace-ratio "
                 f"policy (grace_ratio={policy_details.get('grace_ratio')})."
             )
+        elif primary_cause == "project_grace_period":
+            summary = (
+                f"{resource.name} is paused because project '{project.name}' "
+                "is in its grace period after its end date. Extending the "
+                "project end date lifts this pause, unless a usage limit or a "
+                "policy still requires the resource to stay paused."
+            )
         elif primary_cause == "manual":
             summary = (
                 f"{resource.name} is paused but no policy attribution is "
@@ -257,7 +268,9 @@ class ExplainResourcePausedReasonTool(BaseTool):
         if grace_context:
             if grace_context["is_in_grace_period"]:
                 summary += (
-                    f" Project '{project.name}' is also in grace period "
+                    f" Project '{project.name}' is "
+                    + ("" if primary_cause == "project_grace_period" else "also ")
+                    + "in grace period "
                     f"(end_date {grace_context['end_date']}, "
                     f"effective_end_date {grace_context['effective_end_date']})."
                 )

@@ -1571,3 +1571,53 @@ class TestGracePeriodPolicyInteraction(TestCase):
 
         self.resource.refresh_from_db()
         self.assertFalse(self.resource.paused)
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_grace_period_pause_is_marked_as_grace_pause(
+        self, mock_apply_policy_actions
+    ):
+        """A pause the policy applies for the grace period can be lifted on extension."""
+        mock_apply_policy_actions.return_value = True
+
+        with patch.object(
+            type(self.project),
+            "is_in_grace_period",
+            new_callable=lambda: property(lambda self: True),
+        ):
+            tasks.evaluate_resource_against_policy(
+                str(self.resource.uuid), str(self.policy.uuid)
+            )
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+        self.assertTrue(self.resource.paused_by_grace_period)
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_grace_disabled_offering_allows_unpause_during_grace_period(
+        self, mock_apply_policy_actions
+    ):
+        """An offering opting out of the grace period is not held paused by it."""
+        mock_apply_policy_actions.return_value = True
+        self.offering.plugin_options = {
+            "supports_pausing": True,
+            "disable_grace_period": True,
+        }
+        self.offering.save()
+        self.resource.paused = True
+        self.resource.save()
+
+        with patch.object(
+            type(self.project),
+            "is_in_grace_period",
+            new_callable=lambda: property(lambda self: True),
+        ):
+            tasks.evaluate_resource_against_policy(
+                str(self.resource.uuid), str(self.policy.uuid)
+            )
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.paused)

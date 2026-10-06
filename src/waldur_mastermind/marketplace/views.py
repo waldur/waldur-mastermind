@@ -9206,30 +9206,41 @@ class BaseResourceViewSet(
         serializer.is_valid(raise_exception=True)
         new_paused = serializer.validated_data["paused"]
         old_paused = resource.paused
-        if new_paused != old_paused:
-            resource.paused = new_paused
-            with reversion.create_revision():
-                resource.save()
-                reversion.set_user(request.user)
-                reversion.set_comment(
-                    f"Paused changed from {old_paused} to {new_paused}"
-                )
-            logger.info(
-                "%s has changed paused from %s to %s for resource %s",
-                request.user.full_name,
-                old_paused,
-                new_paused,
-                resource.uuid,
-            )
-            return Response(
-                {"status": _("Resource paused flag has been changed.")},
-                status=status.HTTP_200_OK,
-            )
-        else:
+        # Staff take the pause over from the project grace period either way: a
+        # staff pause is not lifted when the end date is extended, and unpausing
+        # during the grace period lasts until the next grace-period run.
+        took_over = resource.paused_by_grace_period
+        if new_paused == old_paused and not took_over:
             return Response(
                 {"status": _("Resource paused flag is not changed.")},
                 status=status.HTTP_200_OK,
             )
+        resource.paused = new_paused
+        resource.paused_by_grace_period = False
+        with reversion.create_revision():
+            resource.save()
+            reversion.set_user(request.user)
+            reversion.set_comment(
+                f"Paused changed from {old_paused} to {new_paused}"
+                if new_paused != old_paused
+                else "Pause taken over from the project grace period"
+            )
+        logger.info(
+            "%s has set paused from %s to %s for resource %s",
+            request.user.full_name,
+            old_paused,
+            new_paused,
+            resource.uuid,
+        )
+        if new_paused == old_paused:
+            return Response(
+                {"status": _("Resource paused flag is not changed.")},
+                status=status.HTTP_200_OK,
+            )
+        return Response(
+            {"status": _("Resource paused flag has been changed.")},
+            status=status.HTTP_200_OK,
+        )
 
     set_paused_permissions = [structure_permissions.is_staff]
 

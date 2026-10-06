@@ -18,6 +18,7 @@ from waldur_core.logging.models import EventSubscriptionQueue
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.policy import models
 
 from . import utils
@@ -147,16 +148,16 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
             grace_limit_percentage = (1 + policy.grace_ratio) * 100
 
             # Check for pausing (highest threshold)
-            if (
+            pause_for_usage = (
                 usage_percentage >= grace_limit_percentage
                 and "request_slurm_resource_pausing" in policy.actions
-            ):
+            )
+            if pause_for_usage:
                 actions_needed.append("pause")
 
-            # Also pause if project is in grace period and offering supports pausing
+            # Also pause if the project grace period holds the resource paused
             if (
-                resource.project.is_in_grace_period
-                and resource.offering.plugin_options.get("supports_pausing")
+                marketplace_utils.is_held_by_project_grace(resource)
                 and "pause" not in actions_needed
             ):
                 actions_needed.append("pause")
@@ -186,26 +187,32 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
             # Handle pausing
             if "pause" in actions_needed:
                 if not resource.paused:
-                    resource.paused = True
-                    resource.save()
+                    if pause_for_usage:
+                        resource.paused = True
+                        resource.save()
+                        logger.info(
+                            f"Resource {resource.uuid} paused due to {usage_percentage:.1f}% usage"
+                        )
+                    else:
+                        marketplace_utils.pause_for_project_grace(resource)
+                elif not pause_for_usage:
+                    # Usage alone would lift this pause, but the project grace
+                    # period holds it; this policy lifts it once that ends.
                     logger.info(
-                        f"Resource {resource.uuid} paused due to {usage_percentage:.1f}% usage"
+                        f"Resource {resource.uuid} remains paused - project in grace period"
                     )
             elif resource.paused and usage_percentage < grace_limit_percentage:
-                # Don't unpause if project is in grace period and offering supports pausing
-                in_lifecycle_grace = (
-                    resource.project.is_in_grace_period
-                    and resource.offering.plugin_options.get("supports_pausing")
-                )
-                if not in_lifecycle_grace:
+                if marketplace_utils.another_reason_keeps_paused(resource):
+                    logger.info(
+                        f"Resource {resource.uuid} remains paused - a usage limit or cost policy holds it"
+                    )
+                else:
                     resource.paused = False
+                    # A lifted pause no longer belongs to the grace period.
+                    resource.paused_by_grace_period = False
                     resource.save()
                     logger.info(
                         f"Resource {resource.uuid} pause removed - usage {usage_percentage:.1f}% below grace limit"
-                    )
-                else:
-                    logger.info(
-                        f"Resource {resource.uuid} remains paused - project in grace period"
                     )
 
             # Handle downscaling

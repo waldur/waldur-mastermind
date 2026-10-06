@@ -13,6 +13,7 @@ from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
     OrderStates,
     OrderTypes,
@@ -86,6 +87,11 @@ def _save_resource_with_reversion(
     """
     old_value = getattr(resource, field_name)
     setattr(resource, field_name, new_value)
+    update_fields = [field_name, "attributes"]
+    if field_name == "paused" and not new_value and resource.paused_by_grace_period:
+        # A lifted pause no longer belongs to the grace period.
+        resource.paused_by_grace_period = False
+        update_fields.append("paused_by_grace_period")
 
     scope_name = str(policy.scope) if policy.scope else ""
 
@@ -133,7 +139,7 @@ def _save_resource_with_reversion(
     resource.is_mocked = True
     try:
         with reversion.create_revision():
-            resource.save(update_fields=[field_name, "attributes"])
+            resource.save(update_fields=update_fields)
             reversion.set_user(system_robot)
             reversion.set_comment(comment)
     finally:
@@ -253,6 +259,66 @@ def request_slurm_resource_downscaling(policy: models.Policy):
     _emit_events_bulk(pending_events)
 
 
+def _keep_paused_for_project_grace(resource, hand_over=False) -> bool:
+    """Whether a policy must leave ``resource`` paused for its project's grace period.
+
+    ``paused`` is shared: a project in its grace period wants its resources
+    paused whatever their usage, so a policy lifting its own pause leaves the
+    flag set. With ``hand_over`` the pause becomes the grace period's own
+    (lifted when the end date is extended); otherwise it stays with whoever set
+    it, which is right for a policy that re-evaluates and lifts it later.
+    """
+    if not marketplace_utils.is_held_by_project_grace(resource):
+        return False
+    if hand_over and not resource.paused_by_grace_period:
+        resource.paused_by_grace_period = True
+        resource.save(update_fields=["paused_by_grace_period"])
+    logger.info(
+        "Resource %s stays paused: project %s is in grace period",
+        resource.uuid,
+        resource.project.uuid,
+    )
+    return True
+
+
+def policies_keep_paused(resource) -> bool:
+    """Whether a policy still wants ``resource`` paused, whoever set the flag.
+
+    Registered as a marketplace pause keeper: an automatic lift (the
+    grace-period release, a SLURM policy under its limit) leaves the resource
+    paused while a firing cost policy with ``request_pausing`` covers it, or its
+    usage is over the grace limit of a SLURM periodic policy that pauses.
+    """
+    single = marketplace_models.Resource.objects.filter(pk=resource.pk)
+    # Only policies scoped to this resource's project, customer or offering can
+    # cover it; the scope filter below still applies their narrower selection.
+    scopes = {
+        models.ProjectEstimatedCostPolicy: resource.project,
+        models.CustomerEstimatedCostPolicy: resource.project.customer,
+        models.OfferingEstimatedCostPolicy: resource.offering,
+    }
+    for klass in _cost_policy_classes():
+        for policy in klass.objects.filter(
+            has_fired=True, actions__contains="request_pausing", scope=scopes[klass]
+        ):
+            scoped = _filter_resources_by_scope(single, policy)
+            if scoped is not None and scoped.exists():
+                return True
+    for policy in models.SlurmPeriodicUsagePolicy.objects.filter(
+        scope=resource.offering,
+        actions__contains="request_slurm_resource_pausing",
+    ):
+        grace_limit = (1 + policy.grace_ratio) * 100
+        if policy.get_resource_usage_percentage(resource) >= grace_limit:
+            return True
+    return False
+
+
+def _paused_by_policy(resource, policy) -> bool:
+    attribution = (resource.attributes or {}).get("_policy_attribution", {})
+    return attribution.get("paused", {}).get("policy_uuid") == policy.uuid.hex
+
+
 def request_slurm_resource_pausing(policy: models.Policy):
     """SLURM-specific pausing for individual resource management."""
 
@@ -302,6 +368,10 @@ def request_slurm_resource_pausing(policy: models.Policy):
                     }
                 )
             elif resource.paused and usage_percentage < grace_limit:
+                if _keep_paused_for_project_grace(resource):
+                    continue
+                if marketplace_utils.another_reason_keeps_paused(resource):
+                    continue
                 _save_resource_with_reversion(
                     resource,
                     policy,
@@ -372,7 +442,6 @@ def notify_organization_owners(policy: models.Policy):
 
 def terminate_resources(policy: models.Policy):
     from waldur_mastermind.marketplace import tasks as marketplace_tasks
-    from waldur_mastermind.marketplace import utils as marketplace_utils
 
     system_robot = get_system_robot()
 
@@ -590,11 +659,23 @@ def _apply_generic_action(
     pending_events = []
 
     with transaction.atomic():
-        for resource in resources.select_for_update():
+        for resource in resources.select_related(
+            "offering", "project__customer"
+        ).select_for_update(of=("self",)):
             current_value = getattr(resource, field_name)
             if current_value == new_value:
                 continue
             if new_value is False and resource.pk in locked:
+                continue
+            # A reset fires once per policy cycle, so a pause this policy set is
+            # handed to the grace period rather than left without an owner.
+            if (
+                field_name == "paused"
+                and new_value is False
+                and _keep_paused_for_project_grace(
+                    resource, hand_over=_paused_by_policy(resource, policy)
+                )
+            ):
                 continue
 
             _save_resource_with_reversion(

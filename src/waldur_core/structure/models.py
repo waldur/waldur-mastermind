@@ -1199,10 +1199,13 @@ class Project(
         grace_days = self.get_grace_period_days()
         return self.end_date + timedelta(days=grace_days)
 
+    # End dates are calendar dates in the deployment's TIME_ZONE, so "today" is
+    # timezone.localdate(), never the UTC date: the end-date beat tasks fire at a
+    # local hour, and around midnight the two dates differ.
     @property
     def is_expired(self):
         effective_end_date = self.get_effective_end_date()
-        return effective_end_date and effective_end_date <= timezone.now().date()
+        return effective_end_date and effective_end_date <= timezone.localdate()
 
     @property
     def is_in_grace_period(self):
@@ -1210,7 +1213,7 @@ class Project(
         if not self.end_date:
             return False
 
-        today = timezone.now().date()
+        today = timezone.localdate()
         effective_end_date = self.get_effective_end_date()
 
         # In grace period if past end_date but before effective_end_date

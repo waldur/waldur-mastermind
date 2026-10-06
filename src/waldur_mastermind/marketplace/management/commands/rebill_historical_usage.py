@@ -646,6 +646,13 @@ class Command(BaseCommand):
                         locked = _resources_locked_by_other_policies(policy, field_name)
                         if locked:
                             affected = affected.exclude(pk__in=locked)
+                    if field_name == "paused" and not now_triggered:
+                        # ...and one its project's grace period keeps paused.
+                        affected = [
+                            r
+                            for r in affected
+                            if not marketplace_utils.is_held_by_project_grace(r)
+                        ]
 
                 names = [f"{r.name} ({r.uuid.hex})" for r in affected]
                 direction = "would apply to" if now_triggered else "would reset on"

@@ -2179,6 +2179,14 @@ class Resource(
             "restriction that was set for another reason."
         ),
     )
+    paused_by_grace_period = models.BooleanField(
+        default=False,
+        help_text=(
+            "Waldur paused the resource because its project entered the grace "
+            "period after its end date. Lets the pause be lifted when the end "
+            "date is extended, without lifting a pause set for another reason."
+        ),
+    )
 
     NON_LOGGABLE_FIELDS = (
         "modified",
@@ -2192,6 +2200,7 @@ class Resource(
         "error_message",
         "error_traceback",
         "current_usages",
+        "paused_by_grace_period",
     )
 
     def save(self, *args, **kwargs):
@@ -2425,7 +2434,7 @@ class Resource(
     def is_expired(self) -> bool:
         if not self.end_date:
             return False
-        return self.end_date <= timezone.datetime.today().date()
+        return self.end_date <= timezone.localdate()
 
     @property
     def effective_end_date(self) -> datetime.date | None:

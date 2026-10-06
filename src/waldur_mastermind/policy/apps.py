@@ -11,7 +11,8 @@ class PolicyConfig(AppConfig):
         from waldur_core.core.utils import camel_case_to_underscore
         from waldur_mastermind.invoices import models as invoices_models
         from waldur_mastermind.marketplace import models as marketplace_models
-        from waldur_mastermind.policy import handlers
+        from waldur_mastermind.marketplace import utils as marketplace_utils
+        from waldur_mastermind.policy import handlers, policy_actions
 
         from . import models
 
@@ -79,3 +80,6 @@ class PolicyConfig(AppConfig):
             handlers.validate_resource_creation_against_cost_policies,
             dispatch_uid="waldur_mastermind.policy.validate_resource_creation_against_cost_policies",
         )
+
+        if policy_actions.policies_keep_paused not in marketplace_utils.PAUSE_KEEPERS:
+            marketplace_utils.PAUSE_KEEPERS.append(policy_actions.policies_keep_paused)
