@@ -44,6 +44,18 @@ class MatrixChatConfig(AppConfig):
             dispatch_uid="waldur_mastermind.matrix_chat.on_user_deactivated",
         )
 
+        signals.post_save.connect(
+            handlers.on_user_reactivated,
+            sender=User,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_user_reactivated",
+        )
+
+        signals.post_save.connect(
+            handlers.on_user_demoted,
+            sender=User,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_user_demoted",
+        )
+
         signals.pre_delete.connect(
             handlers.on_user_pre_delete,
             sender=User,

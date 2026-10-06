@@ -268,6 +268,8 @@ Staff and support users create a chat room for a project. Each project can have 
 
 The room name is automatically set to the project name. Room creation is asynchronous — a Celery task creates the room on the homeserver and sets the state to `ACTIVE`. If creation fails, the state is set to `ERROR` with a message.
 
+Rooms are created unfederated (`m.federate: false`): only accounts on this homeserver can join them, whatever its federation settings. The packaged homeservers keep federation on for LiveKit's OpenID check, which does not open these rooms.
+
 The room alias is automatically generated as `#waldur-{project_uuid_prefix}:{homeserver_domain}`.
 
 ### Room states
@@ -384,10 +386,14 @@ Joins and leaves act as the user through the appservice token with `?user_id=`. 
 The integration automatically responds to role changes:
 
 - **Role granted** — a project role invites the user to the project's room and posts a notification; a customer role that passes the member sync rule above invites the user to every active room of the customer's projects, without a notification
-- **Role revoked** — a project role posts a notification, and the user is kicked from the room unless a remaining role still puts them in it by the member sync rule above
+- **Project role revoked** — a notification is posted, and the user is kicked from the room unless a remaining role still puts them in it (see [Member Sync](#member-sync))
+- **Customer role revoked** — the user is kicked, without a notification, from each active room of the customer's projects that they are in and no remaining role puts them in
+- **Staff or support status lost** — staff and support keep a room they joined with the Join action only while they are active staff or support; afterwards they are kicked from it, unless a role puts them in it
 - **Project deleted** — the room is disabled (members kicked, history exported, room archived)
 - **Order state changed** — notifications are posted when orders are approved, completed, rejected, canceled, or errored
-- **User deactivated or deleted** — every `WALDUR_WEB_` device of the user is signed out by a background task, which revokes those devices' access and refresh tokens. An open chat drawer then asks Waldur for a new session, gets none, and the user is returned to the login page. Devices are signed out even while chat is switched off (`MATRIX_ENABLED`): switching chat off does not end drawers that are already open, because they renew their tokens with the homeserver directly. A user reactivated before the task runs keeps their new sessions. Other Matrix devices, such as Element, are left alone; in `password` mode the derived password keeps working, so deactivate the account on the homeserver to cut external access
+- **User deactivated or deleted** — a background task signs out every Matrix device of the user, Element included, and removes them from all their rooms. An open chat drawer then asks Waldur for a new session, gets none, and the user is returned to the login page. This runs even while chat is switched off (`MATRIX_ENABLED`), because open drawers renew their tokens with the homeserver directly. A user reactivated before the task runs keeps access, and reactivation invites them back to every room a role puts them in. The Matrix account itself stays active, so the user can still sign in to an external client but finds no rooms there; with `oidc`, disable the user at the IdP as well
+
+Kicks that fail are retried for several minutes, and each retry checks again whether the user still has access. A member whose kick never succeeds stays recorded as a member.
 
 ## History Exports
 
@@ -563,6 +569,6 @@ The Matrix chat UI is gated on the project feature flag `project.show_matrix_cha
 | --- | --- |
 | `MatrixUserProfile` | Links a Waldur user to their Matrix user ID and tracks provisioning state. It stores no Matrix token. |
 | `MatrixRoom` | A Matrix room linked to a project via generic FK. One room per project. Manages state via FSM transitions. |
-| `MatrixRoomMember` | Tracks room membership, power levels, and membership state per user. |
+| `MatrixRoomMember` | Tracks room membership, power levels, and membership state per user. `manually_joined` marks staff and support who joined with the Join action. |
 | `MatrixHistoryExport` | A chat history export with state, message/media counts, and file references. |
 | `MatrixAppserviceTransaction` | Idempotency record for processed webhook transactions. |

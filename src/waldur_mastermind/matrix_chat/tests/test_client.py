@@ -1038,6 +1038,31 @@ class LogoutEveryWebDeviceTest(TestCase):
         self.assertEqual(mock_logout.call_count, 2)
 
 
+class LogoutAllDevicesTest(TestCase):
+    @mock.patch.object(matrix_client, "logout_device")
+    @mock.patch.object(
+        matrix_client,
+        "list_devices",
+        return_value=[
+            {"device_id": "WALDUR_WEB_A"},
+            {"device_id": "ELEMENT_PHONE"},
+        ],
+    )
+    def test_signs_out_external_clients_too(self, mock_list, mock_logout):
+        mock_logout.side_effect = [None, matrix_client.MatrixClientError("boom")]
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.logout_all_devices("@alice:matrix.example.com")
+
+        self.assertEqual(
+            mock_logout.call_args_list,
+            [
+                mock.call("@alice:matrix.example.com", "WALDUR_WEB_A"),
+                mock.call("@alice:matrix.example.com", "ELEMENT_PHONE"),
+            ],
+        )
+
+
 class StaleWebDevicesTest(TestCase):
     now_ms = 10 * 24 * 3600 * 1000
     hour_ms = 3600 * 1000

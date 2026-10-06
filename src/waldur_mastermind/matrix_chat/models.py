@@ -175,6 +175,8 @@ class MembershipStates:
     JOINED = "joined"
     LEFT = "left"
     BANNED = "banned"
+    # No longer in the room.
+    GONE = (LEFT, BANNED)
 
     CHOICES = (
         (INVITED, "Invited"),
@@ -202,6 +204,10 @@ class MatrixRoomMember(core_models.UuidMixin, TimeStampedModel):
         choices=MembershipStates.CHOICES,
         default=MembershipStates.INVITED,
     )
+    # Joined through the staff Join button rather than through a role. Member
+    # sync and role revocation leave such staff and support users in the room
+    # while they are active staff or support.
+    manually_joined = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = "Matrix room member"
@@ -238,6 +244,25 @@ def has_room_role(user, room):
         .filter(user=user)
         .exists()
     )
+
+
+# A membership that member sync and role revocation leave alone: staff or support
+# who joined with the staff Join button and are still staff or support.
+STAFF_JOINED = (
+    models.Q(manually_joined=True)
+    & models.Q(user__is_active=True)
+    & (models.Q(user__is_staff=True) | models.Q(user__is_support=True))
+)
+
+
+def keeps_room_access(user, room):
+    """Whether the user may stay in the room: an active user whom a role puts
+    in it, or staff who joined with the Join button."""
+    if not user.is_active:
+        return False
+    if has_room_role(user, room):
+        return True
+    return MatrixRoomMember.objects.filter(STAFF_JOINED, room=room, user=user).exists()
 
 
 class ExportTypes:
