@@ -1047,6 +1047,48 @@ class MatrixDiagnosticsView(views.APIView):
             }
         )
 
+        # Check 8a: chat drawer token lifetime. Without access_token_ttl the
+        # homeserver gives the drawer tokens that last a week (Tuwunel) or
+        # forever, and a leaked one stays valid that long. Measured with a login
+        # like the drawer's, as the staff user running diagnostics.
+        profile = models.MatrixUserProfile.objects.filter(
+            user=request.user, provisioned=True
+        ).first()
+        lifetime_ok = False
+        if not profile:
+            # Nothing was measured, so nothing failed.
+            lifetime_ok = True
+            detail = "Skipped — open the chat once as this user, then run again"
+        else:
+            try:
+                lifetime_ms = matrix_client.probe_web_token_lifetime(
+                    profile.matrix_user_id
+                )
+            except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+                detail = f"Could not measure: {e}"
+            else:
+                if lifetime_ms is None:
+                    detail = (
+                        "Chat drawer tokens never expire; set access_token_ttl "
+                        "(e.g. 300) on the homeserver"
+                    )
+                elif lifetime_ms > 3600 * 1000:
+                    detail = (
+                        f"Chat drawer tokens live {lifetime_ms // 1000} s; set "
+                        "access_token_ttl to a few minutes (e.g. 300)"
+                    )
+                else:
+                    lifetime_ok = True
+                    detail = f"Chat drawer tokens live {lifetime_ms // 1000} s"
+        checks.append(
+            {
+                "name": "web_token_lifetime",
+                "label": "Chat drawer tokens expire",
+                "ok": lifetime_ok,
+                "detail": detail,
+            }
+        )
+
         # Check 8b: LiveKit (RTC) configured. The video-call SFU is advertised
         # by the homeserver's .well-known under org.matrix.msc4143.rtc_foci —
         # the exact source the browser reads. Waldur holds no LiveKit config, so

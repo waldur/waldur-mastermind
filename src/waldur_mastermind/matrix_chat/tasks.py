@@ -346,21 +346,37 @@ def prune_web_devices(matrix_user_id, keep_device_id=None):
     `keep_device_id` is the session that triggered the prune, which may not
     have been seen by the homeserver yet.
     """
-    if not matrix_client.is_enabled():
+    # Open drawers outlive switching chat off, so this does not need it on.
+    if not matrix_client.is_homeserver_configured():
         return
 
-    devices = matrix_client.list_devices(matrix_user_id)
+    marked_at = matrix_client.get_web_session_mark(matrix_user_id)
+    web_devices = matrix_client.list_web_devices(matrix_user_id)
+
     now_ms = int(timezone.now().timestamp() * 1000)
     stale = matrix_client.stale_web_devices(
-        devices, now_ms, keep_device_id=keep_device_id
+        web_devices, now_ms, keep_device_id=keep_device_id
     )
-    for device_id in stale:
+    signed_out = _sign_out_devices(matrix_user_id, stale)
+
+    left = {device["device_id"] for device in web_devices} - signed_out
+    # A prune started by a new session always leaves that session's device.
+    if not left and not keep_device_id:
+        matrix_client.clear_web_session_mark(matrix_user_id, marked_at)
+
+
+def _sign_out_devices(matrix_user_id, device_ids):
+    """Sign out each device and return the IDs that were signed out."""
+    signed_out = set()
+    for device_id in device_ids:
         try:
             matrix_client.logout_device(matrix_user_id, device_id)
+            signed_out.add(device_id)
         except Exception:
             logger.exception(
                 "Failed to sign out web device %s of %s", device_id, matrix_user_id
             )
+    return signed_out
 
 
 # Revocations have to outlast a homeserver restart. retry_backoff=True would
@@ -374,6 +390,27 @@ REVOCATION_RETRY = dict(
     retry_backoff_max=600,
     max_retries=6,
 )
+
+
+@shared_task(name="waldur_mastermind.matrix_chat.prune_all_web_devices")
+def prune_all_web_devices():
+    """Prune the idle web devices of every user who may still have one, daily.
+
+    Pruning on session start never reaches users who do not come back, and a
+    homeserver without access_token_ttl leaves their tokens valid for a week.
+    Users with no web device left are not asked about.
+    """
+    if not matrix_client.is_homeserver_configured():
+        return
+    # Each user's task would fail on its own and log the same outage; the next
+    # daily run catches up.
+    if not matrix_client.is_homeserver_reachable():
+        logger.warning("Homeserver does not answer, skipping web device pruning")
+        return
+    for matrix_user_id in models.MatrixUserProfile.objects.filter(
+        provisioned=True, last_web_session_at__isnull=False
+    ).values_list("matrix_user_id", flat=True):
+        prune_web_devices.delay(matrix_user_id)
 
 
 @shared_task(

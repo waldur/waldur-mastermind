@@ -30,6 +30,13 @@ class MatrixUserProfile(core_models.UuidMixin, TimeStampedModel):
     )
     provisioned_at = models.DateTimeField(null=True, blank=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
+    last_web_session_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When Waldur last signed the user in on a web chat device. "
+        "Cleared once none of those devices is left, so the daily prune only "
+        "asks the homeserver about users who may still have one.",
+    )
 
     class Meta:
         verbose_name = "Matrix user profile"
