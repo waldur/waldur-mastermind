@@ -1417,14 +1417,23 @@ def logout_device(matrix_user_id, device_id):
 
 
 def logout_web_devices(matrix_user_id):
-    """End every web chat session of the user, leaving their other devices alone.
+    """End every web chat session of the user, leaving their other devices alone."""
+    _logout_devices(
+        matrix_user_id, lambda device_id: device_id.startswith(WEB_DEVICE_PREFIX)
+    )
 
-    Tries every device before reporting a failure, so one device the homeserver
-    keeps rejecting cannot shield the others.
-    """
+
+def logout_all_devices(matrix_user_id):
+    """End every session of the user, external clients such as Element included."""
+    _logout_devices(matrix_user_id, lambda device_id: True)
+
+
+def _logout_devices(matrix_user_id, selected):
+    # Tries every device before reporting a failure, so one device the
+    # homeserver keeps rejecting cannot shield the others.
     failed = []
     for device in list_devices(matrix_user_id):
-        if not device["device_id"].startswith(WEB_DEVICE_PREFIX):
+        if not selected(device["device_id"]):
             continue
         try:
             logout_device(matrix_user_id, device["device_id"])
@@ -1432,7 +1441,7 @@ def logout_web_devices(matrix_user_id):
             failed.append(f"{device['device_id']}: {e}")
     if failed:
         raise MatrixClientError(
-            f"Could not sign out web devices of {matrix_user_id}: {'; '.join(failed)}"
+            f"Could not sign out devices of {matrix_user_id}: {'; '.join(failed)}"
         )
 
 

@@ -12,10 +12,12 @@ from waldur_mastermind.marketplace.enums import OrderStates
 from . import matrix_client, room_provisioning, tasks
 from .models import (
     MatrixRoom,
+    MatrixRoomMember,
     MatrixUserProfile,
+    MembershipStates,
     RoomStates,
     get_customer_roles_in_project_rooms,
-    has_room_role,
+    keeps_room_access,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,41 +101,53 @@ def on_role_granted(sender, instance: UserRole, **kwargs):
 
 
 def on_role_revoked(sender, instance: UserRole, **kwargs):
-    """When a role is revoked, kick the user from the project's Matrix room if they have no remaining roles."""
+    """When a role is revoked, kick the user from the rooms it gave them access to."""
     if not matrix_client.is_enabled():
         return
 
     scope = instance.scope
-    if not isinstance(scope, Project):
-        return
-
-    room = _get_room_for_project(scope)
-    if not room:
-        return
-
     user = instance.user
-    role_name = _format_role_name(instance.role)
-    full_name = user.full_name or user.username
-
-    # Always notify about the role change
-    _notify_room(
-        room,
-        f"{full_name} has lost the {role_name} role.",
-    )
-
-    # A remaining role keeps the user in only if member sync would put them
-    # in for it; otherwise the next sync would kick them anyway.
-    if has_room_role(user, room):
+    if isinstance(scope, Project):
+        room = _get_room_for_project(scope)
+        if not room:
+            return
+        role_name = _format_role_name(instance.role)
+        full_name = user.full_name or user.username
+        _notify_room(room, f"{full_name} has lost the {role_name} role.")
+        rooms = [room]
+    elif isinstance(scope, Customer):
+        # Member sync invites customer-level role holders into every room of
+        # the customer's projects, so losing that role must take them out.
+        # Only rooms the user is in: a kick for any other room fails and retries.
+        # A subquery, so both conditions apply to the user's own membership.
+        in_rooms = (
+            MatrixRoomMember.objects.filter(user=user)
+            .exclude(membership_state__in=MembershipStates.GONE)
+            .values("room_id")
+        )
+        rooms = MatrixRoom.objects.filter(
+            content_type=ContentType.objects.get_for_model(Project),
+            object_id__in=Project.objects.filter(customer=scope).values("id"),
+            state=RoomStates.ACTIVE,
+            id__in=in_rooms,
+        )
+    else:
         return
 
-    room_uuid = str(room.uuid)
-    user_uuid = str(user.uuid)
-
-    transaction.on_commit(lambda: tasks.kick_user_from_room.delay(room_uuid, user_uuid))
+    for room in rooms:
+        if keeps_room_access(user, room):
+            continue
+        room_uuid = str(room.uuid)
+        user_uuid = str(user.uuid)
+        transaction.on_commit(
+            lambda room_uuid=room_uuid, user_uuid=user_uuid: (
+                tasks.kick_user_from_room.delay(room_uuid, user_uuid)
+            )
+        )
 
 
 def on_user_deactivated(sender, instance, created=False, **kwargs):
-    """End the user's web chat sessions so an open drawer loses access."""
+    """Sign out every Matrix device of a deactivated user and remove them from their rooms."""
     # previous() rather than has_changed(): a receiver that re-saves a new user
     # inside its own post_save reaches this one before the tracker is reset,
     # so has_changed() is true for a user who was never active.
@@ -145,14 +159,80 @@ def on_user_deactivated(sender, instance, created=False, **kwargs):
         return
 
     user_uuid = instance.uuid.hex
-    transaction.on_commit(lambda: tasks.end_web_sessions.delay(user_uuid))
+    transaction.on_commit(lambda: tasks.end_matrix_access.delay(user_uuid))
+
+
+def on_user_demoted(sender, instance, created=False, **kwargs):
+    """Take former staff and support out of the rooms they joined with the
+    Join button, which exempts them from member sync only while they are."""
+    if created or instance.is_staff or instance.is_support:
+        return
+    tracker = instance.tracker
+    if not (tracker.previous("is_staff") or tracker.previous("is_support")):
+        return
+    if not matrix_client.is_enabled():
+        return
+
+    room_uuids = [
+        str(uuid)
+        for uuid in MatrixRoomMember.objects.filter(user=instance, manually_joined=True)
+        .exclude(membership_state__in=MembershipStates.GONE)
+        .values_list("room__uuid", flat=True)
+    ]
+    user_uuid = str(instance.uuid)
+
+    def _on_commit():
+        # The task keeps anyone a role still lets in.
+        for room_uuid in room_uuids:
+            tasks.kick_user_from_room.delay(room_uuid, user_uuid)
+
+    transaction.on_commit(_on_commit)
+
+
+def on_user_reactivated(sender, instance, created=False, **kwargs):
+    """Bring a reactivated user back into the rooms deactivation removed them from."""
+    if created or not instance.is_active or instance.tracker.previous("is_active"):
+        return
+    # None: a user just created inside another receiver's post_save.
+    if instance.tracker.previous("is_active") is None:
+        return
+    if not matrix_client.is_enabled():
+        return
+
+    project_ids = UserRole.objects.filter(
+        user=instance,
+        is_active=True,
+        content_type=ContentType.objects.get_for_model(Project),
+    ).values("object_id")
+    customer_ids = UserRole.objects.filter(
+        user=instance,
+        is_active=True,
+        content_type=ContentType.objects.get_for_model(Customer),
+    ).values("object_id")
+    projects = Project.objects.filter(id__in=project_ids) | Project.objects.filter(
+        customer_id__in=customer_ids
+    )
+    room_uuids = [
+        str(uuid)
+        for uuid in MatrixRoom.objects.filter(
+            content_type=ContentType.objects.get_for_model(Project),
+            object_id__in=projects.values("id"),
+            state=RoomStates.ACTIVE,
+        ).values_list("uuid", flat=True)
+    ]
+
+    def _on_commit():
+        for room_uuid in room_uuids:
+            tasks.sync_project_members_to_room.delay(room_uuid)
+
+    transaction.on_commit(_on_commit)
 
 
 def on_user_pre_delete(sender, instance, **kwargs):
-    """End a deleted user's web chat sessions.
+    """End a deleted user's Matrix sessions and room memberships.
 
-    The Matrix profile is deleted with the user, so its Matrix ID is read now
-    and handed to the task, which runs once the deletion has committed.
+    The Matrix profile and room memberships are deleted with the user, so they
+    are read now and handed to the task, which runs once the deletion commits.
     """
     profile = MatrixUserProfile.objects.filter(user=instance).first()
     if profile is None:
@@ -162,11 +242,17 @@ def on_user_pre_delete(sender, instance, **kwargs):
     # the profile is gone, nothing could find these devices again.
     if not matrix_client.is_homeserver_configured():
         logger.warning(
-            "Cannot sign out web chat devices of deleted %s: no homeserver",
-            matrix_user_id,
+            "Cannot end Matrix access of deleted %s: no homeserver", matrix_user_id
         )
         return
-    transaction.on_commit(lambda: tasks.sign_out_web_devices.delay(matrix_user_id))
+    room_ids = list(
+        MatrixRoomMember.objects.filter(user=instance, room__room_id__gt="")
+        .exclude(membership_state__in=MembershipStates.GONE)
+        .values_list("room__room_id", flat=True)
+    )
+    transaction.on_commit(
+        lambda: tasks.end_deleted_user_access.delay(matrix_user_id, room_ids)
+    )
 
 
 def on_project_created(sender, instance, created=False, raw=False, **kwargs):

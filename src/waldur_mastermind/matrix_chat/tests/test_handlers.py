@@ -483,7 +483,7 @@ class OnProjectCreatedTest(TestCase):
         mock_tasks.create_room.delay.assert_not_called()
 
 
-@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks.end_web_sessions")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks.end_matrix_access")
 @mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
 class OnUserDeactivatedTest(TestCase):
     def setUp(self):
@@ -567,7 +567,7 @@ class OnUserDeactivatedTest(TestCase):
         mock_task.delay.assert_not_called()
 
 
-@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks.sign_out_web_devices")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks.end_deleted_user_access")
 @mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
 class OnUserDeletedTest(TestCase):
     def setUp(self):
@@ -586,7 +586,7 @@ class OnUserDeletedTest(TestCase):
 
         self._delete()
 
-        mock_task.delay.assert_called_once_with("@gone:matrix.example.com")
+        mock_task.delay.assert_called_once_with("@gone:matrix.example.com", [])
 
     def test_user_never_provisioned_has_nothing_to_end(self, mock_client, mock_task):
         mock_client.is_homeserver_configured.return_value = True
@@ -606,7 +606,7 @@ class OnUserDeletedTest(TestCase):
 
         self._delete()
 
-        mock_task.delay.assert_called_once_with("@gone:matrix.example.com")
+        mock_task.delay.assert_called_once_with("@gone:matrix.example.com", [])
 
     def test_no_op_without_a_homeserver(self, mock_client, mock_task):
         mock_client.is_homeserver_configured.return_value = False

@@ -136,7 +136,7 @@ class MatrixSessionTest(test.APITestCase):
     def test_session_racing_a_deactivation_is_signed_out(
         self, mock_logout, mock_ensure, mock_session, mock_prune
     ):
-        # end_web_sessions may have listed the devices before this one existed.
+        # end_matrix_access may have listed the devices before this one existed.
         def deactivated_meanwhile(matrix_user_id):
             type(self.user).objects.filter(pk=self.user.pk).update(is_active=False)
             return SESSION

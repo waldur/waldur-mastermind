@@ -830,6 +830,7 @@ class SyncDoesNotKickStaffTest(TestCase):
             matrix_user_id="@staff:matrix.example.com",
             power_level=50,
             membership_state=models.MembershipStates.JOINED,
+            manually_joined=True,
         )
 
         tasks.sync_project_members_to_room(str(room.uuid))
@@ -1095,8 +1096,8 @@ class PruneWebDevicesTaskTest(TestCase):
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
-class EndWebSessionsTaskTest(TestCase):
-    def test_signs_out_web_devices_of_deactivated_user(self, mock_client):
+class EndMatrixAccessTaskTest(TestCase):
+    def test_signs_out_every_device_of_deactivated_user(self, mock_client):
         # Deactivation is the trigger, so the active manager would miss the user.
         mock_client.is_homeserver_configured.return_value = True
         user = structure_factories.UserFactory(is_active=False)
@@ -1104,9 +1105,9 @@ class EndWebSessionsTaskTest(TestCase):
             user=user, matrix_user_id="@gone:matrix.example.com", provisioned=True
         )
 
-        tasks.end_web_sessions(user.uuid.hex)
+        tasks.end_matrix_access(user.uuid.hex)
 
-        mock_client.logout_web_devices.assert_called_once_with(
+        mock_client.logout_all_devices.assert_called_once_with(
             "@gone:matrix.example.com"
         )
 
@@ -1114,9 +1115,9 @@ class EndWebSessionsTaskTest(TestCase):
         mock_client.is_homeserver_configured.return_value = True
         user = structure_factories.UserFactory(is_active=False)
 
-        tasks.end_web_sessions(user.uuid.hex)
+        tasks.end_matrix_access(user.uuid.hex)
 
-        mock_client.logout_web_devices.assert_not_called()
+        mock_client.logout_all_devices.assert_not_called()
 
     def test_runs_while_chat_is_switched_off(self, mock_client):
         mock_client.is_enabled.return_value = False
@@ -1126,9 +1127,9 @@ class EndWebSessionsTaskTest(TestCase):
             user=user, matrix_user_id="@gone:matrix.example.com", provisioned=True
         )
 
-        tasks.end_web_sessions(user.uuid.hex)
+        tasks.end_matrix_access(user.uuid.hex)
 
-        mock_client.logout_web_devices.assert_called_once_with(
+        mock_client.logout_all_devices.assert_called_once_with(
             "@gone:matrix.example.com"
         )
 
@@ -1139,9 +1140,9 @@ class EndWebSessionsTaskTest(TestCase):
             user=user, matrix_user_id="@gone:matrix.example.com", provisioned=True
         )
 
-        tasks.end_web_sessions(user.uuid.hex)
+        tasks.end_matrix_access(user.uuid.hex)
 
-        mock_client.logout_web_devices.assert_not_called()
+        mock_client.logout_all_devices.assert_not_called()
 
     def test_reactivated_user_keeps_sessions(self, mock_client):
         # The task retries for minutes; a user reactivated meanwhile may have
@@ -1152,9 +1153,9 @@ class EndWebSessionsTaskTest(TestCase):
             user=user, matrix_user_id="@back:matrix.example.com", provisioned=True
         )
 
-        tasks.end_web_sessions(user.uuid.hex)
+        tasks.end_matrix_access(user.uuid.hex)
 
-        mock_client.logout_web_devices.assert_not_called()
+        mock_client.logout_all_devices.assert_not_called()
 
 
 class RevocationRetryTest(TestCase):
@@ -1162,38 +1163,54 @@ class RevocationRetryTest(TestCase):
         # retry_backoff=True starts at 1 s, so three retries are spent within
         # seconds; revocations must outlast a homeserver restart.
         for task in (
-            tasks.end_web_sessions,
-            tasks.sign_out_web_devices,
+            tasks.end_matrix_access,
+            tasks.end_deleted_user_access,
             tasks.kick_user_from_room,
+            tasks.kick_member,
         ):
             self.assertGreaterEqual(task.retry_backoff, 30, task.name)
             self.assertGreaterEqual(task.max_retries, 5, task.name)
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
-class SignOutWebDevicesTaskTest(TestCase):
-    def test_signs_out_web_devices_by_matrix_id(self, mock_client):
+class EndDeletedUserAccessTaskTest(TestCase):
+    def test_kicks_from_the_rooms_and_signs_out_every_device(self, mock_client):
         mock_client.is_homeserver_configured.return_value = True
 
-        tasks.sign_out_web_devices("@gone:matrix.example.com")
+        tasks.end_deleted_user_access("@gone:matrix.example.com", ["!a:x", "!b:x"])
 
-        mock_client.logout_web_devices.assert_called_once_with(
+        self.assertEqual(
+            [c.args[:2] for c in mock_client.kick_user.call_args_list],
+            [
+                ("!a:x", "@gone:matrix.example.com"),
+                ("!b:x", "@gone:matrix.example.com"),
+            ],
+        )
+        mock_client.logout_all_devices.assert_called_once_with(
             "@gone:matrix.example.com"
         )
+
+    def test_a_failed_kick_does_not_stop_the_sign_out(self, mock_client):
+        mock_client.is_homeserver_configured.return_value = True
+        mock_client.kick_user.side_effect = RuntimeError("not in room")
+
+        tasks.end_deleted_user_access("@gone:matrix.example.com", ["!a:x"])
+
+        mock_client.logout_all_devices.assert_called_once()
 
     def test_runs_while_chat_is_switched_off(self, mock_client):
         mock_client.is_enabled.return_value = False
         mock_client.is_homeserver_configured.return_value = True
 
-        tasks.sign_out_web_devices("@gone:matrix.example.com")
+        tasks.end_deleted_user_access("@gone:matrix.example.com")
 
-        mock_client.logout_web_devices.assert_called_once_with(
+        mock_client.logout_all_devices.assert_called_once_with(
             "@gone:matrix.example.com"
         )
 
     def test_skips_without_a_homeserver(self, mock_client):
         mock_client.is_homeserver_configured.return_value = False
 
-        tasks.sign_out_web_devices("@gone:matrix.example.com")
+        tasks.end_deleted_user_access("@gone:matrix.example.com")
 
-        mock_client.logout_web_devices.assert_not_called()
+        mock_client.logout_all_devices.assert_not_called()

@@ -32,6 +32,12 @@ STAFF_POWER_LEVEL = 50
 EXPORT_CLEANUP_CHUNK_SIZE = 100
 
 
+def _record_left(member):
+    member.membership_state = models.MembershipStates.LEFT
+    member.manually_joined = False
+    member.save(update_fields=["membership_state", "manually_joined"])
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.create_room")
 def create_room(room_uuid):
     """Create a Matrix room and sync project members."""
@@ -118,15 +124,19 @@ def sync_project_members_to_room(room_uuid):
         logger.warning("Room %s has no associated project", room.room_id)
         return
 
-    # Get all active users in the project (direct + via customer)
+    # Get all active users in the project (direct + via customer). Deactivation
+    # leaves a user's roles in place, so the user's own flag is checked too.
     user_roles = UserRole.objects.filter(
         scope=project,
         is_active=True,
+        user__is_active=True,
     ).select_related("user")
 
-    customer_roles = models.get_customer_roles_in_project_rooms(
-        project.customer
-    ).select_related("user")
+    customer_roles = (
+        models.get_customer_roles_in_project_rooms(project.customer)
+        .filter(user__is_active=True)
+        .select_related("user")
+    )
 
     seen_users = set()
     for role in list(user_roles) + list(customer_roles):
@@ -189,22 +199,15 @@ def sync_project_members_to_room(room_uuid):
                 models.MembershipStates.BANNED,
             ]
         )
-        # TEMPORARY: staff/support self-join via the admin panel, so they
-        # aren't project members and would otherwise be swept up here. Excluding
-        # all staff/support is a blunt stopgap — a demoted ex-staff/support user
-        # lingers until the next sync, and it doesn't address power-level drift
-        # for those who are also plain project members. Revisit with an explicit
-        # per-membership "manually joined" flag once this graduates past the demo.
-        .exclude(user__is_staff=True)
-        .exclude(user__is_support=True)
+        # Staff and support who joined with the Join button hold no role here.
+        .exclude(models.STAFF_JOINED)
     )
     for member in stale_members:
         try:
             matrix_client.kick_user(
                 room.room_id, member.matrix_user_id, reason="Role removed in Waldur"
             )
-            member.membership_state = models.MembershipStates.LEFT
-            member.save(update_fields=["membership_state"])
+            _record_left(member)
             logger.info(
                 "Kicked stale member %s from room %s",
                 member.matrix_user_id,
@@ -329,6 +332,7 @@ def staff_join_room(room_uuid, user_uuid):
                 "matrix_user_id": matrix_user_id,
                 "power_level": STAFF_POWER_LEVEL,
                 "membership_state": membership_state,
+                "manually_joined": True,
             },
         )
 
@@ -418,26 +422,36 @@ def prune_all_web_devices():
 
 
 @shared_task(
-    name="waldur_mastermind.matrix_chat.sign_out_web_devices",
+    name="waldur_mastermind.matrix_chat.end_deleted_user_access",
     # A retry lists the devices again, so only the ones still there are retried.
     **REVOCATION_RETRY,
 )
-def sign_out_web_devices(matrix_user_id):
-    """Sign out the web chat devices of a Matrix user whose Waldur account is gone."""
+def end_deleted_user_access(matrix_user_id, room_ids=()):
+    """Remove a deleted user from their rooms and sign out all their devices."""
     # Open drawers outlive switching chat off, so this does not need it on.
     if not matrix_client.is_homeserver_configured():
         return
-    matrix_client.logout_web_devices(matrix_user_id)
-    logger.info("Ended web chat sessions of %s", matrix_user_id)
+    reason = "Account deleted in Waldur"
+    for room_id in room_ids:
+        try:
+            matrix_client.kick_user(room_id, matrix_user_id, reason=reason)
+        except Exception:
+            # The membership rows are gone with the user, so the kick is
+            # retried on its own rather than through them.
+            logger.warning("Failed to kick %s from room %s", matrix_user_id, room_id)
+            kick_from_room.delay(room_id, matrix_user_id, reason)
+    matrix_client.logout_all_devices(matrix_user_id)
+    logger.info("Ended Matrix access of deleted %s", matrix_user_id)
 
 
 @shared_task(
-    name="waldur_mastermind.matrix_chat.end_web_sessions",
+    name="waldur_mastermind.matrix_chat.end_matrix_access",
     # A retry lists the devices again, so only the ones still there are retried.
     **REVOCATION_RETRY,
 )
-def end_web_sessions(user_uuid):
-    """Sign out all web chat devices of a user, e.g. once they are deactivated."""
+def end_matrix_access(user_uuid):
+    """Sign out all of a deactivated user's Matrix devices and remove them from
+    their rooms, so neither the drawer nor an external client keeps access."""
     # Open drawers outlive switching chat off, so this does not need it on.
     if not matrix_client.is_homeserver_configured():
         return
@@ -448,15 +462,86 @@ def end_web_sessions(user_uuid):
     except User.DoesNotExist:
         logger.error("User %s not found", user_uuid)
         return
-    # Retries run for minutes; sessions of a user reactivated meanwhile stay.
+    # Retries run for minutes; a user reactivated meanwhile keeps access.
     if user.is_active:
         return
 
+    # Rooms are left even if the logout fails: one device the homeserver keeps
+    # rejecting must not keep the user in every room through all retries.
+    logout_error = None
     profile = models.MatrixUserProfile.objects.filter(user=user).first()
-    if not profile:
+    if profile:
+        try:
+            matrix_client.logout_all_devices(profile.matrix_user_id)
+            logger.info("Signed out every Matrix device of %s", profile.matrix_user_id)
+        except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+            logout_error = e
+
+    memberships = (
+        models.MatrixRoomMember.objects.filter(user=user, room__room_id__gt="")
+        .exclude(membership_state__in=models.MembershipStates.GONE)
+        .select_related("room")
+    )
+    for member in memberships:
+        _kick_or_retry(member, "Account deactivated in Waldur")
+    if logout_error:
+        raise logout_error
+
+
+def _kick_or_retry(member, reason):
+    try:
+        matrix_client.kick_user(
+            member.room.room_id, member.matrix_user_id, reason=reason
+        )
+    except Exception:
+        # Not recorded as left until the homeserver confirms it.
+        logger.warning(
+            "Failed to kick %s from room %s, retrying",
+            member.matrix_user_id,
+            member.room.room_id,
+        )
+        kick_member.delay(member.uuid.hex, reason)
         return
-    matrix_client.logout_web_devices(profile.matrix_user_id)
-    logger.info("Ended web chat sessions of %s", profile.matrix_user_id)
+    _record_left(member)
+
+
+@shared_task(
+    name="waldur_mastermind.matrix_chat.kick_member",
+    **REVOCATION_RETRY,
+)
+def kick_member(member_uuid, reason):
+    """Remove one membership from its room, whatever the room's state."""
+    if not matrix_client.is_homeserver_configured():
+        return
+    member = (
+        models.MatrixRoomMember.objects.filter(uuid=member_uuid)
+        .exclude(membership_state__in=models.MembershipStates.GONE)
+        .select_related("room")
+        .first()
+    )
+    if not member or not member.room.room_id:
+        return
+    # A retry can run long after its cause: a user reactivated, or a room
+    # reactivated, meanwhile stays.
+    if (
+        member.user
+        and member.room.state == models.RoomStates.ACTIVE
+        and models.keeps_room_access(member.user, member.room)
+    ):
+        return
+    matrix_client.kick_user(member.room.room_id, member.matrix_user_id, reason=reason)
+    _record_left(member)
+
+
+@shared_task(
+    name="waldur_mastermind.matrix_chat.kick_from_room",
+    **REVOCATION_RETRY,
+)
+def kick_from_room(room_id, matrix_user_id, reason):
+    """Kick a Matrix ID that no membership row tracks any more."""
+    if not matrix_client.is_homeserver_configured():
+        return
+    matrix_client.kick_user(room_id, matrix_user_id, reason=reason)
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.staff_leave_room")
@@ -505,8 +590,7 @@ def staff_leave_room(room_uuid, user_uuid):
         )
 
     if member:
-        member.membership_state = models.MembershipStates.LEFT
-        member.save(update_fields=["membership_state"])
+        _record_left(member)
     logger.info("Staff %s left room %s", matrix_user_id, room.room_id)
 
 
@@ -558,6 +642,10 @@ def kick_user_from_room(room_uuid, user_uuid):
         logger.error("User %s not found", user_uuid)
         return
 
+    # Retries run for minutes; a role granted again meanwhile keeps the user in.
+    if models.keeps_room_access(user, room):
+        return
+
     member = models.MatrixRoomMember.objects.filter(room=room, user=user).first()
     matrix_user_id = _resolve_matrix_user_id(user, member)
     if not matrix_user_id:
@@ -569,8 +657,7 @@ def kick_user_from_room(room_uuid, user_uuid):
     )
 
     if member:
-        member.membership_state = models.MembershipStates.LEFT
-        member.save(update_fields=["membership_state"])
+        _record_left(member)
     logger.info("Kicked user %s from room %s", matrix_user_id, room.room_id)
 
 
@@ -714,20 +801,7 @@ def disable_room(room_uuid, delete_history=False, reason=""):
                     models.MembershipStates.BANNED,
                 ]
             ):
-                try:
-                    matrix_client.kick_user(
-                        room.room_id,
-                        member.matrix_user_id,
-                        reason="Chat room was deactivated",
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed to kick %s from room %s",
-                        member.matrix_user_id,
-                        room.room_id,
-                    )
-                member.membership_state = models.MembershipStates.LEFT
-                member.save(update_fields=["membership_state"])
+                _kick_or_retry(member, "Chat room was deactivated")
 
         # 3. Export history if enabled, unless the caller is discarding it anyway
         if config.MATRIX_HISTORY_EXPORT_ENABLED and not delete_history:

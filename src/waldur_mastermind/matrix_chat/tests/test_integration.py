@@ -702,7 +702,7 @@ class MatrixWebSessionIntegrationTest(TestCase):
         }
         self.assertEqual(web, {s["device_id"] for s in sessions})
 
-    def test_ending_web_sessions_leaves_other_devices(self):
+    def test_deactivation_ends_every_session(self):
         # Deactivation dispatches this task; it is called directly here because
         # on_commit callbacks never run inside a TestCase.
         sessions = [
@@ -720,9 +720,10 @@ class MatrixWebSessionIntegrationTest(TestCase):
         )
         self.assertEqual(external.status_code, 200, external.text)
 
-        tasks.end_web_sessions(self.user.uuid.hex)
+        tasks.end_matrix_access(self.user.uuid.hex)
 
-        self.assertEqual(self._device_ids(), {"EXTERNAL_CLIENT"})
+        # External clients too: a deactivated user keeps no session at all.
+        self.assertEqual(self._device_ids(), set())
         for session in sessions:
             whoami = httpx.get(
                 f"{HOMESERVER_URL}/_matrix/client/v3/account/whoami",
