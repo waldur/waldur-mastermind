@@ -294,18 +294,11 @@ class BaseCatalogLoader(ABC):
                     catalog.metadata = catalog_data.metadata
                 catalog.save()
             else:
-                # Management command path: look up or create.
-                # Use filter().first() + create() instead of get_or_create to
-                # avoid MultipleObjectsReturned when multiple versions exist
-                # for the same name+catalog_type (PUHURI-PORTALS-EF7).
-                catalog = (
-                    SoftwareCatalog.objects.filter(
-                        name=catalog_data.name,
-                        catalog_type=catalog_data.catalog_type,
-                    )
-                    .order_by("-modified")
-                    .first()
-                )
+                catalog = SoftwareCatalog.objects.filter(
+                    name=catalog_data.name,
+                    catalog_type=catalog_data.catalog_type,
+                    version=catalog_data.version,
+                ).first()
 
                 if catalog is None:
                     catalog = SoftwareCatalog.objects.create(
@@ -318,7 +311,6 @@ class BaseCatalogLoader(ABC):
                         last_successful_update=timezone.now(),
                     )
                 else:
-                    catalog.version = catalog_data.version
                     catalog.last_successful_update = timezone.now()
                     if update_existing:
                         catalog.source_url = catalog_data.source_url

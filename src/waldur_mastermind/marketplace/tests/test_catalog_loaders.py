@@ -206,6 +206,42 @@ class EESSICatalogLoaderTest(BaseLoaderTestCase):
         self.assertEqual(target.target_type, "cpu_architecture")
         self.assertIn(target.target_name, ["x86_64", "aarch64"])
 
+    @patch("requests.get")
+    def test_loading_another_version_creates_a_separate_catalog(self, mock_get):
+        """A second EESSI release must not rename the existing catalog row."""
+
+        mock_response = Mock()
+        mock_response.json.return_value = self.eessi_software_data
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        existing = SoftwareCatalog.objects.create(
+            name="EESSI",
+            version="2025.06",
+            catalog_type="binary_runtime",
+            description="keep me",
+        )
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        loader.load_catalog(update_existing=True, dry_run=False)
+
+        eessi_catalogs = SoftwareCatalog.objects.filter(
+            name="EESSI", catalog_type="binary_runtime"
+        )
+        self.assertEqual(eessi_catalogs.count(), 2)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.version, "2025.06")
+        self.assertEqual(existing.description, "keep me")
+
+        created = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+        self.assertNotEqual(created.pk, existing.pk)
+
+        loader.load_catalog(update_existing=True, dry_run=False)
+        self.assertEqual(eessi_catalogs.count(), 2)
+        existing.refresh_from_db()
+        self.assertEqual(existing.version, "2025.06")
+
     def test_dry_run_mode(self):
         """Test dry run mode doesn't create database objects."""
         with patch("requests.get") as mock_get:

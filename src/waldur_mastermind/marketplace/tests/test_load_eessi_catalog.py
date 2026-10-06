@@ -1,6 +1,7 @@
 import json
 import tempfile
 from io import StringIO
+from unittest.mock import Mock, patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -356,3 +357,60 @@ class LoadEessiCatalogCommandTest(test.APITestCase):
         self.assertIn("Sample software packages:", output)
         self.assertIn("- Python (2 versions)", output)
         self.assertIn("- GCC (1 versions)", output)
+
+    @patch("waldur_mastermind.marketplace.catalog_loaders.eessi.requests.get")
+    def test_api_load_of_another_version_keeps_the_existing_catalog(self, mock_get):
+        """load_eessi_catalog --catalog-version must add a row, not rename one."""
+        existing = models.SoftwareCatalog.objects.create(
+            name="EESSI",
+            version="2025.06",
+            catalog_type="binary_runtime",
+            description="European Environment for Scientific Software Installations 2025.06",
+        )
+
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "software": {
+                "Python": {
+                    "description": "Python",
+                    "versions": [
+                        {
+                            "version": "3.11.0",
+                            "required_modules": ["EESSI/2023.06"],
+                            "cpu_arch": ["x86_64/generic"],
+                        }
+                    ],
+                }
+            }
+        }
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        call_command(
+            "load_eessi_catalog",
+            "--catalog-version",
+            "2023.06",
+            "--no-extensions",
+            "--update-existing",
+        )
+
+        self.assertEqual(
+            models.SoftwareCatalog.objects.filter(
+                name="EESSI", catalog_type="binary_runtime"
+            ).count(),
+            2,
+        )
+        existing.refresh_from_db()
+        self.assertEqual(existing.version, "2025.06")
+        created = models.SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+        self.assertNotEqual(created.pk, existing.pk)
+        self.assertTrue(
+            models.SoftwarePackage.objects.filter(
+                catalog=created, name="Python"
+            ).exists()
+        )
+        self.assertFalse(
+            models.SoftwarePackage.objects.filter(
+                catalog=existing, name="Python"
+            ).exists()
+        )
