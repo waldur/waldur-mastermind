@@ -536,7 +536,7 @@ class IssueSerializer(
                         )
                     )
                 attrs["reporter"] = reporter
-            else:
+            elif not self._is_staff_opened(attrs):
                 # leave a mark about reporter in the description field
                 attrs["description"] = (
                     f"Reported by {request_user.full_name}.\n\n"
@@ -544,6 +544,20 @@ class IssueSerializer(
                 )
 
         return attrs
+
+    @staticmethod
+    def _is_staff_opened(attrs):
+        """A request staff opened on the built-in desk to start a conversation.
+
+        The caller reads it in Waldur, where the opening message already shows
+        who wrote it and IssueViewSet.perform_create records the sender as
+        reporter. A remote desk has no reporter for it, so there the
+        description keeps the usual marks for its agents.
+        """
+        return bool(attrs.get("first_comment")) and (
+            config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
+            == backend.SupportBackendType.BASIC
+        )
 
     def validate_first_comment(self, first_comment):
         if self.instance is not None:
@@ -632,6 +646,9 @@ class IssueSerializer(
 
     @transaction.atomic()
     def create(self, validated_data):
+        staff_opened = self._is_staff_opened(validated_data)
+        # Not an Issue column; IssueViewSet.perform_create posts it as a comment.
+        validated_data.pop("first_comment", None)
         resource = validated_data.get("resource")
         if resource:
             validated_data["project"] = resource.project
@@ -639,22 +656,31 @@ class IssueSerializer(
         if project:
             validated_data["customer"] = project.customer
 
-        rendered_description = render_issue_template(
-            "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", validated_data
-        )
+        if staff_opened:
+            # The description template frames a request for the desk's agents
+            # (organization, site name, URL). Here the caller is the reader and
+            # gets only what staff wrote; the opening message, with any
+            # impersonation note, follows as the first comment.
+            rendered_description = validated_data.get("description", "")
+        else:
+            rendered_description = render_issue_template(
+                "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", validated_data
+            )
 
-        impersonator = getattr(self.context["request"].user, "impersonator", None)
+            impersonator = getattr(self.context["request"].user, "impersonator", None)
 
-        if impersonator:
-            rendered_description += f" \n\n\n\nImpersonator: {impersonator}"
+            if impersonator:
+                rendered_description += f" \n\n\n\nImpersonator: {impersonator}"
 
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
             rendered_description = text2html(rendered_description)
 
         validated_data["description"] = rendered_description
+        # summary.txt ends with a newline, like any template file; stored as
+        # is, it trailed every summary and showed in mail quoting it.
         validated_data["summary"] = render_issue_template(
             "ATLASSIAN_SUMMARY_TEMPLATE", "summary", validated_data
-        )
+        ).strip()
         return super().create(validated_data)
 
     def _render_template(self, config_name, issue):

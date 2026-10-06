@@ -156,6 +156,17 @@ class StaffInitiatedIssueTest(base.BaseTest):
         self.assertIsNone(issue.reporter)
         self.assertIsNone(issue.assignee)
 
+    @data("atlassian", "zammad", "smax")
+    def test_remote_desk_description_keeps_the_reporter_mark(self, backend_type):
+        # The remote desk's agents read the description and have no reporter
+        # field for the sender, so the mark stays there.
+        with override_config(WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=backend_type):
+            response = self.create()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        issue = models.Issue.objects.get(uuid=response.data["uuid"])
+        self.assertIn(f"Reported by {self.staff.full_name}.", issue.description)
+
     def test_reporting_manually_rejects_an_opening_message(self):
         self.client.force_authenticate(self.fixture.user)
         payload = valid_payload(self.caller, is_reported_manually=True)
@@ -372,7 +383,31 @@ class StaffInitiatedIssueBasicTest(test.APITestCase):
             key="support.notification_comment_added", enabled=True
         )
 
-        self.create()
+        issue = self.create()
 
-        recipients = {address for message in mail.outbox for address in message.to}
-        self.assertIn("bob@example.com", recipients)
+        (message,) = [m for m in mail.outbox if "bob@example.com" in m.to]
+        # Bob did not create this request, so the mail must not say he did,
+        # and the plain-text part carries the message, not just a link.
+        self.assertNotIn("you have created", message.subject)
+        self.assertIn(issue.key, message.subject)
+        self.assertIn(OPENING_MESSAGE, message.body)
+        self.assertIn(self.staff.full_name, message.body)
+
+    def test_description_holds_only_what_staff_wrote(self):
+        # No "Reported by" mark and no agent-facing "Additional Info" block:
+        # the caller reads this, and the opening message names the sender.
+        issue = self.create(description="")
+
+        self.assertEqual(issue.description, "")
+
+    def test_summary_has_no_trailing_newline(self):
+        issue = self.create()
+
+        self.assertEqual(issue.summary, "Your SSH key expires on Friday")
+
+    def test_request_logged_on_behalf_keeps_its_description_marks(self):
+        issue = self.create(first_comment="", description="Cannot log in.")
+
+        self.assertIn(f"Reported by {self.staff.full_name}.", issue.description)
+        self.assertIn("Cannot log in.", issue.description)
+        self.assertIn("Additional Info", issue.description)

@@ -1,3 +1,7 @@
 Hello!
 
-The issue you have created has a new comment. Please go to {{issue_url}} to see it.
+{% if is_system_comment %}A new comment was added{% else %}{{ comment.author.name }} commented{% endif %} on your support request "{{ issue.summary }}":
+
+{{ description }}
+
+To reply, go to {{ issue_url }}.
