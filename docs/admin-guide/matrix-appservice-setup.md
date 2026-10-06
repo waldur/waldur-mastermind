@@ -180,7 +180,7 @@ organization can create the project's room from its Chat tab. Organization
 owners hold it by default. Staff can create any room from the Chat tab;
 support can create one from the Matrix admin rooms page or through
 `POST /api/matrix/rooms/`.
-Disabling and deleting a room stay with staff and support.
+Disabling and deleting a room stay with staff.
 
 To let project managers create rooms too, grant them the permission in
 `permissions-override.yaml`:
@@ -190,6 +190,9 @@ To let project managers create rooms too, grant them the permission in
   add_permissions:
     - MATRIX_ROOM.CREATE
 ```
+
+The grant also lets them manage the room and download its history exports, see
+[Room actions](#room-actions).
 
 If you replaced `CUSTOMER.OWNER` wholesale in `custom-roles.yaml`, add
 `MATRIX_ROOM.CREATE` to that list yourself, or owners lose room creation.
@@ -293,12 +296,16 @@ Returns rooms accessible to the authenticated user based on their project and cu
 
 ### Room actions
 
-Permissions vary per action (demo policy: owners manage day-to-day membership and exports; room lifecycle is staff-only):
+Permissions vary per action. Whoever may create a room keeps its members in sync and exports its
+history; organization owners can by default, and support can for every room. That is as far as
+either goes: retrying and re-enabling a room are staff's alone.
 
 | Action | Required permission |
 | --- | --- |
-| `sync_members`, `export_history`, `retry`, `reactivate` | Customer owner (`is_owner`) |
-| `disable`, `DELETE`, `join`, `leave` | Staff or support (`is_staff_or_support`) |
+| `sync_members`, `export_history` | `MATRIX_ROOM.CREATE` on the project or its organization, or staff or support |
+| `retry`, `reactivate` | Staff (`is_staff`) |
+| `disable`, `DELETE` | Staff (`is_staff`) |
+| `join`, `leave` | Staff or support (`is_staff_or_support`) |
 | `open` | A current member of the room (`invited` or `joined`) |
 
 **POST /api/matrix/rooms/{uuid}/sync_members/**
@@ -376,7 +383,7 @@ The integration automatically responds to role changes:
 
 | Type | Trigger |
 | --- | --- |
-| `manual` | Owner clicks "Export history" on a room |
+| `manual` | Someone who manages the room clicks "Export history" on it |
 | `periodic` | Celery beat task runs for all active rooms (when `MATRIX_HISTORY_EXPORT_ENABLED` is on) |
 | `on_deletion` | Automatic export before archiving a room |
 
@@ -395,11 +402,45 @@ The integration automatically responds to role changes:
 | `completed` | Export finished successfully |
 | `failed` | Export failed — see `error_message` |
 
+### Who can download exports
+
+An export is the room's whole history, media included, so it goes to whoever manages the room and
+no further. Listing exports and downloading their files is open to the same people who can trigger
+an export:
+
+- those holding `MATRIX_ROOM.CREATE` on the project or its organization, by default organization
+  owners;
+- staff and support.
+
+Everyone else gets `404`, room members included: they read the room itself. Access follows the
+role, so it ends when the role does, and it stays with the same people after the room is archived.
+
+A personal access token reaches only the exports within its bindings. It also has to carry
+`MATRIX_ROOM.CREATE`, or for staff and support the staff or support scope, as it does to trigger
+an export.
+
+### Retention
+
+A daily task deletes exports older than `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` (default 90), files
+included. The newest completed export of each room is kept whatever its age, so the final export of
+an archived room survives. An export still pending or running after that long has stalled, and is
+deleted with the rest.
+
+Exports keep messages that were later redacted in the room; retention is what removes them from older
+exports. Set it to `0` or less to keep exports forever. Deleting an export, by retention, `disable`
+with `delete_history`, or with its room, also deletes its files.
+
+When upgrading, the first nightly run deletes every export older than 90 days except each room's
+newest completed one. To keep them, set `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` before upgrading.
+
+There is no action to delete a single export. Besides retention, exports are deleted only when
+staff disable a room with `delete_history` or delete the room.
+
 ### Listing exports
 
 **GET /api/matrix/exports/**
 
-Returns exports accessible to the user based on room access. Staff and support see all exports.
+Returns the exports the user can download (see above).
 
 **Query parameters:**
 
@@ -495,6 +536,7 @@ These Constance settings control the integration:
 | `MATRIX_APPSERVICE_SENDER_LOCALPART` | `waldur-bot` | Bot user localpart |
 | `MATRIX_HISTORY_EXPORT_ENABLED` | `False` | Enable periodic and on-deletion exports |
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
+| `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` | `90` | Days to keep history exports, files included; each room's newest completed export is kept; `0` or less keeps them forever |
 | `MATRIX_USER_REGISTRATION_SECRET` | `""` | Shared secret for registering users on the homeserver |
 | `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local` |
 | `MATRIX_EXTERNAL_LOGIN_METHOD` | `none` | How users sign in to an external Matrix client: `none`, `password`, or `oidc`. See [External clients](#external-clients) |

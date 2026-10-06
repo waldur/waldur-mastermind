@@ -77,6 +77,13 @@ result to the same filter the ViewSet uses — usually
 `filter_queryset_for_user` or a manager's `filter_for_user` — so a download
 cannot outlive the permission the API itself enforces.
 
+A rule that has to see how the user signed in — a personal access token's
+scopes and bindings are on `request.auth`, not on the user — is registered with
+`with_request=True`. `MediaView` then passes it the request in place of the
+user, and `queryset_rule` hands that on to the filter, so the filter must accept
+a request or a user (`getattr(request, "user", request)`).
+Matrix history exports use it.
+
 Use `register_public` **only** for files already reachable through an anonymous
 API endpoint, and say which one in a comment. Everything on the unauthenticated
 marketplace catalogue and the public call-for-proposals page falls in this

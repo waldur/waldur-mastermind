@@ -10,10 +10,11 @@ class MatrixChatConfig(AppConfig):
 
         from waldur_core.core.models import User
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.permissions.pat_filtering import register_pat_filter
         from waldur_core.structure.models import Project
         from waldur_mastermind.marketplace.models import Order
 
-        from . import handlers
+        from . import handlers, managers, models
 
         permission_signals.role_granted.connect(
             handlers.on_role_granted,
@@ -54,3 +55,11 @@ class MatrixChatConfig(AppConfig):
             sender=Order,
             dispatch_uid="waldur_mastermind.matrix_chat.on_order_state_changed",
         )
+
+        signals.post_delete.connect(
+            handlers.on_history_export_deleted,
+            sender=models.MatrixHistoryExport,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_history_export_deleted",
+        )
+
+        register_pat_filter(models.MatrixHistoryExport)(managers.pat_filter_exports)

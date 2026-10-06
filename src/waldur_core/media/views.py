@@ -20,14 +20,14 @@ CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbo
 SVG_MIME_TYPES = ("image/svg", "image/svg+xml")
 
 
-def check_file_permissions(file: models.File, user: User):
+def check_file_permissions(file: models.File, user: User, request=None):
     """Deny access unless an app has registered a rule that allows it.
 
     Rules live in each app's ``media_access`` module; see
     :mod:`waldur_core.media.access` for the registry and the default-deny
     contract.
     """
-    if not access.user_can_access_file(file, user):
+    if not access.user_can_access_file(file, user, request=request):
         raise Http404
 
 
@@ -55,7 +55,7 @@ class MediaView(GenericAPIView):
             file = models.File.objects.get(uuid=uuid)
         except models.File.DoesNotExist:
             raise Http404
-        check_file_permissions(file, request.user)
+        check_file_permissions(file, request.user, request=request)
         filename = os.path.split(file.name)[-1]
         response = HttpResponse(file.content)
         response.headers["Content-Length"] = file.size

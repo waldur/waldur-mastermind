@@ -11,6 +11,7 @@ from constance import config
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from django_fsm import TransitionNotAllowed
 
@@ -25,6 +26,10 @@ logger = logging.getLogger(__name__)
 # Power level granted to staff who self-join via the admin panel. 50 renders as
 # the "Moderator" badge in Element — the same tier as customer owners.
 STAFF_POWER_LEVEL = 50
+
+# Deleting an export runs its post_delete handler, so Django loads every row it
+# deletes; chunks keep the first run after an upgrade from loading them all.
+EXPORT_CLEANUP_CHUNK_SIZE = 100
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.create_room")
@@ -696,14 +701,9 @@ def disable_room(room_uuid, delete_history=False, reason=""):
             )
             export_room_history(str(export.uuid))
 
-        # 4. Optionally delete all history exports
+        # 4. Optionally delete all history exports, files included
         if delete_history:
-            for export in room.exports.all():
-                if export.export_file:
-                    export.export_file.delete(save=False)
-                if export.media_file:
-                    export.media_file.delete(save=False)
-                export.delete()
+            room.exports.all().delete()
 
         # 5. Transition to archived
         room.set_archived()
@@ -722,6 +722,10 @@ def periodic_history_export():
     """Periodically export history for all active rooms."""
     if not config.MATRIX_HISTORY_EXPORT_ENABLED:
         return
+    # The export task does nothing without Matrix, so every row queued here
+    # would stay pending.
+    if not matrix_client.is_enabled():
+        return
 
     rooms = models.MatrixRoom.objects.filter(state=models.RoomStates.ACTIVE)
     for room in rooms:
@@ -731,6 +735,45 @@ def periodic_history_export():
         )
         export_room_history.delay(str(export.uuid))
         logger.info("Queued periodic export for room %s", room.room_id)
+
+
+@shared_task(name="waldur_mastermind.matrix_chat.cleanup_old_history_exports")
+def cleanup_old_history_exports():
+    """Delete history exports, files included, past the retention period.
+
+    Exports are full copies of the history, made daily, and keep messages
+    that were redacted in the room afterwards.
+    """
+    retention_days = config.MATRIX_HISTORY_EXPORT_RETENTION_DAYS
+    if retention_days <= 0:
+        return
+    cutoff = timezone.now() - timedelta(days=retention_days)
+    # An archived room gets one export on deletion and none after it, so each
+    # room's newest completed export is kept: it may be the only copy left.
+    newer_completed = models.MatrixHistoryExport.objects.filter(
+        room=OuterRef("room"),
+        state=models.ExportStates.COMPLETED,
+        created__gt=OuterRef("created"),
+    )
+    # Unfinished exports go too: after a whole retention period their task is
+    # no longer running, so none is left to save the row back.
+    expired = (
+        models.MatrixHistoryExport.objects.filter(created__lt=cutoff)
+        .filter(~Q(state=models.ExportStates.COMPLETED) | Exists(newer_completed))
+        # Every chunk runs this query again; the default ordering would sort
+        # all of it each time.
+        .order_by()
+    )
+    deleted = 0
+    while pks := list(expired.values_list("pk", flat=True)[:EXPORT_CLEANUP_CHUNK_SIZE]):
+        count, _ = models.MatrixHistoryExport.objects.filter(pk__in=pks).delete()
+        deleted += count
+    if deleted:
+        logger.info(
+            "Deleted %d Matrix history exports older than %d days",
+            deleted,
+            retention_days,
+        )
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.send_room_notification")

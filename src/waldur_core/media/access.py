@@ -33,6 +33,11 @@ AccessRule = Callable[[models.File, User], bool]
 # (``matrix_exports/.../media/``) can be given a rule of its own.
 _rules: dict[str, AccessRule] = {}
 
+# Prefixes whose rule is handed the request in place of the user, for rules that
+# must see how the user authenticated -- a personal access token's scopes and
+# bindings live on ``request.auth``.
+_request_rules: set[str] = set()
+
 
 def autodiscover() -> None:
     """Import every app's ``media_access`` module.
@@ -51,8 +56,18 @@ def autodiscover() -> None:
     autodiscover_modules("media_access")
 
 
-def register(prefix: str, check: AccessRule, *, override: bool = False) -> None:
-    """Declare who may download files stored under ``prefix``."""
+def register(
+    prefix: str,
+    check: AccessRule,
+    *,
+    override: bool = False,
+    with_request: bool = False,
+) -> None:
+    """Declare who may download files stored under ``prefix``.
+
+    With ``with_request`` the rule is passed the request instead of the user
+    when one is available, and the user otherwise, so it must accept either.
+    """
     if not prefix.endswith("/"):
         raise ValueError(f"Media access prefix must end with a slash: {prefix!r}")
     if prefix in _rules and not override:
@@ -62,6 +77,10 @@ def register(prefix: str, check: AccessRule, *, override: bool = False) -> None:
             "only if replacing it is intended."
         )
     _rules[prefix] = check
+    if with_request:
+        _request_rules.add(prefix)
+    else:
+        _request_rules.discard(prefix)
 
 
 def register_public(prefix: str) -> None:
@@ -93,12 +112,16 @@ def override_rules():
     denying everything.
     """
     snapshot = dict(_rules)
+    request_snapshot = set(_request_rules)
     _rules.clear()
+    _request_rules.clear()
     try:
         yield
     finally:
         _rules.clear()
         _rules.update(snapshot)
+        _request_rules.clear()
+        _request_rules.update(request_snapshot)
 
 
 def get_rules() -> dict[str, AccessRule]:
@@ -114,7 +137,7 @@ def has_rule(name: str) -> bool:
     return _match_prefix(name) is not None
 
 
-def user_can_access_file(file: models.File, user: User) -> bool:
+def user_can_access_file(file: models.File, user: User, request=None) -> bool:
     prefix = _match_prefix(file.name)
     if prefix is None:
         logger.debug(
@@ -122,6 +145,8 @@ def user_can_access_file(file: models.File, user: User) -> bool:
             file.name,
         )
         return False
+    if request is not None and prefix in _request_rules:
+        return _rules[prefix](file, request)
     return _rules[prefix](file, user)
 
 
@@ -184,12 +209,16 @@ def queryset_rule(model: type[Model], fields, filter_fn) -> AccessRule:
     storage path. ``filter_fn(queryset, user)`` is the app's existing read rule
     -- usually ``filter_queryset_for_user`` or a manager's ``filter_for_user``
     -- so media access cannot drift from what the API itself allows.
+
+    Registered ``with_request``, the rule passes the request on to
+    ``filter_fn``, which then gets a request or a user.
     """
 
-    def check(file: models.File, user: User) -> bool:
+    def check(file: models.File, principal) -> bool:
+        user = getattr(principal, "user", principal)
         if not user.is_authenticated:
             return False
         queryset = model.objects.filter(field_lookup(fields, file.name))
-        return filter_fn(queryset, user).exists()
+        return filter_fn(queryset, principal).exists()
 
     return check

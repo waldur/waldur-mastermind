@@ -1873,6 +1873,12 @@ CONSTANCE_CONFIG = {
         False,
         "Include media files when exporting Matrix room history.",
     ),
+    "MATRIX_HISTORY_EXPORT_RETENTION_DAYS": (
+        90,
+        "Days to keep Matrix room history exports, files included, before they "
+        "are deleted. Each room's newest completed export is kept regardless of "
+        "age. Set to 0 or less to keep them forever.",
+    ),
     "MATRIX_USER_REGISTRATION_SECRET": (
         "",
         "Shared secret for Matrix user registration.",
@@ -2356,6 +2362,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MATRIX_APPSERVICE_SENDER_LOCALPART",
         "MATRIX_HISTORY_EXPORT_ENABLED",
         "MATRIX_EXPORT_MEDIA",
+        "MATRIX_HISTORY_EXPORT_RETENTION_DAYS",
         "MATRIX_USER_REGISTRATION_SECRET",
         "MATRIX_USER_ID_FORMAT",
         "MATRIX_EXTERNAL_LOGIN_METHOD",

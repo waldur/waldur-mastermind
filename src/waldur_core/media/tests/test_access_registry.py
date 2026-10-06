@@ -96,6 +96,56 @@ class RegistryTest(SimpleTestCase):
                 raise RuntimeError
         self.assertEqual(sorted(access.get_rules()), sorted(before))
 
+    def test_request_rule_is_given_the_request(self):
+        seen = []
+        access.register(
+            "tokens/", lambda file, principal: seen.append(principal), with_request=True
+        )
+        request, user = object(), AnonymousUser()
+
+        access.user_can_access_file(
+            media_models.File(name="tokens/x.png"), user, request=request
+        )
+
+        self.assertEqual(seen, [request])
+
+    def test_request_rule_falls_back_to_the_user(self):
+        seen = []
+        access.register(
+            "tokens/", lambda file, principal: seen.append(principal), with_request=True
+        )
+        user = AnonymousUser()
+
+        access.user_can_access_file(media_models.File(name="tokens/x.png"), user)
+
+        self.assertEqual(seen, [user])
+
+    def test_plain_rule_is_given_the_user_even_with_a_request(self):
+        seen = []
+        access.register("plain/", lambda file, principal: seen.append(principal))
+        user = AnonymousUser()
+
+        access.user_can_access_file(
+            media_models.File(name="plain/x.png"), user, request=object()
+        )
+
+        self.assertEqual(seen, [user])
+
+    def test_override_restores_request_rules(self):
+        seen = []
+        access.register(
+            "tokens/", lambda file, principal: seen.append(principal), with_request=True
+        )
+        with access.override_rules():
+            access.register("tokens/", lambda file, principal: False)
+        request = object()
+
+        access.user_can_access_file(
+            media_models.File(name="tokens/x.png"), AnonymousUser(), request=request
+        )
+
+        self.assertEqual(seen, [request])
+
 
 class PrefixHelperTest(SimpleTestCase):
     def test_upload_prefix_derives_from_upload_to(self):
