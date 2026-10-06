@@ -89,6 +89,7 @@ dependencies = [
   "aiohttp>=3.14",
   "regex>=2024.11.6",
   "opentelemetry-proto>=1.37,<2",
+  "typst>=0.15",
 ]
 
 [project.urls]
@@ -240,4 +241,5 @@ dev = [
     "django-stubs-ext>=5.2.2,<6.0.0",
     "libcst>=1.8.6",
     "memray>=1.19.3",
+    "pypdf>=6.19.0",
 ]

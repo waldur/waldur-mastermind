@@ -1,14 +1,15 @@
 <html xmlns="http://www.w3.org/1999/html">
 <head lang="en">
     <meta charset="UTF-8">
-    <title>{{ customer }}'s invoice for {{ month }}/{{ year }}</title>
+    <title>Invoice for {{ customer }}, {{ month }}/{{ year }}</title>
 </head>
 <body>
 <p>
-    Dear Sir or Madam,
+    Hi,
 </p>
 <p>
-    Attached is invoice for services consumed by {{ customer }}'s during {{ month }}/{{ year }}.
+    Here is the {{ month }}/{{ year }} invoice for {{ customer }}.
+    {% if attached %}It is attached as a PDF, and you can also <a href="{{ link }}">view it online</a>.{% else %}You can <a href="{{ link }}">view it online</a>.{% endif %}
 </p>
 </body>
 </html>

@@ -234,7 +234,7 @@ def send_mail(
     from_email: str | None = None,
     html_message: str | None = None,
     filename: str | None = None,
-    attachment: str | None = None,
+    attachment: str | bytes | None = None,
     content_type: str = "text/plain",
     bcc: list[str] | None = None,
     reply_to: str | None = None,
