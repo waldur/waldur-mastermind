@@ -28,7 +28,10 @@ from waldur_openstack.tests import factories, fixtures, helpers
 from waldur_openstack.tests.helpers import (
     override_openstack_settings,
 )
-from waldur_openstack.utils import volume_type_name_to_quota_name
+from waldur_openstack.utils import (
+    get_external_network_id,
+    volume_type_name_to_quota_name,
+)
 
 
 class InstanceFilterTest(test.APITestCase):
@@ -373,6 +376,11 @@ class InstanceCreateTest(test.APITestCase):
     def test_service_settings_should_have_external_network_id(self):
         self.openstack_settings.options = {"external_network_id": "invalid"}
         self.openstack_settings.save()
+        # The provider default is only reached when the tenant names no
+        # external network of its own.
+        self.fixture.tenant.external_network_id = ""
+        self.fixture.tenant.external_network_ref = None
+        self.fixture.tenant.save()
 
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         data = self.get_valid_data(floating_ips=[{"subnet": subnet_url}])
@@ -1919,9 +1927,9 @@ class InstanceUpdateFloatingIPsTest(test.APITestCase):
         self.assertEqual(self.instance.floating_ips.count(), 0)
 
     def test_free_floating_ip_is_used_for_allocation(self):
-        external_network_id = self.fixture.tenant.service_settings.options[
-            "external_network_id"
-        ]
+        # The network the tenant's router is connected to, which may be the
+        # tenant's own rather than the provider default.
+        external_network_id = get_external_network_id(self.fixture.tenant)
         self.fixture.floating_ip.backend_network_id = external_network_id
         self.fixture.floating_ip.save()
         data = {"floating_ips": [{"subnet": self.subnet_url}]}

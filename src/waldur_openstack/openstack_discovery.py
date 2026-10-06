@@ -265,7 +265,13 @@ class OpenStackDiscoveryService:
         volume_availability_zone: str = "",
     ) -> dict:
         """
-        Assemble service_attributes and plugin_options dicts from selected values.
+        Assemble the service attributes for the selected values.
+
+        Everything the wizard collects is a service attribute: the offering
+        stores it on its service settings, which is where the plugin reads it.
+        `plugin_options` stays in the result, empty, for the clients that
+        forward it; keys put there were dropped, as the offering does not
+        declare them.
 
         Returns:
             dict with 'service_attributes' and 'plugin_options' keys.
@@ -276,26 +282,28 @@ class OpenStackDiscoveryService:
             "password": self.credentials.password,
             "domain": self.credentials.user_domain_name,
             "tenant_name": self.credentials.project_name,
+            "verify_ssl": self.credentials.verify_ssl,
         }
 
-        plugin_options = {
-            "external_network_id": external_network_id,
-        }
+        # Only when chosen, so that re-running the wizard without a choice
+        # keeps the network the offering already has.
+        if external_network_id:
+            service_attributes["external_network_id"] = external_network_id
 
         if self.credentials.certificate:
-            plugin_options["certificate"] = self.credentials.certificate
-
-        plugin_options["verify_ssl"] = self.credentials.verify_ssl
+            service_attributes["certificate"] = self.credentials.certificate
 
         if instance_availability_zone:
-            plugin_options["valid_availability_zones"] = {
+            service_attributes["valid_availability_zones"] = {
                 instance_availability_zone: instance_availability_zone
             }
 
         if volume_availability_zone:
-            plugin_options["volume_availability_zone_name"] = volume_availability_zone
+            service_attributes["volume_availability_zone_name"] = (
+                volume_availability_zone
+            )
 
         return {
             "service_attributes": service_attributes,
-            "plugin_options": plugin_options,
+            "plugin_options": {},
         }
