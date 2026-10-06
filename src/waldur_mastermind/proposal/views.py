@@ -3669,6 +3669,103 @@ class ProposalViewSet(
         proposal_permissions.can_update_proposal_attachments
     ]
 
+    @staticmethod
+    def _allocation_decision_is_active(proposal) -> bool:
+        return proposal.workflow_step_instances.filter(
+            step=workflow_service.DECISION_STEP,
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+        ).exists()
+
+    def _lock_open_award(self, proposal):
+        """Lock the proposal and confirm its award may still change.
+
+        Called inside a transaction: the decision completing concurrently must
+        not provision an award that is half-way through an edit. Completion
+        locks the proposal and then the step; expiry locks only the step. So
+        the step is re-read under a lock of its own, in the same order, and an
+        edit that gets it after the step expired or completed is refused
+        instead of committing to a closed award.
+        """
+        models.Proposal.objects.select_for_update().get(pk=proposal.pk)
+        decision = (
+            proposal.workflow_step_instances.select_for_update()
+            .filter(step=workflow_service.DECISION_STEP)
+            .order_by("-created")
+            .first()
+        )
+        if decision is None or decision.status != WorkflowStepInstanceStatuses.ACTIVE:
+            raise IncorrectStateException(
+                _(
+                    "The awarded resources can only be changed while the "
+                    "allocation decision is in progress."
+                )
+            )
+        # A proposal that reached the step without passing through its
+        # activation (seeded directly, or at the step before awards existed)
+        # starts from its request rather than from nothing.
+        utils.prefill_awarded_resources(proposal)
+
+    @extend_schema(
+        methods=["get"],
+        operation_id="proposal_proposals_awarded_resources_list",
+        request=None,
+        responses=serializers.AwardedResourceSerializer(many=True),
+        description=(
+            "List what the allocation decision awards the proposal. Staff, "
+            "support, the call's managers and organisers, and the managers of "
+            "the offerings involved see it at any time; the applicant team once "
+            "the decision is released."
+        ),
+        filters=False,
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_proposals_awarded_resources_set",
+        request=serializers.AwardedResourceSerializer,
+        responses=serializers.AwardedResourceSerializer,
+        description=(
+            "Add an item to the award. Call managers only, while the allocation "
+            "decision is in progress."
+        ),
+    )
+    @decorators.action(detail=True, methods=["get", "post"])
+    def awarded_resources(self, request, uuid=None):
+        proposal = cast(models.Proposal, self.get_object())
+        if request.method == "POST":
+            with transaction.atomic():
+                self._lock_open_award(proposal)
+                return self.action_list_method("awarded_resources")(self, request, uuid)
+        if (
+            proposal.awarded_resources_prefilled_at is None
+            and self._allocation_decision_is_active(proposal)
+        ):
+            utils.prefill_awarded_resources(proposal)
+        return self.action_list_method("awarded_resources")(self, request, uuid)
+
+    awarded_resources_serializer_class = serializers.AwardedResourceSerializer
+    awarded_resources_permissions = [proposal_permissions.can_access_awarded_resources]
+
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.AwardedResourceSerializer},
+        description=(
+            "Read, change or remove an item of the award. Changes are for call "
+            "managers only, while the allocation decision is in progress."
+        ),
+    )
+    def awarded_resource_detail(self, request, uuid=None, obj_uuid=None):
+        proposal = cast(models.Proposal, self.get_object())
+        handler = self.action_detail_method("awarded_resources")
+        if request.method in rf_permissions.SAFE_METHODS:
+            return handler(self, request, uuid, obj_uuid)
+        with transaction.atomic():
+            self._lock_open_award(proposal)
+            return handler(self, request, uuid, obj_uuid)
+
+    awarded_resource_detail_serializer_class = serializers.AwardedResourceSerializer
+    awarded_resource_detail_permissions = [
+        proposal_permissions.can_access_awarded_resources
+    ]
+
     @extend_schema(
         description="Attach document to proposal.",
         request=serializers.ProposalDocumentationSerializer,

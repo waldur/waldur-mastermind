@@ -230,18 +230,29 @@ def get_offering_manager_proposals(user):
     for the ``technical_assessment`` step, so they need read access — but only to
     the **non-draft** proposals that actually **requested one of their accepted
     offerings**, not to every (possibly unsubmitted, cross-provider) proposal on
-    the call.
+    the call -- or that were **awarded** one, when the call manager moved an item
+    onto an offering nobody requested: its provider provisions the award.
     """
     offering_ctype = ContentType.objects.get_for_model(marketplace_models.Offering)
     offering_ids = get_scope_ids(user, offering_ctype, RoleEnum.OFFERING_MANAGER)
-    return (
+    requested = (
         models.RequestedResource.objects.filter(
             requested_offering__offering_id__in=offering_ids,
             requested_offering__state=RequestedOfferingStates.ACCEPTED,
         )
         .exclude(proposal__state=ProposalStates.DRAFT)
+        .order_by()
         .values_list("proposal_id", flat=True)
     )
+    awarded = (
+        models.AwardedResource.objects.filter(
+            requested_offering__offering_id__in=offering_ids,
+            requested_offering__state=RequestedOfferingStates.ACCEPTED,
+        )
+        .order_by()
+        .values_list("proposal_id", flat=True)
+    )
+    return requested.union(awarded)
 
 
 def get_live_reviews(user):

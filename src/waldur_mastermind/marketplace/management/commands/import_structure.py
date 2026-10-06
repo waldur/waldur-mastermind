@@ -95,6 +95,7 @@ from waldur_mastermind.proposal.enums import ProposalDisclosureLevels
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
+    AwardedResource,
     Call,
     CallAssignmentConfiguration,
     CallCOIConfiguration,
@@ -496,6 +497,12 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "requested_resources": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "awarded_resources": {
                 "created": 0,
                 "updated": 0,
                 "skipped": 0,
@@ -1170,6 +1177,10 @@ class Command(BaseCommand):
             lambda: self.import_requested_resources(
                 data.get("requested_resources", [])
             ),
+        )
+        self._safe_import(
+            "awarded_resources",
+            lambda: self.import_awarded_resources(data.get("awarded_resources", [])),
         )
         self._safe_import(
             "reviews",
@@ -8399,6 +8410,9 @@ class Command(BaseCommand):
                     # are ignored.
                     "project_summary": proposal_data.get("project_summary", ""),
                     "allocation_comment": proposal_data.get("allocation_comment", ""),
+                    "awarded_resources_prefilled_at": self._parse_datetime(
+                        proposal_data.get("awarded_resources_prefilled_at")
+                    ),
                 }
 
                 if not self.dry_run:
@@ -8534,6 +8548,97 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["requested_resources"]["errors"] += 1
+
+    def import_awarded_resources(self, awarded_resources_data):
+        """Import what allocation decisions award.
+
+        A proposal imported at the allocation decision without this section
+        has its award copied from its request when it is first read, edited or
+        allocated, so older dumps and presets need nothing here.
+        """
+        self.stdout.write("Importing awarded resources...")
+        stats = self.stats["awarded_resources"]
+        for awarded_data in awarded_resources_data:
+            try:
+                uuid = awarded_data.get("uuid")
+                proposal_uuid = awarded_data.get("proposal_uuid")
+                requested_offering_uuid = awarded_data.get("requested_offering_uuid")
+                if not uuid or not proposal_uuid or not requested_offering_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping awarded resource without UUID, proposal_uuid, or requested_offering_uuid"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+
+                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                requested_offering = RequestedOffering.objects.filter(
+                    uuid=requested_offering_uuid
+                ).first()
+                if not proposal or not requested_offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping awarded resource {uuid}: proposal {proposal_uuid} "
+                            f"or requested offering {requested_offering_uuid} not found"
+                        )
+                    )
+                    stats["errors"] += 1
+                    continue
+
+                def optional(model, key):
+                    value = awarded_data.get(key)
+                    if not value:
+                        return None
+                    found = model.objects.filter(uuid=value).first()
+                    if found is None:
+                        # Imported without it rather than skipped: the award
+                        # still says what was granted.
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Awarded resource {uuid}: {key} {value} not "
+                                "found, importing it without one"
+                            )
+                        )
+                    return found
+
+                defaults = {
+                    "proposal": proposal,
+                    "requested_offering": requested_offering,
+                    "requested_resource": optional(
+                        RequestedResource, "requested_resource_uuid"
+                    ),
+                    "plan": optional(Plan, "plan_uuid"),
+                    "created_by": optional(User, "created_by_uuid"),
+                    "resource": optional(Resource, "resource_uuid"),
+                    "description": awarded_data.get("description", ""),
+                    "attributes": awarded_data.get("attributes", {}),
+                    "limits": awarded_data.get("limits", {}),
+                }
+
+                existing = AwardedResource.objects.filter(uuid=uuid).exists()
+                if existing and not self.update_existing:
+                    stats["skipped"] += 1
+                    continue
+                if not self.dry_run:
+                    with transaction.atomic():
+                        if existing:
+                            AwardedResource.objects.filter(uuid=uuid).update(**defaults)
+                        else:
+                            AwardedResource.objects.create(uuid=uuid, **defaults)
+                        # An award in the dump is the award: never refill it
+                        # from the request afterwards.
+                        Proposal.objects.filter(
+                            pk=proposal.pk, awarded_resources_prefilled_at=None
+                        ).update(awarded_resources_prefilled_at=timezone.now())
+                stats["updated" if existing else "created"] += 1
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import awarded resource {awarded_data.get('uuid')}: {e}"
+                    )
+                )
+                stats["errors"] += 1
 
     def import_call_documents(self, documents_data):
         """Import documentation files attached to calls, seeding a placeholder

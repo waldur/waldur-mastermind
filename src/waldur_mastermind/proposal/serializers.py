@@ -33,6 +33,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.serializers import (
     BasePublicPlanSerializer,
     LimitValueField,
@@ -1603,6 +1604,211 @@ class RequestedResourcePurchaseOrderSerializer(serializers.ModelSerializer):
             "attachment": {"required": False, "allow_null": True},
             "purchase_order_reference": {"required": False, "allow_blank": True},
         }
+
+
+def _validate_awarded_limits(limits, offering, plan):
+    """Hold awarded limits to what the offering's components accept.
+
+    The keys must be the limit components of the plan (or of the offering
+    where there is no plan), and each value inside the component's bounds and
+    precision -- the checks every order placing these limits passes. The
+    running total against ``max_available_limit`` is left to the order that
+    allocation places, as it is for a requested amount.
+    """
+    try:
+        for component, value in marketplace_utils.get_components_map(
+            limits, offering, plan
+        ):
+            marketplace_utils.validate_limit_precision(value, component)
+            marketplace_utils.validate_min_max_limit(value, component)
+    except serializers.ValidationError as exc:
+        detail = exc.detail
+        if isinstance(detail, dict) and "limits" in detail:
+            detail = detail["limits"]
+        raise serializers.ValidationError({"limits": detail})
+
+
+class AwardedResourceSerializer(serializers.ModelSerializer):
+    """An item of the award the allocation decision grants.
+
+    Written by the call manager while the allocation decision is active: the
+    amounts, the call offering it is awarded on, its plan and attributes.
+    ``requested_resource`` names the request the item was prefilled from and is
+    empty for an item the call manager added.
+    """
+
+    url = serializers.SerializerMethodField()
+    requested_offering = NestedRequestedOfferingSerializer(read_only=True)
+    requested_offering_uuid = serializers.UUIDField(
+        write_only=True,
+        required=False,
+        help_text=(
+            "An accepted offering of the proposal's call to award the item on. "
+            "Required when adding an item."
+        ),
+    )
+    requested_resource = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+    plan = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=marketplace_models.Plan.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text=(
+            "Plan of the awarded offering. Read back as the plan the item is "
+            "provisioned on: the call offering's plan unless another was set. "
+            "Null (or leaving it out when adding or moving) follows the call "
+            "offering's plan."
+        ),
+    )
+    plan_name = serializers.ReadOnlyField(source="effective_plan.name", allow_null=True)
+    resource = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+    resource_name = serializers.ReadOnlyField(source="resource.name", allow_null=True)
+    created_by = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+    created_by_name = serializers.ReadOnlyField(
+        source="created_by.full_name", allow_null=True
+    )
+    limits = serializers.DictField(child=LimitValueField(), required=False)
+    attributes = serializers.JSONField(required=False)
+
+    class Meta:
+        model = models.AwardedResource
+        fields = [
+            "uuid",
+            "url",
+            "requested_resource",
+            "requested_offering",
+            "requested_offering_uuid",
+            "plan",
+            "plan_name",
+            "attributes",
+            "limits",
+            "description",
+            "resource",
+            "resource_name",
+            "created_by",
+            "created_by_name",
+            "created",
+            "modified",
+        ]
+        read_only_fields = ("created", "modified")
+
+    def get_url(self, awarded) -> str:
+        return self.context["request"].build_absolute_uri(
+            reverse(
+                "proposal-proposal-awarded_resource-detail",
+                kwargs={
+                    "uuid": awarded.proposal.uuid.hex,
+                    "obj_uuid": awarded.uuid.hex,
+                },
+            )
+        )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # What allocation provisions, not only an explicit choice.
+        plan = instance.effective_plan
+        data["plan"] = (
+            None if plan is None else self.fields["plan"].to_representation(plan)
+        )
+        return data
+
+    def validate_attributes(self, attributes):
+        if not attributes:
+            return {}
+        if not isinstance(attributes, dict):
+            raise serializers.ValidationError(_("A JSON object is expected."))
+        return attributes
+
+    def validate(self, attrs):
+        proposal = self.instance.proposal if self.instance else attrs["proposal"]
+        call = proposal.round.call
+
+        requested_offering_uuid = attrs.pop("requested_offering_uuid", None)
+        moved = False
+        if requested_offering_uuid is not None:
+            try:
+                requested_offering = call.requestedoffering_set.select_related(
+                    "offering", "plan"
+                ).get(uuid=requested_offering_uuid)
+            except models.RequestedOffering.DoesNotExist:
+                raise serializers.ValidationError(
+                    {
+                        "requested_offering_uuid": _(
+                            "The offering is not part of this call."
+                        )
+                    }
+                )
+            if requested_offering.state != RequestedOfferingStates.ACCEPTED:
+                raise serializers.ValidationError(
+                    {
+                        "requested_offering_uuid": _(
+                            "The offering has not been accepted by its provider."
+                        )
+                    }
+                )
+            moved = (
+                self.instance is None
+                or self.instance.requested_offering_id != requested_offering.id
+            )
+            attrs["requested_offering"] = requested_offering
+        elif self.instance is None:
+            raise serializers.ValidationError(
+                {"requested_offering_uuid": _("This field is required.")}
+            )
+        else:
+            requested_offering = self.instance.requested_offering
+
+        offering = requested_offering.offering
+
+        if "plan" in attrs:
+            plan = attrs["plan"]
+            if plan is not None and plan.offering_id != offering.id:
+                raise serializers.ValidationError(
+                    {"plan": _("The plan does not belong to the awarded offering.")}
+                )
+            if plan is not None and plan.archived:
+                raise serializers.ValidationError({"plan": _("The plan is archived.")})
+        elif moved:
+            # The old plan belongs to another offering: follow the call's.
+            plan = attrs["plan"] = None
+        else:
+            plan = self.instance.plan if self.instance else None
+        # An item without a plan of its own is provisioned on the call's.
+        effective_plan = plan or requested_offering.plan
+
+        limits = (
+            attrs["limits"]
+            if "limits" in attrs
+            else (self.instance.limits if self.instance else {})
+        )
+        # The rule a proposal is submitted under: an amount must be named for
+        # an offering that sells by amount, or allocation provisions nothing.
+        if not models.names_an_amount(offering, limits):
+            raise serializers.ValidationError(
+                {"limits": _("An amount must be awarded for this offering.")}
+            )
+        if "limits" in attrs or moved or "plan" in attrs:
+            _validate_awarded_limits(limits or {}, offering, effective_plan)
+
+        attributes = (
+            attrs["attributes"]
+            if "attributes" in attrs
+            else (self.instance.attributes if self.instance else {})
+        )
+        if "attributes" in attrs or moved:
+            _validate_prepaid_duration(attributes, offering, proposal.round)
+
+        return attrs
+
+    def create(self, validated_data):
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
 
 
 class ProviderRequestedResourceSerializer(NestedRequestedResourceSerializer):

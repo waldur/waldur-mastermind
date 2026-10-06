@@ -68,6 +68,7 @@ from waldur_mastermind.policy.models import (
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
+    AwardedResource,
     Call,
     CallAssignmentConfiguration,
     CallCOIConfiguration,
@@ -295,6 +296,9 @@ class Command(BaseCommand):
             "proposals": self.log_export_step("proposals", self.export_proposals),
             "requested_resources": self.log_export_step(
                 "requested_resources", self.export_requested_resources
+            ),
+            "awarded_resources": self.log_export_step(
+                "awarded_resources", self.export_awarded_resources
             ),
             "reviews": self.log_export_step("reviews", self.export_reviews),
             "assignment_batches": self.log_export_step(
@@ -1959,6 +1963,11 @@ class Command(BaseCommand):
                     else None,
                     "project_summary": proposal.project_summary,
                     "allocation_comment": proposal.allocation_comment,
+                    "awarded_resources_prefilled_at": (
+                        proposal.awarded_resources_prefilled_at.isoformat()
+                        if proposal.awarded_resources_prefilled_at
+                        else None
+                    ),
                     "slug": proposal.slug,
                     "created": proposal.created.isoformat()
                     if proposal.created
@@ -2003,6 +2012,46 @@ class Command(BaseCommand):
                 }
             )
         return requested_resources
+
+    def export_awarded_resources(self):
+        """Export what allocation decisions award, next to what was requested."""
+        awarded_resources = []
+        for awarded in AwardedResource.objects.select_related(
+            "proposal",
+            "requested_resource",
+            "requested_offering",
+            "requested_offering__offering",
+            "plan",
+            "created_by",
+            "resource",
+        ).order_by("proposal__name", "created", "id"):
+            awarded_resources.append(
+                {
+                    "uuid": awarded.uuid.hex,
+                    "proposal_uuid": awarded.proposal.uuid.hex,
+                    "proposal_name": awarded.proposal.name,
+                    "requested_resource_uuid": awarded.requested_resource.uuid.hex
+                    if awarded.requested_resource
+                    else None,
+                    "requested_offering_uuid": awarded.requested_offering.uuid.hex,
+                    "offering_name": awarded.requested_offering.offering.name,
+                    "plan_uuid": awarded.plan.uuid.hex if awarded.plan else None,
+                    "description": awarded.description,
+                    "attributes": awarded.attributes,
+                    "limits": awarded.limits,
+                    "created_by_uuid": awarded.created_by.uuid.hex
+                    if awarded.created_by
+                    else None,
+                    "resource_uuid": awarded.resource.uuid.hex
+                    if awarded.resource
+                    else None,
+                    "created": awarded.created.isoformat() if awarded.created else None,
+                    "modified": awarded.modified.isoformat()
+                    if awarded.modified
+                    else None,
+                }
+            )
+        return awarded_resources
 
     def export_reviews(self):
         """Export review data."""
