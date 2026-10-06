@@ -10,16 +10,19 @@ from waldur_core.permissions.utils import (
     get_users,
     has_permission,
     has_permission_on_any_source,
+    has_user,
     permission_factory,
 )
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import (
+    ProposalStates,
     RequestedOfferingStates,
     ResponsibleRoles,
     ResultsPublication,
     RoundLifecycleStates,
     WorkflowStepInstanceStatuses,
+    WorkflowStepOutcomes,
 )
 
 user_can_accept_requested_offering = permission_factory(
@@ -561,6 +564,140 @@ def can_view_step_checklist_responses(request, view, obj=None):
 
 
 can_view_step_checklist_responses.sources = ["*"]
+
+
+def _user_is_call_manager(user, proposal) -> bool:
+    return (
+        get_users(proposal.round.call, role_name=RoleEnum.CALL_MANAGER)
+        .filter(pk=user.pk)
+        .exists()
+    )
+
+
+def _user_manages_an_offering_of(user, proposal) -> bool:
+    """True iff the user manages an offering the proposal requested or was awarded."""
+    offering_ids = set(
+        proposal_models.RequestedResource.objects.filter(proposal=proposal).values_list(
+            "requested_offering__offering_id", flat=True
+        )
+    ) | set(
+        proposal_models.AwardedResource.objects.filter(proposal=proposal).values_list(
+            "requested_offering__offering_id", flat=True
+        )
+    )
+    offering_ct = ContentType.objects.get_for_model(marketplace_models.Offering)
+    return permissions_models.UserRole.objects.filter(
+        is_active=True,
+        user=user,
+        role__name=RoleEnum.OFFERING_MANAGER,
+        content_type=offering_ct,
+        object_id__in=offering_ids,
+    ).exists()
+
+
+def awarded_resources_released(proposal) -> bool:
+    """Whether the award has been decided and may be shown to the applicant.
+
+    Never while the call manager is still drafting it, nor after the allocation
+    decision declined the proposal. Once approved: when the proposal has been
+    accepted (its resources are provisioned in the applicant's project anyway),
+    when the applicant is asked to accept or decline the award, or -- for a
+    decision parked awaiting a manual advance -- when the call exposes the
+    allocation step to applicants (``applicant_visible``). Never while the
+    decision is held for the round's publication: until then, to the
+    applicant it is still being made.
+    """
+    if proposal.state == ProposalStates.ACCEPTED:
+        return True
+    if proposal.decision_held:
+        return False
+    instances = {
+        instance.step: instance for instance in proposal.workflow_step_instances.all()
+    }
+    decision = instances.get("allocation_decision")
+    if (
+        decision is None
+        or decision.status != WorkflowStepInstanceStatuses.COMPLETED
+        or decision.outcome != WorkflowStepOutcomes.APPROVED
+    ):
+        return False
+    award_response = instances.get("award_response")
+    if (
+        award_response is not None
+        and award_response.status != WorkflowStepInstanceStatuses.PENDING
+        and award_response.status != WorkflowStepInstanceStatuses.SKIPPED
+    ):
+        return True
+    return proposal_models.CallWorkflowStep.objects.filter(
+        call=proposal.round.call, step="allocation_decision", applicant_visible=True
+    ).exists()
+
+
+def _user_manages_the_call(user, proposal) -> bool:
+    """Call manager of the proposal's call, or organiser of its managing org."""
+    return has_permission_on_any_source(
+        user, PermissionEnum.UPDATE_CALL, proposal.round.call, CALL_PERMISSION_SOURCES
+    )
+
+
+def _user_is_on_the_applicant_team(user, proposal) -> bool:
+    """The applicant, a member of the proposal, or of the project it was granted."""
+    if proposal.created_by_id == user.id or has_user(proposal, user):
+        return True
+    return proposal.project_id is not None and has_user(proposal.project, user)
+
+
+def user_can_view_awarded_resources(user, proposal) -> bool:
+    """Who may read a proposal's award, beyond being able to see the proposal.
+
+    At any time: staff and support, whoever manages the call (its call
+    managers and the organisers of its managing organisation), and the
+    managers of the offerings requested or awarded -- they assess the request
+    technically and provision the award. The applicant team only once the
+    award is released (see ``awarded_resources_released``). Nobody else:
+    reviewers and panel members judge the proposal, not the award.
+
+    The call manager is checked first so that a call manager who also applied
+    is not shut out of the award they edit; an offering manager who applied
+    waits for the release like any applicant.
+    """
+    if user.is_staff or user.is_support:
+        return True
+    if _user_manages_the_call(user, proposal):
+        return True
+    if proposal.created_by_id != user.id and _user_manages_an_offering_of(
+        user, proposal
+    ):
+        return True
+    if _user_is_on_the_applicant_team(user, proposal):
+        return awarded_resources_released(proposal)
+    return False
+
+
+def can_access_awarded_resources(request, view, obj=None):
+    """ActionsPermission check for the awarded resources endpoints.
+
+    Reading follows ``user_can_view_awarded_resources``. Changing the award is
+    the call manager's (or staff's); whether it is still open for changes is a
+    state question the view answers with 409.
+    """
+    if obj is None:
+        return
+    user = request.user
+    if request.method in permissions.SAFE_METHODS:
+        if not user_can_view_awarded_resources(user, obj):
+            raise exceptions.PermissionDenied(
+                "The awarded resources are not visible until the decision is released."
+            )
+        return
+    if user.is_staff or _user_is_call_manager(user, obj):
+        return
+    raise exceptions.PermissionDenied(
+        "Only the call manager can change the awarded resources."
+    )
+
+
+can_access_awarded_resources.sources = ["*"]
 
 
 def user_is_assignment_reviewer(request, view, obj=None):

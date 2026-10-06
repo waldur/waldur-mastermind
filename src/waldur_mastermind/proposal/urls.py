@@ -157,7 +157,7 @@ urlpatterns += [
         ),
         name=f"proposal-proposal-{action}-detail",
     )
-    for action in ["resource"]
+    for action in ["resource", "awarded_resource"]
 ]
 
 urlpatterns += [

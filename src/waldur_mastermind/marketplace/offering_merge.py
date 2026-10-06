@@ -101,6 +101,7 @@ PLAN_REFERENCES = (
     "marketplace.Order.old_plan",
     "marketplace.ResourcePlanPeriod.plan",
     "proposal.RequestedOffering.plan",
+    "proposal.AwardedResource.plan",
 )
 
 # Usage and quota history that makes a source component need a target one.

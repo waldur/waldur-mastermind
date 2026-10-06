@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import tempfile
+import uuid
 from io import StringIO
 
 from django.contrib.contenttypes.models import ContentType
@@ -10,6 +11,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection
 from django.test import TestCase
+from django.utils import timezone
 
 from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.core.models import User
@@ -49,6 +51,7 @@ from waldur_mastermind.policy.models import (
 from waldur_mastermind.policy.tests import factories as policy_factories
 from waldur_mastermind.proposal.enums import COITypes, ProposalDisclosureLevels
 from waldur_mastermind.proposal.models import (
+    AwardedResource,
     CallAssignmentConfiguration,
     CallCOIConfiguration,
     CallWorkflowStep,
@@ -4035,3 +4038,95 @@ class CallConfigurationRoundTripTest(TestCase):
             snapshot(CallAssignmentConfiguration.objects.get(call=self.call)),
             expected_assignment,
         )
+
+
+class AwardedResourcesRoundTripTest(TestCase):
+    """What an allocation decision awards travels with the proposal."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.temp_dir, "structure.json")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_export_then_import_restores_the_award(self):
+        requested = proposal_factories.RequestedResourceFactory(
+            resource=None, limits={"cpu": 100}
+        )
+        proposal = requested.proposal
+        proposal.awarded_resources_prefilled_at = timezone.now()
+        proposal.save()
+        awarded = AwardedResource.objects.create(
+            proposal=proposal,
+            requested_resource=requested,
+            requested_offering=requested.requested_offering,
+            plan=requested.requested_offering.plan,
+            limits={"cpu": 40},
+            attributes={"prepaid_duration_months": 3},
+        )
+        awarded_uuid = awarded.uuid.hex
+
+        call_command("export_structure", "-o", self.path, stdout=StringIO())
+        with open(self.path, encoding="utf-8") as f:
+            data = json.load(f)
+        exported = [
+            row for row in data["awarded_resources"] if row["uuid"] == awarded_uuid
+        ]
+        self.assertEqual(len(exported), 1)
+        self.assertEqual(exported[0]["limits"], {"cpu": 40})
+        self.assertEqual(exported[0]["requested_resource_uuid"], requested.uuid.hex)
+
+        awarded.delete()
+        Proposal.objects.filter(pk=proposal.pk).update(
+            awarded_resources_prefilled_at=None
+        )
+        call_command("import_structure", input=self.path, stdout=StringIO())
+
+        restored = AwardedResource.objects.get(uuid=awarded_uuid)
+        self.assertEqual(restored.proposal, proposal)
+        self.assertEqual(restored.requested_resource, requested)
+        self.assertEqual(restored.plan, requested.requested_offering.plan)
+        self.assertEqual(restored.limits, {"cpu": 40})
+        self.assertEqual(restored.attributes, {"prepaid_duration_months": 3})
+        proposal.refresh_from_db()
+        self.assertIsNotNone(proposal.awarded_resources_prefilled_at)
+
+    def test_a_reference_that_is_not_found_is_reported(self):
+        requested = proposal_factories.RequestedResourceFactory(
+            resource=None, limits={"cpu": 100}
+        )
+        missing_plan = uuid.uuid4().hex
+        missing_request = uuid.uuid4().hex
+        missing_resource = uuid.uuid4().hex
+        awarded_uuid = uuid.uuid4().hex
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "awarded_resources": [
+                        {
+                            "uuid": awarded_uuid,
+                            "proposal_uuid": requested.proposal.uuid.hex,
+                            "requested_offering_uuid": (
+                                requested.requested_offering.uuid.hex
+                            ),
+                            "plan_uuid": missing_plan,
+                            "requested_resource_uuid": missing_request,
+                            "resource_uuid": missing_resource,
+                            "limits": {"cpu": 40},
+                        }
+                    ]
+                },
+                f,
+            )
+
+        out = StringIO()
+        call_command("import_structure", input=self.path, stdout=out)
+
+        restored = AwardedResource.objects.get(uuid=awarded_uuid)
+        self.assertIsNone(restored.plan)
+        self.assertIsNone(restored.requested_resource)
+        self.assertIsNone(restored.resource)
+        output = out.getvalue()
+        for missing in (missing_plan, missing_request, missing_resource):
+            self.assertIn(missing, output)

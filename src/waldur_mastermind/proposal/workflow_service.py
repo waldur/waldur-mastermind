@@ -28,6 +28,8 @@ from waldur_mastermind.proposal.enums import (
 
 logger = logging.getLogger(__name__)
 
+DECISION_STEP = "allocation_decision"
+
 
 def _step_label(step_key):
     """Human-readable step name for error messages (falls back to the raw key)."""
@@ -92,14 +94,14 @@ def _activate_next_step(proposal, next_step_def):
     # something to answer against once the step is active.
     if call_step and call_step.checklist_id:
         proposal.ensure_checklist_completion_for(call_step.checklist)
+    # The allocation decision edits an award, which starts as the request.
+    if next_step_def.id == DECISION_STEP:
+        utils.prefill_awarded_resources(proposal)
     instance.save(update_fields=["status", "started_at", "deadline"])
     notification_rules.dispatch_step_event(
         instance, NotificationRuleTriggers.STEP_STARTED
     )
     return instance
-
-
-DECISION_STEP = "allocation_decision"
 
 
 def _decision_is_withheld(proposal, step):
@@ -213,6 +215,7 @@ def complete_step(
         call=proposal.round.call, step=current_instance.step
     ).first()
     _enforce_step_gates(proposal, current_instance, outcome, call_step)
+    _enforce_award_amounts(proposal, current_instance, outcome)
 
     current_instance.status = WorkflowStepInstanceStatuses.COMPLETED
     current_instance.outcome = outcome
@@ -325,6 +328,31 @@ def _enforce_step_gates(proposal, current_instance, outcome, call_step):
                 f"score ({avg_score if avg_score is not None else 0}) is below "
                 f"the required minimum of {call_step.min_score_threshold}."
             )
+
+
+def _enforce_award_amounts(proposal, current_instance, outcome):
+    """Block approving an award that grants an offering no amount.
+
+    The award editor refuses such an item, but one can still be there: copied
+    from a request written before amounts were required, or seeded around the
+    API. Approving it would provision a resource with no quota. The rule is
+    the one a proposal is submitted under. Declining is never blocked.
+    """
+    if (
+        current_instance.step != DECISION_STEP
+        or outcome in WorkflowStepOutcomes.NEGATIVE_OUTCOMES
+    ):
+        return
+    # A proposal that reached the step without its activation has no award
+    # yet; allocation would copy one from the request, so check that copy.
+    utils.prefill_awarded_resources(proposal)
+    missing = proposal.offerings_missing_awarded_amounts()
+    if missing:
+        raise ValueError(
+            f"Cannot complete {_step_label(current_instance.step)}: awarded "
+            f"amounts are missing for the following offerings: "
+            f"{', '.join(missing)}."
+        )
 
 
 def _advance_to_next(proposal, from_step, acting_user=None):

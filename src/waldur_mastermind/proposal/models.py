@@ -1143,6 +1143,27 @@ def filter_proposals(user):
     )
 
 
+def names_an_amount(offering, limits) -> bool:
+    """Whether ``limits`` name an amount for something ``offering`` sells by it.
+
+    The requestable components are the ones ``get_limit_components()`` selects
+    -- limit components and one-time components bought by the month -- read off
+    ``offering.components.all()`` so a prefetched list is used as is. An
+    offering with none of them has no amount to name and always passes.
+    Provisioning limits that name nothing creates a resource with no quota.
+    """
+    requestable = [
+        component.type
+        for component in offering.components.all()
+        if component.billing_type == BillingTypes.LIMIT
+        or (component.billing_type == BillingTypes.ONE_TIME and component.is_prepaid)
+    ]
+    if not requestable:
+        return True
+    limits = limits or {}
+    return any(limits.get(component_type) for component_type in requestable)
+
+
 class Proposal(
     TimeStampedModel,
     PermissionMixin,
@@ -1223,12 +1244,24 @@ class Proposal(
         default=None,
         help_text="Current active workflow step for this proposal.",
     )
+    awarded_resources_prefilled_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "When the awarded resources were first copied from the request. "
+            "Set once: an award the call manager emptied stays empty rather "
+            "than being refilled from the request."
+        ),
+    )
 
     # Note: checklist_completions relationship is automatically available via ChecklistCompletion.scope
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
     requestedresource_set: models.Manager["RequestedResource"]
+    awarded_resources: models.Manager["AwardedResource"]
     review_set: models.Manager["Review"]
+    workflow_step_instances: models.Manager["ProposalWorkflowStepInstance"]
 
     class Permissions:
         customer_path = "round__call__manager__customer"
@@ -1308,26 +1341,37 @@ class Proposal(
         Offerings with nothing to ask for (no limit or prepaid component) are
         exempt: there is no amount to name in the first place.
         """
-        missing = set()
-        for requested_resource in self.requestedresource_set.all():
-            offering = requested_resource.requested_offering.offering
-            # The same components get_limit_components() selects, read off the
-            # prefetched list instead of querying per offering.
-            requestable = [
-                component.type
-                for component in offering.components.all()
-                if component.billing_type == BillingTypes.LIMIT
-                or (
-                    component.billing_type == BillingTypes.ONE_TIME
-                    and component.is_prepaid
+        return sorted(
+            {
+                requested_resource.requested_offering.offering.name
+                for requested_resource in self.requestedresource_set.all()
+                if not names_an_amount(
+                    requested_resource.requested_offering.offering,
+                    requested_resource.limits,
                 )
-            ]
-            if not requestable:
-                continue
-            limits = requested_resource.limits or {}
-            if not any(limits.get(component_type) for component_type in requestable):
-                missing.add(offering.name)
-        return sorted(missing)
+            }
+        )
+
+    def offerings_missing_awarded_amounts(self) -> list[str]:
+        """Offerings the award grants without naming any amount.
+
+        The award's counterpart of :meth:`offerings_missing_requested_amounts`,
+        over the items allocation provisions: those on offerings the provider
+        still accepts. Anything else is skipped at allocation anyway.
+        """
+        return sorted(
+            {
+                awarded.requested_offering.offering.name
+                for awarded in self.awarded_resources.filter(
+                    requested_offering__state=RequestedOfferingStates.ACCEPTED
+                )
+                .select_related("requested_offering__offering")
+                .prefetch_related("requested_offering__offering__components")
+                if not names_an_amount(
+                    awarded.requested_offering.offering, awarded.limits
+                )
+            }
+        )
 
     def has_proposal_manager(self) -> bool:
         annotated = getattr(self, "_has_proposal_manager", None)
@@ -1493,6 +1537,9 @@ class RequestedResource(
     )
     proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE)
 
+    requested_offering_id: int
+    awarded_resources: models.Manager["AwardedResource"]
+
     @property
     def purchase_order_required(self) -> bool:
         return self.requested_offering.require_purchase_order
@@ -1506,6 +1553,91 @@ class RequestedResource(
         group for no gain.
         """
         return bool(self.attachment) or bool(self.purchase_order_reference)
+
+
+class AwardedResource(
+    core_models.UuidMixin,
+    TimeStampedModel,
+    core_models.DescribableMixin,
+):
+    """What the allocation decision grants, which may differ from the request.
+
+    Prefilled from the proposal's requested resources when the allocation
+    decision starts, then edited by the call manager while that step is
+    active: amounts changed, an item moved to another accepted offering of the
+    call, items added or removed. Allocation provisions these rows; the
+    requested resources stay as the applicant submitted them.
+    """
+
+    class Meta:
+        ordering = ["created", "id"]
+
+    class Permissions:
+        project_path = "proposal__project"
+
+    proposal = models.ForeignKey(
+        Proposal, on_delete=models.CASCADE, related_name="awarded_resources"
+    )
+    requested_resource = models.ForeignKey(
+        RequestedResource,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="awarded_resources",
+        help_text=(
+            "The request this item was prefilled from; empty for an item the "
+            "call manager added."
+        ),
+    )
+    requested_offering = models.ForeignKey(
+        RequestedOffering,
+        related_name="+",
+        on_delete=models.PROTECT,
+        help_text="The call's offering the item is awarded on.",
+    )
+    plan = models.ForeignKey(
+        marketplace_models.Plan,
+        related_name="+",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text=(
+            "The plan the call manager chose for the item. Empty for an item "
+            "that follows the plan of the call offering it is awarded on."
+        ),
+    )
+    attributes = models.JSONField(blank=True, default=dict)
+    limits = models.JSONField(blank=True, default=dict)
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    resource = models.ForeignKey(
+        marketplace_models.Resource,
+        related_name="+",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The resource allocation provisioned for this item.",
+    )
+
+    requested_offering_id: int
+
+    @property
+    def effective_plan(self) -> marketplace_models.Plan | None:
+        """The plan allocation provisions the item on.
+
+        The one the call manager chose, or else the call offering's plan as it
+        is at the time of asking -- so an item nobody changed the plan of
+        provisions on the call's plan at allocation, as a request always has.
+        """
+        return self.plan or self.requested_offering.plan
+
+    def __str__(self):
+        return f"{self.proposal.name} - {self.requested_offering.offering.name}"
 
 
 class ProposalWorkflowStepInstance(

@@ -441,6 +441,13 @@ MERGE_COVERAGE: dict[str, CoverageEntry] = _entries(
         area=AREA_OFFERING_CONFIGURATION,
     ),
     E(
+        "proposal.AwardedResource.plan",
+        REPOINT,
+        "Via plan_mapping: an award not yet provisioned is provisioned on the "
+        "target plan, like the call's own RequestedOffering.plan.",
+        area=AREA_OFFERING_CONFIGURATION,
+    ),
+    E(
         "waldur_autoprovisioning.Rule.plan",
         REPOINT,
         "Rules keep provisioning the merged service rather than an archived plan.",
