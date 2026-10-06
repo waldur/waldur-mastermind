@@ -37,4 +37,9 @@ class MatrixChatExtension(WaldurExtension):
                 "schedule": crontab(minute=15, hour=3),
                 "args": (),
             },
+            "waldur-matrix-chat-cleanup-old-history-exports": {
+                "task": "waldur_mastermind.matrix_chat.cleanup_old_history_exports",
+                "schedule": crontab(minute=30, hour=3),
+                "args": (),
+            },
         }

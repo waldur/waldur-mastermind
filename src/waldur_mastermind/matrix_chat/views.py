@@ -34,7 +34,11 @@ from . import (
     serializers,
     tasks,
 )
-from .managers import get_accessible_room_ids
+from .managers import (
+    can_manage_room,
+    filter_exports_for_request,
+    get_accessible_room_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +194,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         )
         return Response(status=status.HTTP_202_ACCEPTED)
 
-    sync_members_permissions = [structure_permissions.is_owner]
+    sync_members_permissions = [can_manage_room]
 
     @extend_schema(
         summary="Trigger manual history export",
@@ -211,7 +215,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         )
         return Response(output_serializer.data, status=status.HTTP_202_ACCEPTED)
 
-    export_history_permissions = [structure_permissions.is_owner]
+    export_history_permissions = [can_manage_room]
 
     @extend_schema(
         summary="Retry a stuck or failed room operation",
@@ -266,7 +270,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         )
         return Response(output_serializer.data, status=status.HTTP_202_ACCEPTED)
 
-    retry_permissions = [structure_permissions.is_owner]
+    retry_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         summary="Disable an active chat room",
@@ -300,7 +304,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         )
         return Response(output_serializer.data, status=status.HTTP_202_ACCEPTED)
 
-    disable_permissions = [structure_permissions.is_staff_or_support]
+    disable_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         summary="Re-enable an archived chat room",
@@ -324,7 +328,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
                 lambda: tasks.sync_project_members_to_room.delay(room_uuid)
             )
             # Mirror the "Chat room was deactivated" marker on the way back up.
-            # Posted by the bot without attribution: only staff/owners can reactivate.
+            # Posted by the bot without attribution: only staff can reactivate.
             transaction.on_commit(
                 lambda: tasks.send_room_notification.delay(
                     room_uuid, "Chat room was reactivated"
@@ -335,7 +339,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         )
         return Response(output_serializer.data, status=status.HTTP_202_ACCEPTED)
 
-    reactivate_permissions = [structure_permissions.is_owner]
+    reactivate_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         summary="Open a chat room's conversation",
@@ -459,7 +463,7 @@ class MatrixRoomViewSet(MatrixEnabledWriteGuardMixin, ActionsViewSet):
         room.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    destroy_permissions = [structure_permissions.is_staff_or_support]
+    destroy_permissions = [structure_permissions.is_staff]
 
 
 class MatrixHistoryExportViewSet(ActionsViewSet):
@@ -471,13 +475,7 @@ class MatrixHistoryExportViewSet(ActionsViewSet):
     disabled_actions = ["create", "destroy", "update", "partial_update"]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
-        if not user.is_authenticated:
-            return queryset.none()
-        if user.is_staff or user.is_support:
-            return queryset
-        return queryset.filter(room__id__in=get_accessible_room_ids(user))
+        return filter_exports_for_request(super().get_queryset(), self.request)
 
 
 class MatrixCredentialsView(views.APIView):
@@ -1171,7 +1169,7 @@ class MatrixHistoryExportDownloadView(views.APIView):
 
     Direct FileField URLs from the serializer would be served by the storage
     backend without any auth check — anyone with the URL could download. This
-    view enforces the same room-access policy as MatrixHistoryExportViewSet
+    view enforces the same policy as MatrixHistoryExportViewSet
     and 404s on miss/denied so the route does not leak export existence.
     """
 
@@ -1193,15 +1191,13 @@ class MatrixHistoryExportDownloadView(views.APIView):
     def get(self, request, uuid, kind):
         if kind not in ("export", "media"):
             raise Http404
+        exports = filter_exports_for_request(
+            models.MatrixHistoryExport.objects.all(), request
+        )
         try:
-            export = models.MatrixHistoryExport.objects.get(uuid=uuid)
+            export = exports.get(uuid=uuid)
         except (models.MatrixHistoryExport.DoesNotExist, ValueError):
             raise Http404
-
-        user = request.user
-        if not (user.is_staff or user.is_support):
-            if export.room.id not in get_accessible_room_ids(user):
-                raise Http404
 
         file_field = export.export_file if kind == "export" else export.media_file
         if not file_field:

@@ -2,6 +2,7 @@ import uuid
 from unittest import mock
 
 from constance.test import override_config
+from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from rest_framework import status, test
@@ -262,12 +263,12 @@ class MatrixRoomActionsTest(test.APITestCase):
         mock_tasks.export_room_history.delay.assert_called_once()
 
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
-    def test_owner_can_retry_creating_room(self, mock_tasks):
+    def test_staff_can_retry_creating_room(self, mock_tasks):
         self.room.state = models.RoomStates.CREATING
         self.room.save(update_fields=["state"])
 
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/retry/"
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -275,13 +276,13 @@ class MatrixRoomActionsTest(test.APITestCase):
         mock_tasks.disable_room.delay.assert_not_called()
 
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
-    def test_owner_can_retry_erred_room(self, mock_tasks):
+    def test_staff_can_retry_erred_room(self, mock_tasks):
         self.room.state = models.RoomStates.ERROR
         self.room.error_message = "boom"
         self.room.save(update_fields=["state", "error_message"])
 
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/retry/"
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -294,12 +295,12 @@ class MatrixRoomActionsTest(test.APITestCase):
         mock_tasks.disable_room.delay.assert_not_called()
 
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
-    def test_owner_can_retry_disabling_room(self, mock_tasks):
+    def test_staff_can_retry_disabling_room(self, mock_tasks):
         self.room.state = models.RoomStates.DISABLING
         self.room.save(update_fields=["state"])
 
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/retry/"
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -315,7 +316,7 @@ class MatrixRoomActionsTest(test.APITestCase):
     def test_cannot_retry_active_room(self, mock_tasks):
         # ACTIVE is a stable state — nothing to retry.
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/retry/"
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -329,7 +330,7 @@ class MatrixRoomActionsTest(test.APITestCase):
         self.room.save(update_fields=["state"])
 
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/retry/"
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -337,12 +338,12 @@ class MatrixRoomActionsTest(test.APITestCase):
         mock_tasks.disable_room.delay.assert_not_called()
 
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
-    def test_owner_can_reactivate_room(self, mock_tasks):
+    def test_staff_can_reactivate_room(self, mock_tasks):
         self.room.state = models.RoomStates.ARCHIVED
         self.room.save(update_fields=["state"])
 
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/reactivate/"
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -352,9 +353,108 @@ class MatrixRoomActionsTest(test.APITestCase):
             self.room.uuid.hex
         )
         # The bot announces the reactivation without naming the initiator: only
-        # staff/owners can reactivate, so attribution adds noise, not value.
+        # staff can reactivate, so attribution adds noise, not value.
         mock_tasks.send_room_notification.delay.assert_called_once_with(
             self.room.uuid.hex, "Chat room was reactivated"
+        )
+
+
+MANAGE_ACTIONS = ("sync_members", "export_history")
+LIFECYCLE_ACTIONS = ("retry", "reactivate")
+
+
+@ddt
+@override_config(**MATRIX_ENABLED_CONFIG)
+class MatrixRoomManagePermissionTest(test.APITestCase):
+    """Whoever may create a room keeps its members in sync and exports its
+    history, and so does support. Its lifecycle is staff's alone."""
+
+    def setUp(self):
+        self.fixture = fixtures.MatrixChatFixture()
+        self.room = self.fixture.matrix_room
+
+    def _post(self, action, room=None):
+        url = f"/api/matrix/rooms/{(room or self.room).uuid.hex}/{action}/"
+        with mock.patch("waldur_mastermind.matrix_chat.views.tasks"):
+            return self.client.post(url).status_code
+
+    def assertAllowed(self, user, action, room=None):
+        self.client.force_authenticate(user)
+        self.assertEqual(self._post(action, room), status.HTTP_202_ACCEPTED)
+
+    def assertDenied(self, user, action):
+        self.client.force_authenticate(user)
+        self.assertEqual(self._post(action), status.HTTP_403_FORBIDDEN)
+
+    @data(*MANAGE_ACTIONS)
+    def test_owner_can_manage(self, action):
+        self.assertAllowed(self.fixture.owner, action)
+
+    @data(*MANAGE_ACTIONS)
+    def test_staff_can_manage(self, action):
+        self.assertAllowed(self.fixture.staff, action)
+
+    @data(*MANAGE_ACTIONS)
+    def test_support_can_manage(self, action):
+        self.assertAllowed(self.fixture.global_support, action)
+
+    @data(*MANAGE_ACTIONS)
+    def test_room_member_cannot_manage(self, action):
+        self.assertDenied(self.fixture.matrix_room_member.user, action)
+
+    @data(*MANAGE_ACTIONS)
+    def test_editing_the_project_is_not_enough(self, action):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROJECT)
+
+        self.assertDenied(self.fixture.manager, action)
+
+    @data(*MANAGE_ACTIONS)
+    def test_project_manager_granted_room_creation_can_manage(self, action):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+        self.assertAllowed(self.fixture.manager, action)
+
+    @data(*MANAGE_ACTIONS)
+    def test_owner_can_manage_a_customer_room(self, action):
+        customer = self.fixture.customer
+        room = models.MatrixRoom.objects.create(
+            room_id="!customer:matrix.example.com",
+            room_name=customer.name,
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(customer),
+            object_id=customer.id,
+        )
+
+        self.assertAllowed(self.fixture.owner, action, room)
+
+    @override_config(PAT_ENABLED=True)
+    def test_support_token_without_support_scope_cannot_manage(self):
+        support = structure_factories.UserFactory(
+            is_support=True, can_use_personal_access_tokens=True
+        )
+        Token.objects.get_or_create(user=support)
+        pat = _create_pat(
+            support, scopes=[PermissionEnum.LIST_PROJECTS.value], bindings=[]
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=_auth_header(pat))
+
+        self.assertEqual(self._post("export_history"), status.HTTP_403_FORBIDDEN)
+
+    @data(*LIFECYCLE_ACTIONS)
+    def test_owner_cannot_change_the_lifecycle(self, action):
+        self.assertDenied(self.fixture.owner, action)
+
+    @data(*LIFECYCLE_ACTIONS)
+    def test_support_cannot_change_the_lifecycle(self, action):
+        self.assertDenied(self.fixture.global_support, action)
+
+    @data(*LIFECYCLE_ACTIONS)
+    def test_staff_can_change_the_lifecycle(self, action):
+        # An active room is refused with 409 and 400, past the permission check.
+        self.client.force_authenticate(self.fixture.staff)
+        self.assertIn(
+            self._post(action),
+            (status.HTTP_409_CONFLICT, status.HTTP_400_BAD_REQUEST),
         )
 
 
@@ -660,7 +760,8 @@ class MatrixRoomJoinLeaveTest(test.APITestCase):
 
 @override_config(**MATRIX_ENABLED_CONFIG)
 class MatrixRoomTeardownPermissionTest(test.APITestCase):
-    """Demo policy: owners manage rooms but only staff/support tear them down."""
+    """Tearing a room down is staff's alone. It is also the only way, besides
+    retention, that history exports get deleted."""
 
     def setUp(self):
         self.fixture = fixtures.MatrixChatFixture()
@@ -671,6 +772,14 @@ class MatrixRoomTeardownPermissionTest(test.APITestCase):
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/disable/"
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(url, {"delete_history": False})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        mock_tasks.disable_room.delay.assert_not_called()
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
+    def test_support_cannot_disable_room(self, mock_tasks):
+        url = f"/api/matrix/rooms/{self.room.uuid.hex}/disable/"
+        self.client.force_authenticate(self.fixture.global_support)
+        response = self.client.post(url, {"delete_history": True})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         mock_tasks.disable_room.delay.assert_not_called()
 
@@ -688,6 +797,15 @@ class MatrixRoomTeardownPermissionTest(test.APITestCase):
         self.room.save(update_fields=["state"])
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/"
         self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.MatrixRoom.objects.filter(uuid=self.room.uuid).exists())
+
+    def test_support_cannot_destroy_room(self):
+        self.room.state = models.RoomStates.ARCHIVED
+        self.room.save(update_fields=["state"])
+        url = f"/api/matrix/rooms/{self.room.uuid.hex}/"
+        self.client.force_authenticate(self.fixture.global_support)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.MatrixRoom.objects.filter(uuid=self.room.uuid).exists())
@@ -724,7 +842,7 @@ class MatrixRoomFsmEdgeTest(test.APITestCase):
     @mock.patch("waldur_mastermind.matrix_chat.views.tasks")
     def test_reactivate_active_room_rejects(self, mock_tasks):
         url = f"/api/matrix/rooms/{self.room.uuid.hex}/reactivate/"
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         mock_tasks.sync_project_members_to_room.delay.assert_not_called()
@@ -749,8 +867,8 @@ class MatrixCredentialsGateTest(test.APITestCase):
 
 class MatrixHistoryExportDownloadTest(test.APITestCase):
     """Export files are served through a permission-checking view, not the
-    raw FileField URL. Members get the bytes; non-members get 404 (matching
-    the rest of the API's leak-resistant denial style)."""
+    raw FileField URL. Those who manage the room get the bytes; others get
+    404 (matching the rest of the API's leak-resistant denial style)."""
 
     def setUp(self):
         self.fixture = fixtures.MatrixChatFixture()

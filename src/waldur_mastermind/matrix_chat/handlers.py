@@ -254,3 +254,11 @@ def on_order_state_changed(sender, instance, created=False, **kwargs):
     )
 
     _notify_room(room, message)
+
+
+def on_history_export_deleted(sender, instance, **kwargs):
+    # The files are rows in the media table that only the export points to, so
+    # they would outlive it as full copies of the history nobody can reach.
+    for field in (instance.export_file, instance.media_file):
+        if field:
+            field.delete(save=False)
