@@ -3454,6 +3454,25 @@ You have {{ items_count }} proposal{{ items_count|pluralize }} to review for "{{
 
 ```
 
+### proposal_draft_carried_over_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+Dear {{ proposal_creator_name }},
+
+Your draft proposal "{{ proposal_name }}" in call "{{ call_name }}" was not submitted before the cut-off of {{ previous_round_name }}.
+
+It has not been cancelled. It has moved on to the call's next round, with its content, team, documents and requested resources unchanged:
+- Round: {{ round_name }}
+- Opens for submissions: {{ round_start_date }}
+- Submission deadline: {{ deadline_date }}
+
+Your proposal is still in DRAFT state. Submit it before the new deadline to have it considered: {{ proposal_url }}
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
 ### proposal_submission_deadline_approaching_message.txt (waldur_mastermind.proposal)
 
 ```txt
@@ -3473,7 +3492,7 @@ Please ensure you have completed all required sections and finalized your resour
 
 Complete and submit proposal: {{ proposal_url }}
 
-Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.
+{% if draft_carries_over %}A proposal left in draft state after the deadline moves on to the call's next round and is considered only once it has been submitted there.{% else %}Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.{% endif %}
 
 This is an automated message from the {{ site_name }}. Please do not reply to this email.
 
@@ -4043,7 +4062,7 @@ New review round opening: {{ call_name }}
 
     <p>Complete and submit proposal: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
 
-    <p>Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.</p>
+    <p>{% if draft_carries_over %}A proposal left in draft state after the deadline moves on to the call's next round and is considered only once it has been submitted there.{% else %}Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.{% endif %}</p>
 
     <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
 </body>
@@ -4262,6 +4281,14 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 ```txt
 
 Reminder: Review due in {{ time_remaining_days }} days for {{ proposal_name }}
+
+```
+
+### proposal_draft_carried_over_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+Your draft proposal {{ proposal_name }} now targets the next cut-off of {{ call_name }}
 
 ```
 
@@ -4798,6 +4825,34 @@ This is an automated message from {{ site_name }}. Please do not reply to this e
     <p>
         This is an automated message from the {{ site_name }}. Please do not reply to this email.
     </p>
+</body>
+</html>
+
+```
+
+### proposal_draft_carried_over_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Draft proposal moved to the next round</title>
+</head>
+<body>
+    <p>Dear {{ proposal_creator_name }},</p>
+
+    <p>Your draft proposal "{{ proposal_name }}" in call "{{ call_name }}" was not submitted before the cut-off of {{ previous_round_name }}.</p>
+
+    <p>It has not been cancelled. It has moved on to the call's next round, with its content, team, documents and requested resources unchanged:<br>
+        - Round: {{ round_name }}<br>
+        - Opens for submissions: {{ round_start_date }}<br>
+        - Submission deadline: {{ deadline_date }}
+    </p>
+
+    <p>Your proposal is still in <strong>DRAFT</strong> state. Submit it before the new deadline to have it considered: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
 </body>
 </html>
 
