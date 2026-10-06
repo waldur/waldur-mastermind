@@ -111,12 +111,12 @@ Checks performed (the `checks` array in the response):
 
 1. Homeserver URL configured (`homeserver_configured`)
 2. Homeserver domain configured (`homeserver_domain_configured`)
-3. Homeserver reachable (`homeserver_reachable`, via `/_matrix/client/versions`)
+3. Homeserver reachable (`homeserver_reachable`, via `/_matrix/client/versions`; also names the homeserver software and version, from `/_matrix/federation/v1/version` or, with federation off, Tuwunel's `/_tuwunel/server_version`)
 4. AS token configured (`as_token_configured`)
 5. HS token configured (`hs_token_configured`)
 6. Registration secret configured (`registration_secret_configured`)
-7. Bot authentication (`bot_whoami`, via `/account/whoami`)
-8. Bot can operate (`bot_functional`, list joined rooms)
+7. Bot authentication (`bot_whoami`, via `/account/whoami`; also how many rooms the bot is in)
+8. Appservice can act for users (`appservice_user_namespace`: `/account/whoami` as the staff user's Matrix ID. It fails when the homeserver's appservice registration does not cover users, which breaks chat sessions and room joins; register the appservice again with Waldur's registration. When it fails, it also counts room members recorded as invited, not joined)
 9. Room statistics (`room_stats`: active, creating, errored counts)
 10. User profile statistics (`user_stats`: provisioned count)
 
@@ -127,8 +127,8 @@ Checks performed (the `checks` array in the response):
   "ok": true,
   "checks": [
     {"name": "homeserver_domain_configured", "label": "Homeserver domain configured", "ok": true, "detail": "matrix.example.com"},
-    {"name": "homeserver_reachable", "label": "Homeserver reachable", "ok": true, "detail": "OK — versions: v1.11, v1.12"},
-    {"name": "bot_whoami", "label": "Bot authentication (whoami)", "ok": true, "detail": "OK — authenticated as @waldur-bot:matrix.example.com"}
+    {"name": "homeserver_reachable", "label": "Homeserver reachable", "ok": true, "detail": "OK — Tuwunel 1.9.0, Matrix up to v1.19"},
+    {"name": "bot_whoami", "label": "Bot authentication (whoami)", "ok": true, "detail": "OK — authenticated as @waldur-bot:matrix.example.com, in 3 room(s)"}
   ]
 }
 ```
