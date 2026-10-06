@@ -189,6 +189,45 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
         return max(decimal.Decimal(0), projected - applied)
 
     @staticmethod
+    def _live_balance(stored, usage_draw, restored) -> decimal.Decimal:
+        """A credit balance with this month's usage taken off.
+
+        The stored value only falls when the month's compensations are written,
+        at month end. Compared against `limit_cost` as is, it reads a full
+        balance all month however far usage has already outrun it, so a credit
+        exhausted on the 10th held the policy back until the 1st.
+
+        The month is simulated from the balance it started with: `restored` is
+        what a `restore_written` MonthlyCompensation added back for compensation
+        already written this month (staff can apply it mid-month), so
+        `stored + restored` is that opening balance whether or not anything was
+        written. Re-simulating from the lowered stored value instead capped the
+        draw there, and the balance could never fall below the written amount.
+
+        `usage_draw` is what that simulation records usage taking off the
+        balance. Usage only, deliberately: the minimal-consumption tail is
+        forfeited at month end whatever the usage — counting it made an
+        allocation with an expected consumption read as spent on day 1. It is
+        in balance units, so the last partial draw of an exhausted credit counts
+        in full, not net of tax as its compensation item does.
+        """
+        return (
+            decimal.Decimal(stored)
+            + decimal.Decimal(restored)
+            - decimal.Decimal(usage_draw)
+        )
+
+    def _new_compensation(self):
+        """The MonthlyCompensation simulation for this policy's customer, or
+        None where no single credit applies (an offering policy)."""
+        return None
+
+    def _live_credit_balance(self, compensation=None) -> decimal.Decimal | None:
+        """The live balance Gate 2 compares against `limit_cost`, or None when
+        no credit applies. Overridden per scope."""
+        return None
+
+    @staticmethod
     def _eligible_items(invoice_items):
         """Items that count towards this policy, whatever is being measured.
 
@@ -259,13 +298,21 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
 
         The reasoning, and why a client cannot do this itself, is in eta.py.
         """
+        credit = self._projection_credit()
+        if credit is not None and compensation is None:
+            # One simulation for both the cost and the balance below.
+            compensation = self._new_compensation()
         invoice_items, deduction = self._cost_inputs(compensation)
         today = datetime.date.today()
         # Computed once: the credit's runway is measured against the same rate
         # the projection uses after it runs out.
         gross = self._gross_cost_this_month(invoice_items)
         gross_per_day = gross / decimal.Decimal(today.day)
-        credit = self._projection_credit()
+        # Projected from the same live balance Gate 2 reads in `is_triggered`;
+        # the stored one would date a policy that has already fired days away.
+        balance = (
+            self._live_credit_balance(compensation) if credit is not None else None
+        )
         eta = policy_eta.project_eta_days(
             limit_cost=self.limit_cost,
             current_cost=self._evaluated_cost(invoice_items, deduction),
@@ -273,9 +320,11 @@ class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
             uncompensated_this_month=self._uncompensated_cost_this_month(
                 invoice_items, deduction
             ),
-            credit_days=policy_eta.credit_days_remaining(credit, gross_per_day),
+            credit_days=policy_eta.credit_days_remaining(
+                credit, gross_per_day, balance=balance
+            ),
             credit_limit_days=policy_eta.credit_days_to_limit(
-                credit, self.limit_cost, gross_per_day
+                credit, self.limit_cost, gross_per_day, balance=balance
             ),
             period=self.period,
             today=today,
@@ -402,9 +451,7 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
             invoice_items = invoice_items.filter(resource_id=self.resource_id)
 
         if self.use_credit:
-            compensation = compensation or invoices_compensation.MonthlyCompensation(
-                project.customer
-            )
+            compensation = compensation or self._new_compensation()
             if self.resource_id:
                 projected = compensation.get_resource_compensation(self.resource)
             else:
@@ -433,36 +480,61 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
     def get_current_cost(self, compensation=None) -> decimal.Decimal:
         return self._evaluated_cost(*self._cost_inputs(compensation))
 
-    def is_triggered(self):
+    def _new_compensation(self):
+        return invoices_compensation.MonthlyCompensation(
+            self.scope.customer, restore_written=True
+        )
+
+    def _live_credit_balance(self, compensation=None) -> decimal.Decimal | None:
+        """If a ProjectCredit exists, it defines the budget for this project,
+        drawable only while the organization credit funding it lasts
+        (ProjectCredit.spendable_value). Otherwise the CustomerCredit."""
         project = self.scope
-        invoice_items, deduction = self._cost_inputs()
-
-        if not self._is_triggered(invoice_items, deduction):
-            return False
-
-        if not self.use_credit:
-            return True
-
-        # Cost exceeds limit even after compensation. Check whether
-        # available credit can cover the overage. Credit values are
-        # persisted in DB — unlike MonthlyCompensation (which simulates
-        # credit allocation in-memory and is order-dependent), the DB
-        # values are authoritative.
-        # If a ProjectCredit exists, it defines the budget for this project.
-        # Otherwise fall back to CustomerCredit.
-        project_credit = invoices_models.ProjectCredit.objects.filter(
-            project=project
-        ).first()
-        if project_credit:
-            return project_credit.value <= self.limit_cost
-
+        compensation = compensation or self._new_compensation()
         customer_credit = invoices_models.CustomerCredit.objects.filter(
             customer=project.customer
         ).first()
-        if customer_credit and customer_credit.value > self.limit_cost:
+        customer_balance = (
+            self._live_balance(
+                customer_credit.value,
+                compensation.customer_usage_draw,
+                compensation.customer_restored_draw,
+            )
+            if customer_credit
+            else None
+        )
+
+        project_credit = invoices_models.ProjectCredit.objects.filter(
+            project=project
+        ).first()
+        if not project_credit:
+            return customer_balance
+        project_balance = self._live_balance(
+            project_credit.value,
+            compensation.get_project_usage_draw(project),
+            compensation.get_project_restored_draw(project),
+        )
+        if customer_balance is None:
+            return decimal.Decimal(0)
+        return min(project_balance, customer_balance)
+
+    def is_triggered(self):
+        if not self.use_credit:
+            return self._is_triggered(*self._cost_inputs())
+
+        compensation = self._new_compensation()
+        invoice_items, deduction = self._cost_inputs(compensation)
+
+        # Gate 1: cost over the window, net of credit.
+        if not self._is_triggered(invoice_items, deduction):
             return False
 
-        return True
+        # Gate 2: the policy still waits while the credit balance stays above
+        # the limit — the live balance, net of what this month's usage has
+        # already consumed, not the stored one, which only falls at month end
+        # (see `_live_balance`).
+        balance = self._live_credit_balance(compensation)
+        return balance is None or balance <= self.limit_cost
 
     class Meta:
         verbose_name_plural = "Project estimated cost policies"
@@ -507,9 +579,7 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
         invoice_items = invoices_models.InvoiceItem.objects.filter(
             invoice__customer=customer
         )
-        compensation = compensation or invoices_compensation.MonthlyCompensation(
-            customer
-        )
+        compensation = compensation or self._new_compensation()
         deduction = self._pending_compensation(
             invoice_items, compensation.total_compensation
         )
@@ -523,23 +593,36 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
     def get_current_cost(self, compensation=None) -> decimal.Decimal:
         return self._evaluated_cost(*self._cost_inputs(compensation))
 
-    def is_triggered(self):
-        customer = self.scope
-        invoice_items, deduction = self._cost_inputs()
+    def _new_compensation(self):
+        return invoices_compensation.MonthlyCompensation(
+            self.scope, restore_written=True
+        )
 
+    def _live_credit_balance(self, compensation=None) -> decimal.Decimal | None:
+        customer = self.scope
+        customer_credit = invoices_models.CustomerCredit.objects.filter(
+            customer=customer
+        ).first()
+        if not customer_credit:
+            return None
+        compensation = compensation or self._new_compensation()
+        return self._live_balance(
+            customer_credit.value,
+            compensation.customer_usage_draw,
+            compensation.customer_restored_draw,
+        )
+
+    def is_triggered(self):
+        compensation = self._new_compensation()
+        invoice_items, deduction = self._cost_inputs(compensation)
+
+        # Gate 1: cost over the window, net of credit.
         if not self._is_triggered(invoice_items, deduction):
             return False
 
-        try:
-            customer_credit = invoices_models.CustomerCredit.objects.get(
-                customer=customer
-            )
-            if customer_credit.value > self.limit_cost:
-                return False
-        except invoices_models.CustomerCredit.DoesNotExist:
-            pass
-
-        return True
+        # Gate 2: the live credit balance; see `_live_balance`.
+        balance = self._live_credit_balance(compensation)
+        return balance is None or balance <= self.limit_cost
 
     class Meta:
         verbose_name_plural = "Customer estimated cost policies"

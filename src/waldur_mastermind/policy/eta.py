@@ -72,7 +72,15 @@ def _daily_draw(credit, gross_per_day) -> decimal.Decimal | None:
     return daily if daily > 0 else None
 
 
-def _balance(credit) -> decimal.Decimal:
+def _balance(credit, balance=None) -> decimal.Decimal:
+    """The balance a projection starts from.
+
+    ``balance`` is the live balance the policy's Gate 2 reads, when the caller
+    has it; projecting from the stored value instead dates a policy that has
+    already fired days away, because the stored value only falls at month end.
+    """
+    if balance is not None:
+        return max(decimal.Decimal(0), _decimal(balance))
     spendable = getattr(credit, "spendable_value", None)
     return max(
         decimal.Decimal(0),
@@ -80,7 +88,9 @@ def _balance(credit) -> decimal.Decimal:
     )
 
 
-def credit_days_remaining(credit, gross_per_day) -> decimal.Decimal | None:
+def credit_days_remaining(
+    credit, gross_per_day, balance=None
+) -> decimal.Decimal | None:
     """How long the credit keeps compensating, in days.
 
     ``0`` when no credit applies, ``None`` when it never depletes. This is the
@@ -91,24 +101,28 @@ def credit_days_remaining(credit, gross_per_day) -> decimal.Decimal | None:
     daily = _daily_draw(credit, gross_per_day)
     if daily is None:
         return None
-    return _balance(credit) / daily
+    return _balance(credit, balance) / daily
 
 
-def credit_days_to_limit(credit, limit_cost, gross_per_day) -> decimal.Decimal | None:
+def credit_days_to_limit(
+    credit, limit_cost, gross_per_day, balance=None
+) -> decimal.Decimal | None:
     """When the credit balance itself falls to ``limit_cost``.
 
     A cost policy does not fire on cost alone. Once the cost test passes,
-    ``is_triggered`` returns ``credit.value <= limit_cost`` — so a project whose
+    ``is_triggered`` returns ``balance <= limit_cost``, where the balance is the
+    live one net of this month's pending usage draw — so a project whose
     balance is still above the limit cannot trigger however much it spends, and
     a projection made from the cost crossing alone dates an event the balance
-    forbids. This is the gate the cost projection has to clear.
+    forbids. This is the gate the cost projection has to clear, so it is
+    measured from the same live ``balance`` when the caller passes it.
 
     ``0`` when no credit applies or the balance is already at or below the
     limit; ``None`` when the balance never reaches it.
     """
     if credit is None:
         return decimal.Decimal(0)
-    excess = _balance(credit) - _decimal(limit_cost)
+    excess = _balance(credit, balance) - _decimal(limit_cost)
     if excess <= 0:
         return decimal.Decimal(0)
     daily = _daily_draw(credit, gross_per_day)
