@@ -16,7 +16,7 @@ from django.utils import timezone
 from markdown_it import MarkdownIt
 
 from waldur_core.core.clean_html import clean_html
-from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Project
 
@@ -1168,7 +1168,7 @@ def get_power_level_for_scope(user, scope):
 
     Returns:
         100 for bot account
-        50 for Customer Owner or Project Admin
+        50 for Project Admin, or anyone who may create the project's room
         0 for all other members
     """
     if f"@{user.username}:{config.MATRIX_HOMESERVER_DOMAIN}" == get_bot_user_id():
@@ -1185,15 +1185,17 @@ def get_power_level_for_scope(user, scope):
         if is_admin:
             return 50
 
-        # Check if user is customer owner
-        is_owner = UserRole.objects.filter(
-            user=user,
-            scope=scope.customer,
-            role__name=RoleEnum.CUSTOMER_OWNER,
-            is_active=True,
-        ).exists()
-        if is_owner:
-            return 50
+        # Whoever may create the project's room runs it. Only role grants
+        # count: staff and support become moderators by joining the room.
+        for room_scope in (scope, scope.customer):
+            can_create_room = UserRole.objects.filter(
+                user=user,
+                scope=room_scope,
+                role__permissions__permission=PermissionEnum.CREATE_MATRIX_ROOM,
+                is_active=True,
+            ).exists()
+            if can_create_room:
+                return 50
 
     return 0
 
