@@ -2582,10 +2582,6 @@ class OfferingUserChecklistCompletionsFilter(core_filters.CreatedModifiedFilter)
         )
 
 
-class OfferingUserGroupFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):
-    o = django_filters.OrderingFilter(fields=("created",))
-
-
 class CategoryGroupFilter(django_filters.FilterSet):
     class Meta:
         model = models.CategoryGroup

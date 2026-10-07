@@ -205,22 +205,18 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
 Although this approach works fine for trivial use cases, often enough permission filtering logic is more involved and we implement `get_queryset` method instead.
 
 ```python
-class OfferingUserGroupViewSet(core_views.ActionsViewSet):
+class PosixIdentityViewSet(core_views.ReadOnlyActionsViewSet):
   def get_queryset(self):
       queryset = super().get_queryset()
       current_user = self.request.user
       if current_user.is_staff or current_user.is_support:
         return queryset
 
-      projects = get_connected_projects(current_user)
       customers = get_connected_customers(current_user)
-
-      subquery = (
-        Q(projects__customer__in=customers)
-        | Q(offering__customer__in=customers)
-        | Q(projects__in=projects)
+      return queryset.filter(
+        Q(pool__service_provider__customer__in=customers)
+        | Q(pool__offering__customer__in=customers)
       )
-      return queryset.filter(subquery)
 ```
 
 ## Permissions for object creation and update
