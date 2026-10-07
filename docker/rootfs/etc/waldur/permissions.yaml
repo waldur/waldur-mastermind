@@ -367,6 +367,11 @@
   scope: customer
   permissions:
     - CUSTOMER.VIEW_TEAM
+    - CUSTOMER.LIST_USERS
+    - PROJECT.LIST
+    - RESOURCE.LIST
+    - ORDER.LIST
+    - INVITATION.LIST
 
 - role: CUSTOMER.CALL_ORGANIZER
   scope: call_organizer
