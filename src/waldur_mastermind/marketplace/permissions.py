@@ -378,12 +378,6 @@ def validate_resource_terminate_state(resource: models.Resource) -> None:
     )
 
 
-user_can_manage_offering_user_group = permission_factory(
-    PermissionEnum.MANAGE_OFFERING_USER_GROUP,
-    ["offering.customer"],
-)
-
-
 def user_can_set_end_date_by_provider(
     request, view, obj: models.Resource | None = None
 ):

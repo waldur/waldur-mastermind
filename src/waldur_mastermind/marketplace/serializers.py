@@ -12834,38 +12834,6 @@ class ResourceTeamMemberSerializer(
         ).data
 
 
-class OfferingUserGroupDetailsSerializer(
-    core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
-):
-    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
-    offering_name = serializers.ReadOnlyField(source="offering.name")
-    projects = structure_serializers.ProjectSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = models.OfferingUserGroup
-        fields = (
-            "offering",
-            "projects",
-            "offering_uuid",
-            "offering_name",
-            "created",
-            "modified",
-            "backend_metadata",
-        )
-        extra_kwargs = dict(
-            offering={
-                "lookup_field": "uuid",
-                "view_name": "marketplace-provider-offering-detail",
-            },
-        )
-
-
-class OfferingUserGroupSerializer(
-    core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
-):
-    projects = structure_serializers.ProjectSerializer(many=True)
-
-
 def validate_plan(plan: models.Plan):
     """ "
     Ensure that maximum amount of resources with current plan is not reached yet.

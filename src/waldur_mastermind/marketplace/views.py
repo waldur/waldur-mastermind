@@ -13446,51 +13446,6 @@ class ServiceProviderProjectGroupViewSet(core_views.ActionsViewSet):
         )
 
 
-class OfferingUserGroupViewSet(core_views.ActionsViewSet):
-    queryset = models.OfferingUserGroup.objects.all()
-    serializer_class = serializers.OfferingUserGroupDetailsSerializer
-    lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.OfferingUserGroupFilter
-    create_serializer_class = update_serializer_class = (
-        partial_update_serializer_class
-    ) = serializers.OfferingUserGroupSerializer
-
-    unsafe_methods_permissions = [permissions.user_can_manage_offering_user_group]
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        current_user = self.request.user
-        if current_user.is_staff or current_user.is_support:
-            return queryset
-
-        projects = get_connected_projects(current_user)
-        customers = get_connected_customers(current_user)
-
-        subquery = (
-            Q(projects__customer__in=customers)
-            | Q(offering__customer__in=customers)
-            | Q(projects__in=projects)
-        )
-        return queryset.filter(subquery)
-
-    def perform_create(self, serializer):
-        offering_group: models.OfferingUserGroup = serializer.save()
-        offering = offering_group.offering
-
-        gid = posix_ids.allocate(offering, posix_ids.GID, offering_group)
-        if gid is not None:
-            offering_group.backend_metadata["gid"] = gid
-            offering_group.save(update_fields=["backend_metadata"])
-        else:
-            logger.warning(
-                "No POSIX ID pool configured for offering %s; offering user "
-                "group %s created without a gid.",
-                offering,
-                offering_group.pk,
-            )
-
-
 class ProjectPosixGroupsViewSet(rf_viewsets.ViewSet):
     """Read-only rollup of POSIX group GIDs assigned to a project across all
     offerings — both project-mapped groups and resource/role groups."""
