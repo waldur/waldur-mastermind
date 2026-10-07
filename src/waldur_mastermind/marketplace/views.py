@@ -12364,7 +12364,9 @@ class OfferingUsersViewSet(
 
     set_pending_additional_validation_permissions = (
         set_validation_complete_permissions
-    ) = set_pending_account_linking_permissions = begin_creating_permissions = [
+    ) = set_pending_account_linking_permissions = begin_creating_permissions = (
+        set_ok_permissions
+    ) = set_error_creating_permissions = set_error_deleting_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
             ["offering.customer", "offering"],
