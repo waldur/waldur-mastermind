@@ -38,9 +38,9 @@ WALDUR_AUTH_SAML2.update({
     # organization responsible for the service
     # you can set multilanguage information here
     'organization': {
-        'name': [('OpenNode OU', 'et'), ('OpenNode LLC', 'en')],
-        'display_name': [('OpenNode', 'et'), ('OpenNode', 'en')],
-        'url': [('https://opennodecloud.com/', 'et'), ('https://opennodecloud.com/', 'en')],
+        'name': [('Example Organization OU', 'et'), ('Example Organization Ltd', 'en')],
+        'display_name': [('Example Organization', 'et'), ('Example Organization', 'en')],
+        'url': [('https://example.com/', 'et'), ('https://example.com/', 'en')],
     },
 
     # attributes required by CoC
