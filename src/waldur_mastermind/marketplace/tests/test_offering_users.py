@@ -948,6 +948,164 @@ class OfferingUserStateTransitionTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
 
+    def _clear_username_and_consent(self):
+        models.UserOfferingConsent.objects.filter(
+            user=self.offering_user.user, offering=self.offering
+        ).delete()
+        self.offering_user.username = None
+        self.offering_user.save(update_fields=["username"])
+
+    def test_account_holder_cannot_set_ok(self):
+        """The account holder cannot mark their own account OK.
+
+        No accepted terms and no offering username, which is the reported case.
+        """
+        self._clear_username_and_consent()
+        self.offering_user.state = OfferingUserStates.CREATION_REQUESTED
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.offering_user.user)
+        response = self.client.post(self.get_url(self.offering_user, "set_ok"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.CREATION_REQUESTED
+        )
+        self.assertIsNone(self.offering_user.username)
+
+    def test_account_holder_cannot_set_error_creating(self):
+        self._clear_username_and_consent()
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.offering_user.user)
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_creating")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.CREATING)
+
+    def test_account_holder_cannot_set_error_deleting(self):
+        self._clear_username_and_consent()
+        self.offering_user.state = OfferingUserStates.DELETING
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.offering_user.user)
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_deleting")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
+
+    def test_customer_support_cannot_set_ok(self):
+        self.fixture.customer.add_user(self.fixture.user, CustomerRole.SUPPORT)
+        self.offering_user.state = OfferingUserStates.CREATION_REQUESTED
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.post(self.get_url(self.offering_user, "set_ok"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(
+            self.offering_user.state, OfferingUserStates.CREATION_REQUESTED
+        )
+
+    def test_customer_support_cannot_set_error_creating(self):
+        self.fixture.customer.add_user(self.fixture.user, CustomerRole.SUPPORT)
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_creating")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.CREATING)
+
+    def test_customer_support_cannot_set_error_deleting(self):
+        self.fixture.customer.add_user(self.fixture.user, CustomerRole.SUPPORT)
+        self.offering_user.state = OfferingUserStates.DELETING
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_deleting")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.DELETING)
+
+    def test_unrelated_user_cannot_set_ok(self):
+        self.client.force_authenticate(user=UserFactory())
+        response = self.client.post(self.get_url(self.offering_user, "set_ok"))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_unrelated_user_cannot_set_error_creating(self):
+        self.client.force_authenticate(user=UserFactory())
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_creating")
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_unrelated_user_cannot_set_error_deleting(self):
+        self.client.force_authenticate(user=UserFactory())
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_deleting")
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_service_provider_can_set_ok_without_username_or_tos(self):
+        self._clear_username_and_consent()
+        self.offering_user.state = OfferingUserStates.CREATION_REQUESTED
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(self.get_url(self.offering_user, "set_ok"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.OK)
+        self.assertIsNone(self.offering_user.username)
+
+    def test_service_provider_can_set_error_creating_without_username_or_tos(self):
+        self._clear_username_and_consent()
+        self.offering_user.state = OfferingUserStates.CREATING
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_creating")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.ERROR_CREATING)
+        self.assertIsNone(self.offering_user.username)
+
+    def test_service_provider_can_set_error_deleting_without_username_or_tos(self):
+        self._clear_username_and_consent()
+        self.offering_user.state = OfferingUserStates.DELETING
+        self.offering_user.save(update_fields=["state"])
+
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.get_url(self.offering_user, "set_error_deleting")
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.state, OfferingUserStates.ERROR_DELETING)
+        self.assertIsNone(self.offering_user.username)
+
     def test_state_fields_in_serializer_output(self):
         """Test that state and comment fields are included in serializer output."""
         self.offering_user.state = OfferingUserStates.PENDING_ADDITIONAL_VALIDATION
