@@ -57,6 +57,9 @@ class CustomerSection(FeatureSection):
     show_project_digest = Feature(
         "Enable display of project digest configuration in organization settings."
     )
+    show_organisation_reporting = Feature(
+        "Show the Reporting menu with organisation-scoped reports to organisation owners."
+    )
 
 
 class ProjectSection(FeatureSection):

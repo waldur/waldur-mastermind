@@ -16,6 +16,10 @@ Allows to hide domain field in organization detail.
 
 Enable onboarding functionality.
 
+## customer.show_organisation_reporting
+
+Show the Reporting menu with organisation-scoped reports to organisation owners.
+
 ## customer.show_permission_reviews
 
 Allows to show permission reviews tab and popups for organisations.
