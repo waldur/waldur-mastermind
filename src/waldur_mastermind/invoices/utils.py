@@ -204,6 +204,50 @@ def _format_period(item) -> str:
     return f"{start} – {end}"
 
 
+def format_percent(value) -> str:
+    """Two decimals at most, without trailing zeros: 56.59094 -> 56.59, 50.0 -> 50."""
+    rounded = Decimal(str(value)).quantize(CENT, rounding=ROUND_HALF_UP)
+    return f"{rounded:f}".rstrip("0").rstrip(".")
+
+
+def _discount_label(item) -> str:
+    """Mirrors the label Homeport shows for a volume-discount row."""
+    details = item.details or {}
+    label = str(_("Volume discount"))
+    component = details.get("offering_component_name") or details.get(
+        "offering_component_type"
+    )
+    if component:
+        label += f" — {component}"
+    if details.get("discount_percent") is not None:
+        label += f" ({format_percent(details['discount_percent'])}%)"
+    return label
+
+
+def _pdf_row(item, price, currency) -> dict:
+    if (item.details or {}).get("is_discount"):
+        # Quantity is always 1 and the period is the discounted item's own,
+        # so only the amount is worth printing.
+        return {
+            "name": _discount_label(item),
+            "period": "",
+            "quantity": "",
+            "unit": "",
+            "unit_price": "",
+            "price": _format_money(price, currency),
+            "discount": True,
+        }
+    return {
+        "name": item.name,
+        "period": _format_period(item),
+        "quantity": _format_decimal(item.quantity),
+        "unit": str(item.get_measured_unit()),
+        "unit_price": _format_unit_price(item.unit_price, currency),
+        "price": _format_money(price, currency),
+        "discount": False,
+    }
+
+
 def _join_present(*parts, separator=", ") -> str:
     return separator.join(str(part) for part in parts if part)
 
@@ -270,33 +314,48 @@ def get_invoice_pdf_data(invoice: "models.Invoice") -> dict:
         }
     )
 
+    rows = [
+        (item, item.price)
+        # The unit falls back to the resource's scope type when none is stored
+        for item in invoice.items.select_related(
+            "project", "resource"
+        ).prefetch_related("resource__scope")
+        if item.price != 0
+    ]
+    # A volume discount is printed right under the item it reduces, which it
+    # names in details["discount_of_item"]. One whose item is not printed
+    # stays a row of its own.
+    printed_uuids = {item.uuid.hex for item, _price in rows}
+    discounts_by_item: dict[str, list[tuple]] = {}
+    for item, price in rows:
+        target = (item.details or {}).get("discount_of_item")
+        if (item.details or {}).get("is_discount") and target in printed_uuids:
+            discounts_by_item.setdefault(target, []).append((item, price))
+    paired = {item.uuid for group in discounts_by_item.values() for item, _ in group}
+
     # Grouped by project identity, not name: two projects may share a name.
     projects: dict[tuple[str, str], list[tuple]] = {}
-    for item in invoice.items.select_related("project"):
-        price = item.price
-        if price == 0:
+    for item, price in rows:
+        if item.uuid in paired:
             continue
         key = (item.get_project_name(), str(item.get_project_uuid() or ""))
         projects.setdefault(key, []).append((item, price))
 
     subtotal = Decimal(0)
     project_rows = []
-    for (name, _uuid), rows in sorted(projects.items()):
-        rows.sort(key=lambda row: (row[0].name, row[0].start or timezone.now()))
-        subtotal += sum(price for _item, price in rows)
+    for (name, _uuid), project_items in sorted(projects.items()):
+        project_items.sort(
+            key=lambda row: (row[0].name, row[0].start or timezone.now())
+        )
+        printed = []
+        for item, price in project_items:
+            printed.append((item, price))
+            printed.extend(discounts_by_item.get(item.uuid.hex, []))
+        subtotal += sum(price for _item, price in printed)
         project_rows.append(
             {
                 "name": name,
-                "items": [
-                    {
-                        "name": item.name,
-                        "period": _format_period(item),
-                        "quantity": _format_decimal(item.quantity),
-                        "unit_price": _format_unit_price(item.unit_price, currency),
-                        "price": _format_money(price, currency),
-                    }
-                    for item, price in rows
-                ],
+                "items": [_pdf_row(item, price, currency) for item, price in printed],
             }
         )
 
@@ -331,6 +390,7 @@ def get_invoice_pdf_data(invoice: "models.Invoice") -> dict:
             "customer": str(_("Bill to")),
             "item": str(_("Item")),
             "quantity": str(_("Quantity")),
+            "unit": str(_("Unit")),
             "unit_price": str(_("Unit price")),
             "price": str(_("Price")),
         },

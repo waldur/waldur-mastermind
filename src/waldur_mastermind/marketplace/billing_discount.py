@@ -31,6 +31,7 @@ from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common.formula import FormulaError
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices.utils import format_percent
 from waldur_mastermind.marketplace.enums import DiscountAggregations
 
 logger = logging.getLogger(__name__)
@@ -137,7 +138,7 @@ def _create_discount_item(main_item, percent, formula, total_usage):
     name = (
         f"{get_invoice_item_name(main_item.resource)} / "
         f"{get_component_name(plan_component)} / "
-        f"Volume discount ({percent}%)"
+        f"Volume discount ({format_percent(percent)}%)"
     )
     return invoice_models.InvoiceItem.objects.create(
         name=name,
