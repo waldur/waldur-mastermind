@@ -58,30 +58,43 @@
 #v(10mm)
 
 #table(
-  columns: (1fr, auto, auto, auto),
-  align: (left, right, right, right),
+  columns: (1fr, auto, auto, auto, auto),
+  align: (left, right, left, right, right),
   inset: (x: 6pt, y: 5pt),
   stroke: (_, y) => if y == 0 { (bottom: 0.8pt + black) } else { (bottom: hairline) },
   table.header(
-    ..(labels.item, labels.quantity, labels.unit_price, labels.price).map(
+    ..(labels.item, labels.quantity, labels.unit, labels.unit_price, labels.price).map(
       heading => text(weight: "semibold", heading),
     ),
   ),
   ..for project in data.projects {
-    (table.cell(colspan: 4, inset: (x: 6pt, top: 12pt, bottom: 5pt), strong(project.name)),)
+    (table.cell(colspan: 5, inset: (x: 6pt, top: 12pt, bottom: 5pt), strong(project.name)),)
     for item in project.items {
-      (
-        {
-          item.name
-          if item.period != "" {
-            linebreak()
-            text(size: 8pt, fill: muted, item.period)
-          }
-        },
-        item.quantity,
-        item.unit_price,
-        item.price,
-      )
+      if item.discount {
+        // A discount sits indented under the item it reduces. No arrow glyph:
+        // Source Sans 3 has none that reads as "belongs to the row above".
+        (
+          pad(left: 12pt, item.name),
+          item.quantity,
+          item.unit,
+          item.unit_price,
+          item.price,
+        )
+      } else {
+        (
+          {
+            item.name
+            if item.period != "" {
+              linebreak()
+              text(size: 8pt, fill: muted, item.period)
+            }
+          },
+          item.quantity,
+          item.unit,
+          item.unit_price,
+          item.price,
+        )
+      }
     }
   },
 )

@@ -71,6 +71,26 @@ class InvoicePdfTest(TestCase):
             end=datetime.datetime(2026, 9, 30, 23, 59, tzinfo=datetime.UTC),
         )
 
+    def add_discount(self, item, amount, percent=50.0, component="RAM"):
+        return factories.InvoiceItemFactory(
+            invoice=self.invoice,
+            project=item.project,
+            project_name=item.project_name,
+            name=f"{item.name} / Volume discount ({percent}%)",
+            quantity=1,
+            unit_price=-Decimal(amount),
+            unit=models.InvoiceItem.Units.QUANTITY,
+            start=item.start,
+            end=item.end,
+            details={
+                "is_discount": True,
+                "discount_type": "org_volume_discount",
+                "discount_percent": percent,
+                "offering_component_name": component,
+                "discount_of_item": item.uuid.hex,
+            },
+        )
+
     def test_data_contains_invoice_parties_items_and_totals(self):
         self.add_item("Compute", "30", "1234.5")
         data = utils.get_invoice_pdf_data(self.invoice)
@@ -219,6 +239,79 @@ class InvoicePdfTest(TestCase):
         # the table header is repeated on every page
         for text in pages:
             self.assertIn("Unit price", text)
+
+    def test_discount_is_printed_under_the_item_it_reduces(self):
+        ram = self.add_item("VM / RAM", "50400", "0.009")
+        storage = self.add_item("VM / Storage", "504000", "0.0001")
+        self.add_discount(
+            storage, "13.07", percent=37.308201961042876, component="Storage"
+        )
+        self.add_discount(ram, "257.50", percent=56.59094994070369)
+        data = utils.get_invoice_pdf_data(self.invoice)
+        self.assertEqual(
+            [
+                (row["name"], row["quantity"], row["price"], row["discount"])
+                for row in self.items(data)
+            ],
+            [
+                ("VM / RAM", "50,400", "EUR 453.60", False),
+                ("Volume discount — RAM (56.59%)", "", "EUR -257.50", True),
+                ("VM / Storage", "504,000", "EUR 50.40", False),
+                ("Volume discount — Storage (37.31%)", "", "EUR -13.07", True),
+            ],
+        )
+        self.assertEqual(self.totals(data)[0], ("Subtotal", "EUR 233.43"))
+        self.assertEqual(self.invoice.price, Decimal("233.43"))
+
+    def test_discounts_stay_with_their_own_period(self):
+        # Sorting by name alone would print both RAM rows before both discounts
+        first = self.add_item("VM / RAM", "10", "1")
+        second = self.add_item("VM / RAM", "20", "1")
+        second.start = datetime.datetime(2026, 9, 15, tzinfo=datetime.UTC)
+        second.save()
+        self.add_discount(second, "10", percent=50)
+        self.add_discount(first, "5", percent=50)
+        data = utils.get_invoice_pdf_data(self.invoice)
+        self.assertEqual(
+            [row["price"] for row in self.items(data)],
+            ["EUR 10.00", "EUR -5.00", "EUR 20.00", "EUR -10.00"],
+        )
+
+    def test_rows_show_the_measured_unit_and_discounts_none(self):
+        ram = self.add_item("VM / RAM", "50400", "0.009")
+        ram.measured_unit = "GB-hours"
+        ram.save()
+        self.add_discount(ram, "100")
+        rows = self.items(utils.get_invoice_pdf_data(self.invoice))
+        self.assertEqual([row["unit"] for row in rows], ["GB-hours", ""])
+        [text] = self.pdf_pages()
+        self.assertIn("GB-hours", text)
+
+    def test_discount_without_printed_item_is_printed_on_its_own(self):
+        free = self.add_item("VM / RAM", "1", "0")
+        self.add_item("VM / CPU", "1", "10")
+        self.add_discount(free, "2", percent=20, component="RAM")
+        rows = self.items(utils.get_invoice_pdf_data(self.invoice))
+        self.assertEqual(
+            [(row["name"], row["price"]) for row in rows],
+            [("VM / CPU", "EUR 10.00"), ("Volume discount — RAM (20%)", "EUR -2.00")],
+        )
+
+    def test_pdf_shows_discounts(self):
+        ram = self.add_item("VM / RAM", "100", "1")
+        self.add_discount(ram, "25", percent=25.0)
+        [text] = self.pdf_pages()
+        self.assertIn("Volume discount — RAM (25%)", text)
+        self.assertIn("EUR -25.00", text)
+        self.assertIn("EUR 75.00", text)
+
+
+class FormatPercentTest(TestCase):
+    def test_percent_is_rounded_to_two_decimals_without_trailing_zeros(self):
+        self.assertEqual(utils.format_percent(56.59094994070369), "56.59")
+        self.assertEqual(utils.format_percent(Decimal("37.305")), "37.31")
+        self.assertEqual(utils.format_percent(50.0), "50")
+        self.assertEqual(utils.format_percent(Decimal("12.50")), "12.5")
 
 
 @override_settings(task_always_eager=True)
