@@ -5,19 +5,18 @@ from waldur_core.core import WaldurExtension
 
 class InvoicesExtension(WaldurExtension):
     class Settings:
-        # wiki: https://opennode.atlassian.net/wiki/display/WD/Assembly+plugin+configuration
         WALDUR_INVOICES = {
             "ISSUER_DETAILS": {
-                "company": "OpenNode",
-                "address": "Lille 4-205",
+                "company": "Example Company",
+                "address": "Example street 1",
                 "country": "Estonia",
-                "email": "info@opennodecloud.com",
-                "postal": "80041",
+                "email": "billing@example.com",
+                "postal": "10111",
                 "phone": {
                     "country_code": "372",
                     "national_number": "5555555",
                 },
-                "bank": "Estonian Bank",
+                "bank": "Example Bank",
                 "account": "123456789",
                 "vat_code": "EE123456789",
                 "country_code": "EE",
