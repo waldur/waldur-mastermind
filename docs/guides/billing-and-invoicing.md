@@ -292,26 +292,37 @@ When a grace period is used, the effective date for zeroing credits is always th
 
 ```mermaid
 graph TD
-    A[New invoice item / credit change] --> B{Gate 1:<br>cost this window<br>net of compensation<br>>= limit_cost?}
+    A[New invoice item / credit change] --> B{Gate 1:<br>cost this window<br>net of compensation<br>> limit_cost?}
     B -->|No| Z[Policy stays clear]
     B -->|Yes| C{use_credit configured?}
     C -->|No| F[Policy fires]
-    C -->|Yes| D{Gate 2:<br>credit.value<br><= limit_cost?}
+    C -->|Yes| D{Gate 2:<br>live credit balance<br><= limit_cost?}
     D -->|No, balance healthy| Z
     D -->|Yes, balance depleted| F
 ```
 
-**Gate 1** sums every `InvoiceItem` for the project/customer across the policy's rolling window (1/3/12 months) via `EstimatedCostPolicyMixin._is_triggered` -- cost items and compensation items together, unfiltered by type, since a compensation item is just a negative-priced row on the same invoice. For a month whose invoice has already been finalized -- including one `rebill_historical_usage` has just corrected -- this sum is entirely real, persisted data. There's no simulation involved in reading it.
+**Gate 1** sums every `InvoiceItem` for the project/customer across the policy's rolling window (1/3/12 months, or all months for Total) via `EstimatedCostPolicyMixin._is_triggered` -- cost items and compensation items together, unfiltered by type, since a compensation item is just a negative-priced row on the same invoice. For a month whose invoice has already been finalized -- including one `rebill_historical_usage` has just corrected -- this sum is entirely real, persisted data. There's no simulation involved in reading it. It opens when that net cost is strictly greater than `limit_cost`.
 
-On top of that sum, `is_triggered()` additionally subtracts a live `MonthlyCompensation.get_resource_compensation()` / `get_project_compensation()` / `total_compensation` call -- but this only ever represents the customer's *current, still-mutable* invoice (`MonthlyCompensation(customer)`, called with no explicit `invoice=` argument, auto-selects it), re-run fresh in memory on every evaluation without ever calling `.save()`. It has no bearing on any past month already reflected in the sum above.
+On top of that sum, `is_triggered()` additionally subtracts the credit the customer's *current, still-mutable* invoice will still draw (`_pending_compensation`). That comes from a `MonthlyCompensation(customer, restore_written=True)` simulation, re-run in memory on every evaluation and never saved (it refuses to `save()`). It has no bearing on any past month already reflected in the sum above.
 
-**Gate 2** re-queries `CustomerCredit`/`ProjectCredit` directly, and is only consulted once gate 1 is already open (`use_credit=False` policies skip it and compare gross cost instead).
+**Gate 2** compares the **live** credit balance, not the stored `CustomerCredit.value` / `ProjectCredit.value`. The stored value only falls when the month's compensations are written at the month-end run, so mid-month it still contains everything this month's usage has already consumed; comparing it held every credit-funded policy back until the 1st. The live balance comes from the same simulation (`_live_credit_balance()`):
 
-The two gates read genuinely different facts -- gate 1 is a net invoiced position over a window, gate 2 is the current remaining reserve -- so they can disagree for ordinary reasons. This window's net cost can be high because credit only partially covered it, correctly, if the pool was scarce at finalization time; or because a later correction's compensation update didn't fully rebalance against a sibling sharing the same credit, since `rebill_historical_usage`'s own correction is a simplified 1:1 update to the one resource being fixed, not a full cheapest-first re-run across every resource sharing that credit (see its `sibling_compensations` warning). Either way, the real balance behind it can still have plenty of untouched headroom for other resources or future spend. Gate 2 doesn't re-derive gate 1's number; it checks the one fact that's never in question -- the balance, right now. The policy fires only when both independently say the account is over budget.
+```text
+live balance = stored value + restored − usage draw
+```
 
-Verified example, from `scripts/simulate_rebill_historical_usage.py`'s scenario B: a resource billed 500 node-hours (1,425), fully compensated at finalization time from a 3,000 project credit (1,575 left over). A correction raises the reported usage to 3,000 node-hours (8,550) -- the credit correction aborts (7,125 needed, only 1,575 available), so the compensation item stays at its old value. Gate 1 for that project: 8,550 − 1,425 = 7,125, against a `limit_cost` of 3,000 -- opens. Gate 2: the real project credit balance, 1,575, is also below 3,000 -- opens too. Both gates reflect real, persisted numbers throughout; no simulation was involved in either.
+- `restored` is what this month's applies already took (staff can apply compensations mid-month), read from the credit ledger: this billing period's `compensation`, `minimal_draw` and `rollback` rows, per organization credit and project allocation. `restore_written=True` adds it back to the simulation's in-memory credits first, so the month is simulated from its opening balance; re-simulating from a stored value an apply had already lowered would cap the draw there. The ledger is used, not the invoice items, because the minimal-consumption floor writes no item and is only partly taken when the credit left is smaller than it.
+- `usage draw` is what the simulation records usage taking off the balance this month (`customer_usage_draw`, `get_project_usage_draw(project)`). Usage only: the minimal-consumption floor is forfeited at month end whatever the usage, so counting it would make a credit with an expected consumption read as spent on day 1.
 
-See `EstimatedCostPolicyMixin._is_triggered` and `ProjectEstimatedCostPolicy.is_triggered` / `CustomerEstimatedCostPolicy.is_triggered` in `src/waldur_mastermind/policy/models.py` for the exact implementation.
+A project with a `ProjectCredit` is judged on the lower of its live allocation and the organization's live balance, since the allocation can only be drawn while the organization credit funding it lasts (`ProjectCredit.spendable_value`); without one, on the organization's live balance. Gate 2 is only consulted once gate 1 is already open (`use_credit=False` policies skip it and compare gross cost instead). `get_eta_days()` projects from the same live balance, so the ETA agrees with `is_triggered()`.
+
+The two gates read genuinely different facts -- gate 1 is a net invoiced position over a window, gate 2 is the remaining reserve -- so they can disagree for ordinary reasons. This window's net cost can be high because credit only partially covered it, correctly, if the pool was scarce at finalization time; or because a later correction's compensation update didn't fully rebalance against a sibling sharing the same credit, since `rebill_historical_usage`'s own correction is a simplified 1:1 update to the one resource being fixed, not a full cheapest-first re-run across every resource sharing that credit (see its `sibling_compensations` warning). Either way, the real balance behind it can still have plenty of untouched headroom for other resources or future spend. The policy fires only when both independently say the account is over budget.
+
+With period Total and earlier uncovered cost already above `limit_cost`, gate 1 stays open permanently and gate 2 alone decides: `limit_cost` then works as a minimum remaining credit.
+
+Verified example, from `scripts/simulate_rebill_historical_usage.py`'s scenario B: a resource billed 500 node-hours (1,425), fully compensated at finalization time from a 3,000 project credit (1,575 left over). A correction raises the reported usage to 3,000 node-hours (8,550) -- the credit correction aborts (7,125 needed, only 1,575 available), so the compensation item stays at its old value. Gate 1 for that project: 8,550 − 1,425 = 7,125, against a `limit_cost` of 3,000 -- opens. Gate 2: the live project credit balance -- with no usage in the current month, the stored 1,575 -- is also below 3,000 -- opens too.
+
+See `EstimatedCostPolicyMixin._is_triggered` / `_live_balance` and `ProjectEstimatedCostPolicy.is_triggered` / `CustomerEstimatedCostPolicy.is_triggered` / `_live_credit_balance` in `src/waldur_mastermind/policy/models.py`, and `MonthlyCompensation._restore_written_draw` in `src/waldur_mastermind/invoices/compensations.py`, for the exact implementation.
 
 ### Configuration
 
