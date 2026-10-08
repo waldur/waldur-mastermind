@@ -23,6 +23,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import matrix_client
+from waldur_mastermind.matrix_chat.models import MatrixUserProfile
 
 
 class GenerateMatrixUserIdTest(TestCase):
@@ -113,6 +114,13 @@ class IsEnabledTest(TestCase):
 
 
 class EnsureUserExistsTest(TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(
+            matrix_client, "is_homeserver_admin", return_value=False
+        )
+        self.is_admin = patcher.start()
+        self.addCleanup(patcher.stop)
+
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
     def test_creates_profile_and_provisions(self, mock_config, mock_run_async):
@@ -156,9 +164,7 @@ class EnsureUserExistsTest(TestCase):
         result = matrix_client.ensure_user_exists(user)
         self.assertEqual(result, "@existinguser:matrix.example.com")
 
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
-    def test_succeeds_when_user_already_exists(self, mock_config, mock_run_async):
+    def _configure(self, mock_config):
         mock_config.MATRIX_ENABLED = True
         mock_config.MATRIX_HOMESERVER_URL = "https://matrix.example.com"
         mock_config.MATRIX_HOMESERVER_DOMAIN = "matrix.example.com"
@@ -167,18 +173,207 @@ class EnsureUserExistsTest(TestCase):
         mock_config.MATRIX_USER_ID_FORMAT = "username"
         mock_config.MATRIX_USER_REGISTRATION_SECRET = "test-secret"
 
-        # _register_user_async returns None when M_USER_IN_USE
-        mock_run_async.return_value = None
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_refuses_an_account_waldur_did_not_create(
+        self, mock_config, mock_run_async
+    ):
+        # The appservice can act for any ID in its namespace, so adopting an
+        # existing account would sign this user in as its owner, e.g. the
+        # homeserver admin or someone who registered themselves.
+        self._configure(mock_config)
+        mock_run_async.return_value = {}  # M_USER_IN_USE
 
-        user = structure_factories.UserFactory(username="duplicateuser")
-        matrix_user_id = matrix_client.ensure_user_exists(user)
+        user = structure_factories.UserFactory(username="admin")
+        with self.assertRaisesRegex(
+            matrix_client.MatrixClientError, "link_matrix_account"
+        ):
+            matrix_client.ensure_user_exists(user)
 
-        self.assertEqual(matrix_user_id, "@duplicateuser:matrix.example.com")
+        self.assertFalse(MatrixUserProfile.objects.filter(user=user).exists())
 
-        from waldur_mastermind.matrix_chat.models import MatrixUserProfile
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_names_the_waldur_user_whose_profile_holds_the_derived_id(
+        self, mock_config, mock_run_async
+    ):
+        # The account is Waldur's own, so "did not create" would be false, and
+        # link_matrix_account cannot help: an ID is linked to one user only.
+        self._configure(mock_config)
+        mock_config.MATRIX_USER_ID_FORMAT = "email_local"
+        holder = structure_factories.UserFactory(
+            username="alice-a", email="alice@a.example.org"
+        )
+        MatrixUserProfile.objects.create(
+            user=holder, matrix_user_id="@alice:matrix.example.com", provisioned=True
+        )
+        user = structure_factories.UserFactory(
+            username="alice-b", email="alice@b.example.org"
+        )
 
-        profile = MatrixUserProfile.objects.get(user=user)
-        self.assertTrue(profile.provisioned)
+        with self.assertRaisesRegex(
+            matrix_client.MatrixClientError,
+            "@alice:matrix.example.com is already linked to alice-a",
+        ):
+            matrix_client.ensure_user_exists(user)
+
+        mock_run_async.assert_not_called()
+        self.assertFalse(MatrixUserProfile.objects.filter(user=user).exists())
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_readopts_an_account_it_has_a_profile_for(
+        self, mock_config, mock_run_async
+    ):
+        # reprovision_rooms marks profiles unprovisioned; their accounts are
+        # Waldur's own.
+        self._configure(mock_config)
+        mock_run_async.return_value = {}
+        user = structure_factories.UserFactory(username="returning")
+
+        MatrixUserProfile.objects.create(
+            user=user,
+            matrix_user_id="@returning:matrix.example.com",
+            provisioned=False,
+        )
+
+        self.assertEqual(
+            matrix_client.ensure_user_exists(user), "@returning:matrix.example.com"
+        )
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_refuses_to_readopt_a_homeserver_admin(self, mock_config, mock_run_async):
+        # A profile linked before adoption was refused can map to the admin's
+        # account; reprovisioning must not hand that account back to the user.
+        self._configure(mock_config)
+        mock_run_async.return_value = {}
+        self.is_admin.return_value = True
+        user = structure_factories.UserFactory(username="waldur-admin")
+        MatrixUserProfile.objects.create(
+            user=user,
+            matrix_user_id="@waldur-admin:matrix.example.com",
+            provisioned=False,
+        )
+
+        with self.assertRaisesRegex(
+            matrix_client.MatrixClientError, "homeserver admin"
+        ):
+            matrix_client.ensure_user_exists(user)
+
+        self.assertFalse(MatrixUserProfile.objects.get(user=user).provisioned)
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_a_profile_keeps_its_own_id_when_the_derived_one_differs(
+        self, mock_config, mock_run_async
+    ):
+        # After a change of MATRIX_USER_ID_FORMAT or username, or a deliberate
+        # link, the derived ID can belong to someone else entirely.
+        self._configure(mock_config)
+        mock_run_async.return_value = {}
+        user = structure_factories.UserFactory(username="alice")
+        MatrixUserProfile.objects.create(
+            user=user, matrix_user_id="@alice_old:matrix.example.com"
+        )
+
+        self.assertEqual(
+            matrix_client.ensure_user_exists(user), "@alice_old:matrix.example.com"
+        )
+        self.assertEqual(
+            MatrixUserProfile.objects.get(user=user).matrix_user_id,
+            "@alice_old:matrix.example.com",
+        )
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_a_concurrent_provisioning_is_not_mistaken_for_someone_else(
+        self, mock_config, mock_run_async
+    ):
+        self._configure(mock_config)
+        user = structure_factories.UserFactory(username="raced")
+
+        def another_task_registers_meanwhile(coroutine):
+            coroutine.close()
+            MatrixUserProfile.objects.get_or_create(
+                user=user, defaults={"matrix_user_id": "@raced:matrix.example.com"}
+            )
+            return {}  # so this task's registration finds the ID in use
+
+        mock_run_async.side_effect = another_task_registers_meanwhile
+
+        self.assertEqual(
+            matrix_client.ensure_user_exists(user), "@raced:matrix.example.com"
+        )
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_a_link_to_another_account_meanwhile_does_not_hand_out_the_derived_id(
+        self, mock_config, mock_run_async
+    ):
+        # The derived ID is someone else's account, e.g. the homeserver
+        # admin's; the operator links the user elsewhere while their chat
+        # retries.
+        self._configure(mock_config)
+        user = structure_factories.UserFactory(username="admin")
+
+        def operator_links_meanwhile(coroutine):
+            coroutine.close()
+            MatrixUserProfile.objects.create(
+                user=user, matrix_user_id="@admin2:matrix.example.com"
+            )
+            return {}
+
+        mock_run_async.side_effect = operator_links_meanwhile
+
+        with self.assertRaisesRegex(
+            matrix_client.MatrixClientError,
+            "admin was linked to @admin2:matrix.example.com meanwhile",
+        ):
+            matrix_client.ensure_user_exists(user)
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.set_display_name")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_returns_the_linked_id_when_a_link_lands_after_registration(
+        self, mock_config, mock_run_async, mock_set_display_name
+    ):
+        self._configure(mock_config)
+        user = structure_factories.UserFactory(username="fresh")
+
+        def operator_links_meanwhile(coroutine):
+            coroutine.close()
+            MatrixUserProfile.objects.create(
+                user=user, matrix_user_id="@chosen:matrix.example.com"
+            )
+            return {"user_id": "@fresh:matrix.example.com"}
+
+        mock_run_async.side_effect = operator_links_meanwhile
+
+        self.assertEqual(
+            matrix_client.ensure_user_exists(user), "@chosen:matrix.example.com"
+        )
+        mock_set_display_name.assert_called_once_with(
+            "@chosen:matrix.example.com", mock.ANY
+        )
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_names_an_admin_account_instead_of_suggesting_a_link(
+        self, mock_config, mock_run_async
+    ):
+        # link_matrix_account refuses an admin's account.
+        self._configure(mock_config)
+        mock_run_async.return_value = {}
+        self.is_admin.return_value = True
+        user = structure_factories.UserFactory(username="hsadmin")
+
+        with self.assertRaisesRegex(
+            matrix_client.MatrixClientError, "is a homeserver admin"
+        ):
+            matrix_client.ensure_user_exists(user)
+
+        self.assertFalse(MatrixUserProfile.objects.filter(user=user).exists())
 
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
@@ -932,6 +1127,80 @@ class BotIdentityIsReservedTest(TestCase):
         mock_run_async.assert_not_called()
 
 
+ADMIN_USERS_URL = "https://matrix.example.com/_synapse/admin/v2/users/"
+
+
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+)
+class IsHomeserverAdminTest(TestCase):
+    url = ADMIN_USERS_URL + "%40admin%3Amatrix.example.com"
+
+    @respx.mock
+    def test_an_admin(self):
+        route = respx.get(self.url).mock(
+            return_value=httpx.Response(200, json={"admin": True})
+        )
+
+        self.assertIs(
+            matrix_client.is_homeserver_admin("@admin:matrix.example.com"), True
+        )
+        self.assertEqual(
+            route.calls.last.request.headers["Authorization"], "Bearer test-as-token"
+        )
+
+    @respx.mock
+    def test_a_normal_user(self):
+        respx.get(self.url).mock(
+            return_value=httpx.Response(200, json={"admin": False})
+        )
+
+        self.assertIs(
+            matrix_client.is_homeserver_admin("@admin:matrix.example.com"), False
+        )
+
+    @respx.mock
+    def test_an_unknown_account(self):
+        respx.get(self.url).mock(
+            return_value=httpx.Response(404, json={"errcode": "M_NOT_FOUND"})
+        )
+
+        self.assertIs(
+            matrix_client.is_homeserver_admin("@admin:matrix.example.com"), False
+        )
+
+    @respx.mock
+    def test_cannot_tell_while_the_bot_is_not_an_admin(self):
+        respx.get(self.url).mock(
+            return_value=httpx.Response(403, json={"errcode": "M_FORBIDDEN"})
+        )
+
+        self.assertIsNone(
+            matrix_client.is_homeserver_admin("@admin:matrix.example.com")
+        )
+
+    @respx.mock
+    def test_cannot_tell_when_the_admin_api_is_missing(self):
+        # A homeserver without the API, or a proxy blocking /_synapse/admin,
+        # answers 404 for every ID.
+        respx.get(self.url).mock(
+            return_value=httpx.Response(404, json={"errcode": "M_UNRECOGNIZED"})
+        )
+
+        self.assertIsNone(
+            matrix_client.is_homeserver_admin("@admin:matrix.example.com")
+        )
+
+    @respx.mock
+    def test_cannot_tell_from_a_page_without_the_flag(self):
+        respx.get(self.url).mock(return_value=httpx.Response(200, text="<html></html>"))
+
+        self.assertIsNone(
+            matrix_client.is_homeserver_admin("@admin:matrix.example.com")
+        )
+
+
 @override_config(
     MATRIX_HOMESERVER_URL="https://matrix.example.com",
     MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
@@ -940,6 +1209,28 @@ class BotIdentityIsReservedTest(TestCase):
 class WebSessionTest(TestCase):
     user_id = "@alice:matrix.example.com"
     login_url = "https://matrix.example.com/_matrix/client/v3/login"
+
+    def _admin_status_unknown(self):
+        # The bot is not a homeserver admin, as on most deployments.
+        respx.get(url__startswith=ADMIN_USERS_URL).mock(
+            return_value=httpx.Response(403, json={"errcode": "M_FORBIDDEN"})
+        )
+
+    @respx.mock
+    def test_refuses_a_homeserver_admin(self):
+        # Its session could run admin-room commands, whichever user it was
+        # linked to.
+        respx.get(url__startswith=ADMIN_USERS_URL).mock(
+            return_value=httpx.Response(200, json={"admin": True})
+        )
+        login = respx.post(self.login_url).mock(side_effect=self._login_response)
+
+        with self.assertRaisesRegex(
+            matrix_client.MatrixClientError, "homeserver admin"
+        ):
+            matrix_client.create_web_session(self.user_id)
+
+        self.assertFalse(login.called)
 
     def _login_response(self, request):
         body = json.loads(request.content)
@@ -956,6 +1247,7 @@ class WebSessionTest(TestCase):
 
     @respx.mock
     def test_logs_in_through_appservice_on_a_new_web_device(self):
+        self._admin_status_unknown()
         route = respx.post(self.login_url).mock(side_effect=self._login_response)
 
         session = matrix_client.create_web_session(self.user_id)
@@ -983,6 +1275,7 @@ class WebSessionTest(TestCase):
     def test_every_session_gets_its_own_device(self):
         # Tuwunel keeps one refresh token per device, so two sessions on one
         # device would revoke each other.
+        self._admin_status_unknown()
         respx.post(self.login_url).mock(side_effect=self._login_response)
 
         first = matrix_client.create_web_session(self.user_id)
@@ -992,6 +1285,7 @@ class WebSessionTest(TestCase):
 
     @respx.mock
     def test_homeserver_without_refresh_tokens_returns_no_expiry(self):
+        self._admin_status_unknown()
         respx.post(self.login_url).mock(
             return_value=httpx.Response(
                 200, json={"device_id": "WALDUR_WEB_X", "access_token": "access-1"}
@@ -1005,6 +1299,7 @@ class WebSessionTest(TestCase):
 
     @respx.mock
     def test_unreachable_homeserver_raises_client_error(self):
+        self._admin_status_unknown()
         respx.post(self.login_url).mock(side_effect=httpx.ConnectError("refused"))
 
         with self.assertRaises(matrix_client.MatrixClientError):
@@ -1012,6 +1307,7 @@ class WebSessionTest(TestCase):
 
     @respx.mock
     def test_login_without_access_token_raises_client_error(self):
+        self._admin_status_unknown()
         respx.post(self.login_url).mock(
             return_value=httpx.Response(200, json={"device_id": "WALDUR_WEB_X"})
         )
@@ -1021,6 +1317,7 @@ class WebSessionTest(TestCase):
 
     @respx.mock
     def test_rejected_login_raises(self):
+        self._admin_status_unknown()
         respx.post(self.login_url).mock(
             return_value=httpx.Response(403, json={"errcode": "M_FORBIDDEN"})
         )

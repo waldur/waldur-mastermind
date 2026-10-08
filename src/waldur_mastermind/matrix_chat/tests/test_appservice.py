@@ -11,6 +11,9 @@ from rest_framework import status, test
 from sentry_sdk.transport import Transport
 
 from waldur_core.logging import sentry
+from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.structure.tests.factories import UserFactory
+from waldur_core.structure.tests.fixtures import add_user_to_project
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.matrix_chat import models, tasks
 from waldur_mastermind.matrix_chat.tests import fixtures
@@ -1263,6 +1266,80 @@ class AppserviceUserNamespaceDiagnosticsTest(test.APITestCase):
         )
 
         self.assertIn("1 room member", check["detail"])
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="http://tuwunel.internal:6167",
+    MATRIX_HOMESERVER_DOMAIN="waldur.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+)
+class UserProfilesDiagnosticsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MatrixChatFixture()
+        self.room = self.fixture.matrix_room
+
+    def _check(self):
+        response = mock.MagicMock()
+        response.status_code = 200
+        response.json.return_value = {"versions": ["v1.16"]}
+        with mock.patch(
+            "waldur_mastermind.matrix_chat.views.httpx.get", return_value=response
+        ):
+            self.client.force_authenticate(self.fixture.staff)
+            response = self.client.get(DIAGNOSTICS_URL)
+        by_name = {c["name"]: c for c in response.data["checks"]}
+        return by_name["user_stats"]
+
+    def test_fails_naming_room_members_without_a_profile(self):
+        # A project member and a customer owner belong in the room; the
+        # admin has a profile.
+        self.fixture.matrix_user_profile
+        names = sorted([self.fixture.owner.username, self.fixture.manager.username])
+
+        check = self._check()
+
+        self.assertFalse(check["ok"])
+        self.assertEqual(
+            check["detail"],
+            "1 provisioned out of 1 total; "
+            f"2 room member(s) without a Matrix account: {', '.join(names)}. "
+            "The worker log says why; link an existing account with "
+            "`waldur link_matrix_account <user> <matrix id>`",
+        )
+
+    def test_leaves_out_users_member_sync_would_not_add(self):
+        # A customer role that runs no chat, a deactivated member, and a
+        # project whose room is archived.
+        self.fixture.customer_support
+        self.fixture.member.is_active = False
+        self.fixture.member.save(update_fields=["is_active"])
+        self.room.state = models.RoomStates.ARCHIVED
+        self.room.save(update_fields=["state"])
+        self.fixture.admin
+
+        check = self._check()
+
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["detail"], "0 provisioned out of 0 total")
+
+    def test_names_ten_and_counts_the_rest(self):
+        # The room's creator, the customer owner, is linked.
+        models.MatrixUserProfile.objects.create(
+            user=self.fixture.owner,
+            matrix_user_id=f"@{self.fixture.owner.username}:waldur.example.com",
+        )
+        users = [UserFactory() for _ in range(12)]
+        for user in users:
+            add_user_to_project(user, self.fixture.project, ProjectRole.MEMBER)
+        shown = sorted(u.username for u in users)[:10]
+
+        check = self._check()
+
+        self.assertIn("; 12 room member(s) without a Matrix account: ", check["detail"])
+        self.assertIn(f"{', '.join(shown)} and 2 more.", check["detail"])
 
 
 @override_config(

@@ -6,7 +6,9 @@ from django.db.models import Q
 from rest_framework import exceptions
 
 from waldur_core.core.auth_utils import is_pat_auth
+from waldur_core.core.models import User
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.pat_filtering import PATScopeListFilter
 from waldur_core.permissions.utils import (
     check_pat_support_scope,
@@ -63,6 +65,36 @@ def get_manageable_room_ids(user):
         Q(content_type=project_ct, object_id__in=projects.values("id"))
         | Q(content_type=customer_ct, object_id__in=customer_ids)
     ).values_list("id", flat=True)
+
+
+def get_unlinked_room_users():
+    """Active users member sync puts in an active project room who have no
+    Matrix profile.
+
+    Provisioning refuses a user whose generated ID already has an account and
+    leaves no profile or member row behind, so this is where they show up.
+    """
+    project_ct = ContentType.objects.get_for_model(Project)
+    customer_ct = ContentType.objects.get_for_model(Customer)
+    room_projects = models.MatrixRoom.objects.filter(
+        state=models.RoomStates.ACTIVE, content_type=project_ct
+    ).values("object_id")
+    room_customers = Project.objects.filter(id__in=room_projects).values("customer_id")
+    # The roles sync_project_members_to_room reads: any on the project, and
+    # those on its customer that get_customer_roles_in_project_rooms keeps.
+    roles = UserRole.objects.filter(is_active=True).filter(
+        Q(content_type=project_ct, object_id__in=room_projects)
+        | Q(
+            content_type=customer_ct,
+            object_id__in=room_customers,
+            role__permissions__permission=PermissionEnum.CREATE_MATRIX_ROOM,
+        )
+    )
+    return User.objects.filter(
+        is_active=True,
+        matrix_profile__isnull=True,
+        id__in=roles.values("user_id"),
+    ).order_by("username")
 
 
 def can_manage_room(request, view, obj=None):

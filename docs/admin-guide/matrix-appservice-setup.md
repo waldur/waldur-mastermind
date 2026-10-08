@@ -112,13 +112,17 @@ Checks performed (the `checks` array in the response):
 1. Homeserver URL configured (`homeserver_configured`)
 2. Homeserver domain configured (`homeserver_domain_configured`)
 3. Homeserver reachable (`homeserver_reachable`, via `/_matrix/client/versions`; also names the homeserver software and version, from `/_matrix/federation/v1/version` or, with federation off, Tuwunel's `/_tuwunel/server_version`)
-4. AS token configured (`as_token_configured`)
-5. HS token configured (`hs_token_configured`)
-6. Registration secret configured (`registration_secret_configured`)
-7. Bot authentication (`bot_whoami`, via `/account/whoami`; also how many rooms the bot is in)
-8. Appservice can act for users (`appservice_user_namespace`: `/account/whoami` as the staff user's Matrix ID. It fails when the homeserver's appservice registration does not cover users, which breaks chat sessions and room joins; register the appservice again with Waldur's registration. When it fails, it also counts room members recorded as invited, not joined)
-9. Room statistics (`room_stats`: active, creating, errored counts)
-10. User profile statistics (`user_stats`: provisioned count)
+4. Public homeserver URL configured (`public_homeserver_configured`: the URL browsers use, `MATRIX_HOMESERVER_PUBLIC_URL` or else `MATRIX_HOMESERVER_URL`)
+5. Public homeserver reachable (`public_homeserver_reachable`, via `/_matrix/client/versions` from Waldur; only probed when the public URL differs from the internal one)
+6. AS token configured (`as_token_configured`)
+7. HS token configured (`hs_token_configured`)
+8. Registration secret configured (`registration_secret_configured`)
+9. Bot authentication (`bot_whoami`, via `/account/whoami`; also how many rooms the bot is in)
+10. Appservice can act for users (`appservice_user_namespace`: `/account/whoami` as the staff user's Matrix ID. It fails when the homeserver's appservice registration does not cover users, which breaks chat sessions and room joins; register the appservice again with Waldur's registration. When it fails, it also counts room members recorded as invited, not joined)
+11. Chat drawer tokens expire (`web_token_lifetime`: signs the staff user in on a test device and reads the token's lifetime; fails when tokens never expire or live over an hour. Skipped until the staff user has opened the chat once)
+12. LiveKit configured (`livekit_configured`: a LiveKit focus in the homeserver's `/.well-known/matrix/client`; only calls need it)
+13. Room statistics (`room_stats`: active, creating, errored counts)
+14. User profile statistics (`user_stats`: provisioned count, plus the active users whose roles put them in an active project room but who have no Matrix profile, named up to ten. Provisioning refused or failed for those; the worker log says why, and [Existing Matrix accounts](#existing-matrix-accounts) says how to link one. Fails while any room member is unlinked)
 
 **Example response (200):**
 
@@ -140,6 +144,19 @@ Resets all active rooms to `creating` state and re-queues them for provisioning 
 Do not run it against the homeserver the rooms already live on. Old rooms are not
 deleted, so each one stays behind with its history while Waldur replaces it with
 an empty room.
+
+Users keep their Matrix IDs: each one is provisioned again on the new homeserver
+under the ID their profile already holds. The new homeserver therefore needs the
+same `server_name` as the old one. Under another domain Waldur keeps acting for
+the old IDs, and chat fails for every user. To move, point
+`MATRIX_HOMESERVER_URL` at the new homeserver, register the appservice there,
+make the bot a homeserver admin there (see
+[Existing Matrix accounts](#existing-matrix-accounts)), then reprovision.
+
+Reprovisioning takes over an account the new homeserver already has under a
+user's ID, since the profile says the ID is theirs. With the bot an admin, it
+refuses the homeserver's admins; it cannot tell a self-registered account, so
+keep registration closed on the new homeserver until reprovisioning is done.
 
 **Example response (202):**
 
@@ -372,7 +389,7 @@ Lists room members with their user UUID, full name, Matrix user ID, power level,
 When a room is created or a manual sync is triggered:
 
 1. Everyone with an active project role is enumerated, plus everyone whose customer role may create the customer's chat rooms (`MATRIX_ROOM.CREATE`, held by customer owners by default). Other customer roles, such as organization support and reader, are left out
-2. Each user is provisioned on the homeserver if needed (via `MatrixUserProfile`)
+2. Each user is provisioned on the homeserver if needed (via `MatrixUserProfile`). A user whose Matrix ID already belongs to an account Waldur did not create is skipped; see [Existing Matrix accounts](#existing-matrix-accounts)
 3. Display names are set to the user's full name
 4. Users are invited to the room, and the invite is accepted on their behalf
 5. Power levels are set based on roles:
@@ -387,6 +404,57 @@ Member records are stored in `MatrixRoomMember` with membership states: `invited
 The same rule decides who else sees a room. A user sees a project's room in the room list, and reaches its members, media and history exports or answers to bot commands, only if a role would put them in it in step 1; each action may ask for more on top. Organization support and readers therefore do not see the rooms of the organization's projects. Staff and support users list every room.
 
 Joins and leaves act as the user through the appservice token with `?user_id=`. They never log in as the user, so they create no Matrix device or access token.
+
+### Existing Matrix accounts
+
+Waldur only provisions Matrix accounts it creates. The appservice can act as any
+account in its namespace, so taking over an existing one would sign the user in
+as its owner. When a user without a Matrix profile derives an ID that already
+has an account on the homeserver, such as a self-registered account or one made
+by hand, provisioning refuses it: their chat answers "Chat is unavailable right
+now", member sync skips them, and the API or worker log says the ID "already belongs to
+an account this Waldur did not create". Diagnostics lists the room members left
+without a profile in its "User profiles" row.
+
+If the account belongs to the user, link it:
+
+```bash
+waldur link_matrix_account <username> @<localpart>:<homeserver domain>
+```
+
+After a database reset, or a restore of an older dump, against the same
+homeserver, every user provisioned since has an account but no profile. Link
+them in one go:
+
+```bash
+waldur link_matrix_account --all
+```
+
+`--all` links each user without a profile to the existing account with their
+derived ID. It skips users with no account, homeserver admins, IDs another user
+already holds, and IDs that several users without a profile derive, since
+nothing tells whose that account is. It names each skipped user; link the owner
+by hand. Run it only when every such account belongs to this Waldur's users.
+Back up the homeserver together with Waldur's database, so a restore brings
+both back to the same point.
+
+Different users can derive the same ID: under `email_local` (`alice@a.org` and
+`alice@b.org`), and when usernames differ only in case or in characters Matrix
+does not allow, which become `_` (`a@b` and `a_b`). The first one provisioned
+gets the account. The second gets no chat, and the log names the user who holds
+it; linking cannot help, since an ID is linked to one user only. A user deleted
+and recreated under the same username finds their old account, which outlives
+the deletion, and needs `link_matrix_account`.
+
+No Waldur user may hold a homeserver admin's account, since its sessions could
+run admin commands. The homeserver admins are the accounts you administer it
+with, plus the bot once you make it one. Waldur can only tell who they are once
+the bot is a homeserver admin itself: on Tuwunel, send
+`!admin users make-user-admin @waldur-bot:<homeserver domain>` in `#admins`.
+That also makes the appservice token an admin credential. From then on Waldur
+refuses web chat sessions, reprovisioning and links for any user whose account
+is an admin. Until then nothing is refused, and `link_matrix_account` warns that
+it could not check.
 
 ### Automatic member management
 
@@ -564,7 +632,7 @@ These Constance settings control the integration:
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
 | `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` | `90` | Days to keep history exports, files included; each room's newest completed export is kept; `0` or less keeps them forever |
 | `MATRIX_USER_REGISTRATION_SECRET` | `""` | Shared secret for registering users on the homeserver |
-| `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local` |
+| `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local`. Applies only to users provisioned afterwards; existing users keep their Matrix ID. See [Existing Matrix accounts](#existing-matrix-accounts) for IDs two users share |
 | `MATRIX_EXTERNAL_LOGIN_METHOD` | `none` | How users sign in to an external Matrix client: `none`, `password`, or `oidc`. See [External clients](#external-clients) |
 
 ## Feature Flag
@@ -580,3 +648,14 @@ The Matrix chat UI is gated on the project feature flag `project.show_matrix_cha
 | `MatrixRoomMember` | Tracks room membership, power levels, and membership state per user. `manually_joined` marks staff and support who joined with the Join action. |
 | `MatrixHistoryExport` | A chat history export with state, message/media counts, and file references. |
 | `MatrixAppserviceTransaction` | Idempotency record for processed webhook transactions. |
+
+## Troubleshooting
+
+The messages below appear in the API and worker logs; the user only sees "Chat is unavailable right now".
+
+| Log message | Cause | Fix |
+| --- | --- | --- |
+| `<id> already belongs to an account this Waldur did not create` | The user's derived Matrix ID had an account before Waldur provisioned them | If it is theirs, `waldur link_matrix_account <username> <id>`; after a database reset or restore, `waldur link_matrix_account --all`. Otherwise create another account for the user on the homeserver and link that; deactivating the existing account does not free its ID. See [Existing Matrix accounts](#existing-matrix-accounts) |
+| `<id> is already linked to <user>; <username> cannot be linked to it too` | Two users derive the same Matrix ID | The second user gets no chat until what the ID is derived from (username, or email under `email_local`) changes. See [Existing Matrix accounts](#existing-matrix-accounts) |
+| `<user> was linked to <id> meanwhile; try again` | `link_matrix_account` linked the user while their chat was being provisioned | None; the next attempt uses the linked account |
+| `<id> is a homeserver admin; Waldur does not act as it for a user` | The user's account is a homeserver admin | Remove the admin flag from the account on the homeserver, or keep the user off chat |
