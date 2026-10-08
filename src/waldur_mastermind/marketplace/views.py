@@ -19096,20 +19096,22 @@ class SoftwareCatalogViewSet(
                 logger.warning(f"Could not detect version for {source['name']}: {e}")
                 entry["latest_version"] = None
 
-            existing = (
+            existing_versions = list(
                 models.SoftwareCatalog.objects.filter(
                     name=source["name"],
                     catalog_type=source["catalog_type"],
                 )
                 .order_by("-modified")
-                .first()
+                .values_list("version", flat=True)
             )
-            if existing:
+            if existing_versions:
                 entry["existing"] = True
-                entry["existing_version"] = existing.version
+                # Newest-modified row for backward-compatible single field;
+                # update_available when upstream is not among any stored versions.
+                entry["existing_version"] = existing_versions[0]
                 entry["update_available"] = (
                     entry["latest_version"] is not None
-                    and entry["latest_version"] != existing.version
+                    and entry["latest_version"] not in existing_versions
                 )
 
             results.append(entry)
@@ -19161,16 +19163,29 @@ class SoftwareCatalogViewSet(
         name = serializer.validated_data["name"]
         catalog_type = tasks.NAME_TO_CATALOG_TYPE[name]
 
+        # Multiple versions of the same catalog name/type are allowed (e.g. EESSI
+        # 2023.06 and 2026.06). Only block when this exact version already exists.
+        try:
+            if name == "EESSI":
+                version = detect_eessi_version(config.SOFTWARE_CATALOG_EESSI_API_URL)
+            else:
+                version = detect_spack_version(config.SOFTWARE_CATALOG_SPACK_DATA_URL)
+        except Exception as e:
+            raise rf_exceptions.ValidationError(
+                f"Could not detect upstream version for {name}: {e}"
+            ) from e
+
         if models.SoftwareCatalog.objects.filter(
-            name=name, catalog_type=catalog_type
+            name=name, catalog_type=catalog_type, version=version
         ).exists():
             raise rf_exceptions.ValidationError(
-                f"A catalog with name={name} and type={catalog_type} already exists."
+                f"A catalog with name={name}, version={version}, "
+                f"and type={catalog_type} already exists."
             )
 
         tasks.import_software_catalog.delay(name, catalog_type)
         return Response(
-            {"status": "importing", "name": name},
+            {"status": "importing", "name": name, "version": version},
             status=status.HTTP_202_ACCEPTED,
         )
 
