@@ -38,6 +38,35 @@ def _record_left(member):
     member.save(update_fields=["membership_state", "manually_joined"])
 
 
+def _save_member(room, user, matrix_user_id, membership_state, power_level):
+    """Set the member's power level in the room and record the membership."""
+    defaults = {"matrix_user_id": matrix_user_id, "membership_state": membership_state}
+    # Also when it is 0, so a level the user's roles no longer give is taken back.
+    try:
+        matrix_client.set_power_level(room.room_id, matrix_user_id, power_level)
+        defaults["power_level"] = power_level
+    except Exception:
+        # The user is in the room by now, and revocation finds the rooms to
+        # take them out of by this row, so it is written either way.
+        logger.warning(
+            "Failed to set the power level of %s in %s", matrix_user_id, room.room_id
+        )
+    models.MatrixRoomMember.objects.update_or_create(
+        room=room, user=user, defaults=defaults
+    )
+
+
+def _power_level_in_room(user, room):
+    power_level = matrix_client.get_power_level_for_scope(user, room.scope)
+    # Staff and support hold their level by joining with the Join button, not
+    # by a role, so a role they also hold must not lower it.
+    if models.MatrixRoomMember.objects.filter(
+        models.STAFF_JOINED, room=room, user=user
+    ).exists():
+        return max(power_level, STAFF_POWER_LEVEL)
+    return power_level
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.create_room")
 def create_room(room_uuid):
     """Create a Matrix room and sync project members."""
@@ -147,7 +176,7 @@ def sync_project_members_to_room(room_uuid):
 
         try:
             matrix_user_id = matrix_client.ensure_user_exists(user)
-            power_level = matrix_client.get_power_level_for_scope(user, project)
+            power_level = _power_level_in_room(user, room)
 
             # Ensure display name is up to date
             display_name = user.full_name or user.username
@@ -170,20 +199,7 @@ def sync_project_members_to_room(room_uuid):
                 )
                 membership_state = models.MembershipStates.INVITED
 
-            # Set power level if non-default
-            if power_level > 0:
-                matrix_client.set_power_level(room.room_id, matrix_user_id, power_level)
-
-            # Update or create member record
-            models.MatrixRoomMember.objects.update_or_create(
-                room=room,
-                user=user,
-                defaults={
-                    "matrix_user_id": matrix_user_id,
-                    "power_level": power_level,
-                    "membership_state": membership_state,
-                },
-            )
+            _save_member(room, user, matrix_user_id, membership_state, power_level)
 
             logger.info("Synced user %s to room %s", matrix_user_id, room.room_id)
         except Exception:
@@ -224,6 +240,19 @@ def sync_project_members_to_room(room_uuid):
     room.save(update_fields=["modified"])
 
 
+@shared_task(name="waldur_mastermind.matrix_chat.sync_rooms_of_role")
+def sync_rooms_of_role(role_id):
+    """Sync every active project room the role has holders in."""
+    if not matrix_client.is_enabled():
+        return
+
+    rooms = models.get_project_rooms(
+        UserRole.objects.filter(role_id=role_id, is_active=True)
+    )
+    for room_uuid in rooms.values_list("uuid", flat=True):
+        sync_project_members_to_room.delay(str(room_uuid))
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.invite_user_to_room")
 def invite_user_to_room(room_uuid, user_uuid):
     """Invite a single user to a Matrix room."""
@@ -248,7 +277,7 @@ def invite_user_to_room(room_uuid, user_uuid):
 
     try:
         matrix_user_id = matrix_client.ensure_user_exists(user)
-        power_level = matrix_client.get_power_level_for_scope(user, room.scope)
+        power_level = _power_level_in_room(user, room)
 
         matrix_client.invite_user(room.room_id, matrix_user_id)
         try:
@@ -262,18 +291,7 @@ def invite_user_to_room(room_uuid, user_uuid):
             )
             membership_state = models.MembershipStates.INVITED
 
-        if power_level > 0:
-            matrix_client.set_power_level(room.room_id, matrix_user_id, power_level)
-
-        models.MatrixRoomMember.objects.update_or_create(
-            room=room,
-            user=user,
-            defaults={
-                "matrix_user_id": matrix_user_id,
-                "power_level": power_level,
-                "membership_state": membership_state,
-            },
-        )
+        _save_member(room, user, matrix_user_id, membership_state, power_level)
 
         logger.info("Invited user %s to room %s", matrix_user_id, room.room_id)
     except Exception:

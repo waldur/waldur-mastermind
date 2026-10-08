@@ -523,7 +523,15 @@ async def _set_power_level_async(
 
         content = response.content
         users = content.get("users", {})
-        users[user_id] = power_level
+        default_level = content.get("users_default", 0)
+        # Every write is a new state event in the room, and member sync sets
+        # the level of every member each time it runs.
+        if users.get(user_id, default_level) == power_level:
+            return True
+        if power_level == default_level:
+            del users[user_id]
+        else:
+            users[user_id] = power_level
         content["users"] = users
 
         put_response = await client.room_put_state(
@@ -541,7 +549,7 @@ async def _set_power_level_async(
 
 
 def set_power_level(room_id, user_id, power_level):
-    """Set a user's power level in a Matrix room."""
+    """Set a user's power level in a Matrix room, leaving a level that is already right alone."""
     homeserver_url, bot_user_id, access_token = _get_client_params()
     return _run_async(
         _set_power_level_async(
