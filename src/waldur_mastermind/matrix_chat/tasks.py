@@ -17,7 +17,7 @@ from django_fsm import TransitionNotAllowed
 
 from waldur_core.permissions.models import UserRole
 
-from . import matrix_client, models
+from . import formatting, matrix_client, models
 
 User = get_user_model()
 
@@ -356,7 +356,10 @@ def staff_join_room(room_uuid, user_uuid):
 
         full_name = user.full_name or user.username
         try:
-            matrix_client.send_message(room.room_id, f"{full_name} joined the room.")
+            matrix_client.send_message(
+                room.room_id,
+                f"{formatting.escape_markdown(full_name)} joined the room.",
+            )
         except Exception:
             logger.warning("Failed to announce staff join in room %s", room.room_id)
 
@@ -596,7 +599,9 @@ def staff_leave_room(room_uuid, user_uuid):
     # Announce before leaving so the departure is attributed while the member
     # is still present in the room.
     try:
-        matrix_client.send_message(room.room_id, f"{full_name} left the room.")
+        matrix_client.send_message(
+            room.room_id, f"{formatting.escape_markdown(full_name)} left the room."
+        )
     except Exception:
         logger.warning("Failed to announce staff leave in room %s", room.room_id)
 
@@ -990,7 +995,7 @@ def _cmd_status(room_id, sender, event_id):
 
     lines = []
     if errored_total:
-        shown = ", ".join(f"`{name}`" for name in errored_names)
+        shown = ", ".join(formatting.code_span(name) for name in errored_names)
         if errored_total > len(errored_names):
             shown += f", +{errored_total - len(errored_names)} more"
         noun = "resource" if errored_total == 1 else "resources"
@@ -1003,8 +1008,10 @@ def _cmd_status(room_id, sender, event_id):
             lines.append(f"- {count} {label}")
 
     if not lines:
-        return f"**{project.name}** — status: all clear."
-    return f"**{project.name}** — status:\n\n" + "\n".join(lines)
+        return f"**{formatting.escape_markdown(project.name)}** — status: all clear."
+    return f"**{formatting.escape_markdown(project.name)}** — status:\n\n" + "\n".join(
+        lines
+    )
 
 
 def _cmd_orders(room_id, sender, event_id):
@@ -1017,14 +1024,17 @@ def _cmd_orders(room_id, sender, event_id):
 
     orders = Order.objects.filter(project=project).order_by("-created")[:5]
     if not orders:
-        return f"**{project.name}**: no orders."
+        return f"**{formatting.escape_markdown(project.name)}**: no orders."
 
-    lines = [f"**{project.name}** — last {len(orders)} orders:\n"]
+    lines = [
+        f"**{formatting.escape_markdown(project.name)}** — last {len(orders)} orders:\n"
+    ]
     for o in orders:
         state_label = ORDER_STATE_LABELS.get(o.state, f"unknown({o.state})")
         resource_name = o.resource.name if o.resource else "N/A"
         lines.append(
-            f"- `{state_label}` · {o.type} · `{resource_name}` · {o.created.strftime('%Y-%m-%d')}"
+            f"- `{state_label}` · {o.type} · {formatting.code_span(resource_name)} · "
+            f"{o.created.strftime('%Y-%m-%d')}"
         )
     return "\n".join(lines)
 
@@ -1152,8 +1162,9 @@ def handle_bot_command(room_id, sender, event_id, command):
 
     handler = COMMAND_HANDLERS.get(command)
     if handler is None:
-        reply = f"**Unknown command:** `!{command}`\n\n" + _cmd_help(
-            room_id, sender, event_id
+        reply = (
+            f"**Unknown command:** {formatting.code_span('!' + command)}\n\n"
+            + _cmd_help(room_id, sender, event_id)
         )
     else:
         try:
@@ -1161,7 +1172,8 @@ def handle_bot_command(room_id, sender, event_id, command):
         except Exception:
             logger.exception("Error handling command !%s in room %s", command, room_id)
             reply = (
-                f"**Error** processing command `!{command}`. Please try again later."
+                f"**Error** processing command {formatting.code_span('!' + command)}. "
+                "Please try again later."
             )
 
     try:
