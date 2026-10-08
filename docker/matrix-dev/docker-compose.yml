@@ -1,6 +1,6 @@
 services:
   tuwunel:
-    image: ghcr.io/matrix-construct/tuwunel:v1.9.0
+    image: ghcr.io/matrix-construct/tuwunel:v1.9.3
     restart: unless-stopped
     ports:
       - "6167:6167"
