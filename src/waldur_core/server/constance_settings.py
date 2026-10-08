@@ -1886,7 +1886,9 @@ CONSTANCE_CONFIG = {
     ),
     "MATRIX_USER_ID_FORMAT": (
         "username",
-        "Format for generating Matrix user IDs: username, uuid, or email_local.",
+        "Format for generating Matrix user IDs: username, uuid, or email_local. "
+        "Applies only to users provisioned afterwards; existing users keep their "
+        "Matrix ID.",
     ),
     "MATRIX_EXTERNAL_LOGIN_METHOD": (
         "none",

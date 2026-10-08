@@ -241,6 +241,10 @@ class WebDeviceTrackingTest(TestCase):
     @respx.mock
     def test_a_web_session_marks_the_user(self):
         self._mock_login()
+        # The bot is not a homeserver admin, as on most deployments.
+        respx.get(url__startswith=f"{HOMESERVER}/_synapse/admin/v2/users/").mock(
+            return_value=httpx.Response(403, json={"errcode": "M_FORBIDDEN"})
+        )
 
         matrix_client.create_web_session(self.user_id)
 

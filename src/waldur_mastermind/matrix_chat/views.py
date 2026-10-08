@@ -39,6 +39,7 @@ from .managers import (
     can_manage_room,
     filter_exports_for_request,
     get_accessible_room_ids,
+    get_unlinked_room_users,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ MATRIX_APPSERVICE_WEBHOOK_PATH = "/_matrix/app/v1/transactions/{txnId}"
 # Per-call budget for diagnostics httpx.get(). Set tighter than the cumulative
 # 5s/check so a single hung connection can't monopolize the staff's request.
 DIAGNOSTICS_TIMEOUT = httpx.Timeout(connect=3.0, read=2.0, write=2.0, pool=2.0)
+
+# Unlinked users named in diagnostics; the rest are only counted.
+UNLINKED_USERS_SHOWN = 10
 
 
 def _token_fingerprint(token):
@@ -1275,16 +1279,34 @@ class MatrixDiagnosticsView(views.APIView):
             }
         )
 
-        # Check 10: User profiles
+        # Check 10: User profiles, and the room members provisioning left
+        # without one, e.g. refused because their generated ID already has an
+        # account. Those have no chat, so the check fails; users outside every
+        # room have only never opened it.
         total_profiles = models.MatrixUserProfile.objects.count()
         provisioned = models.MatrixUserProfile.objects.filter(provisioned=True).count()
+        detail = f"{provisioned} provisioned out of {total_profiles} total"
+        unlinked = get_unlinked_room_users()
+        unlinked_count = unlinked.count()
+        if unlinked_count:
+            names = list(
+                unlinked.values_list("username", flat=True)[:UNLINKED_USERS_SHOWN]
+            )
+            more = unlinked_count - len(names)
+            detail += (
+                f"; {unlinked_count} room member(s) without a Matrix account: "
+                + ", ".join(names)
+                + (f" and {more} more" if more else "")
+                + ". The worker log says why; link an existing account with "
+                "`waldur link_matrix_account <user> <matrix id>`"
+            )
 
         checks.append(
             {
                 "name": "user_stats",
                 "label": "User profiles",
-                "ok": True,
-                "detail": f"{provisioned} provisioned out of {total_profiles} total",
+                "ok": not unlinked_count,
+                "detail": detail,
             }
         )
 

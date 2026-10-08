@@ -879,8 +879,8 @@ async def _register_user_async(
        password, Tuwunel does not).
     3. m.login.dummy — open registration fallback.
 
-    Returns the registration response dict on success, or None if the user
-    already exists.
+    Returns the registration response dict on success, or an empty dict if the
+    user already exists.
     """
     url = f"{homeserver_url}/_matrix/client/v3/register"
 
@@ -1043,6 +1043,10 @@ def ensure_user_exists(waldur_user):
     Ensure a Matrix user account exists via the standard Matrix registration API.
     Uses POST /_matrix/client/v3/register which works with any Matrix homeserver.
     Returns the matrix_user_id.
+
+    A user with a profile keeps the account it maps to. Without one, an ID
+    another user's profile holds is refused, and so is an account that already
+    exists: this Waldur did not create it.
     """
 
     # Check if we already have a profile
@@ -1060,13 +1064,32 @@ def ensure_user_exists(waldur_user):
     except MatrixUserProfile.DoesNotExist:
         profile = None
 
-    matrix_user_id = generate_matrix_user_id(waldur_user)
+    # Not the derived ID: after a change of MATRIX_USER_ID_FORMAT or username,
+    # or a deliberate link, that can be someone else's account.
+    if profile is not None:
+        matrix_user_id = profile.matrix_user_id
+    else:
+        matrix_user_id = generate_matrix_user_id(waldur_user)
     # The appservice acts for whatever ID a user maps to, so a user whose
     # username sanitises to the bot's localpart would act as the bot.
     if matrix_user_id == get_bot_user_id():
         raise MatrixClientError(
             f"{matrix_user_id} is reserved for the bot and cannot be provisioned"
         )
+    # Two users can derive one ID, e.g. alice@a.org and alice@b.org under
+    # email_local. The account is then Waldur's own, and linking cannot help.
+    if profile is None:
+        holder = (
+            MatrixUserProfile.objects.filter(matrix_user_id=matrix_user_id)
+            .exclude(user=waldur_user)
+            .select_related("user")
+            .first()
+        )
+        if holder:
+            raise MatrixClientError(
+                f"{matrix_user_id} is already linked to {holder.user.username}; "
+                f"{waldur_user.username} cannot be linked to it too"
+            )
 
     # Extract localpart from the full matrix user ID (@localpart:domain)
     localpart = matrix_user_id.split(":")[0].lstrip("@")
@@ -1085,11 +1108,40 @@ def ensure_user_exists(waldur_user):
         raise MatrixClientError(
             "MATRIX_APPSERVICE_AS_TOKEN must be configured for user provisioning"
         )
-    _run_async(
+    result = _run_async(
         _register_user_async(
             homeserver_url, bot_user_id, localpart, password, as_token, secret
         )
     )
+
+    # The account already existed. Without a profile here it is not one this
+    # Waldur created, e.g. the homeserver admin's or a self-registered user's,
+    # and the appservice would sign this user in as its owner. A profile for
+    # this ID that appeared meanwhile is a concurrent provisioning of this same
+    # user.
+    if not result and profile is None:
+        appeared = MatrixUserProfile.objects.filter(user=waldur_user).first()
+        if appeared is None:
+            # link_matrix_account refuses an admin's account, so don't point
+            # the operator at it.
+            _refuse_homeserver_admin(matrix_user_id)
+            raise MatrixClientError(
+                f"{matrix_user_id} already belongs to an account this Waldur did "
+                f"not create. Link it deliberately with `waldur link_matrix_account "
+                f"{waldur_user.username} {matrix_user_id}`, or give the user "
+                f"another Matrix ID."
+            )
+        if appeared.matrix_user_id != matrix_user_id:
+            # A link to another account landed meanwhile; the derived ID is
+            # still someone else's.
+            raise MatrixClientError(
+                f"{waldur_user.username} was linked to {appeared.matrix_user_id} "
+                f"meanwhile; try again"
+            )
+    # A profile linked before adoption was refused can map to the admin's
+    # account; reprovisioning re-adopts it otherwise.
+    if not result and profile is not None:
+        _refuse_homeserver_admin(matrix_user_id)
 
     # Create or update profile. get_or_create guards against a concurrent
     # provisioning task creating the same OneToOne profile between the earlier
@@ -1099,6 +1151,8 @@ def ensure_user_exists(waldur_user):
             user=waldur_user,
             defaults={"matrix_user_id": matrix_user_id},
         )
+        # A link that landed after a successful registration wins.
+        matrix_user_id = profile.matrix_user_id
 
     profile.mark_provisioned()
 
@@ -1334,6 +1388,9 @@ def create_web_session(matrix_user_id):
     the access token expires after the homeserver's access_token_ttl; a
     homeserver without refresh support returns neither expiry nor refresh token.
     """
+    # _appservice_login refuses the bot without asking the homeserver.
+    if matrix_user_id != get_bot_user_id():
+        _refuse_homeserver_admin(matrix_user_id)
     device_id = WEB_DEVICE_PREFIX + secrets.token_hex(6).upper()
     data = _appservice_login(
         matrix_user_id,
@@ -1348,6 +1405,54 @@ def create_web_session(matrix_user_id):
         "refresh_token": data.get("refresh_token"),
         "expires_in_ms": data.get("expires_in_ms"),
     }
+
+
+def is_homeserver_admin(matrix_user_id):
+    """Whether the homeserver reports the account as one of its admins.
+
+    The admin API answers the appservice only once the bot is a homeserver
+    admin itself; None means the homeserver would not tell.
+    """
+    response = _homeserver_call(
+        "GET",
+        f"/_synapse/admin/v2/users/{quote(matrix_user_id, safe='')}",
+        _get_as_token(),
+    )
+    body = _parse_json_response(response)
+    # Only an unknown user is known not to be an admin; any other 404 is an
+    # endpoint the homeserver lacks or a proxy blocks.
+    if response.status_code == 404 and body.get("errcode") == "M_NOT_FOUND":
+        return False
+    # A 200 without the flag, e.g. a proxy's page, says nothing either.
+    if response.status_code != 200 or not isinstance(body.get("admin"), bool):
+        return None
+    return body["admin"]
+
+
+def _refuse_homeserver_admin(matrix_user_id):
+    # An admin's session can run admin-room commands, so no Waldur user may
+    # hold one, whoever linked it.
+    if is_homeserver_admin(matrix_user_id):
+        raise MatrixClientError(
+            f"{matrix_user_id} is a homeserver admin; Waldur does not act as it "
+            "for a user"
+        )
+
+
+def account_exists(matrix_user_id):
+    """Whether the homeserver has an account with this ID."""
+    response = _homeserver_call(
+        "GET",
+        f"/_matrix/client/v3/profile/{quote(matrix_user_id, safe='')}",
+        _get_as_token(),
+    )
+    if response.status_code == 404:
+        return False
+    if response.status_code != 200:
+        raise MatrixClientError(
+            f"Could not look up {matrix_user_id}: {response.status_code} {response.text}"
+        )
+    return True
 
 
 # A web device, so pruning and deactivation remove it if signing it out fails.
