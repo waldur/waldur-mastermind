@@ -5338,11 +5338,11 @@ class ProviderOfferingViewSet(
         methods=["post"],
     )
     def remove_software_catalog(self, request, uuid=None):
-        self.get_object()
+        offering = self.get_object()
         offering_catalog_uuid = request.data.get("offering_catalog_uuid")
         try:
             offering_catalog = models.OfferingSoftwareCatalog.objects.get(
-                uuid=offering_catalog_uuid
+                uuid=offering_catalog_uuid, offering=offering
             )
         except models.OfferingSoftwareCatalog.DoesNotExist:
             return Response(
@@ -5444,10 +5444,12 @@ class ProviderOfferingViewSet(
         methods=["post"],
     )
     def remove_partition(self, request, uuid=None):
-        self.get_object()
+        offering = self.get_object()
         partition_uuid = request.data.get("partition_uuid")
         try:
-            partition = models.OfferingPartition.objects.get(uuid=partition_uuid)
+            partition = models.OfferingPartition.objects.get(
+                uuid=partition_uuid, offering=offering
+            )
         except models.OfferingPartition.DoesNotExist:
             return Response(
                 {"error": "Partition not found"},

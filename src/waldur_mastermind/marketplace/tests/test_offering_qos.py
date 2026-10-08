@@ -244,6 +244,29 @@ class SetPartitionQoSApiTest(test.APITestCase):
         )
 
 
+class RemovePartitionApiTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        self.client.force_login(self.fixture.offering_owner)
+        self.url = factories.OfferingFactory.get_url(self.offering, "remove_partition")
+
+    def test_owner_can_remove_partition(self):
+        partition = factories.OfferingPartitionFactory(offering=self.offering)
+        response = self.client.post(self.url, {"partition_uuid": partition.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            models.OfferingPartition.objects.filter(pk=partition.pk).exists()
+        )
+
+    def test_partition_of_another_offering_is_not_found(self):
+        foreign = factories.OfferingPartitionFactory()
+        response = self.client.post(self.url, {"partition_uuid": foreign.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(models.OfferingPartition.objects.filter(pk=foreign.pk).exists())
+
+
 class BackfillOfferingQoSTest(test.APITestCase):
     def test_backfill_creates_qos_and_default_link(self):
         offering = factories.OfferingFactory()

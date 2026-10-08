@@ -600,6 +600,74 @@ class OfferingSoftwareCatalogActionsTest(test.APITestCase):
             ).exists()
         )
 
+    def test_remove_software_catalog_of_another_offering_is_not_found(self):
+        foreign_link = factories.OfferingSoftwareCatalogFactory(catalog=self.catalog)
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.post(
+            self.base_url + "remove_software_catalog/",
+            {"offering_catalog_uuid": foreign_link.uuid.hex},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(
+            models.OfferingSoftwareCatalog.objects.filter(pk=foreign_link.pk).exists()
+        )
+
+    def test_add_software_catalog_with_own_partition(self):
+        partition = factories.OfferingPartitionFactory(offering=self.offering)
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.post(
+            self.base_url + "add_software_catalog/",
+            {"catalog": self.catalog.uuid.hex, "partition": partition.uuid.hex},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        link = models.OfferingSoftwareCatalog.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(link.partition, partition)
+
+    def test_add_software_catalog_with_partition_of_another_offering_is_rejected(
+        self,
+    ):
+        foreign_partition = factories.OfferingPartitionFactory()
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.post(
+            self.base_url + "add_software_catalog/",
+            {"catalog": self.catalog.uuid.hex, "partition": foreign_partition.uuid.hex},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("partition", response.data)
+        self.assertFalse(
+            models.OfferingSoftwareCatalog.objects.filter(
+                offering=self.offering
+            ).exists()
+        )
+
+    def test_update_software_catalog_with_partition_of_another_offering_is_rejected(
+        self,
+    ):
+        link = factories.OfferingSoftwareCatalogFactory(
+            offering=self.offering, catalog=self.catalog
+        )
+        foreign_partition = factories.OfferingPartitionFactory()
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.patch(
+            self.base_url + "update_software_catalog/",
+            {
+                "offering_catalog_uuid": link.uuid.hex,
+                "partition": foreign_partition.uuid.hex,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("partition", response.data)
+        link.refresh_from_db()
+        self.assertIsNone(link.partition)
+
     def test_offering_detail_includes_software_catalogs(self):
         """Test that offering detail includes associated software catalogs."""
         # Create associations
