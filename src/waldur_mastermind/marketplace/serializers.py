@@ -16420,6 +16420,20 @@ class OfferingSoftwareCatalogUpdateSerializer(serializers.ModelSerializer):
             "partition",
         )
 
+    def validate_catalog(self, catalog):
+        already_linked = (
+            models.OfferingSoftwareCatalog.objects.filter(
+                offering_id=self.instance.offering_id, catalog=catalog
+            )
+            .exclude(pk=self.instance.pk)
+            .exists()
+        )
+        if already_linked:
+            raise serializers.ValidationError(
+                _("This software catalog is already linked to the offering.")
+            )
+        return catalog
+
     def validate_partition(self, partition):
         if partition and partition.offering_id != self.instance.offering_id:
             raise serializers.ValidationError(

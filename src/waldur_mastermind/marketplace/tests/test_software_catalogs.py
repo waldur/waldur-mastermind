@@ -668,6 +668,63 @@ class OfferingSoftwareCatalogActionsTest(test.APITestCase):
         link.refresh_from_db()
         self.assertIsNone(link.partition)
 
+    def test_update_software_catalog_with_own_partition(self):
+        link = factories.OfferingSoftwareCatalogFactory(
+            offering=self.offering, catalog=self.catalog
+        )
+        partition = factories.OfferingPartitionFactory(offering=self.offering)
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.patch(
+            self.base_url + "update_software_catalog/",
+            {"offering_catalog_uuid": link.uuid.hex, "partition": partition.uuid.hex},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["partition"], partition.uuid)
+        link.refresh_from_db()
+        self.assertEqual(link.partition, partition)
+
+    def test_update_software_catalog_to_already_linked_catalog_is_rejected(self):
+        link = factories.OfferingSoftwareCatalogFactory(
+            offering=self.offering, catalog=self.catalog
+        )
+        other_catalog = factories.SoftwareCatalogFactory()
+        factories.OfferingSoftwareCatalogFactory(
+            offering=self.offering, catalog=other_catalog
+        )
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.patch(
+            self.base_url + "update_software_catalog/",
+            {"offering_catalog_uuid": link.uuid.hex, "catalog": other_catalog.uuid.hex},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("catalog", response.data)
+        link.refresh_from_db()
+        self.assertEqual(link.catalog, self.catalog)
+
+    def test_update_software_catalog_keeping_its_catalog(self):
+        link = factories.OfferingSoftwareCatalogFactory(
+            offering=self.offering, catalog=self.catalog
+        )
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.patch(
+            self.base_url + "update_software_catalog/",
+            {
+                "offering_catalog_uuid": link.uuid.hex,
+                "catalog": self.catalog.uuid.hex,
+                "enabled_cpu_family": ["aarch64"],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        link.refresh_from_db()
+        self.assertEqual(link.enabled_cpu_family, ["aarch64"])
+
     def test_offering_detail_includes_software_catalogs(self):
         """Test that offering detail includes associated software catalogs."""
         # Create associations
