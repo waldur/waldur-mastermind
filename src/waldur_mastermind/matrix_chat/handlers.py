@@ -12,7 +12,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.enums import OrderStates
 
-from . import matrix_client, room_provisioning, tasks
+from . import formatting, matrix_client, room_provisioning, tasks
 from .models import (
     MatrixRoom,
     MatrixRoomMember,
@@ -102,7 +102,7 @@ def on_role_granted(sender, instance: UserRole, **kwargs):
     role_name = _format_role_name(instance.role)
     room_uuid = str(room.uuid)
     user_uuid = str(user.uuid)
-    full_name = user.full_name or user.username
+    full_name = formatting.escape_markdown(user.full_name or user.username)
 
     def _on_commit():
         tasks.invite_user_to_room.delay(room_uuid, user_uuid)
@@ -126,7 +126,7 @@ def on_role_revoked(sender, instance: UserRole, **kwargs):
         if not room:
             return
         role_name = _format_role_name(instance.role)
-        full_name = user.full_name or user.username
+        full_name = formatting.escape_markdown(user.full_name or user.username)
         _notify_room(room, f"{full_name} has lost the {role_name} role.")
         rooms = [room]
     elif isinstance(scope, Customer):
@@ -396,7 +396,8 @@ def on_order_state_changed(sender, instance, created=False, **kwargs):
     )
 
     message = (
-        f"Order {verb}: {order_type} of {offering_name} (requested by {user_name})."
+        f"Order {verb}: {order_type} of {formatting.escape_markdown(offering_name)} "
+        f"(requested by {formatting.escape_markdown(user_name)})."
     )
 
     _notify_room(room, message)

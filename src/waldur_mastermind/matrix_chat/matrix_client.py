@@ -261,6 +261,9 @@ async def _create_room_async(
             name=name,
             alias=alias_localpart,
             visibility=RoomVisibility.private if is_private else RoomVisibility.public,
+            # Project rooms are for this Waldur's users only; no other server
+            # can ever join, whatever the homeserver's federation settings.
+            federate=False,
             invite=[],
             initial_state=[
                 {
@@ -307,6 +310,7 @@ async def _create_room_async(
                     visibility=RoomVisibility.private
                     if is_private
                     else RoomVisibility.public,
+                    federate=False,
                     invite=[],
                     initial_state=[
                         {
