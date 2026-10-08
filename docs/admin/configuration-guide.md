@@ -3633,7 +3633,7 @@ Shared secret for Matrix user registration.
 
 **Default value:** username
 
-Format for generating Matrix user IDs: username, uuid, or email_local.
+Format for generating Matrix user IDs: username, uuid, or email_local. Applies only to users provisioned afterwards; existing users keep their Matrix ID.
 
 #### MATRIX_EXTERNAL_LOGIN_METHOD
 
@@ -3641,7 +3641,7 @@ Format for generating Matrix user IDs: username, uuid, or email_local.
 
 **Default value:** none
 
-How users sign in to an external Matrix client such as Element: 'none' (Waldur offers no external sign-in), 'password' (a password Waldur derives for each user), or 'oidc' (single sign-on configured on the homeserver). Switching away from 'password' does not revoke passwords already shown or sign out external clients.
+How users sign in to an external Matrix client such as Element: 'none' (Waldur offers no external sign-in), 'password' (for testing and sites without an identity provider: users generate a password in Waldur; needs the Waldur bot to be a homeserver admin), or 'oidc' (single sign-on configured on the homeserver; use this in production). Switching away from 'password' revokes no generated password and signs out no external client; to refuse password logins, set login_with_password = false on the homeserver.
 
 #### MATRIX_LIVEKIT_KEY
 

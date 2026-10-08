@@ -920,6 +920,26 @@ options:
 
 Seed the terminal issue statuses, and the default request type used by the built-in service desk. Existing rows are left untouched, so the command is safe to re-run. Request types are seeded only when the active backend is one Waldur owns; a deployment backed by a remote service desk gets its types from there.
 
+## link_matrix_account
+
+Link a Waldur user to a Matrix account that already exists on the homeserver. Provisioning refuses to take over accounts this Waldur did not create; use this once you know the account belongs to the user.
+
+```bash
+
+usage: waldur link_matrix_account [--all] [username] [matrix_user_id]
+
+positional arguments:
+  username        Waldur username
+  matrix_user_id  e.g. @alice:chat.example.org
+
+options:
+  --all           Link every user without a Matrix profile to the existing
+                  account with their generated Matrix ID. Only for a Waldur
+                  database that was restored or reset against a homeserver
+                  whose accounts all belong to this Waldur's users.
+
+```
+
 ## list_missing_resources
 
 List OpenStack resources which are marked as missing at the backend. Deletion is left to the operator: each resource is linked to a marketplace resource, invoice items and order history.

@@ -604,10 +604,12 @@ td:nth-child(4) {
 | `on_order_state_changed` | `Django Signal (post_save)` | `marketplace.Order` | Notify the project's Matrix room when an order is approved, completed, or rejected. |
 | `on_project_created` | `Django Signal (post_save)` | `structure.Project` | Provision a Matrix room for a newly created project, when opted in. |
 | `on_project_pre_delete` | `Django Signal (pre_delete)` | `structure.Project` | When a project is about to be deleted, disable room (kick members, export, archive). |
-| `on_user_deactivated` | `Django Signal (post_save)` | `core.User` | Sign out every Matrix device of a deactivated user and remove them from their rooms. |
+| `on_room_permission_changed` | `Django Signal (post_save)` | `permissions.RolePermission` | Sync the project rooms of a role that gains or loses MATRIX_ROOM.CREATE. |
+| `on_room_permission_changed` | `Django Signal (post_delete)` | `permissions.RolePermission` | Sync the project rooms of a role that gains or loses MATRIX_ROOM.CREATE. |
+| `on_user_deactivated` | `Django Signal (post_save)` | `core.User` | Sign out every Matrix device of a deactivated user, remove them from |
 | `on_user_demoted` | `Django Signal (post_save)` | `core.User` | Take former staff and support out of the rooms they joined with the |
-| `on_user_pre_delete` | `Django Signal (pre_delete)` | `core.User` | End a deleted user's Matrix sessions and room memberships. |
-| `on_user_reactivated` | `Django Signal (post_save)` | `core.User` | Bring a reactivated user back into the rooms deactivation removed them from. |
+| `on_user_pre_delete` | `Django Signal (pre_delete)` | `core.User` | End a deleted user's Matrix sessions and room memberships, replace |
+| `on_user_reactivated` | `Django Signal (post_save)` | `core.User` | Unlock a reactivated user's Matrix account and bring them back into the |
 | `plan_component_has_been_updated` | `Django Signal (post_save)` | `marketplace.PlanComponent` | Log plan component updates. |
 | `plan_has_been_created_or_updated` | `Django Signal (post_save)` | `marketplace.Plan` | Log plan creation, update, and archiving events. |
 | `populate_volume_metadata_on_resource_creation` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
@@ -832,14 +834,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 753
+Total unique handlers found: 755
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 2 handlers
 - **waldur_core**: 345 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 347 handlers
+- **waldur_mastermind**: 349 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 14 handlers
 - **waldur_openstack_replication**: 1 handlers
