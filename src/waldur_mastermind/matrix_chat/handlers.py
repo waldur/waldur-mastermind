@@ -1,10 +1,13 @@
 import logging
 
 from constance import config
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import transaction
 from django_fsm import TransitionNotAllowed
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.enums import OrderStates
@@ -17,10 +20,21 @@ from .models import (
     MembershipStates,
     RoomStates,
     get_customer_roles_in_project_rooms,
+    get_project_rooms,
     keeps_room_access,
 )
 
 logger = logging.getLogger(__name__)
+
+# How long a change to MATRIX_ROOM.CREATE waits before its rooms are synced.
+# initdb loads permissions.yaml, custom-roles.yaml and permissions-override.yaml
+# one after another on every deployment, and each load resets the roles it
+# lists, so a later file that changes the permission takes it away and gives it
+# back moments later. The wait outlasts all of them. The claim that holds back
+# the rest of a burst is in the cache, which is shared between processes with
+# the DatabaseCache that Helm and docker-compose configure; with a per-process
+# cache each process schedules its own sync.
+ROLE_PERMISSION_SYNC_DELAY = 180
 
 
 def _get_room_for_project(project):
@@ -199,25 +213,10 @@ def on_user_reactivated(sender, instance, created=False, **kwargs):
     if not matrix_client.is_enabled():
         return
 
-    project_ids = UserRole.objects.filter(
-        user=instance,
-        is_active=True,
-        content_type=ContentType.objects.get_for_model(Project),
-    ).values("object_id")
-    customer_ids = UserRole.objects.filter(
-        user=instance,
-        is_active=True,
-        content_type=ContentType.objects.get_for_model(Customer),
-    ).values("object_id")
-    projects = Project.objects.filter(id__in=project_ids) | Project.objects.filter(
-        customer_id__in=customer_ids
-    )
     room_uuids = [
         str(uuid)
-        for uuid in MatrixRoom.objects.filter(
-            content_type=ContentType.objects.get_for_model(Project),
-            object_id__in=projects.values("id"),
-            state=RoomStates.ACTIVE,
+        for uuid in get_project_rooms(
+            UserRole.objects.filter(user=instance, is_active=True)
         ).values_list("uuid", flat=True)
     ]
 
@@ -226,6 +225,50 @@ def on_user_reactivated(sender, instance, created=False, **kwargs):
             tasks.sync_project_members_to_room.delay(room_uuid)
 
     transaction.on_commit(_on_commit)
+
+
+def on_room_permission_changed(sender, instance, created=None, **kwargs):
+    """Sync the project rooms of a role that gains or loses MATRIX_ROOM.CREATE.
+
+    The permission decides who is in a project room and who runs it, and member
+    sync only runs on demand, so otherwise no room would follow the change.
+    """
+    if instance.permission != PermissionEnum.CREATE_MATRIX_ROOM:
+        return
+    # A row saved again changes nothing; post_delete passes no created.
+    if created is False:
+        return
+    if not matrix_client.is_enabled():
+        return
+
+    role_id = instance.role_id
+    cache_key = f"matrix_chat:room_permission_sync:{role_id}"
+
+    def _schedule():
+        # Eager Celery ignores the countdown, so a claim would only swallow the
+        # changes after the first one.
+        if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+            tasks.sync_rooms_of_role.delay(role_id)
+            return
+        # One sync covers every change within the window: the room syncs read
+        # the role's permissions when they run.
+        if not cache.add(cache_key, True, timeout=ROLE_PERMISSION_SYNC_DELAY):
+            return
+        try:
+            tasks.sync_rooms_of_role.apply_async(
+                args=[role_id], countdown=ROLE_PERMISSION_SYNC_DELAY
+            )
+        except Exception:
+            # initdb runs on without RabbitMQ, so this must not abort it.
+            # Releasing the claim lets the next change schedule again.
+            cache.delete(cache_key)
+            logger.exception(
+                "Failed to schedule a sync of the rooms of role %s; "
+                "sync them with sync_members",
+                role_id,
+            )
+
+    transaction.on_commit(_schedule)
 
 
 def on_user_pre_delete(sender, instance, **kwargs):

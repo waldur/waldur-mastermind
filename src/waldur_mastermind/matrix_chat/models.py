@@ -11,6 +11,7 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
+from waldur_core.structure.models import Customer, Project
 
 logger = logging.getLogger(__name__)
 
@@ -222,12 +223,29 @@ def get_customer_roles_in_project_rooms(customer):
     """Active roles on the customer whose holders belong in its project rooms."""
     # Whoever may create the customer's chat rooms runs its chat, so they sit
     # in every room; other customer roles (support, reader) stay out.
-    # Taking the permission away from a role takes its holders out at the
-    # next member sync of each room.
+    # A role that gains or loses the permission has its rooms synced by
+    # tasks.sync_rooms_of_role.
     return UserRole.objects.filter(
         scope=customer,
         is_active=True,
         role__permissions__permission=PermissionEnum.CREATE_MATRIX_ROOM,
+    )
+
+
+def get_project_rooms(user_roles):
+    """Active project rooms the roles are on: a project role's room, and every
+    room of a customer role's projects."""
+    project_ct = ContentType.objects.get_for_model(Project)
+    customer_ct = ContentType.objects.get_for_model(Customer)
+    projects = Project.objects.filter(
+        id__in=user_roles.filter(content_type=project_ct).values("object_id")
+    ) | Project.objects.filter(
+        customer_id__in=user_roles.filter(content_type=customer_ct).values("object_id")
+    )
+    return MatrixRoom.objects.filter(
+        content_type=project_ct,
+        object_id__in=projects.values("id"),
+        state=RoomStates.ACTIVE,
     )
 
 

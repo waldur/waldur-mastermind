@@ -201,12 +201,16 @@ If you replaced `CUSTOMER.OWNER` wholesale in `custom-roles.yaml`, add
 The same permission on an organization also puts its holders in every room of
 the organization's projects (see [Member Sync](#member-sync)). Taking it away
 from organization owners therefore takes them out of those rooms as well, and
-giving it to another organization role brings that role's holders in. Neither
-happens when the role changes: each room catches up at its next member sync,
-so sync every room of the affected organizations
-(`POST /api/matrix/rooms/{uuid}/sync_members/`). The room list follows the new
-permissions at once. A grant on a single project does not: project roles
-already put their holders in that project's room.
+giving it to another organization role brings that role's holders in. Both
+happen by themselves: three minutes after the role's permissions change, Waldur
+syncs every active room the role has holders in, which also moves their power
+level. The wait covers deployment, which loads the role files one after another
+and so briefly takes away a permission that a later file gives back. Such a
+role, for example the `PROJECT.MANAGER` override above, therefore has its rooms
+synced once on every deployment, without changing anything in them. The room
+list follows the new permissions at once. A grant on a single project only
+changes the power level: project roles already put their holders in that
+project's room.
 
 To give every project a room without anyone asking for one:
 
@@ -376,6 +380,8 @@ When a room is created or a manual sync is triggered:
    - Regular member: power level 0
    - The bot account: power level 100
 
+   A level the user's roles no longer give is lowered again. Staff and support who joined with the Join action keep power level 50 whatever their roles.
+
 Member records are stored in `MatrixRoomMember` with membership states: `invited`, `joined`, `left`, `banned`.
 
 The same rule decides who else sees a room. A user sees a project's room in the room list, and reaches its members, media and history exports or answers to bot commands, only if a role would put them in it in step 1; each action may ask for more on top. Organization support and readers therefore do not see the rooms of the organization's projects. Staff and support users list every room.
@@ -390,6 +396,7 @@ The integration automatically responds to role changes:
 - **Project role revoked** — a notification is posted, and the user is kicked from the room unless a remaining role still puts them in it (see [Member Sync](#member-sync))
 - **Customer role revoked** — the user is kicked, without a notification, from each active room of the customer's projects that they are in and no remaining role puts them in
 - **Staff or support status lost** — staff and support keep a room they joined with the Join action only while they are active staff or support; afterwards they are kicked from it, unless a role puts them in it
+- **Role permissions changed** — when a role gains or loses `MATRIX_ROOM.CREATE`, through the role API or the role files loaded at deployment (`permissions.yaml`, `custom-roles.yaml`, `permissions-override.yaml`), every active room of the projects and organizations where the role has holders is synced three minutes later (see [Member Sync](#member-sync))
 - **Project deleted** — the room is disabled (members kicked, history exported, room archived)
 - **Order state changed** — notifications are posted when orders are approved, completed, rejected, canceled, or errored
 - **User deactivated or deleted** — a background task signs out every Matrix device of the user, Element included, and removes them from all their rooms. An open chat drawer then asks Waldur for a new session, gets none, and the user is returned to the login page. This runs even while chat is switched off (`MATRIX_ENABLED`), because open drawers renew their tokens with the homeserver directly. A user reactivated before the task runs keeps access, and reactivation invites them back to every room a role puts them in. The Matrix account itself stays active, so the user can still sign in to an external client but finds no rooms there; with `oidc`, disable the user at the IdP as well

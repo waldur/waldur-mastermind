@@ -1,14 +1,19 @@
+import io
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 from constance.test import override_config
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.core.cache import cache
+from django.core.management import call_command
+from django.test import TestCase, override_settings
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.matrix_chat import handlers, models
+from waldur_mastermind.matrix_chat import handlers, models, tasks
 
 
 def _create_room_for_project(project):
@@ -617,3 +622,195 @@ class OnUserDeletedTest(TestCase):
         self._delete()
 
         mock_task.delay.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
+class RoomPermissionChangedTest(TestCase):
+    # MATRIX_ROOM.CREATE decides who is in a project room and who runs it, and
+    # member sync only runs on demand, so a role gaining or losing it would
+    # otherwise reach no room until someone synced each of them.
+
+    def setUp(self):
+        cache.clear()
+
+    def _grant_earlier(self, role, mock_tasks):
+        role.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        # That change's window has passed.
+        cache.clear()
+        mock_tasks.reset_mock()
+
+    def _scheduled(self, mock_tasks):
+        return [
+            (call.kwargs["args"], call.kwargs["countdown"])
+            for call in mock_tasks.sync_rooms_of_role.apply_async.call_args_list
+        ]
+
+    def test_adding_it_schedules_a_sync_of_the_roles_rooms(
+        self, mock_client, mock_tasks
+    ):
+        mock_client.is_enabled.return_value = True
+        role = CustomerRole.SUPPORT
+
+        with self.captureOnCommitCallbacks(execute=True):
+            role.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+        self.assertEqual(
+            self._scheduled(mock_tasks),
+            [([role.id], handlers.ROLE_PERMISSION_SYNC_DELAY)],
+        )
+
+    def test_removing_it_schedules_a_sync_of_the_roles_rooms(
+        self, mock_client, mock_tasks
+    ):
+        mock_client.is_enabled.return_value = True
+        role = CustomerRole.OWNER
+        self._grant_earlier(role, mock_tasks)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            role.delete_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+        self.assertEqual(
+            self._scheduled(mock_tasks),
+            [([role.id], handlers.ROLE_PERMISSION_SYNC_DELAY)],
+        )
+
+    def test_taking_it_away_and_giving_it_back_schedules_one_sync(
+        self, mock_client, mock_tasks
+    ):
+        mock_client.is_enabled.return_value = True
+        role = CustomerRole.OWNER
+        self._grant_earlier(role, mock_tasks)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            role.delete_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+            role.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+        self.assertEqual(
+            self._scheduled(mock_tasks),
+            [([role.id], handlers.ROLE_PERMISSION_SYNC_DELAY)],
+        )
+
+    def test_other_permissions_schedule_nothing(self, mock_client, mock_tasks):
+        mock_client.is_enabled.return_value = True
+
+        with self.captureOnCommitCallbacks(execute=True):
+            CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_PROJECTS)
+
+        mock_tasks.sync_rooms_of_role.apply_async.assert_not_called()
+
+    def test_no_op_when_disabled(self, mock_client, mock_tasks):
+        mock_client.is_enabled.return_value = False
+
+        with self.captureOnCommitCallbacks(execute=True):
+            CustomerRole.SUPPORT.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+        mock_tasks.sync_rooms_of_role.apply_async.assert_not_called()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_eager_celery_syncs_every_change(self, mock_client, mock_tasks):
+        # The task runs at once, so nothing would come after a claimed change.
+        mock_client.is_enabled.return_value = True
+        role = CustomerRole.OWNER
+        self._grant_earlier(role, mock_tasks)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            role.delete_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+            role.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+        self.assertEqual(
+            mock_tasks.sync_rooms_of_role.delay.call_args_list,
+            [mock.call(role.id), mock.call(role.id)],
+        )
+        mock_tasks.sync_rooms_of_role.apply_async.assert_not_called()
+
+    def test_a_failed_publish_lets_the_next_change_schedule(
+        self, mock_client, mock_tasks
+    ):
+        # initdb carries on without RabbitMQ, so a publish that fails must not
+        # abort it, nor hold back the next change.
+        mock_client.is_enabled.return_value = True
+        mock_tasks.sync_rooms_of_role.apply_async.side_effect = [
+            RuntimeError("broker down"),
+            None,
+        ]
+        role = CustomerRole.SUPPORT
+
+        with self.captureOnCommitCallbacks(execute=True):
+            role.add_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+        with self.captureOnCommitCallbacks(execute=True):
+            role.delete_permission(PermissionEnum.CREATE_MATRIX_ROOM)
+
+        self.assertEqual(mock_tasks.sync_rooms_of_role.apply_async.call_count, 2)
+
+
+@mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
+@mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
+class RolePermissionDeploymentTest(TestCase):
+    # initdb loads permissions.yaml and then permissions-override.yaml on every
+    # deployment, so a role the override gives MATRIX_ROOM.CREATE loses it and
+    # gets it back each time.
+
+    def setUp(self):
+        cache.clear()
+        self.role = ProjectRole.MANAGER
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.roles_file = Path(directory.name) / "permissions.yaml"
+        self.roles_file.write_text(
+            f"- role: {self.role.name}\n"
+            "  permissions:\n"
+            f"    - {PermissionEnum.LIST_PROJECTS}\n"
+        )
+        self.override_file = Path(directory.name) / "permissions-override.yaml"
+        self.override_file.write_text(
+            f"- role: {self.role.name}\n"
+            "  add_permissions:\n"
+            f"    - {PermissionEnum.CREATE_MATRIX_ROOM}\n"
+        )
+        project = structure_factories.ProjectFactory()
+        project.add_user(structure_factories.UserFactory(), self.role)
+        self.room = _create_room_for_project(project)
+
+    def _deploy(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            call_command("import_roles", str(self.roles_file), stdout=io.StringIO())
+            call_command(
+                "override_roles", str(self.override_file), stdout=io.StringIO()
+            )
+
+    def _run_scheduled_sync(self, mock_tasks):
+        args = mock_tasks.sync_rooms_of_role.apply_async.call_args.kwargs["args"]
+        with (
+            mock.patch.object(tasks, "matrix_client") as task_client,
+            mock.patch.object(tasks, "sync_project_members_to_room") as room_sync,
+        ):
+            task_client.is_enabled.return_value = True
+            tasks.sync_rooms_of_role(*args)
+        return [call.args[0] for call in room_sync.delay.call_args_list]
+
+    def test_the_deployment_that_grants_it_syncs_the_room(
+        self, mock_client, mock_tasks
+    ):
+        mock_client.is_enabled.return_value = True
+
+        self._deploy()
+
+        self.assertEqual(self._run_scheduled_sync(mock_tasks), [str(self.room.uuid)])
+
+    def test_a_redeployment_syncs_the_room_once_after_the_role_files(
+        self, mock_client, mock_tasks
+    ):
+        # Taking the permission away and giving it back must not reach the
+        # room in between.
+        mock_client.is_enabled.return_value = True
+        self._deploy()
+        # The next deployment comes after the debounce window.
+        cache.clear()
+        mock_tasks.reset_mock()
+
+        self._deploy()
+
+        mock_tasks.sync_rooms_of_role.apply_async.assert_called_once_with(
+            args=[self.role.id], countdown=handlers.ROLE_PERMISSION_SYNC_DELAY
+        )

@@ -10,6 +10,7 @@ class MatrixChatConfig(AppConfig):
 
         from waldur_core.core.models import User
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.permissions.models import RolePermission
         from waldur_core.permissions.pat_filtering import register_pat_filter
         from waldur_core.structure.models import Project
         from waldur_mastermind.marketplace.models import Order
@@ -24,6 +25,18 @@ class MatrixChatConfig(AppConfig):
         permission_signals.role_revoked.connect(
             handlers.on_role_revoked,
             dispatch_uid="waldur_mastermind.matrix_chat.on_role_revoked",
+        )
+
+        signals.post_save.connect(
+            handlers.on_room_permission_changed,
+            sender=RolePermission,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_room_permission_added",
+        )
+
+        signals.post_delete.connect(
+            handlers.on_room_permission_changed,
+            sender=RolePermission,
+            dispatch_uid="waldur_mastermind.matrix_chat.on_room_permission_removed",
         )
 
         signals.post_save.connect(

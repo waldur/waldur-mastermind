@@ -8,6 +8,7 @@ from django.test import TestCase
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import models, tasks
 from waldur_mastermind.matrix_chat.tests import fixtures
@@ -224,6 +225,88 @@ class InviteUserTaskTest(TestCase):
 
         mock_client.set_power_level.assert_called_once_with(
             "!test:matrix.example.com", "@admin:matrix.example.com", 50
+        )
+
+    def test_lowers_the_power_level_of_a_former_admin(self, mock_client):
+        # A project admin given a member role instead is invited again by the
+        # grant, and must not keep the admin level in the room.
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@alice:matrix.example.com"
+        mock_client.get_power_level_for_scope.return_value = 0
+        project = structure_factories.ProjectFactory()
+        user = structure_factories.UserFactory(username="alice")
+        room = models.MatrixRoom.objects.create(
+            room_id="!test:matrix.example.com",
+            room_name="Test Room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+        )
+        models.MatrixRoomMember.objects.create(
+            room=room,
+            user=user,
+            matrix_user_id="@alice:matrix.example.com",
+            power_level=50,
+            membership_state=models.MembershipStates.JOINED,
+        )
+
+        tasks.invite_user_to_room(str(room.uuid), str(user.uuid))
+
+        mock_client.set_power_level.assert_called_once_with(
+            "!test:matrix.example.com", "@alice:matrix.example.com", 0
+        )
+        member = models.MatrixRoomMember.objects.get(room=room, user=user)
+        self.assertEqual(member.power_level, 0)
+
+    def test_records_the_member_when_the_power_level_cannot_be_set(self, mock_client):
+        # Revocation finds the rooms to kick a user from by their member rows.
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@alice:matrix.example.com"
+        mock_client.get_power_level_for_scope.return_value = 0
+        mock_client.set_power_level.side_effect = RuntimeError("homeserver down")
+        project = structure_factories.ProjectFactory()
+        user = structure_factories.UserFactory(username="alice")
+        room = models.MatrixRoom.objects.create(
+            room_id="!test:matrix.example.com",
+            room_name="Test Room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+        )
+
+        tasks.invite_user_to_room(str(room.uuid), str(user.uuid))
+
+        member = models.MatrixRoomMember.objects.get(room=room, user=user)
+        self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
+
+    def test_keeps_staff_who_joined_with_the_button_at_their_level(self, mock_client):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.return_value = "@staff:matrix.example.com"
+        mock_client.get_power_level_for_scope.return_value = 0
+        project = structure_factories.ProjectFactory()
+        staff = structure_factories.UserFactory(username="staff", is_staff=True)
+        room = models.MatrixRoom.objects.create(
+            room_id="!test:matrix.example.com",
+            room_name="Test Room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+        )
+        models.MatrixRoomMember.objects.create(
+            room=room,
+            user=staff,
+            matrix_user_id="@staff:matrix.example.com",
+            power_level=tasks.STAFF_POWER_LEVEL,
+            membership_state=models.MembershipStates.JOINED,
+            manually_joined=True,
+        )
+
+        tasks.invite_user_to_room(str(room.uuid), str(staff.uuid))
+
+        mock_client.set_power_level.assert_called_once_with(
+            "!test:matrix.example.com",
+            "@staff:matrix.example.com",
+            tasks.STAFF_POWER_LEVEL,
         )
 
 
@@ -836,6 +919,157 @@ class SyncDoesNotKickStaffTest(TestCase):
         tasks.sync_project_members_to_room(str(room.uuid))
 
         mock_client.kick_user.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class SyncPowerLevelTest(TestCase):
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.room = models.MatrixRoom.objects.create(
+            room_id="!sync:matrix.example.com",
+            room_name="Sync Room",
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(self.project),
+            object_id=self.project.id,
+        )
+
+    def _enable(self, mock_client):
+        mock_client.is_enabled.return_value = True
+        mock_client.ensure_user_exists.side_effect = (
+            lambda user: f"@{user.username}:matrix.example.com"
+        )
+        mock_client.get_power_level_for_scope.return_value = 0
+
+    def test_lowers_a_power_level_the_roles_no_longer_give(self, mock_client):
+        self._enable(mock_client)
+        user = structure_factories.UserFactory(username="alice")
+        self.project.add_user(user, ProjectRole.MEMBER)
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        mock_client.set_power_level.assert_called_once_with(
+            self.room.room_id, "@alice:matrix.example.com", 0
+        )
+
+    def test_keeps_staff_who_joined_with_the_button_at_their_level(self, mock_client):
+        # Staff hold the level by joining, not by a role, so a role they
+        # also have must not take it away.
+        self._enable(mock_client)
+        staff = structure_factories.UserFactory(username="staff", is_staff=True)
+        self.project.add_user(staff, ProjectRole.MEMBER)
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=staff,
+            matrix_user_id="@staff:matrix.example.com",
+            power_level=tasks.STAFF_POWER_LEVEL,
+            membership_state=models.MembershipStates.JOINED,
+            manually_joined=True,
+        )
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        mock_client.set_power_level.assert_called_once_with(
+            self.room.room_id, "@staff:matrix.example.com", tasks.STAFF_POWER_LEVEL
+        )
+        member = models.MatrixRoomMember.objects.get(room=self.room, user=staff)
+        self.assertEqual(member.power_level, tasks.STAFF_POWER_LEVEL)
+
+    def test_former_staff_fall_back_to_the_level_of_their_roles(self, mock_client):
+        self._enable(mock_client)
+        user = structure_factories.UserFactory(username="former")
+        self.project.add_user(user, ProjectRole.MEMBER)
+        models.MatrixRoomMember.objects.create(
+            room=self.room,
+            user=user,
+            matrix_user_id="@former:matrix.example.com",
+            power_level=tasks.STAFF_POWER_LEVEL,
+            membership_state=models.MembershipStates.JOINED,
+            manually_joined=True,
+        )
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        mock_client.set_power_level.assert_called_once_with(
+            self.room.room_id, "@former:matrix.example.com", 0
+        )
+
+    def test_records_the_member_when_the_power_level_cannot_be_set(self, mock_client):
+        # Revocation and the stale-member kick find members by their rows.
+        self._enable(mock_client)
+        mock_client.set_power_level.side_effect = RuntimeError("homeserver down")
+        user = structure_factories.UserFactory(username="alice")
+        self.project.add_user(user, ProjectRole.MEMBER)
+
+        tasks.sync_project_members_to_room(str(self.room.uuid))
+
+        member = models.MatrixRoomMember.objects.get(room=self.room, user=user)
+        self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.sync_project_members_to_room")
+@mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
+class SyncRoomsOfRoleTest(TestCase):
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.user = structure_factories.UserFactory()
+
+    def _room(self, customer):
+        project = structure_factories.ProjectFactory(customer=customer)
+        return models.MatrixRoom.objects.create(
+            room_id=f"!{project.uuid.hex}:matrix.example.com",
+            room_name=project.name,
+            state=models.RoomStates.ACTIVE,
+            content_type=ContentType.objects.get_for_model(project),
+            object_id=project.id,
+        )
+
+    def _synced(self, room_sync):
+        return [call.args[0] for call in room_sync.delay.call_args_list]
+
+    def test_syncs_the_rooms_of_the_organizations_where_the_role_is_held(
+        self, mock_client, room_sync
+    ):
+        mock_client.is_enabled.return_value = True
+        rooms = [self._room(self.customer), self._room(self.customer)]
+        self._room(structure_factories.CustomerFactory())
+        self.customer.add_user(self.user, CustomerRole.SUPPORT)
+
+        tasks.sync_rooms_of_role(CustomerRole.SUPPORT.id)
+
+        self.assertCountEqual(
+            self._synced(room_sync), [str(room.uuid) for room in rooms]
+        )
+
+    def test_a_project_role_syncs_only_the_rooms_of_its_projects(
+        self, mock_client, room_sync
+    ):
+        mock_client.is_enabled.return_value = True
+        room = self._room(self.customer)
+        self._room(self.customer)
+        room.project.add_user(self.user, ProjectRole.MANAGER)
+
+        tasks.sync_rooms_of_role(ProjectRole.MANAGER.id)
+
+        self.assertEqual(self._synced(room_sync), [str(room.uuid)])
+
+    def test_leaves_out_holders_whose_role_has_ended(self, mock_client, room_sync):
+        mock_client.is_enabled.return_value = True
+        self._room(self.customer)
+        self.customer.add_user(self.user, CustomerRole.SUPPORT)
+        UserRole.objects.filter(user=self.user).update(is_active=False)
+
+        tasks.sync_rooms_of_role(CustomerRole.SUPPORT.id)
+
+        room_sync.delay.assert_not_called()
+
+    def test_no_op_when_disabled(self, mock_client, room_sync):
+        mock_client.is_enabled.return_value = False
+        self._room(self.customer)
+        self.customer.add_user(self.user, CustomerRole.SUPPORT)
+
+        tasks.sync_rooms_of_role(CustomerRole.SUPPORT.id)
+
+        room_sync.delay.assert_not_called()
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")

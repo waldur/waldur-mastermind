@@ -10,9 +10,11 @@ from nio import (
     ReactionEvent,
     RedactedEvent,
     RedactionEvent,
+    RoomGetStateEventResponse,
     RoomMessageImage,
     RoomMessageText,
     RoomNameEvent,
+    RoomPutStateResponse,
     RoomTopicEvent,
     StickerEvent,
 )
@@ -631,6 +633,94 @@ class CreateRoomPowerLevelsTest(TestCase):
                     "org.matrix.msc3401.call.member": 0,
                 },
             },
+        )
+
+
+@mock.patch("waldur_mastermind.matrix_chat.matrix_client._get_client_params")
+@mock.patch("waldur_mastermind.matrix_chat.matrix_client._make_client")
+class SetPowerLevelTest(TestCase):
+    ROOM_ID = "!room:example.com"
+    USER_ID = "@alice:example.com"
+
+    def _set_power_level(
+        self, mock_make_client, mock_get_params, users, level, **room_defaults
+    ):
+        client = mock.AsyncMock()
+        client.room_get_state_event.return_value = RoomGetStateEventResponse(
+            content={"users": users, "state_default": 100, **room_defaults},
+            event_type="m.room.power_levels",
+            state_key="",
+            room_id=self.ROOM_ID,
+        )
+        client.room_put_state.return_value = RoomPutStateResponse(
+            event_id="$event", room_id=self.ROOM_ID
+        )
+        mock_make_client.return_value = client
+        mock_get_params.return_value = (
+            "http://matrix.example.com",
+            "@bot:example.com",
+            "token",
+        )
+        matrix_client.set_power_level(self.ROOM_ID, self.USER_ID, level)
+        return client
+
+    def test_raises_a_level(self, mock_make_client, mock_get_params):
+        client = self._set_power_level(
+            mock_make_client, mock_get_params, {"@bot:example.com": 100}, 50
+        )
+
+        client.room_put_state.assert_called_once_with(
+            self.ROOM_ID,
+            "m.room.power_levels",
+            {
+                "users": {"@bot:example.com": 100, self.USER_ID: 50},
+                "state_default": 100,
+            },
+        )
+
+    def test_lowering_to_the_default_takes_the_user_off_the_list(
+        self, mock_make_client, mock_get_params
+    ):
+        client = self._set_power_level(
+            mock_make_client,
+            mock_get_params,
+            {"@bot:example.com": 100, self.USER_ID: 50},
+            0,
+        )
+
+        client.room_put_state.assert_called_once_with(
+            self.ROOM_ID,
+            "m.room.power_levels",
+            {"users": {"@bot:example.com": 100}, "state_default": 100},
+        )
+
+    def test_leaves_an_unchanged_level_alone(self, mock_make_client, mock_get_params):
+        client = self._set_power_level(
+            mock_make_client, mock_get_params, {self.USER_ID: 50}, 50
+        )
+
+        client.room_put_state.assert_not_called()
+
+    def test_leaves_an_unlisted_user_at_the_default_alone(
+        self, mock_make_client, mock_get_params
+    ):
+        client = self._set_power_level(
+            mock_make_client, mock_get_params, {"@bot:example.com": 100}, 0
+        )
+
+        client.room_put_state.assert_not_called()
+
+    def test_writes_a_level_below_another_users_default(
+        self, mock_make_client, mock_get_params
+    ):
+        client = self._set_power_level(
+            mock_make_client, mock_get_params, {}, 0, users_default=10
+        )
+
+        client.room_put_state.assert_called_once_with(
+            self.ROOM_ID,
+            "m.room.power_levels",
+            {"users": {self.USER_ID: 0}, "state_default": 100, "users_default": 10},
         )
 
 
