@@ -187,6 +187,7 @@ class ServiceProviderUpdateTest(test.APITestCase):
         service_provider.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotEqual(service_provider.api_secret_code, old_secret_code)
+        self.assertEqual(len(service_provider.api_secret_code), 48)
 
     @data("user", "customer_support", "admin", "manager")
     def test_not_generate_api_secret_code(self, user):

@@ -1,11 +1,13 @@
 import datetime
 import decimal
+import warnings
 
 from ddt import data, ddt
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
+from jwt.warnings import InsecureKeyLengthWarning
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
@@ -123,6 +125,18 @@ class SubmitUsageTest(test.APITestCase):
             "/api/marketplace-public-api/check_signature/", payload
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_signature_check_does_not_warn_about_key_length(self):
+        payload = self.get_valid_payload()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            response = self.client.post(
+                "/api/marketplace-public-api/check_signature/", payload
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(
+            [w for w in caught if issubclass(w.category, InsecureKeyLengthWarning)]
+        )
 
     def test_invalid_signature(self):
         response = self.submit_usage(data="wrong_signature")
