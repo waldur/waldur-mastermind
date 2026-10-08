@@ -16,6 +16,8 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OPENSTACK_TENANT_OFFERING
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_openstack import models, tasks
 from waldur_openstack.backend import (
     OpenStackBackend,
@@ -224,6 +226,47 @@ class ImportTest(UnmanagedOwnerShareMixin, TestCase):
 
         self.assertFalse(models.Network.objects.filter(backend_id=NETWORK_ID).exists())
         self.assertFalse(models.Tenant.objects.filter(is_managed=False).exists())
+
+    def test_settings_without_an_organization_use_their_provider(self):
+        provider = structure_factories.CustomerFactory()
+        marketplace_factories.OfferingFactory(
+            scope=self.settings, type=OPENSTACK_TENANT_OFFERING, customer=provider
+        )
+        self.settings.customer = None
+        self.settings.save()
+
+        self.pull()
+
+        self.assertEqual(self.owner().project.customer, provider)
+
+    def test_tenant_offerings_of_different_providers_skip_the_share(self):
+        for _ in range(2):
+            marketplace_factories.OfferingFactory(
+                scope=self.settings, type=OPENSTACK_TENANT_OFFERING
+            )
+        self.settings.customer = None
+        self.settings.save()
+
+        self.pull()
+
+        self.assertFalse(models.Tenant.objects.filter(is_managed=False).exists())
+
+    def test_archived_tenant_offering_of_another_provider_is_ignored(self):
+        provider = structure_factories.CustomerFactory()
+        marketplace_factories.OfferingFactory(
+            scope=self.settings, type=OPENSTACK_TENANT_OFFERING, customer=provider
+        )
+        marketplace_factories.OfferingFactory(
+            scope=self.settings,
+            type=OPENSTACK_TENANT_OFFERING,
+            state=marketplace_models.Offering.States.ARCHIVED,
+        )
+        self.settings.customer = None
+        self.settings.save()
+
+        self.pull()
+
+        self.assertEqual(self.owner().project.customer, provider)
 
     def test_vanished_network_is_skipped(self):
         from neutronclient.common import exceptions as neutron_exceptions
