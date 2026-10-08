@@ -41,7 +41,12 @@ class MatrixCredentialsSerializer(serializers.Serializer):
     )
     homeserver_url = serializers.CharField()
     matrix_user_id = serializers.CharField()
-    password = serializers.CharField(required=False)
+
+
+class MatrixPasswordSerializer(serializers.Serializer):
+    homeserver_url = serializers.CharField()
+    matrix_user_id = serializers.CharField()
+    password = serializers.CharField()
 
 
 class MatrixSessionSerializer(serializers.Serializer):

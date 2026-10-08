@@ -130,6 +130,8 @@ REST_FRAMEWORK = {
         "oauth_default": "60/s",
         "token_exchange": "60/min",
         "matrix_credentials": "1000/hour",
+        # Each call replaces the user's Matrix password.
+        "matrix_password": "30/hour",
         # Each call is a homeserver login on a new device. The drawer calls it on
         # connect and when a token refresh is rejected, a few times an hour.
         "matrix_session": "120/hour",

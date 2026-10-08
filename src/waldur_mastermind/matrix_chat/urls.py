@@ -23,6 +23,11 @@ urlpatterns = [
         name="matrix-credentials",
     ),
     path(
+        "api/matrix/credentials/password/",
+        views.MatrixPasswordView.as_view(),
+        name="matrix-credentials-password",
+    ),
+    path(
         "api/matrix/session/",
         views.MatrixSessionView.as_view(),
         name="matrix-session",

@@ -1399,6 +1399,7 @@ class RevocationRetryTest(TestCase):
         for task in (
             tasks.end_matrix_access,
             tasks.end_deleted_user_access,
+            tasks.restore_matrix_access,
             tasks.kick_user_from_room,
             tasks.kick_member,
         ):

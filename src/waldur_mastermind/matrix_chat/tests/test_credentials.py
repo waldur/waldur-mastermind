@@ -102,7 +102,9 @@ class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
         self.assertEqual(response.data["method"], "password")
         self.assertEqual(response.data["homeserver_url"], "https://matrix.example.com")
         self.assertEqual(response.data["matrix_user_id"], profile.matrix_user_id)
-        self.assertIn("password", response.data)
+        # The user generates a password with POST credentials/password/; a
+        # password derived from the registration secret is never shown.
+        self.assertNotIn("password", response.data)
         for field in TOKEN_FIELDS + ("oidc_provider_url",):
             self.assertNotIn(field, response.data)
 
@@ -121,17 +123,6 @@ class MatrixCredentialsPasswordTest(MatrixCredentialsBaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["homeserver_url"], "https://waldur.example.com")
-
-    def test_password_method_without_secret_returns_error(self, mock_config):
-        mock_config.MATRIX_EXTERNAL_LOGIN_METHOD = "password"
-        mock_config.MATRIX_USER_REGISTRATION_SECRET = ""
-
-        self.fixture.matrix_user_profile
-        self.client.force_authenticate(self.fixture.admin)
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("MATRIX_USER_REGISTRATION_SECRET", response.data["detail"])
 
 
 @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")

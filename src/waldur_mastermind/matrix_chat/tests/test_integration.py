@@ -719,8 +719,24 @@ class MatrixWebSessionIntegrationTest(TestCase):
             timeout=5,
         )
         self.assertEqual(external.status_code, 200, external.text)
+        # The task leaves a user who is active again alone.
+        self.user.is_active = False
+        self.user.save()
 
         tasks.end_matrix_access(self.user.uuid.hex)
+
+        # A bot that is a homeserver admin has also locked the account, which
+        # then refuses the listing itself. Unlocked, so that what follows shows
+        # the devices are gone, not just refused.
+        listing = httpx.get(
+            f"{HOMESERVER_URL}/_matrix/client/v3/devices",
+            params={"user_id": self.matrix_user_id},
+            headers={"Authorization": f"Bearer {AS_TOKEN}"},
+            timeout=5,
+        )
+        if listing.status_code != 200:
+            self.assertEqual(listing.json()["errcode"], "M_USER_LOCKED")
+            matrix_client.set_locked(self.matrix_user_id, False)
 
         # External clients too: a deactivated user keeps no session at all.
         self.assertEqual(self._device_ids(), set())

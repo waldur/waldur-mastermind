@@ -1085,7 +1085,7 @@ class BotIdentityIsReservedTest(TestCase):
     @respx.mock
     def test_homeserver_errors_fail_registration_instead_of_falling_through(self):
         # A proxy error page would otherwise read as "flow not offered" and fall
-        # through to appservice registration, which sets no password on Tuwunel.
+        # through to the next flow against the same broken server.
         user = structure_factories.UserFactory()
         for body, content_type in [
             (b"<html>Bad Gateway</html>", "text/html"),

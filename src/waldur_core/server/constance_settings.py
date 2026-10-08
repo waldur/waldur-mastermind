@@ -122,7 +122,7 @@ SERVICE_ACCESS_MODE_CHOICES = [
 # signs in through the appservice and needs none of these.
 MATRIX_EXTERNAL_LOGIN_METHOD_CHOICES = [
     ("none", "None: Waldur offers no external sign-in"),
-    ("password", "Password derived for each user"),
+    ("password", "Password the user generates in Waldur"),
     ("oidc", "Single sign-on through the homeserver"),
 ]
 
@@ -1893,10 +1893,13 @@ CONSTANCE_CONFIG = {
     "MATRIX_EXTERNAL_LOGIN_METHOD": (
         "none",
         "How users sign in to an external Matrix client such as Element: "
-        "'none' (Waldur offers no external sign-in), 'password' (a password "
-        "Waldur derives for each user), or 'oidc' (single sign-on configured on "
-        "the homeserver). Switching away from 'password' does not revoke "
-        "passwords already shown or sign out external clients.",
+        "'none' (Waldur offers no external sign-in), 'password' (for testing "
+        "and sites without an identity provider: users generate a password in "
+        "Waldur; needs the Waldur bot to be a homeserver admin), or 'oidc' "
+        "(single sign-on configured on the homeserver; use this in production). "
+        "Switching away from 'password' revokes no generated password and signs "
+        "out no external client; to refuse password logins, set "
+        "login_with_password = false on the homeserver.",
         "choice_field",
     ),
     "MATRIX_LIVEKIT_KEY": (

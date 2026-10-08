@@ -20,7 +20,6 @@ from .models import (
     MembershipStates,
     RoomStates,
     get_customer_roles_in_project_rooms,
-    get_project_rooms,
     keeps_room_access,
 )
 
@@ -161,7 +160,8 @@ def on_role_revoked(sender, instance: UserRole, **kwargs):
 
 
 def on_user_deactivated(sender, instance, created=False, **kwargs):
-    """Sign out every Matrix device of a deactivated user and remove them from their rooms."""
+    """Sign out every Matrix device of a deactivated user, remove them from
+    their rooms and lock their Matrix account."""
     # previous() rather than has_changed(): a receiver that re-saves a new user
     # inside its own post_save reaches this one before the tracker is reset,
     # so has_changed() is true for a user who was never active.
@@ -204,27 +204,20 @@ def on_user_demoted(sender, instance, created=False, **kwargs):
 
 
 def on_user_reactivated(sender, instance, created=False, **kwargs):
-    """Bring a reactivated user back into the rooms deactivation removed them from."""
+    """Unlock a reactivated user's Matrix account and bring them back into the
+    rooms deactivation removed them from."""
     if created or not instance.is_active or instance.tracker.previous("is_active"):
         return
     # None: a user just created inside another receiver's post_save.
     if instance.tracker.previous("is_active") is None:
         return
-    if not matrix_client.is_enabled():
+    # Not is_enabled(): deactivation locks the account while chat is switched
+    # off, so reactivation has to unlock it then too.
+    if not matrix_client.is_homeserver_configured():
         return
 
-    room_uuids = [
-        str(uuid)
-        for uuid in get_project_rooms(
-            UserRole.objects.filter(user=instance, is_active=True)
-        ).values_list("uuid", flat=True)
-    ]
-
-    def _on_commit():
-        for room_uuid in room_uuids:
-            tasks.sync_project_members_to_room.delay(room_uuid)
-
-    transaction.on_commit(_on_commit)
+    user_uuid = instance.uuid.hex
+    transaction.on_commit(lambda: tasks.restore_matrix_access.delay(user_uuid))
 
 
 def on_room_permission_changed(sender, instance, created=None, **kwargs):
@@ -272,7 +265,8 @@ def on_room_permission_changed(sender, instance, created=None, **kwargs):
 
 
 def on_user_pre_delete(sender, instance, **kwargs):
-    """End a deleted user's Matrix sessions and room memberships.
+    """End a deleted user's Matrix sessions and room memberships, replace
+    their Matrix password and lock the account.
 
     The Matrix profile and room memberships are deleted with the user, so they
     are read now and handed to the task, which runs once the deletion commits.
