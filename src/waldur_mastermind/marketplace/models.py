@@ -208,7 +208,10 @@ class ServiceProvider(
         ).count()
 
     def generate_api_secret_code(self):
-        self.api_secret_code = core_utils.pwgen()
+        # The code is the HS256 key for signed public API calls. RFC 7518
+        # wants at least 256 bits of key; 48 chars of pwgen's 54-symbol
+        # alphabet give ~276 bits, and PyJWT warns on keys under 32 bytes.
+        self.api_secret_code = core_utils.pwgen(48)
 
     def save(self, *args, **kwargs):
         if not self.pk:

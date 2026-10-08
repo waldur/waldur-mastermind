@@ -4,6 +4,7 @@ Octavia Load Balancer API client.
 
 import logging
 
+from keystoneauth1 import exceptions as keystone_exceptions
 from openstack import exceptions as openstack_exceptions
 from openstack.connection import Connection
 
@@ -58,7 +59,21 @@ class OctaviaClient:
         """Check whether the Octavia (load-balancer) service is in the catalog."""
         try:
             conn = self._get_connection()
-            return conn.has_service("load-balancer")
+            # Query the keystone catalog directly: Connection.has_service()
+            # logs a warning on every miss, which floods the worker log on a
+            # cloud without Octavia since this runs for each tenant per pull.
+            # Interface and region come from the same config has_service()
+            # and the load_balancer proxy resolve the endpoint with.
+            service_type = "load-balancer"
+            return bool(
+                conn.session.get_endpoint(
+                    service_type=service_type,
+                    interface=conn.config.get_interface(service_type),
+                    region_name=conn.config.get_region_name(service_type),
+                )
+            )
+        except keystone_exceptions.EndpointNotFound:
+            return False
         except Exception as e:
             logger.warning(
                 "Failed to check Octavia availability for tenant %s: %s",

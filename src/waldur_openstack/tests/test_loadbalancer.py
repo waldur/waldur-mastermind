@@ -1,5 +1,6 @@
 from unittest import mock
 
+from keystoneauth1 import exceptions as keystone_exceptions
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
@@ -990,7 +991,7 @@ class OctaviaAvailabilityGuardTest(test.APITestCase):
 
     @mock.patch.object(OctaviaClient, "_get_connection")
     def test_connection_raises_when_octavia_not_available(self, mock_conn):
-        mock_conn.return_value.has_service.return_value = False
+        mock_conn.return_value.session.get_endpoint.return_value = None
         client = OctaviaClient(self.tenant)
         with self.assertRaises(OpenStackBackendError) as ctx:
             _ = client.connection
@@ -998,14 +999,37 @@ class OctaviaAvailabilityGuardTest(test.APITestCase):
 
     @mock.patch.object(OctaviaClient, "_get_connection")
     def test_connection_succeeds_when_octavia_available(self, mock_conn):
-        mock_conn.return_value.has_service.return_value = True
+        mock_conn.return_value.session.get_endpoint.return_value = (
+            "https://octavia.example.com"
+        )
         mock_conn.return_value.load_balancer = mock.MagicMock()
         client = OctaviaClient(self.tenant)
         self.assertIsNotNone(client.connection)
 
     @mock.patch.object(OctaviaClient, "_get_connection")
+    def test_catalog_lookup_uses_connection_interface_and_region(self, mock_conn):
+        conn = mock_conn.return_value
+        conn.config.get_interface.return_value = "internal"
+        conn.config.get_region_name.return_value = "RegionTwo"
+        conn.session.get_endpoint.return_value = "https://octavia.example.com"
+        self.assertTrue(OctaviaClient(self.tenant).is_available())
+        conn.session.get_endpoint.assert_called_once_with(
+            service_type="load-balancer",
+            interface="internal",
+            region_name="RegionTwo",
+        )
+
+    @mock.patch.object(OctaviaClient, "_get_connection")
+    def test_missing_catalog_entry_is_not_available(self, mock_conn):
+        mock_conn.return_value.session.get_endpoint.side_effect = (
+            keystone_exceptions.EndpointNotFound()
+        )
+        self.assertFalse(OctaviaClient(self.tenant).is_available())
+        mock_conn.return_value.has_service.assert_not_called()
+
+    @mock.patch.object(OctaviaClient, "_get_connection")
     def test_create_load_balancer_fails_when_octavia_not_available(self, mock_conn):
-        mock_conn.return_value.has_service.return_value = False
+        mock_conn.return_value.session.get_endpoint.return_value = None
         client = OctaviaClient(self.tenant)
         lb = factories.LoadBalancerFactory(
             tenant=self.tenant,

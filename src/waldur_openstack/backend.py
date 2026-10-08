@@ -8012,7 +8012,7 @@ class OpenStackBackend(ServiceBackend):
         """Sync load balancers from Octavia for the tenant."""
         octavia_client = get_octavia_client(tenant)
         if not octavia_client.is_available():
-            logger.info(
+            logger.debug(
                 "Octavia service is not available for tenant %s, skipping load balancer sync.",
                 tenant,
             )
