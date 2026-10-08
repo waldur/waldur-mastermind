@@ -16371,6 +16371,14 @@ class OfferingSoftwareCatalogSerializer(serializers.ModelSerializer):
             "partition_name",
         )
 
+    def validate(self, attrs):
+        partition = attrs.get("partition")
+        if partition and partition.offering_id != attrs["offering"].id:
+            raise serializers.ValidationError(
+                {"partition": _("Partition does not belong to this offering.")}
+            )
+        return attrs
+
 
 class OfferingSoftwareCatalogUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating OfferingSoftwareCatalog model."""
@@ -16411,6 +16419,13 @@ class OfferingSoftwareCatalogUpdateSerializer(serializers.ModelSerializer):
             "enabled_cpu_microarchitectures",
             "partition",
         )
+
+    def validate_partition(self, partition):
+        if partition and partition.offering_id != self.instance.offering_id:
+            raise serializers.ValidationError(
+                _("Partition does not belong to this offering.")
+            )
+        return partition
 
 
 class OfferingPartitionUpdateSerializer(serializers.ModelSerializer):
