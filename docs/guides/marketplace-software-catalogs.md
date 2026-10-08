@@ -140,12 +140,14 @@ Configure automated updates through constance settings:
 
 The `update_software_catalogs` task runs daily at 3 AM and:
 
-1. **Updates only existing catalogs**: The task never creates new catalog records. If no catalog exists in the database for a given name/type, the task skips it with a warning. Create catalogs first via the API, management commands, or the `discover` endpoint to see what's available.
-2. **EESSI multi-version**: When several EESSI catalogs exist (for example `2023.06`, `2025.06`, and `2026.06`), each is refreshed independently with its own version. Multiple versions are intentional and may all be linked to the same offering.
-3. **Independent Processing**: Each catalog is updated independently - failures don't affect other catalogs
+1. **Updates only existing catalogs**: The task never creates new catalog records. If no catalog exists in the database for a given name/type, the task skips it with a warning. Create catalogs first via the API, management commands, or the `discover` / `import_catalog` endpoints.
+2. **Multi-version catalogs**: When several rows share a name/type (EESSI releases such as `2023.06` / `2026.06`, or Spack snapshot dates), **each version is refreshed independently**. The version string is never rewritten; import a new upstream version to add another row.
+3. **Independent Processing**: Each catalog source is updated independently - failures don't affect other sources
 4. **Configuration Validation**: Validates settings before attempting updates
 5. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
 6. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
+
+`import_catalog` creates the upstream-detected version when that exact `(name, version, type)` is not already stored. Another EESSI/Spack version already in the database does **not** block the import.
 
 > **Note:** Both `SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED` and `SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED` default to `false`. Enable them explicitly after creating the initial catalog records.
 

@@ -1962,6 +1962,31 @@ class SoftwareCatalogDiscoverTest(test.APITestCase):
         self.assertEqual(eessi["existing_version"], "2024.01")
         self.assertTrue(eessi["update_available"])
 
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_eessi_version",
+        return_value="2025.06",
+    )
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_spack_version",
+        return_value="2026.01.15",
+    )
+    def test_discover_update_available_false_when_latest_already_stored(
+        self, mock_spack, mock_eessi
+    ):
+        factories.SoftwareCatalogFactory(
+            name="EESSI", version="2023.06", catalog_type="binary_runtime"
+        )
+        factories.SoftwareCatalogFactory(
+            name="EESSI", version="2025.06", catalog_type="binary_runtime"
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        eessi = next(e for e in response.data if e["name"] == "EESSI")
+        self.assertTrue(eessi["existing"])
+        self.assertFalse(eessi["update_available"])
+
     @data("owner", "user", "customer_support", "admin", "manager")
     def test_non_staff_cannot_discover(self, user):
         user = getattr(self.fixture, user)
@@ -2006,25 +2031,59 @@ class SoftwareCatalogImportTest(test.APITestCase):
         self.fixture = fixtures.ProjectFixture()
         self.url = factories.SoftwareCatalogFactory.get_list_url() + "import_catalog/"
 
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_eessi_version",
+        return_value="2026.06",
+    )
     @patch.object(tasks.import_software_catalog, "delay")
-    def test_staff_can_import_catalog(self, mock_delay):
+    def test_staff_can_import_catalog(self, mock_delay, mock_detect):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, {"name": "EESSI"})
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.assertEqual(response.data["status"], "importing")
         self.assertEqual(response.data["name"], "EESSI")
+        self.assertEqual(response.data["version"], "2026.06")
         mock_delay.assert_called_once_with("EESSI", "binary_runtime")
 
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_eessi_version",
+        return_value="2026.06",
+    )
     @patch.object(tasks.import_software_catalog, "delay")
-    def test_import_duplicate_catalog_fails(self, mock_delay):
-        factories.SoftwareCatalogFactory(name="EESSI", catalog_type="binary_runtime")
+    def test_import_same_version_fails(self, mock_delay, mock_detect):
+        factories.SoftwareCatalogFactory(
+            name="EESSI", version="2026.06", catalog_type="binary_runtime"
+        )
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, {"name": "EESSI"})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("2026.06", str(response.data))
         mock_delay.assert_not_called()
+
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_eessi_version",
+        return_value="2026.06",
+    )
+    @patch.object(tasks.import_software_catalog, "delay")
+    def test_import_new_version_allowed_when_other_versions_exist(
+        self, mock_delay, mock_detect
+    ):
+        factories.SoftwareCatalogFactory(
+            name="EESSI", version="2023.06", catalog_type="binary_runtime"
+        )
+        factories.SoftwareCatalogFactory(
+            name="EESSI", version="2025.06", catalog_type="binary_runtime"
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"name": "EESSI"})
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(response.data["version"], "2026.06")
+        mock_delay.assert_called_once_with("EESSI", "binary_runtime")
 
     def test_import_unknown_catalog_fails(self):
         self.client.force_authenticate(self.fixture.staff)
