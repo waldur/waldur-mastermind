@@ -9,7 +9,10 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.matrix_chat import models, views
-from waldur_mastermind.matrix_chat.matrix_client import MatrixClientError
+from waldur_mastermind.matrix_chat.matrix_client import (
+    MatrixClientError,
+    MatrixUserLocked,
+)
 from waldur_mastermind.matrix_chat.tests import fixtures
 
 SESSION = {
@@ -101,6 +104,40 @@ class MatrixSessionTest(test.APITestCase):
         self.assertNotIn("internal detail", str(response.data))
         mock_prune.delay.assert_not_called()
 
+    def test_a_locked_account_needs_an_administrator(
+        self, mock_ensure, mock_session, mock_prune
+    ):
+        # Waldur unlocks an account only at reactivation, so "try again
+        # later" would send the user round in circles.
+        mock_session.side_effect = MatrixUserLocked("401 M_USER_LOCKED")
+        self.client.force_authenticate(self.user)
+
+        with self.assertLogs("waldur_mastermind.matrix_chat.views", "WARNING") as cm:
+            response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(
+            response.data["detail"],
+            "Your chat account is locked; ask your administrator.",
+        )
+        self.assertIn("reactivate", cm.output[0])
+        mock_prune.delay.assert_not_called()
+
+    def test_an_account_locked_by_a_deactivation_just_now_is_forbidden(
+        self, mock_ensure, mock_session, mock_prune
+    ):
+        # The deactivation's task was faster than this request.
+        def locked_by_the_deactivation(matrix_user_id):
+            type(self.user).objects.filter(pk=self.user.pk).update(is_active=False)
+            raise MatrixUserLocked("401 M_USER_LOCKED")
+
+        mock_session.side_effect = locked_by_the_deactivation
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_provisioning_error_is_unavailable(
         self, mock_ensure, mock_session, mock_prune
     ):
@@ -132,11 +169,13 @@ class MatrixSessionTest(test.APITestCase):
                     response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE
                 )
 
+    @mock.patch("waldur_mastermind.matrix_chat.views.tasks.end_matrix_access")
     @mock.patch("waldur_mastermind.matrix_chat.matrix_client.logout_device")
     def test_session_racing_a_deactivation_is_signed_out(
-        self, mock_logout, mock_ensure, mock_session, mock_prune
+        self, mock_logout, mock_end, mock_ensure, mock_session, mock_prune
     ):
-        # end_matrix_access may have listed the devices before this one existed.
+        # end_matrix_access may have listed the devices before this one existed,
+        # or run before this request provisioned the account it locks.
         def deactivated_meanwhile(matrix_user_id):
             type(self.user).objects.filter(pk=self.user.pk).update(is_active=False)
             return SESSION
@@ -148,6 +187,7 @@ class MatrixSessionTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         mock_logout.assert_called_once_with("@alice:example.com", SESSION["device_id"])
+        mock_end.delay.assert_called_once_with(self.user.uuid.hex)
         mock_prune.delay.assert_not_called()
 
     def test_hidden_when_matrix_is_disabled(

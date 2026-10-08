@@ -307,26 +307,42 @@ class ProjectRoleRevokedStaffTest(TestCase):
 @mock.patch("waldur_mastermind.matrix_chat.handlers.tasks")
 @mock.patch("waldur_mastermind.matrix_chat.handlers.matrix_client")
 class ReactivationTest(TestCase):
-    def test_reactivation_resyncs_the_users_project_rooms(
-        self, mock_client, mock_tasks
-    ):
-        # Deactivation kicked them; nothing else brings them back.
-        mock_client.is_enabled.return_value = True
-        mock_client.is_homeserver_configured.return_value = True
-        project = structure_factories.ProjectFactory()
-        room = _room(project)
+    def _reactivate(self):
         user = structure_factories.UserFactory()
-        project.add_user(user, ProjectRole.MEMBER)
         user.is_active = False
         user.save()
 
         user.is_active = True
         with self.captureOnCommitCallbacks(execute=True):
             user.save()
+        return user
 
-        mock_tasks.sync_project_members_to_room.delay.assert_called_once_with(
-            str(room.uuid)
-        )
+    def test_reactivation_restores_the_users_matrix_access(
+        self, mock_client, mock_tasks
+    ):
+        # Deactivation locked the account and kicked them; nothing else
+        # unlocks it or brings them back.
+        mock_client.is_homeserver_configured.return_value = True
+
+        user = self._reactivate()
+
+        mock_tasks.restore_matrix_access.delay.assert_called_once_with(user.uuid.hex)
+
+    def test_runs_while_chat_is_switched_off(self, mock_client, mock_tasks):
+        # Deactivation locks the account then too.
+        mock_client.is_enabled.return_value = False
+        mock_client.is_homeserver_configured.return_value = True
+
+        user = self._reactivate()
+
+        mock_tasks.restore_matrix_access.delay.assert_called_once_with(user.uuid.hex)
+
+    def test_skips_without_a_homeserver(self, mock_client, mock_tasks):
+        mock_client.is_homeserver_configured.return_value = False
+
+        self._reactivate()
+
+        mock_tasks.restore_matrix_access.delay.assert_not_called()
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
@@ -445,12 +461,17 @@ class FailedLogoutStillKicksTest(TestCase):
         self, mock_client, mock_kick_member
     ):
         # One device the homeserver keeps rejecting must not keep the user in
-        # every room through all retries.
+        # every room through all retries. Retried, as the account could not be
+        # locked either.
         mock_client.is_homeserver_configured.return_value = True
         mock_client.MatrixClientError = matrix_client.MatrixClientError
+        mock_client.MatrixAdminRequired = matrix_client.MatrixAdminRequired
+        mock_client.MatrixUserLocked = matrix_client.MatrixUserLocked
+        mock_client.MatrixUserNotFound = matrix_client.MatrixUserNotFound
         mock_client.logout_all_devices.side_effect = matrix_client.MatrixClientError(
             "503"
         )
+        mock_client.set_locked.side_effect = matrix_client.MatrixAdminRequired("403")
         project = structure_factories.ProjectFactory()
         room = _room(project)
         user = structure_factories.UserFactory(is_active=False)

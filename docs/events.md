@@ -522,6 +522,7 @@
 - marketplace_offering_user_created
 - marketplace_offering_user_deleted
 - marketplace_offering_user_restriction_updated
+- matrix_password_generated
 - passkey_authentication_failed
 - passkey_authentication_succeeded
 - passkey_registered

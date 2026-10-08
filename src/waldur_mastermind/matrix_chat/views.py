@@ -3,6 +3,7 @@ import hmac
 import logging
 import re
 import secrets
+from urllib.parse import quote
 
 import httpx
 import yaml
@@ -22,6 +23,8 @@ from rest_framework.throttling import ScopedRateThrottle
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.models import User
 from waldur_core.core.views import ActionsViewSet
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
 
@@ -494,8 +497,9 @@ class MatrixCredentialsView(views.APIView):
         summary="Get Matrix login credentials",
         responses={200: serializers.MatrixCredentialsSerializer},
         description="Returns what an external Matrix client needs to sign the "
-        "authenticated user in, per MATRIX_EXTERNAL_LOGIN_METHOD: a password "
-        "only in password mode, and never an access token.",
+        "authenticated user in, per MATRIX_EXTERNAL_LOGIN_METHOD. Never a "
+        "password or an access token: in password mode the user generates a "
+        "password with POST /api/matrix/credentials/password/.",
     )
     def get(self, request):
         # Don't auto-provision a Matrix account for callers when the integration
@@ -522,6 +526,95 @@ class MatrixCredentialsView(views.APIView):
         return Response(credentials)
 
 
+class MatrixPasswordView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_password"
+
+    @extend_schema(
+        summary="Generate a Matrix password",
+        request=None,
+        responses={
+            200: serializers.MatrixPasswordSerializer,
+            403: OpenApiResponse(
+                description="The user was deactivated while the request ran."
+            ),
+            404: OpenApiResponse(description="Matrix chat is not enabled."),
+            409: OpenApiResponse(description="Matrix passwords are not in use."),
+            503: OpenApiResponse(
+                description="The homeserver did not set it: either the Waldur bot "
+                "is not a homeserver admin yet, the homeserver's admin API is "
+                "not reachable or the account is a homeserver admin's, which "
+                "needs an operator, or the homeserver failed and a later try "
+                "may succeed. The detail says which."
+            ),
+        },
+        description="Sets a new random password on the authenticated user's "
+        "Matrix account and returns it. It is not stored, so it is shown only "
+        "in this response; generating again replaces it. Only in password mode.",
+    )
+    def post(self, request):
+        if not matrix_client.is_enabled():
+            raise Http404
+        if config.MATRIX_EXTERNAL_LOGIN_METHOD != "password":
+            return Response(
+                {"detail": "Matrix passwords are not in use on this site."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        password = matrix_client.new_password()
+        try:
+            matrix_user_id = matrix_client.ensure_user_exists(request.user)
+            matrix_client.set_password(matrix_user_id, password)
+        except (
+            matrix_client.MatrixAdminRequired,
+            matrix_client.MatrixAccountIsHomeserverAdmin,
+        ) as e:
+            # Stays so until an operator acts: makes the bot a homeserver
+            # admin, or takes the user off an admin's account.
+            logger.warning(
+                "Could not set the Matrix password of %s: %s", request.user, e
+            )
+            return Response(
+                {
+                    "detail": "Matrix passwords are not available yet; ask your "
+                    "administrator."
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except (matrix_client.MatrixClientError, httpx.HTTPError, ValueError) as e:
+            logger.warning(
+                "Could not set the Matrix password of %s: %s", request.user, e
+            )
+            return Response(
+                {"detail": "Chat is unavailable right now. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # A deactivation committed meanwhile may have found no Matrix account
+        # to lock yet, and would never lock the one provisioned here.
+        if not User.all_objects.filter(pk=request.user.pk, is_active=True).exists():
+            tasks.end_matrix_access.delay(request.user.uuid.hex)
+            raise PermissionDenied("This account has been deactivated.")
+
+        event_logger.emit(
+            "User {affected_user_username} has generated a Matrix password.",
+            event_type=EventType.MATRIX_PASSWORD_GENERATED,
+            event_context={"affected_user": request.user},
+            scopes=[request.user],
+        )
+
+        serializer = serializers.MatrixPasswordSerializer(
+            {
+                "homeserver_url": matrix_client.get_public_homeserver_url(),
+                "matrix_user_id": matrix_user_id,
+                "password": password,
+            }
+        )
+        response = Response(serializer.data)
+        response["Cache-Control"] = "no-store"
+        return response
+
+
 class MatrixSessionView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
     # Called when the chat drawer connects and when its Matrix refresh is
@@ -536,7 +629,9 @@ class MatrixSessionView(views.APIView):
             200: serializers.MatrixSessionSerializer,
             404: OpenApiResponse(description="Matrix chat is not enabled."),
             503: OpenApiResponse(
-                description="The homeserver could not start a session; try again later."
+                description="The homeserver could not start a session: either it "
+                "failed and a later try may succeed, or the user's Matrix account "
+                "is locked, which needs an operator. The detail says which."
             ),
         },
         description="Signs the caller in to Matrix on a new web device and returns "
@@ -548,6 +643,23 @@ class MatrixSessionView(views.APIView):
         try:
             matrix_user_id = matrix_client.ensure_user_exists(request.user)
             session = matrix_client.create_web_session(matrix_user_id)
+        except matrix_client.MatrixUserLocked as e:
+            # A deactivation committed meanwhile, whose task was faster.
+            if not User.all_objects.filter(pk=request.user.pk, is_active=True).exists():
+                raise PermissionDenied("This account has been deactivated.")
+            # Waldur locks an account at deactivation and unlocks it only at
+            # reactivation, so this stays so until an operator acts: the unlock
+            # failed, or the account was a deleted user's.
+            logger.warning(
+                "The Matrix account of %s is locked: %s. Deactivate and "
+                "reactivate the user, or unlock the account on the homeserver",
+                request.user,
+                e,
+            )
+            return Response(
+                {"detail": "Your chat account is locked; ask your administrator."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         except (matrix_client.MatrixClientError, httpx.HTTPError, ValueError) as e:
             # An upstream or configuration fault; 503 marks it as temporary and
             # the homeserver's own text stays in the log. Provisioning parses
@@ -569,6 +681,8 @@ class MatrixSessionView(views.APIView):
                 logger.warning(
                     "Could not sign out session of deactivated %s: %s", request.user, e
                 )
+            # It may also have found no Matrix account to lock yet.
+            tasks.end_matrix_access.delay(request.user.uuid.hex)
             raise PermissionDenied("This account has been deactivated.")
 
         tasks.prune_web_devices.delay(matrix_user_id, session["device_id"])
@@ -948,6 +1062,42 @@ def _check_appservice_acts_for_users(user, homeserver_url, auth_headers):
     return False, detail
 
 
+def _check_bot_is_homeserver_admin(homeserver_url, auth_headers, bot_user_id):
+    """Diagnostics: whether the bot may call the homeserver's admin API, which
+    locks accounts and sets passwords. Returns (ok, detail)."""
+    encoded_bot_user_id = quote(bot_user_id, safe="")
+    try:
+        resp = httpx.get(
+            f"{homeserver_url}/_synapse/admin/v2/users/{encoded_bot_user_id}",
+            headers=auth_headers,
+            timeout=DIAGNOSTICS_TIMEOUT,
+        )
+    except httpx.ConnectError:
+        return False, "Connection refused"
+    except httpx.TimeoutException:
+        return False, "Timed out"
+    except httpx.HTTPError as e:
+        return False, str(e)
+
+    if resp.status_code == 200:
+        return True, f"OK — {bot_user_id} is a homeserver admin"
+    if resp.status_code == 403:
+        return False, (
+            f"{bot_user_id} is not a homeserver admin, so Waldur cannot lock the "
+            "Matrix accounts of deactivated and deleted users or replace a "
+            "deleted user's password, and users cannot generate Matrix "
+            "passwords. On Tuwunel, run "
+            f"`!admin users make-user-admin {bot_user_id}` in the admin room."
+        )
+    if resp.status_code in (404, 405):
+        return False, (
+            "The homeserver's admin API is not reachable at "
+            "MATRIX_HOMESERVER_URL: blocked by a proxy, or not "
+            "supported by the homeserver."
+        )
+    return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
+
+
 class MatrixDiagnosticsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
 
@@ -1204,6 +1354,24 @@ class MatrixDiagnosticsView(views.APIView):
                 "name": "web_token_lifetime",
                 "label": "Chat drawer tokens expire",
                 "ok": lifetime_ok,
+                "detail": detail,
+            }
+        )
+
+        # Bot admin check: the bot locks the accounts of deactivated users and
+        # sets passwords through the homeserver's admin API, which only answers
+        # server admins.
+        if bot_ok and bot_user_id:
+            bot_admin, detail = _check_bot_is_homeserver_admin(
+                homeserver_url, auth_headers, bot_user_id
+            )
+        else:
+            bot_admin, detail = False, "Skipped — bot authentication failed"
+        checks.append(
+            {
+                "name": "bot_homeserver_admin",
+                "label": "Bot is a homeserver admin",
+                "ok": bot_admin,
                 "detail": detail,
             }
         )

@@ -380,7 +380,12 @@ def prune_web_devices(matrix_user_id, keep_device_id=None):
         return
 
     marked_at = matrix_client.get_web_session_mark(matrix_user_id)
-    web_devices = matrix_client.list_web_devices(matrix_user_id)
+    try:
+        web_devices = matrix_client.list_web_devices(matrix_user_id)
+    except matrix_client.MatrixUserLocked:
+        # A locked account refuses the listing, and its devices just the same.
+        # The user stays marked, for the prune after an unlock.
+        return
 
     now_ms = int(timezone.now().timestamp() * 1000)
     stale = matrix_client.stale_web_devices(
@@ -448,9 +453,15 @@ def prune_all_web_devices():
     **REVOCATION_RETRY,
 )
 def end_deleted_user_access(matrix_user_id, room_ids=()):
-    """Remove a deleted user from their rooms and sign out all their devices."""
+    """Remove a deleted user from their rooms, sign out all their devices,
+    replace their Matrix password and lock the account for good."""
     # Open drawers outlive switching chat off, so this does not need it on.
     if not matrix_client.is_homeserver_configured():
+        return
+    # As in kick_user: a stored ID can map onto the bot, and none of this is
+    # done to the bot.
+    if matrix_user_id == matrix_client.get_bot_user_id():
+        logger.warning("Not ending the Matrix access of the bot %s", matrix_user_id)
         return
     reason = "Account deleted in Waldur"
     for room_id in room_ids:
@@ -461,8 +472,98 @@ def end_deleted_user_access(matrix_user_id, room_ids=()):
             # retried on its own rather than through them.
             logger.warning("Failed to kick %s from room %s", matrix_user_id, room_id)
             kick_from_room.delay(room_id, matrix_user_id, reason)
-    matrix_client.logout_all_devices(matrix_user_id)
+    locked, logout_error = _sign_out_all(matrix_user_id)
+    scramble_error = None
+    try:
+        # The user may have generated the password and still know it, and an
+        # account unlocked later, for a new user who gets this Matrix ID,
+        # would accept it. The admin API also signs out the devices that the
+        # sign-out above could not.
+        matrix_client.set_password(
+            matrix_user_id, matrix_client.new_password(), logout_devices=True
+        )
+        logout_error = None
+    except matrix_client.MatrixUserNotFound:
+        # A profile kept through a move to another homeserver, for one.
+        logger.info("Deleted %s has no account on the homeserver", matrix_user_id)
+        return
+    except matrix_client.MatrixAccountIsHomeserverAdmin as e:
+        # The deleted user was linked to it before that was refused. The
+        # account is its admin's, who keeps the password and is not locked out.
+        logger.warning(
+            "Matrix password of deleted %s not replaced and its account not "
+            "locked: it is a homeserver admin's",
+            matrix_user_id,
+        )
+        if logout_error:
+            raise logout_error from e
+        return
+    except matrix_client.MatrixAdminRequired as e:
+        # The lock goes through the same API, so it is not tried either.
+        # Retrying cannot help until an operator makes the API usable.
+        logger.warning(
+            "Matrix password of deleted %s not replaced, and its account %s: %s",
+            matrix_user_id,
+            "locked already" if locked else "left unlocked",
+            e,
+        )
+        if logout_error:
+            raise logout_error from e
+        return
+    except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+        # Retried below, once the lock has been tried.
+        scramble_error = e
+    if not locked:
+        _lock_after_sign_out(matrix_user_id, logout_error)
+    if scramble_error:
+        raise scramble_error
     logger.info("Ended Matrix access of deleted %s", matrix_user_id)
+
+
+def _sign_out_all(matrix_user_id):
+    """Sign out every device of the user.
+
+    Returns whether the account is locked already, and the error if the
+    sign-out failed. A locked account refuses the sign-out, which is no
+    failure: it refuses its devices just the same, and no retry could sign
+    them out.
+    """
+    try:
+        matrix_client.logout_all_devices(matrix_user_id)
+    except matrix_client.MatrixUserLocked:
+        return True, None
+    except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+        return False, e
+    logger.info("Signed out every Matrix device of %s", matrix_user_id)
+    return False, None
+
+
+def _lock_after_sign_out(matrix_user_id, logout_error):
+    """Lock an account whose devices were just signed out.
+
+    The lock comes last, as a locked account refuses the appservice too, and
+    the sign-out acts through it. A sign-out that failed is therefore retried
+    only while the account is not locked. Locked, the devices left behind are
+    refused like any other, but work again if the account is ever unlocked.
+    """
+    try:
+        locked = matrix_client.set_locked(matrix_user_id, True)
+    except matrix_client.MatrixUserNotFound:
+        # Nothing to lock, and no device that a retry could sign out.
+        logger.info("%s has no account on the homeserver", matrix_user_id)
+        return
+    except matrix_client.MatrixAdminRequired as e:
+        # Retrying cannot help until an operator makes the admin API usable.
+        logger.warning("Matrix account left unlocked: %s", e)
+        locked = False
+    if logout_error:
+        if not locked:
+            raise logout_error
+        logger.warning(
+            "Locked %s after its devices could not be signed out: %s",
+            matrix_user_id,
+            logout_error,
+        )
 
 
 @shared_task(
@@ -471,8 +572,9 @@ def end_deleted_user_access(matrix_user_id, room_ids=()):
     **REVOCATION_RETRY,
 )
 def end_matrix_access(user_uuid):
-    """Sign out all of a deactivated user's Matrix devices and remove them from
-    their rooms, so neither the drawer nor an external client keeps access."""
+    """Sign out all of a deactivated user's Matrix devices, remove them from
+    their rooms and lock their Matrix account, so neither the drawer nor an
+    external client keeps access or signs in again."""
     # Open drawers outlive switching chat off, so this does not need it on.
     if not matrix_client.is_homeserver_configured():
         return
@@ -489,14 +591,10 @@ def end_matrix_access(user_uuid):
 
     # Rooms are left even if the logout fails: one device the homeserver keeps
     # rejecting must not keep the user in every room through all retries.
-    logout_error = None
+    locked, logout_error = False, None
     profile = models.MatrixUserProfile.objects.filter(user=user).first()
     if profile:
-        try:
-            matrix_client.logout_all_devices(profile.matrix_user_id)
-            logger.info("Signed out every Matrix device of %s", profile.matrix_user_id)
-        except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
-            logout_error = e
+        locked, logout_error = _sign_out_all(profile.matrix_user_id)
 
     memberships = (
         models.MatrixRoomMember.objects.filter(user=user, room__room_id__gt="")
@@ -505,8 +603,77 @@ def end_matrix_access(user_uuid):
     )
     for member in memberships:
         _kick_or_retry(member, "Account deactivated in Waldur")
-    if logout_error:
-        raise logout_error
+
+    error = None
+    if profile and not locked:
+        try:
+            _lock_after_sign_out(profile.matrix_user_id, logout_error)
+        except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+            error = e
+
+    # A reactivation committed meanwhile may have unlocked the account and
+    # synced the rooms before this locked it and kicked, and nothing would
+    # undo that. Its task does, and takes over from any retry of this one.
+    if User.all_objects.filter(pk=user.pk, is_active=True).exists():
+        restore_matrix_access.delay(user_uuid)
+        return
+    if error:
+        raise error
+
+
+@shared_task(
+    name="waldur_mastermind.matrix_chat.restore_matrix_access",
+    **REVOCATION_RETRY,
+)
+def restore_matrix_access(user_uuid):
+    """Unlock a reactivated user's Matrix account, then bring them back into
+    the rooms deactivation removed them from.
+
+    One task, as the room syncs join rooms as the user, which a locked account
+    refuses, and separate tasks run in no fixed order.
+    """
+    # As in end_matrix_access: deactivation locks while chat is switched off.
+    if not matrix_client.is_homeserver_configured():
+        return
+    try:
+        user = User.all_objects.get(uuid=user_uuid)
+    except User.DoesNotExist:
+        logger.error("User %s not found", user_uuid)
+        return
+    # Retries run for minutes; a user deactivated again meanwhile stays locked.
+    if not user.is_active:
+        return
+
+    profile = models.MatrixUserProfile.objects.filter(user=user).first()
+    if profile:
+        matrix_user_id = profile.matrix_user_id
+        error = None
+        try:
+            matrix_client.set_locked(matrix_user_id, False)
+            logger.info("Unlocked the Matrix account of %s", matrix_user_id)
+        except matrix_client.MatrixAdminRequired as e:
+            # Deactivation could not lock the account then, unless the admin
+            # API stopped being usable since: such an account stays locked
+            # until it is unlocked on the homeserver.
+            logger.warning("Matrix account may still be locked: %s", e)
+        except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+            error = e
+
+        # A deactivation committed meanwhile may have locked the account
+        # before this unlocked it, and nothing would lock it again. Its task
+        # does, and takes over from any retry of this one.
+        if not User.all_objects.filter(pk=user.pk, is_active=True).exists():
+            end_matrix_access.delay(user_uuid)
+            return
+        if error:
+            raise error
+
+    if not matrix_client.is_enabled():
+        return
+    for room_uuid in models.get_project_rooms(
+        UserRole.objects.filter(user=user, is_active=True)
+    ).values_list("uuid", flat=True):
+        sync_project_members_to_room.delay(str(room_uuid))
 
 
 def _kick_or_retry(member, reason):

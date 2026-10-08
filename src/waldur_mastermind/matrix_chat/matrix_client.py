@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import logging
 import secrets
 from datetime import timedelta
@@ -124,6 +122,23 @@ logger = logging.getLogger(__name__)
 
 class MatrixClientError(Exception):
     pass
+
+
+class MatrixUserLocked(MatrixClientError):
+    """The homeserver refused to act for a user whose account is locked."""
+
+
+class MatrixUserNotFound(MatrixClientError):
+    """The homeserver's admin API has no account with this ID."""
+
+
+class MatrixAccountIsHomeserverAdmin(MatrixClientError):
+    """The account is a homeserver admin's, which Waldur leaves alone."""
+
+
+class MatrixAdminRequired(MatrixClientError):
+    """The homeserver's admin API cannot be used until an operator acts: the
+    bot is not a server admin, or the API is not served at MATRIX_HOMESERVER_URL."""
 
 
 def get_bot_display_name():
@@ -861,22 +876,14 @@ def download_media(mxc_uri):
     )
 
 
-def _derive_password(secret, user_uuid):
-    """Derive a deterministic password from a shared secret and user UUID using HMAC-SHA256."""
-    return hmac.new(
-        secret.encode(), str(user_uuid).encode(), hashlib.sha256
-    ).hexdigest()
-
-
 async def _register_user_async(
     homeserver_url, bot_user_id, username, password, as_token, registration_secret=""
 ):
     """Register a Matrix user via the standard CS API.
 
     Tries multiple registration strategies in order:
-    1. m.login.registration_token — sets password on all homeservers (Tuwunel, Synapse).
-    2. m.login.application_service — appservice namespace registration (Synapse stores
-       password, Tuwunel does not).
+    1. m.login.registration_token
+    2. m.login.application_service — appservice namespace registration.
     3. m.login.dummy — open registration fallback.
 
     Returns the registration response dict on success, or an empty dict if the
@@ -886,7 +893,6 @@ async def _register_user_async(
 
     async with httpx.AsyncClient() as http_client:
         # Strategy 1: registration_token flow (two-step UIA).
-        # This sets the password reliably on all homeservers.
         if registration_secret:
             result = await _try_registration_token_flow(
                 http_client, url, username, password, registration_secret
@@ -1019,8 +1025,8 @@ async def _try_dummy_registration(http_client, url, username, password):
 
 def _raise_for_server_error(response):
     # A 5xx, often a proxy's error page, says nothing about which flows the
-    # homeserver offers. Read as "not offered", it would fall through to
-    # appservice registration, which sets no password on Tuwunel.
+    # homeserver offers, so it fails registration rather than reading as
+    # "not offered" and trying the next flow against the same broken server.
     if response.status_code >= 500:
         raise MatrixClientError(
             f"Homeserver error {response.status_code} during registration"
@@ -1094,13 +1100,11 @@ def ensure_user_exists(waldur_user):
     # Extract localpart from the full matrix user ID (@localpart:domain)
     localpart = matrix_user_id.split(":")[0].lstrip("@")
 
-    # Derive a deterministic password from the shared secret and user UUID
     secret = config.MATRIX_USER_REGISTRATION_SECRET
     if not secret:
         raise MatrixClientError(
             "MATRIX_USER_REGISTRATION_SECRET must be configured for user provisioning"
         )
-    password = _derive_password(secret, waldur_user.uuid)
 
     homeserver_url, bot_user_id, _ = _get_client_params()
     as_token = config.MATRIX_APPSERVICE_AS_TOKEN
@@ -1108,9 +1112,11 @@ def ensure_user_exists(waldur_user):
         raise MatrixClientError(
             "MATRIX_APPSERVICE_AS_TOKEN must be configured for user provisioning"
         )
+    # Known to nobody and stored nowhere: Tuwunel treats an account without a
+    # password as deactivated and refuses single sign-on into it.
     result = _run_async(
         _register_user_async(
-            homeserver_url, bot_user_id, localpart, password, as_token, secret
+            homeserver_url, bot_user_id, localpart, new_password(), as_token, secret
         )
     )
 
@@ -1308,6 +1314,14 @@ def is_homeserver_reachable():
     return response.status_code == 200
 
 
+def _refusal(response, action):
+    """The error for a call the homeserver refused, a locked account told apart."""
+    locked = _parse_json_response(response).get("errcode") == "M_USER_LOCKED"
+    return (MatrixUserLocked if locked else MatrixClientError)(
+        f"Failed to {action}: {response.status_code} {response.text}"
+    )
+
+
 def _json_body(response):
     try:
         return response.json()
@@ -1337,10 +1351,7 @@ def _appservice_login(
         "POST", "/_matrix/client/v3/login", _get_as_token(), json=body
     )
     if response.status_code != 200:
-        raise MatrixClientError(
-            f"Failed to log in as {matrix_user_id}: "
-            f"{response.status_code} {response.text}"
-        )
+        raise _refusal(response, f"log in as {matrix_user_id}")
     data = _json_body(response)
     if not data.get("access_token"):
         raise MatrixClientError(f"Login as {matrix_user_id} returned no token")
@@ -1433,7 +1444,7 @@ def _refuse_homeserver_admin(matrix_user_id):
     # An admin's session can run admin-room commands, so no Waldur user may
     # hold one, whoever linked it.
     if is_homeserver_admin(matrix_user_id):
-        raise MatrixClientError(
+        raise MatrixAccountIsHomeserverAdmin(
             f"{matrix_user_id} is a homeserver admin; Waldur does not act as it "
             "for a user"
         )
@@ -1499,10 +1510,7 @@ def list_devices(matrix_user_id):
         params={"user_id": matrix_user_id},
     )
     if response.status_code != 200:
-        raise MatrixClientError(
-            f"Failed to list devices of {matrix_user_id}: "
-            f"{response.status_code} {response.text}"
-        )
+        raise _refusal(response, f"list devices of {matrix_user_id}")
     return _json_body(response).get("devices", [])
 
 
@@ -1556,6 +1564,9 @@ def _logout_devices(matrix_user_id, selected):
             continue
         try:
             logout_device(matrix_user_id, device["device_id"])
+        except MatrixUserLocked:
+            # Locked meanwhile: the other devices are refused the same way.
+            raise
         except MatrixClientError as e:
             failed.append(f"{device['device_id']}: {e}")
     if failed:
@@ -1589,8 +1600,9 @@ def stale_web_devices(devices, now_ms, keep_device_id=None):
 def get_user_matrix_credentials(waldur_user):
     """Return what an external Matrix client needs to sign the user in.
 
-    A password only in `password` mode; no access or refresh tokens in any mode,
-    as Waldur's chat drawer gets its own short-lived session instead.
+    No secret in any mode: in `password` mode the user generates a password
+    (MatrixPasswordView), and Waldur's chat drawer gets its own short-lived
+    session.
     """
     method = config.MATRIX_EXTERNAL_LOGIN_METHOD
     if method not in dict(
@@ -1613,9 +1625,114 @@ def get_user_matrix_credentials(waldur_user):
         "homeserver_url": get_public_homeserver_url(),
         "matrix_user_id": profile.matrix_user_id,
     }
-    if method == "password":
-        secret = config.MATRIX_USER_REGISTRATION_SECRET
-        if not secret:
-            raise MatrixClientError("MATRIX_USER_REGISTRATION_SECRET not configured")
-        credentials["password"] = _derive_password(secret, waldur_user.uuid)
     return credentials
+
+
+def new_password():
+    return secrets.token_urlsafe(32)
+
+
+def _admin_call(method, path, action, **kwargs):
+    """Call the homeserver's admin API as the bot, which has to be a homeserver
+    admin (`!admin users make-user-admin` on Tuwunel)."""
+    response = _homeserver_call(method, path, _get_as_token(), **kwargs)
+    if response.status_code == 403:
+        raise MatrixAdminRequired(
+            f"The homeserver refused to {action}: "
+            f"{get_bot_user_id()} is not a homeserver admin"
+        )
+    # M_NOT_FOUND is the admin API saying the user does not exist. Any other
+    # 404 or 405 comes from a proxy that blocks the API or a homeserver
+    # without it, and retrying cannot help.
+    if response.status_code in (404, 405):
+        if _parse_json_response(response).get("errcode") == "M_NOT_FOUND":
+            raise MatrixUserNotFound(
+                f"Failed to {action}: {response.status_code} {response.text}"
+            )
+        raise MatrixAdminRequired(
+            f"Could not {action}: the homeserver's admin API is not reachable "
+            f"at MATRIX_HOMESERVER_URL ({response.status_code})"
+        )
+    if response.status_code != 200:
+        raise MatrixClientError(
+            f"Failed to {action}: {response.status_code} {response.text}"
+        )
+    return response
+
+
+def _require_no_homeserver_admin(matrix_user_id, action):
+    """Raise unless the homeserver says the account is not one of its admins.
+
+    Unlike _refuse_homeserver_admin this does not go ahead on an answer that
+    says nothing: the write that follows would succeed on an admin's account
+    whenever only this read failed.
+    """
+    response = _admin_call("GET", _admin_path("v2/users", matrix_user_id), action)
+    admin = _parse_json_response(response).get("admin")
+    if admin is True:
+        raise MatrixAccountIsHomeserverAdmin(
+            f"{matrix_user_id} is a homeserver admin; Waldur does not {action}"
+        )
+    if admin is not False:
+        raise MatrixClientError(
+            f"Could not {action}: the homeserver did not say whether it is an "
+            "admin's account"
+        )
+
+
+def _admin_path(prefix, matrix_user_id):
+    # safe="": a "/" or ".." in a generated localpart would otherwise address
+    # another admin endpoint.
+    return f"/_synapse/admin/{prefix}/{quote(matrix_user_id, safe='')}"
+
+
+def set_password(matrix_user_id, password, logout_devices=False):
+    """Set a user's password, and sign out all their devices if asked to.
+
+    The client API only changes a password after proving the current one, and
+    nobody knows the one an account was registered with.
+    """
+    if matrix_user_id == get_bot_user_id():
+        raise MatrixClientError("Refusing to set the bot's password")
+    action = f"set the password of {matrix_user_id}"
+    # A user linked to an admin's account before that was refused would take
+    # the homeserver over with its password.
+    _require_no_homeserver_admin(matrix_user_id, action)
+    _admin_call(
+        "POST",
+        _admin_path("v1/reset_password", matrix_user_id),
+        action,
+        json={"new_password": password, "logout_devices": logout_devices},
+    )
+
+
+def set_locked(matrix_user_id, locked):
+    """Lock or unlock an account.
+
+    A locked account refuses its tokens and every new login, by password,
+    single sign-on or the appservice, until it is unlocked. Returns whether
+    the homeserver was asked to.
+    """
+    action = f"{'lock' if locked else 'unlock'} {matrix_user_id}"
+    # As in kick_user: a stored ID can map onto the bot, and locking it would
+    # stop chat for everyone. Skipped rather than raised, so revocation retries
+    # don't spin on it.
+    if locked and matrix_user_id == get_bot_user_id():
+        logger.warning("Not locking the bot %s", matrix_user_id)
+        return False
+    # Nor a homeserver admin's account, which a user was linked to before that
+    # was refused: deactivating them in Waldur must not lock the admin out.
+    # Unlocking one is harmless, and undoes a lock placed before the check.
+    if locked:
+        try:
+            _require_no_homeserver_admin(matrix_user_id, action)
+        except MatrixAccountIsHomeserverAdmin:
+            logger.warning("Not locking %s, a homeserver admin", matrix_user_id)
+            return False
+    _admin_call(
+        "PUT",
+        _admin_path("v2/users", matrix_user_id),
+        action,
+        json={"locked": locked},
+    )
+    return True
