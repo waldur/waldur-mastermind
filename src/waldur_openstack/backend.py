@@ -41,6 +41,11 @@ from waldur_core.structure.utils import (
     handle_resource_update_success,
     update_pulled_fields,
 )
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_TENANT_OFFERING,
+    OfferingStates,
+)
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     RAM_TYPE,
@@ -7544,9 +7549,21 @@ class OpenStackBackend(ServiceBackend):
     def _create_unmanaged_owner(self, backend_id: str):
         customer = self.settings.customer
         if not customer:
+            # A shared cloud's settings often have no organization: use its provider's.
+            customers = {
+                offering.customer
+                for offering in marketplace_models.Offering.objects.filter(
+                    scope=self.settings, type=OPENSTACK_TENANT_OFFERING
+                )
+                .exclude(state=OfferingStates.ARCHIVED)
+                .select_related("customer")
+            }
+            customer = customers.pop() if len(customers) == 1 else None
+        if not customer:
             logger.warning(
                 "Network shared by OpenStack project %s is skipped: service settings "
-                "%s have no organization to hold a project for it.",
+                "%s have no organization, and their active tenant offerings do not "
+                "belong to a single provider.",
                 backend_id,
                 self.settings,
             )
@@ -7567,7 +7584,7 @@ class OpenStackBackend(ServiceBackend):
                     "OpenStack project that shares networks with tenants in Waldur. "
                     "It is not managed by Waldur."
                 ),
-                "project": self._get_unmanaged_owners_project(),
+                "project": self._get_unmanaged_owners_project(customer),
                 # Created directly in OK, so that nothing that reacts to a
                 # tenant finishing provisioning (marketplace offerings for its
                 # instances and volumes) runs for it.
@@ -7577,7 +7594,7 @@ class OpenStackBackend(ServiceBackend):
         )
         return tenant
 
-    def _get_unmanaged_owners_project(self):
+    def _get_unmanaged_owners_project(self, customer):
         existing = (
             models.Tenant.objects.filter(
                 service_settings=self.settings, is_managed=False
@@ -7592,12 +7609,12 @@ class OpenStackBackend(ServiceBackend):
             : structure_models.PROJECT_NAME_LENGTH
         ]
         project = structure_models.Project.available_objects.filter(
-            customer=self.settings.customer, name=name
+            customer=customer, name=name
         ).first()
         if project:
             return project
         return structure_models.Project.objects.create(
-            customer=self.settings.customer,
+            customer=customer,
             name=name,
             description=_(
                 "Automatically created to hold the OpenStack projects that share "
