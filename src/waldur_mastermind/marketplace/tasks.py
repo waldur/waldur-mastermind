@@ -3032,7 +3032,9 @@ def cleanup_old_software_catalogs():
     Periodic task to clean up old and duplicate software catalog data.
 
     This task performs two cleanup operations:
-    1. Removes duplicate catalogs, keeping only the newest one per (name, catalog_type)
+    1. Removes true duplicate catalogs — same (name, version, catalog_type) —
+       keeping only the newest row. Different versions of the same catalog
+       (e.g. EESSI 2023.06 and 2026.06) are intentional and are never collapsed.
     2. Removes catalogs that haven't been updated within the retention period
 
     This task respects the SOFTWARE_CATALOG_CLEANUP_ENABLED setting.
@@ -3052,7 +3054,7 @@ def cleanup_old_software_catalogs():
     deleted_count = 0
     deleted_catalogs = []
 
-    # Step 1: Remove duplicate catalogs (keep only newest per name/catalog_type)
+    # Step 1: Remove true duplicates (same name + version + catalog_type)
     duplicates_deleted = _cleanup_duplicate_catalogs()
     deleted_count += duplicates_deleted
 
@@ -3102,18 +3104,22 @@ def cleanup_old_software_catalogs():
 
 def _cleanup_duplicate_catalogs():
     """
-    Remove duplicate catalogs, keeping only the newest one per (name, catalog_type).
+    Remove true duplicate catalogs, keeping the newest per
+    (name, version, catalog_type).
 
-    Updates OfferingSoftwareCatalog references before deletion to preserve relationships.
-    Returns the count of deleted duplicate catalogs.
+    Multiple versions of the same catalog name/type (e.g. EESSI 2023.06 and
+    2026.06) are valid and must not be collapsed. The model unique constraint
+    already uses the same key; this is a safety net for legacy/corrupt rows.
+
+    Updates OfferingSoftwareCatalog references before deletion to preserve
+    relationships. Returns the count of deleted duplicate catalogs.
     """
     deleted_count = 0
 
-    # Find unique (name, catalog_type) combinations with more than one catalog
     from django.db.models import Count
 
     duplicated_groups = (
-        models.SoftwareCatalog.objects.values("name", "catalog_type")
+        models.SoftwareCatalog.objects.values("name", "version", "catalog_type")
         .annotate(count=Count("id"))
         .filter(count__gt=1)
     )
@@ -3122,7 +3128,9 @@ def _cleanup_duplicate_catalogs():
         # Get all catalogs for this group, newest first
         catalogs = list(
             models.SoftwareCatalog.objects.filter(
-                name=group["name"], catalog_type=group["catalog_type"]
+                name=group["name"],
+                version=group["version"],
+                catalog_type=group["catalog_type"],
             ).order_by("-last_successful_update", "-created")
         )
 
@@ -3135,7 +3143,8 @@ def _cleanup_duplicate_catalogs():
 
         logger.info(
             f"Found {len(catalogs_to_delete)} duplicate catalogs for "
-            f"{group['name']}/{group['catalog_type']}, keeping v{newest_catalog.version}"
+            f"{group['name']}/{group['version']}/{group['catalog_type']}, "
+            f"keeping uuid={newest_catalog.uuid}"
         )
 
         # Update OfferingSoftwareCatalog references to point to newest catalog
@@ -3153,11 +3162,13 @@ def _cleanup_duplicate_catalogs():
             if updated:
                 logger.info(
                     f"Migrated {updated} offering references from "
-                    f"v{old_catalog.version} to v{newest_catalog.version}"
+                    f"uuid={old_catalog.uuid} to uuid={newest_catalog.uuid} "
+                    f"({old_catalog.name} v{old_catalog.version})"
                 )
 
             logger.info(
-                f"Deleting duplicate catalog {old_catalog.name} v{old_catalog.version}"
+                f"Deleting duplicate catalog {old_catalog.name} "
+                f"v{old_catalog.version} (uuid={old_catalog.uuid})"
             )
             old_catalog.delete()
             deleted_count += 1

@@ -134,19 +134,29 @@ Configure automated updates through constance settings:
 
 - `SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES`: Update existing packages during refresh (default: true)
 - `SOFTWARE_CATALOG_CLEANUP_ENABLED`: Enable automatic cleanup of old catalog data (default: false)
-- `SOFTWARE_CATALOG_RETENTION_DAYS`: Number of days to retain old catalog versions (default: 90)
+- `SOFTWARE_CATALOG_RETENTION_DAYS`: Number of days to retain catalogs that have not been successfully updated (default: 90)
 
 ### Scheduled Updates
 
 The `update_software_catalogs` task runs daily at 3 AM and:
 
 1. **Updates only existing catalogs**: The task never creates new catalog records. If no catalog exists in the database for a given name/type, the task skips it with a warning. Create catalogs first via the API, management commands, or the `discover` endpoint to see what's available.
-2. **Independent Processing**: Each catalog is updated independently - failures don't affect other catalogs
-3. **Configuration Validation**: Validates settings before attempting updates
-4. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
-5. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
+2. **EESSI multi-version**: When several EESSI catalogs exist (for example `2023.06`, `2025.06`, and `2026.06`), each is refreshed independently with its own version. Multiple versions are intentional and may all be linked to the same offering.
+3. **Independent Processing**: Each catalog is updated independently - failures don't affect other catalogs
+4. **Configuration Validation**: Validates settings before attempting updates
+5. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
+6. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
 
 > **Note:** Both `SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED` and `SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED` default to `false`. Enable them explicitly after creating the initial catalog records.
+
+### Scheduled Cleanup
+
+The `cleanup_old_software_catalogs` task runs daily at 4 AM (after updates) when `SOFTWARE_CATALOG_CLEANUP_ENABLED` is true:
+
+1. **True duplicates only**: Rows that share the same `(name, version, catalog_type)` — for example two EESSI `2026.06` catalogs — are collapsed to the newest row. Offering links are remapped when safe. **Distinct versions are never collapsed** (EESSI `2023.06` and `2026.06` both remain).
+2. **Retention**: Catalogs whose `last_successful_update` is older than `SOFTWARE_CATALOG_RETENTION_DAYS` are deleted. Keep auto-update enabled (or re-load periodically) for every version you still need on offerings.
+
+Sites that expose multiple EESSI stacks on one offering should leave cleanup enabled only if those catalogs stay within the retention window via daily updates.
 
 ### Manual Trigger
 
