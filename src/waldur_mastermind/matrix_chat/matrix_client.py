@@ -4,6 +4,8 @@ import asyncio
 import logging
 import re
 import secrets
+import string
+from collections import Counter
 from datetime import timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -11,10 +13,12 @@ from urllib.parse import quote
 import httpx
 from constance import config
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 from markdown_it import MarkdownIt
 
 from waldur_core.core.clean_html import clean_html
+from waldur_core.core.models import User
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.models import Project
@@ -1044,6 +1048,9 @@ def ensure_user_exists(waldur_user):
                 f"{matrix_user_id} is already linked to {holder.user.username}; "
                 f"{waldur_user.username} cannot be linked to it too"
             )
+    # Checked on the stored ID too: a profile keeps its ID, and SSO reaches
+    # whatever account that ID names.
+    _check_reachable_only_by_own_subject(waldur_user, matrix_user_id)
 
     # Extract localpart from the full matrix user ID (@localpart:domain)
     localpart = matrix_user_id.split(":")[0].lstrip("@")
@@ -1159,6 +1166,146 @@ async def _set_display_name_async(url, as_token, matrix_user_id, display_name):
         )
 
 
+# The characters a Matrix localpart may hold; spec 1.8 added "+", which SSO
+# logins keep, so Waldur keeps it too. "=" is allowed as well, but it is the
+# escape character below, so it is escaped itself rather than kept.
+LOCALPART_CHARS = frozenset(string.ascii_lowercase + string.digits + "._-/+")
+
+
+def _localpart_char(c):
+    if c in LOCALPART_CHARS:
+        return c
+    # Kept as is, a literal "=" would let the username "j=c3=bcri" take the
+    # Matrix ID of "jüri". The spec's mapping escapes it the same way.
+    if c == "=":
+        return "=3d"
+    # Other ASCII has always become "_"; changing it would make
+    # link_matrix_account --all miss existing accounts after a restore.
+    # Non-ASCII letters become "=xx" per UTF-8 byte, so that m.müller and
+    # m.möller stay different users.
+    if c.isascii():
+        return "_"
+    return "".join(f"={byte:02x}" for byte in c.encode())
+
+
+# The one non-ASCII character that lowercases to ASCII: the Kelvin sign
+# becomes "k". Matched by no case-insensitive database lookup.
+LOWERCASES_TO_ASCII = "\u212a"
+
+
+def sso_reaches_other_subject(username, matrix_user_id):
+    """Whether, with single sign-on, the ID is not the user's own claim.
+
+    The homeserver takes an SSO claim as the localpart as it is (lowercased),
+    and a trusted provider signs in to any account so named. An ID Waldur had
+    to transform, such as "alice smith" into alice_smith or "a=b" into a=3db,
+    is therefore the account of whichever other subject's claim reads like it.
+    A non-ASCII username counts too, even where lowercasing turns it into the
+    ID, as the Kelvin sign in "\u212aate" does: that ID is also the claim of the
+    user kate. False when single sign-on is off.
+    """
+    if config.MATRIX_EXTERNAL_LOGIN_METHOD != "oidc":
+        return False
+    if not username.isascii():
+        return True
+    return matrix_user_id.split(":")[0].lstrip("@") != username.lower()
+
+
+def _sso_exposure(username, registration_method, matrix_user_id, shares_claim):
+    """Why, with single sign-on, someone other than the user could sign in to
+    the ID; None if no one could."""
+    if config.MATRIX_EXTERNAL_LOGIN_METHOD != "oidc":
+        return None
+    if sso_reaches_other_subject(username, matrix_user_id):
+        return (
+            f"their username does not become the Matrix ID {matrix_user_id} unchanged"
+        )
+    # The homeserver signs in any subject of its own identity provider, so an
+    # account named after a user who signs in to Waldur some other way, such
+    # as a local or SAML user bob, belongs to whoever that provider calls bob.
+    sso_method = config.MATRIX_SSO_REGISTRATION_METHOD.strip()
+    if not sso_method:
+        return "MATRIX_SSO_REGISTRATION_METHOD is not set"
+    if registration_method != sso_method:
+        return (
+            f"they sign in to Waldur through {registration_method or 'no'} "
+            f"identity provider, not through {sso_method}, the one the "
+            "homeserver's single sign-on uses"
+        )
+    # Alice and alice are two Waldur users, and both their claims reach
+    # @alice: the homeserver lowercases the claim.
+    if shares_claim:
+        return "another Waldur user's username differs from theirs only in case"
+    return None
+
+
+def _shares_claim(waldur_user):
+    """Whether another Waldur user, active or not, has a username the
+    homeserver lowercases to the same claim."""
+    claim = waldur_user.username.lower()
+    candidates = (
+        User.all_objects.filter(
+            Q(username__iexact=waldur_user.username)
+            | Q(username__contains=LOWERCASES_TO_ASCII)
+        )
+        .exclude(pk=waldur_user.pk)
+        .values_list("username", flat=True)
+    )
+    return any(username.lower() == claim for username in candidates)
+
+
+def sso_exposure(waldur_user, matrix_user_id):
+    """Why, with single sign-on, someone other than `waldur_user` could sign in
+    to `matrix_user_id`; None if no one could, or single sign-on is off."""
+    if config.MATRIX_EXTERNAL_LOGIN_METHOD != "oidc":
+        return None
+    return _sso_exposure(
+        waldur_user.username,
+        waldur_user.registration_method,
+        matrix_user_id,
+        _shares_claim(waldur_user),
+    )
+
+
+def sso_exposed_ids():
+    """The provisioned Matrix IDs that, with single sign-on, someone other
+    than their user could sign in to, sorted."""
+    if config.MATRIX_EXTERNAL_LOGIN_METHOD != "oidc":
+        return []
+    claims = Counter(
+        username.lower()
+        for username in User.all_objects.values_list("username", flat=True).iterator()
+    )
+    return [
+        matrix_user_id
+        for matrix_user_id, username, registration_method in (
+            MatrixUserProfile.objects.filter(provisioned=True)
+            .order_by("matrix_user_id")
+            .values_list(
+                "matrix_user_id", "user__username", "user__registration_method"
+            )
+            .iterator()
+        )
+        if _sso_exposure(
+            username,
+            registration_method,
+            matrix_user_id,
+            claims[username.lower()] > 1,
+        )
+    ]
+
+
+def _check_reachable_only_by_own_subject(waldur_user, matrix_user_id):
+    """Refuse, with single sign-on, an ID someone else could sign in to."""
+    reason = sso_exposure(waldur_user, matrix_user_id)
+    if reason:
+        raise MatrixClientError(
+            f"{waldur_user} cannot be provisioned with single sign-on: {reason}, "
+            f"so another identity provider subject could sign in to "
+            f"{matrix_user_id}. See the sso_id_collisions diagnostic."
+        )
+
+
 def generate_matrix_user_id(waldur_user):
     """Generate a Matrix user ID from a Waldur user based on configured format."""
     domain = config.MATRIX_HOMESERVER_DOMAIN
@@ -1175,9 +1322,7 @@ def generate_matrix_user_id(waldur_user):
     else:  # default: "username"
         localpart = waldur_user.username
 
-    # Sanitize localpart: Matrix allows [a-z0-9._=\-/]
-    localpart = localpart.lower()
-    localpart = "".join(c if c.isalnum() or c in "._=-/" else "_" for c in localpart)
+    localpart = "".join(_localpart_char(c) for c in localpart.lower())
 
     return f"@{localpart}:{domain}"
 
@@ -1187,13 +1332,13 @@ def get_power_level_for_scope(user, scope):
     Determine the Matrix power level for a user in a given scope.
 
     Returns:
-        100 for bot account
         50 for Project Admin, or anyone who may create the project's room
         0 for all other members
-    """
-    if f"@{user.username}:{config.MATRIX_HOMESERVER_DOMAIN}" == get_bot_user_id():
-        return 100
 
+    No Waldur user gets the bot's 100: the bot is not a Waldur user, and one
+    named like its localpart is someone else, possibly linked to another
+    Matrix account.
+    """
     if isinstance(scope, Project):
         # Check if user is project admin
         is_admin = UserRole.objects.filter(

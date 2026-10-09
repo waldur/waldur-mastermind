@@ -505,11 +505,11 @@ class AppserviceSetupTest(test.APITestCase):
             data={
                 "homeserver_url": "https://matrix.example.com",
                 "homeserver_domain": "matrix.example.com",
-                "user_registration_secret": "shared-secret-value",
+                "user_registration_secret": "test-registration-secret",
             },
             format="json",
         )
-        # With prereqs already overridden in @override_config, this should 200.
+        # The values match the ones in @override_config, so this should 200.
         # The test asserts the serializer doesn't 400 on the new keys.
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -714,8 +714,11 @@ class AppserviceSetupFirstRunTest(test.APITestCase):
             )
             self.assertEqual(live_config.MATRIX_USER_REGISTRATION_SECRET, "secret-x")
 
-    def test_setup_does_not_overwrite_already_configured_prereq(self, mock_ensure):
-        """A prereq supplied in the body is ignored when Constance already has it."""
+    def test_setup_refuses_a_prereq_that_conflicts_with_the_stored_one(
+        self, mock_ensure
+    ):
+        # Silently keeping the stored URL would register the new tokens against
+        # one homeserver while Waldur keeps calling another.
         with override_config(MATRIX_HOMESERVER_URL="https://pre-existing.example.com"):
             self.client.force_authenticate(self.staff)
             response = self.client.post(
@@ -727,15 +730,116 @@ class AppserviceSetupFirstRunTest(test.APITestCase):
                 },
                 format="json",
             )
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn("MATRIX_HOMESERVER_URL", str(response.data))
 
             from constance import config as live_config
 
-            # The pre-configured value wins; the body value is dropped.
             self.assertEqual(
                 live_config.MATRIX_HOMESERVER_URL,
                 "https://pre-existing.example.com",
             )
+            self.assertEqual(live_config.MATRIX_APPSERVICE_AS_TOKEN, "")
+            self.assertEqual(live_config.MATRIX_APPSERVICE_HS_TOKEN, "")
+            mock_ensure.assert_not_called()
+
+    def test_setup_refuses_any_prereq_that_conflicts_with_the_stored_one(
+        self, mock_ensure
+    ):
+        stored = {
+            "homeserver_url": ("MATRIX_HOMESERVER_URL", "https://hs.example.com"),
+            "homeserver_public_url": (
+                "MATRIX_HOMESERVER_PUBLIC_URL",
+                "https://chat.example.com",
+            ),
+            "homeserver_domain": ("MATRIX_HOMESERVER_DOMAIN", "example.com"),
+            "user_registration_secret": (
+                "MATRIX_USER_REGISTRATION_SECRET",
+                "secret-x",
+            ),
+        }
+        # The registration secret is left out: refusing a wrong one but not the
+        # right one would let a caller guess it. See
+        # test_setup_does_not_reveal_whether_a_supplied_secret_matches.
+        conflicting = {
+            "homeserver_url": "https://other.example.com",
+            "homeserver_public_url": "https://other-chat.example.com",
+            "homeserver_domain": "other.example.com",
+        }
+        self.client.force_authenticate(self.staff)
+        for request_key in conflicting:
+            constance_key, value = stored[request_key]
+            with (
+                self.subTest(request_key),
+                override_config(
+                    **{key: stored_value for key, stored_value in stored.values()}
+                ),
+            ):
+                response = self.client.post(
+                    SETUP_URL,
+                    data={request_key: conflicting[request_key]},
+                    format="json",
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(constance_key, str(response.data))
+                self.assertEqual(getattr(config, constance_key), value)
+                self.assertEqual(config.MATRIX_APPSERVICE_AS_TOKEN, "")
+        mock_ensure.assert_not_called()
+
+    def test_setup_ignores_a_trailing_slash_in_a_prereq(self, mock_ensure):
+        with override_config(MATRIX_HOMESERVER_URL="https://pre-existing.example.com"):
+            self.client.force_authenticate(self.staff)
+            response = self.client.post(
+                SETUP_URL,
+                data={
+                    "homeserver_url": "https://pre-existing.example.com/",
+                    "homeserver_domain": "pre-existing.example.com",
+                    "user_registration_secret": "secret-x",
+                },
+                format="json",
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_setup_accepts_a_prereq_equal_to_the_stored_one(self, mock_ensure):
+        with override_config(MATRIX_HOMESERVER_URL="https://pre-existing.example.com"):
+            self.client.force_authenticate(self.staff)
+            response = self.client.post(
+                SETUP_URL,
+                data={
+                    "homeserver_url": "https://pre-existing.example.com",
+                    "homeserver_domain": "pre-existing.example.com",
+                    "user_registration_secret": "secret-x",
+                },
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_setup_does_not_reveal_whether_a_supplied_secret_matches(self, mock_ensure):
+        # A 400 for a wrong secret and a 200 for the right one would let a
+        # caller guess the stored secret, so both answer the same way and the
+        # stored secret is kept.
+        with override_config(
+            MATRIX_HOMESERVER_URL="https://pre-existing.example.com",
+            MATRIX_HOMESERVER_DOMAIN="pre-existing.example.com",
+            MATRIX_USER_REGISTRATION_SECRET="stored-secret",
+        ):
+            self.client.force_authenticate(self.staff)
+            responses = [
+                self.client.post(
+                    SETUP_URL,
+                    data={"user_registration_secret": guess},
+                    format="json",
+                )
+                for guess in ("wrong-guess", "stored-secret")
+            ]
+
+            self.assertEqual(
+                [r.status_code for r in responses],
+                [status.HTTP_200_OK, status.HTTP_200_OK],
+            )
+            self.assertEqual(config.MATRIX_USER_REGISTRATION_SECRET, "stored-secret")
 
     def test_setup_persists_optional_public_url(self, mock_ensure):
         """The optional homeserver_public_url is persisted without gating setup."""
@@ -986,6 +1090,132 @@ class AppserviceDiagnosticsTest(test.APITestCase):
         check = bot_check()
         self.assertTrue(check["ok"])
         self.assertIn("0 message(s) waiting", check["detail"])
+
+    def _sso_check(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(DIAGNOSTICS_URL)
+        return {c["name"]: c for c in response.data["checks"]}["sso_id_collisions"]
+
+    def _profile(
+        self, username, localpart, provisioned=True, registration_method="keycloak"
+    ):
+        models.MatrixUserProfile.objects.create(
+            user=UserFactory(
+                username=username, registration_method=registration_method
+            ),
+            matrix_user_id=f"@{localpart}:waldur.example.com",
+            provisioned=provisioned,
+        )
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_sso_collisions_pass_without_single_sign_on(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        self._profile("alice smith", "alice_smith")
+
+        check = self._sso_check()
+
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["detail"], "Not using single sign-on")
+
+    @override_config(
+        MATRIX_EXTERNAL_LOGIN_METHOD="oidc", MATRIX_SSO_REGISTRATION_METHOD="keycloak"
+    )
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_sso_collisions_name_ids_another_subject_could_reach(self, mock_httpx_get):
+        # Provisioned before single sign-on: @alice_smith is the account of the
+        # subject whose claim is alice_smith, not of the user "alice smith".
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        self._profile("Bob", "bob")
+        self._profile("alice smith", "alice_smith")
+        self._profile("a=b", "a=3db")
+        self._profile("c d", "c_d", provisioned=False)
+
+        check = self._sso_check()
+
+        self.assertFalse(check["ok"])
+        self.assertTrue(check["detail"].startswith("2 Matrix account(s)"))
+        self.assertIn("@alice_smith:waldur.example.com", check["detail"])
+        self.assertIn("@a=3db:waldur.example.com", check["detail"])
+        self.assertNotIn("@bob:", check["detail"])
+        self.assertNotIn("alice smith", check["detail"])
+
+    @override_config(
+        MATRIX_EXTERNAL_LOGIN_METHOD="oidc", MATRIX_SSO_REGISTRATION_METHOD="keycloak"
+    )
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_sso_collisions_name_at_most_ten(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        for i in range(12):
+            self._profile(f"user {i:02}", f"user_{i:02}")
+
+        check = self._sso_check()
+
+        self.assertFalse(check["ok"])
+        self.assertEqual(check["detail"].count(":waldur.example.com"), 10)
+        self.assertIn("and 2 more", check["detail"])
+
+    @override_config(
+        MATRIX_EXTERNAL_LOGIN_METHOD="oidc", MATRIX_SSO_REGISTRATION_METHOD="keycloak"
+    )
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_sso_collisions_pass_when_every_id_is_its_claim(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        self._profile("Alice", "alice")
+
+        self.assertTrue(self._sso_check()["ok"])
+
+    @override_config(
+        MATRIX_EXTERNAL_LOGIN_METHOD="oidc", MATRIX_SSO_REGISTRATION_METHOD="keycloak"
+    )
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_sso_collisions_name_ids_whose_claim_another_user_shares(
+        self, mock_httpx_get
+    ):
+        # Both subjects' claims reach @alice, and the Kelvin sign's reaches @kate.
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        self._profile("alice", "alice")
+        UserFactory(username="Alice", is_active=False, registration_method="keycloak")
+        self._profile("kate", "kate")
+        UserFactory(username="\u212aate", registration_method="keycloak")
+        self._profile("bob", "bob")
+
+        check = self._sso_check()
+
+        self.assertFalse(check["ok"])
+        self.assertTrue(check["detail"].startswith("2 Matrix account(s)"))
+        self.assertIn("@alice:waldur.example.com", check["detail"])
+        self.assertIn("@kate:waldur.example.com", check["detail"])
+        self.assertNotIn("@bob:", check["detail"])
+
+    @override_config(
+        MATRIX_EXTERNAL_LOGIN_METHOD="oidc", MATRIX_SSO_REGISTRATION_METHOD="keycloak"
+    )
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_sso_collisions_name_ids_of_users_of_another_sign_in_method(
+        self, mock_httpx_get
+    ):
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        self._profile("bob", "bob", registration_method="default")
+        self._profile("carol", "carol", registration_method="saml2")
+        self._profile("dave", "dave")
+
+        check = self._sso_check()
+
+        self.assertFalse(check["ok"])
+        self.assertTrue(check["detail"].startswith("2 Matrix account(s)"))
+        self.assertIn("@bob:waldur.example.com", check["detail"])
+        self.assertIn("@carol:waldur.example.com", check["detail"])
+        self.assertNotIn("@dave:", check["detail"])
+
+    @override_config(MATRIX_EXTERNAL_LOGIN_METHOD="oidc")
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_sso_collisions_fail_while_the_provider_is_unset(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+
+        check = self._sso_check()
+
+        self.assertFalse(check["ok"])
+        self.assertIn("MATRIX_SSO_REGISTRATION_METHOD is not set", check["detail"])
 
     @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
     def test_diagnostics_skips_public_probe_when_same_as_internal(self, mock_httpx_get):
