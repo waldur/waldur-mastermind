@@ -19,6 +19,7 @@ from waldur_mastermind.matrix_chat import (
     views,
 )
 from waldur_mastermind.matrix_chat.matrix_client import MatrixClientError
+from waldur_mastermind.matrix_chat.tests import fixtures
 
 GET_TOKEN_URL = "/api/matrix/livekit/get_token"
 SFU_GET_URL = "/api/matrix/livekit/sfu/get"
@@ -465,6 +466,93 @@ class LiveKitServiceTest(test.APITestCase):
     @override_config(MATRIX_ENABLED=False)
     def test_delegation_is_not_supported_with_chat_disabled(self):
         self.assert_delegation_not_supported(self.client.post(DELEGATE_URL))
+
+
+@override_config(**CONFIG)
+class LiveKitWaldurRoomTest(test.APITestCase):
+    """A room Waldur manages takes the user's Waldur access as well as their
+    homeserver membership."""
+
+    def setUp(self):
+        cache.clear()
+        self.fixture = fixtures.MatrixChatFixture()
+        self.room = self.fixture.matrix_room
+        self.profile = self.fixture.matrix_user_profile
+        self.fixture.matrix_room_member
+        self.patches = {
+            name: mock.patch.object(matrix_client, name, **kwargs).start()
+            for name, kwargs in {
+                "get_openid_user": {"return_value": self.profile.matrix_user_id},
+                "is_joined": {"return_value": True},
+                "list_devices": {"return_value": [{"device_id": "DEVICE1"}]},
+            }.items()
+        }
+        self.create_room = mock.patch.object(livekit_client, "create_call_room").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def post(self, room_id=None):
+        return self.client.post(
+            SFU_GET_URL,
+            sfu_get_body(room=room_id or self.room.room_id),
+            format="json",
+        )
+
+    def assert_forbidden(self, response):
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data,
+            {"errcode": "M_FORBIDDEN", "error": "You may not join this call."},
+        )
+        self.create_room.assert_not_called()
+
+    def test_member_with_a_role_gets_a_token(self):
+        response = self.post()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.create_room.assert_called_once()
+
+    def test_removed_project_member_is_refused(self):
+        # Still joined on the homeserver: the kick has not landed yet.
+        self.fixture.project.remove_user(self.fixture.admin)
+
+        self.assert_forbidden(self.post())
+
+    def test_archived_room_is_refused(self):
+        models.MatrixRoom.objects.filter(pk=self.room.pk).update(
+            state=models.RoomStates.ARCHIVED
+        )
+
+        self.assert_forbidden(self.post())
+
+    def test_matrix_user_unknown_to_waldur_is_refused_in_a_waldur_room(self):
+        self.patches["get_openid_user"].return_value = f"@stranger:{DOMAIN}"
+
+        self.assert_forbidden(self.post())
+
+    def test_room_waldur_does_not_manage_takes_homeserver_membership(self):
+        # Direct messages and rooms made in Element: no Waldur role applies.
+        self.fixture.project.remove_user(self.fixture.admin)
+        unmanaged = f"!dm:{DOMAIN}"
+
+        response = self.post(room_id=unmanaged)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.patches["is_joined"].return_value = False
+        self.create_room.reset_mock()
+        self.assert_forbidden(self.post(room_id=unmanaged))
+
+    def test_non_member_is_refused_alike_for_known_and_unknown_rooms(self):
+        self.patches["is_joined"].return_value = False
+        models.MatrixRoom.objects.filter(pk=self.room.pk).update(
+            state=models.RoomStates.ARCHIVED
+        )
+
+        known = self.post()
+        unknown = self.post(room_id=f"!nosuchroom:{DOMAIN}")
+
+        self.assert_forbidden(known)
+        self.assert_forbidden(unknown)
+        self.assertEqual(known.data, unknown.data)
 
 
 @override_config(**CONFIG)

@@ -2062,6 +2062,23 @@ class LiveKitUserThrottle(SimpleRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": self.matrix_user_id}
 
 
+def _keeps_waldur_room_access(matrix_user_id, room_id):
+    """Whether the Matrix user may be in the room as far as Waldur decides:
+    always for a room Waldur does not manage, and for one it manages only while
+    the room is active and its Waldur user keeps access to it."""
+    room = models.MatrixRoom.objects.filter(room_id=room_id).first()
+    if room is None:
+        return True
+    if room.state != models.RoomStates.ACTIVE:
+        return False
+    profile = (
+        models.MatrixUserProfile.objects.filter(matrix_user_id=matrix_user_id)
+        .select_related("user")
+        .first()
+    )
+    return profile is not None and models.keeps_room_access(profile.user, room)
+
+
 class LiveKitTokenView(views.APIView):
     """Base of the call token API that Matrix clients use: lk-jwt-service's
     API, served by Waldur so that it can check room membership.
@@ -2166,7 +2183,18 @@ class LiveKitTokenView(views.APIView):
         except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
             logger.warning("Could not check call access of %s: %s", matrix_user_id, e)
             raise _unavailable() from None
-        if not (joined and own_device):
+        # A room Waldur manages also needs the user's standing in Waldur: it
+        # must be active, and its Matrix member a Waldur user whom a role (or a
+        # staff join) still keeps in it. This holds the call shut in the window
+        # before a revoked user is removed from the room on the homeserver, or
+        # when that removal failed. Rooms Waldur does not manage (direct
+        # messages, rooms made in Element) have no Waldur roles to check, so
+        # the homeserver's membership decides. Checked after membership, so a
+        # non-member is refused the same way whether or not Waldur knows the
+        # room.
+        if not (
+            joined and own_device and _keeps_waldur_room_access(matrix_user_id, room_id)
+        ):
             logger.info(
                 "Refused a call token to %s for room %s", matrix_user_id, room_id
             )
