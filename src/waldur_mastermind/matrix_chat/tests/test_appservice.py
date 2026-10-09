@@ -15,13 +15,57 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import add_user_to_project
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.matrix_chat import bot_state, matrix_client, models, tasks
+from waldur_mastermind.matrix_chat import (
+    appservice_registration,
+    bot_state,
+    matrix_client,
+    models,
+    tasks,
+)
 from waldur_mastermind.matrix_chat.tests import fixtures
 
 WEBHOOK_URL = "/_matrix/app/v1/transactions/"
 HS_TOKEN = "test-hs-token-secret"
 AS_TOKEN = "test-as-token-secret"
 BOT_USER_ID = "@waldur-bot:matrix.example.com"
+
+
+PING_URL = "/_matrix/app/v1/ping"
+
+
+@override_config(
+    MATRIX_ENABLED=True,
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
+    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
+)
+class AppservicePingEndpointTest(test.APITestCase):
+    """The homeserver calls this when Waldur asks it to ping (MSC2659)."""
+
+    def _ping(self, **headers):
+        return self.client.post(
+            PING_URL, data={"transaction_id": "t1"}, format="json", **headers
+        )
+
+    def test_the_homeserver_token_is_answered(self):
+        response = self._ping(HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {})
+
+    def test_a_wrong_token_is_forbidden(self):
+        response = self._ping(HTTP_AUTHORIZATION="Bearer wrong-token")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_a_missing_token_is_forbidden(self):
+        self.assertEqual(self._ping().status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_only_post_is_accepted(self):
+        response = self.client.get(PING_URL, HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}")
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 @override_config(
@@ -773,6 +817,84 @@ class AppserviceDiagnosticsTest(test.APITestCase):
         from waldur_core.structure.tests.factories import UserFactory
 
         self.staff = UserFactory(is_staff=True)
+        patcher = mock.patch.object(
+            appservice_registration, "ping_appservice", return_value=4
+        )
+        self.ping = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _checks(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(DIAGNOSTICS_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {c["name"]: c for c in response.data["checks"]}
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_a_round_trip_from_the_homeserver_passes(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(
+            status_code=200, json=mock.MagicMock(return_value={"user_id": "@b:x"})
+        )
+
+        check = self._checks()["appservice_ping"]
+
+        self.assertTrue(check["ok"])
+        self.assertIn("4 ms", check["detail"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_a_homeserver_that_cannot_reach_waldur_fails(self, mock_httpx_get):
+        # The one check that covers the hs_token and the homeserver's route to
+        # Waldur: every other check talks in the opposite direction.
+        mock_httpx_get.return_value = mock.MagicMock(
+            status_code=200, json=mock.MagicMock(return_value={"user_id": "@b:x"})
+        )
+        self.ping.side_effect = appservice_registration.AppserviceRegistrationError(
+            "Appservice ping failed: HTTP 502 M_BAD_STATUS"
+        )
+
+        check = self._checks()["appservice_ping"]
+
+        self.assertFalse(check["ok"])
+        self.assertIn("M_BAD_STATUS", check["detail"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_a_ping_timeout_says_the_homeserver_may_still_be_trying(
+        self, mock_httpx_get
+    ):
+        # The homeserver holds the ping open while it retries Waldur, for longer
+        # than the page waits, so a timeout here is about the homeserver's
+        # route to Waldur rather than Waldur's route to the homeserver.
+        mock_httpx_get.return_value = mock.MagicMock(
+            status_code=200, json=mock.MagicMock(return_value={"user_id": "@b:x"})
+        )
+        self.ping.side_effect = appservice_registration.AppservicePingTimeout()
+
+        check = self._checks()["appservice_ping"]
+
+        self.assertFalse(check["ok"])
+        self.assertIn("may still be trying to reach Waldur", check["detail"])
+        self.assertIn("reachable from the homeserver", check["detail"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_an_unexpected_ping_failure_does_not_break_the_page(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(
+            status_code=200, json=mock.MagicMock(return_value={"user_id": "@b:x"})
+        )
+        self.ping.side_effect = ValueError("Expecting value: line 1 column 1")
+
+        check = self._checks()["appservice_ping"]
+
+        self.assertFalse(check["ok"])
+        self.assertIn("Expecting value", check["detail"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_the_ping_is_skipped_when_the_bot_cannot_authenticate(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(status_code=401)
+
+        check = self._checks()["appservice_ping"]
+
+        self.assertFalse(check["ok"])
+        self.assertIn("Skipped", check["detail"])
+        self.ping.assert_not_called()
 
     @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
     def test_diagnostics_includes_public_url_checks(self, mock_httpx_get):

@@ -28,6 +28,36 @@ access_log_format = (
 errorlog = "-"
 capture_output = True
 
+# A Matrix homeserver authenticates its calls to the appservice with
+# ?access_token=<hs_token>, and all of them go to /_matrix/app/. Their request
+# line is logged without the query string; every other request keeps its own.
+APPSERVICE_PATH_PREFIX = "/_matrix/app/"
+
+
+def logger_class():
+    # Gunicorn calls a function given as logger_class and uses the class it
+    # returns, so gunicorn is imported only when gunicorn loads this file; tests
+    # exec it in an environment without gunicorn.
+    from gunicorn.glogging import Logger
+
+    class AccessLogger(Logger):
+        def atoms(self, resp, req, environ, request_time):
+            atoms = super().atoms(resp, req, environ, request_time)
+            path = environ.get("PATH_INFO") or ""
+            if path.startswith(APPSERVICE_PATH_PREFIX):
+                atoms["r"] = "%s %s %s" % (
+                    environ["REQUEST_METHOD"],
+                    path,
+                    environ["SERVER_PROTOCOL"],
+                )
+                # The same query reaches the format through these atoms too.
+                atoms["q"] = ""
+                atoms["{query_string}e"] = ""
+                atoms["{raw_uri}e"] = path
+            return atoms
+
+    return AccessLogger
+
 
 def post_fork(server, worker):
     # With preload the master imports the WSGI app before forking; drop any

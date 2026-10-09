@@ -1,9 +1,10 @@
 import yaml
-from constance import config
 from django.core.management.base import BaseCommand, CommandError
-from rest_framework.exceptions import ValidationError
 
 from waldur_mastermind.matrix_chat import appservice_registration
+from waldur_mastermind.matrix_chat.appservice_registration import (
+    AppserviceRegistrationError,
+)
 
 
 class Command(BaseCommand):
@@ -30,37 +31,13 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        as_token = options["as_token"] or config.MATRIX_APPSERVICE_AS_TOKEN
-        hs_token = options["hs_token"] or config.MATRIX_APPSERVICE_HS_TOKEN
-        sender_localpart = config.MATRIX_APPSERVICE_SENDER_LOCALPART or "waldur-bot"
-        homeserver_domain = config.MATRIX_HOMESERVER_DOMAIN
-        url = options["url"].rstrip("/")
-
-        missing = []
-        if not as_token:
-            missing.append(
-                "as_token (pass --as-token or set MATRIX_APPSERVICE_AS_TOKEN)"
-            )
-        if not hs_token:
-            missing.append(
-                "hs_token (pass --hs-token or set MATRIX_APPSERVICE_HS_TOKEN)"
-            )
-        if not homeserver_domain:
-            missing.append(
-                "MATRIX_HOMESERVER_DOMAIN (required for users namespace regex)"
-            )
-        if missing:
-            raise CommandError("Missing prerequisites: " + "; ".join(missing))
-
         try:
-            registration = appservice_registration.build_registration(
-                url=url,
-                as_token=as_token,
-                hs_token=hs_token,
-                sender_localpart=sender_localpart,
-                homeserver_domain=homeserver_domain,
+            registration = appservice_registration.build_registration_from_config(
+                url=options["url"],
+                as_token=options["as_token"],
+                hs_token=options["hs_token"],
             )
-        except ValidationError as exc:
-            raise CommandError(str(exc.detail))
+        except AppserviceRegistrationError as exc:
+            raise CommandError(str(exc))
 
         self.stdout.write(yaml.dump(registration, default_flow_style=False))

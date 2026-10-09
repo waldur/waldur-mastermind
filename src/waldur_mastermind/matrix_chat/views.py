@@ -986,6 +986,26 @@ class MatrixAppserviceWebhookView(views.APIView):
         return Response({}, status=status.HTTP_200_OK)
 
 
+class MatrixAppservicePingView(views.APIView):
+    authentication_classes = ()
+    permission_classes = ()
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "matrix_webhook"
+
+    @extend_schema(
+        summary="Matrix Application Service ping",
+        description="Called by the homeserver when Waldur asks it to ping the "
+        "appservice (MSC2659). Authenticated via hs_token in the Authorization "
+        "header.",
+        request=None,
+        responses={200: None},
+    )
+    def post(self, request):
+        if not _is_from_homeserver(request):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        return Response({}, status=status.HTTP_200_OK)
+
+
 class MatrixAppserviceSetupView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
 
@@ -1577,6 +1597,34 @@ class MatrixDiagnosticsView(views.APIView):
             }
         )
 
+        # Check 9: the homeserver can call Waldur. Every check above talks from
+        # Waldur to the homeserver; this one has the homeserver call back with
+        # the hs_token, so it catches a wrong hs_token or an appservice URL the
+        # homeserver cannot reach, which otherwise only show as missing events.
+        ping_ok = False
+        if bot_ok:
+            try:
+                duration = appservice_registration.ping_appservice(
+                    homeserver_url, as_token, timeout=DIAGNOSTICS_TIMEOUT
+                )
+                ping_ok = True
+                detail = f"OK — round trip {duration} ms"
+            except Exception as e:
+                # A timeout's message names its likely cause: the homeserver
+                # holds the ping open while it retries Waldur.
+                detail = str(e)
+        else:
+            detail = "Skipped — bot authentication failed"
+
+        checks.append(
+            {
+                "name": "appservice_ping",
+                "label": "Homeserver can reach Waldur (ping)",
+                "ok": ping_ok,
+                "detail": detail,
+            }
+        )
+
         # Check 8b: LiveKit (RTC) configured. The video-call SFU is advertised
         # by the homeserver's .well-known under org.matrix.msc4143.rtc_foci —
         # the exact source the browser reads. Waldur holds no LiveKit config, so
@@ -1626,7 +1674,7 @@ class MatrixDiagnosticsView(views.APIView):
             }
         )
 
-        # Check 9: Room stats
+        # Check 10: Room stats
         total_rooms = models.MatrixRoom.objects.count()
         active_rooms = models.MatrixRoom.objects.filter(
             state=models.RoomStates.ACTIVE
@@ -1648,7 +1696,7 @@ class MatrixDiagnosticsView(views.APIView):
             }
         )
 
-        # Check 10: User profiles, and the room members provisioning left
+        # Check 11: User profiles, and the room members provisioning left
         # without one, e.g. refused because their generated ID already has an
         # account. Those have no chat, so the check fails; users outside every
         # room have only never opened it.
@@ -1712,7 +1760,9 @@ class MatrixReprovisionView(views.APIView):
         request=None,
         responses={202: serializers.MatrixReprovisionResponseSerializer},
         description="Resets all active rooms to 'creating' state and re-queues them "
-        "for provisioning. Also resets all user profiles. Staff only.",
+        "for provisioning. Also resets all user profiles. Only for moving to a new "
+        "homeserver: on the same homeserver, every old room stays behind with its "
+        "history next to a new, empty one. Staff only.",
     )
     def post(self, request):
         # Reprovisioning resets every active room to 'creating' and re-queues

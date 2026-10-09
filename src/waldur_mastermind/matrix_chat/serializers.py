@@ -382,7 +382,8 @@ class MatrixAppserviceSetupSerializer(serializers.Serializer):
         allow_blank=True,
         write_only=True,
         help_text=(
-            "Shared secret configured in the homeserver for user registration. "
+            "Registration token the homeserver requires for sign-up (its "
+            "registration_token). "
             "Only persisted if MATRIX_USER_REGISTRATION_SECRET is not already "
             "configured."
         ),
