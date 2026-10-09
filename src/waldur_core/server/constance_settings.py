@@ -1905,17 +1905,23 @@ CONSTANCE_CONFIG = {
     ),
     "MATRIX_LIVEKIT_KEY": (
         "",
-        "LiveKit API key for the call SFU (Calls observability tab).",
+        "LiveKit API key for the call SFU.",
     ),
     "MATRIX_LIVEKIT_SECRET": (
         "",
-        "LiveKit API secret used to mint the admin token.",
+        "LiveKit API secret used to mint admin and call tokens.",
         "secret_field",
     ),
     "MATRIX_LIVEKIT_URL": (
         "",
         "Internal LiveKit base URL. Falls back to http://livekit:7880 when blank.",
         "url_field",
+    ),
+    "MATRIX_LIVEKIT_PUBLIC_URL": (
+        "",
+        "Public LiveKit signaling URL that browsers connect to for calls, "
+        "e.g. wss://matrix.example.org. Waldur issues call tokens only when "
+        "this and the LiveKit key and secret are set.",
     ),
     # Site Agent Logs
     "SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY": (
@@ -2375,6 +2381,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MATRIX_LIVEKIT_KEY",
         "MATRIX_LIVEKIT_SECRET",
         "MATRIX_LIVEKIT_URL",
+        "MATRIX_LIVEKIT_PUBLIC_URL",
     ),
     "Personal Access Tokens": (
         "PAT_ENABLED",

@@ -1441,6 +1441,26 @@ def list_devices(matrix_user_id):
     return _json_body(response).get("devices", [])
 
 
+def is_joined(matrix_user_id, room_id):
+    """Whether the homeserver has the user joined to the room now.
+
+    Asks as the user through the appservice. An invite or a past membership
+    is not a join.
+    """
+    response = _homeserver_call(
+        "GET",
+        "/_matrix/client/v3/joined_rooms",
+        _get_as_token(),
+        params={"user_id": matrix_user_id},
+    )
+    if response.status_code != 200:
+        raise _refusal(response, f"list joined rooms of {matrix_user_id}")
+    joined_rooms = _json_body(response).get("joined_rooms")
+    if not isinstance(joined_rooms, list):
+        raise MatrixClientError("Homeserver returned no joined_rooms list")
+    return room_id in joined_rooms
+
+
 def list_web_devices(matrix_user_id):
     """The user's devices that Waldur's web chat signed in on. Element and other
     clients the user signed in to are left out."""
