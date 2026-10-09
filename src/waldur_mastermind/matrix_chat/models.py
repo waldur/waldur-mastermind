@@ -382,3 +382,82 @@ class MatrixAppserviceTransaction(models.Model):
 
     def __str__(self):
         return f"Transaction {self.txn_id} ({self.event_count} events)"
+
+
+class MatrixBotIdentity(TimeStampedModel):
+    """The bot's own Matrix device and the secrets only the bot uses.
+
+    The bot's Olm account and sessions live in its crypto store, pickled under
+    ``pickle_key``. Without that key the store is useless, and with a wrong one
+    the bot refuses to start rather than reset the store. The cross-signing seeds
+    let the bot sign its device again after a restart.
+
+    The lease admits one bot process at a time. It is a row and not a Postgres
+    advisory lock, which a transaction-pooling PgBouncer would not hold.
+    """
+
+    user_id = models.CharField(max_length=255, unique=True)
+    device_id = models.CharField(max_length=64)
+    pickle_key = core_fields.EncryptedTextField()
+    cross_signing_seeds = core_fields.EncryptedTextField(blank=True, default="")
+    # Reused across restarts: signing in again would leave one more live token
+    # for the device each time, and logging out would delete the device.
+    access_token = core_fields.EncryptedTextField(blank=True, default="")
+    access_token_homeserver = models.CharField(max_length=255, blank=True, default="")
+    lease_holder = models.CharField(max_length=64, blank=True, default="")
+    lease_expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Matrix bot identity"
+
+    def __str__(self):
+        return f"{self.user_id} ({self.device_id})"
+
+
+class OutboxStates:
+    PENDING = "pending"
+    SENT = "sent"
+    FAILED = "failed"
+
+    CHOICES = ((PENDING, "Pending"), (SENT, "Sent"), (FAILED, "Failed"))
+
+
+class MatrixOutboxMessage(core_models.UuidMixin, TimeStampedModel):
+    """A message for the bot to post, encrypted, into a room.
+
+    Only the bot process holds the keys to send into an encrypted room, so
+    everything Waldur posts as the bot is queued here and the bot drains it.
+    """
+
+    room = models.ForeignKey(
+        MatrixRoom, on_delete=models.CASCADE, related_name="outbox_messages"
+    )
+    body = models.TextField()
+    reply_to = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Event the message replies to; a command is answered once.",
+    )
+    state = models.CharField(
+        max_length=16, choices=OutboxStates.CHOICES, default=OutboxStates.PENDING
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    error_message = models.TextField(blank=True)
+    event_id = models.CharField(max_length=255, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created", "id"]
+        indexes = [models.Index(fields=["state", "next_attempt_at"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "reply_to"],
+                condition=~models.Q(reply_to=""),
+                name="matrix_outbox_one_reply_per_event",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.room} [{self.state}]"

@@ -162,6 +162,9 @@ _SECRET_NAMES = [
     "session_key",
     "temporary_password",
     "lease",
+    "seed",
+    "seeds",
+    "cross_signing_seeds",
 ]
 
 

@@ -17,7 +17,7 @@ from django_fsm import TransitionNotAllowed
 
 from waldur_core.permissions.models import UserRole
 
-from . import formatting, matrix_client, models
+from . import bot_state, formatting, matrix_client, models
 
 User = get_user_model()
 
@@ -26,6 +26,33 @@ logger = logging.getLogger(__name__)
 # Power level granted to staff who self-join via the admin panel. 50 renders as
 # the "Moderator" badge in Element — the same tier as customer owners.
 STAFF_POWER_LEVEL = 50
+
+# How long a task that must not act before the bot has posted (the notice that
+# a room is closing, sent before its members are removed) waits for it.
+BOT_POST_WAIT_SECONDS = 30
+
+# Sent outbox messages are kept this long, for debugging delivery.
+OUTBOX_RETENTION_DAYS = 7
+
+
+def post_as_bot(room, body, reply_to="", wait=False):
+    """Post ``body`` in ``room`` as the bot.
+
+    While the bot process runs, the message goes through its outbox: only the
+    bot holds the keys to post into an encrypted room. With no bot running yet,
+    rooms are not encrypted, and Waldur posts directly with the appservice token.
+    ``wait`` holds the caller until the bot has posted, or gives up quietly.
+    """
+    if bot_state.is_bot_running(matrix_client.get_bot_user_id()):
+        message = bot_state.enqueue(room, body, reply_to=reply_to)
+        if wait and not bot_state.wait_until_sent(message, BOT_POST_WAIT_SECONDS):
+            logger.warning("The bot has not posted %s in time", message.uuid)
+        return
+    if reply_to:
+        matrix_client.send_reply(room.room_id, reply_to, body)
+    else:
+        matrix_client.send_message(room.room_id, body)
+
 
 # Deleting an export runs its post_delete handler, so Django loads every row it
 # deletes; chunks keep the first run after an upgrade from loading them all.
@@ -356,9 +383,8 @@ def staff_join_room(room_uuid, user_uuid):
 
         full_name = user.full_name or user.username
         try:
-            matrix_client.send_message(
-                room.room_id,
-                f"{formatting.escape_markdown(full_name)} joined the room.",
+            post_as_bot(
+                room, f"{formatting.escape_markdown(full_name)} joined the room."
             )
         except Exception:
             logger.warning("Failed to announce staff join in room %s", room.room_id)
@@ -810,9 +836,7 @@ def staff_leave_room(room_uuid, user_uuid):
     # Announce before leaving so the departure is attributed while the member
     # is still present in the room.
     try:
-        matrix_client.send_message(
-            room.room_id, f"{formatting.escape_markdown(full_name)} left the room."
-        )
+        post_as_bot(room, f"{formatting.escape_markdown(full_name)} left the room.")
     except Exception:
         logger.warning("Failed to announce staff leave in room %s", room.room_id)
 
@@ -1021,7 +1045,8 @@ def disable_room(room_uuid, delete_history=False, reason=""):
                 else "Chat room was deactivated"
             )
             try:
-                matrix_client.send_message(room.room_id, notice)
+                # Members must read it before they are removed below.
+                post_as_bot(room, notice, wait=True)
             except Exception:
                 logger.warning(
                     "Failed to send disable notification to room %s", room.room_id
@@ -1137,8 +1162,8 @@ def send_room_notification(room_uuid, body):
         return
 
     try:
-        matrix_client.send_message(room.room_id, body)
-        logger.info("Sent notification to room %s", room.room_id)
+        post_as_bot(room, body)
+        logger.info("Posted notification to room %s", room.room_id)
     except Exception:
         logger.exception("Failed to send notification to room %s", room.room_id)
 
@@ -1313,12 +1338,68 @@ def _sender_has_project_access(sender, room_id):
     return user
 
 
+ACCESS_DENIED_REPLY = "You don't have access to this room's project in Waldur."
+
+
+def _parse_command(body):
+    parts = body.strip()[1:].split(None, 1)
+    return parts[0].lower() if parts else ""
+
+
+def _command_reply(room_id, sender, event_id, command):
+    handler = COMMAND_HANDLERS.get(command)
+    if handler is None:
+        return (
+            f"**Unknown command:** {formatting.code_span('!' + command)}\n\n"
+            + _cmd_help(room_id, sender, event_id)
+        )
+    try:
+        return handler(room_id, sender, event_id)
+    except Exception:
+        logger.exception("Error handling command !%s in room %s", command, room_id)
+        return (
+            f"**Error** processing command {formatting.code_span('!' + command)}. "
+            "Please try again later."
+        )
+
+
+def answer_command(room_id, sender, event_id, body):
+    """Answer a ``!command`` the bot read in a room, through the outbox.
+
+    Commands return project data, so only a sender with a role on the room's
+    project gets an answer; anyone else is told they have no access.
+    """
+    if not matrix_client.is_enabled():
+        return
+    room = models.MatrixRoom.objects.filter(
+        room_id=room_id, state=models.RoomStates.ACTIVE
+    ).first()
+    if room is None:
+        return
+    if not bot_state.may_reply(room):
+        logger.warning(
+            "Too many commands in %s; leaving %s unanswered", room_id, event_id
+        )
+        return
+    if _sender_has_project_access(sender, room_id) is None:
+        reply = ACCESS_DENIED_REPLY
+    else:
+        reply = _command_reply(room_id, sender, event_id, _parse_command(body))
+    bot_state.enqueue(room, reply, reply_to=event_id)
+
+
 @shared_task(name="waldur_mastermind.matrix_chat.process_appservice_events")
 def process_appservice_events(txn_id, events):
-    """Process events received from the Matrix homeserver via appservice webhook."""
+    """Process events received from the Matrix homeserver via appservice webhook.
+
+    A running bot reads commands itself, decrypting them where it has to, so the
+    webhook answers them only while no bot runs and rooms are unencrypted.
+    """
     if not matrix_client.is_enabled():
         return
     bot_user_id = matrix_client.get_bot_user_id()
+    if bot_state.is_bot_running(bot_user_id):
+        return
 
     for event in events:
         event_type = event.get("type")
@@ -1340,8 +1421,7 @@ def process_appservice_events(txn_id, events):
         room_id = event.get("room_id", "")
         event_id = event.get("event_id", "")
 
-        parts = body[1:].split(None, 1)
-        command = parts[0].lower() if parts else ""
+        command = _parse_command(body)
 
         # Bot commands return project-scoped data; gate dispatch on the
         # sender having an active Waldur role on the room's project. A
@@ -1349,11 +1429,7 @@ def process_appservice_events(txn_id, events):
         # they get a friendly denial instead of project details.
         if _sender_has_project_access(sender, room_id) is None:
             try:
-                matrix_client.send_reply(
-                    room_id,
-                    event_id,
-                    "You don't have access to this room's project in Waldur.",
-                )
+                matrix_client.send_reply(room_id, event_id, ACCESS_DENIED_REPLY)
             except Exception:
                 logger.warning(
                     "Failed to send access-denied reply to %s in %s",
@@ -1371,22 +1447,7 @@ def handle_bot_command(room_id, sender, event_id, command):
     if not matrix_client.is_enabled():
         return
 
-    handler = COMMAND_HANDLERS.get(command)
-    if handler is None:
-        reply = (
-            f"**Unknown command:** {formatting.code_span('!' + command)}\n\n"
-            + _cmd_help(room_id, sender, event_id)
-        )
-    else:
-        try:
-            reply = handler(room_id, sender, event_id)
-        except Exception:
-            logger.exception("Error handling command !%s in room %s", command, room_id)
-            reply = (
-                f"**Error** processing command {formatting.code_span('!' + command)}. "
-                "Please try again later."
-            )
-
+    reply = _command_reply(room_id, sender, event_id, command)
     try:
         matrix_client.send_reply(room_id, event_id, reply)
     except Exception:
@@ -1397,6 +1458,17 @@ def handle_bot_command(room_id, sender, event_id, command):
 # replayed (the homeserver retries via the same txn_id, which we've already
 # acked), so 30 days is conservative breathing room for debugging.
 APPSERVICE_TRANSACTION_RETENTION_DAYS = 30
+
+
+@shared_task(name="waldur_mastermind.matrix_chat.cleanup_old_outbox_messages")
+def cleanup_old_outbox_messages():
+    """Prune sent and failed outbox messages older than the retention window."""
+    cutoff = timezone.now() - timedelta(days=OUTBOX_RETENTION_DAYS)
+    deleted, _ = models.MatrixOutboxMessage.objects.filter(
+        state__in=[models.OutboxStates.SENT, models.OutboxStates.FAILED],
+        modified__lt=cutoff,
+    ).delete()
+    return {"status": "success", "deleted_count": deleted}
 
 
 @shared_task(name="waldur_mastermind.matrix_chat.cleanup_old_appservice_transactions")

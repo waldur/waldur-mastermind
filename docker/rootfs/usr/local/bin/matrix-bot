@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+
+echo "INFO: Running the Matrix bot..."
+# exec: the bot releases its lease on SIGTERM, so it must receive the signal.
+exec waldur matrix_bot
