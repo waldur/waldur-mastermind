@@ -1917,6 +1917,16 @@ CONSTANCE_CONFIG = {
         "login_with_password = false on the homeserver.",
         "choice_field",
     ),
+    "MATRIX_SSO_REGISTRATION_METHOD": (
+        "",
+        "With MATRIX_EXTERNAL_LOGIN_METHOD 'oidc': the registration method of "
+        "the Waldur users who sign in to Waldur through the identity provider "
+        "the homeserver's single sign-on uses, i.e. that identity provider's "
+        "name in Waldur, such as 'keycloak'. Waldur gives a Matrix account only "
+        "to those users, because the homeserver signs in any subject of that "
+        "provider to the account its claim names. While blank, no user is "
+        "given a Matrix account.",
+    ),
     "MATRIX_LIVEKIT_KEY": (
         "",
         "LiveKit API key for the call SFU.",
@@ -2393,6 +2403,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MATRIX_USER_REGISTRATION_SECRET",
         "MATRIX_USER_ID_FORMAT",
         "MATRIX_EXTERNAL_LOGIN_METHOD",
+        "MATRIX_SSO_REGISTRATION_METHOD",
         "MATRIX_LIVEKIT_KEY",
         "MATRIX_LIVEKIT_SECRET",
         "MATRIX_LIVEKIT_URL",

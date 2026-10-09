@@ -55,6 +55,51 @@ class LinkMatrixAccountTest(TestCase):
         )
 
     @respx.mock
+    @override_config(MATRIX_EXTERNAL_LOGIN_METHOD="oidc")
+    def test_warns_when_single_sign_on_reaches_the_account_by_another_claim(self):
+        respx.get(f"{PROFILE_URL}%40alice_old%3Amatrix.example.com").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        respx.get(f"{ADMIN_USERS_URL}%40alice_old%3Amatrix.example.com").mock(
+            return_value=httpx.Response(200, json={"admin": False})
+        )
+        respx.put(f"{PROFILE_URL}%40alice_old%3Amatrix.example.com/displayname").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        stderr = StringIO()
+
+        call_command(
+            "link_matrix_account",
+            "alice",
+            "@alice_old:matrix.example.com",
+            stdout=StringIO(),
+            stderr=stderr,
+        )
+
+        self.assertIn("another identity provider subject", stderr.getvalue())
+        self.assertTrue(
+            models.MatrixUserProfile.objects.filter(user=self.user).exists()
+        )
+
+    @respx.mock
+    def test_does_not_warn_without_single_sign_on(self):
+        self._account()
+        respx.put(f"{PROFILE_URL}%40alice%3Amatrix.example.com/displayname").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        stderr = StringIO()
+
+        call_command(
+            "link_matrix_account",
+            "alice",
+            "@alice:matrix.example.com",
+            stdout=StringIO(),
+            stderr=stderr,
+        )
+
+        self.assertNotIn("identity provider", stderr.getvalue())
+
+    @respx.mock
     def test_refuses_a_homeserver_admin(self):
         self._account(admin=True)
 

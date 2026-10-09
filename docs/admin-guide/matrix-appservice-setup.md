@@ -18,7 +18,7 @@ Rooms, member sync, bot commands, exports and the chat drawer need a homeserver 
 
 - A running Matrix homeserver with Application Service support
 - Waldur reachable from the homeserver over HTTP/HTTPS
-- A staff account in Waldur — the Setup appservice wizard, connectivity diagnostics, and the **Settings** tab are staff-only
+- A staff account in Waldur — the Setup appservice wizard, Diagnostics, and the **Settings** tab are staff-only
 
 The Setup appservice wizard collects everything else it needs. If the homeserver URL, homeserver domain, or user registration secret (`MATRIX_HOMESERVER_URL`, `MATRIX_HOMESERVER_DOMAIN`, `MATRIX_USER_REGISTRATION_SECRET`) are still empty in Constance, the wizard shows a prerequisites step that prompts for them and persists them. You can also set them in Constance beforehand to skip that step.
 
@@ -26,7 +26,7 @@ The Setup appservice wizard collects everything else it needs. If the homeserver
 
 ### Via the UI
 
-The page lives at **Administration → Configuration → Matrix chat** and is split into a **Rooms** tab and a staff-only **Settings** tab. Support users see only the Rooms tab; the Setup appservice and Check connectivity actions are staff-only.
+The page lives at **Administration → Configuration → Matrix chat** and is split into a **Rooms** tab and a staff-only **Settings** tab. Support users see only the Rooms tab; the Setup appservice and Diagnostics actions are staff-only.
 
 1. Navigate to **Administration → Configuration → Matrix chat**
 2. Click **Setup appservice** to open the wizard
@@ -87,8 +87,9 @@ would be reverted while the homeserver kept the old registration. See
 | `homeserver_url` | string | Homeserver URL. Persisted only when `MATRIX_HOMESERVER_URL` is still empty |
 | `homeserver_domain` | string | Homeserver domain. Persisted only when `MATRIX_HOMESERVER_DOMAIN` is still empty |
 | `user_registration_secret` | string | The homeserver's registration token (write-only). Persisted only when `MATRIX_USER_REGISTRATION_SECRET` is still empty |
+| `homeserver_public_url` | string | Homeserver URL browsers use, when it differs from `homeserver_url`. Persisted only when `MATRIX_HOMESERVER_PUBLIC_URL` is still empty |
 
-The last three fields back the wizard's prerequisites step — they are only written when the corresponding Constance value is empty, so an existing configuration is never overwritten by them.
+The last four fields back the wizard's prerequisites step. Each is written only while its Constance value is empty, so an existing configuration is never overwritten by them. A value that differs from a stored one (a trailing slash aside) is refused with `400` and `Already configured with a different value: <KEY>. Change it in the Settings tab first, then run Setup again.`, and no tokens are rotated.
 
 **Example request:**
 
@@ -162,6 +163,7 @@ Checks performed (the `checks` array in the response):
 14. LiveKit configured (`livekit_configured`: a LiveKit focus in the homeserver's `/.well-known/matrix/client`; only calls need it)
 15. Room statistics (`room_stats`: active, creating, errored counts)
 16. User profile statistics (`user_stats`: provisioned count, plus the active users whose roles put them in an active project room but who have no Matrix profile, named up to ten. Provisioning refused or failed for those; the worker log says why, and [Existing Matrix accounts](#existing-matrix-accounts) says how to link one. Fails while any room member is unlinked)
+17. Single sign-on reaches only its own accounts (`sso_id_collisions`: with `MATRIX_EXTERNAL_LOGIN_METHOD = oidc`, the provisioned Matrix IDs another identity provider subject could sign in to, counted and named up to ten: those whose localpart is not the user's lowercased ASCII username, whose user does not sign in to Waldur through `MATRIX_SSO_REGISTRATION_METHOD`, or whose user's username another user's differs from only in case. Fails while `MATRIX_SSO_REGISTRATION_METHOD` is blank. Passes with "Not using single sign-on" otherwise; see [Single sign-on for Matrix clients](matrix-sso.md))
 
 **Example response (200):**
 
@@ -325,6 +327,9 @@ existing ones. Re-running setup therefore invalidates the previous registration
 YAML: after each call you must update your homeserver configuration with the new
 YAML and restart the homeserver.
 
+Prerequisite fields are never overwritten, and a request that conflicts with a
+stored one is refused; see [Via the API](#via-the-api).
+
 On Tuwunel, run `waldur register_matrix_appservice` after changing the tokens instead.
 It replaces the old registration, as described above, whether the `as_token`, the
 `hs_token` or both changed. Transactions the homeserver sends during the few seconds
@@ -425,7 +430,7 @@ those that are not in the environment alone:
 - `MATRIX_APPSERVICE_AS_TOKEN`, `MATRIX_APPSERVICE_HS_TOKEN`,
   `MATRIX_APPSERVICE_SENDER_LOCALPART`
 - `MATRIX_USER_REGISTRATION_SECRET`, `MATRIX_USER_ID_FORMAT`,
-  `MATRIX_EXTERNAL_LOGIN_METHOD`
+  `MATRIX_EXTERNAL_LOGIN_METHOD`, `MATRIX_SSO_REGISTRATION_METHOD`
 - `MATRIX_HISTORY_EXPORT_ENABLED`, `MATRIX_EXPORT_MEDIA`,
   `MATRIX_HISTORY_EXPORT_RETENTION_DAYS`
 - `MATRIX_LIVEKIT_KEY`, `MATRIX_LIVEKIT_SECRET`, `MATRIX_LIVEKIT_URL`,
@@ -630,9 +635,15 @@ by hand. Run it only when every such account belongs to this Waldur's users.
 Back up the homeserver together with Waldur's database, so a restore brings
 both back to the same point.
 
+Users with `+` in their username who were provisioned before Waldur kept `+` in
+Matrix IDs hold an account with `_` in its place. `--all` derives the ID with
+`+`, finds no account and skips them, and their next chat creates a new, empty
+one. Link each of them by hand before they next open chat:
+`waldur link_matrix_account <username> @<localpart with _ for +>:<domain>`.
+
 Different users can derive the same ID: under `email_local` (`alice@a.org` and
-`alice@b.org`), and when usernames differ only in case or in characters Matrix
-does not allow, which become `_` (`a@b` and `a_b`). The first one provisioned
+`alice@b.org`), and when usernames differ only in case or in ASCII characters
+Matrix does not allow, which become `_` (`a@b` and `a_b`). The first one provisioned
 gets the account. The second gets no chat, and the log names the user who holds
 it; linking cannot help, since an ID is linked to one user only. A user deleted
 and recreated under the same username finds their old account, which outlives
@@ -848,7 +859,7 @@ Back up the homeserver and the Waldur database **together**, and keep
 | --- | --- |
 | `none` (default) | Waldur offers no external sign-in: "Open in external Matrix client" and "Connect to Matrix…" are hidden. Users cannot generate a password, but this does not disable password login on the homeserver: a password generated earlier keeps working there |
 | `password` | The room, the homeserver, their Matrix user ID and a password they generate in Waldur; see [Generated passwords](#generated-passwords). For testing and sites without an identity provider; needs the bot to be a homeserver admin |
-| `oidc` | The room, the homeserver and an instruction to sign in with single sign-on, which must be configured on the homeserver |
+| `oidc` | The room, the homeserver and an instruction to sign in with single sign-on, which must be configured on the homeserver; see [Single sign-on for Matrix clients](matrix-sso.md) |
 
 Switching away from `password` does not revoke passwords users have already seen or sign out their external clients; to refuse password logins, set `login_with_password = false` on the homeserver.
 
@@ -961,8 +972,9 @@ These Constance settings control the integration:
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
 | `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` | `90` | Days to keep history exports, files included; each room's newest completed export is kept; `0` or less keeps them forever |
 | `MATRIX_USER_REGISTRATION_SECRET` | `""` | The homeserver's registration token, and with zero-touch setup also its `registration_shared_secret`. See [Registration secret](#registration-secret) |
-| `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local`. Applies only to users provisioned afterwards; existing users keep their Matrix ID. See [Existing Matrix accounts](#existing-matrix-accounts) for IDs two users share |
-| `MATRIX_EXTERNAL_LOGIN_METHOD` | `none` | How users sign in to an external Matrix client: `none`, `password`, or `oidc`. See [External clients](#external-clients) |
+| `MATRIX_USER_ID_FORMAT` | `username` | Format for generating Matrix user IDs: `username`, `uuid`, or `email_local`. Applies only to users provisioned afterwards; existing users keep their Matrix ID. See [Existing Matrix accounts](#existing-matrix-accounts) for IDs two users share. Single sign-on needs `username` |
+| `MATRIX_EXTERNAL_LOGIN_METHOD` | `none` | How users sign in to an external Matrix client: `none`, `password`, or `oidc`. See [External clients](#external-clients) and, for `oidc`, [Single sign-on for Matrix clients](matrix-sso.md) |
+| `MATRIX_SSO_REGISTRATION_METHOD` | (empty) | With `oidc`: the registration method of the users who sign in to Waldur through the homeserver's identity provider, such as `keycloak`. Only they get a Matrix account; while blank, no user does. See [Single sign-on for Matrix clients](matrix-sso.md#waldur-configuration) |
 
 ## Feature Flag
 
@@ -984,7 +996,7 @@ The messages below appear in the API and worker logs; the user only sees "Chat i
 
 | Log message | Cause | Fix |
 | --- | --- | --- |
-| `<id> already belongs to an account this Waldur did not create` | The user's derived Matrix ID had an account before Waldur provisioned them | If it is theirs, `waldur link_matrix_account <username> <id>`; after a database reset or restore, `waldur link_matrix_account --all`. Otherwise create another account for the user on the homeserver and link that; deactivating the existing account does not free its ID. See [Existing Matrix accounts](#existing-matrix-accounts) |
+| `<id> already belongs to an account this Waldur did not create` | The user's derived Matrix ID had an account before Waldur provisioned them | If it is theirs, `waldur link_matrix_account <username> <id>`; after a database reset or restore, `waldur link_matrix_account --all`. Otherwise create another account for the user on the homeserver and link that; deactivating the existing account does not free its ID. With `oidc`, single sign-on reaches only the account named after the user, never the linked one. See [Existing Matrix accounts](#existing-matrix-accounts) |
 | `<id> is already linked to <user>; <username> cannot be linked to it too` | Two users derive the same Matrix ID | The second user gets no chat until what the ID is derived from (username, or email under `email_local`) changes. See [Existing Matrix accounts](#existing-matrix-accounts) |
 | `<user> was linked to <id> meanwhile; try again` | `link_matrix_account` linked the user while their chat was being provisioned | None; the next attempt uses the linked account |
 | `<id> is a homeserver admin; Waldur does not act as it for a user`, or `does not set the password of <id>`; `Not locking <id>, a homeserver admin`; `Matrix password of deleted <id> not replaced and its account not locked: it is a homeserver admin's` | The user's account is a homeserver admin's. They get no chat session, and generating a password answers "Matrix passwords are not available yet; ask your administrator." Deactivating or deleting the user still signs the account's devices out and removes it from the rooms Waldur manages, but does not lock it or replace its password | Remove the admin flag from the account on the homeserver, or keep the user off chat |

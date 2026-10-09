@@ -33,7 +33,9 @@ class Command(BaseCommand):
                 "Link every user without a Matrix profile to the existing account "
                 "with their generated Matrix ID. Only for a Waldur database that "
                 "was restored or reset against a homeserver whose accounts all "
-                "belong to this Waldur's users."
+                "belong to this Waldur's users. Users with '+' in their username "
+                "provisioned before Waldur kept '+' have '_' in its place; link "
+                "them by hand."
             ),
         )
 
@@ -157,6 +159,12 @@ class Command(BaseCommand):
             user=user, matrix_user_id=matrix_user_id
         )
         profile.mark_provisioned()
+        exposure = matrix_client.sso_exposure(user, matrix_user_id)
+        if exposure:
+            self.stderr.write(
+                f"Warning: with single sign-on another identity provider "
+                f"subject can sign in to {matrix_user_id}: {exposure}."
+            )
         try:
             matrix_client.set_display_name(
                 matrix_user_id, user.full_name or user.username

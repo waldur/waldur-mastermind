@@ -22,6 +22,7 @@ from nio import (
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.matrix_chat import matrix_client
 from waldur_mastermind.matrix_chat.models import MatrixUserProfile
 
@@ -67,6 +68,58 @@ class GenerateMatrixUserIdTest(TestCase):
         user = structure_factories.UserFactory(username="Alice Smith!")
         result = matrix_client.generate_matrix_user_id(user)
         self.assertEqual(result, "@alice_smith_:matrix.example.com")
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_plus_is_kept(self, mock_config):
+        # Matrix allows "+" since spec 1.8, and homeservers keep it when they
+        # map an SSO login to a localpart, so rewriting it would part the
+        # Waldur-provisioned account from the one SSO signs in to.
+        mock_config.MATRIX_HOMESERVER_DOMAIN = "matrix.example.com"
+        mock_config.MATRIX_USER_ID_FORMAT = "username"
+        user = structure_factories.UserFactory(username="alice+lab")
+        result = matrix_client.generate_matrix_user_id(user)
+        self.assertEqual(result, "@alice+lab:matrix.example.com")
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_non_ascii_is_encoded_without_collisions(self, mock_config):
+        # Such letters used to pass through, though a localpart may not hold
+        # them; one "_" for each would make m.müller and m.möller one user.
+        mock_config.MATRIX_HOMESERVER_DOMAIN = "matrix.example.com"
+        mock_config.MATRIX_USER_ID_FORMAT = "username"
+        ids = {
+            name: matrix_client.generate_matrix_user_id(
+                structure_factories.UserFactory(username=name)
+            )
+            for name in ("jüri", "m.müller", "m.möller")
+        }
+
+        self.assertEqual(ids["jüri"], "@j=c3=bcri:matrix.example.com")
+        self.assertNotEqual(ids["m.müller"], ids["m.möller"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_literal_equals_sign_is_escaped(self, mock_config):
+        # Kept as is, "=" would let a username spelled like an encoded one take
+        # that user's Matrix ID.
+        mock_config.MATRIX_HOMESERVER_DOMAIN = "matrix.example.com"
+        mock_config.MATRIX_USER_ID_FORMAT = "username"
+        ids = {
+            name: matrix_client.generate_matrix_user_id(
+                structure_factories.UserFactory(username=name)
+            )
+            for name in ("jüri", "j=c3=bcri", "a=b")
+        }
+
+        self.assertEqual(ids["j=c3=bcri"], "@j=3dc3=3dbcri:matrix.example.com")
+        self.assertNotEqual(ids["jüri"], ids["j=c3=bcri"])
+        self.assertEqual(ids["a=b"], "@a=3db:matrix.example.com")
+
+    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.config")
+    def test_ids_without_equals_sign_are_unchanged(self, mock_config):
+        mock_config.MATRIX_HOMESERVER_DOMAIN = "matrix.example.com"
+        mock_config.MATRIX_USER_ID_FORMAT = "username"
+        user = structure_factories.UserFactory(username="a.b_c-d/e")
+        result = matrix_client.generate_matrix_user_id(user)
+        self.assertEqual(result, "@a.b_c-d/e:matrix.example.com")
 
 
 class IsEnabledTest(TestCase):
@@ -1113,6 +1166,148 @@ class BotIdentityIsReservedTest(TestCase):
 
         self.assertIn("profile", str(cm.exception))
         mock_run_async.assert_not_called()
+
+    def test_a_user_named_like_the_bot_gets_no_bot_power_level(self):
+        # The bot is not a Waldur user; one named like its localpart may be
+        # linked to some other Matrix account, which must not get 100.
+        fixture = structure_fixtures.ProjectFixture()
+        user = structure_factories.UserFactory(username="waldur-bot")
+
+        self.assertEqual(
+            matrix_client.get_power_level_for_scope(user, fixture.project), 0
+        )
+
+
+@override_config(
+    MATRIX_HOMESERVER_URL="https://matrix.example.com",
+    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
+    MATRIX_APPSERVICE_AS_TOKEN="test-as-token",
+    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
+    MATRIX_USER_REGISTRATION_SECRET="test-secret",
+    MATRIX_USER_ID_FORMAT="username",
+    MATRIX_EXTERNAL_LOGIN_METHOD="oidc",
+    MATRIX_SSO_REGISTRATION_METHOD="keycloak",
+)
+@mock.patch.object(matrix_client, "set_display_name")
+@mock.patch.object(matrix_client, "_run_async")
+class SingleSignOnProvisioningTest(TestCase):
+    def _user(self, username, registration_method="keycloak", **kwargs):
+        return structure_factories.UserFactory(
+            username=username, registration_method=registration_method, **kwargs
+        )
+
+    def _assert_refused(self, user):
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.ensure_user_exists(user)
+
+        self.assertFalse(
+            matrix_client.MatrixUserProfile.objects.filter(user=user).exists()
+        )
+
+    def test_a_transformed_id_is_not_provisioned(self, mock_run_async, _):
+        # SSO takes a claim as the localpart as it is, so @alice_smith would be
+        # the account of the subject whose claim is alice_smith, not this user's.
+        for username in ("alice smith", "a=b", "jüri"):
+            with self.subTest(username=username):
+                self._assert_refused(self._user(username))
+        mock_run_async.assert_not_called()
+
+    def test_a_username_that_is_a_valid_localpart_is_provisioned(
+        self, mock_run_async, _
+    ):
+        user = self._user("Alice.Smith+lab")
+
+        self.assertEqual(
+            matrix_client.ensure_user_exists(user),
+            "@alice.smith+lab:matrix.example.com",
+        )
+
+    def test_a_stored_id_the_claim_does_not_spell_is_not_provisioned(
+        self, mock_run_async, _
+    ):
+        # A profile keeps its stored ID, e.g. one derived before "=" was
+        # escaped, and SSO would reach whatever account that ID names.
+        user = self._user("alice")
+        matrix_client.MatrixUserProfile.objects.create(
+            user=user, matrix_user_id="@alice_smith:matrix.example.com"
+        )
+
+        with self.assertRaises(matrix_client.MatrixClientError):
+            matrix_client.ensure_user_exists(user)
+
+        mock_run_async.assert_not_called()
+
+    def test_a_non_ascii_username_that_lowercases_to_ascii_is_not_provisioned(
+        self, mock_run_async, _
+    ):
+        # The Kelvin sign lowercases to "k", so this user's ID would be @kate,
+        # which is also the claim of the user kate.
+        user = self._user("\u212aate")
+        self.assertEqual(
+            matrix_client.generate_matrix_user_id(user), "@kate:matrix.example.com"
+        )
+
+        self._assert_refused(user)
+        mock_run_async.assert_not_called()
+
+    def test_usernames_differing_only_in_case_are_not_provisioned(
+        self, mock_run_async, _
+    ):
+        # The homeserver lowercases the claim, so both subjects reach @alice.
+        upper = self._user("Alice")
+        lower = self._user("alice")
+
+        self._assert_refused(upper)
+        self._assert_refused(lower)
+        mock_run_async.assert_not_called()
+
+    def test_a_kelvin_sign_lookalike_blocks_the_ascii_username(self, mock_run_async, _):
+        # No case-insensitive database lookup matches the Kelvin sign.
+        self._user("\u212aate")
+
+        self._assert_refused(self._user("kate"))
+        mock_run_async.assert_not_called()
+
+    def test_an_inactive_user_with_the_same_claim_still_blocks(self, mock_run_async, _):
+        # Deactivating a user in Waldur does not remove them from the IdP.
+        self._user("Alice", is_active=False)
+
+        self._assert_refused(self._user("alice"))
+        mock_run_async.assert_not_called()
+
+    def test_a_user_who_signs_in_another_way_is_not_provisioned(
+        self, mock_run_async, _
+    ):
+        # A local or SAML user bob would hold @bob, which the homeserver's
+        # identity provider signs in whoever it calls bob to.
+        for method in ("default", "saml2", "eduteams", ""):
+            with self.subTest(registration_method=method):
+                self._assert_refused(self._user(f"bob-{method or 'blank'}", method))
+        mock_run_async.assert_not_called()
+
+    @override_config(MATRIX_SSO_REGISTRATION_METHOD="")
+    def test_no_user_is_provisioned_while_the_provider_is_unset(
+        self, mock_run_async, _
+    ):
+        self._assert_refused(self._user("alice"))
+        mock_run_async.assert_not_called()
+
+    @override_config(MATRIX_EXTERNAL_LOGIN_METHOD="password")
+    def test_other_login_methods_keep_transformed_ids(self, mock_run_async, _):
+        user = self._user("alice smith", "default")
+
+        self.assertEqual(
+            matrix_client.ensure_user_exists(user), "@alice_smith:matrix.example.com"
+        )
+
+    @override_config(MATRIX_EXTERNAL_LOGIN_METHOD="password")
+    def test_other_login_methods_ignore_case_and_provider(self, mock_run_async, _):
+        self._user("Alice", "default")
+
+        self.assertEqual(
+            matrix_client.ensure_user_exists(self._user("alice", "default")),
+            "@alice:matrix.example.com",
+        )
 
 
 ADMIN_USERS_URL = "https://matrix.example.com/_synapse/admin/v2/users/"

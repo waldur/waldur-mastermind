@@ -1098,6 +1098,31 @@ class MatrixAppserviceSetupView(views.APIView):
                 }
             )
 
+        # Setup never overwrites a stored value, so one in the request that
+        # differs would pair the new tokens with the old homeserver unnoticed.
+        # Secrets are left out: a 400 for a wrong value and a 200 for the right
+        # one would let a caller guess the stored secret one request at a time.
+        # A supplied secret is never written over a stored one either way.
+        secret_request_keys = {"user_registration_secret"}
+        conflicting = [
+            constance_key
+            for request_key, constance_key in constance_keys.items()
+            if request_key not in secret_request_keys
+            and (supplied := serializer.validated_data.get(request_key))
+            and (stored := getattr(config, constance_key))
+            and str(supplied).rstrip("/") != str(stored).rstrip("/")
+        ]
+        if conflicting:
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Already configured with a different value: "
+                        f"{', '.join(conflicting)}. Change it in the Settings tab "
+                        "first, then run Setup again."
+                    )
+                }
+            )
+
         sender_localpart = (
             serializer.validated_data.get("sender_localpart")
             or config.MATRIX_APPSERVICE_SENDER_LOCALPART
@@ -1355,6 +1380,10 @@ def _check_bot_is_homeserver_admin(homeserver_url, auth_headers, bot_user_id):
             "supported by the homeserver."
         )
     return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
+
+
+# How many Matrix IDs the sso_id_collisions diagnostic names.
+SSO_COLLISIONS_SHOWN = 10
 
 
 class MatrixDiagnosticsView(views.APIView):
@@ -1761,6 +1790,44 @@ class MatrixDiagnosticsView(views.APIView):
                 "name": "user_stats",
                 "label": "User profiles",
                 "ok": not unlinked_count,
+                "detail": detail,
+            }
+        )
+
+        # With single sign-on, a provisioned ID is the account of any subject
+        # of the homeserver's identity provider whose claim reads like it.
+        # Provisioning refuses IDs another subject could reach, but profiles
+        # from before oidc keep them.
+        collisions = matrix_client.sso_exposed_ids()
+        sso_ok = not collisions
+        if config.MATRIX_EXTERNAL_LOGIN_METHOD != "oidc":
+            detail = "Not using single sign-on"
+        elif not config.MATRIX_SSO_REGISTRATION_METHOD.strip():
+            # Every account counts as exposed then; naming them adds nothing.
+            sso_ok = False
+            detail = (
+                "MATRIX_SSO_REGISTRATION_METHOD is not set, so no user is given "
+                "a Matrix account, and no existing one can be checked"
+            )
+        elif collisions:
+            more = len(collisions) - SSO_COLLISIONS_SHOWN
+            detail = (
+                f"{len(collisions)} Matrix account(s) that another identity "
+                "provider subject could sign in to: "
+                + ", ".join(collisions[:SSO_COLLISIONS_SHOWN])
+                + (f" and {more} more" if more > 0 else "")
+                + ". An ID is listed when it is not its user's username "
+                "unchanged, when its user signs in to Waldur other than through "
+                "MATRIX_SSO_REGISTRATION_METHOD, or when another user's "
+                "username differs from its user's only in case."
+            )
+        else:
+            detail = "Every Matrix ID is its user's own claim"
+        checks.append(
+            {
+                "name": "sso_id_collisions",
+                "label": "Single sign-on reaches only its own accounts",
+                "ok": sso_ok,
                 "detail": detail,
             }
         )

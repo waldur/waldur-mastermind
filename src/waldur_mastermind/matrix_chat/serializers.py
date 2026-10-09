@@ -355,7 +355,7 @@ class MatrixAppserviceSetupSerializer(serializers.Serializer):
         allow_blank=True,
         help_text=(
             "Matrix homeserver base URL. Only persisted if MATRIX_HOMESERVER_URL "
-            "is not already configured."
+            "is not already configured; a different value is refused."
         ),
     )
     homeserver_public_url = serializers.URLField(
@@ -366,7 +366,8 @@ class MatrixAppserviceSetupSerializer(serializers.Serializer):
             "blank when the homeserver URL above is reachable from both "
             "servers and browsers. Set this for deployments where the two "
             "differ (e.g. Docker-internal vs. Caddy-proxied). Only persisted "
-            "if MATRIX_HOMESERVER_PUBLIC_URL is not already configured."
+            "if MATRIX_HOMESERVER_PUBLIC_URL is not already configured; a "
+            "different value is refused."
         ),
     )
     homeserver_domain = serializers.CharField(
@@ -374,7 +375,8 @@ class MatrixAppserviceSetupSerializer(serializers.Serializer):
         allow_blank=True,
         help_text=(
             "Matrix homeserver server_name domain. Only persisted if "
-            "MATRIX_HOMESERVER_DOMAIN is not already configured."
+            "MATRIX_HOMESERVER_DOMAIN is not already configured; a different "
+            "value is refused."
         ),
     )
     user_registration_secret = serializers.CharField(
@@ -385,7 +387,7 @@ class MatrixAppserviceSetupSerializer(serializers.Serializer):
             "Registration token the homeserver requires for sign-up (its "
             "registration_token). "
             "Only persisted if MATRIX_USER_REGISTRATION_SECRET is not already "
-            "configured."
+            "configured; a different value is refused."
         ),
     )
 
