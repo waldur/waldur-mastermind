@@ -79,7 +79,7 @@ dependencies = [
   "httpx[socks]>=0.28.1",
   "django-cors-headers>=4.5.0,<5.0.0",
   "openai>=2.26.0",
-  "matrix-nio>=0.25.2,<1.0.0",
+  "matrix-nio[e2e]==0.26.0",
   "markdown-it-py>=3.0.0,<5.0.0",
   "openstacksdk>=4.7.1",
   "scim2-models>=0.4.0",
