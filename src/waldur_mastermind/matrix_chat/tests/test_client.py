@@ -558,21 +558,6 @@ class EnsureBotUserExistsTest(TestCase):
         )
 
 
-class SendMessageTest(TestCase):
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
-    def test_send_message_success(self, mock_run_async):
-        mock_run_async.return_value = "$event123"
-        event_id = matrix_client.send_message("!room:example.com", "Hello world")
-        self.assertEqual(event_id, "$event123")
-        mock_run_async.assert_called_once()
-
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client._run_async")
-    def test_send_message_error(self, mock_run_async):
-        mock_run_async.side_effect = matrix_client.MatrixClientError("Send failed")
-        with self.assertRaises(matrix_client.MatrixClientError):
-            matrix_client.send_message("!room:example.com", "Hello world")
-
-
 class BuildTextContentTest(TestCase):
     def test_plain_markdown_becomes_formatted_body(self):
         content = matrix_client.build_text_content("**Room members (2):**")
@@ -803,6 +788,8 @@ class CreateRoomPowerLevelsTest(TestCase):
         self.assertFalse(alias_was_set)
         mock_client.room_create.assert_called_once()
         call_kwargs = mock_client.room_create.call_args[1]
+        # Every room is encrypted from its creation.
+        self.assertIn(matrix_client.ENCRYPTION_STATE, call_kwargs["initial_state"])
         # Power level 100 gates the privileged actions (invite/kick/ban/redact
         # and every state event); m.room.message stays at 0 so members can
         # post freely. The org.matrix.msc3401.call.member event is lowered to
@@ -825,6 +812,7 @@ class CreateRoomPowerLevelsTest(TestCase):
                     "m.room.join_rules": 100,
                     "m.room.history_visibility": 100,
                     "m.room.canonical_alias": 100,
+                    "m.room.encryption": 100,
                     "org.matrix.msc3401.call.member": 0,
                 },
             },

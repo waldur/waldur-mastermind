@@ -318,7 +318,7 @@ class StaffAnnouncementsEscapeNamesTest(TestCase):
 
         tasks.staff_join_room(str(self.room.uuid), str(self.staff.uuid))
 
-        body = mock_client.send_message.call_args[0][1]
+        body = models.MatrixOutboxMessage.objects.get(room=self.room).body
         self.assertIn("joined the room", body)
         self.assertNotIn("<a", matrix_client.render_markdown(body))
 
@@ -334,7 +334,7 @@ class StaffAnnouncementsEscapeNamesTest(TestCase):
 
         tasks.staff_leave_room(str(self.room.uuid), str(self.staff.uuid))
 
-        body = mock_client.send_message.call_args[0][1]
+        body = models.MatrixOutboxMessage.objects.get(room=self.room).body
         self.assertIn("left the room", body)
         self.assertNotIn("<a", matrix_client.render_markdown(body))
 
@@ -406,9 +406,8 @@ class CommandRepliesEscapeNamesTest(TestCase):
         mock_client.is_enabled.return_value = True
 
         # A command is one word: the dispatcher passes on the first token.
-        tasks.handle_bot_command(
+        reply = tasks._command_reply(
             "!r:hs", "@alice:hs", "$e", "x`[here](https://evil.example)`"
         )
 
-        reply = mock_client.send_reply.call_args[0][2]
         self.assertNotIn("<a", matrix_client.render_markdown(reply))

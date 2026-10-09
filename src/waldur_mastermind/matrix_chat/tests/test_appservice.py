@@ -15,7 +15,7 @@ from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import add_user_to_project
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.matrix_chat import models, tasks
+from waldur_mastermind.matrix_chat import bot_state, matrix_client, models, tasks
 from waldur_mastermind.matrix_chat.tests import fixtures
 
 WEBHOOK_URL = "/_matrix/app/v1/transactions/"
@@ -191,8 +191,7 @@ class WebhookErrorReportTest(test.APITestCase):
     MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
 )
 class IdempotencyTest(test.APITestCase):
-    @mock.patch("waldur_mastermind.matrix_chat.tasks.process_appservice_events.delay")
-    def test_same_txn_id_processed_once(self, mock_delay):
+    def test_same_txn_id_processed_once(self):
         room_id = fixtures.MatrixChatFixture().matrix_room.room_id
         events = [
             {"type": "m.room.message", "room_id": room_id, "content": {"body": "hi"}}
@@ -206,7 +205,6 @@ class IdempotencyTest(test.APITestCase):
             HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
         )
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
-        self.assertEqual(mock_delay.call_count, 1)
 
         response2 = self.client.put(
             url,
@@ -215,8 +213,12 @@ class IdempotencyTest(test.APITestCase):
             HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
         )
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        # Should not dispatch again
-        self.assertEqual(mock_delay.call_count, 1)
+        self.assertEqual(
+            models.MatrixAppserviceTransaction.objects.filter(
+                txn_id="txn-dedup"
+            ).count(),
+            1,
+        )
 
     def test_transaction_record_created(self):
         self.client.put(
@@ -227,181 +229,6 @@ class IdempotencyTest(test.APITestCase):
         )
         txn = models.MatrixAppserviceTransaction.objects.get(txn_id="txn-record")
         self.assertEqual(txn.event_count, 1)
-
-
-@override_config(
-    MATRIX_ENABLED=True,
-    MATRIX_HOMESERVER_URL="https://matrix.example.com",
-    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
-    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
-    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
-    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
-)
-@mock.patch("waldur_mastermind.matrix_chat.tasks.process_appservice_events.delay")
-class WebhookRoomFilterTest(test.APITestCase):
-    # The appservice namespace covers every local user, so the homeserver sends
-    # Waldur every message they see: direct messages, the #admins room with
-    # the passwords its commands echo. None of it may reach the task queue.
-
-    def _put(self, txn_id, events):
-        return self.client.put(
-            f"{WEBHOOK_URL}{txn_id}",
-            data={"events": events},
-            format="json",
-            HTTP_AUTHORIZATION=f"Bearer {HS_TOKEN}",
-        )
-
-    def _message(self, room_id, body):
-        return {
-            "type": "m.room.message",
-            "room_id": room_id,
-            "sender": "@alice:matrix.example.com",
-            "content": {"msgtype": "m.text", "body": body},
-        }
-
-    def test_only_events_of_rooms_waldur_manages_are_queued(self, mock_delay):
-        managed = fixtures.MatrixChatFixture().matrix_room.room_id
-        command = self._message(managed, "!status")
-
-        response = self._put(
-            "txn-mixed",
-            [
-                self._message("!dm:matrix.example.com", "a private message"),
-                command,
-                self._message("!admins:matrix.example.com", "!admin users ..."),
-            ],
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_delay.assert_called_once_with("txn-mixed", [command])
-
-    def test_nothing_is_queued_without_a_managed_room(self, mock_delay):
-        response = self._put(
-            "txn-unmanaged",
-            [self._message("!dm:matrix.example.com", "a private message")],
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_delay.assert_not_called()
-        # Still recorded, so a retried transaction is not looked at again.
-        self.assertTrue(
-            models.MatrixAppserviceTransaction.objects.filter(
-                txn_id="txn-unmanaged"
-            ).exists()
-        )
-
-    def test_malformed_events_are_dropped(self, mock_delay):
-        # The transaction is recorded before the events are looked at, so an
-        # error here would also drop the homeserver's retry.
-        response = self._put(
-            "txn-garbage",
-            [
-                "not an event",
-                {"room_id": None},
-                {"room_id": ["x"]},
-                {"room_id": {"a": 1}},
-            ],
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_delay.assert_not_called()
-
-
-@override_config(
-    MATRIX_ENABLED=True,
-    MATRIX_HOMESERVER_URL="https://matrix.example.com",
-    MATRIX_HOMESERVER_DOMAIN="matrix.example.com",
-    MATRIX_APPSERVICE_AS_TOKEN=AS_TOKEN,
-    MATRIX_APPSERVICE_HS_TOKEN=HS_TOKEN,
-    MATRIX_APPSERVICE_SENDER_LOCALPART="waldur-bot",
-)
-# The dispatch path now denies bot commands from senders without a Waldur
-# role on the room's project and replies via matrix_client.send_reply, which
-# POSTs to MATRIX_HOMESERVER_URL. With the fake matrix.example.com URL these
-# tests use, that POST hangs on CI runners that drop outbound TCP. Stub the
-# access check (return a truthy object so the dispatch path proceeds to the
-# bot-command branch) and the reply call (defense in depth) at the class
-# level — gating behaviour itself is covered by CommandHandlerTest.
-@mock.patch(
-    "waldur_mastermind.matrix_chat.tasks._sender_has_project_access",
-    return_value=mock.Mock(),
-)
-@mock.patch("waldur_mastermind.matrix_chat.matrix_client.send_reply")
-class EventFilteringTest(test.APITestCase):
-    @mock.patch("waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay")
-    def test_bot_command_detected(self, mock_handle, mock_send_reply, mock_access):
-        events = [
-            {
-                "type": "m.room.message",
-                "content": {"msgtype": "m.text", "body": "!help"},
-                "sender": "@user:matrix.example.com",
-                "room_id": "!room:matrix.example.com",
-                "event_id": "$evt1",
-            }
-        ]
-        tasks.process_appservice_events("txn-cmd", events)
-        mock_handle.assert_called_once_with(
-            "!room:matrix.example.com",
-            "@user:matrix.example.com",
-            "$evt1",
-            "help",
-        )
-
-    @mock.patch("waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay")
-    def test_non_command_ignored(self, mock_handle, mock_send_reply, mock_access):
-        events = [
-            {
-                "type": "m.room.message",
-                "content": {"msgtype": "m.text", "body": "Hello everyone"},
-                "sender": "@user:matrix.example.com",
-                "room_id": "!room:matrix.example.com",
-                "event_id": "$evt2",
-            }
-        ]
-        tasks.process_appservice_events("txn-no-cmd", events)
-        mock_handle.assert_not_called()
-
-    @mock.patch("waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay")
-    def test_bot_own_messages_ignored(self, mock_handle, mock_send_reply, mock_access):
-        events = [
-            {
-                "type": "m.room.message",
-                "content": {"msgtype": "m.text", "body": "!help"},
-                "sender": BOT_USER_ID,
-                "room_id": "!room:matrix.example.com",
-                "event_id": "$evt3",
-            }
-        ]
-        tasks.process_appservice_events("txn-self", events)
-        mock_handle.assert_not_called()
-
-    @mock.patch("waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay")
-    def test_non_text_message_ignored(self, mock_handle, mock_send_reply, mock_access):
-        events = [
-            {
-                "type": "m.room.message",
-                "content": {"msgtype": "m.image", "body": "photo.jpg"},
-                "sender": "@user:matrix.example.com",
-                "room_id": "!room:matrix.example.com",
-                "event_id": "$evt4",
-            }
-        ]
-        tasks.process_appservice_events("txn-img", events)
-        mock_handle.assert_not_called()
-
-    @mock.patch("waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay")
-    def test_non_message_event_ignored(self, mock_handle, mock_send_reply, mock_access):
-        events = [
-            {
-                "type": "m.room.member",
-                "content": {"membership": "join"},
-                "sender": "@user:matrix.example.com",
-                "room_id": "!room:matrix.example.com",
-                "event_id": "$evt5",
-            }
-        ]
-        tasks.process_appservice_events("txn-member", events)
-        mock_handle.assert_not_called()
 
 
 @override_config(
@@ -482,30 +309,21 @@ class CommandHandlerTest(test.APITestCase):
         self.assertIn("@waldur-bot:matrix.example.com", result)
         self.assertIn("bot", result)
 
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.send_reply")
-    def test_unknown_command_returns_help(self, mock_reply):
-        tasks.handle_bot_command(
-            self.room.room_id,
-            "@user:test",
-            "$evt",
-            "foobar",
+    def test_unknown_command_returns_help(self):
+        reply_text = tasks._command_reply(
+            self.room.room_id, "@user:test", "$evt", "foobar"
         )
-        mock_reply.assert_called_once()
-        reply_text = mock_reply.call_args[0][2]
         self.assertIn("Unknown command", reply_text)
         self.assertIn("!help", reply_text)
 
-    @mock.patch("waldur_mastermind.matrix_chat.matrix_client.send_reply")
-    def test_handle_bot_command_calls_send_reply(self, mock_reply):
-        tasks.handle_bot_command(
-            self.room.room_id,
-            "@user:test",
-            "$evt",
-            "help",
-        )
-        mock_reply.assert_called_once()
-        reply_text = mock_reply.call_args[0][2]
-        self.assertIn("Available commands", reply_text)
+    def test_a_failing_command_says_so(self):
+        with mock.patch.dict(
+            tasks.COMMAND_HANDLERS, {"help": mock.Mock(side_effect=RuntimeError)}
+        ):
+            reply_text = tasks._command_reply(
+                self.room.room_id, "@user:test", "$evt", "help"
+            )
+        self.assertIn("Error", reply_text)
 
 
 SETUP_URL = "/api/admin/matrix-appservice/setup/"
@@ -980,6 +798,21 @@ class AppserviceDiagnosticsTest(test.APITestCase):
                 by_name["public_homeserver_configured"]["detail"],
             )
             self.assertTrue(by_name["public_homeserver_reachable"]["ok"])
+
+    @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
+    def test_diagnostics_say_whether_the_bot_runs(self, mock_httpx_get):
+        mock_httpx_get.return_value = mock.MagicMock(status_code=500)
+        self.client.force_authenticate(self.staff)
+
+        def bot_check():
+            response = self.client.get(DIAGNOSTICS_URL)
+            return {c["name"]: c for c in response.data["checks"]}["bot_running"]
+
+        self.assertFalse(bot_check()["ok"])
+        bot_state.acquire_lease(matrix_client.get_bot_user_id(), "holder")
+        check = bot_check()
+        self.assertTrue(check["ok"])
+        self.assertIn("0 message(s) waiting", check["detail"])
 
     @mock.patch("waldur_mastermind.matrix_chat.views.httpx.get")
     def test_diagnostics_skips_public_probe_when_same_as_internal(self, mock_httpx_get):
