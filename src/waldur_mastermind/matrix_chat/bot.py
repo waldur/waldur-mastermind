@@ -21,6 +21,7 @@ import asyncio
 import dataclasses
 import logging
 import random
+import time
 
 import aiohttp
 import httpx
@@ -36,6 +37,7 @@ from nio import (
     MegolmEvent,
     OlmUnverifiedDeviceError,
     RoomMessageText,
+    RoomPutStateError,
     RoomSendResponse,
     SyncError,
     SyncResponse,
@@ -48,6 +50,8 @@ from waldur_mastermind.matrix_chat.crypto.store import PostgresStore
 logger = logging.getLogger(__name__)
 
 SYNC_TIMEOUT_MS = 30_000
+# How often the bot checks that every Waldur room it is in is encrypted.
+ENCRYPTION_CHECK_SECONDS = 3600
 OUTBOX_POLL_SECONDS = 2
 # Keys are queried for this many users at once.
 KEYS_QUERY_BATCH = 100
@@ -456,9 +460,36 @@ class MatrixBot:
 
     # Sync and commands.
 
+    async def ensure_rooms_encrypted(self):
+        """Turn encryption on in every active Waldur room the bot is in.
+
+        Rooms are created encrypted; this covers rooms created before that, and
+        a room whose encryption the bot does not see in its sync.
+        """
+        for room_id in await _db(_active_room_ids)():
+            room = self.client.rooms.get(room_id)
+            if room is not None and not room.encrypted:
+                await self._turn_on_encryption(room_id)
+
+    async def _turn_on_encryption(self, room_id):
+        response = await self.client.room_put_state(
+            room_id,
+            "m.room.encryption",
+            matrix_client.ENCRYPTION_STATE["content"],
+        )
+        if isinstance(response, RoomPutStateError):
+            logger.warning(
+                "The homeserver refused to turn on encryption in %s: %s",
+                room_id,
+                response.message,
+            )
+        else:
+            logger.info("Turned on encryption in %s", room_id)
+
     async def sync_forever(self):
         first = True
         failures = 0
+        checked_encryption_at = None
         while True:
             # Also before the sync: processing its answer writes to the store.
             await self._renew_lease()
@@ -481,6 +512,13 @@ class MatrixBot:
                 if self._answer_commands:
                     await self._handle_timeline(response)
                 await self._join_invited_rooms(response)
+                if (
+                    checked_encryption_at is None
+                    or time.monotonic() - checked_encryption_at
+                    > ENCRYPTION_CHECK_SECONDS
+                ):
+                    await self.ensure_rooms_encrypted()
+                    checked_encryption_at = time.monotonic()
             except TRANSIENT_ERRORS as error:
                 failures += 1
                 logger.warning("Matrix bot sync step failed (%s); retrying", error)
@@ -531,6 +569,19 @@ class MatrixBot:
         if room.state not in DELIVERABLE_ROOM_STATES or not room.room_id:
             await _db(bot_state.drop_undeliverable)(
                 message, f"Room is {room.state}, not active."
+            )
+            return
+        # Every Waldur room is encrypted. A room the bot's sync shows without
+        # encryption (an older room, or a homeserver that leaves the state out)
+        # gets it turned on, and the message waits: nio would send it in clear.
+        matrix_room = self.client.rooms.get(room.room_id)
+        if matrix_room is not None and not matrix_room.encrypted:
+            try:
+                await self._turn_on_encryption(room.room_id)
+            except TRANSIENT_ERRORS:
+                pass
+            await _db(bot_state.mark_failed_attempt)(
+                message, "The room is not encrypted yet."
             )
             return
         content = matrix_client.build_text_content(
@@ -601,6 +652,14 @@ class MatrixBot:
                 part.cancel()
             await asyncio.gather(*parts, return_exceptions=True)
             await self.client.close()
+
+
+def _active_room_ids():
+    return list(
+        models.MatrixRoom.objects.filter(state=models.RoomStates.ACTIVE)
+        .exclude(room_id=None)
+        .values_list("room_id", flat=True)
+    )
 
 
 def _is_waldur_room(room_id):

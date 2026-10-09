@@ -14,6 +14,11 @@ from waldur_mastermind.matrix_chat import models, tasks
 from waldur_mastermind.matrix_chat.tests import fixtures
 
 
+def _posted():
+    """What Waldur queued for the bot to post, oldest first."""
+    return list(models.MatrixOutboxMessage.objects.values_list("body", flat=True))
+
+
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
 class CreateRoomTaskTest(TestCase):
     def test_creates_room_and_updates_state(self, mock_client):
@@ -467,9 +472,7 @@ class DisableRoomTaskTest(TestCase):
 
         tasks.disable_room(str(room.uuid))
 
-        mock_client.send_message.assert_called_once_with(
-            "!test:matrix.example.com", "Chat room was deactivated"
-        )
+        self.assertEqual(_posted(), ["Chat room was deactivated"])
 
     def test_deactivation_message_includes_reason(self, mock_client, mock_config):
         mock_client.is_enabled.return_value = True
@@ -478,9 +481,8 @@ class DisableRoomTaskTest(TestCase):
 
         tasks.disable_room(str(room.uuid), reason="project termination")
 
-        mock_client.send_message.assert_called_once_with(
-            "!test:matrix.example.com",
-            "Chat room was deactivated due to project termination",
+        self.assertEqual(
+            _posted(), ["Chat room was deactivated due to project termination"]
         )
 
     def test_no_export_when_discarding_history(self, mock_client, mock_config):
@@ -512,9 +514,7 @@ class SendRoomNotificationTaskTest(TestCase):
 
         tasks.send_room_notification(str(room.uuid), "Hello from Waldur")
 
-        mock_client.send_message.assert_called_once_with(
-            "!test:matrix.example.com", "Hello from Waldur"
-        )
+        self.assertEqual(_posted(), ["Hello from Waldur"])
 
     def test_skips_when_disabled(self, mock_client):
         mock_client.is_enabled.return_value = False
@@ -790,9 +790,7 @@ class StaffJoinRoomTaskTest(TestCase):
         member = models.MatrixRoomMember.objects.get(room=room, user=user)
         self.assertEqual(member.power_level, 50)
         self.assertEqual(member.membership_state, models.MembershipStates.JOINED)
-        mock_client.send_message.assert_called_once_with(
-            "!staff:matrix.example.com", "Staff Member joined the room."
-        )
+        self.assertEqual(_posted(), ["Staff Member joined the room."])
 
     def test_join_left_invited_when_join_fails(self, mock_client):
         mock_client.is_enabled.return_value = True
@@ -845,9 +843,7 @@ class StaffLeaveRoomTaskTest(TestCase):
 
         tasks.staff_leave_room(str(room.uuid), str(user.uuid))
 
-        mock_client.send_message.assert_called_once_with(
-            "!staff:matrix.example.com", "Staff Member left the room."
-        )
+        self.assertEqual(_posted(), ["Staff Member left the room."])
         mock_client.leave_room_as_user.assert_called_once_with(
             "!staff:matrix.example.com", "@staff:matrix.example.com"
         )
@@ -1183,9 +1179,17 @@ class BotCommandSenderAuthTest(TestCase):
         }
         return project, room, event
 
-    def test_command_from_authorized_user_dispatches(self, mock_client):
+    def _answer(self, room, event):
+        tasks.answer_command(
+            room.room_id,
+            event["sender"],
+            event["event_id"],
+            event["content"]["body"],
+        )
+        return models.MatrixOutboxMessage.objects.get(room=room)
+
+    def test_command_from_authorized_user_is_answered(self, mock_client):
         mock_client.is_enabled.return_value = True
-        mock_client.get_bot_user_id.return_value = "@waldur-bot:matrix.example.com"
 
         project, room, event = self._build_room_and_event(
             sender_id="@member:matrix.example.com"
@@ -1195,43 +1199,28 @@ class BotCommandSenderAuthTest(TestCase):
             user=user,
             matrix_user_id="@member:matrix.example.com",
         )
-        from waldur_core.permissions.fixtures import ProjectRole
-
         project.add_user(user, ProjectRole.MANAGER)
 
-        with mock.patch(
-            "waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay"
-        ) as mock_dispatch:
-            tasks.process_appservice_events("txn1", [event])
+        reply = self._answer(room, event)
 
-        mock_dispatch.assert_called_once_with(
-            room.room_id, "@member:matrix.example.com", event["event_id"], "status"
-        )
-        mock_client.send_reply.assert_not_called()
+        self.assertEqual(reply.reply_to, event["event_id"])
+        self.assertIn("status", reply.body)
+        self.assertNotEqual(reply.body, tasks.ACCESS_DENIED_REPLY)
 
     def test_command_from_unknown_sender_is_denied(self, mock_client):
         mock_client.is_enabled.return_value = True
-        mock_client.get_bot_user_id.return_value = "@waldur-bot:matrix.example.com"
-
-        _, _, event = self._build_room_and_event(
+        _, room, event = self._build_room_and_event(
             sender_id="@stranger:other.example.com"
         )
 
-        with mock.patch(
-            "waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay"
-        ) as mock_dispatch:
-            tasks.process_appservice_events("txn2", [event])
-
-        mock_dispatch.assert_not_called()
         # Friendly reply rather than silence — the sender should know why.
-        mock_client.send_reply.assert_called_once()
+        self.assertEqual(self._answer(room, event).body, tasks.ACCESS_DENIED_REPLY)
 
     def test_command_from_customer_reader_is_denied(self, mock_client):
         # Readers are left out of the customer's project rooms, so they get
         # none of the project data the commands show either.
         mock_client.is_enabled.return_value = True
-        mock_client.get_bot_user_id.return_value = "@waldur-bot:matrix.example.com"
-        project, _, event = self._build_room_and_event(
+        project, room, event = self._build_room_and_event(
             sender_id="@reader:matrix.example.com"
         )
         user = structure_factories.UserFactory()
@@ -1240,12 +1229,7 @@ class BotCommandSenderAuthTest(TestCase):
         )
         project.customer.add_user(user, CustomerRole.READER)
 
-        with mock.patch(
-            "waldur_mastermind.matrix_chat.tasks.handle_bot_command.delay"
-        ) as mock_dispatch:
-            tasks.process_appservice_events("txn3", [event])
-
-        mock_dispatch.assert_not_called()
+        self.assertEqual(self._answer(room, event).body, tasks.ACCESS_DENIED_REPLY)
 
 
 class CleanupAppserviceTransactionsTest(TestCase):

@@ -58,8 +58,6 @@ if TYPE_CHECKING:
         RoomNameEvent,
         RoomPutStateError,
         RoomPutStateResponse,
-        RoomSendError,
-        RoomSendResponse,
         RoomTopicEvent,
         RoomVisibility,
         StickerEvent,
@@ -261,6 +259,52 @@ def _run_async(coro):
         loop.close()
 
 
+# Every Waldur room is encrypted from its creation: messages reach the homeserver
+# only as Megolm ciphertext. A room's encryption cannot be turned off again.
+ENCRYPTION_STATE = {
+    "type": "m.room.encryption",
+    "state_key": "",
+    "content": {"algorithm": "m.megolm.v1.aes-sha2"},
+}
+
+# Only Waldur (the room creator, at 100) changes room state, the encryption
+# setting included; members may post and join calls.
+ROOM_POWER_LEVELS = {
+    "invite": 100,
+    "kick": 100,
+    "ban": 100,
+    "redact": 100,
+    "events_default": 0,
+    "state_default": 100,
+    "events": {
+        "m.room.message": 0,
+        "m.room.name": 100,
+        "m.room.topic": 100,
+        "m.room.avatar": 100,
+        "m.room.power_levels": 100,
+        "m.room.join_rules": 100,
+        "m.room.history_visibility": 100,
+        "m.room.canonical_alias": 100,
+        "m.room.encryption": 100,
+        "org.matrix.msc3401.call.member": 0,
+    },
+}
+
+
+def _room_initial_state(is_private):
+    return [
+        {
+            "type": "m.room.join_rules",
+            "content": {"join_rule": "invite" if is_private else "public"},
+        },
+        {
+            "type": "m.room.history_visibility",
+            "content": {"history_visibility": "shared"},
+        },
+        ENCRYPTION_STATE,
+    ]
+
+
 async def _create_room_async(
     homeserver_url,
     bot_user_id,
@@ -280,35 +324,8 @@ async def _create_room_async(
             # can ever join, whatever the homeserver's federation settings.
             federate=False,
             invite=[],
-            initial_state=[
-                {
-                    "type": "m.room.join_rules",
-                    "content": {"join_rule": "invite" if is_private else "public"},
-                },
-                {
-                    "type": "m.room.history_visibility",
-                    "content": {"history_visibility": "shared"},
-                },
-            ],
-            power_level_override={
-                "invite": 100,
-                "kick": 100,
-                "ban": 100,
-                "redact": 100,
-                "events_default": 0,
-                "state_default": 100,
-                "events": {
-                    "m.room.message": 0,
-                    "m.room.name": 100,
-                    "m.room.topic": 100,
-                    "m.room.avatar": 100,
-                    "m.room.power_levels": 100,
-                    "m.room.join_rules": 100,
-                    "m.room.history_visibility": 100,
-                    "m.room.canonical_alias": 100,
-                    "org.matrix.msc3401.call.member": 0,
-                },
-            },
+            initial_state=_room_initial_state(is_private),
+            power_level_override=ROOM_POWER_LEVELS,
         )
         if isinstance(response, RoomCreateError):
             # If alias is taken or not in appservice namespace, retry without alias
@@ -327,37 +344,8 @@ async def _create_room_async(
                     else RoomVisibility.public,
                     federate=False,
                     invite=[],
-                    initial_state=[
-                        {
-                            "type": "m.room.join_rules",
-                            "content": {
-                                "join_rule": "invite" if is_private else "public"
-                            },
-                        },
-                        {
-                            "type": "m.room.history_visibility",
-                            "content": {"history_visibility": "shared"},
-                        },
-                    ],
-                    power_level_override={
-                        "invite": 100,
-                        "kick": 100,
-                        "ban": 100,
-                        "redact": 100,
-                        "events_default": 0,
-                        "state_default": 100,
-                        "events": {
-                            "m.room.message": 0,
-                            "m.room.name": 100,
-                            "m.room.topic": 100,
-                            "m.room.avatar": 100,
-                            "m.room.power_levels": 100,
-                            "m.room.join_rules": 100,
-                            "m.room.history_visibility": 100,
-                            "m.room.canonical_alias": 100,
-                            "org.matrix.msc3401.call.member": 0,
-                        },
-                    },
+                    initial_state=_room_initial_state(is_private),
+                    power_level_override=ROOM_POWER_LEVELS,
                 )
                 if isinstance(response, RoomCreateError):
                     raise MatrixClientError(
@@ -611,67 +599,6 @@ def build_text_content(body, msgtype="m.text", reply_to=None):
     if reply_to:
         content["m.relates_to"] = {"m.in_reply_to": {"event_id": reply_to}}
     return content
-
-
-async def _send_message_async(
-    homeserver_url, bot_user_id, access_token, room_id, body, msgtype="m.text"
-):
-    _load_nio()
-    client = _make_client(homeserver_url, bot_user_id, access_token)
-    try:
-        response = await client.room_send(
-            room_id,
-            "m.room.message",
-            build_text_content(body, msgtype),
-        )
-        if isinstance(response, RoomSendError):
-            raise MatrixClientError(
-                f"Failed to send message to {room_id}: {response.message}"
-            )
-        if isinstance(response, RoomSendResponse):
-            return response.event_id
-        raise MatrixClientError(f"Unexpected response: {response}")
-    finally:
-        await client.close()
-
-
-def send_message(room_id, body, msgtype="m.text"):
-    """Send a text message to a Matrix room as the bot. Returns the event_id."""
-    homeserver_url, bot_user_id, access_token = _get_client_params()
-    return _run_async(
-        _send_message_async(
-            homeserver_url, bot_user_id, access_token, room_id, body, msgtype
-        )
-    )
-
-
-async def _send_reply_async(
-    homeserver_url, bot_user_id, access_token, room_id, event_id, body
-):
-    _load_nio()
-    client = _make_client(homeserver_url, bot_user_id, access_token)
-    try:
-        content = build_text_content(body, reply_to=event_id)
-        response = await client.room_send(room_id, "m.room.message", content)
-        if isinstance(response, RoomSendError):
-            raise MatrixClientError(
-                f"Failed to send reply to {room_id}: {response.message}"
-            )
-        if isinstance(response, RoomSendResponse):
-            return response.event_id
-        raise MatrixClientError(f"Unexpected response: {response}")
-    finally:
-        await client.close()
-
-
-def send_reply(room_id, event_id, body):
-    """Send a reply to a specific event in a Matrix room. Returns the event_id."""
-    homeserver_url, bot_user_id, access_token = _get_client_params()
-    return _run_async(
-        _send_reply_async(
-            homeserver_url, bot_user_id, access_token, room_id, event_id, body
-        )
-    )
 
 
 def _build_media_message(event):

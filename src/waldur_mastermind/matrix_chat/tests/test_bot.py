@@ -147,17 +147,15 @@ class PostAsBotTest(TestCase):
             ["hello"],
         )
 
-    def test_posts_directly_without_a_bot(self, matrix_client):
-        matrix_client.get_bot_user_id.return_value = BOT_USER
-
+    def test_queues_with_no_bot_running_too(self, matrix_client):
+        # Rooms are encrypted: nothing but the bot may post in them, so a
+        # message waits for it rather than going out in clear.
         tasks.post_as_bot(self.room, "hello")
-        tasks.post_as_bot(self.room, "reply", reply_to="$event")
 
-        matrix_client.send_message.assert_called_once_with(self.room.room_id, "hello")
-        matrix_client.send_reply.assert_called_once_with(
-            self.room.room_id, "$event", "reply"
+        self.assertEqual(
+            list(models.MatrixOutboxMessage.objects.values_list("body", flat=True)),
+            ["hello"],
         )
-        self.assertFalse(models.MatrixOutboxMessage.objects.exists())
 
 
 @mock.patch("waldur_mastermind.matrix_chat.tasks.matrix_client")
@@ -196,22 +194,6 @@ class AnswerCommandTest(TestCase):
             "!elsewhere:matrix.example.com", "@member:matrix.example.com", "$e", "!help"
         )
         self.assertFalse(models.MatrixOutboxMessage.objects.exists())
-
-    def test_the_webhook_leaves_commands_to_a_running_bot(self, matrix_client):
-        matrix_client.is_enabled.return_value = True
-        matrix_client.get_bot_user_id.return_value = BOT_USER
-        bot_state.acquire_lease(BOT_USER, "holder")
-        event = {
-            "type": "m.room.message",
-            "content": {"msgtype": "m.text", "body": "!status"},
-            "sender": "@member:matrix.example.com",
-            "room_id": self.room.room_id,
-            "event_id": "$event",
-        }
-        with mock.patch.object(tasks.handle_bot_command, "delay") as dispatch:
-            tasks.process_appservice_events("txn", [event])
-        dispatch.assert_not_called()
-        matrix_client.send_reply.assert_not_called()
 
 
 def _device(user_id, device_id, ed25519):
@@ -347,6 +329,19 @@ class SendTest(TestCase):
         self._send()
         self.assertEqual(self.message.state, models.OutboxStates.PENDING)
         self.assertEqual(self.message.attempts, 1)
+
+    def test_a_room_not_encrypted_gets_encryption_and_nothing_in_clear(self):
+        self.bot.client.rooms = {self.room.room_id: mock.Mock(encrypted=False)}
+        self.bot.client.room_send = mock.AsyncMock()
+        self.bot.client.room_put_state = mock.AsyncMock()
+        self._send()
+        self.bot.client.room_send.assert_not_called()
+        self.bot.client.room_put_state.assert_awaited_once_with(
+            self.room.room_id,
+            "m.room.encryption",
+            {"algorithm": "m.megolm.v1.aes-sha2"},
+        )
+        self.assertEqual(self.message.state, models.OutboxStates.PENDING)
 
     def test_an_archived_room_gets_nothing(self):
         models.MatrixRoom.objects.filter(pk=self.room.pk).update(
@@ -503,3 +498,35 @@ class AccessTokenTest(TestCase):
         token, _ = self._token(200)
         self.assertEqual(token, "new-token")
         self.assertEqual(self.whoami_calls, 0)
+
+
+@mock.patch("waldur_mastermind.matrix_chat.tasks.bot_state.wait_until_sent")
+class PostAsBotWaitTest(TestCase):
+    def setUp(self):
+        self.room = fixtures.MatrixChatFixture().matrix_room
+
+    def test_waits_only_for_a_running_bot(self, wait_until_sent):
+        tasks.post_as_bot(self.room, "notice", wait=True)
+        wait_until_sent.assert_not_called()
+
+        bot_state.acquire_lease(tasks.matrix_client.get_bot_user_id(), "holder")
+        tasks.post_as_bot(self.room, "notice again", wait=True)
+        wait_until_sent.assert_called_once()
+
+
+class EnsureRoomsEncryptedTest(TestCase):
+    def test_turns_encryption_on_in_waldur_rooms_without_it(self):
+        room = fixtures.MatrixChatFixture().matrix_room
+        bot_instance = bot.MatrixBot("holder", _settings())
+        bot_instance.client = mock.Mock()
+        bot_instance.client.rooms = {
+            room.room_id: mock.Mock(encrypted=False),
+            "!not-waldurs:test": mock.Mock(encrypted=False),
+        }
+        bot_instance.client.room_put_state = mock.AsyncMock()
+
+        async_to_sync(bot_instance.ensure_rooms_encrypted)()
+
+        bot_instance.client.room_put_state.assert_awaited_once_with(
+            room.room_id, "m.room.encryption", {"algorithm": "m.megolm.v1.aes-sha2"}
+        )

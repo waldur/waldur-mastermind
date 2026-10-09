@@ -35,6 +35,7 @@ from waldur_core.structure.models import Project
 
 from . import (
     appservice_registration,
+    bot_state,
     crypto_setup,
     filters,
     livekit_client,
@@ -977,25 +978,9 @@ class MatrixAppserviceWebhookView(views.APIView):
         if not created:
             return Response({}, status=status.HTTP_200_OK)
 
-        # The namespace covers every local user, so the homeserver sends the
-        # direct messages and #admins traffic of people Waldur has nothing to
-        # do with. Only events of Waldur's own rooms may reach the task queue.
-        events = [
-            e
-            for e in events
-            if isinstance(e, dict) and isinstance(e.get("room_id"), str)
-        ]
-        managed = set(
-            models.MatrixRoom.objects.filter(
-                room_id__in={e["room_id"] for e in events}
-            ).values_list("room_id", flat=True)
-        )
-        events = [e for e in events if e["room_id"] in managed]
-
-        # Dispatch Celery task
-        if events:
-            tasks.process_appservice_events.delay(txn_id, events)
-
+        # Nothing more to do: the bot reads the rooms' events, commands included,
+        # from its own sync, where it can decrypt them. The homeserver still
+        # needs each transaction acknowledged.
         return Response({}, status=status.HTTP_200_OK)
 
 
@@ -1689,6 +1674,24 @@ class MatrixDiagnosticsView(views.APIView):
                 "label": "User profiles",
                 "ok": not unlinked_count,
                 "detail": detail,
+            }
+        )
+
+        # Everything Waldur posts in a room waits for the bot process, the only
+        # holder of the keys to post into an encrypted room.
+        bot_running = bot_state.is_bot_running(matrix_client.get_bot_user_id())
+        pending = models.MatrixOutboxMessage.objects.filter(
+            state=models.OutboxStates.PENDING
+        ).count()
+        checks.append(
+            {
+                "name": "bot_running",
+                "label": "Matrix bot running",
+                "ok": bot_running,
+                "detail": (
+                    f"{'Running' if bot_running else 'Not running: start the matrix_bot process'}"
+                    f"; {pending} message(s) waiting to be posted"
+                ),
             }
         )
 

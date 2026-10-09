@@ -36,22 +36,21 @@ OUTBOX_RETENTION_DAYS = 7
 
 
 def post_as_bot(room, body, reply_to="", wait=False):
-    """Post ``body`` in ``room`` as the bot.
+    """Queue ``body`` for the bot to post, encrypted, in ``room``.
 
-    While the bot process runs, the message goes through its outbox: only the
-    bot holds the keys to post into an encrypted room. With no bot running yet,
-    rooms are not encrypted, and Waldur posts directly with the appservice token.
-    ``wait`` holds the caller until the bot has posted, or gives up quietly.
+    Rooms are encrypted and only the bot process holds the keys to post into
+    them, so nothing else posts as the bot: a message waits in the outbox until
+    the bot sends it. ``wait`` holds the caller until it has, or gives up quietly.
     """
-    if bot_state.is_bot_running(matrix_client.get_bot_user_id()):
-        message = bot_state.enqueue(room, body, reply_to=reply_to)
-        if wait and not bot_state.wait_until_sent(message, BOT_POST_WAIT_SECONDS):
-            logger.warning("The bot has not posted %s in time", message.uuid)
-        return
-    if reply_to:
-        matrix_client.send_reply(room.room_id, reply_to, body)
-    else:
-        matrix_client.send_message(room.room_id, body)
+    message = bot_state.enqueue(room, body, reply_to=reply_to)
+    # Only a running bot is worth waiting for; otherwise the worker would sit
+    # out the full wait for every room.
+    if (
+        wait
+        and bot_state.is_bot_running(matrix_client.get_bot_user_id())
+        and not bot_state.wait_until_sent(message, BOT_POST_WAIT_SECONDS)
+    ):
+        logger.warning("The bot has not posted %s in time", message.uuid)
 
 
 # Deleting an export runs its post_delete handler, so Django loads every row it
@@ -1386,72 +1385,6 @@ def answer_command(room_id, sender, event_id, body):
     else:
         reply = _command_reply(room_id, sender, event_id, _parse_command(body))
     bot_state.enqueue(room, reply, reply_to=event_id)
-
-
-@shared_task(name="waldur_mastermind.matrix_chat.process_appservice_events")
-def process_appservice_events(txn_id, events):
-    """Process events received from the Matrix homeserver via appservice webhook.
-
-    A running bot reads commands itself, decrypting them where it has to, so the
-    webhook answers them only while no bot runs and rooms are unencrypted.
-    """
-    if not matrix_client.is_enabled():
-        return
-    bot_user_id = matrix_client.get_bot_user_id()
-    if bot_state.is_bot_running(bot_user_id):
-        return
-
-    for event in events:
-        event_type = event.get("type")
-        if event_type != "m.room.message":
-            continue
-
-        content = event.get("content", {})
-        if content.get("msgtype") != "m.text":
-            continue
-
-        sender = event.get("sender", "")
-        if sender == bot_user_id:
-            continue
-
-        body = content.get("body", "").strip()
-        if not body.startswith("!"):
-            continue
-
-        room_id = event.get("room_id", "")
-        event_id = event.get("event_id", "")
-
-        command = _parse_command(body)
-
-        # Bot commands return project-scoped data; gate dispatch on the
-        # sender having an active Waldur role on the room's project. A
-        # federated user or a room guest can still send the message, but
-        # they get a friendly denial instead of project details.
-        if _sender_has_project_access(sender, room_id) is None:
-            try:
-                matrix_client.send_reply(room_id, event_id, ACCESS_DENIED_REPLY)
-            except Exception:
-                logger.warning(
-                    "Failed to send access-denied reply to %s in %s",
-                    sender,
-                    room_id,
-                )
-            continue
-
-        handle_bot_command.delay(room_id, sender, event_id, command)
-
-
-@shared_task(name="waldur_mastermind.matrix_chat.handle_bot_command")
-def handle_bot_command(room_id, sender, event_id, command):
-    """Execute a bot command and send the response as a reply."""
-    if not matrix_client.is_enabled():
-        return
-
-    reply = _command_reply(room_id, sender, event_id, command)
-    try:
-        matrix_client.send_reply(room_id, event_id, reply)
-    except Exception:
-        logger.exception("Failed to send reply for !%s in room %s", command, room_id)
 
 
 # Retention for the idempotency-key table. Old transactions never need to be
