@@ -6,6 +6,7 @@ from django.test import SimpleTestCase
 from sentry_sdk.transport import Transport
 
 from waldur_core.logging import sentry
+from waldur_core.server.constance_settings import CONSTANCE_CONFIG
 
 
 class _Capture(Transport):
@@ -43,6 +44,19 @@ def _fail_with_encryption_secrets():
     lease = "crypto-lease"  # noqa: F841
     room_id = "!room:example.org"  # noqa: F841
     raise RuntimeError("escrow failed")
+
+
+def _fail_seeding_settings():
+    # What init_matrix_settings holds while it saves the seeded settings.
+    supplied = {  # noqa: F841
+        "MATRIX_HOMESERVER_URL": "https://matrix.example.org",
+        "MATRIX_APPSERVICE_AS_TOKEN": "appservice-token",
+        "MATRIX_APPSERVICE_HS_TOKEN": "homeserver-token",
+        "MATRIX_USER_REGISTRATION_SECRET": "registration-secret",
+        "MATRIX_LIVEKIT_KEY": "livekit-key",
+        "MATRIX_LIVEKIT_SECRET": "livekit-secret",
+    }
+    raise RuntimeError("database unavailable")
 
 
 def _send(action):
@@ -113,6 +127,41 @@ class EventScrubberTest(SimpleTestCase):
         ):
             self.assertEqual(frame_vars[name], "[Filtered]", name)
         self.assertEqual(frame_vars["room_id"], "'!room:example.org'")
+
+    def test_secret_constance_settings_in_frame_locals_are_filtered(self):
+        def capture(scope):
+            try:
+                _fail_seeding_settings()
+            except RuntimeError:
+                scope.capture_exception()
+
+        events = _send(capture)
+        frames = events[0]["exception"]["values"][0]["stacktrace"]["frames"]
+        supplied = next(
+            f["vars"] for f in frames if f["function"] == "_fail_seeding_settings"
+        )["supplied"]
+
+        for key in (
+            "MATRIX_APPSERVICE_AS_TOKEN",
+            "MATRIX_APPSERVICE_HS_TOKEN",
+            "MATRIX_USER_REGISTRATION_SECRET",
+            "MATRIX_LIVEKIT_KEY",
+            "MATRIX_LIVEKIT_SECRET",
+        ):
+            self.assertEqual(supplied[key], "[Filtered]", key)
+        self.assertEqual(
+            supplied["MATRIX_HOMESERVER_URL"], "'https://matrix.example.org'"
+        )
+
+    def test_every_secret_constance_setting_is_scrubbed_by_name(self):
+        # Derived from the declarations, so a new secret setting is covered
+        # without a change here.
+        denylist = set(sentry.event_scrubber().denylist)
+
+        for key, options in CONSTANCE_CONFIG.items():
+            if len(options) > 2 and options[2] == "secret_field":
+                self.assertIn(key.lower(), denylist, key)
+        self.assertNotIn("matrix_homeserver_url", denylist)
 
     def test_secrets_inside_values_and_nested_dicts_are_filtered(self):
         # Names alone miss them: nio puts the appservice token into every

@@ -1866,6 +1866,17 @@ CONSTANCE_CONFIG = {
         "waldur-bot",
         "Localpart for the appservice bot user.",
     ),
+    "MATRIX_TOKENS_MANAGED_BY": (
+        "",
+        "Set to 'deployment' by the init_matrix_settings management command to "
+        "record that the appservice tokens come from the deployment's own "
+        "secret and are re-seeded on every sync. While it is set, the Setup "
+        "wizard refuses to rotate them, because the rotation would be reverted "
+        "at the next deploy while the homeserver kept the old registration. "
+        "Blank means the deployment was configured by hand and the wizard owns "
+        "the tokens. Clear it when the deployment stops seeding Matrix, so the "
+        "wizard can rotate them again.",
+    ),
     "MATRIX_HISTORY_EXPORT_ENABLED": (
         False,
         "Enable periodic history export of Matrix rooms.",
@@ -2372,6 +2383,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MATRIX_APPSERVICE_AS_TOKEN",
         "MATRIX_APPSERVICE_HS_TOKEN",
         "MATRIX_APPSERVICE_SENDER_LOCALPART",
+        "MATRIX_TOKENS_MANAGED_BY",
         "MATRIX_HISTORY_EXPORT_ENABLED",
         "MATRIX_EXPORT_MEDIA",
         "MATRIX_HISTORY_EXPORT_RETENTION_DAYS",

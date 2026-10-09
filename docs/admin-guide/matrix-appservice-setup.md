@@ -47,6 +47,11 @@ Generates fresh appservice tokens (rotating any existing ones), enables the apps
 
 **Authentication:** Staff only (`is_staff = True`). Non-staff users receive `403 Forbidden`.
 
+**Conflict:** Returns `409 Conflict` while `MATRIX_TOKENS_MANAGED_BY` is set. The
+deployment writes its own tokens back on every deploy, so a rotation made here
+would be reverted while the homeserver kept the old registration. See
+[Token rotation](#token-rotation).
+
 **Request body (all fields optional):**
 
 | Field | Type | Description |
@@ -95,6 +100,7 @@ Returns the current appservice configuration state.
   "as_token_configured": true,
   "hs_token_configured": true,
   "sender_localpart": "waldur-bot",
+  "tokens_managed_by": "",
   "bot_user_id": "@waldur-bot:matrix.example.com",
   "webhook_path": "/_matrix/app/v1/transactions/{txnId}",
   "homeserver_url": "https://matrix.example.com",
@@ -268,6 +274,14 @@ history. Check the counts with `--dry-run` first.
 
 ### Token rotation
 
+When the deployment seeds the tokens with `waldur init_matrix_settings`, the setup
+endpoint answers `409` and the status endpoint reports
+`"tokens_managed_by": "deployment"`. The deployment writes the tokens back on every
+sync, so a rotation made here would be reverted at the next deploy. Rotate the
+deployment's Matrix secret and redeploy instead. If the deployment no longer
+manages Matrix, clear `MATRIX_TOKENS_MANAGED_BY` under
+**Administration → Configuration → Matrix chat → Settings**.
+
 Every call to the setup endpoint generates new AS and HS tokens, overwriting any
 existing ones. Re-running setup therefore invalidates the previous registration
 YAML: after each call you must update your homeserver configuration with the new
@@ -276,6 +290,61 @@ YAML and restart the homeserver.
 Prerequisite fields (`homeserver_url`, `homeserver_domain`,
 `user_registration_secret`) are not overwritten — they are only persisted when the
 corresponding Constance value is still empty.
+
+### Seeding from the environment
+
+waldur-helm and waldur-docker-compose configure Matrix by running
+`waldur init_matrix_settings` on every deploy. The command reads each of these
+Constance settings from the environment variable of the same name, and leaves
+those that are not in the environment alone:
+
+- `MATRIX_ENABLED`, `MATRIX_AUTO_CREATE_PROJECT_ROOMS`
+- `MATRIX_HOMESERVER_URL`, `MATRIX_HOMESERVER_PUBLIC_URL`, `MATRIX_HOMESERVER_DOMAIN`
+- `MATRIX_APPSERVICE_AS_TOKEN`, `MATRIX_APPSERVICE_HS_TOKEN`,
+  `MATRIX_APPSERVICE_SENDER_LOCALPART`
+- `MATRIX_USER_REGISTRATION_SECRET`, `MATRIX_USER_ID_FORMAT`,
+  `MATRIX_EXTERNAL_LOGIN_METHOD`
+- `MATRIX_HISTORY_EXPORT_ENABLED`, `MATRIX_EXPORT_MEDIA`,
+  `MATRIX_HISTORY_EXPORT_RETENTION_DAYS`
+- `MATRIX_LIVEKIT_KEY`, `MATRIX_LIVEKIT_SECRET`, `MATRIX_LIVEKIT_URL`,
+  `MATRIX_LIVEKIT_PUBLIC_URL`
+
+Any other `MATRIX_*` variable is ignored, including the homeserver credentials
+the packagers' setup Jobs carry (`MATRIX_BOOTSTRAP_PASSWORD`, `MATRIX_ADMIN_TOKEN`),
+so they never reach the database.
+
+These variables are required. If any of them is unset or blank, the command fails
+and writes nothing:
+
+- `MATRIX_HOMESERVER_URL`
+- `MATRIX_HOMESERVER_DOMAIN`
+- `MATRIX_APPSERVICE_AS_TOKEN`
+- `MATRIX_APPSERVICE_HS_TOKEN`
+- `MATRIX_USER_REGISTRATION_SECRET`
+
+Every value is checked before any is saved. A malformed URL, or a domain or bot
+localpart the Setup wizard would refuse, fails the command and writes nothing.
+Tokens and other secrets are never printed.
+
+`MATRIX_ENABLED` is applied whenever the environment sets it. When it does not,
+the command switches chat on at the first seeding, which is a run where neither
+`MATRIX_TOKENS_MANAGED_BY` nor an appservice token is stored yet. It leaves the
+flag alone after that, so an administrator who turns chat off keeps it off across
+deploys, including after clearing only `MATRIX_TOKENS_MANAGED_BY`. Clearing both
+appservice tokens as well, as the refusal below asks, starts over: the next
+deploy switches chat on again.
+
+The command always sets `MATRIX_TOKENS_MANAGED_BY` to `deployment`, and the
+environment cannot override it. While it is set, the setup endpoint answers `409`
+(see [Token rotation](#token-rotation)). If the deployment stops seeding Matrix,
+clear it under **Administration → Configuration → Matrix chat → Settings**.
+
+If the Setup wizard already put other appservice tokens into Constance, the
+command refuses and writes nothing, because the homeserver is registered with the
+wizard's tokens. To hand the tokens to the deployment, clear
+`MATRIX_APPSERVICE_AS_TOKEN` and `MATRIX_APPSERVICE_HS_TOKEN` there and deploy
+again. The deploy then registers the appservice with the deployment's tokens.
+Otherwise start from a fresh stack.
 
 ## Chat Rooms
 
@@ -748,6 +817,7 @@ These Constance settings control the integration:
 | `MATRIX_APPSERVICE_AS_TOKEN` | `""` | Token Waldur uses to authenticate with the homeserver |
 | `MATRIX_APPSERVICE_HS_TOKEN` | `""` | Token the homeserver uses to authenticate with Waldur |
 | `MATRIX_APPSERVICE_SENDER_LOCALPART` | `waldur-bot` | Bot user localpart |
+| `MATRIX_TOKENS_MANAGED_BY` | `""` | `deployment` when `init_matrix_settings` seeds the tokens; the setup endpoint then answers `409`. Clear it when the deployment stops seeding Matrix |
 | `MATRIX_HISTORY_EXPORT_ENABLED` | `False` | Enable periodic and on-deletion exports |
 | `MATRIX_EXPORT_MEDIA` | `False` | Download media files during export |
 | `MATRIX_HISTORY_EXPORT_RETENTION_DAYS` | `90` | Days to keep history exports, files included; each room's newest completed export is kept; `0` or less keeps them forever |
