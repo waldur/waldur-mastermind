@@ -330,6 +330,16 @@ class EncryptedTextField(models.TextField):
         return encryption.encrypt_value(value) if value else value
 
 
+class CiphertextField(models.TextField):
+    """A text column that holds a Fernet token the application encrypts itself.
+
+    Unlike :class:`EncryptedTextField` there is no transparent encryption: the code
+    that writes the column stores ``encryption.encrypt_value(...)`` and decrypts on
+    the read paths that need the plaintext. The class marks the column as encrypted
+    so ``reencrypt_fields`` rotates it with every other encrypted field.
+    """
+
+
 class YearMonthField(serializers.CharField):
     """Field that support yearmonth representation in format YYYY-MM"""
 
