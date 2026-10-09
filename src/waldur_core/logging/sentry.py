@@ -156,6 +156,12 @@ _SECRET_NAMES = [
     "api_secret",
     "auth_token",
     "raw_token",
+    # Matrix end-to-end encryption.
+    "recovery_key",
+    "pickle_key",
+    "session_key",
+    "temporary_password",
+    "lease",
 ]
 
 

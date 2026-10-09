@@ -1628,6 +1628,63 @@ def get_user_matrix_credentials(waldur_user):
     return credentials
 
 
+def get_cross_signing_master_key(matrix_user_id):
+    """The user's published cross-signing master key, or None if they have none."""
+    response = _homeserver_call(
+        "POST",
+        "/_matrix/client/v3/keys/query",
+        _get_as_token(),
+        json={"device_keys": {matrix_user_id: []}},
+    )
+    if response.status_code != 200:
+        raise _refusal(response, f"query the keys of {matrix_user_id}")
+    data = _parse_json_response(response)
+    # A server that couldn't answer for the user says so in `failures`; that is
+    # not the same as the user having no identity.
+    if data.get("failures"):
+        raise MatrixClientError(
+            f"Could not query the keys of {matrix_user_id}: {data['failures']}"
+        )
+    return data.get("master_keys", {}).get(matrix_user_id)
+
+
+def _get_account_data(matrix_user_id, event_type):
+    """One of the user's account data events, read through the appservice."""
+    response = _homeserver_call(
+        "GET",
+        f"/_matrix/client/v3/user/{quote(matrix_user_id, safe='')}"
+        f"/account_data/{quote(event_type, safe='')}",
+        _get_as_token(),
+        params={"user_id": matrix_user_id},
+    )
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise _refusal(response, f"read {event_type} of {matrix_user_id}")
+    return _parse_json_response(response)
+
+
+def get_secret_storage_key_info(matrix_user_id):
+    """The description of the user's default secret-storage key, or None."""
+    return get_secret_storage_state(matrix_user_id)[1]
+
+
+def get_secret_storage_state(matrix_user_id):
+    """``(key id, key description, master key stored)`` of the user's secret storage.
+
+    The last is whether the cross-signing master key is stored under the default
+    key; without it, secret storage that the key opens still unlocks nothing.
+    """
+    default = _get_account_data(matrix_user_id, "m.secret_storage.default_key")
+    key_id = (default or {}).get("key")
+    if not key_id or not isinstance(key_id, str):
+        return None, None, False
+    key_info = _get_account_data(matrix_user_id, f"m.secret_storage.key.{key_id}")
+    master = _get_account_data(matrix_user_id, "m.cross_signing.master") or {}
+    encrypted = master.get("encrypted") if isinstance(master, dict) else None
+    return key_id, key_info, isinstance(encrypted, dict) and key_id in encrypted
+
+
 def new_password():
     return secrets.token_urlsafe(32)
 
