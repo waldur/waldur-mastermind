@@ -9,6 +9,7 @@ from django_fsm import TransitionNotAllowed
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
+from waldur_core.server.middleware import is_public_cors_path
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.enums import OrderStates
 
@@ -403,3 +404,8 @@ def on_history_export_deleted(sender, instance, **kwargs):
     for field in (instance.export_file, instance.media_file):
         if field:
             field.delete(save=False)
+
+
+def allow_public_cors(sender, request, **kwargs):
+    """django-cors-headers: allow any origin on the call token API."""
+    return is_public_cors_path(request.path)

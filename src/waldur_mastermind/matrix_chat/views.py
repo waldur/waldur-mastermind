@@ -16,9 +16,9 @@ from django_fsm import TransitionNotAllowed
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import permissions, status, views
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied, Throttled, ValidationError
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, SimpleRateThrottle
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.auth_utils import (
@@ -27,9 +27,11 @@ from waldur_core.core.auth_utils import (
     get_auth_method,
 )
 from waldur_core.core.models import User
+from waldur_core.core.utils import _strip_port
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.server.middleware import add_public_cors_headers
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
 
@@ -1976,3 +1978,302 @@ class LiveKitRoomParticipantsView(views.APIView):
 
         serializer = serializers.LiveKitParticipantSerializer(participants, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class _MatrixError(Exception):
+    """A refusal in the Matrix error format lk-jwt-service answers with."""
+
+    def __init__(self, status_code, errcode, error):
+        super().__init__(error)
+        self.status_code = status_code
+        self.errcode = errcode
+        self.error = error
+
+
+def _bad_json(error):
+    return _MatrixError(status.HTTP_400_BAD_REQUEST, "M_BAD_JSON", error)
+
+
+# One answer for every reason a caller may not join, so the response does not
+# tell whether a room exists, who is in it, or which devices a user has.
+def _forbidden():
+    return _MatrixError(
+        status.HTTP_403_FORBIDDEN, "M_FORBIDDEN", "You may not join this call."
+    )
+
+
+def _unauthorized():
+    return _MatrixError(
+        status.HTTP_401_UNAUTHORIZED,
+        "M_UNAUTHORIZED",
+        "The request could not be authorised.",
+    )
+
+
+def _unavailable():
+    return _MatrixError(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        "M_UNKNOWN",
+        "Calls are unavailable right now. Please try again later.",
+    )
+
+
+def _string(data, key):
+    value = data.get(key) if isinstance(data, dict) else None
+    return value if isinstance(value, str) else ""
+
+
+def _edge_client_address(request):
+    """The client address as the edge proxy saw it.
+
+    DRF's default identity is the whole X-Forwarded-For header, which a client
+    can vary to get a fresh bucket wherever a proxy appends to the header it
+    sent. The proxy in front of Waldur writes the address it saw last, so the
+    rightmost entry is the one a client cannot choose. Without a proxy only a
+    request with no X-Forwarded-For falls back to the socket's address, and the
+    per-user limit is what bounds a client that sends its own header.
+    """
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    # Azure Application Gateway writes "address:port", the port being the
+    # client's ephemeral one, which would make every connection a new bucket.
+    return _strip_port(hops[-1]) if hops else request.META.get("REMOTE_ADDR", "")
+
+
+class LiveKitClientThrottle(ScopedRateThrottle):
+    """Per client address, keyed so that a forged X-Forwarded-For does not
+    reset it."""
+
+    def get_ident(self, request):
+        return _edge_client_address(request)
+
+
+class LiveKitUserThrottle(SimpleRateThrottle):
+    """Per Matrix user, once their OpenID token checks out, so one user cannot
+    create call rooms from many addresses."""
+
+    scope = "matrix_livekit_token_user"
+
+    def __init__(self, matrix_user_id):
+        self.matrix_user_id = matrix_user_id
+        super().__init__()
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.matrix_user_id}
+
+
+class LiveKitTokenView(views.APIView):
+    """Base of the call token API that Matrix clients use: lk-jwt-service's
+    API, served by Waldur so that it can check room membership.
+
+    Matrix clients find it through the homeserver's ``.well-known`` RTC focus
+    (``livekit_service_url``). The caller's OpenID token authenticates them;
+    Waldur's own authentication is not used, and cross-origin calls are
+    allowed from anywhere, without credentials.
+    """
+
+    authentication_classes = ()
+    permission_classes = (permissions.AllowAny,)
+    throttle_classes = [LiveKitClientThrottle]
+    throttle_scope = "matrix_livekit_token"
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        return add_public_cors_headers(_no_store(response))
+
+    def options(self, request, *args, **kwargs):
+        return Response(status=status.HTTP_200_OK)
+
+    def post(self, request):
+        if not matrix_client.is_enabled():
+            raise Http404
+        try:
+            return Response(self.issue(request))
+        except _MatrixError as e:
+            return Response(
+                {"errcode": e.errcode, "error": e.error}, status=e.status_code
+            )
+
+    def parse(self, data):
+        """Return (room_id, slot_id, openid_token, claimed_user_id, device_id,
+        identity function)."""
+        raise NotImplementedError
+
+    def issue(self, request):
+        data = request.data
+        if not isinstance(data, dict):
+            raise _MatrixError(
+                status.HTTP_400_BAD_REQUEST, "M_NOT_JSON", "Error reading request"
+            )
+        if data.get("delay_id") or data.get("delay_timeout"):
+            # Element Call retries without them, and keeps its own delayed
+            # leave event alive, which it would not if this were accepted.
+            raise _bad_json("Delegation of delayed events is not supported")
+        room_id, slot_id, openid_token, claimed_user_id, device_id, identity = (
+            self.parse(data)
+        )
+        access_token = _string(openid_token, "access_token")
+        server_name = _string(openid_token, "matrix_server_name")
+        if not access_token or not server_name:
+            raise _bad_json("Missing OpenID token parameters")
+        if slot_id not in livekit_client.CALL_SLOT_IDS:
+            raise _bad_json("Unsupported slot_id")
+
+        if not (
+            livekit_client.is_configured()
+            and livekit_client.get_public_url()
+            and matrix_client.is_homeserver_configured()
+        ):
+            raise _unavailable() from None
+        domain = config.MATRIX_HOMESERVER_DOMAIN
+        # Only this homeserver's users: rooms are not federated, and only
+        # their membership and devices can be checked here.
+        if server_name != domain:
+            raise _forbidden()
+
+        try:
+            matrix_user_id = matrix_client.get_openid_user(access_token)
+        except matrix_client.MatrixClientError as e:
+            logger.warning("Could not verify a call OpenID token: %s", e)
+            raise _unavailable() from None
+        if not matrix_user_id:
+            raise _unauthorized()
+        if claimed_user_id and claimed_user_id != matrix_user_id:
+            raise _unauthorized()
+        user_throttle = LiveKitUserThrottle(matrix_user_id)
+        if not user_throttle.allow_request(request, self):
+            raise Throttled(user_throttle.wait())
+        if (
+            not matrix_user_id.endswith(f":{domain}")
+            or matrix_user_id == matrix_client.get_bot_user_id()
+        ):
+            raise _forbidden()
+        # A Waldur user deactivated meanwhile is locked out of Matrix; this
+        # covers the window before the lock lands.
+        if models.MatrixUserProfile.objects.filter(
+            matrix_user_id=matrix_user_id, user__is_active=False
+        ).exists():
+            raise _forbidden()
+
+        try:
+            # Every local user is in the appservice's user namespace, so the
+            # appservice can ask as any of them; no other path is needed.
+            joined = matrix_client.is_joined(matrix_user_id, room_id)
+            own_device = joined and any(
+                device.get("device_id") == device_id
+                for device in matrix_client.list_devices(matrix_user_id)
+            )
+        except (matrix_client.MatrixClientError, httpx.HTTPError) as e:
+            logger.warning("Could not check call access of %s: %s", matrix_user_id, e)
+            raise _unavailable() from None
+        if not (joined and own_device):
+            logger.info(
+                "Refused a call token to %s for room %s", matrix_user_id, room_id
+            )
+            raise _forbidden()
+
+        room_name = livekit_client.call_room_name(room_id, slot_id)
+        try:
+            livekit_client.create_call_room(room_name)
+        except livekit_client.LiveKitClientError as e:
+            logger.warning("Could not create the LiveKit room for %s: %s", room_id, e)
+            raise _unavailable() from None
+        token = livekit_client.mint_call_token(
+            room_name, identity(matrix_user_id), matrix_user_id
+        )
+        logger.info("Issued a call token to %s for room %s", matrix_user_id, room_id)
+        return {"url": livekit_client.get_public_url(), "jwt": token}
+
+
+@extend_schema(exclude=True)
+class LiveKitGetTokenView(LiveKitTokenView):
+    """POST <base>/get_token: the MatrixRTC (MSC4195) request.
+
+    ``{room_id, slot_id, openid_token, member: {id, claimed_user_id,
+    claimed_device_id}}`` -> ``{url, jwt}``
+    """
+
+    def parse(self, data):
+        room_id = _string(data, "room_id")
+        slot_id = _string(data, "slot_id")
+        if not room_id or not slot_id:
+            raise _bad_json("The request body is missing `room_id` or `slot_id`")
+        member = data.get("member")
+        member_id = _string(member, "id")
+        claimed_user_id = _string(member, "claimed_user_id")
+        device_id = _string(member, "claimed_device_id")
+        if not member_id or not claimed_user_id or not device_id:
+            raise _bad_json(
+                "The request body `member` is missing a `id`, "
+                "`claimed_user_id` or `claimed_device_id`"
+            )
+        # The member ID is part of the LiveKit identity, so a free one would
+        # let a device take any number of identities, none of them in the
+        # room's call membership. Element Call's state-event membership uses
+        # "<user>:<device>" (matrix-js-sdk, MembershipManager.makeMyMembership),
+        # and the web chat its device ID, so those two are the ones allowed.
+        # Matrix 2.0's sticky-event membership uses a random member ID; Element
+        # Call falls back to /sfu/get when it is refused.
+        if member_id not in (device_id, f"{claimed_user_id}:{device_id}"):
+            raise _bad_json("The member `id` must name the claimed device")
+        return (
+            room_id,
+            slot_id,
+            data.get("openid_token"),
+            claimed_user_id,
+            device_id,
+            lambda user_id: livekit_client.call_identity(user_id, device_id, member_id),
+        )
+
+
+@extend_schema(exclude=True)
+class LiveKitLegacySfuView(LiveKitTokenView):
+    """POST <base>/sfu/get: the legacy request older Element Call versions,
+    and newer ones as a fallback, send.
+
+    ``{room, openid_token, device_id}`` -> ``{url, jwt}``
+    """
+
+    def parse(self, data):
+        room_id = _string(data, "room")
+        if not room_id:
+            raise _bad_json("Missing room parameter")
+        device_id = _string(data, "device_id")
+        if not device_id:
+            raise _bad_json("Missing device_id parameter")
+        return (
+            room_id,
+            livekit_client.ELEMENT_CALL_SLOT_ID,
+            data.get("openid_token"),
+            "",
+            device_id,
+            lambda user_id: livekit_client.legacy_call_identity(user_id, device_id),
+        )
+
+
+@extend_schema(exclude=True)
+class LiveKitDelegateDelayedLeaveView(LiveKitTokenView):
+    """POST <base>/delegate_delayed_leave: handing a delayed leave event
+    (MSC4140) over to the service, which restarts it while the member is on
+    the SFU and sends it once they leave.
+
+    Waldur does not take delayed leave events over, and answers every request
+    with 404 M_NOT_FOUND, the answer by which Matrix clients tell that the
+    service does not support it. Element Call probes this endpoint before
+    joining and takes any other status as support, after which it schedules
+    its leave event an hour ahead and stops restarting it every few seconds
+    itself. So the answer is the same whatever the request, and is not
+    throttled: a refusal of any other kind would leave a member who drops
+    off the call in it for an hour.
+    """
+
+    throttle_classes = ()
+
+    def post(self, request):
+        return Response(
+            {
+                "errcode": "M_NOT_FOUND",
+                "error": "Delegation of delayed events is not supported",
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )

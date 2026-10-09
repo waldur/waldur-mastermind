@@ -37,6 +37,23 @@ urlpatterns = [
         views.MatrixCallTokenView.as_view(),
         name="matrix-call-token",
     ),
+    # The call token API Matrix clients use; its base, /api/matrix/livekit, is
+    # the livekit_service_url of the homeserver's .well-known RTC focus.
+    path(
+        "api/matrix/livekit/get_token",
+        views.LiveKitGetTokenView.as_view(),
+        name="matrix-livekit-get-token",
+    ),
+    path(
+        "api/matrix/livekit/sfu/get",
+        views.LiveKitLegacySfuView.as_view(),
+        name="matrix-livekit-sfu-get",
+    ),
+    path(
+        "api/matrix/livekit/delegate_delayed_leave",
+        views.LiveKitDelegateDelayedLeaveView.as_view(),
+        name="matrix-livekit-delegate-delayed-leave",
+    ),
     path(
         "api/matrix/crypto/lease/",
         views.MatrixCryptoLeaseView.as_view(),

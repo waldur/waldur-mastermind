@@ -7,9 +7,32 @@ from waldur_core.core import models as core_models
 IMPERSONATOR_HEADER = settings.WALDUR_CORE.get("RESPONSE_HEADER_IMPERSONATOR_UUID")
 
 
+PUBLIC_CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Accept, Content-Type, Content-Length, "
+    "Accept-Encoding",
+    "Access-Control-Max-Age": "3600",
+}
+
+
+def is_public_cors_path(path):
+    return path.startswith(tuple(getattr(settings, "PUBLIC_CORS_PATH_PREFIXES", ())))
+
+
+def add_public_cors_headers(response):
+    """Let any origin call the endpoint, without credentials."""
+    for name, value in PUBLIC_CORS_HEADERS.items():
+        response[name] = value
+    return response
+
+
 def cors_middleware(get_response):
     """
-    If CORS preflight header, then create an empty body response (200 OK) and return it
+    If CORS preflight header, then create an empty body response (200 OK) and return it.
+
+    Preflights for PUBLIC_CORS_PATH_PREFIXES are allowed from any origin; their
+    views add the same headers to their responses.
     """
 
     def middleware(request):
@@ -19,6 +42,8 @@ def cors_middleware(get_response):
         ):
             response = http.HttpResponse()
             response["Content-Length"] = "0"
+            if is_public_cors_path(request.path):
+                add_public_cors_headers(response)
             return response
 
         return get_response(request)
